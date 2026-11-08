@@ -34,8 +34,9 @@
  *   may only be options and groups, and the listbox is never `aria-busy` (S7 list contract P2). A search in flight is
  *   one still line, a glyph and its label, never placeholder rows (P3).
  * - The popup chooses its side once per text, from a first render at a fixed full height that is invisible, and keeps
- *   it while that text's list grows; above its field it takes its full height at once, so arriving content never moves
- *   an option (P9, V3-1).
+ *   it while that text's list grows. Both sides then size to their content, up to a maximum, so a short or empty
+ *   popup leaves no blank area (the designer's review reversed P9's fixed height above the field; V3-1). Because a
+ *   popup above its field grows upward, a press that begins on one list and ends on another picks nothing.
  * - The status lines never squeeze the list: the listbox keeps a floor of up to three option rows, and the popup's card
  *   scrolls when the lines and that floor are taller than it (1.4.4, V3-3). The active option scrolls into view in the
  *   card as well as in the listbox.
@@ -73,17 +74,28 @@ import {
 } from '@floating-ui/react-dom';
 import { compute } from 'compute-scroll-into-view';
 import { useCombobox, type UseComboboxState, type UseComboboxStateChangeOptions } from 'downshift';
-import { Fragment, useContext, useEffect, useState, type FC, type KeyboardEvent, type ReactNode } from 'react';
+import {
+    Fragment,
+    useContext,
+    useEffect,
+    useState,
+    type FC,
+    type KeyboardEvent,
+    type MouseEvent,
+    type ReactNode,
+} from 'react';
 
 import { BUSY_CONTROL_CLASS } from '../button/busyControlProps.js';
 import { FIELD_CLASS } from '../input/fieldClass.js';
 import { FieldLabel } from '../input/FieldLabel.js';
 import { fieldErrorId, fieldHintId } from '../input/props.js';
 import { LiveRegion } from '../liveRegion/LiveRegion.js';
+import { OptionLabel } from '../optionLabel/OptionLabel.js';
 import { PopupInsetsContext, type PopupInsetsReader } from '../popupInsets/popupInsetsContext.js';
-import { VariantPartsLine } from '../variantPartsLine/VariantPartsLine.js';
 import type { ComboboxOption, ComboboxProps, ComboboxStatus } from './props.js';
 import { useFocusRequest } from '../focusRequest/useFocusRequest.js';
+import { FOCUS_RING_CLASS } from '../focusRing/focusRingClass.js';
+import { surfaceToneClass, PRESS_FILL_CLASS } from '../surfaceTone/surfaceToneClass.js';
 
 /** The keys that move the caret: §3e gives Home and End to the field, and APG returns visual focus to it on all four. */
 const CARET_KEYS: ReadonlySet<string> = new Set(['Home', 'End', 'ArrowLeft', 'ArrowRight']);
@@ -146,9 +158,8 @@ const KEEP_SIDE = [
  */
 const HEIGHT_PROBE = 'invisible h-[min(20rem,calc(100dvh-1rem))]';
 
-/** The popup's height: the space it has, at once, when above its field; up to that space when below (P9). */
-const HEIGHT_ABOVE = 'h-[min(20rem,var(--combobox-available-height,20rem))]';
-const HEIGHT_BELOW = 'max-h-[min(20rem,var(--combobox-available-height,20rem))]';
+/** The popup's height: what it holds, up to the space its side has (the designer's review reversed P9's fixed height). */
+const HEIGHT_MAX = 'max-h-[min(20rem,var(--combobox-available-height,20rem))]';
 
 /**
  * The popup's width: its field's, or `@commise/ui/popover`'s 20rem when the field is narrower, and never more than the
@@ -256,6 +267,9 @@ const scrollIntoCard = (option: HTMLElement, listbox: HTMLElement): void => {
 
 /** A key press downshift reads `preventDownshiftDefault` from. */
 type FieldKeyDown = KeyboardEvent<HTMLInputElement> & { preventDownshiftDefault?: boolean };
+
+/** An option's click, which downshift skips its own choosing for when `preventDownshiftDefault` is set. */
+type OptionClick = MouseEvent<HTMLElement> & { preventDownshiftDefault?: boolean };
 
 /**
  * Whether a commit landed on an option that may be chosen: an option, and not one whose work is in flight. Pure.
@@ -365,6 +379,11 @@ export const Combobox: FC<ComboboxProps> = ({
         },
     });
 
+    // The list as it stands: a press that starts on one list and ends on another picks nothing (below).
+    const optionsSignature = options.map((option) => option.key).join('\u0000');
+    // The list a press began on, from pointer down to its click. A content update between the two can put a different
+    // option where the finger is, so the click is cancelled instead of choosing it (shared by every caller).
+    const [pressedOn, setPressedOn] = useState<string | undefined>(undefined);
     const listShown = isOpen && options.length > 0;
     const popupShown = isOpen && (options.length > 0 || status !== undefined || trailingStatus.length > 0);
     // The side the popup took for the text it shows: kept while that text's list grows, chosen again for a new text.
@@ -402,12 +421,10 @@ export const Combobox: FC<ComboboxProps> = ({
 
     // A kept side's popup holds at least the rows its list floors at (`listboxFloorOf`): where its side has less room
     // than that, it overflows, and `KEEP_SIDE`'s flip takes the other side. A one-option or status-only popup floors low.
+    // Both sides size to their content, up to the same maximum: a loading or empty popup is short, and a blank area never
+    // stands under its last row (designer review of the NoMatch and Loading states; reverses P9's fixed height above).
     const popupHeightClass =
-        keptPlacement === undefined
-            ? HEIGHT_PROBE
-            : `${listboxFloorOf(Math.max(1, options.length))} ${
-                  keptPlacement.startsWith('top') ? HEIGHT_ABOVE : HEIGHT_BELOW
-              }`;
+        keptPlacement === undefined ? HEIGHT_PROBE : `${listboxFloorOf(Math.max(1, options.length))} ${HEIGHT_MAX}`;
 
     const floatingNode = elements.floating;
 
@@ -543,14 +560,24 @@ export const Combobox: FC<ComboboxProps> = ({
                 'aria-label': option.accessibleName,
                 'aria-disabled': option.busy === true || undefined,
                 'aria-busy': option.busy === true || undefined,
+                onPointerDown: () => setPressedOn(optionsSignature),
+                onPointerCancel: () => setPressedOn(undefined),
+                onClick: (event: OptionClick) => {
+                    if (pressedOn !== undefined && pressedOn !== optionsSignature) {
+                        event.preventDownshiftDefault = true;
+                    }
+
+                    setPressedOn(undefined);
+                },
                 className: `flex min-h-11 shrink-0 cursor-pointer items-center gap-2 rounded-xl px-3 py-1 aria-selected:bg-surface-muted aria-selected:ring-2 aria-selected:ring-inset aria-selected:ring-selected-edge ${BUSY_CONTROL_CLASS}`,
             })}
         >
-            {/* `min-w-0`: a column that cannot shrink below its parts line is how a dot came to start a line. */}
-            <span className="flex min-w-0 flex-1 flex-col">
-                <span className="break-words text-body-md text-ink">{option.label}</span>
-                {option.detailParts !== undefined && <VariantPartsLine parts={option.detailParts} tone="secondary" />}
-            </span>
+            <OptionLabel
+                label={option.label}
+                textSize="bodyMd"
+                {...(option.tag === undefined ? {} : { tag: option.tag })}
+                {...(option.detailParts === undefined ? {} : { detailParts: option.detailParts })}
+            />
         </li>
     );
 
@@ -582,7 +609,7 @@ export const Combobox: FC<ComboboxProps> = ({
                             type="button"
                             aria-label={cancel.name}
                             onClick={cancel.onPress}
-                            className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-full px-3 text-body-sm font-medium text-ink-muted hover:bg-ink/6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                            className={`inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-full px-3 text-body-sm font-medium text-ink-muted ${PRESS_FILL_CLASS.pointer} ${FOCUS_RING_CLASS.offset}`}
                         >
                             {cancel.text}
                         </button>
@@ -611,7 +638,7 @@ export const Combobox: FC<ComboboxProps> = ({
                 <div
                     ref={setFloating}
                     style={floatingStyles}
-                    className={`z-50 flex ${popupHeightClass} ${POPUP_WIDTH} flex-col overflow-y-auto overscroll-contain rounded-2xl bg-paper-overlay p-1 shadow-lg`}
+                    className={`z-50 flex ${popupHeightClass} ${POPUP_WIDTH} flex-col overflow-y-auto overscroll-contain rounded-lg ${surfaceToneClass('paperOverlay')} p-1 shadow-lg`}
                 >
                     {status !== undefined && statusLine(status, loadingIcon)}
                     {listShown && (

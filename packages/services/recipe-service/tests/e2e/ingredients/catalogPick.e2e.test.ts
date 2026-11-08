@@ -30,10 +30,7 @@ import { IngredientsService } from '../../../src/ingredients/ingredients.service
 import { CALLER_TOKEN as CALLER, foodClientsOf } from '../../../src/ingredients/__fixtures__/ingredients.fixtures.js';
 import { ensureFoodLookup } from '../../support/lineChain.js';
 import { recipeDb } from '../../support/roleDb.js';
-import {
-    makeFakeIngredientResolutionsDal,
-    makeFakeResolutionBandsDal,
-} from '../../../src/ingredients/__fixtures__/resolutionDals.fixture.js';
+import { makeFakeIngredientResolutionsDal } from '../../../src/ingredients/__fixtures__/resolutionDals.fixture.js';
 
 const roleDb = recipeDb();
 /** Food ids unique to this suite so its rows never collide with other integration specs. */
@@ -85,7 +82,6 @@ describe('catalog pick and filter search (integration: service + real DAL + stub
             new FoodRefsGateway(foodClientsOf(food)),
             [],
             makeFakeIngredientResolutionsDal(),
-            makeFakeResolutionBandsDal(),
         );
     }
 

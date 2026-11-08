@@ -79,6 +79,7 @@ export const EXPECTED_TABLES = [
     'analytics_events',
     'author_handles',
     'collections',
+    'import_allowance_events',
     'ingredient_parse_cache',
     'ingredient_parse_leases',
     'ingredient_parse_corrections',
@@ -91,6 +92,14 @@ export const EXPECTED_TABLES = [
     'food_lookups',
     'unresolved_foods',
     'recipe_impact_signals',
+    // Bulk recipe import (ADR-0072, 0059): the sweep and the purge delete the header, and items and lines follow by cascade (the e2e proves the cascade, so the roster names them).
+    'recipe_imports',
+    'recipe_import_items',
+    'recipe_import_lines',
+    // The band tables (0036): the gate's band feedback and the revocation drain write and read them through
+    // recipe-core's `BandAuthorityStore`, and `pasteOrigin.e2e.test.ts` reads them to prove a verdict names no band.
+    'resolution_band_authority',
+    'resolution_band_observations',
     'recipe_ingredient_verification_redrive',
     'recipe_ingredient_verifications',
     'recipe_parse_job_lines',

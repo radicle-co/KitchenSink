@@ -23,6 +23,10 @@ import {
     ForbiddenError,
     GoneError,
     InvalidRequestError,
+    ImportCursorMovedError,
+    ImportItemAlreadySavedError,
+    ImportQuotaExceededError,
+    PrivateSlotsFullError,
     NotFoundError,
     ParseJobExpiredError,
     PullDriftError,
@@ -61,6 +65,12 @@ const CLASSIFICATION: Readonly<Record<string, { readonly error: RecipeServiceCli
         PullDriftError: { error: new PullDriftError(NO_DIFF), retry: false },
         GoneError: { error: new GoneError(), retry: false },
         ParseJobExpiredError: { error: new ParseJobExpiredError(), retry: false },
+        // ⛔ A 429 that is NOT a throttle: the daily allowance stays spent for hours, so a backoff retry only hammers
+        // the server and hides the quota notice. The one 429 class that is terminal (004 FR-022).
+        ImportQuotaExceededError: { error: new ImportQuotaExceededError('2026-10-27T03:30:00.000Z'), retry: false },
+        PrivateSlotsFullError: { error: new PrivateSlotsFullError(50, 50), retry: false },
+        ImportCursorMovedError: { error: new ImportCursorMovedError(3), retry: false },
+        ImportItemAlreadySavedError: { error: new ImportItemAlreadySavedError(3), retry: false },
         // Plan 002 R52 — the same restore fails the same way; the cook needs another version or an edit.
         VersionLineUnrestorableError: { error: new VersionLineUnrestorableError([0]), retry: false },
         // The same body meets the same refusal: terminal, through its BadRequestError base.

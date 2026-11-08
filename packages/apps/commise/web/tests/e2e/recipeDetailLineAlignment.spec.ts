@@ -45,6 +45,24 @@ const VARIANT_LINE: RecipeIngredientView = {
     isUserEntered: false,
 };
 
+/** A line bound to another cook's private food: no name reaches the page, so the stand-in chip takes its place. */
+const STAND_IN_LINE: RecipeIngredientView = {
+    ingredientId: 'db000000-0000-4000-8000-0000000000d4',
+    quantity: { kind: 'exact', value: 2 },
+    unit: 'tbsp',
+    isUserEntered: false,
+    resolutionStatus: 'RESOLVED_UNAVAILABLE',
+};
+
+/** The same, with a unit and no amount (`designAnswers.md` #144 item 9). */
+const LONE_UNIT_STAND_IN_LINE: RecipeIngredientView = {
+    ingredientId: 'db000000-0000-4000-8000-0000000000d5',
+    quantity: { kind: 'absent' },
+    unit: 'pinch',
+    isUserEntered: false,
+    resolutionStatus: 'RESOLVED_UNAVAILABLE',
+};
+
 /** A vertical span on the page, in CSS pixels. */
 interface Span {
     readonly top: number;
@@ -73,7 +91,7 @@ async function seed(page: Page): Promise<void> {
                 id: RECIPE_ID,
                 ownerId: viewerId,
                 title: 'Braised Brisket',
-                ingredients: [ROOT_LINE, VARIANT_LINE],
+                ingredients: [ROOT_LINE, VARIANT_LINE, STAND_IN_LINE, LONE_UNIT_STAND_IN_LINE],
             }),
         ],
     });
@@ -87,6 +105,10 @@ function rowOf(page: Page, name: string): Locator {
 /**
  * Measure a row: the FIRST line box of the quantity, of the name and of the first part (each a text node, through a
  * `Range`), and the checkbox's target.
+ *
+ * A text node is found with its whitespace folded to plain spaces. The read view joins an amount to its unit with a
+ * no-break space (UI Designer ruling Q5), so the quantity's node reads "2", a no-break space, "lb", and this spec measures where a text
+ * sits, not which space joins it.
  */
 async function measure(row: Locator, texts: { quantity: string; name: string; firstPart?: string }) {
     return row.evaluate((item, wanted): RowGeometry => {
@@ -98,7 +120,8 @@ async function measure(row: Locator, texts: { quantity: string; name: string; fi
             const walker = document.createTreeWalker(item, NodeFilter.SHOW_TEXT);
 
             for (let node = walker.nextNode(); node !== null; node = walker.nextNode()) {
-                if (node.textContent?.trim() === text) {
+                // `\s` takes in U+00A0.
+                if (node.textContent?.replace(/\s+/gu, ' ').trim() === text) {
                     const range = document.createRange();
 
                     range.selectNodeContents(node);
@@ -184,5 +207,29 @@ for (const viewport of [
             await expect(rootRow).toBeVisible();
             expectQuantityAndCheckboxOnTheNameLine(await measure(rootRow, { quantity: '1 lb', name: 'beef brisket' }));
         });
+
+        // `designAnswers.md` #144 item 12: on the recipe page, web included, a stand-in's amount (or a lone unit) is its
+        // own line above the chip, never on the chip's line.
+        for (const { checkbox, quantity } of [
+            { checkbox: '2 tbsp Private ingredient', quantity: '2 tbsp' },
+            { checkbox: 'pinch Private ingredient', quantity: 'pinch' },
+        ]) {
+            test(`a stand-in's "${quantity}" is its own line above the chip`, async ({ page }) => {
+                await seed(page);
+                await page.goto(route(`/recipes/${RECIPE_ID}`));
+
+                const row = rowOf(page, checkbox);
+
+                await expect(row).toBeVisible();
+                const { quantity: amount, name: chip } = await measure(row, { quantity, name: 'Private ingredient' });
+
+                expect(amount, 'the amount was laid out').not.toBeNull();
+                expect(chip, 'the chip was laid out').not.toBeNull();
+                expect(
+                    amount?.bottom ?? Number.POSITIVE_INFINITY,
+                    'the amount ends above the chip',
+                ).toBeLessThanOrEqual((chip?.top ?? 0) + 1);
+            });
+        }
     });
 }

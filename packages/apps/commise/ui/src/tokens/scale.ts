@@ -3,14 +3,17 @@
  *
  * Every platform token set is DERIVED from the values here — the web `rem`/px token strings
  * (`spacing.ts`, `radius.ts`, `shadows.ts`, `typography.ts`), the React Native `nativeTokens`
- * (`native.ts`), and the mobile Tamagui `createTokens`/`createFont` ramps (`tamagui.config.ts`). Web
+ * (`native.ts`), and the Tamagui tokens and fonts (`tamagui/tamaguiTokens.ts`, `tamagui/tamaguiFonts.ts`). Web
  * and native therefore cannot drift on a value: there is exactly one place a number lives.
  *
  * Values are deliberately unit-NEUTRAL. Lengths are raw pixels (each consumer applies its own
- * unit-aware emission: web ÷16 → `rem`, native → the number as-is); line-heights are unitless ratios;
+ * unit-aware emission: web ÷16 → `rem`, native → the number as-is); line-heights are px (see `lineHeightPx`);
  * font weights are numbers; families and the border colour are CSS-ready strings. Nothing here imports
- * a platform API, so the module is safe for web, React Native, and Node alike.
+ * a platform API, so the module is safe for web, React Native, and Node alike. (`colors.ts` is the one sibling it
+ * reads, for the `glow` halo's colour; `colors.ts` imports nothing, so there is no cycle.)
  */
+
+import { hexChannels, palette } from './colors.js';
 
 /**
  * Spacing scale in pixels on a 4px base (step index → px). Web emits `rem` (÷16, unitless `0`);
@@ -45,14 +48,14 @@ export const mediaHeight = {
 } as const;
 
 /**
- * Corner radii in pixels. `full` is a pill sentinel — web emits it as `px` (not `rem`); Tamagui maps
- * it to its highest numeric radius step.
+ * Corner radii in pixels. `full` is a pill sentinel — web emits it as `px` (not `rem`); Tamagui keeps the names, so
+ * it is the `$full` token.
  */
 export const radius = {
-    sm: 6,
+    sm: 8,
     md: 12,
-    lg: 20,
-    xl: 28,
+    lg: 18,
+    xl: 24,
     full: 9999,
 } as const;
 
@@ -62,7 +65,7 @@ export const radius = {
  * {@link displayFontFace} instead (and `nativeTokens` deliberately exposes no stack at all).
  */
 export const fontFamily = {
-    display: '"Playfair Display", Georgia, serif',
+    display: '"Manrope", Inter, system-ui, sans-serif',
     body: 'Inter, system-ui, sans-serif',
     mono: '"JetBrains Mono", monospace',
 } as const;
@@ -72,14 +75,15 @@ export const fontFamily = {
  *
  * React Native resolves `fontFamily` to a single registered face name; handed the CSS stack above it falls
  * back to the system face **silently** — brand type that never renders and never errors. These are the
- * faces the apps load at start-up (`@expo-google-fonts/playfair-display`), and they are single-sourced here
+ * faces the apps load at start-up (`@expo-google-fonts/manrope`), and they are single-sourced here
  * so no consumer re-types a face-name literal. Their shape is asserted against {@link fontFamily}.display
  * and {@link fontWeight} in the token tests, so renaming the family or moving a weight step cannot leave a
  * stale name pointing at a font nobody loads.
  */
 export const displayFontFace = {
-    semibold: 'PlayfairDisplay_600SemiBold',
-    bold: 'PlayfairDisplay_700Bold',
+    semibold: 'Manrope_600SemiBold',
+    // The weight ceiling is 600 (`fontWeight.bold`), so the bold step is the same face. No 700 face is loaded.
+    bold: 'Manrope_600SemiBold',
 } as const;
 
 /**
@@ -91,7 +95,7 @@ export const bodyFontFace = {
     normal: 'Inter_400Regular',
     medium: 'Inter_500Medium',
     semibold: 'Inter_600SemiBold',
-    bold: 'Inter_700Bold',
+    bold: 'Inter_600SemiBold',
 } as const;
 
 /** Numeric font weights (web stringifies them; native/Tamagui keep the `'400'`-style string form). */
@@ -99,57 +103,75 @@ export const fontWeight = {
     normal: 400,
     medium: 500,
     semibold: 600,
-    bold: 700,
+    // The ceiling is 600 (redesign): `bold` is the semibold step. A 700 weight is never drawn.
+    bold: 600,
 } as const;
 
 /**
- * Unitless line-height ratios. Web emits them verbatim as CSS `line-height` multipliers; native
- * multiplies a font size by the ratio to get an absolute px leading.
+ * Line height in px for each allowed font size (owner ruling 2026-10-25: line heights are whole px on a 4 px grid).
+ * A pixel value is the source of truth: native uses it as is, and web writes it as the unitless `calc(px / size)`.
+ * 18 is 24 for a heading or figure; reading text sets itself at 28 (`typeRole.readingBody`).
  */
-export const lineHeightRatio = {
-    heading: 1.2,
-    body: 1.5,
-    caption: 1.4,
+export const lineHeightPx = {
+    14: 20,
+    16: 24,
+    18: 24,
+    28: 32,
 } as const;
 
 /**
- * The named type ramp — font size in pixels, largest to smallest. Web emits `rem` under kebab-case
- * keys (`display-xl` …); native uses the pixel number. The set intentionally includes every size the
- * mobile Playfair/display ramp needs (16, 20, 24, 28, 36, 48) so that ramp derives from here too.
+ * The named type ramp — font size in pixels, largest to smallest. Web emits `rem` under kebab-case keys
+ * (`display-md` …); native uses the pixel number. Every value is one of 14, 16, 18 or 28 (the owner's type-scale
+ * ruling, pinned by `__tests__/typeScale.test.ts`); several names share a size because a name says what a step is
+ * for, and the rule says how many sizes there are. Nothing above 28: the 48 and 36 steps are retired.
  */
 export const fontSize = {
-    displayXl: 48,
-    displayLg: 36,
     displayMd: 28,
-    headingLg: 24,
-    headingMd: 20,
+    headingLg: 18,
+    headingMd: 18,
     headingSm: 18,
     bodyLg: 18,
     bodyMd: 16,
     bodySm: 14,
-    caption: 12,
-    overline: 11,
+    caption: 14,
 } as const;
+
+/** One layer of a shadow: `offsetX`/`offsetY`/`blur`/`spread` in px, an `r,g,b` colour triplet and an `opacity`. */
+export interface ElevationLayer {
+    readonly offsetX: number;
+    readonly offsetY: number;
+    readonly blur: number;
+    readonly spread: number;
+    readonly color: string;
+    readonly opacity: number;
+}
+
+/** A `#RRGGBB` colour as the `r,g,b` triplet a shadow layer carries. */
+function rgbTriplet(hex: string): string {
+    return hexChannels(hex, 'rgbTriplet').join(',');
+}
 
 /**
- * Elevation specs. Each is a resolution-neutral shadow: `offsetX`/`offsetY`/`blur`/`spread` in px, an
- * `r,g,b` colour triplet, and an `opacity`. Web composes a CSS `box-shadow` string (spread omitted
- * when 0); native composes an RN shadow object. `glow` is an ambient (spread-less) halo.
+ * Elevation specs, each a stack of one or two shadow layers (the redesign's cool, soft shadows). Web composes a CSS
+ * `box-shadow` from EVERY layer (spread omitted when 0); native has one shadow per view, so it takes the LAST layer,
+ * the diffuse one that carries the depth. `glow` is the focus halo: a 3 px ring, no blur.
+ *
+ * The `glow` colour is DERIVED from `palette.steel` ({@link rgbTriplet}), so the halo cannot drift from the button
+ * it rings.
  */
 export const elevation = {
-    sm: { offsetX: 0, offsetY: 1, blur: 3, spread: 0, color: '45,52,54', opacity: 0.04 },
-    md: { offsetX: 0, offsetY: 4, blur: 6, spread: -1, color: '45,52,54', opacity: 0.07 },
-    lg: { offsetX: 0, offsetY: 10, blur: 15, spread: -3, color: '45,52,54', opacity: 0.08 },
-    xl: { offsetX: 0, offsetY: 20, blur: 25, spread: -5, color: '45,52,54', opacity: 0.09 },
-    // `glow` is the seafoam halo. Its triplet is `palette.seafoam` re-spelled in decimal, because `colors.ts`
-    // imports THIS module (`borderSubtle`) and the reverse import would be a cycle. It is therefore the one
-    // place a palette colour lives twice — kept in agreement by `__tests__/scale.test.ts`, which asserts the
-    // triplet against the token. Move `seafoam` and that test fails until this follows.
-    glow: { offsetX: 0, offsetY: 0, blur: 32, spread: 0, color: '49,128,122', opacity: 0.25 },
-} as const;
-
-/** The subtle border colour — single source for the web `semantic.border` and the native theme. */
-export const borderSubtle = 'rgba(178, 190, 195, 0.3)';
+    sm: [{ offsetX: 0, offsetY: 1, blur: 2, spread: 0, color: '20,30,45', opacity: 0.05 }],
+    md: [
+        { offsetX: 0, offsetY: 1, blur: 2, spread: 0, color: '20,30,45', opacity: 0.05 },
+        { offsetX: 0, offsetY: 2, blur: 8, spread: 0, color: '20,30,45', opacity: 0.05 },
+    ],
+    lg: [
+        { offsetX: 0, offsetY: 2, blur: 4, spread: 0, color: '10,20,30', opacity: 0.08 },
+        { offsetX: 0, offsetY: 8, blur: 22, spread: 0, color: '10,20,30', opacity: 0.12 },
+    ],
+    xl: [{ offsetX: 0, offsetY: 12, blur: 30, spread: 0, color: '10,20,30', opacity: 0.18 }],
+    glow: [{ offsetX: 0, offsetY: 0, blur: 0, spread: 3, color: rgbTriplet(palette.steel), opacity: 0.25 }],
+} as const satisfies Record<string, readonly [ElevationLayer, ...ElevationLayer[]]>;
 
 /**
  * How far a locked, unavailable or disabled native control dims (§1.10). One number for every control that dims — the
@@ -164,9 +186,8 @@ export type FontFamily = typeof fontFamily;
 export type DisplayFontFace = typeof displayFontFace;
 export type BodyFontFace = typeof bodyFontFace;
 export type FontWeight = typeof fontWeight;
-export type LineHeightRatio = typeof lineHeightRatio;
 export type FontSize = typeof fontSize;
 export type Elevation = typeof elevation;
 
-/** Ramp step name (`displayXl` … `overline`). */
+/** Ramp step name (`displayMd` … `caption`). */
 export type FontSizeName = keyof FontSize;

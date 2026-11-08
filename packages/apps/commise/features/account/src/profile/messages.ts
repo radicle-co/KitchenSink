@@ -35,7 +35,11 @@ export interface ProfileMessages {
     readonly namePrompt: string;
     /** The hint under the display-name field: where the name shows. */
     readonly nameHint: string;
-    /** The username as the header shows it, read-only (contains `{username}`): "@braise". */
+    /** The label of the read-only username row. */
+    readonly usernameLabel: string;
+    /** The label of the read-only email row. */
+    readonly emailLabel: string;
+    /** The username as its row shows it, read-only (contains `{username}`): "@braise". */
     readonly usernameValue: string;
     /** The counter under the field near its limit; `{count}` and `{max}` are filled in ("85/100"). */
     readonly nameCounter: string;
@@ -93,6 +97,8 @@ export const profileMessages: LocalizedMessages<ProfileMessages> = {
         displayNameUnset: 'Add your name',
         namePrompt: 'What should we call you?',
         nameHint: 'Shown next to your username on recipes you publish.',
+        usernameLabel: 'Username',
+        emailLabel: 'Email',
         usernameValue: '@{username}',
         nameCounter: '{count}/{max}',
         nameLimitReached: 'That is the longest name we can take.',
@@ -110,7 +116,7 @@ export const profileMessages: LocalizedMessages<ProfileMessages> = {
         signOutFailed: 'We couldn’t sign you out. Try again.',
         dangerZone: 'Danger zone',
         avatarChangeAction: 'Change photo',
-        avatarUploadError: 'We couldn’t update your photo. Please try again.',
+        avatarUploadError: 'We couldn’t update your photo. Try again.',
         avatarTooLargeError: 'That photo is larger than {maxMb} MB. Choose a smaller file.',
         avatarUnsupportedTypeError: 'That file type isn’t supported. Use a JPEG, PNG, or WebP photo.',
     },

@@ -167,3 +167,12 @@ describe('DiscoveryFooter (web) — Save a copy', () => {
         }
     });
 });
+
+// Designer ruling c10ecadbf (2026-11-03): the avatar initial is 40% of its 20 px disc, set in px so the text size cannot grow it.
+describe('DiscoveryFooter (web) — the avatar initial is 40% of its disc', () => {
+    it('is 8 px', () => {
+        footer({ kind: 'idle' });
+
+        expect((screen.getByText('B').closest('[aria-hidden="true"]') as HTMLElement).style.fontSize).toBe('8px');
+    });
+});

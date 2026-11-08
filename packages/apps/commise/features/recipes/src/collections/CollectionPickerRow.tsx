@@ -15,6 +15,8 @@
 import { useMessages } from '@commise/i18n/react';
 import { Icon } from '@commise/ui/icon';
 import { RecipeCover } from '@commise/ui/recipe-cover';
+import { FOCUS_RING_CLASS } from '@commise/ui/focus-ring';
+import { PRESS_FILL_CLASS } from '@commise/ui/surface-tone';
 import type { FC } from 'react';
 
 import { toRecipeCardModel } from '../card/model.js';
@@ -45,7 +47,7 @@ export const CollectionPickerRow: FC<CollectionPickerRowProps> = ({ recipe, chec
                         onToggle(!checked);
                     }
                 }}
-                className="flex min-h-16 cursor-pointer items-center gap-3 rounded-md px-2 py-2 hover:bg-ink/6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                className={`flex min-h-16 cursor-pointer items-center gap-3 rounded-md px-2 py-2 ${PRESS_FILL_CLASS.pointer} ${FOCUS_RING_CLASS.offset}`}
             >
                 <span aria-hidden="true" className="relative size-12 shrink-0 overflow-hidden rounded-md">
                     <RecipeCover

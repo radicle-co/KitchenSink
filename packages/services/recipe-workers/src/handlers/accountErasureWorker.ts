@@ -603,6 +603,9 @@ export interface EraseRecipeRowsResult {
  *     the same pseudonym, `username` NULL; the handle-sync upsert refuses any row with `erased_at` set.
  *     ⛔ FIRST on purpose: handle-sync locks `author_handles` then `recipes`, so erasure takes them in the same
  *     order and the two transactions cannot deadlock. `COALESCE` keeps the first `erased_at` on a replay.
+ * 12. **The daily import allowance ledger (004 FR-022, migration 0058)** — DELETED by `user_id`, last in the transaction.
+ *     It holds an opaque id, a channel and a unit count, and records when a person last pasted; nothing needs it once
+ *     they are gone. Events also expire on their own after 24 h.
  *
  * ## ONE RULE FOR HANDLES — steps 7 and 10, and what step 7 deliberately costs
  *
@@ -837,6 +840,21 @@ export const eraseRecipeRows = async (
         await tx.execute(sql`DELETE FROM test_principals WHERE user_id = ${ownerId}`);
         await tx.execute(sql`DELETE FROM test_reset_jobs WHERE user_id = ${ownerId}`);
 
+        // 16. The daily import allowance ledger (004 FR-022, migration 0058) — DELETED. One opaque user id, a channel and a
+        //     count: it records WHEN a person last pasted and nothing downstream needs it once they are gone, so there is
+        //     nothing to keep and a NULLed id would mean nothing. Events also expire on their own after 24 h; this reaches
+        //     the ones that have not yet.
+        await tx.execute(sql`DELETE FROM import_allowance_events WHERE user_id = ${ownerId}`);
+
+        // 17. Bulk recipe imports (ADR-0072, migration 0059) — DELETED. `recipe_imports.user_id` is the only user key of the
+        //     three import tables: the header holds the cook's choices and wizard position, its items hold the recipes the
+        //     cook sent and what they said about each (a citation is theirs), and its snapshot lines hold ids and the
+        //     source's own words. ONE delete reaches all three by cascade, so items and lines are NOT hand-deleted here.
+        //     The recipes an import saved are swept as recipes above (a public, published one is kept like any other);
+        //     the database sets each kept ingredient's `import_line_id` to NULL, so the ingredient and its `bound_by`
+        //     survive the import without pointing at a snapshot that no longer exists.
+        await tx.execute(sql`DELETE FROM recipe_imports WHERE user_id = ${ownerId}`);
+
         return { removedRecipeIds };
     });
 };
@@ -879,6 +897,9 @@ export const eraseRecipeRows = async (
  *     ⚠️ Those counts are RECIPE-keyed and carry no user column, so they are outside this purge by key — events other
  *     users generated about the principal's recipes, and the counts they folded, stay. Keeping test traffic out of
  *     real counts is containment's job upstream (ADR-0040), not something a reset can undo after the fact.
+ *  8b. **The daily import allowance ledger** (004 FR-022, 0058) — DELETED by `user_id`. It outlives a run by up to
+ *     24 h, so without this a reset principal (the k6 pool, a deployed fixture user) is refused `429
+ *     IMPORT_QUOTA_EXCEEDED` on a repeat run within the day.
  *  9. **The two correction tiers** (0021 `ingredient_resolution_mappings`, 0029 `ingredient_parse_corrections`) —
  *     hard-deleted by `user_id` under the 2026-09-13 owner ruling amending ADR-0027 for a principal the claim AND the
  *     registry both name. (Erasure still does NOT sweep these tables.) Both carry three `NO ACTION` self-FKs, so the
@@ -964,6 +985,15 @@ export const purgeTestPrincipalRows = async (
 
         // 8. Analytics events — DELETE is count-safe: 0043 has no DELETE trigger, so recipe_impact_signals never moves.
         await tx.execute(sql`DELETE FROM analytics_events WHERE user_id = ${ownerId}`);
+
+        // 8b. The daily import allowance ledger (004 FR-022, 0058). Deleted, and it matters HERE for a second reason: the
+        //     ledger outlives a run by up to 24 h, so a purge that left it would make a reset principal (the k6 pool, a
+        //     deployed fixture user) hit `429 IMPORT_QUOTA_EXCEEDED` on a repeat run within the day.
+        await tx.execute(sql`DELETE FROM import_allowance_events WHERE user_id = ${ownerId}`);
+
+        // 8c. Bulk recipe imports (ADR-0072). The same ONE delete as the erasure sweep: items and snapshot lines go by
+        //     cascade. A principal reset mid-import must not wake to a half-finished import it never started.
+        await tx.execute(sql`DELETE FROM recipe_imports WHERE user_id = ${ownerId}`);
 
         // 9. The correction tiers: null successor pointers into the doomed set, then delete the set.
         await tx.execute(sql`

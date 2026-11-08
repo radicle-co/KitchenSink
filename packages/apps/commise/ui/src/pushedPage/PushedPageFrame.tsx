@@ -23,12 +23,12 @@ import { createPortal } from 'react-dom';
 
 import { CondensedTitleBar } from '../largeTitleHeader/CondensedTitleBar.js';
 import { PINNED_BAR_HEIGHT } from '../largeTitleHeader/barGeometry.js';
+import { useRenderedHeight } from '../layout/useRenderedHeight.js';
 import { ScrollHost } from '../scrollHost/ScrollHost.js';
 import { useScrollHost } from '../scrollHost/scrollHostContext.js';
 import type { ScrollBind } from '../scrollHost/props.js';
 import { barFactsOf } from './barFacts.js';
 import { PinnedBarSlotContext } from './pinnedBarSlot.js';
-import { useRenderedHeight } from './useRenderedHeight.js';
 import type { PushedPageFrameProps, PushedPageInset } from './props.js';
 
 /** Web: `<main>` owns the room under the bar. */

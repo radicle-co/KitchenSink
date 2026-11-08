@@ -292,15 +292,24 @@ describe('the leaf property', () => {
         ]);
     });
 
-    // `recipe-core` is admitted to the allowlist ON THE GROUND that it is itself a zod-only leaf. That claim is
-    // the reason web and mobile can bundle this package, so it is CHECKED rather than trusted: the day
-    // `recipe-core` grows a runtime dependency, this fails and the allowlist entry has to be re-justified.
-    it('is only safe because recipe-core is ITSELF a zod-only leaf, so that is asserted too', async () => {
+    // `recipe-core` is admitted to the allowlist ON THE GROUND that it is itself a leaf web and mobile can bundle.
+    // That claim is CHECKED rather than trusted: the day `recipe-core` grows a runtime dependency, this fails and the
+    // allowlist entry has to be re-justified.
+    //
+    // ⚠️ Re-justified for ADR-0071: `numeric-quantity` joined `zod`. It is the measure reader's amount parser, moved
+    // into recipe-core with that reader so the editor and the paste matcher read a pasted line's measure one way. It
+    // is pure, has NO dependencies of its own (asserted below), and web and mobile already bundled it through
+    // `@commise/features-recipes` before the move. Anything else still fails here.
+    it('is only safe because recipe-core is ITSELF a leaf of zod and a dependency-free parser', async () => {
         const manifest = JSON.parse(
             await readFile(join(SERVICE_ROOT, '../../shared/recipe-core/package.json'), 'utf8'),
         ) as { dependencies: Record<string, string> };
+        const parser = JSON.parse(
+            await readFile(join(SERVICE_ROOT, '../../../node_modules/numeric-quantity/package.json'), 'utf8'),
+        ) as { dependencies?: Record<string, string>; peerDependencies?: Record<string, string> };
 
-        expect(Object.keys(manifest.dependencies)).toStrictEqual(['zod']);
+        expect(Object.keys(manifest.dependencies).sort()).toStrictEqual(['numeric-quantity', 'zod']);
+        expect(Object.keys({ ...parser.dependencies, ...parser.peerDependencies })).toStrictEqual([]);
     });
 });
 
@@ -516,10 +525,10 @@ describe('GR-017 §17-c — every MUTATING request body rejects unknown keys', (
      * query could have been tightened to `strictObject` (a breaking change for any caller with a tracking tag)
      * with no test to notice.
      *
-     * So both directions are now asserted: the exempt set is exactly these four names, and every one of them is
-     * genuinely non-strict. Adding a fifth is a visible, reviewable edit.
+     * So both directions are now asserted: the exempt set is exactly these seven names, and every one of them is
+     * genuinely non-strict. Adding another is a visible, reviewable edit.
      */
-    it('exempts EXACTLY the four read queries from strictness, and each of them really is open', async () => {
+    it('exempts EXACTLY the seven read queries from strictness, and each of them really is open', async () => {
         const modules = await Promise.all(
             authored.map(
                 async (schema) =>
@@ -534,6 +543,12 @@ describe('GR-017 §17-c — every MUTATING request body rejects unknown keys', (
         );
 
         expect(querySchemas.map(([name]) => name).sort()).toStrictEqual([
+            // ADR-0072: `GET /api/v1/import/{importId}`'s page of items — a READ query like the others, open for the same reason.
+            'getImportQuerySchema',
+            // ADR-0072: the page of lines `GET …/flagged` and `GET …/to-check` return — the same kind of read query.
+            'importListQuerySchema',
+            // The add-by-name field's suggestions: a READ query like the others, open for the same reason.
+            'ingredientNameProposalsQuerySchema',
             'ingredientSearchQuerySchema',
             'listCollectionsQuerySchema',
             'listRecipesQuerySchema',
@@ -655,6 +670,7 @@ describe('every published component’s zod is REACHABLE from @kitchensink/schem
         RecipeNutritionState: 'recipeNutritionStateSchema',
         RecipeNutritionResponse: 'recipeNutritionResponseSchema',
         SetRecipeVisibilityRequest: 'setRecipeVisibilityRequestSchema',
+        PrivateSlotUsage: 'privateSlotUsageSchema',
         RebindIngredientLineRequest: 'rebindIngredientLineRequestSchema',
         SetRatingRequest: 'setRatingRequestSchema',
         RecipePhoto: 'recipePhotoSchema',
@@ -671,6 +687,7 @@ describe('every published component’s zod is REACHABLE from @kitchensink/schem
         IngredientFoodNutritionRequest: 'ingredientFoodNutritionRequestSchema',
         IngredientFoodNutritionEntry: 'ingredientFoodNutritionEntrySchema',
         IngredientFoodNutritionResponse: 'ingredientFoodNutritionResponseSchema',
+        IngredientNameProposalsResponse: 'ingredientNameProposalsResponseSchema',
         FoodReferences: 'foodReferencesResponseSchema',
         ServiceFoodReferencesRequest: 'serviceFoodReferencesRequestSchema',
         ServiceFoodReferencesResponse: 'serviceFoodReferencesResponseSchema',

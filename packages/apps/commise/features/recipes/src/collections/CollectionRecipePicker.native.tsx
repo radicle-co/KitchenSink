@@ -55,7 +55,7 @@ export const CollectionRecipePicker: FC<CollectionRecipePickerProps> = ({
             closeLabel={picker.close}
             size="full"
             toolbar={{
-                heading: <Text style={[styles.overline, { color: colors.inkMuted }]}>{picker.toolbarHeading}</Text>,
+                heading: <Text style={[styles.heading, { color: colors.inkMuted }]}>{picker.toolbarHeading}</Text>,
                 controls: (
                     <SearchField
                         id={searchId}
@@ -86,4 +86,4 @@ export const CollectionRecipePicker: FC<CollectionRecipePickerProps> = ({
     );
 };
 
-const styles = StyleSheet.create({ overline: { ...nativeTokens.type.overline } });
+const styles = StyleSheet.create({ heading: { ...nativeTokens.type.label } });

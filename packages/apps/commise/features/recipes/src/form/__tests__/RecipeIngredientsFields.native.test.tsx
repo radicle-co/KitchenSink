@@ -5,13 +5,19 @@
  * the previous suite's coverage went. The two leaves are separate files with no compiler edge between them, which is
  * why §14 asks the same assertions of both.
  *
+ * Issue #144: the amount and the food are one text run joined by an ordinary space (the column is gone), so two
+ * `textContent` expectations carry that space; `RecipeIngredientsFields.rowRun.native` owns the structure.
+ *
  * REWRITTEN for the UI overhaul's read rows, as the web suite was. Native's own cases: the row editor is a sheet on a
  * phone and inline on a tablet (§7.12, by the window's content width), the amount field keeps the text the cook is
  * typing ("1." on the way to "1.5") rather than the number it parses to, and Android back leaves a row's food search.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { dialogTitled, queryDialogTitled } from '@commise/test-utils';
-import { cleanup, render as renderBare, screen, within } from '@testing-library/react';
+import { cleanup, screen, within } from '@testing-library/react';
+import { nativeTokens } from '@commise/ui/native';
+import { rgb, rolesFor } from '@commise/ui/testing/system-color-scheme';
+import { pressFrameOf, render as renderBare, renderWithTamagui, resolvedColour } from '@commise/ui/testing/tamagui';
 import { fireEvent } from '@testing-library/dom';
 import { useState, type FC, type ReactElement, type ReactNode } from 'react';
 import { BackInterceptProvider } from '@commise/ui/back-intercept';
@@ -257,7 +263,8 @@ describe('RecipeIngredientsFields (native) — the states (§7.5.1, §7.9)', () 
         const [rice, salt] = rowItems();
 
         expect(within(rice!).getByRole('button', { name: 'Edit 300 g Arborio rice, rinsed' }).textContent).toBe(
-            '300 gArborio rice · rinsed',
+            // UI Designer condition: a no-break space keeps the "·" on the name's line; the label above says a comma.
+            '300\u00A0g Arborio rice\u00A0· rinsed',
         );
         expect(within(salt!).getByRole('button', { name: 'Edit Salt' }).textContent).toBe('Salt');
     });
@@ -275,7 +282,7 @@ describe('RecipeIngredientsFields (native) — the states (§7.5.1, §7.9)', () 
         const [one, two] = rowItems();
 
         expect(within(one!).getByRole('button', { name: 'Edit 1 large onion, diced' }).textContent).toBe(
-            '1 largeonion · diced',
+            '1\u00A0large onion\u00A0· diced',
         );
         expect(within(two!).getByRole('button', { name: 'Edit 2 onions' })).toBeTruthy();
     });
@@ -480,7 +487,9 @@ describe('RecipeIngredientsFields (native) — the row editor on a phone: a shee
         press('Edit 300 g Arborio rice');
         const sheet = dialogTitled('Arborio rice');
 
-        expect(within(sheet).getByRole('button', { name: en.rowDone }).style.alignSelf).toBe('stretch');
+        expect(getComputedStyle(pressFrameOf(within(sheet).getByRole('button', { name: en.rowDone }))).alignSelf).toBe(
+            'stretch',
+        );
         expect(within(sheet).queryByRole('button', { name: /cancel/i })).toBeNull();
     });
 
@@ -803,7 +812,6 @@ describe('RecipeIngredientsFields (native) — pasted lines (§7.5.1 "Reading", 
         focusRow: undefined,
         onRowFocusHandled: noop,
         announcement: undefined,
-        added: undefined,
         onOpen: undefined,
     };
 
@@ -925,5 +933,43 @@ describe('RecipeIngredientsFields (native) — pasted lines (§7.5.1 "Reading", 
 
         rerender(leafElement({ paste: { ...PASTE, reading: [], onOpen } }));
         expect(screen.queryByRole('button', { name: editor.ingredients.pasteList })).toBeNull();
+    });
+});
+
+/**
+ * "Pick a food from the list." (§7.5.3), said when the keyboard's submit chooses nothing, is a typed live region
+ * (ADR-0080 §8): the design-system Text in the `caption` role, in `dangerText`, so it grows with the system text size,
+ * size and leading together, to the 2× cap. It is read in both schemes.
+ */
+describe('RecipeIngredientsFields (native) — the pick-a-food notice', () => {
+    const submitWithoutChoice = (scheme: 'light' | 'dark', textScale = 1): HTMLElement => {
+        renderWithTamagui(
+            <BackChain>
+                <StatefulLeaf initial={[RICE]} />
+            </BackChain>,
+            scheme,
+            textScale,
+        );
+        const field = screen.getByLabelText(editor.ingredients.addLabel);
+
+        type(field, 'Kale');
+        fireEvent.keyDown(field, { key: 'Enter' });
+
+        return screen.getByText(editor.ingredients.pickFood);
+    };
+
+    it('says it politely, in the caption role, grown with the system text size to the 2× cap', () => {
+        const spec = nativeTokens.type.caption;
+        const notice = submitWithoutChoice('light', 3.1);
+        const style = getComputedStyle(notice);
+
+        expect(notice.getAttribute('aria-live')).toBe('polite');
+        expect(style.fontFamily).toContain(spec.fontFamily);
+        expect(style.fontSize).toBe(`${String(spec.fontSize * 2)}px`);
+        expect(style.lineHeight).toBe(`${String(spec.lineHeight * 2)}px`);
+    });
+
+    it.each(['light', 'dark'] as const)('paints it in dangerText in the %s scheme', (scheme) => {
+        expect(resolvedColour(submitWithoutChoice(scheme), 'color')).toBe(rgb(rolesFor(scheme).dangerText));
     });
 });

@@ -322,6 +322,9 @@ export const SyncProvider: FC<SyncProviderProps> = ({ subject, send, store, onFa
             endSession();
             unsubscribe();
             unsubscribeLedger();
+            // ⛔ The mirror holds THIS cook's log. The next cook starts from empty, so nothing of this one shows while
+            // their own read is pending, or for good if it rejects.
+            setLog(EMPTY_OUTBOX);
         };
     }, [report, sessions, subject]);
 

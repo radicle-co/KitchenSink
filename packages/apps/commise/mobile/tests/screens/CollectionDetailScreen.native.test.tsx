@@ -2,7 +2,7 @@
  * Component tests for the mobile CollectionDetailScreen (react-native-web under jsdom; slice 5 of the UI overhaul,
  * `docs/design/uiOverhaul/buildSpec.md` §5.2, §5.3). Covers every state the screen renders — loading, ready, generic error
  * (with retry), a distinct not-found — and the wired flows: a removal that hides the row and commits when its Undo snackbar
- * times out; a visibility change at once, with Undo, and the Premium sheet; rename in the sheet; delete in its dialog;
+ * times out; a visibility change at once, with Undo, and the Pro sheet; rename in the sheet; delete in its dialog;
  * Save a copy; Pull updates for a copy; and the add-recipes picker, whose toggles save at once and whose Done says what
  * changed.
  *
@@ -20,8 +20,9 @@ import { createElement, type ComponentProps, type ReactElement } from 'react';
 import { AccessibilityInfo, type ScrollView as ScrollViewType } from 'react-native';
 
 import { collectionMessages } from '@commise/features-recipes';
-import { renderWithRecipeClient } from '@commise/test-utils';
+import { renderWithRecipeClient, sideInsetOf } from '@commise/test-utils';
 import { SnackbarHost } from '@commise/ui/snackbar';
+import { nativeTokens } from '@commise/ui/native';
 import {
     NotFoundError,
     type CollectionWithRecipes,
@@ -59,7 +60,7 @@ const { useRecipeViewSettingMock } = vi.hoisted(() => ({ useRecipeViewSettingMoc
 
 vi.mock('../../src/hooks/useRecipeViewSetting.js', () => ({ useRecipeViewSetting: useRecipeViewSettingMock }));
 
-// The screen starts the deferred calorie batch (ADR-0021 §6) through this shared hook. This file is not about nutrition,
+// The screen starts the deferred calorie batch (ADR-0079 §6) through this shared hook. This file is not about nutrition,
 // so the lookup is stubbed to "no batch covers this recipe". The wiring is covered by `screenNutrition.native.test.tsx`.
 vi.mock('@commise/features-recipes/hooks', async (importOriginal) => ({
     ...(await importOriginal<typeof import('@commise/features-recipes/hooks')>()),
@@ -255,6 +256,25 @@ describe('CollectionDetailScreen — loading and error', () => {
  * ONE allowed second element with that name. The ⋯ menu moved into the bar, ahead of the H1. `hidden: true` counts a copy
  * a plain query would skip, which is the defect.
  */
+// Designer ruling 2026-11-01, corrected (`nativeBoards/designAnswers.md`): no bottom bar covers this page (the tab bar
+// sits below the scroller, and nothing floats over it), so it ends 48 ($7) below its last block, as the web does. It was
+// 120. The top room under the pinned back bar is the frame's inset and is not this foot.
+describe('CollectionDetailScreen — the end of the page', () => {
+    it('ends the scroller’s content 48 below the last block', async () => {
+        renderOver(<CollectionDetailScreen {...props} />);
+        const heading = await screen.findByRole('heading', { name: 'Weeknight favourites' });
+        const feet: string[] = [];
+
+        // The scroller's content container is one of the heading's ancestors.
+        for (let node = heading.parentElement; node !== null; node = node.parentElement) {
+            feet.push(getComputedStyle(node).paddingBottom);
+        }
+
+        expect(feet).toContain(`${String(nativeTokens.spacing[7])}px`);
+        expect(feet).not.toContain('120px');
+    });
+});
+
 describe('CollectionDetailScreen — one pinned Back in every state', () => {
     const backs = () => screen.getAllByRole('button', { name: BACK_TO_COLLECTIONS, hidden: true });
 
@@ -307,6 +327,20 @@ describe('CollectionDetailScreen — one pinned Back in every state', () => {
             heading.compareDocumentPosition(screen.getByRole('button', { name: 'Add recipes' })) &
                 Node.DOCUMENT_POSITION_FOLLOWING,
         ).toBeTruthy();
+    });
+
+    // Bug sweep B11: the large title insets its own sides 16, so the screen's scroller does not pad around it; the header
+    // pads its own lines and `CollectionDetailGutter` pads the parts after it. This is the whole screen, scroller included:
+    // a scroller that padded again would read 32, and one that cancelled its padding with a negative margin would read 0.
+    it('insets the title once (its own 16), and the header’s Add recipes and the notice under it by 16', async () => {
+        useRecipeViewSettingMock.mockReturnValue({ viewChoice: 'list', chooseView: vi.fn(), saveFailed: true });
+
+        renderOver(<CollectionDetailScreen {...props} />);
+        const heading = await screen.findByRole('heading', { name: 'Weeknight favourites' });
+
+        expect(sideInsetOf(heading)).toBe(16);
+        expect(sideInsetOf(screen.getByRole('button', { name: 'Add recipes' }))).toBe(16);
+        expect(sideInsetOf(screen.getByText('We couldn’t save your view. Try choosing it again.'))).toBe(16);
     });
 
     it('puts the “view not saved” notice after the header, so the heading stays the scroller’s first child', async () => {
@@ -449,7 +483,7 @@ describe('CollectionDetailScreen — removing a member, with Undo', () => {
     });
 });
 
-describe('CollectionDetailScreen — visibility, with Undo and the Premium sheet', () => {
+describe('CollectionDetailScreen — visibility, with Undo and the Pro sheet', () => {
     it('makes a public collection private at once, says so, and Undo changes it back', async () => {
         let server: 'public' | 'private' = 'public';
         vi.spyOn(client, 'getCollectionById').mockImplementation(async () =>
@@ -473,7 +507,7 @@ describe('CollectionDetailScreen — visibility, with Undo and the Premium sheet
         await waitFor(() => expect(update).toHaveBeenLastCalledWith('col_1', { visibility: 'public' }));
     });
 
-    it('under upsell, opens the Premium sheet for making a collection private, and sends nothing', async () => {
+    it('under upsell, opens the Pro sheet for making a collection private, and sends nothing', async () => {
         useUserProfileMock.mockReturnValue(profile('upsell'));
         seed(makeCollectionWithRecipes([], { id: 'col_1', name: 'Dinners', visibility: 'public' }));
         const update = vi.spyOn(client, 'updateCollection');
@@ -482,13 +516,14 @@ describe('CollectionDetailScreen — visibility, with Undo and the Premium sheet
         await screen.findByRole('heading', { name: 'Dinners' });
         pressMenuItem('Dinners', 'Make private');
 
-        expect(await screen.findByText('Private collections are part of Premium.')).toBeTruthy();
-        expect(screen.getByRole('button', { name: 'See Premium' })).toBeTruthy();
+        expect(await screen.findByText('Private collections are part of Pro.')).toBeTruthy();
+        // The subscription entry points ship off (spec 010 T-035): the sheet states the fact and offers only a close control.
+        expect(screen.queryByRole('button', { name: 'See Pro' })).toBeNull();
         expect(update).not.toHaveBeenCalled();
 
         fireEvent.click(screen.getByRole('button', { name: 'Not now' }));
 
-        await waitFor(() => expect(screen.queryByText('Private collections are part of Premium.')).toBeNull());
+        await waitFor(() => expect(screen.queryByText('Private collections are part of Pro.')).toBeNull());
     });
 
     // Plan 2026-10-14-009 D14, mirroring the web suite: no paid feature and no upsell under hidden or a failed read.
@@ -510,7 +545,7 @@ describe('CollectionDetailScreen — visibility, with Undo and the Premium sheet
     // Plan 2026-10-14-009 T1: a downgraded owner cannot take Public back, so Make public asks first.
     it.each([
         ['hidden', profile('hidden'), "You won't be able to make this one private again."],
-        ['upsell', profile('upsell'), "To make this one private again, you'll need Premium."],
+        ['upsell', profile('upsell'), "To make this one private again, you'll need Pro."],
     ] as const)(
         'under %s, Make public on a private collection asks first, and Keep private sends nothing',
         async (_label, stub, cost) => {

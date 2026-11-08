@@ -3,7 +3,7 @@
  * `RecipeBrowseRailResults.test.tsx`; moved from `RecipeBrowseRails.native.test.tsx`.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { act, cleanup, render, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 import type { Recipe, RecipeSearchResult } from '@kitchensink/recipe-core';
 import { Text } from 'react-native';
@@ -12,6 +12,8 @@ import { makeRecipe } from '../../__fixtures__/index.js';
 import type { SaveCopy } from '../../hooks/useSaveCopy.js';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { RecipeBrowseRailResults } from '../RecipeBrowseRailResults.native.js';
+import { scrollViewSizes, stubBoundingRects } from '@commise/ui/testing/bounding-rects';
+import { render } from '@commise/ui/testing/tamagui';
 
 afterEach(cleanup);
 
@@ -89,28 +91,28 @@ describe('RecipeBrowseRailResults (native)', () => {
 describe('RecipeBrowseRailResults (native) — the scroll hint', () => {
     const FADE = '[data-commise-stub="linear-gradient"]';
 
-    /** Report a laid-out size to a view, the way react-native-web's ResizeObserver does. */
-    function layOut(element: Element, width: number): void {
-        const handler = (element as Element & { __reactLayoutHandler?: (event: unknown) => void }).__reactLayoutHandler;
+    const measured = (container: HTMLElement): Element[] => [...container.querySelectorAll('[style*="overflow-x"]')];
 
-        act(() => handler?.({ nativeEvent: { layout: { x: 0, y: 0, width, height: 224 } } }));
-    }
+    let restoreRects: (() => void) | undefined;
 
-    const measured = (container: HTMLElement): Element[] =>
-        [...container.querySelectorAll('*')].filter(
-            (node) => (node as Element & { __reactLayoutHandler?: unknown }).__reactLayoutHandler !== undefined,
-        );
+    afterEach(() => {
+        restoreRects?.();
+        restoreRects = undefined;
+    });
 
     it('hints at the cards beyond with the chevron while the strip rests at its start', () => {
+        const before = render(
+            <RecipeBrowseRailResults results={twoResults} saveCopy={SAVE_COPY} onSelectRecipe={noop} />,
+        );
+
+        // Nothing has been measured, so nothing hints.
+        expect(before.container.querySelector(FADE)).toBeNull();
+        before.unmount();
+
+        restoreRects = stubBoundingRects(scrollViewSizes({ scroller: 320, content: 560 }));
         const { container } = render(
             <RecipeBrowseRailResults results={twoResults} saveCopy={SAVE_COPY} onSelectRecipe={noop} />,
         );
-        const [scroller, content] = measured(container);
-
-        expect(container.querySelector(FADE)).toBeNull();
-
-        layOut(scroller as Element, 320);
-        layOut(content as Element, 560);
 
         expect(container.querySelector(FADE)).not.toBeNull();
         expect(container.querySelector('[data-icon-name="chevron-right"]')).not.toBeNull();

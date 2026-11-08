@@ -403,7 +403,7 @@ describe('U26/U27 — the preparation and the section survive the version layer'
             [],
         );
 
-        expect(line?.text).toBe('2 cups Onion, finely chopped');
+        expect(line?.text).toBe('2\u00A0cups Onion, finely chopped');
         // ⛔ Never the parenthesised `displayText` form — that idiom is one copy-paste away at all times.
         expect(line?.text).not.toContain('(finely chopped)');
     });
@@ -432,7 +432,7 @@ describe('U26/U27 — the preparation and the section survive the version layer'
             [],
         );
 
-        expect(line?.text).toBe('2 cups Onion');
+        expect(line?.text).toBe('2\u00A0cups Onion');
     });
 });
 

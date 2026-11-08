@@ -14,17 +14,28 @@
  *
  * Every case below fails if the fold stops case-folding, stops stripping combining marks, stops collapsing
  * whitespace; if the tokenizer stops splitting on hyphens or commas; if the plural rule loses either arm or
- * its length guards; or if either head rule is applied to the wrong side. The asymmetry between the two head
- * rules is asserted directly, because it is the single most surprising thing in this module and a
- * well-meaning "unify them" is the likeliest future regression.
+ * its length guards; or if the head rule stops reading the head noun from the right place.
+ *
+ * ## The head rule is ONE rule for both sides (ADR-0070, 2026-10-25)
+ *
+ * This suite used to assert that a name and a query took DIFFERENT heads (first word of a name, last word of a
+ * query), because the catalog wrote USDA's inverted names (`Flour, wheat`). The curated seed renamed 2,640 of its
+ * 2,642 roots into natural English (`milk crackers`, `1% milk`, `ground cinnamon`), and the first-word rule then
+ * crowned modifiers: a prod paste import on 2026-10-25 bound `milk` to milk crackers, `salt` to salt cod,
+ * `cinnamon` to cinnamon rolls and `bread` to bread flour. Those cases are pinned below. The asymmetry tests
+ * were rewritten, not deleted: they now assert the single English head-noun rule on both sides.
  */
 import { describe, expect, it } from 'vitest';
 
 import {
+    describeCatalogName,
     describeRankingQuery,
     describeRankingName,
     foldForRanking,
+    rankingHeadOf,
+    rankingKeyOf,
     rankingTokens,
+    replaceBracketedGroups,
     singularizeRankingText,
     singularizeRankingToken,
 } from '../rankingTerms.js';
@@ -117,7 +128,7 @@ describe('rankingTokens', () => {
         expect(rankingTokens('Sugars, brown')).toEqual(['sugar', 'brown']);
     });
 
-    it('preserves order, because the head term is the FIRST token of a catalog name', () => {
+    it('preserves order, because the head term is read from a position in the phrase', () => {
         expect(rankingTokens('Carob flour')).toEqual(['carob', 'flour']);
     });
 
@@ -131,71 +142,115 @@ describe('rankingTokens', () => {
     });
 });
 
-describe('describeRankingName — a catalog name is HEAD-FIRST', () => {
-    it("takes the first token as the head, which is USDA's inverted convention", () => {
-        expect(describeRankingName('Flour, wheat, all-purpose').head).toBe('flour');
-        expect(describeRankingName('Vinegar, red wine').head).toBe('vinegar');
-        expect(describeRankingName('Sugars, brown').head).toBe('sugar');
+describe('describeRankingName — the head is the English head noun of the first comma segment', () => {
+    describe('a natural-order name takes its LAST word (the prod defect of 2026-10-25)', () => {
+        it('never crowns a modifier: milk crackers are crackers, salt cod is cod', () => {
+            expect(describeRankingName('milk crackers').head).toBe('cracker');
+            expect(describeRankingName('salt cod').head).toBe('cod');
+            expect(describeRankingName('cinnamon rolls').head).toBe('roll');
+            expect(describeRankingName('bread flour').head).toBe('flour');
+        });
+
+        it('crowns the real food the cook asked for', () => {
+            expect(describeRankingName('1% milk').head).toBe('milk');
+            expect(describeRankingName('whole milk').head).toBe('milk');
+            expect(describeRankingName('kosher salt').head).toBe('salt');
+            expect(describeRankingName('ground cinnamon').head).toBe('cinnamon');
+            expect(describeRankingName('French bread').head).toBe('bread');
+        });
+
+        it('treats Carob flour as a flour, which it is', () => {
+            // Rewritten: this suite once pinned `carob` here, because the first-word rule stood in for a
+            // default meaning. A default is now a seed default (ADR-0070), so the head rule can tell the truth.
+            expect(describeRankingName('Carob flour').head).toBe('flour');
+            expect(describeRankingName('Milk and cereal bar').head).toBe('bar');
+        });
     });
 
-    it('gives an ATTRACTOR its own head, which is the whole point', () => {
-        // `Carob flour` is a carob product. Its head is `carob`, so the query `flour` cannot promote it to
-        // the head tier — the defect the 334 attractor lines came from.
-        expect(describeRankingName('Carob flour').head).toBe('carob');
-        expect(describeRankingName('Crackers, milk').head).toBe('cracker');
-    });
+    describe('an inverted USDA name keeps its head', () => {
+        it('takes the single word before the first comma', () => {
+            expect(describeRankingName('Flour, wheat, all-purpose').head).toBe('flour');
+            expect(describeRankingName('Vinegar, red wine').head).toBe('vinegar');
+            expect(describeRankingName('Sugars, brown').head).toBe('sugar');
+            expect(describeRankingName('Crackers, milk').head).toBe('cracker');
+            expect(describeRankingName('Pepper, banana, raw').head).toBe('pepper');
+        });
 
-    describe('a NATURAL-ORDER first comma segment yields its LAST word as the head (plan U1, D4b)', () => {
-        it('crowns the noun of a multi-word first segment, not its modifier', () => {
-            // Measured 2026-08-29: `Cinnamon buns, frosted` classified at the HEAD rung for the query
-            // `cinnamon` with a WIDE margin — a false catch that would have skipped verification. The name
-            // is natural-order English inside its first segment; its head noun is `buns`, not `cinnamon`.
+        it('takes the last word of a multi-word first segment (plan U1, D4b)', () => {
             expect(describeRankingName('Cinnamon buns, frosted').head).toBe('bun');
             expect(describeRankingName('Salad dressing, russian').head).toBe('dressing');
+            expect(describeRankingName('Sausage, Italian, sweet, links').head).toBe('sausage');
+        });
+    });
+
+    describe('words that are not the head noun are removed first', () => {
+        it('drops a bracketed group, so a qualifier in brackets is never the head', () => {
+            expect(describeRankingName('Tamales (Navajo)').head).toBe('tamale');
+            expect(describeRankingName('Cheese (cheddar, sharp), shredded').head).toBe('cheese');
         });
 
-        it('leaves a single-word first segment on the inverted-convention rule', () => {
-            expect(describeRankingName('Pepper, banana, raw').head).toBe('pepper');
-            expect(describeRankingName('Flour, wheat, all-purpose').head).toBe('flour');
+        it('cuts a trailing "in ..." phrase, which names the packing, not the food', () => {
+            expect(describeRankingName('walnuts in syrup').head).toBe('walnut');
+            expect(describeRankingName('sun-dried tomatoes in oil').head).toBe(singularizeRankingToken('tomatoes'));
+            expect(describeRankingName('Beans, in tomato sauce').head).toBe('bean');
         });
 
-        it('⛔ applies ONLY when a comma exists — a no-comma name keeps its FIRST token', () => {
-            // The boundary in both directions: flipping `Carob flour` to a last-word head would promote it
-            // INTO the head rung for the query `flour` and hand the attractor a tier it never had.
-            expect(describeRankingName('Carob flour').head).toBe('carob');
-            expect(describeRankingName('Milk and cereal bar').head).toBe('milk');
+        it('keeps an "of" phrase on the last word, because its head is final', () => {
+            expect(describeRankingName('cream of mushroom soup').head).toBe('soup');
         });
 
-        it('falls back to the first token when the first segment is empty', () => {
-            expect(describeRankingName(', frosted').head).toBe('frosted');
+        it('cuts only a standalone "in", never the letters inside a word', () => {
+            expect(describeRankingName('instant oatmeal').head).toBe('oatmeal');
+            expect(describeRankingName('raisin bread').head).toBe('bread');
         });
+    });
+
+    it('falls back to the last token of the whole name when the first segment holds nothing', () => {
+        expect(describeRankingName(', frosted').head).toBe('frosted');
+        expect(describeRankingName('(boiled), potatoes').head).toBe(singularizeRankingToken('potatoes'));
     });
 
     it('has no head when the name holds no alphanumeric character', () => {
         expect(describeRankingName('   ').head).toBeUndefined();
+        expect(describeRankingName('( )').head).toBeUndefined();
     });
 });
 
-describe('describeRankingQuery — a typed phrase is HEAD-LAST unless it is comma-inverted', () => {
-    it('takes the LAST token of an ordinary English noun phrase', () => {
+describe('describeRankingQuery — a typed phrase takes the SAME head rule as a name', () => {
+    it('takes the head noun of an ordinary English noun phrase', () => {
         expect(describeRankingQuery('red wine vinegar').head).toBe('vinegar');
         expect(describeRankingQuery('brown sugar').head).toBe('sugar');
         expect(describeRankingQuery('flour').head).toBe('flour');
+        expect(describeRankingQuery('walnuts in syrup').head).toBe('walnut');
     });
 
-    it("takes the FIRST token when the cook mimics the catalog's comma inversion", () => {
-        // A cook who has seen `Flour, all purpose` in the picker and types it back means `flour`, not
-        // `purpose`. The comma is the signal, and it is the only signal.
+    it("still reads a cook's comma inversion, because a single-word first segment is the head", () => {
         expect(describeRankingQuery('flour, all purpose').head).toBe('flour');
         expect(describeRankingQuery('Vinegar, red wine').head).toBe('vinegar');
+        expect(describeRankingQuery('all purpose flour, bleached').head).toBe('flour');
     });
 
-    it('⛔ is DELIBERATELY asymmetric with the name rule, and the asymmetry is what fixes `flour`', () => {
-        // Same text, two sides, two heads. If the query rule were applied to the name, `Carob flour` would
-        // report head `flour`, tie with the real flour row at the head tier, and the length penalty would
-        // hand the win straight back to the attractor.
-        expect(describeRankingName('Carob flour').head).toBe('carob');
-        expect(describeRankingQuery('Carob flour').head).toBe('flour');
+    // Rewritten (code-quality review M6): the name and the query are now ONE constructor, so "the query agrees with the
+    // name rule" became a tautology. What can still drift is the comparison KEY: the rung reads `terms.key`, and the
+    // SQL mirrors read `rankingKeyOf`, so the two must be one spelling. The inputs are the e2e suite's synonym sets.
+    it('⛔ carries the comparison key rankingKeyOf computes, for every phrase', () => {
+        for (const phrase of [
+            'granulated sugar',
+            'white sugar',
+            'Chicken Eggs',
+            'large eggs',
+            'bacalao',
+            'baccalà',
+            'salted cod',
+            'half-and-half',
+            'half & half',
+            '   ',
+            '---',
+            'Peaches',
+        ]) {
+            expect(describeRankingQuery(phrase).key).toBe(rankingKeyOf(phrase));
+            expect(describeRankingName(phrase).key).toBe(rankingKeyOf(phrase));
+        }
     });
 
     it('has no head for a query with nothing searchable in it', () => {
@@ -208,6 +263,108 @@ describe('describeRankingQuery — a typed phrase is HEAD-LAST unless it is comm
             folded: 'brown sugars',
             tokens: ['brown', 'sugar'],
             head: 'sugar',
+            key: 'brown sugar',
         });
+    });
+});
+
+describe("describeCatalogName — a root's default terms (ADR-0070 §4)", () => {
+    it('keys each default term as rankingKeyOf does, in order, empty keys dropped', () => {
+        expect(
+            describeCatalogName('whole milk', ['vitamin D milk'], ['Milk', '  ', 'Whole  Milks']).defaultKeys,
+        ).toEqual(['milk', 'whole milk']);
+    });
+
+    it('keeps default keys apart from synonym keys: a default is not a synonym', () => {
+        const terms = describeCatalogName('whole milk', ['vitamin D milk'], ['milk']);
+
+        expect(terms.synonymKeys).toEqual(['vitamin d milk']);
+        expect(terms.defaultKeys).toEqual(['milk']);
+    });
+
+    it('holds no default keys for a root with no default terms', () => {
+        expect(describeCatalogName('1% milk', [], []).defaultKeys).toEqual([]);
+    });
+});
+
+/**
+ * CodeQL js/polynomial-redos on the head reader (rankingTerms.ts). `\([^)]*\)` retried every `(` of a run that has no
+ * `)` after it, scanning to the end each time: quadratic. The scan is now bounded by the LAST `)`. The output must stay
+ * byte-identical, because the SQL mirror `rank_head_of` (migration 0025) is one `regexp_replace` and
+ * `rankingConformance` compares the two.
+ */
+describe('the head reader is linear on adversarial input', () => {
+    const BUDGET_MS = 250;
+
+    it.each([
+        ['an unclosed run of "("', '('.repeat(200_000)],
+        ['an unclosed run of "(" with text after', `${'('.repeat(200_000)} flour`],
+        ['a run of "(" closed once at the very end', `${'('.repeat(200_000)})`],
+        ['a long run of spaces with no " in "', `${' '.repeat(200_000)}i`],
+        ['a long run of " in" with no trailing whitespace', ' in'.repeat(100_000)],
+        ['a long run of mixed whitespace', ' \t\n'.repeat(100_000)],
+    ])('%s completes within budget', (_name, input) => {
+        // Best of three: a shared CI runner can stall one run for 25x its real cost (330 ms observed for a
+        // ~13 ms input), while a quadratic reader is slow on EVERY run, so the minimum still fails it.
+        const fastest = Math.min(
+            ...[0, 1, 2].map(() => {
+                const started = performance.now();
+
+                rankingHeadOf(input);
+
+                return performance.now() - started;
+            }),
+        );
+
+        expect(fastest).toBeLessThan(BUDGET_MS);
+    });
+});
+
+describe('replaceBracketedGroups is byte-identical to the non-nested `\\([^)]*\\)` replacement', () => {
+    const REFERENCE = (text: string): string => text.replace(/\([^)]*\)/g, ' ');
+
+    it.each([
+        '',
+        'flour',
+        'Tamales (Navajo)',
+        'a (b) c (d) e',
+        'a (b c',
+        'a (b (c) d) e',
+        '((x)',
+        '(a(b)c)',
+        ') (',
+        '()',
+        '(',
+        ')',
+        'x (y) z (w',
+        '(a)(b)(c)',
+        'no brackets, only commas',
+        '(\n)\n(',
+        'trailing )',
+        'a) (b) (c',
+    ])('%j', (input) => {
+        expect(replaceBracketedGroups(input)).toBe(REFERENCE(input));
+    });
+
+    it('agrees with the reference over every string of up to 7 characters from "( ) a"', () => {
+        const alphabet = ['(', ')', 'a', ' '];
+        let checked = 0;
+
+        const visit = (prefix: string, depth: number): void => {
+            expect(replaceBracketedGroups(prefix)).toBe(REFERENCE(prefix));
+            checked += 1;
+
+            if (depth === 0) {
+                return;
+            }
+
+            for (const character of alphabet) {
+                visit(prefix + character, depth - 1);
+            }
+        };
+
+        visit('', 7);
+
+        expect(checked).toBeGreaterThan(20_000);
     });
 });

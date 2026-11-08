@@ -99,6 +99,14 @@ const SEED_RULES = [
     'candidateNotInExtract',
     // A cited Branded product's serving is not stated in grams, so its amounts are per 100 mL (KTD-20).
     'brandedServingNotGrams',
+    // A default term keys the same as a root's name: the name already answers that noun (ADR-0070 §4).
+    'defaultTermIsAName',
+    // A default term keys the same as a synonym: a synonym is the food itself, a default is not (ADR-0070 §4).
+    'defaultTermIsASynonym',
+    // Two default terms key the same, on one root or two: a noun has one default (ADR-0070 §4).
+    'defaultTermRepeated',
+    // A default term holds no letter or digit, so no query can ever key it (ADR-0070 §4).
+    'defaultTermEmpty',
 ] as const;
 
 /** A rule a committed seed can break. */

@@ -1,21 +1,25 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, screen, within } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
-import { Platform } from 'react-native';
 import { useState } from 'react';
 
+import { withPlatformOs } from '../../testing/platformOs.native.js';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { Chip } from '../Chip.native.js';
 import { ChipRow } from '../ChipRow.native.js';
+import { Button } from '../../button/Button.native.js';
 import type { ChipOption } from '../props.js';
-import { role } from '../../tokens/colors.js';
+import { chipPill } from '../chipStyle.js';
+import { role, roleDark } from '../../tokens/colors.js';
+import { themeFor } from '../../theme/themeFor.js';
 import { nativeTokens } from '../../tokens/native.js';
+import { render, renderWithTamagui, resolvedColour, resolvedStyle } from '../../testing/tamaguiTesting.native.js';
 
 /**
  * Chip and ChipRow (native) — rendered via react-native-web under jsdom, glyphs through the `lucideNativeStub`.
  * Native semantics (spec §1.11): a filter chip is a `checkbox`, a choice option a `radio` in a `radiogroup`, both with
- * `accessibilityState.checked`; an input chip is a button named by its remove label. The pill is 36 visual points, hit
- * at 44 (48 dp on Android).
+ * `accessibilityState.checked`; an input chip is a button named by its remove label. The pill is 32 visual points, hit
+ * at 44 (48 dp on Android), on `surfaceMuted` with no edge at rest (`componentFixes.md` §4).
  */
 
 afterEach(cleanup);
@@ -27,14 +31,14 @@ function rgb(hex: string): string {
     return `rgb(${r}, ${g}, ${b})`;
 }
 
-/** The painted pill inside a chip: the element with its edge. */
+/** The painted pill inside a chip: the rounded element (a resting chip draws no edge to find it by). */
 function pillOf(chip: HTMLElement): HTMLElement {
     const pill = [chip, ...Array.from(chip.querySelectorAll<HTMLElement>('*'))].find(
-        (element) => Number.parseFloat(getComputedStyle(element).borderTopWidth) > 0,
+        (element) => Number.parseFloat(getComputedStyle(element).borderTopLeftRadius) > 0,
     );
 
     if (pill === undefined) {
-        throw new Error('The chip paints no edge.');
+        throw new Error('The chip paints no pill.');
     }
 
     return pill;
@@ -42,14 +46,6 @@ function pillOf(chip: HTMLElement): HTMLElement {
 
 const glyphIn = (element: HTMLElement): string | undefined =>
     element.querySelector<HTMLElement>('[data-commise-stub="icon"]')?.dataset['iconName'];
-
-/** Render under a given React Native platform, restoring react-native-web's own `web` afterwards. */
-function onPlatform(os: 'ios' | 'android'): () => void {
-    const original = Platform.OS;
-    Object.defineProperty(Platform, 'OS', { value: os, configurable: true });
-
-    return () => Object.defineProperty(Platform, 'OS', { value: original, configurable: true });
-}
 
 describe('Chip (native) — filter', () => {
     it('is a checkbox whose checked state follows selected', () => {
@@ -71,19 +67,109 @@ describe('Chip (native) — filter', () => {
         expect(onPress).toHaveBeenCalledOnce();
     });
 
-    it('rests on paper with a 1pt lineControl edge and an ink label', () => {
+    it('rests on surfaceMuted with no edge and an ink caption label (14/500)', () => {
         render(<Chip kind="filter" label="Vegan" selected={false} onPress={vi.fn()} />);
 
         // Read the label's font FIRST: jsdom's computed-style cache reports the shim's system stack for a child's
         // `fontFamily` once its ancestors' styles have been computed (measured; the order is a harness artefact).
-        expect(getComputedStyle(screen.getByText('Vegan')).fontFamily).toBe(nativeTokens.type.label.fontFamily);
+        expect(getComputedStyle(screen.getByText('Vegan')).fontFamily).toBe(nativeTokens.type.caption.fontFamily);
+        expect(nativeTokens.type.caption.fontFamily).not.toBe(nativeTokens.type.label.fontFamily);
 
         const pill = getComputedStyle(pillOf(screen.getByRole('checkbox', { name: 'Vegan' })));
 
-        expect(pill.backgroundColor).toBe(rgb(role.paper));
-        expect(pill.borderTopColor).toBe(rgb(role.lineControl));
-        expect(pill.borderTopWidth).toBe('1px');
-        expect(getComputedStyle(screen.getByText('Vegan')).color).toBe(rgb(role.ink));
+        expect(pill.backgroundColor).toBe(rgb(role.surfaceMuted));
+        // Ruling 4: the edge is there at rest, in a transparent colour, at the selected width.
+        expect(pill.borderTopWidth).toBe('1.5px');
+        expect(resolvedColour(screen.getByText('Vegan'), 'color')).toBe(rgb(role.ink));
+    });
+
+    // Ruling 4 (`componentFixes` issue 4): selecting a chip must never shift its neighbours. Mutation lens: a rest edge of
+    // 0 (the old value) or any width other than the selected one fails the equality.
+    it('keeps the same edge width and a transparent edge colour at rest, so selecting moves nothing', () => {
+        const theme = themeFor('light');
+        const rest = chipPill(theme, false, false, 'canvas');
+        const selected = chipPill(theme, true, false, 'canvas');
+
+        expect(rest.borderWidth).toBe(1.5);
+        expect(rest.borderWidth).toBe(selected.borderWidth);
+        expect(rest.borderColor).toBe('transparent');
+        expect(selected.borderColor).toBe(theme.colors.selectedEdge);
+    });
+
+    it('⛔ cannot be mistaken for a secondary button: a different fill and no edge, side by side', () => {
+        render(
+            <>
+                <Chip kind="filter" label="Vegan" selected={false} onPress={vi.fn()} />
+                <Button variant="secondary" icon="plus" onPress={vi.fn()}>
+                    Add
+                </Button>
+            </>,
+        );
+
+        const chip = getComputedStyle(pillOf(screen.getByRole('checkbox', { name: 'Vegan' })));
+        const button = getComputedStyle(screen.getByText('Add').parentElement as HTMLElement);
+
+        expect(chip.backgroundColor).not.toBe(button.backgroundColor);
+        expect(chip.borderTopWidth).not.toBe(button.borderTopWidth);
+        expect(button.borderTopWidth).toBe('1px');
+    });
+
+    // REWRITTEN for `componentFixes.md` §10a: a chip rests on its surface's chip fill (surfaceMuted, or paper on a muted
+    // surface) and presses to that fill's row of the surface table. The 1.5 pt transparent edge stays, so a press moves
+    // nothing. (The surfaces themselves are exercised on the real Chip in `surfaceTone/pressFill.native.test.tsx`.)
+    it('fills the pill with the press of the fill it rests on while pressed, in both schemes', () => {
+        for (const scheme of ['light', 'dark'] as const) {
+            const theme = themeFor(scheme);
+            const rest = chipPill(theme, false, false, 'canvas');
+            const pressed = chipPill(theme, false, true, 'canvas');
+
+            expect(rest.backgroundColor, scheme).toBe(theme.colors.surfaceMuted);
+            expect(pressed.backgroundColor, scheme).toBe(theme.press.muted);
+            expect(pressed.borderWidth, scheme).toBe(1.5);
+            // A press must be visible: the press is not the resting fill.
+            expect(pressed.backgroundColor, scheme).not.toBe(rest.backgroundColor);
+        }
+    });
+
+    it('rests on paper on a muted surface, pressing to the paper row', () => {
+        for (const scheme of ['light', 'dark'] as const) {
+            const theme = themeFor(scheme);
+
+            expect(chipPill(theme, false, false, 'muted').backgroundColor, scheme).toBe(theme.colors.paper);
+            expect(chipPill(theme, false, true, 'muted').backgroundColor, scheme).toBe(theme.press.paper);
+        }
+    });
+
+    // REWRITTEN for parity item 10 (`componentFixes` §6): the selected pill used to be unchanged while pressed. It now
+    // shows a 2 pt selectedEdge, with its inline padding half a point less so the box and the label stay where they were.
+    it('shows a 2 pt selectedEdge while a selected chip is pressed, keeping the tint and the box size', () => {
+        for (const scheme of ['light', 'dark'] as const) {
+            const theme = themeFor(scheme);
+            const rest = chipPill(theme, true, false, 'canvas');
+            const pressed = chipPill(theme, true, true, 'canvas');
+
+            expect(pressed.borderWidth, scheme).toBe(2);
+            expect(pressed.borderColor, scheme).toBe(theme.colors.selectedEdge);
+            expect(pressed.backgroundColor, scheme).toBe(rest.backgroundColor);
+            expect(Number(pressed.paddingHorizontal) + Number(pressed.borderWidth), scheme).toBe(
+                Number(rest.paddingHorizontal) + Number(rest.borderWidth),
+            );
+            expect(pressed.minHeight, scheme).toBe(rest.minHeight);
+        }
+    });
+
+    it('holds the same 1.5 pt edge at rest (transparent) and selected, so selecting never resizes the pill', () => {
+        const theme = themeFor('light');
+
+        expect(chipPill(theme, false, false, 'canvas').borderWidth).toBe(1.5);
+        expect(chipPill(theme, true, false, 'canvas').borderWidth).toBe(1.5);
+        expect(chipPill(theme, false, false, 'canvas').borderColor).toBe('transparent');
+    });
+
+    it('paints the dark scheme from the dark roles', () => {
+        const theme = themeFor('dark');
+
+        expect(chipPill(theme, false, false, 'canvas').backgroundColor).toBe(roleDark.surfaceMuted);
     });
 
     it('shows selection by tint, a 1.5pt selectedEdge, an actionText label AND a check', () => {
@@ -95,7 +181,7 @@ describe('Chip (native) — filter', () => {
         expect(pill.backgroundColor).toBe(rgb(role.selectedFill));
         expect(pill.borderTopColor).toBe(rgb(role.selectedEdge));
         expect(pill.borderTopWidth).toBe('1.5px');
-        expect(getComputedStyle(screen.getByText('Vegan')).color).toBe(rgb(role.actionText));
+        expect(resolvedColour(screen.getByText('Vegan'), 'color')).toBe(rgb(role.actionText));
         expect(glyphIn(chip)).toBe('check');
     });
 
@@ -105,30 +191,26 @@ describe('Chip (native) — filter', () => {
         expect(glyphIn(screen.getByRole('checkbox', { name: 'Vegan' }))).toBeUndefined();
     });
 
-    it('draws a 36pt pill inside a 44pt hit area on iOS, 48dp on Android', () => {
+    it('draws a 32pt pill inside a 44pt hit area on iOS, 48dp on Android', () => {
         for (const [os, hit] of [
             ['ios', '44px'],
             ['android', '48px'],
         ] as const) {
-            const restore = onPlatform(os);
-
-            try {
+            withPlatformOs(os, () => {
                 const { unmount } = render(<Chip kind="filter" label="Vegan" selected={false} onPress={vi.fn()} />);
                 const chip = screen.getByRole('checkbox', { name: 'Vegan' });
 
                 expect(getComputedStyle(chip).minHeight, os).toBe(hit);
-                expect(getComputedStyle(pillOf(chip)).minHeight, os).toBe('36px');
+                expect(getComputedStyle(pillOf(chip)).minHeight, os).toBe('32px');
                 unmount();
-            } finally {
-                restore();
-            }
+            });
         }
     });
 
     it('shows a count in tabular inkMuted digits, inside the accessible name', () => {
         render(<Chip kind="filter" label="Vegan" selected={false} count={12} onPress={vi.fn()} />);
 
-        expect(getComputedStyle(screen.getByText('12')).color).toBe(rgb(role.inkMuted));
+        expect(resolvedColour(screen.getByText('12'), 'color')).toBe(rgb(role.inkMuted));
         expect(screen.getByRole('checkbox', { name: 'Vegan 12' })).toBeTruthy();
     });
 
@@ -296,5 +378,38 @@ describe('ChipRow (native) — filter and input', () => {
         const line = screen.getByRole('checkbox', { name: 'Vegan' }).parentElement;
 
         expect(line === null ? undefined : getComputedStyle(line).flexWrap).toBe('wrap');
+    });
+});
+
+// Designer finding C-1 (reviews/mergedUiIos1.md): chip text grew to about 3x at the largest text size and broke inside its
+// word. The label and the count are the design-system Text, which stops at 2x; the pill grows with it (a minimum height).
+describe('Chip (native) — the label and the count stop at 2x', () => {
+    it.each([
+        [1, '14px', '14px'],
+        [2, '28px', '28px'],
+        [3.1, '28px', '28px'],
+    ] as const)('at system scale %fx the label is %s and the count %s', (scale, label, count) => {
+        renderWithTamagui(
+            <Chip kind="filter" label="Under 30 min" count={12} selected={false} onPress={vi.fn()} />,
+            'light',
+            scale,
+        );
+
+        expect(resolvedStyle(screen.getByText('Under 30 min'), 'fontSize')).toBe(label);
+        expect(resolvedStyle(screen.getByText('12'), 'fontSize')).toBe(count);
+    });
+});
+
+// REWRITES the old check of `chipLabel(theme).color`, a style function the chip no longer uses: the label is the design-system
+// Text, whose colour is a theme token, so it is read resolved from the rendered label.
+describe('Chip (native) — the label colour follows the theme', () => {
+    it.each([
+        ['light', false, role.ink],
+        ['dark', false, roleDark.ink],
+        ['light', true, role.actionText],
+    ] as const)('in the %s scheme, selected=%s', (scheme, selected, expected) => {
+        renderWithTamagui(<Chip kind="filter" label="Under 30 min" selected={selected} onPress={vi.fn()} />, scheme);
+
+        expect(resolvedColour(screen.getByText('Under 30 min'), 'color')).toBe(rgb(expected));
     });
 });

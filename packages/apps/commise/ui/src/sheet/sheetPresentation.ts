@@ -10,20 +10,54 @@ import { spacing } from '../tokens/scale.js';
 /** The sheet's edge padding, in dp, before a device inset is added to it. */
 export const SHEET_EDGE_PADDING_DP = spacing[4];
 
+/**
+ * The grab handle's geometry, in points (`componentFixes.md` §3, owner-approved): a 36 by 5 pill, 8 from the top of the
+ * sheet and 4 above the title row. Its row is part of the swipe zone. Native bottom sheets only.
+ */
+export const SHEET_HANDLE = { width: 36, height: 5, marginTop: spacing[2], marginBottom: spacing[1] } as const;
+
 /** The window width, in dp, from which the sheet stops spanning the full width. */
 export const SHEET_WIDE_FROM_DP = 600;
 
 /** The widest the sheet grows, in dp. */
 export const SHEET_MAX_WIDTH_DP = 560;
 
+/** The widest a `dialog` presentation grows, in dp (owner ruling 2026-10-26: 448 on a tablet, 834 and 1194 alike). */
+export const SHEET_DIALOG_MAX_WIDTH_DP = 448;
+
+/** Whether the sheet is a `dialog` presentation or the default. */
+export type SheetPresentation = 'sheet' | 'dialog';
+
+/**
+ * Whether the sheet is a centred dialog rather than a bottom sheet. Pure.
+ *
+ * @param presentation - The sheet's presentation.
+ * @param windowWidth - The window's width, in dp.
+ * @returns `true` only for a `dialog` presentation from {@link SHEET_WIDE_FROM_DP}.
+ */
+export function sheetIsCentred(presentation: SheetPresentation, windowWidth: number): boolean {
+    return presentation === 'dialog' && windowWidth >= SHEET_WIDE_FROM_DP;
+}
+
+/** The widest the sheet grows for a presentation, in dp. */
+const maxWidthOf = (presentation: SheetPresentation): number =>
+    presentation === 'dialog' ? SHEET_DIALOG_MAX_WIDTH_DP : SHEET_MAX_WIDTH_DP;
+
 /**
  * The sheet's width for a window width. Pure.
  *
  * @param windowWidth - The window's width, in dp.
- * @returns Full width, capped at {@link SHEET_MAX_WIDTH_DP} from {@link SHEET_WIDE_FROM_DP}.
+ * @param presentation - The sheet's presentation.
+ * @returns Full width, capped at {@link SHEET_MAX_WIDTH_DP} (a `dialog`: {@link SHEET_DIALOG_MAX_WIDTH_DP}) from
+ *   {@link SHEET_WIDE_FROM_DP}.
  */
-export function sheetWidthStyle(windowWidth: number): { readonly width: '100%'; readonly maxWidth?: number } {
-    return windowWidth >= SHEET_WIDE_FROM_DP ? { width: '100%', maxWidth: SHEET_MAX_WIDTH_DP } : { width: '100%' };
+export function sheetWidthStyle(
+    windowWidth: number,
+    presentation: SheetPresentation = 'sheet',
+): { readonly width: '100%'; readonly maxWidth?: number } {
+    return windowWidth >= SHEET_WIDE_FROM_DP
+        ? { width: '100%', maxWidth: maxWidthOf(presentation) }
+        : { width: '100%' };
 }
 
 /**
@@ -36,10 +70,15 @@ export function sheetWidthStyle(windowWidth: number): { readonly width: '100%'; 
  *
  * @param windowWidth - The window's width, in dp.
  * @param inset - The device inset on that side, in dp.
+ * @param presentation - The sheet's presentation, which sets the width it is centred at.
  * @returns `max(0, inset − gap to that window edge)`.
  */
-export function sheetSideInsetPadding(windowWidth: number, inset: number): number {
-    const gap = windowWidth >= SHEET_WIDE_FROM_DP ? (windowWidth - SHEET_MAX_WIDTH_DP) / 2 : 0;
+export function sheetSideInsetPadding(
+    windowWidth: number,
+    inset: number,
+    presentation: SheetPresentation = 'sheet',
+): number {
+    const gap = windowWidth >= SHEET_WIDE_FROM_DP ? (windowWidth - maxWidthOf(presentation)) / 2 : 0;
 
     return Math.max(0, inset - gap);
 }

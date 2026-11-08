@@ -87,7 +87,7 @@ function makeDal(candidates: readonly CopyForwardCandidate[] = []): MockedDal {
                 quietSeconds: 0,
             };
 
-            return built;
+            return { kind: 'created' as const, record: built };
         }),
         correctionsChangedAt: vi.fn<ParseJobsDalPort['correctionsChangedAt']>(async () => null),
         getJob: vi.fn<ParseJobsDalPort['getJob']>(async () => undefined),

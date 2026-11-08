@@ -115,13 +115,23 @@ export interface VerdictStore {
      * made by an older model must NOT suppress re-verification under the current one, which is precisely
      * what `recordVerdict`'s `DO UPDATE` exists to allow.
      *
+     * ⛔ AND ON THE ASPECTS (ADR-0071): a verdict answers this delivery only when it asked EVERY aspect this delivery
+     * asks. A quantity-only judgement under the same key says nothing about the food, and answering `already-verified`
+     * from it would leave an identity review owed forever.
+     *
      * @param key - The verification key.
      * @param modelId - The model this delivery would call.
      * @param leaseSeconds - How long a claim holds, before another delivery may take it.
+     * @param aspects - What this delivery asks the model about.
      * @returns What this delivery found.
      * @sideEffect Upserts `recipe_verification_attempts`; reads `recipe_ingredient_verifications`.
      */
-    claimVerification(key: string, modelId: string, leaseSeconds: number): Promise<VerificationClaim>;
+    claimVerification(
+        key: string,
+        modelId: string,
+        leaseSeconds: number,
+        aspects: readonly string[],
+    ): Promise<VerificationClaim>;
 
     /**
      * Stop trying: record why, and leave the line to publish unverified.
@@ -132,6 +142,19 @@ export interface VerdictStore {
      * @sideEffect Updates `recipe_verification_attempts`.
      */
     recordAttemptFailure(key: string, modelId: string, failureCode: string): Promise<void>;
+
+    /**
+     * Record that the spend ceiling refused this paste-match review (ADR-0024 §3, owner ruling 2026-10-26).
+     *
+     * ⛔ NOT A VERDICT and not a failure code: it sets only the attempt row's `budget_spent_period`, which the service
+     * reads as "spent" while that period is current. The period is the one the RESERVE captured. Idempotent.
+     *
+     * @param key - The verification key.
+     * @param modelId - The model the call would have used.
+     * @param period - The spend period (`YYYY-MM`) the denial was captured in.
+     * @sideEffect Updates `recipe_verification_attempts` (the claim has already created the row).
+     */
+    recordBudgetSpent(key: string, modelId: string, period: string): Promise<void>;
 
     /**
      * Record what the gate concluded about one line, and retire its attempt bookkeeping with it.
@@ -175,14 +198,19 @@ function arcColumnsOf(food: VerificationFood): {
  */
 export function createVerdictStore(db: NodePgDatabase<Record<string, never>>): VerdictStore {
     return {
-        async claimVerification(key: string, modelId: string, leaseSeconds: number): Promise<VerificationClaim> {
+        async claimVerification(
+            key: string,
+            modelId: string,
+            leaseSeconds: number,
+            aspects: readonly string[],
+        ): Promise<VerificationClaim> {
             // ⛔ THE VERDICT READ COMES FIRST AND IS FREE. Every input to `key` comes from the MESSAGE, so it
             // has always been computable before the reservation — it simply was not computed until after the
             // model had answered, which is why a duplicate delivery paid Bedrock to reach a judgement already
             // stored under the same key.
             const verdict = await db.execute(sql`
                 SELECT 1 FROM recipe_ingredient_verifications
-                 WHERE verification_key = ${key} AND model_id = ${modelId}
+                 WHERE verification_key = ${key} AND model_id = ${modelId} AND aspects @> ${textArray(aspects)}
                  LIMIT 1
             `);
 
@@ -212,6 +240,17 @@ export function createVerdictStore(db: NodePgDatabase<Record<string, never>>): V
             await db.execute(sql`
                 UPDATE recipe_verification_attempts SET failure_code = ${failureCode}
                  WHERE verification_key = ${key} AND model_id = ${modelId}
+            `);
+        },
+
+        async recordBudgetSpent(key: string, modelId: string, period: string): Promise<void> {
+            // An UPSERT, not a bare UPDATE: the claim wrote the row before the reservation, but a row the claim's
+            // lease refused to touch, or one an operator cleaned up, must not turn the fact into a silent no-op.
+            await db.execute(sql`
+                INSERT INTO recipe_verification_attempts (verification_key, model_id, attempts, budget_spent_period)
+                VALUES (${key}, ${modelId}, 0, ${period})
+                ON CONFLICT (verification_key, model_id) DO UPDATE
+                   SET budget_spent_period = EXCLUDED.budget_spent_period
             `);
         },
 

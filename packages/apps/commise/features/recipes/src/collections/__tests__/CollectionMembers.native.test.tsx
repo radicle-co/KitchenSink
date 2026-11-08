@@ -8,7 +8,7 @@
  * and a delete/remove error banner (the page's header and the removal hook own those now); it had no view switch, no count,
  * and focus fell to the page when a row was removed. The windowing and the empty copy are kept.
  */
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, screen, within } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -17,8 +17,29 @@ import { LocaleProvider } from '@commise/i18n/react';
 import { makeCollectionMemberRecipe } from '../../__fixtures__/index.js';
 import { CollectionMembers } from '../CollectionMembers.native.js';
 import type { CollectionMembersProps } from '../detailModel.js';
+import { render } from '@commise/ui/testing/tamagui';
 
-afterEach(cleanup);
+/** The window's width and text scale, when a test sets them: jsdom has a 1024 px window and a scale of 1. */
+const dims = vi.hoisted(() => ({ width: undefined as number | undefined, fontScale: undefined as number | undefined }));
+
+vi.mock('react-native', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('react-native')>();
+
+    return {
+        ...actual,
+        useWindowDimensions: () => {
+            const real = actual.useWindowDimensions();
+
+            return { ...real, width: dims.width ?? real.width, fontScale: dims.fontScale ?? real.fontScale };
+        },
+    };
+});
+
+afterEach(() => {
+    cleanup();
+    dims.width = undefined;
+    dims.fontScale = undefined;
+});
 
 const members = (count: number) =>
     Array.from({ length: count }, (_, index) =>
@@ -140,5 +161,60 @@ describe('CollectionMembers (native) — a removal that failed', () => {
         renderMembers();
 
         expect(screen.queryByRole('alert')).toBeNull();
+    });
+});
+
+// Designer ruling (2026-11-02): below 600 the collection detail grid is the compact tile, two to a row (CollectionDetailIphone390),
+// but a collection tile DROPS the "Edited" line: only Recipes tiles keep it, because only a Recipes sort may not be by recency.
+describe('CollectionMembers (native) — a narrow collection tile carries no Edited line', () => {
+    it('draws compact tiles with their title and no Edited or Created footer', () => {
+        renderMembers({
+            variant: 'compact',
+            viewMode: 'grid',
+            members: [
+                makeCollectionMemberRecipe({
+                    id: 'rec_e',
+                    title: 'Herb Risotto',
+                    createdAt: '2020-01-01T00:00:00.000Z',
+                    updatedAt: '2020-01-02T00:00:00.000Z',
+                }),
+            ],
+        });
+
+        expect(screen.getByRole('link', { name: 'Herb Risotto' })).toBeTruthy();
+        expect(screen.queryByText(/Edited |Created /u)).toBeNull();
+    });
+});
+
+// Designer rule (2026-11-02): the compact tile is two columns while the container width over the CAPPED text scale is at least
+// 320 pt, and one below. A collection's detail grid picks its columns by the same function as the Recipes list.
+describe('CollectionMembers (native) — the compact grid’s columns follow the capped text scale', () => {
+    const cellWidth = (): string => {
+        const link = screen.getByRole('link', { name: 'Recipe 0' });
+        let width = '';
+
+        for (let node = link.parentElement; node !== null && width === ''; node = node.parentElement) {
+            if (node.style.width.endsWith('%')) {
+                width = node.style.width;
+            }
+        }
+
+        return width;
+    };
+
+    it('is two columns at 1x on a phone', () => {
+        dims.width = 390;
+        dims.fontScale = 1;
+        renderMembers({ variant: 'compact', viewMode: 'grid' });
+
+        expect(cellWidth()).toBe('50%');
+    });
+
+    it('is one column at 2x on the same phone', () => {
+        dims.width = 390;
+        dims.fontScale = 2;
+        renderMembers({ variant: 'compact', viewMode: 'grid' });
+
+        expect(cellWidth()).toBe('100%');
     });
 });

@@ -4,15 +4,16 @@
  * objects; `nativeTokens` is the RN-facing projection of the exact same scale, so the two platforms
  * cannot drift. This module is pure data (no `react-native` import) and safe under Node/Vitest.
  */
-import type { ContainerClass, PerContainerClass } from './layout.js';
+import { devicePixelScale, snapLineHeight } from './iosLineHeight.js';
+import type { PerContainerClass } from './layout.js';
 import {
     bodyFontFace,
-    borderSubtle,
     displayFontFace,
     elevation,
+    type ElevationLayer,
     fontSize,
     fontWeight,
-    lineHeightRatio,
+    lineHeightPx,
     mediaHeight,
     radius,
     spacing,
@@ -23,7 +24,7 @@ import { typeRole, type TypeRole, type TypeRoleSpec } from './typography.js';
  * A React Native shadow, composed from a `scale.elevation` spec. `shadowColor` + `shadowOpacity` are
  * kept separate (iOS), `shadowRadius` is the blur, `shadowOffset` the drop, and `elevation` the Android
  * depth, set per LEVEL (`androidElevation`), never from the offset. CSS `spread` has no RN equivalent and is
- * intentionally dropped.
+ * intentionally dropped, and a view has ONE shadow, so a two-layer web shadow projects its last (diffuse) layer.
  */
 export interface NativeShadow {
     readonly shadowColor: string;
@@ -33,7 +34,9 @@ export interface NativeShadow {
     readonly elevation: number;
 }
 
-function toNativeShadow(spec: (typeof elevation)[keyof typeof elevation], androidLevel: number): NativeShadow {
+function toNativeShadow(layers: readonly [ElevationLayer, ...ElevationLayer[]], androidLevel: number): NativeShadow {
+    const spec = layers[layers.length - 1] as ElevationLayer;
+
     return {
         shadowColor: `rgb(${spec.color})`,
         shadowOffset: { width: spec.offsetX, height: spec.offsetY },
@@ -55,8 +58,6 @@ export interface NativeTypeStyle {
     // Mutable on purpose: React Native's `TextStyle.fontVariant` is a mutable array, so a readonly tuple here would
     // make every role unusable as a `style`.
     readonly fontVariant?: ['tabular-nums', 'lining-nums'];
-    readonly letterSpacing?: number;
-    readonly textTransform?: 'uppercase';
 }
 
 /** The registered face for a role's family and weight. Throws for a weight the family has no face for. Pure. */
@@ -72,9 +73,12 @@ function faceOf(spec: TypeRoleSpec): string {
     return face;
 }
 
-/** One decimal: `size × ratio` is not exact in IEEE-754 (16 × 1.3), and React Native needs no finer leading. Pure. */
-function round1(value: number): number {
-    return Math.round(value * 10) / 10;
+/**
+ * A token leading as the platform draws it (iOS sits a hair above the pixel grid, react/react-native#58970; see
+ * `iosLineHeight.native.ts`). The token in `typography.ts` stays exact.
+ */
+function platformLeading(lineHeight: number): number {
+    return snapLineHeight(lineHeight, devicePixelScale());
 }
 
 /** A role at one px size (or at the size of its line, for `inherit`). Pure. */
@@ -82,41 +86,56 @@ function toNativeTypeStyle(spec: TypeRoleSpec, size: number | 'inherit'): Native
     return {
         fontFamily: faceOf(spec),
         ...(size === 'inherit' ? {} : { fontSize: size }),
-        ...(size === 'inherit' || spec.lineHeight === 'inherit' ? {} : { lineHeight: round1(size * spec.lineHeight) }),
+        ...(size === 'inherit' || spec.lineHeight === 'inherit'
+            ? {}
+            : { lineHeight: platformLeading(spec.lineHeight) }),
         ...(spec.figure === true
             ? { fontVariant: ['tabular-nums', 'lining-nums'] satisfies NativeTypeStyle['fontVariant'] }
             : {}),
-        ...(spec.letterSpacingEm === undefined || size === 'inherit'
-            ? {}
-            : { letterSpacing: Math.round(size * spec.letterSpacingEm * 100) / 100 }),
-        ...(spec.uppercase === true ? { textTransform: 'uppercase' as const } : {}),
     };
 }
 
-/** A role with one size per container class, projected once per class. Pure. */
-function perClass(spec: TypeRoleSpec, sizes: PerContainerClass<number>): PerContainerClass<NativeTypeStyle> {
-    const classes: readonly ContainerClass[] = ['narrow', 'regular', 'wide'];
-
-    return Object.fromEntries(
-        classes.map((name) => [name, toNativeTypeStyle(spec, sizes[name])]),
-    ) as PerContainerClass<NativeTypeStyle>;
+/** A role with a size and a leading of its own: every role but inline figures. */
+export interface SizedNativeTypeStyle extends NativeTypeStyle {
+    readonly fontSize: number;
+    readonly lineHeight: number;
 }
 
-/** Every role with a single size, projected once. */
-type FixedTypeRole = Exclude<TypeRole, 'largeTitle'>;
+/** A role at one px size, with its own leading. Throws for a role whose leading is its line's. Pure. */
+function toSizedNativeTypeStyle(spec: TypeRoleSpec, size: number): SizedNativeTypeStyle {
+    if (spec.lineHeight === 'inherit') {
+        throw new Error('A sized type role needs a leading of its own.');
+    }
 
-const fixedTypeRoles = Object.fromEntries(
+    return { ...toNativeTypeStyle(spec, size), fontSize: size, lineHeight: platformLeading(spec.lineHeight) };
+}
+
+/** A role with one size per container class, projected once per class. Pure. */
+function perClass(spec: TypeRoleSpec, sizes: PerContainerClass<number>): PerContainerClass<SizedNativeTypeStyle> {
+    return {
+        narrow: toSizedNativeTypeStyle(spec, sizes.narrow),
+        regular: toSizedNativeTypeStyle(spec, sizes.regular),
+        wide: toSizedNativeTypeStyle(spec, sizes.wide),
+    };
+}
+
+/** Every role with a single size of its own, projected once. */
+type SizedTypeRole = Exclude<TypeRole, 'largeTitle' | 'figureInline'>;
+
+const sizedTypeRoles = Object.fromEntries(
     (Object.entries(typeRole) as [TypeRole, TypeRoleSpec][]).flatMap(([name, spec]) =>
-        typeof spec.size === 'object' ? [] : [[name, toNativeTypeStyle(spec, spec.size)] as const],
+        typeof spec.size === 'number' ? [[name, toSizedNativeTypeStyle(spec, spec.size)] as const] : [],
     ),
-) as Readonly<Record<FixedTypeRole, NativeTypeStyle>>;
+) as Readonly<Record<SizedTypeRole, SizedNativeTypeStyle>>;
 
 /**
  * The native projection of the type roles. Every role is one style, except `largeTitle`, which has one per container
  * class (`type.largeTitle[containerClass]`, the class from `useContainerClass`).
  */
 const nativeType = {
-    ...fixedTypeRoles,
+    ...sizedTypeRoles,
+    // Takes the size and leading of the line it sits in, so it has neither of its own.
+    figureInline: toNativeTypeStyle(typeRole.figureInline, 'inherit'),
     largeTitle: perClass(typeRole.largeTitle, typeRole.largeTitle.size),
 } as const;
 
@@ -139,8 +158,7 @@ const nativeElevation = {
 
 /**
  * The React Native projection of the design scale. `spacing`/`radius`/`fontSize` are pixel numbers,
- * `lineHeight` are unitless ratios, `fontWeight` are numeric weights, `elevation` are RN shadow objects,
- * and `borderSubtle` is the shared string.
+ * `lineHeight` is the px leading for each allowed size, `fontWeight` are numeric weights, and `elevation` are RN shadow objects.
  *
  * Type is projected as `fontFace` — the REGISTERED face names — and NOT as the web `fontFamily` stacks:
  * React Native resolves `fontFamily` to one registered face, so handing it a stack silently renders the
@@ -154,10 +172,9 @@ export const nativeTokens = {
     fontFace: { display: displayFontFace, body: bodyFontFace },
     type: nativeType,
     fontWeight,
-    lineHeight: lineHeightRatio,
+    lineHeight: lineHeightPx,
     fontSize,
     elevation: nativeElevation,
-    borderSubtle,
 } as const;
 
 export type NativeTokens = typeof nativeTokens;

@@ -2,8 +2,8 @@ import { expect } from 'vitest';
 
 import { buttonSurfaceClass } from '@commise/ui/button';
 
-/** The three surfaces a hand-built feature button was migrated onto (UI overhaul slice 2, step 12). */
-type MigratedSurface = 'primary' | 'secondary' | 'ghost';
+/** The surfaces a hand-built feature button was migrated onto (UI overhaul slice 2, step 12; quiet for Try again). */
+type MigratedSurface = 'primary' | 'secondary' | 'ghost' | 'quiet';
 
 /**
  * Assert a control IS the design-system Button of one tier: it wears that tier's whole surface recipe (so a

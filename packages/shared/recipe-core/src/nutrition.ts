@@ -316,13 +316,14 @@ const CATALOG_WITHHELD: ReadonlySet<LineResolutionStatus> = new Set<LineResoluti
 ]);
 
 /**
- * Whether a line's CATALOG figures are withheld, as recipe-service's `isWithheldLine`
- * (`recipes/domain/lineVerification.ts`) withholds them: a line the verification gate contradicted or has not judged
- * yet reaches the wire as `NEEDS_REVIEW` or `PENDING_VERIFICATION`, still carrying its `foodId`. Figures the cook
- * stated are not withheld. Pure.
+ * Whether a line's CATALOG figures are withheld, as recipe-service's `isWithheld` (`recipes/domain/lineVerification.ts`)
+ * withholds them: a line the verification gate contradicted reaches the wire as `NEEDS_REVIEW`, still carrying its
+ * `foodId`. `PENDING_VERIFICATION` is no longer produced (ADR-0071) and stays withheld here for an older server.
+ * Figures the cook stated are not withheld. Pure.
  *
- * ⚠️ A gate-contradicted identity reads `AMBIGUOUS`, which the server also withholds; an abstention over a varied
- * shortlist reads `AMBIGUOUS` too and is NOT withheld. The wire does not tell them apart, so `AMBIGUOUS` counts.
+ * ⚠️ A gate-contradicted identity reads `AMBIGUOUS`, which the server also withholds; an identity ABSTENTION reads
+ * `AMBIGUOUS` too (owner ruling 2026-10-25) and is NOT withheld. The wire does not tell them apart, so `AMBIGUOUS`
+ * counts.
  *
  * @param line - A stored or draft line's status.
  * @returns `true` when the line's catalog figures must not count.

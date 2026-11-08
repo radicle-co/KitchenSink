@@ -2,7 +2,7 @@
  * The native app CANVAS must paint the brand beach-glow gradient once, at the root, for every screen.
  *
  * All nine wireframes paint their page with `--gradient-beach-glow`; mobile painted a flat
- * `palette.sand` on each screen's own container (issue #145). {@link AppCanvas} is the single native
+ * `palette.fog` on each screen's own container (issue #145). {@link AppCanvas} is the single native
  * consumer of the shared `gradient.hero` token — the mirror of web's `body` rule — so the two platforms
  * derive one wash from one definition.
  *
@@ -15,11 +15,13 @@
  * reaching the library. On-device rendering is covered only by the Maestro visual tier.
  */
 import { gradient, toNativeGradient } from '@commise/ui/tokens/gradients';
-import { render, screen } from '@testing-library/react';
+import { role } from '@commise/ui/colors';
+import { screen } from '@testing-library/react';
 import { Text } from 'react-native';
 import { describe, expect, it } from 'vitest';
 
 import { AppCanvas } from '../../src/components/AppCanvas';
+import { render } from '@commise/ui/testing/tamagui';
 
 /** The stub's DOM seam for a rendered `LinearGradient`. */
 function canvasElement(): HTMLElement {
@@ -43,7 +45,10 @@ describe('AppCanvas — the native beach-glow page canvas', () => {
         expect(canvasElement().getAttribute('data-colors')).toBe(expected.colors.join('|'));
     });
 
-    it('is a real multi-stop ramp placed across the whole surface, not a flat fill', () => {
+    // REWRITTEN for the redesign: the canvas wash is FLAT (owner ruling, redesign.css), so it is no longer a multi-stop
+    // ramp. What is held is that the canvas still reaches the native surface through the shared gradient spec, as the
+    // canvas role, across the whole surface.
+    it('paints the canvas role, from the shared spec, across the whole surface', () => {
         render(
             <AppCanvas>
                 <Text>canvas child</Text>
@@ -53,13 +58,11 @@ describe('AppCanvas — the native beach-glow page canvas', () => {
         const expected = toNativeGradient(gradient.hero);
         const colors = (canvasElement().getAttribute('data-colors') ?? '').split('|');
 
-        // A "gradient" of one repeated colour is indistinguishable from `backgroundColor` — the defect itself.
-        expect(new Set(colors).size).toBe(colors.length);
-        expect(colors.length).toBeGreaterThanOrEqual(3);
+        expect(new Set(colors)).toEqual(new Set([role.canvas]));
         expect(canvasElement().getAttribute('data-locations')).toBe(expected.locations.join('|'));
     });
 
-    it('runs top-left → bottom-right, matching the wireframes’ 135° diagonal and the web canvas', () => {
+    it('runs top to bottom, matching the web canvas (180°)', () => {
         render(
             <AppCanvas>
                 <Text>canvas child</Text>
@@ -70,8 +73,8 @@ describe('AppCanvas — the native beach-glow page canvas', () => {
         const [startX, startY] = (element.getAttribute('data-start') ?? '').split(',').map(Number);
         const [endX, endY] = (element.getAttribute('data-end') ?? '').split(',').map(Number);
 
-        expect(startX).toBeLessThan(endX);
-        expect(startY).toBeLessThan(endY);
+        expect(startY).toBeLessThan(endY ?? 0);
+        expect(startX).toBeCloseTo(endX ?? 0);
     });
 
     it('renders arbitrary screen content unchanged (it is a pure presentational wrapper)', () => {

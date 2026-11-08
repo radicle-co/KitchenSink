@@ -77,3 +77,17 @@ describe('normalizedIngredientKey — a phrase with no visible content produces 
         }
     });
 });
+
+/**
+ * Owner ruling 2026-11-06: the cascade looks a line up by its whole phrase, so `dried thyme` and `thyme` are two keys,
+ * as the catalog holds two foods. The key folds case and spacing only; it never drops a word.
+ */
+describe('normalizedIngredientKey — a form the cook buys is part of the key', () => {
+    it.each([
+        ['Dried Thyme', 'dried thyme'],
+        ['frozen  peas', 'frozen peas'],
+        ['Canned tomatoes', 'canned tomatoes'],
+    ])('keys %j as %j', (phrase, key) => {
+        expect(normalizedIngredientKey(phrase)).toBe(key);
+    });
+});

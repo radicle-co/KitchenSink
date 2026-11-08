@@ -1,8 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { act, cleanup, render, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 import { Text, View } from 'react-native';
 
+import { scrollViewSizes, stubBoundingRects } from '../../testing/boundingRects.js';
+import { render } from '../../testing/tamaguiTesting.native.js';
 import { role } from '../../tokens/colors.js';
 
 import { ScrollHostContext } from '../../scrollHost/scrollHostContext.js';
@@ -42,7 +44,13 @@ function recordingHost(): { readonly api: ScrollHostApi; readonly jumps: string[
     return { api, jumps };
 }
 
-afterEach(cleanup);
+let restoreRects: (() => void) | undefined;
+
+afterEach(() => {
+    cleanup();
+    restoreRects?.();
+    restoreRects = undefined;
+});
 
 const SECTIONS = [
     { id: 'ingredients', label: 'Ingredients' },
@@ -77,19 +85,12 @@ describe('SectionSwitch (native)', () => {
 describe('SectionSwitch (native) — scrolling links', () => {
     const FADE = '[data-commise-stub="linear-gradient"]';
 
-    /** Report a laid-out size to a view, the way react-native-web's ResizeObserver does. */
-    function layOut(element: Element, width: number): void {
-        const handler = (element as Element & { __reactLayoutHandler?: (event: unknown) => void }).__reactLayoutHandler;
+    /** Render the bar; `sizes` are the links scroller's and its content's widths, stated before the measuring mount. */
+    function bar(sizes?: readonly [number, number]) {
+        if (sizes !== undefined) {
+            restoreRects = stubBoundingRects(scrollViewSizes({ scroller: sizes[0], content: sizes[1] }));
+        }
 
-        act(() => handler?.({ nativeEvent: { layout: { x: 0, y: 0, width, height: 48 } } }));
-    }
-
-    const measured = (container: HTMLElement): Element[] =>
-        [...container.querySelectorAll('*')].filter(
-            (node) => (node as Element & { __reactLayoutHandler?: unknown }).__reactLayoutHandler !== undefined,
-        );
-
-    function bar() {
         return render(
             <ScrollHostContext.Provider value={recordingHost().api}>
                 <SectionSwitch
@@ -107,18 +108,14 @@ describe('SectionSwitch (native) — scrolling links', () => {
 
     it('holds its links in a scroller, and the trailing control outside it', () => {
         const { container } = bar();
-        const [scroller] = measured(container);
+        const scroller = container.querySelector('[style*="overflow-x"]');
 
         expect(scroller?.contains(screen.getByRole('link', { name: 'Steps' }))).toBe(true);
         expect(scroller?.contains(screen.getByText('Screen on'))).toBe(false);
     });
 
-    it('hints at more links with the chevron on a band into the bar’s own surface', () => {
-        const { container } = bar();
-        const [scroller, content] = measured(container);
-
-        layOut(scroller as Element, 120);
-        layOut(content as Element, 360);
+    it('hints at more links with the chevron beside a fade into the bar’s own surface', () => {
+        const { container } = bar([120, 360]);
 
         const fade = container.querySelector<HTMLElement>(FADE);
 
@@ -127,11 +124,7 @@ describe('SectionSwitch (native) — scrolling links', () => {
     });
 
     it('draws no hint while the links fit', () => {
-        const { container } = bar();
-        const [scroller, content] = measured(container);
-
-        layOut(scroller as Element, 400);
-        layOut(content as Element, 200);
+        const { container } = bar([400, 200]);
 
         expect(container.querySelector(FADE)).toBeNull();
     });

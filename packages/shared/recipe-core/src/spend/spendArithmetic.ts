@@ -142,6 +142,7 @@ export const SPEND_CALL_SITES = [
     'ingredient-parse',
     'foodness-validator',
     'measurement-validator',
+    'paste-match-review',
 ] as const;
 
 /** One claimant on ADR-0024's single spend pool. */
@@ -179,6 +180,17 @@ export const FOODNESS_VALIDATOR_CALL_SITE: SpendCallSite = 'foodness-validator';
  * partitioning: the pool stays ONE ceiling (ADR-0024's owner ruling).
  */
 export const MEASUREMENT_VALIDATOR_CALL_SITE: SpendCallSite = 'measurement-validator';
+
+/**
+ * The PASTE-MATCH REVIEW (ADR-0071) — the verification gate judging a match PROPOSED for a pasted line the cook has
+ * not saved yet, as opposed to a line a saved recipe is bound to.
+ *
+ * ⚠️ Same handler, same prompt, same reservation as {@link VERIFICATION_GATE_CALL_SITE}; only the claimant differs,
+ * which is the whole reason it is a value of its own. Its spend scales with what cooks PASTE (one call per proposed
+ * food, every one of them asked about identity — owner ruling 2026-10-25), not with what they save, and when the
+ * pool empties that difference is the first thing an operator needs to read off the metric.
+ */
+export const PASTE_MATCH_REVIEW_CALL_SITE: SpendCallSite = 'paste-match-review';
 
 /**
  * Where a decision to route this model's inference beyond the calling region is written down.
@@ -725,6 +737,26 @@ export function periodKey(nowUtc: Date): string {
     const month = String(nowUtc.getUTCMonth() + 1).padStart(2, '0');
 
     return `${year}-${month}`;
+}
+
+/**
+ * The instant a spend period ends: the first instant of the next UTC month.
+ *
+ * ADR-0024 §3: a recorded "budget spent" outcome reads as spent only while its period is current, and this is when
+ * the AI check comes back. It is the inverse of {@link periodKey}'s grain, kept beside it so the two cannot disagree.
+ *
+ * @param period - A period key (`YYYY-MM`) as {@link periodKey} writes it.
+ * @returns The ISO 8601 instant the period ends, or `undefined` when the text is not a period key. Pure.
+ */
+export function periodEndsAt(period: string): string | undefined {
+    const parts = /^(\d{4})-(0[1-9]|1[0-2])$/u.exec(period);
+
+    if (parts === null) {
+        return undefined;
+    }
+
+    // Month is 1-based in the key and 0-based in Date.UTC, so the key's month IS the next month's index.
+    return new Date(Date.UTC(Number(parts[1]), Number(parts[2]), 1)).toISOString();
 }
 
 /**

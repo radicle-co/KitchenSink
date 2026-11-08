@@ -14,6 +14,7 @@ import { BASE_RECIPE_DATABASE_NAME } from '@kitchensink/recipe-core/database-nam
 import { TEST_PRINCIPAL_CONTAINMENT_MODES } from '../common/containmentPolicy.js';
 import { RATE_LIMIT_DEFAULTS } from '../common/throttle/throttleDefaults.js';
 import { isDeployedEnvironment } from './cors.js';
+import { MAX_MATCH_SEARCH_TIMEOUT_MS } from './matchBudget.js';
 
 // ---------------------------------------------------------------------------
 // Environment
@@ -486,8 +487,20 @@ export const foodServiceConfigSchema = z.object({
      * Per-keystroke bound (ms) on the catalog-blend request to food-service. Tunable because the right value
      * depends on observed inter-service latency, and the blast radius of a wrong one is bounded by design (too
      * low simply means the catalog section degrades to empty). `IngredientsModule` applies a default.
+     *
+     * The ceiling is not a free choice: the paste matcher (ADR-0071) runs two of these searches per food inside its
+     * own deadline, so {@link MAX_MATCH_SEARCH_TIMEOUT_MS} (`matchBudget.ts`) caps it, or no wave could ever start.
      */
-    FOOD_CATALOG_TYPEAHEAD_TIMEOUT_MS: z.coerce.number().int().min(50).max(5_000).optional(),
+    FOOD_CATALOG_TYPEAHEAD_TIMEOUT_MS: z.coerce
+        .number()
+        .int()
+        .min(50)
+        .max(MAX_MATCH_SEARCH_TIMEOUT_MS, {
+            message:
+                `must be at most ${String(MAX_MATCH_SEARCH_TIMEOUT_MS)} ms: above that the paste matcher can never start ` +
+                'a wave inside its request deadline and would match nothing (ADR-0071, config/matchBudget.ts)',
+        })
+        .optional(),
 
     /**
      * Per-request bound (ms) on the nutrition lookup a recipe response makes AFTER its write has committed.
@@ -521,7 +534,8 @@ export const foodServiceConfigMeta: Record<keyof FoodServiceConfig, ConfigFieldM
     },
     FOOD_CATALOG_TYPEAHEAD_TIMEOUT_MS: {
         secret: false,
-        description: 'Per-keystroke food-catalog search timeout (ms)',
+        description:
+            'Per-keystroke food-catalog search timeout (ms); capped by the paste matcher budget (matchBudget.ts)',
     },
     FOOD_NUTRITION_POST_COMMIT_TIMEOUT_MS: {
         secret: false,
@@ -699,8 +713,8 @@ export const testPrincipalContainmentConfigMeta: Record<keyof TestPrincipalConta
  * Usage at app boot:
  * ```typescript
  * import { loadConfig } from './loadConfig.js';
- *   import { apiConfigSchema } from './config.types.js';
- * const config = await loadConfig(apiConfigSchema);
+ * import { apiConfigSchema } from './config.types.js';
+ * const config = loadConfig(apiConfigSchema);
  * ```
  */
 export const apiConfigSchema = baseConfigSchema
@@ -807,7 +821,8 @@ export interface LoadConfigOptions {
 }
 
 /**
- * Config loader function signature.
+ * Signature of the SSM-capable config loader, `loadConfigWithSsm` (the synchronous `loadConfig` takes an env
+ * source instead).
  *
  * Validates all environment variables against the provided Zod schema,
  * optionally fetching secrets from SSM Parameter Store for missing values.
@@ -818,11 +833,11 @@ export interface LoadConfigOptions {
  * @example
  * ```typescript
  * // In the recipe service's NestJS main.ts
- * import { loadConfig } from './loadConfig.js';
- *   import { apiConfigSchema } from './config.types.js';
+ * import { loadConfigWithSsm } from './loadConfig.js';
+ * import { apiConfigSchema } from './config.types.js';
  *
  * async function bootstrap() {
- *   const config = await loadConfig(apiConfigSchema, {
+ *   const config = await loadConfigWithSsm(apiConfigSchema, {
  *     ssmFallback: process.env.NODE_ENV === 'development',
  *     ssm: { prefix: '/commise', region: 'us-east-1' },
  *   });
@@ -835,10 +850,10 @@ export interface LoadConfigOptions {
  * @example
  * ```typescript
  * // In a worker Lambda handler (its own config/ module)
- * import { loadConfig } from './loadConfig.js';
- *   import { workerConfigSchema } from './config.types.js';
+ * import { loadConfigWithSsm } from './loadConfig.js';
+ * import { workerConfigSchema } from './config.types.js';
  *
- * const config = await loadConfig(workerConfigSchema, {
+ * const config = await loadConfigWithSsm(workerConfigSchema, {
  *   ssmFallback: true,
  *   ssm: { prefix: '/commise' },
  * });

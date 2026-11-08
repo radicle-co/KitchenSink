@@ -383,7 +383,7 @@ describe('RecipeVersionsScreen — restore failure (B17: no silent no-op)', () =
 
         chooseRowAction(1, 'Restore this version');
 
-        expect(await screen.findByText('We couldn’t restore that version. Please try again.')).toBeTruthy();
+        expect(await screen.findByText('We couldn’t restore that version. Try again.')).toBeTruthy();
     });
 
     it('refetches history + recipe when the restore fails with a conflict', async () => {
@@ -405,7 +405,7 @@ describe('RecipeVersionsScreen — restore failure (B17: no silent no-op)', () =
 
         chooseRowAction(1, 'Restore this version');
 
-        await screen.findByText('We couldn’t restore that version. Please try again.');
+        await screen.findByText('We couldn’t restore that version. Try again.');
         expect(client.listRecipeVersions).toHaveBeenCalledTimes(1);
         expect(client.getRecipeById).toHaveBeenCalledTimes(1);
     });
@@ -418,9 +418,9 @@ describe('RecipeVersionsScreen — preview (W6 Task 5)', () => {
         chooseRowAction(1, 'Preview');
 
         expect(screen.getByText('Version 1 Preview: Weeknight Pasta')).toBeTruthy();
-        // v1 (previewed) vs v2 (current): 0 ingredient changes, 1 step (instruction) changed — singular
+        // v1 (previewed) vs v2 (current): the title differs, 0 ingredient changes, 1 step (instruction) changed — singular
         // "1 step", never the ungrammatical "1 steps".
-        expect(screen.getByText('Changed from current: 0 ingredients, 1 step')).toBeTruthy();
+        expect(screen.getByText('Changed from current: Title, 1 step')).toBeTruthy();
     });
 
     it('Keep current version closes the preview without restoring', async () => {

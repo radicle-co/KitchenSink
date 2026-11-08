@@ -47,10 +47,11 @@ appId: ${APP_ID}
 - runFlow: ../auth/launchCleared.yaml
 
 # `AuthGate` paints "Checking your session…" first; wait for the form itself before any pixel is captured.
-# The email placeholder is the landmark unique to the sign-in form (its 'Sign in' submit alone would also
-# match the sign-up screen's return control) — same anchor `auth/loginFlow.yaml` uses.
+# The title 'Sign in to Commise' is the landmark unique to the sign-in form, and its first element, so it is on screen
+# at any text size (its 'Sign in' submit alone would also match the sign-up screen's return control) — the same anchor
+# every flow uses (`maestroFlowSelection.test.ts`).
 - extendedWaitUntil:
-      visible: 'you@example.com'
+      visible: 'Sign in to Commise'
       timeout: 30000
 
 # FR-045a / FR-045 — the signed-out front door, in pixels.
@@ -74,4 +75,4 @@ appId: ${APP_ID}
 # Leave the app back on the sign-in form rather than stranded on sign-up, so this flow's exit state matches
 # its entry state and it stays order-independent.
 - tapOn: 'Sign in'
-- assertVisible: 'you@example.com'
+- assertVisible: 'Sign in to Commise'

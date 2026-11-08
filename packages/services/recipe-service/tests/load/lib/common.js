@@ -5,6 +5,9 @@ import http from 'k6/http';
 // k6 binary, not assumed. The shared module is why the bearer survives a leg longer than a token.
 // eslint-disable-next-line import-x/no-relative-packages
 import { freshBearer, loadSessionHandles } from '../../../../../tools/loadtest/k6/session.js';
+// Re-exported so a script that needs its OWN handle file (a dedicated user) crosses the package boundary
+// through this one allowed import instead of a second relative one.
+export { freshBearer, loadSessionHandles };
 // Shared configuration + payload helpers for the recipe-service k6 load suite.
 //
 // These modules are ES-module JavaScript executed by the **k6 binary** (`k6 run ...`) — they are NOT

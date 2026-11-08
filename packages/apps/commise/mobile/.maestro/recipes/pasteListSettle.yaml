@@ -40,11 +40,17 @@ appId: ${APP_ID}
       notVisible: 'Ingredient lines'
       timeout: 30000
 
-# The rows settle, once the parse job answers (there is no client stall bound: plan 2026-10-15-011)...
+# The rows settle, once the parse job answers and its foods are matched (there is no client stall bound: plan
+# 2026-10-15-011; ADR-0071 — a line joins only when its match has arrived, so the hold lets go after the match, not the
+# parse)...
+# iOS publishes the whole summary as ONE node ("Added 2 lines, 2 to choose. Matched lines are ready...") and Maestro matches the
+# WHOLE text, so the sentence ends in `.*`; "Added 0 of 2 lines" still does not match it (deployed run 42134419670).
 - extendedWaitUntil:
-      notVisible:
-          text: 'Added [0-2] of 2 lines.*'
+      visible:
+          text: 'Added 2 lines.*'
       timeout: 240000
+- assertNotVisible:
+      text: 'Added [0-2] of 2 lines.*'
 # ...and the release runs the deferred checkpoint at once: the create went out, so the header no longer says the work is
 # only on this device. ⛔ THE TIMEOUT IS THE ASSERTION. Without the release, the lines joining re-arm the idle timer and
 # the create goes out 10 seconds later (`SERVER_CHECKPOINT_IDLE_MS`) anyway, so a long wait here would pass against the

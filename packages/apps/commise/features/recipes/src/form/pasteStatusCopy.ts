@@ -12,7 +12,7 @@
  */
 import type { IconName } from '@commise/ui/icon';
 
-import { pluralOf } from '../editor/messages.js';
+import { pluralOf } from '../format/plural.js';
 import { fillTemplate } from '../format/fillTemplate.js';
 import type { RecipeFormMessages } from './messages.js';
 import type { PasteMilestone, PasteProgress, PasteRowState } from './props.js';

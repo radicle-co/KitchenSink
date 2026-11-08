@@ -17,19 +17,24 @@ import { focusManager } from '@tanstack/react-query';
 import { useEffect, useEffectEvent, useState } from 'react';
 
 import { editorChromeOf, type EditorChrome, type FailureActionKind } from './editorChrome.js';
+import { useLastDefined } from '../hooks/useLastDefined.js';
 import type { FailureAction, RecipeEditorViewProps } from './frameProps.js';
 import { firstInvalidFieldOf } from './gate.js';
 import { editorMessages, type EditorMessages } from './messages.js';
+import type { OpenChoicesFacts } from './openChoicesCopy.js';
 import { publishNoteOf, readyLineOf, type ReadyLine } from './publishNote.js';
 import { sectionIndexEntries, type SectionIndexEntries } from './sectionIndexEntries.js';
 import { EDITOR_SECTIONS, isEditorSectionId, type EditorSectionId } from './sections.js';
-import { newlyComplete, sectionStatusesOf, type SectionStatuses } from './sectionStatus.js';
+import { pageAnnouncementOf, type PasteAdded } from './pageAnnouncement.js';
+import { sectionStatusesOf, type SectionStatuses } from './sectionStatus.js';
 
 /** A section the cook's own edit completed, to announce; `n` advances once per announcement. */
 interface Announcement {
     /** The status kinds it was derived at (`statusKey`). */
     readonly key: string;
     readonly statuses: SectionStatuses;
+    /** The paste's count when last looked at. */
+    readonly added: PasteAdded | undefined;
     readonly text: string;
     readonly n: number;
 }
@@ -61,8 +66,24 @@ export interface EditorPage {
     readonly confirmDiscard: () => void;
     /** × : checkpoint the exit, then leave. Never asks. */
     readonly close: () => void;
-    /** The primary: Publish, or a published recipe's Save changes. A refusal jumps to the first section holding one. */
+    /**
+     * The primary: Publish, or a published recipe's Save changes. A refusal jumps to the first section holding one. A
+     * Publish asks first while paste lines have no food yet (R23, {@link EditorPage.openChoices}).
+     */
     readonly finish: () => void;
+    /** The ask before a Publish that would save lines with no food (R23): the sheet reads it. */
+    readonly openChoices: {
+        /** The sheet is shown. */
+        readonly open: boolean;
+        /** The lines it names. Kept while it closes, so the sheet does not empty under its own animation. */
+        readonly facts: OpenChoicesFacts | undefined;
+        /** Publish, with the open lines saved as written. */
+        readonly publishAnyway: () => void;
+        /** Go back and choose: the first open line opens and the page takes the cook to Ingredients. */
+        readonly chooseNow: () => void;
+        /** Every close route of the sheet. */
+        readonly setOpen: (open: boolean) => void;
+    };
     /**
      * How many times a refused Publish pointed at a section's heading because the refusal has no single field to point
      * at (the servings, the times). Native moves the screen-reader cursor to the heading each time the count rises
@@ -95,6 +116,10 @@ export function useEditorPage(props: RecipeEditorViewProps): EditorPage {
         onClose,
         onRefused,
         onOpenMyRecipes,
+        openChoices,
+        pasteReading,
+        pasteNeedsYou,
+        pasteAdded,
     } = props;
     const m = useMessages(editorMessages);
     const locale = useLocale();
@@ -103,11 +128,15 @@ export function useEditorPage(props: RecipeEditorViewProps): EditorPage {
         values: editor.values,
         pendingEntryText,
         publishAttempted: editor.publishAttempted,
+        pasteReading: pasteReading === true,
+        pasteNeedsYou: pasteNeedsYou ?? 0,
     });
     const chrome = editorChromeOf({ editor, mode, keep, statuses, messages: m, locale });
     const current = host.current !== undefined && isEditorSectionId(host.current) ? host.current : 'details';
     const entries = sectionIndexEntries({ statuses, current, messages: m, locale });
     const [confirming, setConfirming] = useState(false);
+    const [asking, setAsking] = useState(false);
+    const askedFacts = useLastDefined(openChoices?.facts);
     const { checkpoint } = editor;
     const { scrollToSection, scrollToField } = host;
     const [refusalHeadings, setRefusalHeadings] = useState<Readonly<Partial<Record<EditorSectionId, number>>>>({});
@@ -153,20 +182,34 @@ export function useEditorPage(props: RecipeEditorViewProps): EditorPage {
 
     // A section the cook's own edit completed is announced, politely (§7.2), and never one the page opened complete.
     // Derived during render from the statuses last seen, keyed on their kinds (the object is new every render).
-    const key = statusKey(statuses);
-    const [announced, setAnnounced] = useState<Announcement>(() => ({ key, statuses, text: '', n: 0 }));
+    const key = `${statusKey(statuses)}|${String(pasteAdded?.occurrence ?? 0)}`;
+    const [announced, setAnnounced] = useState<Announcement>(() => ({
+        key,
+        statuses,
+        added: pasteAdded,
+        text: '',
+        n: 0,
+    }));
 
     if (key !== announced.key) {
-        const [first] = newlyComplete(announced.statuses, statuses);
+        // ONE message: a paste finishing and Ingredients completing in the same render are said together.
+        const text = pageAnnouncementOf({
+            previous: announced.statuses,
+            next: statuses,
+            previousAdded: announced.added,
+            nextAdded: pasteAdded,
+            messages: m,
+            locale,
+        });
 
         setAnnounced(
-            first === undefined
-                ? { ...announced, key, statuses }
-                : { key, statuses, text: m.index.announce[first], n: announced.n + 1 },
+            text === undefined
+                ? { ...announced, key, statuses, added: pasteAdded }
+                : { key, statuses, added: pasteAdded, text, n: announced.n + 1 },
         );
     }
 
-    const finish = (): void => {
+    const send = (): void => {
         const outcome =
             chrome.primary.action === 'saveChanges'
                 ? editor.saveChanges(pendingEntryText)
@@ -190,7 +233,30 @@ export function useEditorPage(props: RecipeEditorViewProps): EditorPage {
             }
 
             onRefused?.(outcome);
+        } else if (outcome.kind === 'slotsFull') {
+            // ADR-0073 section 12, owner ruling 2026-10-26: Publish of a private draft needs a slot the cook does not have. The
+            // editor has opened the blocked-publish dialog (`publishBlocked`); the page does not jump anywhere.
+            onRefused?.(outcome);
         }
+    };
+
+    const readyLine = readyLineOf(
+        { values: editor.values, pendingEntryText, published: editor.lifecycle === 'published' },
+        m,
+        locale,
+    );
+
+    // R23: only a PUBLISH asks, and only one the gate would accept: a recipe it would refuse (no title) is refused first,
+    // so the cook is not asked to confirm a publish that cannot happen. It asks from here, where every route to Publish
+    // passes, so none can skip the question.
+    const finish = (): void => {
+        if (chrome.primary.action === 'publish' && readyLine?.kind === 'ready' && openChoices?.facts !== undefined) {
+            setAsking(true);
+
+            return;
+        }
+
+        send();
     };
 
     const actionOf = (kind: FailureActionKind): FailureAction => {
@@ -220,11 +286,7 @@ export function useEditorPage(props: RecipeEditorViewProps): EditorPage {
             m,
             locale,
         ),
-        readyLine: readyLineOf(
-            { values: editor.values, pendingEntryText, published: editor.lifecycle === 'published' },
-            m,
-            locale,
-        ),
+        readyLine,
         goToSection: scrollToSection,
         entries,
         current,
@@ -245,6 +307,20 @@ export function useEditorPage(props: RecipeEditorViewProps): EditorPage {
             onClose();
         },
         finish,
+        openChoices: {
+            open: asking && openChoices?.facts !== undefined,
+            facts: openChoices?.facts ?? askedFacts,
+            publishAnyway: () => {
+                setAsking(false);
+                send();
+            },
+            chooseNow: () => {
+                setAsking(false);
+                openChoices?.chooseNow();
+                scrollToSection('ingredients');
+            },
+            setOpen: setAsking,
+        },
         refusalHeadings,
         actionOf,
     };

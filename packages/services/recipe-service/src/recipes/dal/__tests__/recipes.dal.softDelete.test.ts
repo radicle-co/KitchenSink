@@ -26,6 +26,7 @@ import { PgDialect } from 'drizzle-orm/pg-core';
 
 import { RecipesDal } from '../recipes.dal.js';
 import type { RecipeDrizzle } from '../../../database/client.js';
+import type { RecipeTx } from '../../../database/unitOfWork.js';
 import { makeFakeDrizzle, type FakeDrizzle } from '../../../__testing__/makeFakeDrizzle.js';
 import { makeRecipeRow, makeRecipeStepRow } from '../../../__fixtures__/index.js';
 
@@ -164,7 +165,8 @@ describe('RecipesDal read paths exclude tombstones (C-007 / FR-002)', () => {
     it('setVisibility cannot re-expose a tombstoned recipe', async () => {
         control.enqueue([makeRecipeRow({ id: 'r-1', visibility: 'public' })], [], []);
 
-        await dal.setVisibility('r-1', 'public');
+        // The write joins the caller's transaction (ADR-0073), which the fake stands in for.
+        await dal.setVisibility('r-1', 'public', control.db as unknown as RecipeTx);
 
         const [where] = renderedWheres(control);
         expect(where?.sql).toContain('"recipes"."id" = $1');

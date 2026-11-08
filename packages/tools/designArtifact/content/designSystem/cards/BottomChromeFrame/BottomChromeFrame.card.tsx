@@ -17,7 +17,7 @@ const caption = { margin: '0 0 6px', fontSize: 12, color: 'var(--ink-muted)' } a
 const phone = {
     width: 358,
     height: 340,
-    border: '1px solid var(--line)',
+    border: '1px solid var(--line-divider)',
     borderRadius: 24,
     overflow: 'hidden',
     display: 'flex',

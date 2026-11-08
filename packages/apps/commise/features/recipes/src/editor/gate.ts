@@ -25,6 +25,12 @@ import { firstSectionWithErrors, type EditorSectionId } from './sections.js';
 export type GateOutcome =
     | { readonly kind: 'send' }
     | { readonly kind: 'refused'; readonly errors: RecipeFormErrors; readonly section: EditorSectionId | undefined }
+    /**
+     * Publish of a PRIVATE draft, while every private slot is known to be used (ADR-0073 section 12: a draft holds no slot;
+     * publishing it takes one). Nothing was sent. The editor has opened the blocked-publish dialog (`publishBlocked`), and the
+     * visibility field draws the cook's real count (`RecipeEditorSurface`).
+     */
+    | { readonly kind: 'slotsFull' }
     | { readonly kind: 'busy' };
 
 /**
@@ -34,7 +40,7 @@ export type GateOutcome =
  * @param errors - The errors the gate's validator found.
  * @returns `send`, or `refused` with the section to land on. Pure.
  */
-export function gateOutcomeOf(errors: RecipeFormErrors): Exclude<GateOutcome, { readonly kind: 'busy' }> {
+export function gateOutcomeOf(errors: RecipeFormErrors): Extract<GateOutcome, { readonly kind: 'send' | 'refused' }> {
     const refused = Object.values(errors).some((code) => code !== undefined);
 
     return refused ? { kind: 'refused', errors, section: firstSectionWithErrors(errors) } : { kind: 'send' };

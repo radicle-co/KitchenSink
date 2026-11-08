@@ -5,7 +5,7 @@
  * DOM query passes while a device does nothing. These suites wrap the text input to record the accessibility props each
  * field is handed: its visible label as `accessibilityLabel`, and the visible hint as `accessibilityHint`.
  */
-import { cleanup, render } from '@testing-library/react';
+import { cleanup } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { recordedTextInput, recordedTextInputs } from '@commise/ui/testing/record-text-inputs';
@@ -19,6 +19,7 @@ vi.mock('@commise/ui/text-input', async (importOriginal) => {
 import { ChipInput } from '../ChipInput.native.js';
 import { GroupNameField } from '../GroupNameField.native.js';
 import type { GroupNameFieldView } from '../useIngredientGroups.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 afterEach(() => {
     cleanup();

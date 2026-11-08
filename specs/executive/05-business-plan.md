@@ -52,6 +52,10 @@ Final pricing requires validation. Initial test bands:
 
 Do not finalize pricing until Beta tests willingness-to-pay and retention by segment.
 
+> **2026-10-26.** The owner set prices for two paid plans: Pro at $9.99 a month or $99.99 a year, and Pro with AI at
+> $19.99 a month or $199.99 a year (`010-FR-041`). The owner also says there are three plans and two levels of AI
+> credits. The current table is 010's [plan register](../010-subscriptions/spec.md#plan-register).
+
 AI pricing requires special validation. BYOK can reduce platform inference-cost
 exposure and appeal to power users, but it may add setup friction for household
 users. Test whether mainstream users understand BYOK, whether they prefer a

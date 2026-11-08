@@ -29,14 +29,50 @@
  * `@source inline(...)` is appended ONLY to guarantee the probe utilities are generated regardless of what
  * the app happens to use today; it can add candidates, never mask a wrong declaration.
  */
+import { readdirSync, readFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import postcss from 'postcss';
+import { withoutTsComments } from '@kitchensink/repo-guards/sourceComments';
 import tailwind from '@tailwindcss/postcss';
 import { describe, expect, it } from 'vitest';
 
+import { FAB_BOTTOM_MARGIN_PX, FAB_FLOATS_FROM_HEIGHT_PX, FAB_RESERVED_BOTTOM_PX } from '@commise/ui/create-fab';
+import { FOCUS_RING_CLASS } from '@commise/ui/focus-ring';
+import { role, roleDark } from '@commise/ui/colors';
+import { PRESS_FILL_CLASS, SURFACE_TONE_CLASS } from '@commise/ui/surface-tone';
+
 const GLOBALS_CSS = fileURLToPath(new URL('../../src/app/globals.css', import.meta.url));
+
+const RECIPES_SRC = fileURLToPath(new URL('../../../features/recipes/src', import.meta.url));
+const WEB_SRC = fileURLToPath(new URL('../../src', import.meta.url));
+/** The other trees `globals.css` scans for production source. */
+const OTHER_SCANNED_SRC = ['account', 'core'].map((name) =>
+    fileURLToPath(new URL(`../../../features/${name}/src`, import.meta.url)),
+);
+const UI_SRC = fileURLToPath(new URL('../../../ui/src', import.meta.url));
+
+const IN_A_TEST = /__tests__|\.test\./u;
+
+/**
+ * Every arbitrary-value utility (`w-[4.5rem]`, `grid-cols-[auto_1fr]`) spelled in the code of a source tree's
+ * `.ts`/`.tsx` files that `keep` accepts (comments do not count: prose may name a class that no element carries). A
+ * bare variant such as `@min-[35rem]` or `aria-[current]` (followed by `:`) is not a utility and emits nothing alone,
+ * so it is skipped.
+ *
+ * @sideEffect Reads every matching file under `root` from disk.
+ */
+function arbitraryValueClasses(root: string, keep: (file: string) => boolean): Set<string> {
+    const utility = /(?<![\w:@/.[-])[a-z@!-][\w:@/.-]*-\[[^\]\s'"`]+\](?!:)/gu;
+    const files = readdirSync(root, { recursive: true, withFileTypes: true })
+        .filter((entry) => entry.isFile() && /\.tsx?$/u.test(entry.name))
+        .map((entry) => join(entry.parentPath, entry.name))
+        .filter(keep);
+
+    return new Set(files.flatMap((file) => withoutTsComments(readFileSync(file, 'utf8'), file).match(utility) ?? []));
+}
 
 /** Utilities probed below. Forced into the build so the test never depends on current app usage. */
 const PROBES = [
@@ -53,7 +89,6 @@ const PROBES = [
     'text-body-sm',
     'text-display-md',
     'text-caption',
-    'leading-body',
     'text-sm',
     'bg-hero',
     'animate-pending-bar-reveal',
@@ -67,8 +102,9 @@ const PROBES = [
     'max-w-page',
     'max-w-reading',
     'text-card-title',
+    'text-list',
     'text-large-title',
-    'text-overline',
+    'text-label',
     'bg-paper',
     'text-ink-muted',
     'border-line-control',
@@ -87,7 +123,14 @@ const PROBES = [
  */
 async function compileAppCss(): Promise<string> {
     const source = await readFile(GLOBALS_CSS, 'utf8');
-    const withProbes = `${source}\n@source inline("${PROBES.join(' ')}");\n`;
+    // The surface-tone and focus-ring recipes are probed from their own exports, so the test reads the very literals the
+    // apps ship and never a copy of them; an app that stopped using one still has it compiled and checked.
+    const recipes = [
+        ...Object.values(FOCUS_RING_CLASS),
+        ...Object.values(PRESS_FILL_CLASS),
+        ...Object.values(SURFACE_TONE_CLASS),
+    ].flatMap((classes) => classes.split(' '));
+    const withProbes = `${source}\n@source inline("${[...PROBES, ...recipes].join(' ')}");\n`;
 
     const result = await postcss([tailwind()]).process(withProbes, { from: GLOBALS_CSS });
 
@@ -146,6 +189,78 @@ describe('the sign-in and Profile classes, compiled', () => {
         expect(ruleFor(css, 'size-18')).toBe('width:calc(var(--spacing)*18);height:calc(var(--spacing)*18)');
         expect(css).toMatch(/@container[^{]*\(width\s*>=\s*(?:600px|37\.5rem)\)/);
         expect(css).toMatch(/@media[^{]*\(width\s*>=\s*(?:480px|30rem)\)/);
+    });
+});
+
+/**
+ * A Profile label-and-value row stacks by the room its column has (designer ruling 2026-11-01,
+ * `nativeBoards/designAnswers.md`): the group's card is the `rows` container and a row's `@max-[17.5rem]/rows:` variants
+ * apply below 17.5 rem. jsdom evaluates no container query, so only the compiled stylesheet shows the query exists, under
+ * the name the card declares. The classes live in `@commise/features-account`, so this also holds only while its
+ * `@source` glob is in `globals.css`.
+ */
+describe('the Profile rows’ container query, compiled', () => {
+    it('declares the rows container and compiles a query below 17.5 rem on it', async () => {
+        const css = await compileAppCss();
+
+        expect(css).toMatch(/container-name:\s*rows/u);
+        expect(css).toMatch(/@container\s+rows\s*\(width\s*<\s*17\.5rem\)/u);
+    });
+});
+
+/**
+ * The room under the floating "new" button is ONE theme property, `--fab-reserved-bottom`, computed in `@commise/ui` from
+ * the button's height, its margin and 16 (designer ruling 2026-11-01, `nativeBoards/designAnswers.md`): 88, as on native.
+ * The document's `scroll-padding-bottom` under the tab bar reads it, so a focused last card clears the button by the same
+ * room `<main>`'s foot leaves. It was a `6.5rem` literal (104 px) that had drifted from the 88 its comment named.
+ */
+describe('the room under the floating create button, compiled', () => {
+    it('declares the reserve from the shared constant and reads it in the tab bar’s scroll padding', async () => {
+        const css = (await compileAppCss()).replace(/\s+/gu, ' ');
+        const reserve = `${String(FAB_RESERVED_BOTTOM_PX / 16)}rem`;
+
+        expect(css).toContain(`--fab-reserved-bottom: ${reserve};`);
+        expect(css).toMatch(
+            /html:has\(\[data-tab-bar\]\) \{ scroll-padding-bottom: calc\(4rem \+ env\(safe-area-inset-bottom\) \+ var\(--fab-reserved-bottom\)\);/u,
+        );
+        expect(css).not.toContain('6.5rem');
+    });
+
+    // The button's own `bottom` is an inline style (`fabBottomOf`) that reads `--fab-bottom-margin`, and no stylesheet
+    // rule names it, so only the compiled theme shows the property reaches the browser. Without it the inline `calc()`
+    // is invalid and the button drops to the foot.
+    it('declares the margin the floating button’s inline offset reads', async () => {
+        const css = (await compileAppCss()).replace(/\s+/gu, ' ');
+
+        expect(css).toContain(`--fab-bottom-margin: ${String(FAB_BOTTOM_MARGIN_PX / 16)}rem;`);
+    });
+});
+
+/**
+ * Web only (designAnswers.md, 2026-11-02): below `FAB_FLOATS_FROM_HEIGHT_PX` of viewport height the New recipe button is
+ * in the page flow and the room under it is nothing, so `<main>`'s foot, the document's scroll padding and "Back to top",
+ * which all read `--fab-reserved-bottom`, follow without a rule of their own. From that height up nothing changes.
+ */
+describe('the short viewport, compiled', () => {
+    const floatsFrom = `${String(FAB_FLOATS_FROM_HEIGHT_PX)}px`;
+
+    it('zeroes the reserved room below the threshold, after the theme declares it', async () => {
+        const css = (await compileAppCss()).replace(/\s+/gu, ' ');
+        const rule = css.indexOf(`@media (height < ${floatsFrom}) { :root { --fab-reserved-bottom: 0px; } }`);
+
+        expect(rule).toBeGreaterThan(-1);
+        expect(css.indexOf('--fab-reserved-bottom: 5.5rem;')).toBeLessThan(rule);
+    });
+
+    it('lets the button float only inside a media query for that height', async () => {
+        const css = (await compileAppCss()).replace(/\s+/gu, ' ');
+
+        expect(css).toMatch(
+            new RegExp(
+                `@media \\(height >= ${floatsFrom}\\) \\{[^@]*\\.fab-floats\\\\:fixed \\{ position: fixed;`,
+                'u',
+            ),
+        );
     });
 });
 
@@ -211,11 +326,13 @@ describe('@commise/ui theme.css → Tailwind v4 namespaces (compiled)', () => {
         expect(css).not.toMatch(/--line-height-[a-z-]+\s*:/);
     });
 
-    it('ships the DS line-height ramp as real leading utilities', async () => {
+    // REWRITTEN for the px type scale (owner ruling 2026-10-25): the `--leading-heading/body/caption` ratios (1.2, 1.5,
+    // 1.4) gave 21, 21.6 and 33.6 px, off the 4 px grid, and nothing used them. A line height now comes from a type
+    // role, as `calc(px / size)`; no ratio ramp is emitted.
+    it('ships no ratio-based leading ramp: a line height comes from a type role', async () => {
         const css = await cssPromise;
 
-        expect(ruleFor(css, 'leading-body')).toBe('--tw-leading:var(--leading-body);line-height:var(--leading-body)');
-        expect(css).toMatch(/--leading-body:\s*1\.5/);
+        expect(css).not.toMatch(/--leading-(?:heading|body|caption):/u);
     });
 
     it('leaves Tailwind’s own type scale intact (the DS ADDS names, it does not replace the namespace)', async () => {
@@ -227,24 +344,55 @@ describe('@commise/ui theme.css → Tailwind v4 namespaces (compiled)', () => {
     });
 
     /**
-     * REWRITTEN (CI run 38010247909): this pinned the recipe-source tabs' utilities, and those tabs were deleted with
-     * their dead component, so it asserted classes nothing renders. What it guards is unchanged: a utility used ONLY by
-     * the SHARED `@commise/features-recipes` package compiles to a real rule, which holds only while the `@source`
-     * glob for that package is in `globals.css`. The ingredient list's amount column and its second line's offset are
-     * such utilities. They are assembled rather than spelled, because Tailwind scans this file as text too, and a
-     * literal here would generate them whatever the glob says.
+     * What it guards: a utility used ONLY by the SHARED `@commise/features-recipes` package compiles to a real rule,
+     * which holds only while the `@source` glob for that package is in `globals.css`. The subject is DERIVED, not
+     * pinned: the arbitrary-value classes the package's production source spells that the web app's own source does
+     * not. (The previous version pinned two literal classes; a later change deleted them and the test went red, and
+     * one half only stayed green because a comment in a test spelled the class: a test file must never build a
+     * utility, which `globals.css` now states with `@source not`.)
      */
-    it('emits a real rule for a utility only the shared recipes package uses (its `@source` glob is load-bearing)', async () => {
+    it('emits a real rule for every arbitrary-value utility only the shared recipes package uses (its `@source` glob is load-bearing)', async () => {
         const css = await cssPromise;
         const cssClass = (utility: string): string =>
             `.${utility.replace(/[^\w-]/gu, (character) => `\\${character}`)}`;
-        const amountColumn = 'w-['.concat('4.5rem]');
-        const secondLineOffset = 'pl-[calc('.concat('4.5rem+0.75rem)]');
-
-        expect(css, 'the amount column').toContain(`${cssClass(amountColumn)} {\n    width: 4.5rem;`);
-        expect(css, 'the second line’s offset').toContain(
-            `${cssClass(secondLineOffset)} {\n    padding-left: calc(4.5rem + 0.75rem);`,
+        const webClasses = arbitraryValueClasses(WEB_SRC, () => true);
+        const sharedOnly = [...arbitraryValueClasses(RECIPES_SRC, (file) => !IN_A_TEST.test(file))].filter(
+            (utility) => !webClasses.has(utility),
         );
+
+        expect(sharedOnly.length, 'the shared package spells at least one class the web app does not').toBeGreaterThan(
+            0,
+        );
+
+        for (const utility of sharedOnly) {
+            expect(css, utility).toContain(cssClass(utility));
+        }
+    });
+
+    /**
+     * What it guards: a class spelled ONLY in the shared package's tests builds no utility, which holds only while the
+     * `@source not` line for its `__tests__` is in `globals.css`. Seen red with that line removed.
+     */
+    it('emits no rule for an arbitrary-value class only the shared recipes package tests spell (its `@source not` line is load-bearing)', async () => {
+        const css = await cssPromise;
+        const cssClass = (utility: string): string =>
+            `.${utility.replace(/[^\w-]/gu, (character) => `\\${character}`)}`;
+        const elsewhere = new Set([
+            ...[WEB_SRC, ...OTHER_SCANNED_SRC, UI_SRC].flatMap((root) => [...arbitraryValueClasses(root, () => true)]),
+            ...arbitraryValueClasses(RECIPES_SRC, (file) => !IN_A_TEST.test(file)),
+        ]);
+        const testOnly = [...arbitraryValueClasses(RECIPES_SRC, (file) => IN_A_TEST.test(file))].filter(
+            (utility) => !elsewhere.has(utility),
+        );
+
+        expect(
+            testOnly.length,
+            'the shared package tests spell at least one class no production file does',
+        ).toBeGreaterThan(0);
+
+        for (const utility of testOnly) {
+            expect(css, utility).not.toContain(cssClass(utility));
+        }
     });
 });
 
@@ -343,12 +491,12 @@ describe('the beach-glow page canvas (compiled)', () => {
         expect(body).toContain('background-color:var(--color-canvas)');
     });
 
-    it('resolves --background-image-hero to the wireframes’ three-stop 135° ramp', async () => {
+    // REWRITTEN for the redesign: the canvas wash is flat (the canvas colour at 180 degrees, owner ruling), not the
+    // wireframes' three-stop 135 degree ramp.
+    it('resolves --background-image-hero to the flat canvas wash', async () => {
         const css = await cssPromise;
 
-        expect(css).toContain(
-            '--background-image-hero: linear-gradient(135deg, #FAF6F0 0%, #F0F7F4 50%, #E8F4F8 100%)',
-        );
+        expect(css).toMatch(/--background-image-hero:\s*linear-gradient\(180deg, #EFF3F6 0%, #EFF3F6 100%\)/iu);
     });
 
     it('generates a usable bg-hero utility (the namespace is live, not merely plausible)', async () => {
@@ -440,7 +588,7 @@ describe('slice 1 — layout and role tokens (compiled)', () => {
         const css = await cssPromise;
 
         expect(ruleFor(css, 'bg-bar')).toBe('background-color:var(--color-bar)');
-        expect(css).toMatch(/prefers-color-scheme:\s*dark[\s\S]*--color-bar:\s*rgba\(39, 35, 32, 0\.94\)/u);
+        expect(css).toMatch(/prefers-color-scheme:\s*dark[\s\S]*--color-bar:\s*rgba\(23, 32, 41, 0\.94\)/u);
     });
 
     it('caps a page at 90rem and a reading column at 40rem', async () => {
@@ -465,32 +613,52 @@ describe('slice 1 — layout and role tokens (compiled)', () => {
     it('overrides the role variables in one prefers-color-scheme: dark block', async () => {
         const css = await cssPromise;
 
-        expect(css).toMatch(/@media \(prefers-color-scheme:\s*dark\)\s*\{[^@]*--color-paper:\s*#1e1b18/iu);
+        expect(css).toMatch(/@media \(prefers-color-scheme:\s*dark\)\s*\{[^@]*--color-paper:\s*#172029/iu);
         expect(css).toMatch(/color-scheme:\s*light dark/u);
     });
 
-    it('sets the card title at 1rem / 1.3 / 600 from one utility', async () => {
+    it('sets the card title at 1rem / 20 px leading / 600 from one utility', async () => {
         const css = await cssPromise;
 
         expect(ruleFor(css, 'text-card-title')).toBe(
             'font-size:var(--text-card-title);line-height:var(--tw-leading,var(--text-card-title--line-height));font-weight:var(--tw-font-weight,var(--text-card-title--font-weight))',
         );
         expect(css).toMatch(/--text-card-title:\s*1rem/u);
-        expect(css).toMatch(/--text-card-title--line-height:\s*1\.3/u);
+        // REWRITTEN: it was the ratio 1.3 (20.8 px); the leading is 20 px, written as the unitless `calc(20 / 16)`.
+        expect(css).toMatch(/--text-card-title--line-height:\s*calc\(20 \/ 16\)/u);
         expect(css).toMatch(/--text-card-title--font-weight:\s*600/u);
     });
 
-    it('sizes the large title with a bounded container-unit clamp', async () => {
+    // REWRITTEN for the owner's type-scale ruling (2026-10-25): lists are 14 px, the unit scale's step (they were 13 px
+    // / 1.35 under rule C5, which the owner found "rather small").
+    it('sets the list role at 0.875rem / 20 px leading / 400 from one utility', async () => {
+        const css = await cssPromise;
+
+        expect(ruleFor(css, 'text-list')).toBe(
+            'font-size:var(--text-list);line-height:var(--tw-leading,var(--text-list--line-height));font-weight:var(--tw-font-weight,var(--text-list--font-weight))',
+        );
+        expect(css).toMatch(/--text-list:\s*0\.875rem/u);
+        expect(css).toMatch(/--text-list--line-height:\s*calc\(20 \/ 14\);/u);
+        expect(css).toMatch(/--text-list--font-weight:\s*400/u);
+    });
+
+    // REWRITTEN: the clamp's ceiling was 2.5rem (40 px). Owner rule C1 caps UI text at 28 px, so every container class
+    // is 28 and the compiled clamp is bounded at 1.75rem on both ends (the source change was 60cf38d84).
+    it('sizes the large title with a container-unit clamp bounded at 28 px', async () => {
         const css = await cssPromise;
 
         expect(ruleFor(css, 'text-large-title')).toContain('font-size:var(--text-large-title)');
-        expect(css).toMatch(/--text-large-title:\s*clamp\(1\.75rem,[^;]*cqi[^;]*2\.5rem\)/u);
+        expect(css).toMatch(/--text-large-title:\s*clamp\(1\.75rem,[^;]*cqi[^;]*1\.75rem\)/u);
     });
 
-    it('tracks the overline from its letter-spacing sub-property', async () => {
-        expect(ruleFor(await cssPromise, 'text-overline')).toContain(
-            'letter-spacing:var(--tw-tracking,var(--text-overline--letter-spacing))',
-        );
+    // REWRITTEN: this asserted the overline's tracking. The role is retired and no role tracks its letters (owner
+    // ruling 2026-10-25), so the compiled sheet carries no letter-spacing sub-property and no overline utility.
+    it('tracks no role’s letters and has no overline utility', async () => {
+        const css = await cssPromise;
+
+        expect(css).not.toMatch(/--text-[a-z-]+--letter-spacing/u);
+        expect(css).not.toMatch(/--text-overline/u);
+        expect(ruleFor(css, 'text-label')).toContain('font-size:var(--text-label)');
     });
 
     it('resolves the colour roles to real utilities', async () => {
@@ -500,10 +668,147 @@ describe('slice 1 — layout and role tokens (compiled)', () => {
         expect(ruleFor(css, 'text-ink-muted')).toBe('color:var(--color-ink-muted)');
         expect(ruleFor(css, 'border-line-control')).toBe('border-color:var(--color-line-control)');
         expect(ruleFor(css, 'bg-selected-fill')).toBe('background-color:var(--color-selected-fill)');
-        expect(css).toMatch(/--color-line-control:\s*#8A847C/iu);
+        expect(css).toMatch(/--color-line-control:\s*#80878F/iu);
     });
 
     it('declares the caption size once, not twice', async () => {
         expect((await cssPromise).match(/--text-caption:/gu)).toHaveLength(1);
+    });
+});
+
+// `componentFixes.md` §10, §10a. `ring-offset-2` paints the gap between a control and its focus ring in
+// `--tw-ring-offset-color`, which Tailwind registers with `inherits: false` and defaults to WHITE (a halo in dark). The
+// gap is now the colour of the SURFACE the control sits on: a surface sets the INHERITING custom property `--cm-surface`
+// (and `--cm-press`, the press fill), and a control reads them with a canvas fallback. That only works if the compiler
+// emits them as plain inheriting properties, so it is asserted on the COMPILED stylesheet: only the compiler knows what
+// a utility resolves to, and a registered `@property --cm-surface` (inherits: false by default) would silently break
+// every control below its surface.
+describe('the surface tone, compiled', () => {
+    const squashed = (css: string): string => css.replace(/\s+/gu, '');
+
+    it('gives a focus-visible ring a gap read from --cm-surface, falling back to the canvas role', async () => {
+        const css = squashed(await compileAppCss());
+
+        expect(css).toMatch(/:focus-visible\{[^}]*--tw-ring-offset-color:var\(--cm-surface,var\(--color-canvas\)\)/u);
+        expect(css).toMatch(
+            /:has\(:is\(:focus-visible\)\)\{[^}]*--tw-ring-offset-color:var\(--cm-surface,var\(--color-canvas\)\)/u,
+        );
+        // No control names the canvas as its fixed gap any more (a test that names the old class in prose may be scanned).
+        expect(css).not.toContain('.focus-visible\\:ring-offset-canvas');
+    });
+
+    it('keeps the ring-offset colour property non-inheriting, which is why a control must name its own', async () => {
+        expect(await compileAppCss()).toMatch(/@property --tw-ring-offset-color\s*\{[^}]*inherits:\s*false/u);
+    });
+
+    it('presses a hover, an active and a highlighted item to --cm-press, falling back to the canvas row', async () => {
+        const css = squashed(await compileAppCss());
+        const fill = 'background-color:var(--cm-press,var(--color-press-canvas))';
+
+        expect(css).toMatch(new RegExp(`:hover\\{[^}]*${fill.replace(/[\\()]/gu, '\\$&')}`, 'u'));
+        expect(css).toMatch(new RegExp(`:active\\{[^}]*${fill.replace(/[\\()]/gu, '\\$&')}`, 'u'));
+        expect(css).toMatch(new RegExp(`\\[data-highlighted\\]\\{[^}]*${fill.replace(/[\\()]/gu, '\\$&')}`, 'u'));
+    });
+
+    it('lets a chip rest on the surface’s chip fill and press to its chip press, each with a fallback', async () => {
+        const css = squashed(await compileAppCss());
+
+        expect(css).toContain('background-color:var(--cm-chip-fill,var(--color-chip-fill-canvas))');
+        expect(css).toContain('background-color:var(--cm-chip-press,var(--color-chip-press-canvas))');
+    });
+
+    // The fallback outside every surface names the CANVAS chip vars, so it must be declared in BOTH themes and match the
+    // table's canvas row: light surface-muted, dark surface-muted (the same role in each, resolved per theme).
+
+    it('resolves the canvas chip fallback in the light block and again in the dark one', async () => {
+        const css = squashed(await compileAppCss());
+        const darkStart = css.indexOf('@media(prefers-color-scheme:dark)');
+        const declared = (block: string, name: string): string | undefined =>
+            new RegExp(`${name}:(#[0-9a-fA-F]{6})`, 'u').exec(block)?.[1]?.toLowerCase();
+
+        expect(darkStart).toBeGreaterThan(0);
+
+        for (const name of ['--color-chip-fill-canvas', '--color-chip-press-canvas']) {
+            expect(declared(css.slice(0, darkStart), name), `${name} in light`).toBeDefined();
+            expect(declared(css.slice(darkStart), name), `${name} in dark`).toBeDefined();
+        }
+
+        expect(declared(css.slice(0, darkStart), '--color-chip-fill-canvas')).toBe(role.surfaceMuted.toLowerCase());
+        expect(declared(css.slice(darkStart), '--color-chip-fill-canvas')).toBe(roleDark.surfaceMuted.toLowerCase());
+    });
+
+    // §10b: a chip's fill is chosen per theme, so the compiled sheet gives paper-raised its own chip fill, and in the dark
+    // block that fill is paper, not the surface-muted colour paper-raised itself paints there.
+    it('gives a chip on paper-raised surface-muted in light and paper in dark', async () => {
+        const css = squashed(await compileAppCss());
+        const darkStart = css.indexOf('@media(prefers-color-scheme:dark)');
+        const declared = (block: string): string | undefined =>
+            /--color-chip-fill-paper-raised:(#[0-9a-fA-F]{6})/u.exec(block)?.[1]?.toLowerCase();
+
+        expect(darkStart).toBeGreaterThan(0);
+        expect(declared(css.slice(0, darkStart))).toBe(role.surfaceMuted.toLowerCase());
+        expect(declared(css.slice(darkStart))).toBe(roleDark.paper.toLowerCase());
+        expect(declared(css.slice(darkStart))).not.toBe(roleDark.paperRaised.toLowerCase());
+    });
+
+    it('paints each tone and sets its four properties to the roles of the table', async () => {
+        const css = squashed(await compileAppCss());
+
+        for (const [fillRole, tone] of [
+            ['canvas', 'canvas'],
+            ['paper', 'paper'],
+            ['paper-overlay', 'paper-overlay'],
+            ['paper-raised', 'paper-raised'],
+            ['inverse', 'inverse'],
+            ['surface-muted', 'muted'],
+        ] as const) {
+            expect(css, `${tone} fill`).toContain(`--cm-surface:var(--color-${fillRole})`);
+            expect(css, `${tone} press`).toContain(`--cm-press:var(--color-press-${tone})`);
+            expect(css, `${tone} chip fill`).toContain(`--cm-chip-fill:var(--color-chip-fill-${tone})`);
+            expect(css, `${tone} chip press`).toContain(`--cm-chip-press:var(--color-chip-press-${tone})`);
+        }
+    });
+
+    it('lets the Clerk card state the surface it paints from 480 up and the canvas again at the wide layout', async () => {
+        const css = squashed(await compileAppCss());
+        const at = (query: string, declaration: string): boolean =>
+            new RegExp(`@media\\(${query}\\)\\{[^@]*?${declaration.replace(/[\\()]/gu, '\\$&')}`, 'u').test(css);
+
+        expect(at('width>=480px', '--cm-surface:var(--color-paper)')).toBe(true);
+        expect(at('width>=480px', '--cm-press:var(--color-press-paper)')).toBe(true);
+        expect(at('width>=64rem', '--cm-surface:var(--color-canvas)')).toBe(true);
+    });
+
+    it('registers none of the tone properties, so they inherit down the tree', async () => {
+        const css = await compileAppCss();
+
+        for (const property of ['--cm-surface', '--cm-press', '--cm-chip-fill', '--cm-chip-press']) {
+            expect(css, property).not.toMatch(new RegExp(`@property\\s+${property}`, 'u'));
+        }
+    });
+
+    it('defines each press role in the light theme and again, re-themed, in the dark block', async () => {
+        const css = await compileAppCss();
+        const darkAt = css.indexOf('@media (prefers-color-scheme: dark)');
+
+        expect(darkAt).toBeGreaterThan(-1);
+
+        for (const [tone, light, dark] of [
+            ['canvas', '#d9dde1', '#293037'],
+            ['paper', '#e5e6e9', '#303941'],
+            ['paper-overlay', '#e8e8e9', '#3e4853'],
+            ['paper-raised', '#e8e8e9', '#39434d'],
+            ['inverse', '#2e3236', '#d2d6d9'],
+            ['muted', '#d4d8dd', '#39434d'],
+        ] as const) {
+            expect(css.slice(0, darkAt), `${tone} light`).toContain(`--color-press-${tone}: ${light}`);
+            expect(css.slice(darkAt), `${tone} dark`).toContain(`--color-press-${tone}: ${dark}`);
+        }
+    });
+
+    it('draws the floating ring as a paperOverlay band inside a focusRing ring', async () => {
+        const css = squashed(await compileAppCss());
+
+        expect(css).toMatch(/:focus-visible\{[^}]*--tw-ring-offset-color:var\(--color-paper-overlay\)/u);
     });
 });

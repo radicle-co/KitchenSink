@@ -27,7 +27,8 @@ import { classifyModifier } from '../modifierLexicon.js';
 
 describe('classifyModifier — KTD-11b, as a vocabulary', () => {
     it('files a regular past participle as preparation', () => {
-        for (const word of ['chopped', 'grated', 'melted', 'sifted', 'minced', 'stoned', 'shredded', 'dried']) {
+        // `dried` left this list on 2026-11-06: the owner ruled it a form the cook buys (`modifierIdentity.test.ts`).
+        for (const word of ['chopped', 'grated', 'melted', 'sifted', 'minced', 'stoned', 'shredded']) {
             expect(classifyModifier(word), word).toBe('preparation');
         }
     });

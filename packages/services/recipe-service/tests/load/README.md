@@ -38,6 +38,7 @@ They target the performance requirements of Feature 001:
 | `versionArchiveRead.load.js` | W8-a.7                | version GET served via the S3 archive fallback p95 < 1s                                                                         |
 | `serviceErasure.load.js`     | CR-002 / U4a          | internal EdDSA-guarded erasure POST p95 ≤ 500ms (202) + expired → 401 under load                                                |
 | `nutritionBatch.load.js`     | REQ-IF-008 / ADR-0021 | deferred nutrition batch p95 ≤ 1.5s at BOTH ends of the ingredient-overlap spectrum, + a food outage degrades rather than fails |
+| `parseJobMatches.load.js`    | ADR-0071              | paste-job match command: first call p95 < 6s (bounded fan-out), repeat call p95 ≤ 500ms, never a 5xx under load                 |
 
 A threshold breach makes `k6 run` exit non-zero, which fails the invoking CI job.
 

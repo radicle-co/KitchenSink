@@ -15,7 +15,7 @@
  *
  * The host also renders Home's large title (the greeting, with the avatar as its action) as the scroller's first
  * child, takes the scroller's `bind` from the screen's `ScrollHost`, and threads the navigation intents down to the
- * recipe slot. The tab bar, the condensed title bar and the floating create button are NOT here: the navigator owns the
+ * recipe slot. The tab bar and the floating create button are NOT here: the navigator owns the
  * bar and `HomeScreen` floats the other two over this scroller. `container` and `renderers` are injectable seams.
  */
 import { profileEntryOf, resolveErrorReporter, type HomeWidgetId } from '@commise/features-core';
@@ -30,15 +30,15 @@ import { LIVE_CAPABILITIES } from '@commise/features-recipes/widget';
 import { homeMessages } from '@commise/features-core/home';
 import { useMessages } from '@commise/i18n/react';
 import { paidFeatureStateOf } from '@commise/features-account';
-import { FAB_RESERVED_BOTTOM_PX } from '@commise/ui/create-fab';
+import { useFabReservedBottom } from '@commise/ui/create-fab';
 import { nativeTokens } from '@commise/ui/native';
-import { useTheme } from '@commise/ui/theme';
+import { Text } from '@commise/ui/text';
 import type { HeaderAction } from '@commise/ui/large-title-header';
 import type { ScrollBind } from '@commise/ui/scroll-host';
 import type { Container } from 'ditox';
 import { Suspense, useMemo, type ComponentType, type JSX, type ReactNode } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 
 import { useUserProfile } from '../../hooks/useUserProfile.js';
 import { HomeGreeting } from './HomeGreeting.js';
@@ -92,7 +92,7 @@ export function HomeWidgetSurface({
     renderers,
 }: HomeWidgetSurfaceProps): JSX.Element {
     const home = useMessages(homeMessages);
-    const { colors } = useTheme();
+    const fabRoom = useFabReservedBottom();
     const profile = useUserProfile();
 
     // Plan 2026-10-14-009 D13: the viewer's paid features alone decide the widget tier and whether the upsell nudge is
@@ -189,33 +189,35 @@ export function HomeWidgetSurface({
                         {...scrollBind}
                         accessibilityLabel={home.regionLabel}
                         style={styles.region}
-                        contentContainerStyle={styles.regionContent}
+                        contentContainerStyle={[styles.regionContent, { paddingBottom: fabRoom }]}
                     >
-                        {/* The large title is the scroller's FIRST child, so its host knows when it has scrolled under the
-                        top (`LargeTitleHeader`); it sits on the app canvas, never in a card (§1.6). */}
+                        {/* The one-row header is the scroller's first child; it sits on the app canvas, never in a card (§1.6). */}
                         <HomeGreeting
                             {...(cookName === undefined ? {} : { name: cookName })}
                             {...(headerAction === undefined ? {} : { action: headerAction })}
                         />
 
-                        {curated.live.map(renderWidget)}
+                        {/* The widgets pad themselves: the header insets its own sides, so the region does not pad. */}
+                        <View style={styles.widgets}>
+                            {curated.live.map(renderWidget)}
 
-                        {/* The placeholders sit together, AFTER the recent recipes, under one "Coming soon" heading (owner
+                            {/* The placeholders sit together, AFTER the recent recipes, under one "Coming soon" heading (owner
                         ruling; `buildSpec.md` §4.2). Gone with the last placeholder. */}
-                        {curated.comingSoon.length > 0 && (
-                            <View style={styles.comingSoon}>
-                                <Text
-                                    accessibilityRole="header"
-                                    style={[styles.comingSoonHeading, { color: colors.ink }]}
-                                >
-                                    {home.roadmap.comingSoonHeading}
-                                </Text>
-                                <Text style={[styles.comingSoonBody, { color: colors.inkMuted }]}>
-                                    {home.roadmap.comingSoonBody}
-                                </Text>
-                                {curated.comingSoon.map(renderWidget)}
-                            </View>
-                        )}
+                            {curated.comingSoon.length > 0 && (
+                                <View style={styles.comingSoon}>
+                                    {/* The heading and its line are one group, 4 pt apart, as on web (`gap-1`). */}
+                                    <View style={styles.comingSoonHeader}>
+                                        <Text role="heading" typeRole="sectionTitle" color="$ink">
+                                            {home.roadmap.comingSoonHeading}
+                                        </Text>
+                                        <Text typeRole="body" color="$inkMuted">
+                                            {home.roadmap.comingSoonBody}
+                                        </Text>
+                                    </View>
+                                    {curated.comingSoon.map(renderWidget)}
+                                </View>
+                            )}
+                        </View>
                     </ScrollView>
                 </RecipeWidgetPropsContext.Provider>
             </HomeNudgeContext.Provider>
@@ -230,9 +232,9 @@ const styles = StyleSheet.create({
     // fill here occludes the whole canvas and restores the flat page the wireframes never had.
     screen: { flex: 1, backgroundColor: 'transparent' },
     region: { flex: 1 },
-    // The foot clears the floating create button (its height + 32, `buildSpec.md` §3.4), which floats over it.
-    regionContent: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: FAB_RESERVED_BOTTOM_PX, gap: 16 },
+    // The foot clears the floating create button, which floats over it: its height, its margin and 16 (§3.4).
+    regionContent: { paddingTop: 8, gap: 16 },
+    widgets: { paddingHorizontal: 16, gap: 16 },
     comingSoon: { gap: nativeTokens.spacing[4] },
-    comingSoonHeading: { ...nativeTokens.type.sectionTitle },
-    comingSoonBody: { ...nativeTokens.type.body, marginTop: -nativeTokens.spacing[3] },
+    comingSoonHeader: { gap: nativeTokens.spacing[1] },
 });

@@ -27,6 +27,7 @@ import { semantic } from '@commise/ui';
 import { makeRecipe } from '../../__fixtures__/index.js';
 import type { SaveCopy } from '../../hooks/useSaveCopy.js';
 import { RecipeBrowseRailResults } from '../RecipeBrowseRailResults.js';
+import { RAIL_LINK_INSET, RAIL_LINK_MIN_HEIGHT } from '../railHeading.js';
 import { RecipeBrowseRails } from '../RecipeBrowseRails.js';
 import type { RecipeBrowseRailId, RecipeBrowseRailsProps, RecipeBrowseRailView } from '../model.js';
 
@@ -395,7 +396,7 @@ describe('RecipeBrowseRails (web) — text contrast (WCAG 2.1 AA)', () => {
         renderRails();
 
         // "See all" is TEXT a reader reads, so it owes the 4.5:1 SC 1.4.3 floor, not the 3:1 an accent owes;
-        // `seafoam` is 3.73:1 on the page background it sits on and 3.37:1 once the `mist/20` hover tint lands
+        // `steel` is 3.73:1 on the page background it sits on and 3.37:1 once the `mist/20` hover tint lands
         // underneath. The palette JSDoc in `@commise/ui`'s `tokens/colors.ts` states the rule once, and names
         // `ocean-dark` as the text-weight substitute that keeps the control in its own hue family.
         //
@@ -408,7 +409,7 @@ describe('RecipeBrowseRails (web) — text contrast (WCAG 2.1 AA)', () => {
         ).toBeGreaterThanOrEqual(4.5);
         expect(
             utilityContrast(seeAll.className, { surface: semantic.background, variant: 'hover' }),
-            'see-all under its hover:bg-ink/6 tint',
+            'see-all under its hover:bg-surface-muted fill',
         ).toBeGreaterThanOrEqual(4.5);
     });
 });
@@ -447,5 +448,39 @@ describe('RecipeBrowseRails (web) — a failed refresh of the rails on screen', 
         rerender(<RecipeBrowseRails {...props} refreshNotice={notice({ recoveries: 1 })} />);
 
         expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'Trending' }));
+    });
+});
+
+// Designer ruling (designAnswers.md 2026-11-01, "See all under its title"): when the heading and the link do not fit on one
+// row, the link wraps onto its own line under the heading, its text aligned with the title's start edge, its target at
+// least 48 px tall. It never truncates and never shrinks. The fit on real font metrics is `railHeading.fit.test.ts`.
+describe('RecipeBrowseRails (web) — a rail heading wraps "See all" under its title and never cuts it', () => {
+    const draw = () => {
+        renderRails({ rails: [rail('trending', [result({ id: 'rec_t', title: 'Viral Pad Thai' })])] });
+
+        return screen.getByRole('heading', { name: 'Trending' }).parentElement as HTMLElement;
+    };
+
+    const classes = (node: Element): string[] => node.className.split(/\s+/u);
+
+    it('lets the heading row wrap', () => {
+        expect(classes(draw())).toContain('flex-wrap');
+    });
+
+    it('lets the title shrink to its content and never the link', () => {
+        const header = draw();
+
+        expect(classes(screen.getByRole('heading', { name: 'Trending' }))).toEqual(
+            expect.arrayContaining(['min-w-0', 'flex-auto']),
+        );
+        expect(classes(header.lastElementChild as Element)).toContain('shrink-0');
+    });
+
+    it("gives the link a target at least 48 px tall, pulled onto the title's start edge", () => {
+        const box = draw().lastElementChild as HTMLElement;
+
+        expect(box.style.minHeight).toBe(`${String(RAIL_LINK_MIN_HEIGHT)}px`);
+        expect(box.style.marginInlineStart).toBe(`${String(-RAIL_LINK_INSET)}px`);
+        expect(within(box).getByRole('button', { name: 'See all Trending' })).toBeTruthy();
     });
 });

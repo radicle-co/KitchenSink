@@ -31,7 +31,7 @@ export const DataSourcesPage: FC<DataSourcesPageWebProps> = ({ children, heading
     const headingId = useId();
 
     const page = (
-        <div className="mx-auto flex w-full max-w-reading flex-col gap-4 pb-10">
+        <div className="mx-auto flex w-full max-w-reading flex-col gap-4 pb-12">
             <LargeTitleHeader
                 headingId={headingId}
                 title={messages.title}

@@ -47,6 +47,13 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiError"
+        "403":
+          description: "The token is genuine but its account is suspended: `code: ACCOUNT_SUSPENDED` (ADR-0081). Answered before
+            the route runs; the erasure route alone is exempt."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
         "404":
           description: No such user.
           content:
@@ -77,6 +84,13 @@ paths:
                 $ref: "#/components/schemas/ApiError"
         "401":
           description: No valid Clerk session token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: "The token is genuine but its account is suspended: `code: ACCOUNT_SUSPENDED` (ADR-0081). Answered before
+            the route runs; the erasure route alone is exempt."
           content:
             application/json:
               schema:
@@ -120,7 +134,8 @@ paths:
         "403":
           description: "The caller is a Clerk TEST PRINCIPAL and this deployment enforces test-principal containment
             (`TEST_PRINCIPAL_CONTAINED`, ADR-0040). Nothing was changed: closing a test-pool account would ban a shared
-            pool member. Never returned for a real user."
+            pool member. Never returned for a real user. Or: The token is genuine but its account is suspended: `code:
+            ACCOUNT_SUSPENDED` (ADR-0081). Answered before the route runs; the erasure route alone is exempt."
           content:
             application/json:
               schema:
@@ -154,6 +169,13 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiError"
+        "403":
+          description: "The token is genuine but its account is suspended: `code: ACCOUNT_SUSPENDED` (ADR-0081). Answered before
+            the route runs; the erasure route alone is exempt."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
       description: "Always fully resolved: a setting the viewer never chose is answered as its default (the published
         `SETTINGS_DEFAULTS`), and the read writes nothing. Served only under `/api/v1/` — there is no deprecated bare
         alias for this path (ADR-0059)."
@@ -182,8 +204,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
         "403":
-          description: The account is closed (`Account is closed`). Nothing was written, so personal data is never recreated after
-            an erasure.
+          description: "The account is closed (`Account is closed`). Nothing was written, so personal data is never recreated
+            after an erasure. Or: The token is genuine but its account is suspended: `code: ACCOUNT_SUSPENDED`
+            (ADR-0081). Answered before the route runs; the erasure route alone is exempt."
           content:
             application/json:
               schema:
@@ -212,6 +235,13 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiError"
+        "403":
+          description: "The token is genuine but its account is suspended: `code: ACCOUNT_SUSPENDED` (ADR-0081). Answered before
+            the route runs; the erasure route alone is exempt."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
       description: "Deletes the caller's settings row, so every setting is \"never chosen\" again and `GET` answers the
         defaults. Idempotent: a viewer with no row also gets `204`. It touches only the caller's own row. This is the
         only way back to \"never chosen\" — `PATCH` cannot clear a setting."
@@ -236,6 +266,13 @@ paths:
                 $ref: "#/components/schemas/ApiError"
         "401":
           description: No valid Clerk session token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: "The token is genuine but its account is suspended: `code: ACCOUNT_SUSPENDED` (ADR-0081). Answered before
+            the route runs; the erasure route alone is exempt."
           content:
             application/json:
               schema:
@@ -282,7 +319,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
         "403":
-          description: Authenticated but lacking the `admin:users` scope (enforced by `ScopesGuard`).
+          description: "Authenticated but lacking the `admin:users` scope (enforced by `ScopesGuard`). Or: The token is genuine
+            but its account is suspended: `code: ACCOUNT_SUSPENDED` (ADR-0081). Answered before the route runs; the
+            erasure route alone is exempt."
           content:
             application/json:
               schema:
@@ -346,7 +385,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
         "403":
-          description: Authenticated but lacking the `admin:users` scope (enforced by `ScopesGuard`).
+          description: "Authenticated but lacking the `admin:users` scope (enforced by `ScopesGuard`). Or: The token is genuine
+            but its account is suspended: `code: ACCOUNT_SUSPENDED` (ADR-0081). Answered before the route runs; the
+            erasure route alone is exempt."
           content:
             application/json:
               schema:
@@ -393,7 +434,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
         "403":
-          description: Authenticated but lacking the `admin:users` scope (enforced by `ScopesGuard`).
+          description: "Authenticated but lacking the `admin:users` scope (enforced by `ScopesGuard`). Or: The token is genuine
+            but its account is suspended: `code: ACCOUNT_SUSPENDED` (ADR-0081). Answered before the route runs; the
+            erasure route alone is exempt."
           content:
             application/json:
               schema:
@@ -440,7 +483,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
         "403":
-          description: Authenticated but lacking the `admin:users` scope (enforced by `ScopesGuard`).
+          description: "Authenticated but lacking the `admin:users` scope (enforced by `ScopesGuard`). Or: The token is genuine
+            but its account is suspended: `code: ACCOUNT_SUSPENDED` (ADR-0081). Answered before the route runs; the
+            erasure route alone is exempt."
           content:
             application/json:
               schema:

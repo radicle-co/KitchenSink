@@ -40,7 +40,7 @@ tags:
 - extendedWaitUntil:
       visible: 'We couldn’t sign you out\. Try again\.'
       timeout: 40000
-- assertNotVisible: 'you@example\.com'
+- assertNotVisible: 'Sign in to Commise'
 - assertVisible: 'Sign out'
 
 # ── back online, the same control signs out for real ──────────────────────────
@@ -52,5 +52,5 @@ tags:
       timeout: 30000
 - tapOn: 'Sign out'
 - extendedWaitUntil:
-      visible: 'you@example\.com'
+      visible: 'Sign in to Commise'
       timeout: 40000

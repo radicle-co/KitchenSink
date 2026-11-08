@@ -31,7 +31,13 @@ import { bootMockedFoodsApi, principalFor, type MockedFoodsApi } from './support
 
 const mockVerify = vi.mocked(verifyClerkToken);
 
-const ROOT: CatalogSearchHit = { id: 'R-broccoli', name: 'Broccoli', aliases: 'calabrese', score: 1 };
+const ROOT: CatalogSearchHit = {
+    id: 'R-broccoli',
+    name: 'Broccoli',
+    aliases: 'calabrese',
+    score: 1,
+    rung: 'exact',
+};
 const STEAMED: LiveVariant = {
     id: 'V-steamed',
     rootId: 'R-broccoli',

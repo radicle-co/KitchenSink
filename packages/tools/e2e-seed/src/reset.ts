@@ -8,7 +8,7 @@
  * stop its flow from running at all — a flow driven against an unknown world produces failures that read
  * like app defects, which is exactly what turned one broken reseed into twenty-four misattributed reds.
  *
- * Usage: `e2e-seed reset [--mode seeded|empty|ambiguity]`
+ * Usage: `e2e-seed reset [--mode seeded|empty|ambiguity|library]`
  *
  * `ambiguity` reconciles like `seeded`, then creates the signer's gate-AMBIGUOUS probe and waits for the gate's verdict
  * (`ensureAmbiguityProbe`). The probe is named for the word `provision` chose, read from the session state. It needs
@@ -33,8 +33,8 @@ export function resetModeFrom(argv: readonly string[]): ResetMode {
     const index = argv.indexOf('--mode');
     const value = index === -1 ? 'seeded' : (argv[index + 1] ?? '');
 
-    if (value !== 'seeded' && value !== 'empty' && value !== 'ambiguity') {
-        throw new Error(`e2e-seed reset: --mode must be 'seeded', 'empty' or 'ambiguity', got '${value}'`);
+    if (value !== 'seeded' && value !== 'empty' && value !== 'ambiguity' && value !== 'library') {
+        throw new Error(`e2e-seed reset: --mode must be 'seeded', 'empty', 'ambiguity' or 'library', got '${value}'`);
     }
 
     return value;

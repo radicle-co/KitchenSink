@@ -19,6 +19,7 @@ import { sql, type InferInsertModel, type InferSelectModel } from 'drizzle-orm';
 import { check, index, integer, numeric, pgTable, text, uuid } from 'drizzle-orm/pg-core';
 
 import { foodLookups } from './foodLookups.js';
+import { recipeImportLines } from './recipeImports.js';
 import { recipes } from './recipes.js';
 
 export const ingredients = pgTable(
@@ -85,6 +86,14 @@ export const ingredients = pgTable(
         // (2026-08-24), never an enum: a closed set could not express "For the crust". `NULL` means
         // ungrouped, which is most lines, and an all-NULL recipe renders as a plain flat list.
         groupLabel: text('group_label'),
+        /**
+         * Who bound the line to its food (migration 0060, ADR-0072 §5): one of `BOUND_BY_VALUES` in
+         * `recipes/domain/bindingOriginCarryForward.ts`, parity-tested against the SQL CHECK. `NULL` means no recorded
+         * origin. Carried forward by the food alone; a client never sends it.
+         */
+        boundBy: text('bound_by'),
+        /** The bulk-import snapshot line this ingredient was bound from. SET NULL when the import goes. */
+        importLineId: uuid('import_line_id').references(() => recipeImportLines.id, { onDelete: 'set null' }),
         sortOrder: integer('sort_order').notNull().default(0),
 
         // User-entered nutrition override (FR-007a) — the USER's own, not a copy of anything food-service
@@ -131,6 +140,13 @@ export const ingredients = pgTable(
         check('ingredients_group_label_present', sql`${table.groupLabel} IS NULL OR btrim(${table.groupLabel}) <> ''`),
         index('idx_ingredients_recipe_id').on(table.recipeId),
         index('idx_ingredients_food_lookup_id').on(table.foodLookupId),
+        check(
+            'ingredients_bound_by_check',
+            sql`${table.boundBy} IN ('exact', 'curated', 'review', 'default', 'autoBest', 'cook')`,
+        ),
+        index('ingredients_import_line_idx')
+            .on(table.importLineId)
+            .where(sql`${table.importLineId} IS NOT NULL`),
     ],
 );
 

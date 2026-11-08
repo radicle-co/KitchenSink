@@ -22,7 +22,7 @@ export const RecipeWidgetLoadError: FC<RecipeWidgetLoadErrorProps> = ({ onRetry,
             <View collapsable={false} role="status" accessibilityLiveRegion="polite" style={styles.body}>
                 <Text style={[styles.text, { color: colors.inkMuted }]}>{home.loadError}</Text>
                 {onRetry === undefined ? null : (
-                    <Button variant="secondary" icon="rotateCcw" onPress={onRetry}>
+                    <Button variant="secondary" icon="refreshCw" onPress={onRetry}>
                         {home.retry}
                     </Button>
                 )}

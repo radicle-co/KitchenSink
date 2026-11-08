@@ -25,7 +25,7 @@ LogBox.ignoreLogs([/Clerk has been loaded with development keys/]);
 // The @formatjs polyfills self-check and no-op when a native impl already exists.
 //
 // `RelativeTimeFormat` is load-bearing, not belt-and-braces: `formatRelativeTime` (recipe card footer) and
-// `formatRelativeTimeAgo` (version-conflict banner) both construct it, and without it EVERY recipe card older
+// `formatRelativeTimeAgo` (version-conflict side cards) both construct it, and without it EVERY recipe card older
 // than 60 seconds crashed its screen into the root error boundary (a fresher card returns the "just now" label
 // before reaching `Intl`, which is why the crash looked intermittent). `tests/intlPolyfills.test.ts` pins this
 // list against the `new Intl.*` calls in the shared sources so the next addition cannot be missed the same way.
@@ -40,8 +40,8 @@ import '@formatjs/intl-relativetimeformat/locale-data/en';
 import '@formatjs/intl-listformat/polyfill';
 import '@formatjs/intl-listformat/locale-data/en';
 
-import { Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
-import { PlayfairDisplay_600SemiBold, PlayfairDisplay_700Bold, useFonts } from '@expo-google-fonts/playfair-display';
+import { Inter_400Regular, Inter_500Medium, Inter_600SemiBold } from '@expo-google-fonts/inter';
+import { Manrope_600SemiBold, useFonts } from '@expo-google-fonts/manrope';
 import { registerRootComponent } from 'expo';
 import * as Sentry from '@sentry/react-native';
 import { StatusBar } from 'expo-status-bar';
@@ -61,18 +61,16 @@ installOnlineManager();
 installFocusManager();
 
 function App(): JSX.Element {
-    // Load the Playfair Display faces (display type) and the Inter faces (every body type role, one face per weight —
+    // Load the Manrope faces (display type) and the Inter faces (every body type role, one face per weight —
     // `nativeTokens.fontFace.body`). Non-blocking on purpose: we do NOT gate the first render on it — RN falls back to
     // the system face until the faces register, then re-renders — so a slow or failed font load can never hold the
     // whole app on a blank screen. `tests/theme/fonts.test.ts` reads this call back and fails if a face the design
     // system names is missing from it.
     useFonts({
-        PlayfairDisplay_600SemiBold,
-        PlayfairDisplay_700Bold,
+        Manrope_600SemiBold,
         Inter_400Regular,
         Inter_500Medium,
         Inter_600SemiBold,
-        Inter_700Bold,
     });
 
     return (

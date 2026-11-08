@@ -24,7 +24,14 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { discoverImageBuilds, localContainerEnv, portConflicts, pruneStepFor } from '../localImages.js';
+import {
+    discoverImageBuilds,
+    hostPortOverridesFrom,
+    identityStatedEnv,
+    localContainerEnv,
+    portConflicts,
+    pruneStepFor,
+} from '../localImages.js';
 
 const taskTemplate = (image: unknown): unknown => ({
     Resources: {
@@ -178,6 +185,18 @@ describe('localContainerEnv', () => {
 
         expect(env['AWS_ENDPOINT_URL']).toBe('http://localstack:4566');
         expect(env['AWS_REGION']).toBe('us-east-1');
+    });
+
+    it('states the SQS endpoint the recipe service keys its fair-queue label on', () => {
+        // ⛔ Regression, found by the last full local Maestro run. recipe-service drops the SQS tenant label
+        // (`MessageGroupId`) only when its `SQS_ENDPOINT` is set (`fairQueuesSupported`, a CAPABILITY question
+        // asked of the one documented emulator knob). `local:up` stated only `AWS_ENDPOINT_URL`, which the SDK
+        // honours on its own, so the service sent the label to LocalStack, every batch was rejected, and every
+        // parse line failed ("Couldn't read this line"). The harness states the knob; the service is right.
+        const env = localContainerEnv([], base);
+
+        expect(env['SQS_ENDPOINT']).toBe('http://localstack:4566');
+        expect(env['SQS_ENDPOINT']).toBe(env['AWS_ENDPOINT_URL']);
     });
 
     it('uses the service container port, so it matches what compose publishes', () => {
@@ -606,5 +625,77 @@ describe('localContainerEnv — a sibling URL uses the CONTAINER port', () => {
         });
 
         expect(env['FOOD_SERVICE_URL']).toBe('http://food:3000');
+    });
+});
+
+describe('hostPortOverridesFrom — moving a published host port off one something else holds', () => {
+    /**
+     * ⚠️ Found by running `local:up` on the owner's machine: their session UI listens on 127.0.0.1:3000, the port
+     * recipe-service publishes, and the pre-flight rightly refuses. The container port never moves (siblings reach it
+     * by compose name on it); only the HOST side does, and a device or simulator reaches it through `adb reverse` /
+     * an SSH tunnel that names the port, so the app's own `localhost:3000` is untouched.
+     */
+    it('is empty when unset', () => {
+        expect(hostPortOverridesFrom(undefined)).toEqual({});
+        expect(hostPortOverridesFrom('')).toEqual({});
+    });
+
+    it('reads service=port pairs', () => {
+        expect(hostPortOverridesFrom('recipes=3010, food=3012')).toEqual({ recipes: 3010, food: 3012 });
+    });
+
+    it.each([
+        'recipes',
+        'recipes=',
+        '=3010',
+        'recipes=abc',
+        'recipes=80',
+        'recipes=70000',
+        'recipes=3010.5',
+        'a=3010,a=3011',
+    ])('refuses %j', (raw) => {
+        expect(() => hostPortOverridesFrom(raw)).toThrow(/LOCAL_SANDBOX_HOST_PORTS/u);
+    });
+
+    it('answers for an inherited name no more than for any other', () => {
+        expect(hostPortOverridesFrom('constructor=3010').constructor).not.toBe(Object);
+        expect(Object.keys(hostPortOverridesFrom('constructor=3010'))).toEqual(['constructor']);
+        expect({}.constructor).toBe(Object);
+    });
+});
+
+describe('localContainerEnv — the real media distribution is never given to a local container', () => {
+    /**
+     * ⛔ `MEDIA_DISTRIBUTION_ID` resolves from the sandbox's SSM, so a local identity held the id of a REAL CloudFront
+     * distribution and tried to invalidate it on every avatar removal. LocalStack has no CloudFront, the call failed, and
+     * ADR-0064 makes that failure fatal — so every self-service erasure answered 500. A non-deployed stage with no
+     * distribution gets the no-op port (`resolveMediaConfig`), which is what a local run wants.
+     */
+    it('drops it even when AWS resolved one', () => {
+        const env = localContainerEnv(['MEDIA_DISTRIBUTION_ID'], {
+            database: 'kitchensink_identity',
+            port: 3000,
+            resolved: { MEDIA_DISTRIBUTION_ID: 'E9FALAO95WK60' },
+        });
+
+        expect(env['MEDIA_DISTRIBUTION_ID']).toBeUndefined();
+    });
+});
+
+describe('identityStatedEnv — what a local identity needs to erase an account', () => {
+    /**
+     * Self-service erasure removes the avatar objects (S3) and enqueues the deletion. Against LocalStack the S3 client must
+     * use path-style addressing, which the service turns on only when `S3_ENDPOINT` is set (virtual-host style resolves
+     * `bucket.localstack`, which does not exist), and the queue URL is an import no template read can flatten.
+     */
+    it('names LocalStack for S3 and the deletion queue', () => {
+        expect(identityStatedEnv('http://localstack:4566/000000000000/q')).toEqual({
+            S3_ENDPOINT: 'http://localstack:4566',
+            DELETION_QUEUE_URL: 'http://localstack:4566/000000000000/q',
+        });
+    });
+
+    it('leaves the queue to the placeholder when none was found, rather than stating a guess', () => {
+        expect(identityStatedEnv(undefined)).toEqual({ S3_ENDPOINT: 'http://localstack:4566' });
     });
 });

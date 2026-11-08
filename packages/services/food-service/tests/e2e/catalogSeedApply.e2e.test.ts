@@ -98,6 +98,8 @@ const BRISKET_ITEM = makeContentItem('fdc:100', {
 
 const BRISKET = makeContentRoot({
     synonyms: ['brisket', 'tab\there', 'back\\slash', '\\N', 'café ½'],
+    // ADR-0070 §4: default terms stage as JSON text inside COPY, so every character either format escapes is here.
+    defaultFor: ['beef', 'tab\there "quoted" back\\slash', '\\N', 'café ½'],
     nutrition: {
         ...makeNutrition('fdc:100'),
         values: [
@@ -172,7 +174,7 @@ const SEED_A: CatalogContent = makeContent(
  */
 const SEED_B: CatalogContent = makeContent(
     [
-        { ...BRISKET, name: 'Beef Brisket, whole' },
+        { ...BRISKET, name: 'Beef Brisket, whole', defaultFor: ['café ½', 'beef'] },
         makeContentRoot({
             seedKey: 'fdc:102',
             name: 'brisket point',
@@ -393,14 +395,26 @@ describe('the catalog seed, applied as food_seeder', () => {
         it('restores every id, clears every retirement, and leaves forwards that resolve to live rows', async () => {
             await applySeed(SEED_A, SHA_A);
             const afterA = await seedIds();
+            const defaultTerms = async (): Promise<{ default_terms: string[] }[]> =>
+                asOwner<{ default_terms: string[] }>(`SELECT default_terms FROM food WHERE seed_key = 'fdc:100'`);
 
             expect(await holds(SEED_A)).toBe(true);
+            // Written byte for byte and in seed order, through the insert's staging (ADR-0070 §4).
+            expect(await defaultTerms()).toEqual([{ default_terms: [...BRISKET.defaultFor] }]);
 
             const toB = await applySeed(SEED_B, SHA_B);
             const afterB = await seedIds();
 
             expect(toB.outcome).toBe('applied');
             expect(await holds(SEED_B)).toBe(true);
+            // …and through the update's staging, re-ordered and shortened.
+            expect(await defaultTerms()).toEqual([{ default_terms: ['café ½', 'beef'] }]);
+            // A root that states none holds an empty array, never NULL.
+            expect(
+                await asOwner<{ default_terms: string[] }>(
+                    `SELECT default_terms FROM food WHERE seed_key = 'curated:salt-blend'`,
+                ),
+            ).toEqual([{ default_terms: [] }]);
             // A rename keeps the root's id (AE4); the split keeps the original root and its other variants.
             expect(afterB.roots['fdc:100']).toBe(afterA.roots['fdc:100']);
             expect(afterB.variants['fdc:101']).toBe(afterA.variants['fdc:101']);

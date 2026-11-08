@@ -17,6 +17,8 @@ import { NAV_ITEM_GLYPH, initialsFor, resolveHomeNav, type HomeNavItemId } from 
 import { AvatarDisc } from '@commise/ui/avatar';
 import { Icon } from '@commise/ui/icon';
 import { Tooltip } from '@commise/ui/tooltip';
+import { FOCUS_RING_CLASS } from '@commise/ui/focus-ring';
+import { PRESS_FILL_CLASS } from '@commise/ui/surface-tone';
 import type { Route } from 'next';
 import Link from 'next/link';
 import type { JSX, ReactNode } from 'react';
@@ -43,8 +45,7 @@ export interface HomeSidebarProps {
 }
 
 /** A 44 px row's shape, shared by the destinations and the profile row. */
-const ROW_CLASS =
-    'flex min-h-11 items-center gap-3 rounded-md px-3 text-label focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring';
+const ROW_CLASS = `flex min-h-11 items-center gap-3 rounded-md px-3 text-label ${FOCUS_RING_CLASS.offset}`;
 
 /**
  * A collapsed row's visual label. The rail is 80 px and clips anything past its edge, so the label is the design
@@ -126,8 +127,8 @@ export function HomeSidebar({
                                 aria-current={active ? 'page' : undefined}
                                 className={`${ROW_CLASS} relative ${collapsed ? 'justify-center' : ''} ${
                                     active
-                                        ? 'bg-action/10 font-semibold text-ink'
-                                        : 'text-ink-muted hover:bg-ink/6 hover:text-ink'
+                                        ? 'bg-selected-fill font-semibold text-ink'
+                                        : `text-ink-muted ${PRESS_FILL_CLASS.pointer} hover:text-ink`
                                 }`}
                             >
                                 <span
@@ -148,7 +149,7 @@ export function HomeSidebar({
                 <Link
                     href={`/${locale}/profile` as Route}
                     aria-label={profileLabel}
-                    className={`${ROW_CLASS} mx-3 text-ink hover:bg-ink/6 ${collapsed ? 'justify-center' : ''}`}
+                    className={`${ROW_CLASS} mx-3 text-ink ${PRESS_FILL_CLASS.pointer} ${collapsed ? 'justify-center' : ''}`}
                 >
                     <AvatarDisc status={profile.status} initials={initialsFor(profile.name)} />
                     {collapsed ? null : (
@@ -165,7 +166,7 @@ export function HomeSidebar({
                         onClick={onToggleCollapse}
                         aria-expanded={!collapsed}
                         aria-label={collapsed ? chrome.expandNav : undefined}
-                        className={`${ROW_CLASS} mx-3 mb-3 text-ink-muted hover:bg-ink/6 hover:text-ink ${
+                        className={`${ROW_CLASS} mx-3 mb-3 text-ink-muted ${PRESS_FILL_CLASS.pointer} hover:text-ink ${
                             collapsed ? 'justify-center' : ''
                         }`}
                     >

@@ -1,5 +1,5 @@
 /**
- * The ranking VOCABULARY — the fold, the tokenizer, the plural rule and the two head-term rules that both
+ * The ranking VOCABULARY — the fold, the tokenizer, the plural rule and the one head-term rule that both
  * search surfaces' Scoring Policies are built from (plan U5/U6, R1–R8).
  *
  * DESIGN PATTERN: **Value-object constructors.** `describeRankingName` and `describeRankingQuery` parse a
@@ -150,67 +150,174 @@ export interface RankingTerms {
     readonly tokens: readonly string[];
     /** The head term, or `undefined` when the text holds nothing alphanumeric. */
     readonly head: string | undefined;
+    /** {@link rankingKeyOf}: what the `synonym` and `default` rungs compare against a root's keys. */
+    readonly key: string;
 }
 
 /**
- * Parse a CATALOG NAME into its ranking terms. The head is the **first** token — unless the name carries a
- * comma AND its first comma segment is multi-word, in which case the head is that segment's **last** token.
+ * Replace every bracketed group with a space, in linear time.
  *
- * The base rule is USDA's naming convention read literally: the catalog inverts a food's name so the head
- * noun leads (`Flour, wheat, all-purpose`; `Sugars, brown`; `Vinegar, red wine`; `Chives, raw`). A name
- * whose head is `carob` is a carob product however prominently `flour` appears later in it — which is
- * exactly what disqualifies `Carob flour`, `Crackers, milk` and the sugar-coated candy from the head tier.
+ * A bracketed group, removed before the head is read: `Tamales (Navajo)` is a tamale, and a qualifier in brackets
+ * is never the food. Non-nested on purpose, so the SQL mirror (`rank_head_of`, migration 0025) can say the same
+ * thing in one `regexp_replace`: a group runs from a `(` to the FIRST `)` after it, which may itself hold `(`.
  *
- * ⛔ The comma-segment amendment (plan U1, D4b) exists because SR Legacy also contains NATURAL-ORDER
- * product names whose first segment is an English noun phrase: `Cinnamon buns, frosted` is a bun, and the
- * first-token rule crowned its MODIFIER — measured 2026-08-29, that name won the bare query `cinnamon` at
- * the head rung with a WIDE margin, a false catch that would have skipped verification. Inside a multi-word
- * first segment the head noun is FINAL (the same reason {@link describeRankingQuery}'s head is last).
+ * ⛔ A SCAN, not `/\([^)]*\)/g`: that pattern retries every `(` of a run with no `)` after it and reads to the end each
+ * time (CodeQL js/polynomial-redos; 6.5 s on 200k characters). Here each `(` and each `)` is found once, and the scan
+ * stops at the first `(` with no `)` after it. The output is byte-identical to that replacement, which
+ * `rankingTerms.test.ts` proves exhaustively over short strings, and the SQL mirror still agrees.
  *
- * ⚠️ A NO-COMMA name keeps its first token deliberately, in both directions: flipping `Carob flour` to a
- * last-word head would promote the attractor INTO the head rung for the query `flour` — the exact defect
- * the head asymmetry was built to end.
+ * @param text - A name or a typed query.
+ * @returns The text with each non-nested bracketed group replaced by one space. Pure.
+ */
+export function replaceBracketedGroups(text: string): string {
+    let result = '';
+    let from = 0;
+
+    for (;;) {
+        const open = text.indexOf('(', from);
+        const close = open < 0 ? -1 : text.indexOf(')', open + 1);
+
+        if (close < 0) {
+            return result + text.slice(from);
+        }
+
+        result += text.slice(from, open) + ' ';
+        from = close + 1;
+    }
+}
+
+/**
+ * A trailing phrase opened by the standalone word `in`, removed before the head is read: `walnuts in syrup` is a
+ * walnut and `Fish, tuna, light, canned in water` is still a fish. The word must stand alone between ASCII
+ * whitespace, so `instant` and `raisin` keep their letters. ⚠️ An `of` phrase is NOT cut: its head is final
+ * (`cream of mushroom soup` is a soup), which is what the last-word rule already reads.
  *
- * @param name - The catalog (or local ingredient) display name.
+ * Linear: every attempt fails or commits within a constant number of characters, and the commit consumes to the end
+ * with `[\s\S]*$`, which cannot backtrack. `rankingTerms.test.ts` times 200k-character runs of whitespace and `in`.
+ */
+const IN_PHRASE = /[ \t\n\r\f\v]in[ \t\n\r\f\v][\s\S]*$/i;
+
+/** The last element of a token list, or `undefined` for an empty one. Pure. */
+function lastToken(tokens: readonly string[]): string | undefined {
+    return tokens[tokens.length - 1];
+}
+
+/**
+ * The HEAD TERM of a name or a typed phrase: the English head noun of its first comma segment.
+ *
+ * Remove bracketed groups, cut a trailing `in …` phrase, then take the LAST token of the text before the first
+ * comma. One rule reads both conventions the catalog holds:
+ *
+ * - an inverted USDA name has a one-word first segment, so its last token is its first (`Flour, wheat` → flour);
+ * - a natural-order name has its head noun last (`milk crackers` → cracker, `1% milk` → milk), and so does a
+ *   multi-word first segment (`Cinnamon buns, frosted` → bun).
+ *
+ * ⛔ This replaced a FIRST-word rule for comma-free names (ADR-0070). That rule stood in for a default meaning
+ * (`Carob flour` had head `carob` so the query `flour` would not crown it), and it became wrong when the curated
+ * seed renamed 2,640 of its 2,642 roots into natural English: on 2026-10-25 a prod paste import bound `milk` to
+ * milk crackers, `salt` to salt cod, `cinnamon` to cinnamon rolls and `bread` to bread flour. A default meaning is
+ * now a seed default (a separate kind, never a synonym), so the head rule can tell the truth: carob flour is a flour.
+ *
+ * If the first segment holds no token, the reduced whole text answers, then the original text, so a name has a
+ * head whenever it holds anything alphanumeric. ⚠️ The SQL mirror is `rank_head_of()` (migration 0025): change
+ * both or neither, and let `rankingConformance` prove they agree.
+ *
+ * @param text - A catalog name or a typed query.
+ * @returns The head term, or `undefined` when the text holds nothing alphanumeric. Pure.
+ */
+export function rankingHeadOf(text: string): string | undefined {
+    const reduced = replaceBracketedGroups(text).replace(IN_PHRASE, '');
+    const commaIndex = reduced.indexOf(',');
+    const firstSegment = commaIndex >= 0 ? reduced.slice(0, commaIndex) : reduced;
+
+    return (
+        lastToken(rankingTokens(firstSegment)) ?? lastToken(rankingTokens(reduced)) ?? lastToken(rankingTokens(text))
+    );
+}
+
+/**
+ * Parse a name or a typed phrase into its ranking terms: the ONE constructor behind {@link describeRankingName} and
+ * {@link describeRankingQuery}, so the two sides cannot derive a term differently.
+ *
+ * @param text - A catalog name or a typed query.
+ * @returns Its ranking terms. Pure.
+ */
+function describeRankingText(text: string): RankingTerms {
+    const tokens = rankingTokens(text);
+
+    return { folded: foldForRanking(text), tokens, head: rankingHeadOf(text), key: tokens.join(' ') };
+}
+
+/**
+ * Parse a CATALOG NAME into its ranking terms. The head is {@link rankingHeadOf}'s, the same as a query's.
+ *
+ * @param name - The catalog display name.
  * @returns Its ranking terms. Pure.
  */
 export function describeRankingName(name: string): RankingTerms {
-    const tokens = rankingTokens(name);
-    const commaIndex = name.indexOf(',');
-    let head = tokens[0];
-
-    if (commaIndex >= 0) {
-        const segmentTokens = rankingTokens(name.slice(0, commaIndex));
-
-        if (segmentTokens.length > 1) {
-            head = segmentTokens[segmentTokens.length - 1];
-        }
-    }
-
-    return { folded: foldForRanking(name), tokens, head };
+    return describeRankingText(name);
 }
 
 /**
- * Parse a TYPED QUERY into its ranking terms. The head is the **last** token — unless the query carries a
- * comma, in which case it is the first.
+ * The comparison key of a phrase: its folded, singularized tokens joined by one space. Two phrases with the same key
+ * say the same words in the same order, whatever their case, accents, plurals or punctuation. ⚠️ The SQL mirror is
+ * `rank_alias_keys_of()` (migration 0026), applied to each synonym.
  *
- * ⛔ **This is deliberately NOT the name rule, and the asymmetry is what fixes `flour`.** A cook types an
- * English noun phrase, whose head is final (`red wine vinegar` is a vinegar); the catalog writes the
- * inverted form, whose head is initial. Applying the query rule to a name would give `Carob flour` the head
- * `flour`, tie it with the real flour row at the head tier, and hand the win straight back to the attractor
- * through the base metric's length penalty (measured 2026-08-22: `similarity('Carob flour','flour') = 0.50`
- * against `0.15` for `Flour, wheat, all-purpose, enriched, bleached`).
+ * @param text - A name, a synonym or a typed query.
+ * @returns The key; `''` when the text holds nothing alphanumeric. Pure.
+ */
+export function rankingKeyOf(text: string): string {
+    return rankingTokens(text).join(' ');
+}
+
+/** A catalog root's ranking terms: its name's terms, plus the keys of its curated synonyms and default terms. */
+export interface CatalogNameTerms extends RankingTerms {
+    /** {@link rankingKeyOf} of each synonym, empty keys removed. What the `synonym` rung compares. */
+    readonly synonymKeys: readonly string[];
+    /** {@link rankingKeyOf} of each default term, empty keys removed. What the `default` rung compares. */
+    readonly defaultKeys: readonly string[];
+}
+
+/**
+ * The non-empty {@link rankingKeyOf} keys of a list of phrases, in order. Pure.
  *
- * A cook who has seen the inverted form in the picker and types it back — `flour, all purpose` — means
- * `flour`. The comma is the signal, and it is the only signal, because it is the only thing in a typed
- * phrase that distinguishes the two conventions.
+ * @param phrases - Synonyms or default terms.
+ * @returns Their keys, empty keys removed.
+ */
+function keysOf(phrases: readonly string[]): readonly string[] {
+    return phrases.map(rankingKeyOf).filter((key) => key.length > 0);
+}
+
+/**
+ * Parse a catalog ROOT — its name, its synonyms and its default terms — into the terms the ladder classifies.
+ *
+ * The synonyms and default terms are REQUIRED, not defaulted: a caller that forgets either would rank every root as if
+ * it had none, and that rung would silently never hold. ⚠️ The SQL mirrors are `rank_alias_keys_of()` (migration 0026)
+ * and `rank_default_keys_of()` (migration 0027).
+ *
+ * @param name - The root's display name.
+ * @param synonyms - The root's curated synonyms (food's `aliases`, split on its delimiter).
+ * @param defaultTerms - The bare nouns this root is the curated default for (food's `default_terms`, ADR-0070 §4).
+ * @returns The terms. Pure.
+ */
+export function describeCatalogName(
+    name: string,
+    synonyms: readonly string[],
+    defaultTerms: readonly string[],
+): CatalogNameTerms {
+    return { ...describeRankingName(name), synonymKeys: keysOf(synonyms), defaultKeys: keysOf(defaultTerms) };
+}
+
+/**
+ * Parse a TYPED QUERY into its ranking terms. The head is {@link rankingHeadOf}'s, the same as a name's.
+ *
+ * ⚠️ A name and a query used to take OPPOSITE heads (first word of a name, last word of a query), because the
+ * catalog wrote inverted names. One rule now reads both, so a name and its own text always meet at the head rung,
+ * and a cook who types the inverted form back (`flour, all purpose`) still means flour.
  *
  * @param query - The trimmed user query.
  * @returns Its ranking terms. Pure.
  */
 export function describeRankingQuery(query: string): RankingTerms {
-    const tokens = rankingTokens(query);
-    const head = query.includes(',') ? tokens[0] : tokens[tokens.length - 1];
-
-    return { folded: foldForRanking(query), tokens, head };
+    return describeRankingText(query);
 }

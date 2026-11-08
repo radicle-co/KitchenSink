@@ -11,6 +11,7 @@ import {
     formatChangedFromCurrent,
     resolveVersionPreview,
     toVersionPreviewIngredientLines,
+    versionLineAccessibilityLabel,
 } from '../preview.js';
 
 const conflict = recipeVersionMessages.en.conflict;
@@ -41,8 +42,8 @@ describe('toVersionPreviewIngredientLines (W6 Task 3)', () => {
         );
 
         expect(lines).toEqual([
-            { key: 'ri_1', text: '200 g Pasta' },
-            { key: 'ri_2', text: '1 cup Cherry tomatoes' },
+            { key: 'ri_1', text: '200\u00A0g Pasta' },
+            { key: 'ri_2', text: '1\u00A0cup Cherry tomatoes' },
         ]);
     });
 
@@ -55,7 +56,7 @@ describe('toVersionPreviewIngredientLines (W6 Task 3)', () => {
             [],
         );
 
-        expect(line?.text).toBe(`200 g ${lineNames.notSavedInVersion}`);
+        expect(line?.text).toBe(`200\u00A0g ${lineNames.notSavedInVersion}`);
         expect(line?.text).not.toContain('undefined');
     });
 
@@ -86,7 +87,7 @@ describe('toVersionPreviewIngredientLines (W6 Task 3)', () => {
 
         expect(line).toEqual({
             key: 'ri_1',
-            text: '2 lb beef brisket',
+            text: '2\u00A0lb beef brisket',
             variantParts: ['flat half', 'select', 'braised'],
         });
     });
@@ -147,7 +148,7 @@ describe('toVersionPreviewIngredientLines (W6 Task 3)', () => {
             [],
         );
 
-        expect(line).toEqual({ key: 'ri_1', text: '200 g Pasta', calories: '0 cal' });
+        expect(line).toEqual({ key: 'ri_1', text: '200\u00A0g Pasta', calories: '0 cal' });
         expect('calories' in (line as object)).toBe(true);
         expect(line?.calories).toBe('0 cal');
     });
@@ -161,7 +162,7 @@ describe('toVersionPreviewIngredientLines (W6 Task 3)', () => {
             [],
         );
 
-        expect(line).toEqual({ key: 'ri_1', text: '200 g Pasta' });
+        expect(line).toEqual({ key: 'ri_1', text: '200\u00A0g Pasta' });
         expect('calories' in (line as object)).toBe(false);
         expect(line?.calories).toBeUndefined();
     });
@@ -182,7 +183,7 @@ describe('toVersionPreviewIngredientLines (W6 Task 3)', () => {
             [],
         );
 
-        expect(line?.text).toBe('2 tbsp Olive oil (extra virgin)');
+        expect(line?.text).toBe('2\u00A0tbsp Olive oil (extra virgin)');
     });
 
     it('renders the bare ingredient name when displayText is absent', () => {
@@ -194,7 +195,7 @@ describe('toVersionPreviewIngredientLines (W6 Task 3)', () => {
             [],
         );
 
-        expect(line?.text).toBe('3 oz Basil');
+        expect(line?.text).toBe('3\u00A0oz Basil');
     });
 });
 
@@ -235,29 +236,30 @@ describe('changedFromCurrentCounts (W6 Task 3)', () => {
     });
 });
 
-describe('formatChangedFromCurrent (localization-quality fix)', () => {
+describe('formatChangedFromCurrent', () => {
     const zeroTally = { added: 0, removed: 0, modified: 0 };
-
-    it('pluralizes both counts (2 ingredients, 0 steps) — the "other" category, not a hard-coded plural', () => {
-        const diff: SnapshotDiff = {
-            changedFields: [],
-            steps: zeroTally,
-            ingredients: { added: 1, removed: 1, modified: 0 },
-            summary: zeroTally,
-        };
-
-        expect(formatChangedFromCurrent(diff, preview, conflict, 'en-US')).toBe(
-            'Changed from current: 2 ingredients, 0 steps',
-        );
+    const diffOf = (overrides: Partial<SnapshotDiff>): SnapshotDiff => ({
+        changedFields: [],
+        steps: zeroTally,
+        ingredients: zeroTally,
+        summary: zeroTally,
+        ...overrides,
     });
 
+    // REWRITTEN with the line's new shape: a count of 0 is now omitted ("2 ingredients"), where the old template
+    // always printed both ("2 ingredients, 0 steps"). Pluralization is what it pins, unchanged.
+    it('pluralizes the count with the "other" category, not a hard-coded plural, and omits a zero count', () => {
+        const diff = diffOf({ ingredients: { added: 1, removed: 1, modified: 0 } });
+
+        expect(formatChangedFromCurrent(diff, preview, conflict, 'en-US')).toBe('Changed from current: 2 ingredients');
+    });
+
+    // REWRITTEN likewise.
     it('singularizes a count of exactly 1 for BOTH ingredients and steps (1 ingredient, 1 step)', () => {
-        const diff: SnapshotDiff = {
-            changedFields: [],
+        const diff = diffOf({
             steps: { added: 1, removed: 0, modified: 0 },
             ingredients: { added: 1, removed: 0, modified: 0 },
-            summary: zeroTally,
-        };
+        });
 
         expect(formatChangedFromCurrent(diff, preview, conflict, 'en-US')).toBe(
             'Changed from current: 1 ingredient, 1 step',
@@ -265,16 +267,50 @@ describe('formatChangedFromCurrent (localization-quality fix)', () => {
     });
 
     it('singularizes only the field whose count is 1, pluralizing the other independently', () => {
-        const diff: SnapshotDiff = {
-            changedFields: [],
+        const diff = diffOf({
             steps: { added: 1, removed: 0, modified: 0 },
             ingredients: { added: 4, removed: 5, modified: 6 },
-            summary: zeroTally,
-        };
+        });
 
         expect(formatChangedFromCurrent(diff, preview, conflict, 'en-US')).toBe(
             'Changed from current: 15 ingredients, 1 step',
         );
+    });
+
+    it('names a changed title instead of reading "0 ingredients, 0 steps"', () => {
+        expect(formatChangedFromCurrent(diffOf({ changedFields: ['title'] }), preview, conflict, 'en-US')).toBe(
+            'Changed from current: Title',
+        );
+    });
+
+    it('names every changed scalar field, in the diff’s order, with the localized field labels', () => {
+        const diff = diffOf({ changedFields: ['title', 'servings', 'prepTimeMinutes', 'cookTimeMinutes'] });
+
+        expect(formatChangedFromCurrent(diff, preview, conflict, 'en-US')).toBe(
+            'Changed from current: Title, Servings, Prep time, Cook time',
+        );
+    });
+
+    it('lists the fields first, then the ingredient and step counts, and never names the two collections twice', () => {
+        const diff = diffOf({
+            changedFields: ['title', 'steps', 'ingredients'],
+            steps: { added: 0, removed: 0, modified: 1 },
+            ingredients: { added: 1, removed: 1, modified: 1 },
+        });
+
+        expect(formatChangedFromCurrent(diff, preview, conflict, 'en-US')).toBe(
+            'Changed from current: Title, 3 ingredients, 1 step',
+        );
+    });
+
+    it('reports only a step change as "1 step"', () => {
+        const diff = diffOf({ changedFields: ['steps'], steps: { added: 0, removed: 0, modified: 1 } });
+
+        expect(formatChangedFromCurrent(diff, preview, conflict, 'en-US')).toBe('Changed from current: 1 step');
+    });
+
+    it('says the version is the same as the current one when nothing differs', () => {
+        expect(formatChangedFromCurrent(diffOf({}), preview, conflict, 'en-US')).toBe('Same as the current version.');
     });
 });
 
@@ -395,5 +431,43 @@ describe('resolveVersionPreview', () => {
         resolveVersionPreview({ previewTarget: 1, versions, currentVersion: 2, restoringVersion: null });
 
         expect(versions).toStrictEqual([v2, v1]);
+    });
+});
+
+/** UI Designer ruling Q5: the native preview line says a fraction in words, and labels nothing it need not. */
+describe('versionLineAccessibilityLabel', () => {
+    const words = recipeMessages.en.amountWords;
+
+    it('says a fraction in words', () => {
+        expect(versionLineAccessibilityLabel({ key: 'ri_1', text: '1½\u00A0cups Milk' }, words)).toBe(
+            '1 and a half cups Milk',
+        );
+    });
+
+    it('carries the inline refusal marker, which the label replaces', () => {
+        expect(
+            versionLineAccessibilityLabel(
+                { key: 'ri_1', text: '¾\u00A0tsp Salt', cannotRestore: 'can’t be restored' },
+                words,
+            ),
+        ).toBe('three quarters tsp Salt can’t be restored');
+    });
+
+    it('leaves the marker to its own line when the line has details', () => {
+        expect(
+            versionLineAccessibilityLabel(
+                {
+                    key: 'ri_1',
+                    text: '½\u00A0lb Beef',
+                    cannotRestore: 'can’t be restored',
+                    variantParts: ['flat half'],
+                },
+                words,
+            ),
+        ).toBe('a half lb Beef');
+    });
+
+    it('labels nothing when the text already says itself', () => {
+        expect(versionLineAccessibilityLabel({ key: 'ri_1', text: '200\u00A0g Pasta' }, words)).toBeUndefined();
     });
 });

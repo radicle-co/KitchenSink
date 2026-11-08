@@ -29,7 +29,7 @@ import { remoteFoodsOf, servedFoodsOf } from '../../src/hooks/foodSuggestions.mo
 import { useIngredientEntry } from '../../src/hooks/useIngredientEntry.js';
 import { useLineCommit } from '../../src/hooks/useLineCommit.js';
 import { useSourceLimit } from '../../src/hooks/useSourceLimit.js';
-import { foodProgressive, json, ndjson, twoOrigins } from './twoOrigins.js';
+import { foodProgressive, json, ndjson, openStream, twoOrigins, NAME_PROPOSALS_PATH } from './twoOrigins.js';
 
 afterEach(cleanup);
 
@@ -126,6 +126,7 @@ describe('the entry, on the create form (integration)', () => {
             ['/api/v1/foods/search/progressive', 'chickpeas'],
         ]);
         expect(origins.sentTo('recipe').map((each) => [each.method, each.path, each.body])).toEqual([
+            ['GET', NAME_PROPOSALS_PATH, undefined],
             ['POST', '/api/v1/ingredients/by-food', { foodId: 'food_chickpea' }],
         ]);
         expect(result.current.values.ingredients[0]).toMatchObject({
@@ -133,6 +134,41 @@ describe('the entry, on the create form (integration)', () => {
             foodId: 'food_chickpea',
         });
         expect(result.current.entry.textOf({ kind: 'newLine' })).toBe('');
+    });
+
+    // Dogfooding PR 132: the said-early mark outlived its answer, so the same text asked again was served from the
+    // cache with its foods while its one announcement said only the slow path's end (P7).
+    it('⛔ a slow answer said early, then the same text asked again from the cache, is said on the fast path', async () => {
+        const stream = openStream();
+        const origins = twoOrigins({ food: foodProgressive({ search: () => stream.response }) });
+        const { result } = renderHook(() => useCreateForm(makeFilledRecipeFormValues({ ingredients: [] })), {
+            wrapper: providers(origins.recipes, origins.food),
+        });
+
+        act(() => result.current.entry.setText({ kind: 'newLine' }, 'chickpeas'));
+        await waitFor(() => expect(origins.sentTo('food')).toHaveLength(1));
+        stream.write({
+            type: 'database',
+            catalog: { outcome: 'answered', results: [{ id: 'food_chickpea', name: 'Chickpeas, canned', score: 0.9 }] },
+            authored: { outcome: 'answered', results: [] },
+        });
+        await waitFor(() => expect(result.current.entry.databaseSaidEarly).toBe(true), { timeout: 3_000 });
+        stream.write({ type: 'source', source: 'usda', outcome: 'answered', items: [] });
+        stream.write({ type: 'complete' });
+        stream.end();
+        await waitFor(() => expect(result.current.entry.view).toMatchObject({ kind: 'served', progress: 'complete' }));
+
+        act(() => result.current.entry.setText({ kind: 'newLine' }, ''));
+        await waitFor(() => expect(result.current.entry.view.kind).toBe('idle'));
+        act(() => result.current.entry.setText({ kind: 'newLine' }, 'chickpeas'));
+        await waitFor(() => expect(result.current.entry.view).toMatchObject({ kind: 'served', progress: 'complete' }));
+
+        expect(servedFoodsOf(result.current.entry.view)).toHaveLength(1);
+        expect(result.current.entry.databaseSaidEarly).toBe(false);
+        // The complete answer is kept for its text: the second ask sends nothing.
+        expect(origins.sentTo('food').filter((each) => each.path === '/api/v1/foods/search/progressive')).toHaveLength(
+            1,
+        );
     });
 
     it('⛔ the cook’s limit: one adopt, the real 429 held for the session, and the next remote press sends nothing', async () => {
@@ -165,6 +201,9 @@ describe('the entry, on the create form (integration)', () => {
         expect(adopts()).toHaveLength(1);
         expect(result.current.lineCommit.limitRefusals).toBe(1);
         expect(result.current.lineCommit.settled?.outcome).toMatchObject({ kind: 'limited' });
-        expect(origins.sentTo('recipe')).toEqual([]);
+        // Only the add field's read of what is remembered: no admission.
+        expect(origins.sentTo('recipe').map((each) => [each.method, each.path])).toEqual([
+            ['GET', NAME_PROPOSALS_PATH],
+        ]);
     });
 });

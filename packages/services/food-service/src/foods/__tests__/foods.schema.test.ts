@@ -15,12 +15,19 @@
  * 2. Assert the request schemas actually enforce what the controller and the published document promise, using
  *    the values that matter (whitespace-only names, empty arrays) rather than only the happy path.
  */
+import { ACCOUNT_SUSPENDED_CODE } from '@kitchensink/clerk-verify';
 import { describe, expect, it } from 'vitest';
+import { RANK_TIERS } from '@kitchensink/recipe-core/resolution/ranking-tiers';
 
+import { FOOD_ERROR_STATUS } from '../../common/apiError.js';
 import { apiErrorSchema } from '../../common/apiError.schema.js';
 import { foodStatusEnum } from '../../db/schema/food.js';
 import {
     addFoodRequestSchema,
+    catalogSearchResultViewSchema,
+    rankTierSchema,
+    searchResponseSchema,
+    searchResultViewSchema,
     addResponseSchema,
     batchAddFoodRequestSchema,
     foodErrorCodeSchema,
@@ -283,6 +290,7 @@ describe('foodErrorSchema', () => {
         UNAUTHORIZED: { code: 'UNAUTHORIZED', message: 'Unauthorized' },
         IDENTITY_SYNC_PENDING: { code: 'IDENTITY_SYNC_PENDING', message: 'Retry with a refreshed token' },
         FORBIDDEN: { code: 'FORBIDDEN', message: 'Operation requires elevated scope' },
+        ACCOUNT_SUSPENDED: { code: 'ACCOUNT_SUSPENDED', message: 'Account is suspended' },
         FOOD_PENDING: {
             code: 'FOOD_PENDING',
             message: 'pending',
@@ -879,9 +887,12 @@ describe('the search query schemas refuse a NUL byte', () => {
 describe('the split search response shapes (plan 002 S3)', () => {
     const variant = { id: '01JVARIANT0000000000000001', parts: [{ attribute: 'cut', text: 'flat' }] };
 
-    it('publishes a catalog hit as id, name, score and an optional variant, and nothing that names a caller', () => {
+    it('publishes a catalog hit as id, name, score, an optional default flag and variant, and nothing naming a caller', () => {
+        // Rewritten (code-quality review W2): the catalog hit carried the rung, a closed enum every client parses
+        // strictly. It carries `isDefault` instead, the one ranking fact a picker shows (ADR-0070 §4), and no rung.
         expect(Object.keys(catalogSearchResponseSchema.shape.results.element.shape).sort()).toStrictEqual([
             'id',
+            'isDefault',
             'name',
             'score',
             'variant',
@@ -912,5 +923,84 @@ describe('the split search response shapes (plan 002 S3)', () => {
                 results: [{ id: 'f1', name: 'my egg', score: 0.5, visibility: 'private' }],
             }),
         ).toStrictEqual({ results: [{ id: 'f1', name: 'my egg', score: 0.5 }] });
+    });
+});
+
+/**
+ * The search hit's `rung` (ADR-0070) restates the ranking ladder's rungs, because this file is copied into a package
+ * that may import only zod. The two lists change for the same reason, so they must never diverge silently.
+ */
+describe('searchResultViewSchema.rung', () => {
+    it("names exactly the ladder's rungs, in the ladder's order", () => {
+        expect(rankTierSchema.options).toEqual([...RANK_TIERS]);
+    });
+
+    it('accepts a hit with each rung, and one with none (a crosswalk hit matched an identifier)', () => {
+        for (const rung of RANK_TIERS) {
+            expect(searchResultViewSchema.parse({ id: 'F', name: 'n', score: 0.5, rung }).rung).toBe(rung);
+        }
+
+        expect(searchResultViewSchema.parse({ id: 'F', name: 'n', score: 1 }).rung).toBeUndefined();
+    });
+
+    // Rewritten (review of 6888cdf60): this asserted a strict refusal. The rung is a RESPONSE field, and a client built
+    // against an older ladder parses responses strictly, so a new rung (ADR-0070 §4 added `default`) would have failed
+    // every response that carried it. A rung this build does not know now reads as absent, and the hit survives.
+    it('reads a rung this build does not know as absent, and keeps the hit', () => {
+        const parsed = searchResultViewSchema.parse({ id: 'F', name: 'n', score: 0.5, rung: 'popular' });
+
+        expect(parsed.rung).toBeUndefined();
+        expect(parsed).toMatchObject({ id: 'F', name: 'n', score: 0.5 });
+        expect(
+            searchResponseSchema.parse({ results: [{ id: 'F', name: 'n', score: 0.5, rung: 'popular' }] }).results,
+        ).toHaveLength(1);
+    });
+
+    it('still refuses a hit that breaks a field other than the rung', () => {
+        expect(searchResultViewSchema.safeParse({ id: 'F', name: 'n', score: 'high', rung: 'exact' }).success).toBe(
+            false,
+        );
+    });
+
+    // Rewritten (code-quality review W2): the shared catalog search no longer carries the rung; it strips one.
+    it('strips a rung from the shared catalog search, which publishes isDefault instead', () => {
+        expect(
+            catalogSearchResultViewSchema.parse({ id: 'F', name: 'n', score: 0.5, rung: 'default', isDefault: true }),
+        ).toStrictEqual({ id: 'F', name: 'n', score: 0.5, isDefault: true });
+    });
+});
+
+/** How a server-to-server hit says what it matched (code-quality review W2): a name, or an identifier. */
+describe('searchResultViewSchema.matchedBy', () => {
+    it('round-trips each kind of match', () => {
+        for (const matchedBy of ['name', 'identifier'] as const) {
+            expect(searchResultViewSchema.parse({ id: 'F', name: 'n', score: 1, matchedBy }).matchedBy).toBe(matchedBy);
+        }
+    });
+
+    it('reads a kind of match this build does not know as absent, and keeps the hit', () => {
+        const parsed = searchResultViewSchema.parse({ id: 'F', name: 'n', score: 0.5, matchedBy: 'barcode-ish' });
+
+        expect(parsed.matchedBy).toBeUndefined();
+        expect(parsed).toMatchObject({ id: 'F', name: 'n', score: 0.5 });
+    });
+});
+
+describe('ACCOUNT_SUSPENDED is a published food error code (ADR-0081)', () => {
+    // The schema file may import only zod, so it SPELLS the code. This is the test that keeps that spelling equal to
+    // the one the shared verifier's adopters answer with.
+    it('spells the code the shared verifier answers with', () => {
+        expect(foodErrorCodeSchema.enum.ACCOUNT_SUSPENDED).toBe(ACCOUNT_SUSPENDED_CODE);
+    });
+
+    it('is a 403, like every other refusal of an authenticated caller', () => {
+        expect(FOOD_ERROR_STATUS.ACCOUNT_SUSPENDED).toBe(403);
+    });
+
+    it('narrows in the typed union, so a client reads it instead of falling back to the status', () => {
+        const body = { code: ACCOUNT_SUSPENDED_CODE, message: 'Account is suspended' };
+
+        expect(foodErrorSchema.safeParse(body).success).toBe(true);
+        expect(apiErrorSchema.safeParse(body).success).toBe(true);
     });
 });

@@ -48,6 +48,7 @@ export function makeContentRoot(overrides: Partial<ContentRoot> = {}): ContentRo
         seedKey: 'fdc:100',
         name: 'beef brisket',
         synonyms: [],
+        defaultFor: [],
         item: 'fdc:100',
         nutrition: makeNutrition('fdc:100'),
         ...overrides,

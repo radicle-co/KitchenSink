@@ -12,8 +12,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { renderWithRecipeClient, withFoodClient } from '@commise/test-utils';
 import { recipeSender } from '@commise/query/recipe-sender';
 import { SyncProvider } from '@commise/query/sync';
-import { NotFoundError, type RecipeServiceClient } from '@kitchensink/recipe-service-client';
+import { NotFoundError, PrivateSlotsFullError, type RecipeServiceClient } from '@kitchensink/recipe-service-client';
 import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-client/testing';
+import type { ParseJobResponse } from '@kitchensink/schema-recipe';
 import { focusManager, onlineManager } from '@tanstack/react-query';
 import { EMPTY_OUTBOX, createMemoryOutboxStore, loadOutbox, saveOutbox, type OutboxStore } from '@kitchensink/sync';
 import { RecipeStatus, RecipeVisibility, type RecipeDetail } from '@kitchensink/recipe-core';
@@ -215,6 +216,8 @@ describe('RecipeEditorContainer (web)', () => {
      * public elsewhere (a stale read), for a cook whose paid features are hidden. Save changes sends no Private the server
      * would refuse after the editor had gone, and the recipe page is told the recipe stayed public.
      */
+    // REWRITTEN for ADR-0073: a free cook's own recipe is no longer refused Private for want of Pro, so the Pro
+    // refusal is exercised on an imported public-web recipe (where it is still the rule). The slots refusal follows.
     it('⛔ a stale Private the server would refuse is not sent, and the recipe page is told it stayed public', async () => {
         profile.paidFeatures = 'hidden';
         const client = createFakeRecipeServiceClient();
@@ -223,6 +226,7 @@ describe('RecipeEditorContainer (web)', () => {
             title: 'Stored Stew',
             status: RecipeStatus.PUBLISHED,
             visibility: RecipeVisibility.PRIVATE,
+            sourceType: 'imported_public',
             currentVersion: 2,
         });
         vi.spyOn(client, 'getRecipeById').mockResolvedValue(stored);
@@ -241,6 +245,38 @@ describe('RecipeEditorContainer (web)', () => {
         });
 
         await waitFor(() => expect(pushMock).toHaveBeenCalledWith('/en/recipes/rec_1?done=changesSaved.final'));
+        expect(setVisibility).not.toHaveBeenCalled();
+    });
+
+    // ADR-0073: the same hand-off for a free cook's own recipe, refused because every private slot is KNOWN used.
+    it('⛔ a stale Private with every slot known used is not sent, and the recipe page is told it stayed public', async () => {
+        profile.paidFeatures = 'upsell';
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'getPrivateSlots').mockResolvedValue({ kind: 'limited', used: 50, limit: 50 });
+        const stored = makeRecipeDetail({
+            id: 'rec_full',
+            title: 'Stored Stew',
+            status: RecipeStatus.PUBLISHED,
+            visibility: RecipeVisibility.PRIVATE,
+            currentVersion: 2,
+        });
+        vi.spyOn(client, 'getRecipeById').mockResolvedValue(stored);
+        vi.spyOn(client, 'updateRecipe').mockResolvedValue({
+            ...stored,
+            visibility: RecipeVisibility.PUBLIC,
+            currentVersion: 3,
+        } as RecipeDetail);
+        const setVisibility = vi.spyOn(client, 'setRecipeVisibility');
+
+        renderEditor(client, 'rec_full');
+        const title = await screen.findByDisplayValue('Stored Stew');
+        await waitFor(() => expect(client.getPrivateSlots).toHaveBeenCalled());
+        await userEvent.type(title, ' Deluxe');
+        await act(async () => {
+            await userEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+        });
+
+        await waitFor(() => expect(pushMock).toHaveBeenCalledWith('/en/recipes/rec_full?done=changesSaved.slots'));
         expect(setVisibility).not.toHaveBeenCalled();
     });
 
@@ -350,151 +386,428 @@ describe('RecipeEditorContainer (web)', () => {
  * local ref and then the server id; the new route, reopened on a recipe the server holds, goes to its edit route.
  */
 /**
- * E1 (build spec §6.4, §7.7 item 2) + plan 2026-10-14-009 D14: "Who can see it" renders from the viewer's paid features
- * alone (owner ruling 2026-10-13). `upsell` opens the Premium sheet for Private; `granted` gets Private; `hidden`, a
- * failed profile read and a profile still loading show the plain "Who can see it: Public" statement — no Private, no
- * Premium, no upsell.
+ * UPDATED for the owner ruling of 2026-10-26 (ADR-0073 section 12): a DRAFT holds no slot. A slot is a private PUBLISHED
+ * recipe, so the count, the refusal and the over-limit sentence belong to a PUBLISHED recipe (these cases open one) and to
+ * a draft whose Publish was refused; a new recipe is a draft and shows neither.
  *
- * REWRITTEN 2026-10-14: the loading case used to assert a Private tap that waited; loading now fails closed to the
- * statement, so there is no Private to tap.
+ * "Who can see it" end to end through the real container (E1), REWRITTEN for ADR-0073 and the owner ruling of 2026-10-26.
+ * A recipe is under the SLOTS rule (a free cook's own, book or paid-site recipe: Private works while the server says a
+ * slot is free, whatever the paid features say) or the PREMIUM rule (an imported public-web recipe: the paid-feature table
+ * it always had). Public is NEVER final: no confirm says a recipe "can't go private again".
  */
-describe('RecipeEditorContainer (web) — Private (E1, paid features)', () => {
+describe('RecipeEditorContainer (web) — Private (E1, private slots and Pro)', () => {
     const choosePrivate = async (): Promise<void> => {
         await userEvent.click(await screen.findByRole('radio', { name: /^Private/u }));
     };
 
-    it('⛔ under upsell, the Premium sheet opens for Private, and Public stays chosen', async () => {
-        profile.paidFeatures = 'upsell';
-        renderEditor(createFakeRecipeServiceClient());
-
-        await choosePrivate();
-
-        expect(await screen.findByRole('dialog', { name: 'Private recipes are part of Premium.' })).toBeTruthy();
-        // The page behind the open sheet is hidden from the accessibility tree.
-        expect((screen.getByRole('radio', { name: /^Public/u, hidden: true }) as HTMLInputElement).checked).toBe(true);
-    });
-
-    it('Not now closes the sheet and leaves the recipe public', async () => {
-        profile.paidFeatures = 'upsell';
-        renderEditor(createFakeRecipeServiceClient());
-        await choosePrivate();
-
-        await userEvent.click(await screen.findByRole('button', { name: 'Not now' }));
-
-        await waitFor(() => expect(screen.queryByRole('dialog', { name: /Premium/u })).toBeNull());
-        expect((screen.getByRole('radio', { name: /^Public/u }) as HTMLInputElement).checked).toBe(true);
-    });
-
-    it('lets a granted cook choose Private, with no sheet and no Premium badge', async () => {
-        profile.paidFeatures = 'granted';
-        renderEditor(createFakeRecipeServiceClient());
-
-        await choosePrivate();
-
-        expect((screen.getByRole('radio', { name: /^Private/u }) as HTMLInputElement).checked).toBe(true);
-        expect(screen.queryByRole('dialog', { name: /Premium/u })).toBeNull();
-        expect(screen.queryByText('Premium')).toBeNull();
-    });
-
-    /**
-     * The stuck-save defect (plan 2026-10-14-009 Q5 follow-up): under `hidden` the owner of a private recipe could move
-     * it to Public and back to Private, and the server refused the second write. Leaving Private is now confirmed first
-     * (UX SPECIFY 2026-10-15), and once the draft has left it the editor offers it no more: the field gives way to the
-     * statement, which takes the focus the unmounted radio had (WCAG 2.4.3).
-     *
-     * Each case edits its own recipe: the tab's device session outlives one case, so a draft left under a shared id
-     * would reopen in the next.
-     */
-    const openPrivateRecipe = async (id: string): Promise<void> => {
+    /** A client whose slot read answers `usage`. */
+    const clientWithSlots = (usage: { used: number; limit: number } | 'unlimited'): RecipeServiceClient => {
         const client = createFakeRecipeServiceClient();
-        vi.spyOn(client, 'getRecipeById').mockResolvedValue(
-            makeRecipeDetail({ id, title: 'Secret Stew', visibility: RecipeVisibility.PRIVATE }),
+        vi.spyOn(client, 'getPrivateSlots').mockResolvedValue(
+            usage === 'unlimited' ? { kind: 'unlimited' } : { kind: 'limited', ...usage },
         );
-        renderEditor(client, id);
-        await screen.findByRole('radio', { name: /^Private/u });
+
+        return client;
     };
 
-    it('⛔ under hidden, Public asks first; confirmed, the recipe is not offered Private again', async () => {
-        profile.paidFeatures = 'hidden';
-        await openPrivateRecipe('rec_secret_hidden');
-        expect((screen.getByRole('radio', { name: /^Private/u }) as HTMLInputElement).checked).toBe(true);
+    /** Open a stored recipe with the given label and visibility; each case has its own id (the tab's device session outlives a case). */
+    const openRecipe = async (
+        client: RecipeServiceClient,
+        id: string,
+        visibility: RecipeVisibility,
+        sourceType: 'user_created' | 'imported_public' | 'imported_physical' | 'imported_paid' = 'user_created',
+        status: 'draft' | 'published' = 'published',
+    ): Promise<void> => {
+        vi.spyOn(client, 'getRecipeById').mockResolvedValue(
+            makeRecipeDetail({ id, title: 'Secret Stew', visibility, sourceType, status }),
+        );
+        renderEditor(client, id);
+        await screen.findByDisplayValue('Secret Stew');
+    };
 
-        await userEvent.click(screen.getByRole('radio', { name: /^Public/u }));
+    describe('a recipe the cook wrote: the slots rule', () => {
+        afterEach(() => onlineManager.setOnline(true));
 
-        const dialog = await screen.findByRole('alertdialog', { name: 'Make this recipe public?' });
-        expect(
-            within(dialog).getByText(
-                "Anyone can see a public recipe and save a copy. You won't be able to make this one private again.",
-            ),
-        ).toBeTruthy();
-        await userEvent.click(within(dialog).getByRole('button', { name: 'Make public' }));
+        it('shows how many private slots are left, from the server`s read, on a published recipe', async () => {
+            profile.paidFeatures = 'upsell';
+            await openRecipe(clientWithSlots({ used: 38, limit: 50 }), 'rec_count', RecipeVisibility.PUBLIC);
 
-        await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
-        expect(screen.getByText('Who can see it')).toBeTruthy();
-        expect(screen.queryByRole('radio', { name: /^Private/u })).toBeNull();
-        expect(screen.queryByRole('radio', { name: /^Public/u })).toBeNull();
-        expect(screen.queryByText('Premium')).toBeNull();
-        await waitFor(() => expect(document.activeElement?.textContent).toContain('Who can see it'));
+            expect(await screen.findByText('12 of 50 private slots left')).toBeTruthy();
+        });
+
+        it('⛔ a NEW recipe is a draft: it shows no count and no refusal, even with every slot used', async () => {
+            profile.paidFeatures = 'upsell';
+            renderEditor(clientWithSlots({ used: 50, limit: 50 }));
+
+            await choosePrivate();
+
+            expect((screen.getByRole('radio', { name: /^Private/u }) as HTMLInputElement).checked).toBe(true);
+            expect(screen.getAllByText('A private draft uses no slot. Publishing it uses one.').length).toBeGreaterThan(
+                0,
+            );
+            expect(screen.queryByText('Not available. All 50 of your private slots are in use.')).toBeNull();
+        });
+
+        it('⛔ lets a free cook choose Private even when paid features are hidden: a slot, not Pro', async () => {
+            profile.paidFeatures = 'hidden';
+            await openRecipe(clientWithSlots({ used: 3, limit: 50 }), 'rec_choose', RecipeVisibility.PUBLIC);
+
+            await choosePrivate();
+
+            expect((screen.getByRole('radio', { name: /^Private/u }) as HTMLInputElement).checked).toBe(true);
+            expect(screen.queryByRole('dialog', { name: /Pro/u })).toBeNull();
+            expect(await screen.findByText('This recipe uses 1 slot. 46 of 50 left after it.')).toBeTruthy();
+        });
+
+        it('⛔ with every slot used, refuses Private with its ways forward; the first two go to My recipes', async () => {
+            profile.paidFeatures = 'upsell';
+            await openRecipe(clientWithSlots({ used: 50, limit: 50 }), 'rec_full', RecipeVisibility.PUBLIC);
+
+            expect(await screen.findByText('Not available. All 50 of your private slots are in use.')).toBeTruthy();
+            await choosePrivate();
+            expect((screen.getByRole('radio', { name: /^Public/u }) as HTMLInputElement).checked).toBe(true);
+
+            await userEvent.click(screen.getByRole('button', { name: /Make a private recipe public/u }));
+
+            expect(pushMock).toHaveBeenCalledWith('/en/recipes');
+            expect(screen.getByRole('button', { name: /Get Pro/u })).toBeTruthy();
+        });
+
+        // REMOVED (owner ruling 2026-10-26): "leaving by Make a private recipe public keeps what the cook typed" drove the ways
+        // forward a refused Publish of a private DRAFT used to draw inline. That Publish now opens the "Your private slots are
+        // full" dialog with Publish as public and Keep as draft, and nothing leaves the editor. The exit checkpoint itself is
+        // covered by the sibling leave tests.
+
+        // REWRITTEN for the owner ruling of 2026-10-26 (code owed). When the slot read had failed at the press (or another device
+        // used the last slot) the client sends the Publish by design - the count is a display fact - and the server answers the
+        // UPDATE with PRIVATE_SLOTS_FULL. That used to park behind Try again; it now opens the "Your private slots are full"
+        // dialog at once, with the SERVER's limit as the total, and leaves no failure alert behind.
+        it('⛔ a Publish the server refuses for slots, on the first attempt, opens the dialog with the server’s limit: no Try again', async () => {
+            profile.paidFeatures = 'upsell';
+            const client = createFakeRecipeServiceClient();
+            // The standing at the press says a slot is free; the server then finds none (another device took the last).
+            const getSlots = vi
+                .spyOn(client, 'getPrivateSlots')
+                .mockResolvedValue({ kind: 'limited', used: 49, limit: 50 });
+            const draft = makeRecipeDetail({
+                id: 'rec_stuck',
+                title: 'Secret Stew',
+                visibility: RecipeVisibility.PRIVATE,
+                status: 'draft',
+            });
+            vi.spyOn(client, 'getRecipeById').mockResolvedValue(draft);
+            const update = vi.spyOn(client, 'updateRecipe').mockRejectedValue(new PrivateSlotsFullError(50, 50));
+            renderEditor(client, 'rec_stuck');
+            await screen.findByDisplayValue('Secret Stew');
+            await waitFor(() => expect(getSlots).toHaveBeenCalled());
+
+            await userEvent.click(screen.getByRole('button', { name: 'Publish' }));
+
+            const dialog = await screen.findByRole('dialog', { name: 'Your private slots are full' });
+
+            expect(within(dialog).getByText(/^All 50 of your private slots are in use/u)).toBeTruthy();
+            expect(update).toHaveBeenCalledTimes(1);
+            expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
+
+            await userEvent.click(within(dialog).getByRole('button', { name: 'Keep as draft' }));
+
+            await waitFor(() =>
+                expect(screen.queryByRole('dialog', { name: 'Your private slots are full' })).toBeNull(),
+            );
+            expect((screen.getByRole('radio', { name: /^Private/u }) as HTMLInputElement).checked).toBe(true);
+            expect(update).toHaveBeenCalledTimes(1);
+        });
+
+        it('"Get Pro" in the refusal opens the Pro sheet', async () => {
+            profile.paidFeatures = 'upsell';
+            await openRecipe(clientWithSlots({ used: 50, limit: 50 }), 'rec_premium', RecipeVisibility.PUBLIC);
+
+            await userEvent.click(await screen.findByRole('button', { name: /Get Pro/u }));
+
+            expect(await screen.findByRole('dialog', { name: 'Keep more recipes private' })).toBeTruthy();
+        });
+
+        it('offers no Pro way when paid features are hidden', async () => {
+            profile.paidFeatures = 'hidden';
+            await openRecipe(clientWithSlots({ used: 50, limit: 50 }), 'rec_hidden', RecipeVisibility.PUBLIC);
+
+            await screen.findByText('Not available. All 50 of your private slots are in use.');
+
+            expect(screen.queryByRole('button', { name: /Get Pro/u })).toBeNull();
+            expect(screen.getByRole('button', { name: /Delete a private recipe/u })).toBeTruthy();
+        });
+
+        it('Pro sees no count, and no sheet', async () => {
+            profile.paidFeatures = 'granted';
+            renderEditor(clientWithSlots('unlimited'));
+
+            await choosePrivate();
+
+            expect((screen.getByRole('radio', { name: /^Private/u }) as HTMLInputElement).checked).toBe(true);
+            expect(screen.queryByText(/private slots/u)).toBeNull();
+            expect(screen.queryByText('Pro')).toBeNull();
+        });
+
+        it('⛔ Public asks first and says it frees a slot; confirmed, the recipe is Public and can come back while a slot is free', async () => {
+            profile.paidFeatures = 'hidden';
+            await openRecipe(clientWithSlots({ used: 20, limit: 50 }), 'rec_frees', RecipeVisibility.PRIVATE);
+            // The confirm is decided from the server's count: wait for it, or Public goes at once.
+            await screen.findByText('30 of 50 private slots left');
+
+            await userEvent.click(screen.getByRole('radio', { name: /^Public/u }));
+
+            const dialog = await screen.findByRole('alertdialog', { name: 'Make this recipe public?' });
+            expect(
+                within(dialog).getByText(
+                    'Anyone can see a public recipe and save a copy. It frees one of your private slots, and you can make it private again while you have a free slot.',
+                ),
+            ).toBeTruthy();
+            await userEvent.click(within(dialog).getByRole('button', { name: 'Make public' }));
+            await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
+
+            // Public is never final: Private is still offered.
+            await choosePrivate();
+            expect((screen.getByRole('radio', { name: /^Private/u }) as HTMLInputElement).checked).toBe(true);
+        });
+
+        it('Keep private leaves the recipe private', async () => {
+            profile.paidFeatures = 'hidden';
+            await openRecipe(clientWithSlots({ used: 20, limit: 50 }), 'rec_kept', RecipeVisibility.PRIVATE);
+            await screen.findByText('30 of 50 private slots left');
+
+            await userEvent.click(screen.getByRole('radio', { name: /^Public/u }));
+            await userEvent.click(await screen.findByRole('button', { name: 'Keep private' }));
+
+            await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
+            expect((screen.getByRole('radio', { name: /^Private/u }) as HTMLInputElement).checked).toBe(true);
+        });
+
+        it('a Pro owner moves a private recipe to Public with no confirm', async () => {
+            profile.paidFeatures = 'granted';
+            await openRecipe(clientWithSlots('unlimited'), 'rec_secret_granted', RecipeVisibility.PRIVATE);
+
+            await userEvent.click(screen.getByRole('radio', { name: /^Public/u }));
+
+            expect((screen.getByRole('radio', { name: /^Public/u }) as HTMLInputElement).checked).toBe(true);
+            expect(screen.queryByRole('alertdialog')).toBeNull();
+        });
     });
 
-    it('under hidden, Keep private leaves the recipe private and still offered', async () => {
-        profile.paidFeatures = 'hidden';
-        await openPrivateRecipe('rec_secret_kept');
+    describe('a book or paid-site recipe: private only', () => {
+        const REASON = 'Not for this recipe. Its source is a book or a paid site, not a public web page.';
 
-        await userEvent.click(screen.getByRole('radio', { name: /^Public/u }));
-        await userEvent.click(await screen.findByRole('button', { name: 'Keep private' }));
+        it.each(['imported_physical', 'imported_paid'] as const)(
+            '⛔ shows Public refused on a private %s recipe: focusable, not disabled, with the reason as its description',
+            async (sourceType) => {
+                profile.paidFeatures = 'upsell';
+                await openRecipe(
+                    clientWithSlots({ used: 10, limit: 50 }),
+                    `rec_book_${sourceType}`,
+                    RecipeVisibility.PRIVATE,
+                    sourceType,
+                );
 
-        await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
-        expect((screen.getByRole('radio', { name: /^Private/u }) as HTMLInputElement).checked).toBe(true);
+                const pub = screen.getByRole('radio', { name: /^Public/u }) as HTMLInputElement;
+
+                expect(pub.getAttribute('aria-disabled')).toBe('true');
+                expect(pub.disabled).toBe(false);
+                expect(pub).toHaveAccessibleDescription(REASON);
+                pub.focus();
+                expect(document.activeElement).toBe(pub);
+            },
+        );
+
+        it('⛔ choosing the refused Public changes nothing and opens no confirm', async () => {
+            profile.paidFeatures = 'upsell';
+            await openRecipe(
+                clientWithSlots({ used: 10, limit: 50 }),
+                'rec_book_choice',
+                RecipeVisibility.PRIVATE,
+                'imported_physical',
+            );
+
+            await userEvent.click(screen.getByRole('radio', { name: /^Public/u }));
+
+            expect((screen.getByRole('radio', { name: /^Private/u }) as HTMLInputElement).checked).toBe(true);
+            expect(screen.queryByRole('alertdialog')).toBeNull();
+        });
+
+        it('does not refuse Public on a recipe the cook wrote', async () => {
+            profile.paidFeatures = 'upsell';
+            await openRecipe(clientWithSlots({ used: 10, limit: 50 }), 'rec_own_pub', RecipeVisibility.PRIVATE);
+
+            expect(screen.getByRole('radio', { name: /^Public/u }).getAttribute('aria-disabled')).toBeNull();
+            expect(screen.queryByText(REASON)).toBeNull();
+        });
     });
 
-    it('⛔ under upsell, Public asks first with the Premium words; confirmed, going back asks for Premium', async () => {
-        profile.paidFeatures = 'upsell';
-        await openPrivateRecipe('rec_secret_upsell');
+    describe('over the limit after a downgrade', () => {
+        const SENTENCE =
+            'You have 60 private recipes and 50 private slots. They stay private. To make another recipe private, first bring your private recipes under 50.';
 
-        await userEvent.click(screen.getByRole('radio', { name: /^Public/u }));
-        const dialog = await screen.findByRole('alertdialog', { name: 'Make this recipe public?' });
-        expect(
-            within(dialog).getByText(
-                "Anyone can see a public recipe and save a copy. To make this one private again, you'll need Premium.",
-            ),
-        ).toBeTruthy();
-        await userEvent.click(within(dialog).getByRole('button', { name: 'Make public' }));
-        await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
+        it('⛔ says what the cook holds and that it stays private, from the server`s numbers', async () => {
+            profile.paidFeatures = 'upsell';
+            await openRecipe(clientWithSlots({ used: 60, limit: 50 }), 'rec_over', RecipeVisibility.PUBLIC);
 
-        await choosePrivate();
+            expect(await screen.findByText(SENTENCE)).toBeTruthy();
+        });
 
-        expect(await screen.findByRole('dialog', { name: 'Private recipes are part of Premium.' })).toBeTruthy();
-        expect((screen.getByRole('radio', { name: /^Public/u, hidden: true }) as HTMLInputElement).checked).toBe(true);
+        it('⛔ About Pro opens the noSlot sheet with the server`s limit', async () => {
+            profile.paidFeatures = 'upsell';
+            await openRecipe(clientWithSlots({ used: 60, limit: 50 }), 'rec_over', RecipeVisibility.PUBLIC);
+
+            await userEvent.click(await screen.findByRole('button', { name: 'About Pro' }));
+
+            const sheet = await screen.findByRole('dialog', { name: 'Keep more recipes private' });
+            expect(
+                within(sheet).getByText(
+                    'All 50 of your private slots are in use. Pro has no limit. To free a slot, make a private recipe public or delete one.',
+                ),
+            ).toBeTruthy();
+        });
+
+        it('⛔ with paid features hidden, says the sentence and offers no Pro link', async () => {
+            profile.paidFeatures = 'hidden';
+            await openRecipe(clientWithSlots({ used: 60, limit: 50 }), 'rec_over', RecipeVisibility.PUBLIC);
+
+            expect(await screen.findByText(SENTENCE)).toBeTruthy();
+            expect(screen.queryByRole('button', { name: /Pro/u })).toBeNull();
+        });
     });
 
-    it('a granted owner moves a private recipe to Public with no confirm', async () => {
-        profile.paidFeatures = 'granted';
-        await openPrivateRecipe('rec_secret_granted');
+    describe('an imported public-web recipe: Pro is still the rule', () => {
+        it('⛔ under upsell, the Pro sheet opens for Private, and Public stays chosen', async () => {
+            profile.paidFeatures = 'upsell';
+            await openRecipe(createFakeRecipeServiceClient(), 'rec_web_up', RecipeVisibility.PUBLIC, 'imported_public');
 
-        await userEvent.click(screen.getByRole('radio', { name: /^Public/u }));
+            await choosePrivate();
 
-        expect((screen.getByRole('radio', { name: /^Public/u }) as HTMLInputElement).checked).toBe(true);
-        expect(screen.queryByRole('alertdialog')).toBeNull();
+            expect(await screen.findByRole('dialog', { name: 'Private needs Pro for this recipe' })).toBeTruthy();
+            expect((screen.getByRole('radio', { name: /^Public/u, hidden: true }) as HTMLInputElement).checked).toBe(
+                true,
+            );
+        });
+
+        it('Not now closes the sheet and leaves the recipe public', async () => {
+            profile.paidFeatures = 'upsell';
+            await openRecipe(
+                createFakeRecipeServiceClient(),
+                'rec_web_not_now',
+                RecipeVisibility.PUBLIC,
+                'imported_public',
+            );
+            await choosePrivate();
+
+            await userEvent.click(await screen.findByRole('button', { name: 'Not now' }));
+
+            await waitFor(() => expect(screen.queryByRole('dialog', { name: /Pro/u })).toBeNull());
+            expect((screen.getByRole('radio', { name: /^Public/u }) as HTMLInputElement).checked).toBe(true);
+        });
+
+        it('lets a granted cook choose Private, with no sheet and no Pro badge', async () => {
+            profile.paidFeatures = 'granted';
+            await openRecipe(
+                createFakeRecipeServiceClient(),
+                'rec_web_granted',
+                RecipeVisibility.PUBLIC,
+                'imported_public',
+            );
+
+            await choosePrivate();
+
+            expect((screen.getByRole('radio', { name: /^Private/u }) as HTMLInputElement).checked).toBe(true);
+            expect(screen.queryByRole('dialog', { name: /Pro/u })).toBeNull();
+            expect(screen.queryByText('Pro')).toBeNull();
+        });
+
+        it('⛔ under upsell, Public asks first with the Pro words; confirmed, going back asks for Pro', async () => {
+            profile.paidFeatures = 'upsell';
+            await openRecipe(
+                createFakeRecipeServiceClient(),
+                'rec_web_private',
+                RecipeVisibility.PRIVATE,
+                'imported_public',
+            );
+
+            await userEvent.click(screen.getByRole('radio', { name: /^Public/u }));
+            const dialog = await screen.findByRole('alertdialog', { name: 'Make this recipe public?' });
+            expect(
+                within(dialog).getByText(
+                    "Anyone can see a public recipe and save a copy. To make this one private again, you'll need Pro.",
+                ),
+            ).toBeTruthy();
+            await userEvent.click(within(dialog).getByRole('button', { name: 'Make public' }));
+            await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
+
+            await choosePrivate();
+
+            expect(await screen.findByRole('dialog', { name: 'Private needs Pro for this recipe' })).toBeTruthy();
+            expect((screen.getByRole('radio', { name: /^Public/u, hidden: true }) as HTMLInputElement).checked).toBe(
+                true,
+            );
+        });
+
+        // Public is never final, so under hidden there is nothing to confirm: Public is at once, and the recipe then shows
+        // the plain statement because the paid features offer no way back (the stuck-save defect stays closed).
+        // REWRITTEN for the owner ruling of 2026-10-26: under hidden the editor keeps the Private card, REFUSED with its reason,
+        // instead of removing it.
+        it('⛔ under hidden, Public is at once, with no claim that it is final; then Private stays, refused', async () => {
+            profile.paidFeatures = 'hidden';
+            await openRecipe(
+                createFakeRecipeServiceClient(),
+                'rec_web_hidden',
+                RecipeVisibility.PRIVATE,
+                'imported_public',
+            );
+
+            await userEvent.click(screen.getByRole('radio', { name: /^Public/u }));
+
+            await waitFor(() =>
+                expect(screen.getByRole('radio', { name: /^Private/u }).getAttribute('aria-disabled')).toBe('true'),
+            );
+            expect(screen.queryByRole('alertdialog')).toBeNull();
+            expect(screen.queryByText(/won.t be able|may not be able/u)).toBeNull();
+            expect(screen.getByText('Who can see it')).toBeTruthy();
+        });
+
+        it('⛔ under hidden, shows Private refused with the reason, and no Pro', async () => {
+            profile.paidFeatures = 'hidden';
+            await openRecipe(
+                createFakeRecipeServiceClient(),
+                'rec_web_hidden_public',
+                RecipeVisibility.PUBLIC,
+                'imported_public',
+            );
+
+            const card = await screen.findByRole('radio', { name: /^Private/u });
+
+            expect(card.getAttribute('aria-disabled')).toBe('true');
+            expect(screen.getByText('Not available. A recipe from a public web page can only be public.')).toBeTruthy();
+            expect(screen.queryByText('Pro')).toBeNull();
+        });
+
+        it.each([
+            ['a failed profile read', 'failed'],
+            ['a profile still loading', undefined],
+        ] as const)(
+            '⛔ under %s, says "Who can see it: Public" and offers no Private and no Pro',
+            async (_label, state) => {
+                profile.paidFeatures = state;
+                await openRecipe(
+                    createFakeRecipeServiceClient(),
+                    `rec_web_${String(state)}`,
+                    RecipeVisibility.PUBLIC,
+                    'imported_public',
+                );
+
+                expect(await screen.findByText('Who can see it')).toBeTruthy();
+                expect(screen.queryByRole('radio', { name: /^Private/u })).toBeNull();
+                expect(screen.queryByRole('radio', { name: /^Public/u })).toBeNull();
+                expect(screen.queryByText('Pro')).toBeNull();
+                expect(screen.queryByRole('dialog', { name: /Pro/u })).toBeNull();
+            },
+        );
     });
-
-    it.each([
-        ['hidden', 'hidden'],
-        ['a failed profile read', 'failed'],
-        ['a profile still loading', undefined],
-    ] as const)(
-        '⛔ under %s, says "Who can see it: Public" and offers no Private and no Premium',
-        async (_label, state) => {
-            profile.paidFeatures = state;
-            renderEditor(createFakeRecipeServiceClient());
-
-            expect(await screen.findByText('Who can see it')).toBeTruthy();
-            expect(screen.queryByRole('radio', { name: /^Private/u })).toBeNull();
-            expect(screen.queryByRole('radio', { name: /^Public/u })).toBeNull();
-            expect(screen.queryByText('Premium')).toBeNull();
-            expect(screen.queryByRole('dialog', { name: /Premium/u })).toBeNull();
-        },
-    );
 });
 
 /**
@@ -798,16 +1111,50 @@ describe('RecipeEditorContainer (web) — Paste a list', () => {
         ],
     });
 
-    it('a new recipe’s empty Ingredients section offers it; the pasted line reads, then joins the recipe', async () => {
+    /**
+     * REWRITTEN for ADR-0071 (2026-10-26): the pasted line used to join through `addIngredientByName`, which bound a
+     * ranked guess (milk crackers for milk). It now asks for the job's MATCHES and binds a confident one by food
+     * (`addIngredientByFood`); the by-name assertion was deleted with the path, and this test pins that the container
+     * never reaches it. The wire cases are in `features/recipes`' `pasteMatch.integration.test.tsx`.
+     */
+    it('a new recipe’s empty Ingredients section offers it; the pasted line reads, is matched, then joins the recipe', async () => {
         const user = userEvent.setup();
         const client = createFakeRecipeServiceClient();
+        const matched = job('complete');
+        const withMatch: ParseJobResponse = {
+            ...matched,
+            lines: matched.lines.map((line) => ({
+                ...line,
+                proposal:
+                    line.proposal === null
+                        ? null
+                        : {
+                              ...line.proposal,
+                              foods: [
+                                  {
+                                      name: 'flour',
+                                      prep: null,
+                                      match: {
+                                          state: 'confident',
+                                          reason: 'exactName',
+                                          proposed: { kind: 'root', id: 'food_flour', name: 'Plain flour' },
+                                          candidates: [],
+                                      },
+                                  },
+                              ],
+                          },
+            })),
+        };
         const create = vi.spyOn(client, 'createParseJob').mockResolvedValue(job('running'));
         vi.spyOn(client, 'getParseJob').mockResolvedValue(job('complete'));
-        const byName = vi.spyOn(client, 'addIngredientByName').mockResolvedValue({
+        const matches = vi.spyOn(client, 'proposeParseJobMatches').mockResolvedValue(withMatch);
+        const byName = vi.spyOn(client, 'addIngredientByName');
+        const byFood = vi.spyOn(client, 'addIngredientByFood').mockResolvedValue({
             id: '00000000-0000-4000-8000-0000000000f1',
-            name: 'flour',
+            name: 'Plain flour',
+            foodId: 'food_flour',
             isUserEntered: false,
-        } as Awaited<ReturnType<RecipeServiceClient['addIngredientByName']>>);
+        } as Awaited<ReturnType<RecipeServiceClient['addIngredientByFood']>>);
 
         renderEditor(client);
         await user.click(await screen.findByRole('button', { name: 'Paste a list' }));
@@ -816,13 +1163,226 @@ describe('RecipeEditorContainer (web) — Paste a list', () => {
         await user.click(within(sheet).getByRole('button', { name: 'Add 1 ingredient' }));
 
         expect(create).toHaveBeenCalledWith({ text: '2 cups flour' });
-        await waitFor(() => expect(byName).toHaveBeenCalledWith('flour'));
+        await waitFor(() => expect(matches).toHaveBeenCalledWith(JOB_ID));
+        await waitFor(() => expect(byFood).toHaveBeenCalledWith('food_flour'));
+        expect(byName).not.toHaveBeenCalled();
         await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Paste a list' })).toBeNull());
         expect(
             await screen.findByText(
-                (_, node) => node?.textContent === 'Added 1 ingredient.' && node.getAttribute('role') === 'status',
+                (_, node) =>
+                    node?.textContent === 'Added 1 ingredient. Ingredients complete.' &&
+                    node.getAttribute('role') === 'status',
             ),
         ).toBeTruthy();
+        expect(await screen.findByText('Plain flour')).toBeTruthy();
+    });
+
+    /**
+     * ⛔ THE PASTE LIST MEETS THE REAL EDITOR LIFECYCLE (the one place every other tier is blind to). The unit and
+     * integration suites run it over a bare draft; here the recipe is CREATED on the server once the
+     * paste's lines have joined (the paste holds the create until then), the create STORES the joined line, and the
+     * cook's pick on that stored line goes through the REBIND COMMAND at its stored position (ADR-0045), not a draft
+     * transition. If any of those re-keyed the draft, the overlay would read its lines as deleted (removal is terminal)
+     * and the list would vanish.
+     */
+    it('keeps the paste list through the server create and a pick on the stored line (the rebind command)', async () => {
+        const user = userEvent.setup();
+        const client = createFakeRecipeServiceClient();
+        const parsed: ParseJobResponse = {
+            id: JOB_ID,
+            status: 'complete',
+            createdAt: '2026-10-09T10:00:00.000Z',
+            expiresAt: '2099-01-01T00:00:00.000Z',
+            lines: [
+                {
+                    lineIndex: 0,
+                    sourceLine: '2 cups milk',
+                    status: 'parsed',
+                    progress: null,
+                    proposal: {
+                        raw: '2 cups milk',
+                        quantity: { kind: 'exact', value: 2 },
+                        unit: 'cup',
+                        statedMeasure: '2 cups',
+                        foods: [{ name: 'milk', prep: null }],
+                        reviewReasons: [],
+                    },
+                },
+            ],
+        };
+        const matched: ParseJobResponse = {
+            ...parsed,
+            lines: parsed.lines.map((line) => ({
+                ...line,
+                proposal:
+                    line.proposal === null
+                        ? null
+                        : {
+                              ...line.proposal,
+                              foods: [
+                                  {
+                                      name: 'milk',
+                                      prep: null,
+                                      match: {
+                                          state: 'default',
+                                          reason: 'defaultApplies',
+                                          proposed: null,
+                                          candidates: [
+                                              { kind: 'root', id: 'food_whole', name: 'Whole milk', isDefault: true },
+                                              { kind: 'root', id: 'food_skim', name: 'Skim milk', isDefault: false },
+                                          ],
+                                      },
+                                  },
+                              ],
+                          },
+            })),
+        };
+        vi.spyOn(client, 'createParseJob').mockResolvedValue({ ...parsed, status: 'running' });
+        // The service keeps the matches it wrote: a read after the matches call answers them.
+        let held = parsed;
+
+        vi.spyOn(client, 'getParseJob').mockImplementation(() => Promise.resolve(held));
+        vi.spyOn(client, 'proposeParseJobMatches').mockImplementation(() => {
+            held = matched;
+
+            return Promise.resolve(matched);
+        });
+        const freeform = vi.spyOn(client, 'createIngredient').mockResolvedValue({
+            id: '00000000-0000-4000-8000-0000000000f2',
+            name: 'milk',
+            isUserEntered: true,
+        } as Awaited<ReturnType<RecipeServiceClient['createIngredient']>>);
+        const byFood = vi.spyOn(client, 'addIngredientByFood').mockResolvedValue({
+            id: '00000000-0000-4000-8000-0000000000f3',
+            name: 'Skim milk',
+            foodId: 'food_skim',
+            isUserEntered: false,
+        } as Awaited<ReturnType<RecipeServiceClient['addIngredientByFood']>>);
+        const milkView = {
+            ingredientId: '00000000-0000-4000-8000-0000000000f2',
+            name: 'milk',
+            quantity: { kind: 'exact' as const, value: 2 },
+            unit: 'cups',
+            isUserEntered: true,
+        };
+        const skimView = {
+            ingredientId: '00000000-0000-4000-8000-0000000000f3',
+            name: 'Skim milk',
+            foodId: 'food_skim',
+            quantity: { kind: 'exact' as const, value: 2 },
+            unit: 'cups',
+            isUserEntered: false,
+        };
+        const draftRecipe = (version: number, ingredients: RecipeDetail['ingredients']) =>
+            makeRecipeDetail({
+                id: 'rec_new',
+                title: 'Pudding',
+                status: RecipeStatus.DRAFT,
+                currentVersion: version,
+                ingredients,
+            });
+        const create = vi.spyOn(client, 'createRecipe').mockResolvedValue(draftRecipe(1, [milkView]));
+        const update = vi.spyOn(client, 'updateRecipe').mockResolvedValue(draftRecipe(2, [milkView]));
+        // A rebind makes one version, and its answer carries the re-pointed line at its stored position.
+        const rebind = vi.spyOn(client, 'rebindIngredientLine').mockResolvedValue(draftRecipe(2, [skimView]));
+
+        renderEditor(client);
+        await user.click(await screen.findByRole('button', { name: 'Paste a list' }));
+        const sheet = screen.getByRole('dialog', { name: 'Paste a list' });
+        await user.type(within(sheet).getByRole('textbox', { name: 'Ingredient lines' }), '2 cups milk');
+        await user.click(within(sheet).getByRole('button', { name: 'Add 1 ingredient' }));
+
+        // Joined as written (a default is never chosen); the paste holds the server create until its lines have joined.
+        expect(await screen.findByText('Choose the milk you use')).toBeTruthy();
+        expect(freeform).toHaveBeenCalledWith('milk');
+
+        // The recipe is CREATED with the line in it: the app going to the background is a checkpoint.
+        await user.type(screen.getByLabelText('Title'), 'Pudding');
+        act(() => focusManager.setFocused(false));
+        await waitFor(() => expect(create).toHaveBeenCalledTimes(1));
+        act(() => focusManager.setFocused(true));
+        expect(create.mock.calls[0]?.[0].ingredients).toHaveLength(1);
+        expect(update).not.toHaveBeenCalled();
+        // The create's answer re-keyed nothing: the paste list still draws the line, still asking.
+        expect(screen.getByText('Choose the milk you use')).toBeTruthy();
+
+        // The pick on a STORED line is the rebind command, at the line's stored position.
+        await user.click(screen.getByRole('button', { name: 'Skim milk' }));
+
+        await waitFor(() => expect(rebind).toHaveBeenCalledTimes(1));
+        expect(rebind.mock.calls[0]?.[0]).toBe('rec_new');
+        expect(rebind.mock.calls[0]?.[1]).toBe(0);
+        expect(rebind.mock.calls[0]?.[2]).toMatchObject({ target: { kind: 'catalogFood', foodId: 'food_skim' } });
+        // The command carries the food itself, so no separate admission is made.
+        expect(byFood).not.toHaveBeenCalled();
+        // And the line is still the paste list's, now the cook's.
+        expect(await screen.findByText(/Skim milk\s+· your choice/u)).toBeTruthy();
+        expect(screen.queryByText('Choose the milk you use')).toBeNull();
+    });
+
+    /**
+     * PR 132 device pass: the CRF re-renders `2-3 cups` as `2-3 cup`, and a service that stored those words as the
+     * stated measure had the paste list draw `2-3 cup` heavier, then `s chicken stock`, read aloud as "cup s". A
+     * measure that ends inside a word of the line is not its measure, so the line is drawn whole.
+     */
+    it('draws a pasted line whole when its stated measure ends inside one of its words', async () => {
+        const user = userEvent.setup();
+        const client = createFakeRecipeServiceClient();
+        const line = '2-3 cups chicken stock';
+        const job: ParseJobResponse = {
+            id: JOB_ID,
+            status: 'complete',
+            createdAt: '2026-10-09T10:00:00.000Z',
+            expiresAt: '2099-01-01T00:00:00.000Z',
+            lines: [
+                {
+                    lineIndex: 0,
+                    sourceLine: line,
+                    status: 'parsed',
+                    progress: null,
+                    proposal: {
+                        raw: line,
+                        quantity: { kind: 'range', low: 2, high: 3 },
+                        unit: 'cup',
+                        statedMeasure: '2-3 cup',
+                        foods: [
+                            {
+                                name: 'chicken stock',
+                                prep: null,
+                                match: {
+                                    state: 'default',
+                                    reason: 'defaultApplies',
+                                    proposed: null,
+                                    candidates: [
+                                        { kind: 'root', id: 'food_stock', name: 'Chicken stock', isDefault: true },
+                                        { kind: 'root', id: 'food_broth', name: 'Chicken broth', isDefault: false },
+                                    ],
+                                },
+                            },
+                        ],
+                        reviewReasons: [],
+                    },
+                },
+            ],
+        };
+        vi.spyOn(client, 'createParseJob').mockResolvedValue(job);
+        vi.spyOn(client, 'getParseJob').mockResolvedValue(job);
+        vi.spyOn(client, 'proposeParseJobMatches').mockResolvedValue(job);
+        vi.spyOn(client, 'createIngredient').mockResolvedValue({
+            id: '00000000-0000-4000-8000-0000000000f4',
+            name: 'chicken stock',
+            isUserEntered: true,
+        } as Awaited<ReturnType<RecipeServiceClient['createIngredient']>>);
+
+        renderEditor(client);
+        await user.click(await screen.findByRole('button', { name: 'Paste a list' }));
+        const sheet = screen.getByRole('dialog', { name: 'Paste a list' });
+        await user.type(within(sheet).getByRole('textbox', { name: 'Ingredient lines' }), line);
+        await user.click(within(sheet).getByRole('button', { name: 'Add 1 ingredient' }));
+
+        expect(await screen.findByText('Choose the chicken stock you use')).toBeTruthy();
+        expect(screen.getByText(line)).toBeTruthy();
+        expect(screen.queryByText('s chicken stock')).toBeNull();
     });
 
     it('opens with the sheet up when Home’s first-run Paste ingredients asks for it', async () => {

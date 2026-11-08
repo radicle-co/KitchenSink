@@ -5,7 +5,12 @@ import { readSecretStringField } from './secrets.js';
 
 let _client: ReturnType<typeof createClerkClient> | null = null;
 
-const getClient = async () => {
+/**
+ * The shared Clerk admin client, created once. Exported for `accountStandingClient.ts`, the other `public_metadata` writer.
+ *
+ * @sideEffect Reads the Clerk secret on first use.
+ */
+export const getClerkClient = async () => {
     if (!_client) {
         // Prefer the deploy-time-embedded raw key (IDP_SECRET_KEY) — no runtime GetSecretValue.
         // Fall back to fetching from the auth secret ARN for environments that only set that.
@@ -31,7 +36,7 @@ const getClient = async () => {
 };
 
 export const setExternalId = async (userId: string, externalId: string): Promise<void> => {
-    const client = await getClient();
+    const client = await getClerkClient();
     await client.users.updateUser(userId, { externalId });
 };
 
@@ -59,7 +64,7 @@ export const setExternalId = async (userId: string, externalId: string): Promise
  * @sideEffect Reads the user from the Clerk admin API and may merge their `public_metadata`.
  */
 export const ensureDefaultRole = async (userId: string): Promise<'written' | 'present' | 'absent'> => {
-    const client = await getClient();
+    const client = await getClerkClient();
 
     try {
         const user = await client.users.getUser(userId);
@@ -81,13 +86,13 @@ export const ensureDefaultRole = async (userId: string): Promise<'written' | 'pr
 };
 
 export const getUser = async (userId: string) => {
-    const client = await getClient();
+    const client = await getClerkClient();
 
     return client.users.getUser(userId);
 };
 
 export const deleteUser = async (userId: string): Promise<void> => {
-    const client = await getClient();
+    const client = await getClerkClient();
     await client.users.deleteUser(userId);
 };
 
@@ -99,7 +104,7 @@ export const deleteUser = async (userId: string): Promise<void> => {
  * @sideEffect bans the user via the Clerk admin API.
  */
 export const banUser = async (userId: string): Promise<void> => {
-    const client = await getClient();
+    const client = await getClerkClient();
     await client.users.banUser(userId);
 };
 
@@ -110,12 +115,12 @@ export const banUser = async (userId: string): Promise<void> => {
  * @sideEffect un-bans the user via the Clerk admin API.
  */
 export const unbanUser = async (userId: string): Promise<void> => {
-    const client = await getClient();
+    const client = await getClerkClient();
     await client.users.unbanUser(userId);
 };
 
 export const listUsers = async () => {
-    const client = await getClient();
+    const client = await getClerkClient();
     const pageSize = 100;
     const all = [];
     let offset = 0;

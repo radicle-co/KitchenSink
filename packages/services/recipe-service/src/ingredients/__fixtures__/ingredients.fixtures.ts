@@ -41,6 +41,9 @@ function foodClientMocks() {
 /** Food's read deadline in the doubles unless a suite names one: a fixed figure, since most doubles never wait. */
 const DOUBLE_READ_DEADLINE_MS = 1_000;
 
+/** The double's per-search timeout: the shipped typeahead default. */
+const DOUBLE_TYPEAHEAD_TIMEOUT_MS = 600;
+
 /**
  * A {@link FoodServiceClients} double: ONE underlying mocked client, returned by `standard()`, `typeahead()` and
  * `readClient()`, plus the spies on those factory methods so a test can assert WHICH caller a client was
@@ -89,6 +92,7 @@ function clientsDouble(parts: {
         postCommitNutrition: () => parts.client,
         readClient: parts.readClient ?? (() => parts.client),
         readDeadlineMs: () => parts.readDeadlineMs ?? DOUBLE_READ_DEADLINE_MS,
+        typeaheadTimeoutMs: () => DOUBLE_TYPEAHEAD_TIMEOUT_MS,
     } satisfies Pick<FoodServiceClients, keyof FoodServiceClients>;
 
     return double as unknown as FoodServiceClients;

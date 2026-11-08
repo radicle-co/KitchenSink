@@ -77,6 +77,8 @@ interface FieldCommon {
     readonly focusRequested?: boolean;
     /** Called once the field has taken a requested focus; the host clears its request here. */
     readonly onFocusRequestHandled?: () => void;
+    /** Called each time the field takes focus, by the cook or by a request. A host that sets the field aside reads it to give focus back. */
+    readonly onFocus?: () => void;
 }
 
 /** The cross-platform `Input` contract: a one-line text field. */

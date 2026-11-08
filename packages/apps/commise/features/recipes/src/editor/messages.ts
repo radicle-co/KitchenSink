@@ -6,18 +6,13 @@
  * Copy not in the build spec was written by `staff-ux-engineer` for slice 7: the save status for each place a draft can
  * be kept (`disk` says "on this device", `tabSession` says "in this tab", D7), the parked-write alerts, the section
  * reasons and the announcements. A count is a `{ one, other }` pair with `{count}`, chosen through `Intl.PluralRules`
- * (`pluralOf`), the way every count in this package is.
+ * (`pluralOf`, `format/plural.ts`), the way every count in this package is.
  */
 import type { LocalizedMessages } from '@commise/i18n';
 
+import type { PluralText } from '../format/plural.js';
 import type { EditorSectionId } from './sections.js';
 import type { AttentionReason, InProgressReason } from './sectionStatus.js';
-
-/** A count's two English forms, each holding `{count}`. */
-export interface PluralText {
-    readonly one: string;
-    readonly other: string;
-}
 
 /** The editor's copy. */
 export interface EditorMessages {
@@ -78,6 +73,11 @@ export interface EditorMessages {
         readonly barCount: string;
         /** Announced politely when the cook's own edit completes a section. */
         readonly announce: Readonly<Record<EditorSectionId, string>>;
+        /**
+         * A paste settling AND completing Ingredients: ONE message ("Added 6 ingredients. Ingredients complete."), because
+         * two announcements in one breath are heard as one garbled one.
+         */
+        readonly announceAddedComplete: PluralText;
     };
 
     /** Save status (header caption). Keyed by where the draft is kept where that changes the words. */
@@ -176,6 +176,53 @@ export interface EditorMessages {
         readonly addToGroup: string;
     };
 
+    /**
+     * Publishing with open choices (R23): allowed, and the cook is told what happens. The spec's
+     * `editor.publish.openChoices.*` (`publish` is already the action's own label here).
+     */
+    readonly openChoices: {
+        readonly title: PluralText;
+        /** `{names}` is the open lines' foods as a list (`Intl.ListFormat`). */
+        readonly body: PluralText;
+        readonly checking: PluralText;
+        readonly chooseNow: string;
+        readonly publishAnyway: string;
+        readonly later: string;
+        readonly close: string;
+    };
+
+    /**
+     * The dialog (web) or bottom sheet (native) a Publish opens when the cook chose Private and cannot keep it (owner
+     * ruling 2026-10-26, replacing the earlier stop-and-ask): `noSlot` when every private slot is used, `webImport` for an
+     * imported public-web recipe (Premium and a change of the cook's own). The spec's `recipe.publish.noSlot.*`,
+     * `recipe.publish.webImport.*` and `recipe.publish.blocked.*`. The two actions carry EQUAL weight.
+     *
+     * The `upsell` lines and `seePremium` exist for when there is a subscription page to go to (feature 010) and are
+     * unused until `PUBLISH_BLOCKED_PREMIUM_UPSELL` is turned on (`publishBlockedCopy.ts`).
+     */
+    readonly publishBlocked: {
+        readonly noSlot: {
+            readonly title: string;
+            /** `{total}` is the cook's private-slot limit. */
+            readonly body: string;
+            /** The same, said when the limit is not known: never a count the client does not have. */
+            readonly bodyNoCount: string;
+            /** `{premiumFeatures}` is the list of what Premium adds. */
+            readonly upsell: string;
+        };
+        readonly webImport: {
+            readonly title: string;
+            readonly body: string;
+            /** Paid features hidden: the Premium sentence is gone. */
+            readonly bodyNoPaid: string;
+            readonly upsell: string;
+        };
+        readonly publishPublic: string;
+        readonly keepDraft: string;
+        readonly seePremium: string;
+        readonly close: string;
+    };
+
     readonly steps: {
         readonly label: string;
         readonly addTimer: string;
@@ -204,12 +251,14 @@ export interface EditorMessages {
         readonly publicHint: string;
         /**
          * Under the Public card of a private recipe, whenever choosing it opens the make-public confirm
-         * (`makePublicConsequence`; WCAG 3.2.2 asks that the cook be told before using it): `final` under hidden paid
-         * features (no copy mentions Premium), `premium` under the upsell, `unknown` while the state loads.
+         * (`recipeMakePublicConsequence`; WCAG 3.2.2 asks that the cook be told before using it): `publicFrees` for a
+         * cook with private slots, `publicNeedsPremium` only for an imported public-web recipe, where Premium is still the
+         * rule.
+         *
+         * ⛔ PUBLIC IS NEVER FINAL (owner ruling 2026-10-26): there is no "you won't be able to make it private again".
          */
-        readonly publicIsFinal: string;
+        readonly publicFrees: string;
         readonly publicNeedsPremium: string;
-        readonly publicMayBeFinal: string;
         /**
          * A draft kept from before the cook lost the paid features still says Private, for a recipe not held private
          * (`refusedDraftPrivate`): on the statement under hidden, on the Public card under the upsell.
@@ -218,6 +267,35 @@ export interface EditorMessages {
         readonly privatePremiumOnly: string;
         readonly private: string;
         readonly privateHint: string;
+        /** Private's line while a slot is free: `{left}` and `{total}` come from the server. */
+        readonly slotsLeft: string;
+        /** Private chosen on a recipe not yet private: what it costs, and what is left after it. */
+        readonly slotsUses: string;
+        /** The refusal: every slot is in use (`{total}` is the limit; the ways forward follow it). */
+        readonly slotsFull: string;
+        /** While the standing is being read. */
+        readonly slotsLoading: string;
+        /** Private chosen on a DRAFT: it uses no slot; publishing it does (ADR-0073 section 12). */
+        readonly slotsDraft: string;
+        /**
+         * Under the Public card of a book or paid-site recipe, which can never be public (004 FR-014a): the reason, as the
+         * card's accessible description. The same words the import statement gives for the same fact.
+         */
+        readonly publicRefused: string;
+        /** A downgraded cook holds more private recipes than slots (`{count}`, `{total}` are the server's numbers). */
+        readonly overLimit: string;
+        /** The link under `overLimit`, where paid features are shown: opens the Premium sheet. */
+        readonly aboutPremium: string;
+        /** An imported public-web recipe a free cook cannot make private (Premium and a change of their own). */
+        readonly webPrivate: string;
+        /** The title over the ways forward from a full set of slots. */
+        readonly waysTitle: string;
+        readonly wayMakePublic: string;
+        readonly wayMakePublicDetail: string;
+        readonly wayDelete: string;
+        readonly wayDeleteDetail: string;
+        readonly wayPremium: string;
+        readonly wayPremiumDetail: string;
     };
 }
 
@@ -269,6 +347,9 @@ export const editorMessages: LocalizedMessages<EditorMessages> = {
                 cuisineRequired: 'Cuisine needed',
                 cuisineTooLong: 'Cuisine too long',
                 ingredientsPendingText: 'Add or clear the line you typed',
+                // The paste's own wording for a line being read (form `rowStateReading`).
+                ingredientsReading: 'Reading…',
+                ingredientsNeedYou: 'Needs you',
                 ingredientsUnresolved: { one: '{count} needs a match', other: '{count} need a match' },
                 ingredientsQuantityInvalid: { one: '{count} amount to fix', other: '{count} amounts to fix' },
                 stepBlank: 'Fill in or remove the empty step',
@@ -278,6 +359,10 @@ export const editorMessages: LocalizedMessages<EditorMessages> = {
             barName: 'Sections. Current: {current}.',
             barNameAttention: { one: ' {count} needs attention.', other: ' {count} need attention.' },
             barCount: '⚠ {count}',
+            announceAddedComplete: {
+                one: 'Added {count} ingredient. Ingredients complete.',
+                other: 'Added {count} ingredients. Ingredients complete.',
+            },
             announce: {
                 details: 'Details complete',
                 ingredients: 'Ingredients complete',
@@ -364,6 +449,44 @@ export const editorMessages: LocalizedMessages<EditorMessages> = {
             addToGroup: 'Add to {group}',
         },
 
+        openChoices: {
+            title: { one: '{count} ingredient has no food yet', other: '{count} ingredients have no food yet' },
+            // No sentence starts with `{names}` (U14): a food's name may begin in lower case ("day-old bread").
+            body: {
+                one: 'We’ll save {names} as written. It doesn’t count toward nutrition until you choose a food.',
+                other: 'We’ll save {names} as written. They don’t count toward nutrition until you choose a food.',
+            },
+            checking: {
+                one: 'We’re still checking {names}. If you publish now, it is saved as written too.',
+                other: 'We’re still checking {names}. If you publish now, they are saved as written too.',
+            },
+            chooseNow: 'Choose now',
+            publishAnyway: 'Publish anyway',
+            later: 'You can choose later from each ingredient’s menu. Nutrition reads “{counted} of {total} counted”.',
+            close: 'Close',
+        },
+
+        publishBlocked: {
+            noSlot: {
+                title: 'Your private slots are full',
+                body: 'All {total} of your private slots are in use, so this recipe can’t be private right now. You can publish it as public, or keep it as a draft. Nothing is lost either way.',
+                bodyNoCount:
+                    'Your private slots are all in use, so this recipe can’t be private right now. You can publish it as public, or keep it as a draft. Nothing is lost either way.',
+                upsell: 'Pro gives you unlimited private recipes, plus {premiumFeatures}.',
+            },
+            webImport: {
+                title: 'This recipe can’t be private yet',
+                body: 'A recipe from a public web page can be private with Pro, once you have changed it yourself. You can publish it as public, or keep it as a draft. Nothing is lost either way.',
+                bodyNoPaid:
+                    'A recipe from a public web page can only be public. You can publish it as public, or keep it as a draft.',
+                upsell: 'Pro gives you unlimited private recipes, plus {premiumFeatures}. This one also needs a change of your own.',
+            },
+            publishPublic: 'Publish as public',
+            keepDraft: 'Keep as draft',
+            seePremium: 'See Pro',
+            close: 'Close',
+        },
+
         steps: {
             label: 'Step {n}',
             addTimer: 'Add a timer',
@@ -394,27 +517,33 @@ export const editorMessages: LocalizedMessages<EditorMessages> = {
             legend: 'Who can see it',
             public: 'Public',
             publicHint: 'Anyone can find it in Discover',
-            publicIsFinal: "You won't be able to make it private again.",
-            publicNeedsPremium: "To make it private again, you'll need Premium.",
-            publicMayBeFinal: 'You may not be able to make it private again.',
-            privateUnavailable: "Private isn't available, so this recipe will be public when you publish.",
-            privatePremiumOnly: 'Private recipes are part of Premium, so this one will be public when you publish.',
+            publicFrees: 'This frees one of your private slots. To make it private again, you need a free slot.',
+            publicNeedsPremium: "To make it private again, you'll need Pro.",
+            // Paid features hidden: the Private card is shown refused, and this is its reason (`publicRefused`'s pattern).
+            privateUnavailable: 'Not available. A recipe from a public web page can only be public.',
+            // The owner's design wording of 2026-10-26 (`editor privatePremiumOnly`).
+            privatePremiumOnly:
+                'A recipe from a public web page needs Pro and a change of your own to be private. If it still can’t be private when you publish, we will ask what you want to do.',
             private: 'Private',
             privateHint: 'Only you can see it',
+            slotsLeft: '{left} of {total} private slots left',
+            slotsUses: 'This recipe uses 1 slot. {left} of {total} left after it.',
+            slotsFull: 'Not available. All {total} of your private slots are in use.',
+            slotsLoading: 'Checking your private slots…',
+            slotsDraft: 'A private draft uses no slot. Publishing it uses one.',
+            publicRefused: 'Not for this recipe. Its source is a book or a paid site, not a public web page.',
+            overLimit:
+                'You have {count} private recipes and {total} private slots. They stay private. To make another recipe private, first bring your private recipes under {total}.',
+            aboutPremium: 'About Pro',
+            webPrivate:
+                'Not available. A recipe from a public web page needs Pro and a change of your own to be private.',
+            waysTitle: 'To keep this recipe private',
+            wayMakePublic: 'Make a private recipe public',
+            wayMakePublicDetail: 'It frees its slot',
+            wayDelete: 'Delete a private recipe',
+            wayDeleteDetail: 'It frees its slot',
+            wayPremium: 'Get Pro',
+            wayPremiumDetail: 'Private recipes with no limit',
         },
     },
 };
-
-/**
- * A count's localized text: the `one` or `other` form, with `{count}` filled in.
- *
- * @param text - The two forms.
- * @param count - The count.
- * @param locale - The active locale.
- * @returns The text. Pure.
- */
-export function pluralOf(text: PluralText, count: number, locale: string): string {
-    const form = new Intl.PluralRules(locale).select(count) === 'one' ? text.one : text.other;
-
-    return form.replaceAll('{count}', String(count));
-}

@@ -3,6 +3,10 @@
 **Feature**: `010-subscriptions`
 **Status**: Active — product decisions closed 2026-05-10; implementation not yet started
 
+> **2026-10-26.** The prices, the number of plans and the AI credits changed. [`spec.md`](./spec.md) holds the
+> [plan register](./spec.md#plan-register) and the [owner inputs](./spec.md#owner-inputs-still-needed). This plan
+> still models one paid tier in §2 to §4. Each place that does is marked. §1a adds the subscription page.
+
 ---
 
 ## 1. Architecture Overview
@@ -49,6 +53,28 @@ trialing (14 days) ──────→ active ──────→ past_due (
                        active               active
 ```
 
+### 1a. The subscription page (spec `FR-042a` to `FR-042k`)
+
+The page opens as a modal over the current screen, from any entry point in `FR-042k`. It shows every plan and its
+terms before checkout. Checkout and the portal stay hosted by Stripe, so the page is the one surface we own on the
+money path.
+
+- **Return path.** The page records where the cook came from, and checkout returns there in the same tab. The web
+  editor draft is in `sessionStorage` (ADR-0057), so a same-tab round trip keeps it. A new tab or window does not.
+- **One switch.** A single client value, read in one module and shared by web and mobile, decides whether any entry
+  point links to the page. It is off until this feature ships. It is not `PAID_FEATURES_GATE_*`, which only decides
+  `upsell` or `hidden`. The spec's matrix (`FR-042j`) is the contract. Pattern: one Specification read by every entry
+  point, so a new entry point cannot forget it.
+- **States.** Every state in `FR-042g` is a vitest component test on both platforms, with a Playwright test and a
+  Maestro flow for each happy path.
+- **Mobile.** Owner input O-9 is resolved (2026-10-27, `FR-042i`, [ADR-0075](../../docs/architecture/decisions/0075-payment-stack-store-billing-revenuecat-and-stripe.md)).
+  Mobile sells through the stores and web sells through Stripe. RevenueCat joins them, so the entitlement source gains
+  RevenueCat as a second writer beside the Stripe webhook. That needs its own design, which is owed to
+  `staff-architect`. The Stripe design in this plan stays valid for web.
+- **Design first.** The page goes through `staff-ux-engineer` (DESIGN, SPECIFY, EVALUATE) before it is built. The
+  design boards on the design branch draw Pro and Pro with AI. They still need Free's small AI allowance and Pro's 30 uses (spec
+  `FR-041a`), and every "Premium" string becomes "Pro" (`FR-041a1`).
+
 ---
 
 ## 2. Data Model
@@ -57,6 +83,10 @@ trialing (14 days) ──────→ active ──────→ past_due (
 
 ```typescript
 // Add to existing Account entity
+// ⚠️ 2026-10-26: 'free' | 'premium' is out of date. The plan is one of the plans in spec.md's plan register
+// (Free, Pro and Pro with AI, owner 2026-10-27). The billing interval (month or year), a
+// downgrade waiting for the period end, and the AI credit level also need a home. Settle the shape with
+// staff-architect before T-002 (see §4).
 @Column({ type: 'varchar', default: 'free' })
 plan: 'free' | 'premium';
 
@@ -129,14 +159,14 @@ webhook by `@kitchensink/identity-webhooks`**, per
 [ADR-0017](../../docs/architecture/decisions/0017-service-ownership-for-features-006-007-009-010.md).
 **No new deployable service is created for 010.**
 
-| Role                                  | Binding for 010                                                                              |
-| ------------------------------------- | -------------------------------------------------------------------------------------------- |
-| Owning service (**authors** the zod)  | `@kitchensink/identity-service` — `packages/services/identity/src/billing/*.schema.ts`       |
-| Schema package (generated, committed) | `@kitchensink/schema-identity` — `packages/schemas/identity`, **extended, never forked**     |
-| Stripe webhook handler                | `@kitchensink/identity-webhooks` — **not** the ECS API; see below                            |
-| Consuming client                      | the identity consumer named by **002's own OPEN item** — see the note below the table        |
-| Consuming apps                        | `@commise/web` (the primary billing surface), `@commise/mobile` (deep-links to web checkout) |
-| NestJS module (internal boundary)     | `BillingModule`, inside the identity service                                                 |
+| Role                                  | Binding for 010                                                                             |
+| ------------------------------------- | ------------------------------------------------------------------------------------------- |
+| Owning service (**authors** the zod)  | `@kitchensink/identity-service` — `packages/services/identity/src/billing/*.schema.ts`      |
+| Schema package (generated, committed) | `@kitchensink/schema-identity` — `packages/schemas/identity`, **extended, never forked**    |
+| Stripe webhook handler                | `@kitchensink/identity-webhooks` — **not** the ECS API; see below                           |
+| Consuming client                      | the identity consumer named by **002's own OPEN item** — see the note below the table       |
+| Consuming apps                        | `@commise/web` (the primary billing surface), `@commise/mobile` (store purchase, `FR-042i`) |
+| NestJS module (internal boundary)     | `BillingModule`, inside the identity service                                                |
 
 ⚠️ **The consuming client is still 002's question, and 010 does not pre-empt it.** 002's plan carries its own
 🟠 **OPEN**: either **(a)** introduce `packages/clients/identity` and have `@commise/features-account` wrap it,
@@ -191,7 +221,7 @@ routes likewise), so the guard is a **shared** concern under `packages/shared/*`
 forbids an app depending on a service package, and ADR-0014's rejected alternative 2 is exactly this — it drags
 NestJS, Drizzle and the AWS SDK into every consumer and inverts the build order. ⚠️ §4's `PlanGuard` sketch reads
 `user.plan` / `user.subscriptionStatus` off the request; under `FR-044` those values arrive from the verified
-token claim, and every consumer **fails closed** — an absent or unreadable claim is `free`, never premium.
+token claim, and every consumer **fails closed** — an absent or unreadable claim is `free`, never Pro.
 
 **Flip condition (ADR-0017)**: extract a billing service when 010 grows **marketplace payments** — Stripe
 Connect, creator payouts, 1099 reporting, all explicitly out of scope today. That surface carries a different
@@ -212,7 +242,7 @@ Stripe SDK type**, since importing one would drag a third-party shape into a con
   (GR-015 §15-b.4).
 - **The `SubscriptionStatus` shape and the plan/entitlement enum are the load-bearing case.** Every gated
   surface across 004, 007, 009, 012 and 013 branches on them. A client that re-declares that enum can drift
-  from the server by one member and **fail open** — showing a premium feature to a free user, or the reverse —
+  from the server by one member and **fail open** — showing a Pro feature to a free user, or the reverse —
   with `typecheck` green. It is imported, never re-declared.
 - **Derive** any divergent consumer shape (a paywall banner model, a plan-comparison row) with
   `Pick` / `Omit` / `Partial`. Reference: `packages/apps/commise/features/recipes/src/filters/model.ts`.
@@ -338,7 +368,7 @@ callback (ADR-0017) — so every obligation below binds a package that exists.
       every bounded column has an entry or a reasoned exemption, and every entry names a column that exists.
 - **⚠️ An entitlement decision must never branch on an unparsed field.** The `SubscriptionStatus` shape and the
   plan/entitlement enum gate 004, 007, 009, 012 and 013. A webhook body whose `status` string was never checked
-  against the enum can **fail open** — granting premium — with `typecheck` green. The enum is validated at the
+  against the enum can **fail open** — granting Pro — with `typecheck` green. The enum is validated at the
   boundary and mapped explicitly; an unrecognised value is a **rejection plus an alarm**, never a default.
 - **Non-HTTP ingress is in scope.** Any retry queue, DLQ replay or reconciliation job this feature adds **parses
   its payload against an authored zod before acting on it** — a pipe reaches none of them, and these are the
@@ -367,6 +397,8 @@ callback (ADR-0017) — so every obligation below binds a package that exists.
 
 ```typescript
 // POST /api/v1/billing/checkout
+// ⚠️ 2026-10-26: the body can no longer be empty. It names the chosen plan and the billing interval, and the
+// screen to return to (spec FR-042a). The shape is authored in T-029.
 Request (empty body — uses user's existing Stripe customer or creates one):
 {}
 
@@ -410,19 +442,35 @@ Response:
 
 ## 4. Feature Gating Map
 
+> ⚠️ **2026-10-26. Open for `staff-architect`, and it blocks T-004 to T-006.** Every entitlement mechanism here is
+> single-tier. The list: the `premium` role, `hasPaidFeatures(roles)` (GR-012 AC-012-c), `account.paidFeatures`
+> (`granted`, `upsell`, `hidden`), the one tier claim of spec `FR-044`, and `@RequirePremium()`. None can say "Pro,
+> but no AI". The design has to name each plan and each AI credit level (spec `FR-041b`). It crosses services, it
+> lands in the signed token and in stored rows, and it is costly to reverse, so design it before T-002. Amending
+> GR-012 is part of that decision, not a side edit.
+>
+> The table below is the old single-tier map. Two rows are out of date: private visibility is now a slot limit, and
+> a free cook can hold 50 private recipes (ADR-0073), so it is not a route guard. Clone-to-private for imported
+> recipes is the same slot rule. The AI rows use credits, not a yes or no check (`005-FR-015a`). The
+> [plan register](./spec.md#plan-register) says which plan carries each row.
+>
+> Since the Pro-match ruling of 2026-10-27, auto-generated meal plans are on both paid plans. Only AI food waste
+> optimization needs Pro with AI. A single paid flag can gate the meal-plan row, but not the waste row. The new Pro
+> pantry endpoints (`007-FR-034` to `007-FR-040`) are a paid-plan check with no credit use.
+
 ### @RequirePremium() Applied Per Feature
 
-| Feature                     | Spec | FR         | Endpoint                                         | Guard               |
-| --------------------------- | ---- | ---------- | ------------------------------------------------ | ------------------- |
-| Private recipe visibility   | 001  | 001-FR-003 | `PATCH /api/v1/recipes/:id/visibility`           | `@RequirePremium()` |
-| Clone-to-private (imported) | 004  | 004-FR-011 | `POST /api/v1/recipes/import` (visibility param) | `@RequirePremium()` |
-| AI recipe generation        | 005  | 005-FR-016 | `POST /api/v1/ai/generate`                       | `@RequirePremium()` |
-| AI instruction optimization | 005  | 005-FR-019 | `POST /api/v1/ai/optimize-instructions`          | `@RequirePremium()` |
-| AI meal suggestions         | 006  | 006-FR-025 | `POST /api/v1/meal-plans/suggest`                | `@RequirePremium()` |
-| Auto-generated meal plans   | 006  | 006-FR-026 | `POST /api/v1/meal-plans/generate`               | `@RequirePremium()` |
-| Food waste optimization     | 006  | 006-FR-027 | `POST /api/v1/meal-plans/optimize-waste`         | `@RequirePremium()` |
-| Online grocery ordering     | 007  | 007-FR-031 | `POST /api/v1/grocery-lists/:id/order`           | `@RequirePremium()` |
-| Trainer nutrition planning  | 009  | 009-FR-038 | `POST /api/v1/nutrition/client-plans`            | `@RequirePremium()` |
+| Feature                     | Spec | FR         | Endpoint                                 | Guard               |
+| --------------------------- | ---- | ---------- | ---------------------------------------- | ------------------- |
+| Private recipe visibility   | 001  | 001-FR-003 | `PATCH /api/v1/recipes/:id/visibility`   | `@RequirePremium()` |
+| Clone-to-private (imported) | 004  | 004-FR-011 | `POST /api/v1/import` (visibility param) | `@RequirePremium()` |
+| AI recipe generation        | 005  | 005-FR-016 | `POST /api/v1/ai/generate`               | `@RequirePremium()` |
+| AI instruction optimization | 005  | 005-FR-019 | `POST /api/v1/ai/optimize-instructions`  | `@RequirePremium()` |
+| AI meal suggestions         | 006  | 006-FR-025 | `POST /api/v1/meal-plans/suggest`        | `@RequirePremium()` |
+| Auto-generated meal plans   | 006  | 006-FR-026 | `POST /api/v1/meal-plans/generate`       | `@RequirePremium()` |
+| Food waste optimization     | 006  | 006-FR-027 | `POST /api/v1/meal-plans/optimize-waste` | `@RequirePremium()` |
+| Online grocery ordering     | 007  | 007-FR-031 | `POST /api/v1/grocery-lists/:id/order`   | `@RequirePremium()` |
+| Trainer nutrition planning  | 009  | 009-FR-038 | `POST /api/v1/nutrition/client-plans`    | `@RequirePremium()` |
 
 ### PlanGuard Implementation
 
@@ -567,13 +615,14 @@ body handling for **every** identity endpoint to no purpose.
 
 ## 6. Open Questions (OQ from Research)
 
-| #    | Question                         | Decision                                         |
-| ---- | -------------------------------- | ------------------------------------------------ |
-| OQ-1 | Free tier recipe count limit?    | Unlimited public recipes (no count cap)          |
-| OQ-2 | Family/household plan?           | Future consideration; not in v1 scope            |
-| OQ-3 | Annual-only vs monthly+annual?   | Both: $6.99/mo and $59.99/yr                     |
-| OQ-4 | Past-due silent vs notification? | Show banner on all pages when `past_due`         |
-| OQ-5 | Stripe Tax (EU/UK)?              | Defer; implement when expanding to EU/UK markets |
+| #    | Question                              | Decision                                                                                                                                                                                |
+| ---- | ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| OQ-1 | Free tier recipe count limit?         | Unlimited public recipes (no count cap)                                                                                                                                                 |
+| OQ-2 | Family/household plan?                | Answered 2026-10-27 and 2026-10-28: Pro shares household content, and Pro Household covers every member. See spec `FR-041j`                                                             |
+| OQ-3 | Annual-only vs monthly+annual?        | Both. Prices in spec `FR-041` (2026-10-26)                                                                                                                                              |
+| OQ-4 | Past-due silent vs notification?      | Show banner on all pages when `past_due`                                                                                                                                                |
+| OQ-5 | Stripe Tax (EU/UK)?                   | Defer; implement when expanding to EU/UK markets                                                                                                                                        |
+| OQ-6 | Plans, credits, names, mobile billing | Decided 2026-10-27: plans, names, credits (3 / 30 / 300 / 100), reset, change timing, trial. Mobile billing (O-9) is resolved: spec [owner inputs](./spec.md#owner-inputs-still-needed) |
 
 ---
 
@@ -581,11 +630,11 @@ body handling for **every** identity endpoint to no purpose.
 
 | Decision          | Choice                                  | Rationale                                                 |
 | ----------------- | --------------------------------------- | --------------------------------------------------------- |
-| Pricing           | $6.99/mo or $59.99/yr                   | Competitive with Mealime/Sabor; reflects AI feature depth |
+| Pricing           | Spec `FR-041` (2026-10-26)              | Was $6.99/mo or $59.99/yr. Owner ruling 2026-10-26        |
 | Trial             | 14-day free trial                       | Stripe native support; industry standard                  |
 | Checkout          | Stripe Checkout (hosted)                | No PCI scope; fastest to ship                             |
 | Portal            | Stripe Customer Portal                  | Handles plan switch, cancel, payment update; no custom UI |
 | Upgrade proration | `always_invoice`                        | User pays and gets access immediately                     |
-| Downgrade timing  | `schedule_at_period_end`                | User retains premium until period end                     |
+| Downgrade timing  | `schedule_at_period_end`                | User retains Pro until period end                         |
 | Grace period      | 7 days `past_due`                       | Reduces churn from transient payment failures             |
 | Data on lapse     | Retain all data; gate actions not reads | FR-043 compliance                                         |

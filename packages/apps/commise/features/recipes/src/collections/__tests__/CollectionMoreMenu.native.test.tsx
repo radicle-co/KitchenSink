@@ -7,7 +7,7 @@
  * bar, as its own component, so the same cases now run against it. `collectionMenuItems` (the entries) has its own suite.
  */
 import { RecipeVisibility } from '@kitchensink/recipe-core';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -15,6 +15,7 @@ import { LocaleProvider } from '@commise/i18n/react';
 
 import { CollectionMoreMenu } from '../CollectionMoreMenu.js';
 import type { CollectionMoreMenuProps } from '../detailModel.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 afterEach(cleanup);
 
@@ -41,6 +42,13 @@ function renderMenu(over: Partial<CollectionMoreMenuProps> = {}) {
 }
 
 describe('CollectionMoreMenu (native)', () => {
+    it('takes a requested focus on its trigger and says so, which is how the rename sheet gives focus back', () => {
+        const onFocusRequestHandled = vi.fn();
+        renderMenu({ focusRequested: true, onFocusRequestHandled });
+
+        expect(onFocusRequestHandled).toHaveBeenCalledOnce();
+    });
+
     function open() {
         fireEvent.click(screen.getByRole('button', { name: 'More actions for Weeknight Dinners' }));
 

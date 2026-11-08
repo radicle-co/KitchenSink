@@ -222,7 +222,11 @@ describe('recipe parse jobs (integration)', () => {
         const view = (await poll.json()) as JobView;
 
         expect(view.status).toBe('complete');
-        expect(view.lines[1]?.proposal).toEqual(PROPOSAL);
+        // ADR-0071: every proposed food carries `match`, `null` until the job's matches are requested.
+        expect(view.lines[1]?.proposal).toEqual({
+            ...PROPOSAL,
+            foods: PROPOSAL.foods.map((food) => ({ ...food, match: null })),
+        });
     });
 
     /**

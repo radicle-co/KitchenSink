@@ -92,7 +92,7 @@ export const RecipeInstructionsFields: FC<RecipeEditorSectionProps> = ({ values,
                                 <div className="flex items-center gap-3">
                                     <span
                                         aria-hidden="true"
-                                        className="flex size-8 shrink-0 items-center justify-center rounded-full bg-selected-fill text-label tabular-nums text-ink"
+                                        className="flex min-h-8 min-w-8 aspect-square shrink-0 items-center justify-center rounded-full bg-selected-fill p-1 text-label tabular-nums text-ink"
                                     >
                                         {n}
                                     </span>

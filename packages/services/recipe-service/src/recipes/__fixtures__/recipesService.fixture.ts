@@ -29,17 +29,9 @@
  * purpose — the data is the subject of those tests, and unifying it would make each of them assert against a
  * fixture written for the other.
  */
-import {
-    makeFakeIngredientResolutionsDal,
-    makeFakeResolutionBandsDal,
-    makeFakeVerificationRedriveDal,
-} from '../../ingredients/__fixtures__/resolutionDals.fixture.js';
 import type { FoodLookupsDal } from '../../ingredients/dal/foodLookups.dal.js';
 import type { FoodRefsGateway } from '../../ingredients/foodRefs.gateway.js';
 import { LineIdentityReader } from '../../ingredients/lineIdentity.reader.js';
-import type { IngredientResolutionsDal } from '../../ingredients/resolution/ingredientResolutions.dal.js';
-import type { ResolutionBandsDal } from '../../ingredients/resolution/resolutionBands.dal.js';
-import type { VerificationRedriveDal } from '../../ingredients/resolution/verificationRedrive.dal.js';
 import type { FoodNutritionGateway } from '../../ingredients/foodNutrition.gateway.js';
 import type { LineVerificationsDal } from '../dal/lineVerifications.dal.js';
 import type { PhotosDal } from '../../photos/dal/photos.dal.js';
@@ -74,9 +66,6 @@ export interface RecipesServiceCollaborators {
     readonly photosCdnUrl: string;
     readonly ratingsDal: RatingsDal;
     readonly verificationQueue: VerificationQueuePort;
-    readonly ingredientResolutions: IngredientResolutionsDal;
-    readonly resolutionBands: ResolutionBandsDal;
-    readonly verificationRedrive: VerificationRedriveDal;
     /**
      * ⚠️ THE NEXT THREE MOVED TO `RecipeDetailAssembler`, and are still accepted HERE on purpose.
      *
@@ -96,7 +85,6 @@ export interface RecipesServiceCollaborators {
     readonly lineVerificationsDal: LineVerificationsDal;
     /** The byline read model. Defaults to one that has never seen the cook, so writes fall back to the claims. */
     readonly authorHandles: Pick<AuthorHandlesDal, 'findByline'>;
-    readonly rng?: () => number;
 }
 
 /**
@@ -114,9 +102,6 @@ export function makeRecipesService(overrides: Partial<RecipesServiceCollaborator
         photosCdnUrl: RECIPE_PHOTOS_CDN,
         ratingsDal: fakeRatingsDal(),
         verificationQueue: fakeVerificationQueue(),
-        ingredientResolutions: makeFakeIngredientResolutionsDal(),
-        resolutionBands: makeFakeResolutionBandsDal(),
-        verificationRedrive: makeFakeVerificationRedriveDal(),
         photosDal: fakePhotosDal(),
         foodNutrition: emptyFoodNutrition(),
         lineVerificationsDal: fakeLineVerificationsDal(new Map()),
@@ -133,7 +118,6 @@ export function makeRecipesService(overrides: Partial<RecipesServiceCollaborator
         photosCdnUrl: collaborators.photosCdnUrl,
         foodNutrition: collaborators.foodNutrition,
         lineVerificationsDal: collaborators.lineVerificationsDal,
-        ingredientResolutions: collaborators.ingredientResolutions,
     });
 
     return new RecipesService(
@@ -144,11 +128,8 @@ export function makeRecipesService(overrides: Partial<RecipesServiceCollaborator
         collaborators.photosCdnUrl,
         collaborators.ratingsDal,
         collaborators.verificationQueue,
-        collaborators.ingredientResolutions,
-        collaborators.resolutionBands,
-        collaborators.verificationRedrive,
+        collaborators.lineVerificationsDal,
         detailAssembler,
         collaborators.authorHandles,
-        collaborators.rng,
     );
 }

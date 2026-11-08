@@ -163,8 +163,17 @@ describe('the committed curated seed, planned', () => {
         const ownerOf = (item: FdcKey): string =>
             projected.content.variants.has(item) ? `variant ${item}` : `root ${item}`;
 
+        // Rewritten (ADR-0070 §4): the curated roots that state a default gain it over the baseline root they rename.
         expect(new Set(plan.changes.map((change) => change.kind))).toEqual(
-            new Set(['rootAdded', 'rootRenamed', 'rootSynonymsChanged', 'rootRemoved', 'variantAdded', 'itemChanged']),
+            new Set([
+                'rootAdded',
+                'rootRenamed',
+                'rootSynonymsChanged',
+                'rootDefaultsChanged',
+                'rootRemoved',
+                'variantAdded',
+                'itemChanged',
+            ]),
         );
         expect(
             plan.changes

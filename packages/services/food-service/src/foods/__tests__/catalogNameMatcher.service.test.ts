@@ -9,7 +9,13 @@ import { CatalogNameMatcher } from '../catalogNameMatcher.service.js';
 import type { CatalogSearchHit } from '../dao/foodSearch.dao.js';
 import type { LiveVariant } from '../dao/foodVariant.dao.js';
 
-const BROCCOLI: CatalogSearchHit = { id: 'R-broccoli', name: 'Broccoli', aliases: 'calabrese', score: 1 };
+const BROCCOLI: CatalogSearchHit = {
+    id: 'R-broccoli',
+    name: 'Broccoli',
+    aliases: 'calabrese',
+    score: 1,
+    rung: 'exact',
+};
 const STEAMED: LiveVariant = {
     id: 'V-steamed',
     rootId: 'R-broccoli',
@@ -46,7 +52,13 @@ describe('CatalogNameMatcher.identicalEntryFor', () => {
     });
 
     it('only offers a hit its own root’s variants', async () => {
-        const other: CatalogSearchHit = { id: 'R-cauliflower', name: 'Cauliflower', aliases: null, score: 0.5 };
+        const other: CatalogSearchHit = {
+            id: 'R-cauliflower',
+            name: 'Cauliflower',
+            aliases: null,
+            score: 0.5,
+            rung: 'head',
+        };
         const { matcher } = matcherOver([other], [STEAMED]);
 
         await expect(matcher.identicalEntryFor('steamed cauliflower')).resolves.toBeUndefined();

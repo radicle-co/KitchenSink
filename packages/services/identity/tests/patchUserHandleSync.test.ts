@@ -9,6 +9,8 @@
  * ordering against a real database).
  */
 import { is, SQL } from 'drizzle-orm';
+import { PgDialect } from 'drizzle-orm/pg-core';
+import { ForbiddenException } from '@nestjs/common';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { describe, it, expect, vi } from 'vitest';
 
@@ -35,6 +37,7 @@ function fakeDb(reads: unknown[][], returning: unknown[][]) {
     let read = 0;
     let returned = 0;
     const sets: Record<string, unknown>[] = [];
+    const wheres: SQL[] = [];
     const selectChain = {
         from: () => selectChain,
         where: () => selectChain,
@@ -47,18 +50,28 @@ function fakeDb(reads: unknown[][], returning: unknown[][]) {
             const where = Promise.resolve(undefined) as Promise<undefined> & { returning: () => Promise<unknown[]> };
             where.returning = () => Promise.resolve(returning[returned++] ?? []);
 
-            return { where: () => where };
+            return {
+                where: (predicate: SQL) => {
+                    wheres.push(predicate);
+
+                    return where;
+                },
+            };
         },
     });
 
-    return { db: { select: () => selectChain, update } as unknown as NodePgDatabase, sets };
+    return { db: { select: () => selectChain, update } as unknown as NodePgDatabase, sets, wheres };
 }
 
-function makeService(db: NodePgDatabase, publisher: HandleSyncPublisher): UsersService {
+function makeService(
+    db: NodePgDatabase,
+    publisher: HandleSyncPublisher,
+    resolveUser: () => Promise<unknown> = () => Promise.resolve({ user: EXISTING[0], account: ACCOUNT[0] }),
+): UsersService {
     return new UsersService(
         db,
         {} as unknown as SqsService,
-        {} as unknown as ResolveUserService,
+        { resolveUser } as unknown as ResolveUserService,
         publisher,
         {
             cdnUrl: 'https://media.commise.app',
@@ -74,10 +87,37 @@ const CTX = { userId: USER_ID, roles: [] } as unknown as AuthorizerContext;
 const EXISTING = [{ id: USER_ID, email: 'a@b.com', status: 'active', createdAt: new Date(), updatedAt: new Date() }];
 const ACCOUNT = [{ id: 'acc-1', userId: USER_ID, createdAt: new Date(), updatedAt: new Date() }];
 
+describe('patchUserMe — a suspension landing between the status check and the write', () => {
+    it('puts the active-status test in the profile write itself', async () => {
+        const { db, wheres } = fakeDb([ACCOUNT], [[returnedProfile()]]);
+
+        await makeService(db, { publish: vi.fn().mockResolvedValue(undefined) }).patchUserMe(CTX, {
+            displayName: 'Ada',
+        });
+
+        const { sql } = new PgDialect().sqlToQuery(wheres[0]!);
+        expect(sql).toContain(`"users"."status" = 'active'`);
+    });
+
+    it('refuses the edit and publishes nothing when the write matched no active user', async () => {
+        const publish = vi.fn().mockResolvedValue(undefined);
+        const { db } = fakeDb([ACCOUNT], [[]]);
+        const resolveUser = vi
+            .fn()
+            .mockResolvedValueOnce({ user: EXISTING[0], account: ACCOUNT[0] })
+            .mockRejectedValueOnce(new ForbiddenException('User is suspended'));
+
+        await expect(
+            makeService(db, { publish }, resolveUser).patchUserMe(CTX, { displayName: 'Ada' }),
+        ).rejects.toThrow('User is suspended');
+        expect(publish).not.toHaveBeenCalled();
+    });
+});
+
 describe('patchUserMe handle-sync publish', () => {
     it('publishes the snapshot the UPDATE returned, keyed by the database’s stamp', async () => {
         const publish = vi.fn().mockResolvedValue(undefined);
-        const { db } = fakeDb([EXISTING, ACCOUNT], [[returnedProfile()]]);
+        const { db } = fakeDb([ACCOUNT], [[returnedProfile()]]);
 
         const result = await makeService(db, { publish }).patchUserMe(CTX, { displayName: 'Ada Lovelace' });
 
@@ -92,7 +132,7 @@ describe('patchUserMe handle-sync publish', () => {
     });
 
     it('stamps updated_at AND the owed marker with the database clock, never a process Date', async () => {
-        const { db, sets } = fakeDb([EXISTING, ACCOUNT], [[returnedProfile()]]);
+        const { db, sets } = fakeDb([ACCOUNT], [[returnedProfile()]]);
 
         await makeService(db, { publish: vi.fn().mockResolvedValue(undefined) }).patchUserMe(CTX, {
             displayName: 'Ada',
@@ -105,7 +145,7 @@ describe('patchUserMe handle-sync publish', () => {
     });
 
     it('stores the display name trimmed', async () => {
-        const { db, sets } = fakeDb([EXISTING, ACCOUNT], [[returnedProfile()]]);
+        const { db, sets } = fakeDb([ACCOUNT], [[returnedProfile()]]);
 
         await makeService(db, { publish: vi.fn().mockResolvedValue(undefined) }).patchUserMe(CTX, {
             displayName: '  Ada Lovelace  ',
@@ -116,10 +156,7 @@ describe('patchUserMe handle-sync publish', () => {
 
     it('does NOT publish, and owes nothing, on an avatar-only update', async () => {
         const publish = vi.fn().mockResolvedValue(undefined);
-        const { db, sets } = fakeDb(
-            [EXISTING, ACCOUNT],
-            [[returnedProfile({ avatarKey: `avatars/${USER_ID}/1.png` })]],
-        );
+        const { db, sets } = fakeDb([ACCOUNT], [[returnedProfile({ avatarKey: `avatars/${USER_ID}/1.png` })]]);
 
         await makeService(db, { publish }).patchUserMe(CTX, { avatarKey: `avatars/${USER_ID}/1.png` });
 
@@ -130,7 +167,7 @@ describe('patchUserMe handle-sync publish', () => {
     it('A -> B -> A revert: publishes on BOTH transitions (no stale-baseline gate to skip the revert)', async () => {
         const publish = vi.fn().mockResolvedValue(undefined);
         const { db } = fakeDb(
-            [EXISTING, ACCOUNT, EXISTING, ACCOUNT],
+            [ACCOUNT, ACCOUNT],
             [[returnedProfile({ displayName: 'New Name' })], [returnedProfile({ displayName: 'Original Name' })]],
         );
         const service = makeService(db, { publish });
@@ -145,7 +182,7 @@ describe('patchUserMe handle-sync publish', () => {
     });
 
     it('swallows a publish failure — the rename still succeeds', async () => {
-        const { db } = fakeDb([EXISTING, ACCOUNT], [[returnedProfile({ displayName: 'New Name' })]]);
+        const { db } = fakeDb([ACCOUNT], [[returnedProfile({ displayName: 'New Name' })]]);
 
         const result = await makeService(db, { publish: vi.fn().mockRejectedValue(new Error('sns down')) }).patchUserMe(
             CTX,

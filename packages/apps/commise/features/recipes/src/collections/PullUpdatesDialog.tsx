@@ -22,6 +22,9 @@
  * `preventDefault()`ing Radix's own no-op default so there is one focus-restore path, not a silently-losing
  * second one. Its module doc carries the rest, including why the edge latch must not be a ref.
  *
+ * The Cancel and Pull actions sit in the design-system `DialogActions`, which stacks them full width on a phone, Pull on
+ * top, so the pair cannot overflow a 320 px dialog.
+ *
  * A discriminated three-way state (mutually exclusive, matching {@link PullUpdatesDialogProps}'s JSDoc):
  * (1) a `role="status"` progress affordance while `isLoadingPreview`, or before any `diff` has arrived; (2)
  * a `role="alert"` for a failed preview/commit — `'drift'` (409, the previewed diff went stale) is
@@ -36,8 +39,10 @@
  */
 import { useMessages } from '@commise/i18n/react';
 import { Button, buttonSurfaceClass } from '@commise/ui/button';
+import { DialogActions, dialogActionSlotClass } from '@commise/ui/dialog-actions';
 import { useReturnFocusOnClose } from '@commise/ui/dialog-focus';
 import { Icon } from '@commise/ui/icon';
+import { surfaceToneClass } from '@commise/ui/surface-tone';
 import * as Dialog from '@radix-ui/react-dialog';
 import { type FC } from 'react';
 
@@ -46,6 +51,12 @@ import { collectionMessages } from './messages.js';
 import { bylineMessages } from '../byline/messages.js';
 import { sourceOwnerBylineText } from './sourceOwnerByline.js';
 import type { PullUpdatesDialogProps } from './model.js';
+
+/**
+ * The width of the action row from which Cancel and Pull sit side by side: "Cancel" and "Pull 1000 Recipes" at +35% for
+ * a translation, measured at about 407 px (see `DialogActionsSideBySideFrom`). A phone stacks them, Pull on top.
+ */
+const SIDE_BY_SIDE_FROM = 440;
 
 export const PullUpdatesDialog: FC<PullUpdatesDialogProps> = ({
     open,
@@ -92,12 +103,10 @@ export const PullUpdatesDialog: FC<PullUpdatesDialogProps> = ({
                 <Dialog.Overlay className="fixed inset-0 z-50 bg-scrim" />
                 <Dialog.Content
                     onCloseAutoFocus={onCloseAutoFocus}
-                    className="fixed left-1/2 top-1/2 z-50 flex w-full max-w-lg -translate-x-1/2 -translate-y-1/2 flex-col gap-4 rounded-2xl bg-paper p-6 shadow-lg"
+                    className={`fixed left-1/2 top-1/2 z-50 flex w-full max-w-lg -translate-x-1/2 -translate-y-1/2 flex-col gap-4 rounded-xl ${surfaceToneClass('paper')} p-6 shadow-lg`}
                 >
                     <div className="flex flex-col gap-1">
-                        <Dialog.Title className="font-display text-heading-lg font-semibold text-ink">
-                            {pull.title}
-                        </Dialog.Title>
+                        <Dialog.Title className="text-section-title text-ink">{pull.title}</Dialog.Title>
                         {attribution !== undefined && <p className="text-body-sm text-ink-muted">{attribution}</p>}
                     </div>
 
@@ -123,9 +132,11 @@ export const PullUpdatesDialog: FC<PullUpdatesDialogProps> = ({
                         </div>
                     )}
 
-                    <div className="flex items-center justify-end gap-3">
-                        {/* A Radix slot, so it wears the Button surface rather than being one: the ConfirmDialog's Keep, `x` included. */}
-                        <Dialog.Close className={buttonSurfaceClass('secondary')}>
+                    <DialogActions sideBySideFrom={SIDE_BY_SIDE_FROM}>
+                        {/* A Radix slot, so it wears the Button surface rather than being one: the ConfirmDialog's Keep, `x` included. It has no `width` prop, so it takes the row's fill class. */}
+                        <Dialog.Close
+                            className={`${buttonSurfaceClass('secondary')} ${dialogActionSlotClass(SIDE_BY_SIDE_FROM)}`}
+                        >
                             <Icon name="x" size={20} />
                             {pull.cancel}
                         </Dialog.Close>
@@ -136,12 +147,13 @@ export const PullUpdatesDialog: FC<PullUpdatesDialogProps> = ({
                                 icon="check"
                                 busy={isCommitting}
                                 disabled={diff.added.length === 0}
+                                width="fill"
                                 onPress={onConfirm}
                             >
                                 {fillTemplate(pull.confirm, { count: diff.added.length })}
                             </Button>
                         )}
-                    </div>
+                    </DialogActions>
                 </Dialog.Content>
             </Dialog.Portal>
         </Dialog.Root>

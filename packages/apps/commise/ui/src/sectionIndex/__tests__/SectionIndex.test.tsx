@@ -17,6 +17,7 @@ import { createRef } from 'react';
 import type { ScrollHostApi, ScrollTarget } from '../../scrollHost/props.js';
 import { ScrollHostContext } from '../../scrollHost/scrollHostContext.js';
 import type { SectionIndexItem, SectionIndexProps } from '../props.js';
+import { surfaceToneOf } from '../../testing/surfaceToneOf.js';
 import { SectionIndex } from '../SectionIndex.js';
 
 afterEach(cleanup);
@@ -57,6 +58,31 @@ function fakeHost(scrollToSection: (id: string) => void): ScrollHostApi {
         handle: createRef<ScrollTarget | null>(),
     };
 }
+
+// `componentFixes.md` §10b: the strip and the bar paint `paperRaised`, so they state it to the links and button inside.
+describe('SectionIndex (web) — the surface it paints', () => {
+    it('states paperRaised around the bar button and the strip links', () => {
+        const { container } = render(
+            <ScrollHostContext.Provider value={fakeHost(vi.fn())}>
+                <SectionIndex
+                    label={NAV}
+                    sheetTitle="Sections"
+                    sheetCloseLabel="Close sections"
+                    items={ITEMS}
+                    currentId="ingredients"
+                    barName={BAR_NAME}
+                    barCount="⚠ 3"
+                    onJump={vi.fn()}
+                />
+            </ScrollHostContext.Provider>,
+        );
+
+        expect(surfaceToneOf(screen.getByRole('button', { name: BAR_NAME }))).toBe('paperRaised');
+        expect(surfaceToneOf(container.querySelector('nav[id$="-strip"], nav:nth-of-type(2) a') ?? container)).toBe(
+            'paperRaised',
+        );
+    });
+});
 
 function renderIndex(overrides: Partial<SectionIndexProps> = {}, scrollToSection = vi.fn()) {
     const onJump = vi.fn();

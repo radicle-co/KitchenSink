@@ -3,8 +3,8 @@
  * The two dialogs of a collection's detail (`docs/design/uiOverhaul/buildSpec.md` §5.2).
  *
  * Delete keeps a dialog because it cannot be undone: "Delete {name}?", "The {n} recipes stay in your library.", **Delete
- * collection** (filled error) and **Keep collection**, with focus opening on Keep. The Premium sheet is what a free-tier
- * cook gets for "Make private": "Private collections are part of Premium.", **See Premium** and **Not now**, equal in
+ * collection** (filled error) and **Keep collection**, with focus opening on Keep. The Pro sheet is what a free-tier
+ * cook gets for "Make private": "Private collections are part of Pro.", **See Pro** and **Not now**, equal in
  * size and weight, side by side, nothing pre-selected — true, and not a distortion of the choice (DSA Art. 25).
  */
 import { cleanup, render, screen, within } from '@testing-library/react';
@@ -17,7 +17,19 @@ import { CollectionDeleteDialog } from '../CollectionDeleteDialog.js';
 import { CollectionUpsellSheet } from '../CollectionUpsellSheet.js';
 import type { CollectionDeleteDialogProps, CollectionUpsellSheetProps } from '../detailModel.js';
 
-afterEach(cleanup);
+/** The one subscription-entry-point switch (spec 010 T-035), flipped per test: it ships OFF. */
+const entryPoints = vi.hoisted(() => ({ on: false }));
+
+vi.mock('@commise/features-account', () => ({
+    get SUBSCRIPTION_ENTRY_POINTS_ON() {
+        return entryPoints.on;
+    },
+}));
+
+afterEach(() => {
+    cleanup();
+    entryPoints.on = false;
+});
 
 function deleteDialog(over: Partial<CollectionDeleteDialogProps> = {}) {
     const props: CollectionDeleteDialogProps = {
@@ -112,12 +124,13 @@ describe('CollectionUpsellSheet (web)', () => {
     it('is titled with the plain fact', () => {
         upsell();
 
-        expect(screen.getByRole('dialog', { name: 'Private collections are part of Premium.' })).toBeTruthy();
+        expect(screen.getByRole('dialog', { name: 'Private collections are part of Pro.' })).toBeTruthy();
     });
 
-    it('offers See Premium and Not now as equals: the same tier, side by side, neither the primary', () => {
+    it('offers See Pro and Not now as equals: the same tier, side by side, neither the primary', () => {
+        entryPoints.on = true;
         upsell();
-        const see = screen.getByRole('button', { name: 'See Premium' });
+        const see = screen.getByRole('button', { name: 'See Pro' });
         const notNow = screen.getByRole('button', { name: 'Not now' });
 
         expect(see.className).toBe(notNow.className);
@@ -125,15 +138,24 @@ describe('CollectionUpsellSheet (web)', () => {
         expect(see.closest('.gap-3')).toBe(notNow.closest('.gap-3'));
     });
 
-    it('reports See Premium, and closes from Not now', async () => {
+    it('reports See Pro, and closes from Not now', async () => {
+        entryPoints.on = true;
         const user = userEvent.setup();
         const props = upsell();
 
-        await user.click(screen.getByRole('button', { name: 'See Premium' }));
+        await user.click(screen.getByRole('button', { name: 'See Pro' }));
         expect(props.onSeePremium).toHaveBeenCalledOnce();
 
         await user.click(screen.getByRole('button', { name: 'Not now' }));
         expect(props.onOpenChange).toHaveBeenCalledWith(false);
+    });
+
+    it('⛔ switch off: states the fact and offers only a close control - no See Pro, no Pro link', () => {
+        const props = upsell();
+
+        expect(screen.queryByRole('button', { name: 'See Pro' })).toBeNull();
+        expect(screen.getAllByRole('button', { name: 'Not now' })).toHaveLength(1);
+        expect(props.onSeePremium).not.toHaveBeenCalled();
     });
 
     it('draws nothing while shut', () => {

@@ -19,13 +19,14 @@ import { AuthMiddleware } from '../src/auth/middleware/auth.middleware.js';
 
 type AnyReq = {
     headers: Record<string, string | undefined>;
+    method?: string;
     originalUrl?: string;
     path?: string;
     user?: unknown;
 };
 
 function makeReq(overrides: Partial<AnyReq> = {}): AnyReq {
-    return { headers: {}, originalUrl: '/api/v1/users/me', path: '/api/v1/users/me', ...overrides };
+    return { headers: {}, method: 'GET', originalUrl: '/api/v1/users/me', path: '/api/v1/users/me', ...overrides };
 }
 
 const userCtx = {
@@ -72,7 +73,8 @@ describe('AuthMiddleware', () => {
         const req = makeReq({ headers: { authorization: 'Bearer abc.def.ghi' } });
         await mw.use(req as never, res, next as never);
 
-        expect(clerkAuth.verify).toHaveBeenCalledWith('abc.def.ghi');
+        // The request is named so the shared verifier can let a suspended account through the erasure route (ADR-0081).
+        expect(clerkAuth.verify).toHaveBeenCalledWith('abc.def.ghi', { method: 'GET', path: '/api/v1/users/me' });
         expect(users.resolveOrCreateFromClaims).toHaveBeenCalledWith({ sub: 'user_x', email: 'a@b.com' });
         expect(req.user).toBe(userCtx);
         expect(next).toHaveBeenCalledOnce();

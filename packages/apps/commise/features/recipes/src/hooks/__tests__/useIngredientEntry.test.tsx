@@ -41,6 +41,7 @@ import type { SourceLimit } from '../useSourceLimit.js';
 
 const mocks = vi.hoisted(() => ({
     useIngredientSuggestionSource: vi.fn(),
+    useIngredientNameProposals: vi.fn(),
     refetch: vi.fn(),
     emit: vi.fn(),
 }));
@@ -51,9 +52,10 @@ vi.mock('../ingredientSuggestionSource.js', () => ({
 
 vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
     useRecipeServiceClient: () => ({ emitAnalyticsEvents: mocks.emit }),
+    useIngredientNameProposals: mocks.useIngredientNameProposals,
 }));
 
-import { useIngredientEntry, type IngredientEntry } from '../useIngredientEntry.js';
+import { SUGGESTIONS_DEADLINE_MS, useIngredientEntry, type IngredientEntry } from '../useIngredientEntry.js';
 
 const OIL: EntryLine = { key: seedLineKey(3, 0), name: 'Olive oil' };
 const CHICK: EntryLine = { key: seedLineKey(3, 1), name: 'chick' };
@@ -109,6 +111,23 @@ const committed = (key = OIL.key): LineCommitOutcome => ({
     binding: { ingredientId: 'ing_chickpea', name: 'Chickpeas', isUserEntered: false },
 });
 
+/** What the name-proposals query answers (the parts of a TanStack result the entry reads). */
+const PROPOSALS_IDLE = { isLoading: false, isError: false, data: undefined };
+const PROPOSALS_LOADING = { isLoading: true, isError: false, data: undefined };
+const PROPOSALS_FAILED = { isLoading: false, isError: true, data: undefined };
+const ROOT_PROPOSAL = { kind: 'root', id: 'food_chick', name: 'Chickpeas, dry', source: 'ownCorrection' } as const;
+const VARIANT_PROPOSAL = {
+    kind: 'variant',
+    id: 'var_canned',
+    name: 'Chickpeas, canned',
+    source: 'staffRuling',
+} as const;
+const proposalsAnswer = (...proposals: (typeof ROOT_PROPOSAL | typeof VARIANT_PROPOSAL)[]) => ({
+    isLoading: false,
+    isError: false,
+    data: { phrase: 'chickpeas', proposals },
+});
+
 /** The session's one source limit, as the row editor holds it. */
 const LIMIT: SourceLimit = { retryAt: undefined, hold: vi.fn() };
 
@@ -139,6 +158,7 @@ beforeEach(() => {
     vi.useFakeTimers();
     focusManager.setFocused(true);
     mocks.useIngredientSuggestionSource.mockReturnValue(running());
+    mocks.useIngredientNameProposals.mockReturnValue(PROPOSALS_IDLE);
     mocks.emit.mockResolvedValue(undefined);
 });
 
@@ -697,6 +717,50 @@ describe('useIngredientEntry — when the count is said (P7)', () => {
 
         expect(result.current.databaseSaidEarly).toBe(false);
     });
+
+    /** Run one slow answer for 'chickpeas' to its end: the database part said early, the end said after. */
+    function slowAnswerEnded() {
+        mocks.useIngredientSuggestionSource.mockReturnValue(running(databaseFrame({ catalog: [CANNED] })));
+        const rendered = render();
+
+        typeSettled(rendered.result, TRAILING, 'chickpeas');
+        act(() => {
+            vi.advanceTimersByTime(1_000);
+        });
+        mocks.useIngredientSuggestionSource.mockReturnValue(
+            ended(databaseFrame({ catalog: [CANNED] }), COMPLETE_FRAME),
+        );
+        rendered.rerender({ current: [OIL, CHICK] });
+        expect(rendered.result.current.databaseSaidEarly).toBe(true);
+
+        return rendered;
+    }
+
+    // Dogfooding PR 132: the marker outlived its answer, so the same text asked again was served with its foods while
+    // its one announcement said only the slow path's end, and its count was never said.
+    it('⛔ the same text asked again after the cook left it is a new answer: it takes the fast path', () => {
+        const { result } = slowAnswerEnded();
+
+        typeSettled(result, TRAILING, '');
+        typeSettled(result, TRAILING, 'chickpeas');
+
+        expect(result.current.view.kind).toBe('served');
+        expect(result.current.databaseSaidEarly).toBe(false);
+    });
+
+    it('⛔ the same text asked again in place (Try again, a remote food gone) is a new answer too', () => {
+        const { result, rerender } = slowAnswerEnded();
+
+        // The new ask starts empty (`refetchMode: 'reset'`), then its database part lands inside the guard.
+        mocks.useIngredientSuggestionSource.mockReturnValue(running());
+        rerender({ current: [OIL, CHICK] });
+        mocks.useIngredientSuggestionSource.mockReturnValue(
+            ended(databaseFrame({ catalog: [CANNED] }), COMPLETE_FRAME),
+        );
+        rerender({ current: [OIL, CHICK] });
+
+        expect(result.current.databaseSaidEarly).toBe(false);
+    });
 });
 
 describe('useIngredientEntry — the cook’s limit from a source frame (system change 9)', () => {
@@ -756,5 +820,182 @@ describe('useIngredientEntry — where a trailing pick lands', () => {
             kind: 'newLine',
             placement: { group: 'Herbs' },
         });
+    });
+});
+
+describe('useIngredientEntry — Suggested foods (owner ruling 2026-11-03; designer N2)', () => {
+    const sessionEvents = () =>
+        mocks.emit.mock.calls.map(([body]) => (body as { events: { outcome: unknown }[] }).events[0]);
+    const served = () => bothAnswered({ catalog: [CANNED] });
+
+    it('asks for the proposals of the settled text, and only while the search is enabled', () => {
+        mocks.useIngredientSuggestionSource.mockReturnValue(served());
+        const { result } = render([OIL]);
+
+        typeSettled(result, TRAILING, 'fl');
+        expect(mocks.useIngredientNameProposals).toHaveBeenLastCalledWith('fl', { enabled: false });
+
+        typeSettled(result, TRAILING, 'flour');
+        expect(mocks.useIngredientNameProposals).toHaveBeenLastCalledWith('flour', { enabled: true });
+    });
+
+    it('holds the served list back as `searching` while the proposals read runs, so nothing shown later moves (P2)', () => {
+        mocks.useIngredientSuggestionSource.mockReturnValue(served());
+        mocks.useIngredientNameProposals.mockReturnValue(PROPOSALS_LOADING);
+        const { result } = render([OIL]);
+
+        typeSettled(result, TRAILING, 'chickpeas');
+
+        expect(result.current.view).toEqual({ kind: 'searching', resumed: false });
+        expect(result.current.suggestions).toEqual([]);
+    });
+
+    it('once the read settles the list is served, with the proposals for the text', () => {
+        mocks.useIngredientSuggestionSource.mockReturnValue(served());
+        mocks.useIngredientNameProposals.mockReturnValue(PROPOSALS_LOADING);
+        const { result, rerender } = render([OIL]);
+
+        typeSettled(result, TRAILING, 'chickpeas');
+        mocks.useIngredientNameProposals.mockReturnValue(proposalsAnswer(ROOT_PROPOSAL, VARIANT_PROPOSAL));
+        rerender({ current: [OIL] });
+
+        expect(result.current.view.kind).toBe('served');
+        expect(result.current.suggestions).toEqual([ROOT_PROPOSAL, VARIANT_PROPOSAL]);
+    });
+
+    it('a read that settles with nothing serves the list with no suggestions', () => {
+        mocks.useIngredientSuggestionSource.mockReturnValue(served());
+        mocks.useIngredientNameProposals.mockReturnValue(proposalsAnswer());
+        const { result } = render([OIL]);
+
+        typeSettled(result, TRAILING, 'chickpeas');
+
+        expect(result.current.view.kind).toBe('served');
+        expect(result.current.suggestions).toEqual([]);
+    });
+
+    it('⛔ gives up on a slow read after the deadline: the list shows without suggestions, and a late answer adds none', () => {
+        mocks.useIngredientSuggestionSource.mockReturnValue(served());
+        mocks.useIngredientNameProposals.mockReturnValue(PROPOSALS_LOADING);
+        const { result, rerender } = render([OIL]);
+
+        typeSettled(result, TRAILING, 'chickpeas');
+        act(() => {
+            vi.advanceTimersByTime(SUGGESTIONS_DEADLINE_MS - 1);
+        });
+        expect(result.current.view).toEqual({ kind: 'searching', resumed: false });
+
+        act(() => {
+            vi.advanceTimersByTime(1);
+        });
+        expect(result.current.view.kind).toBe('served');
+        expect(result.current.suggestions).toEqual([]);
+
+        // The answer lands late: the list the cook is reading must not gain a first row.
+        mocks.useIngredientNameProposals.mockReturnValue(proposalsAnswer(ROOT_PROPOSAL));
+        rerender({ current: [OIL] });
+
+        expect(result.current.suggestions).toEqual([]);
+    });
+
+    it('⛔ giving up holds for that ask only: the same text asked again shows its proposals', () => {
+        mocks.useIngredientSuggestionSource.mockReturnValue(served());
+        mocks.useIngredientNameProposals.mockReturnValue(PROPOSALS_LOADING);
+        const { result, rerender } = render([OIL]);
+
+        typeSettled(result, TRAILING, 'chickpeas');
+        act(() => {
+            vi.advanceTimersByTime(SUGGESTIONS_DEADLINE_MS);
+        });
+        expect(result.current.suggestions).toEqual([]);
+
+        // The late answer is kept by its query; the cook leaves the text and types it again.
+        mocks.useIngredientNameProposals.mockReturnValue(proposalsAnswer(ROOT_PROPOSAL));
+        typeSettled(result, TRAILING, '');
+        typeSettled(result, TRAILING, 'chickpeas');
+        rerender({ current: [OIL] });
+
+        expect(result.current.view.kind).toBe('served');
+        expect(result.current.suggestions).toEqual([ROOT_PROPOSAL]);
+    });
+
+    it('the deadline is a constant the design can quote: 400 ms', () => {
+        expect(SUGGESTIONS_DEADLINE_MS).toBe(400);
+    });
+
+    it('a failed read shows the list with no suggestions, at once', () => {
+        mocks.useIngredientSuggestionSource.mockReturnValue(served());
+        mocks.useIngredientNameProposals.mockReturnValue(PROPOSALS_FAILED);
+        const { result } = render([OIL]);
+
+        typeSettled(result, TRAILING, 'chickpeas');
+
+        expect(result.current.view.kind).toBe('served');
+        expect(result.current.suggestions).toEqual([]);
+    });
+
+    it('holds nothing when the list is not served (offline, failed, too short): the view is the source’s own', () => {
+        mocks.useIngredientSuggestionSource.mockReturnValue(source({ kind: 'parked' }));
+        mocks.useIngredientNameProposals.mockReturnValue(PROPOSALS_LOADING);
+        const { result } = render([OIL]);
+
+        typeSettled(result, TRAILING, 'chickpeas');
+
+        expect(result.current.view).toEqual({ kind: 'offline' });
+    });
+
+    it.each([
+        {
+            case: 'a root is a catalogFood pick, with the name the proposal carries',
+            proposal: ROOT_PROPOSAL,
+            expected: { kind: 'catalogFood', foodId: 'food_chick', name: 'Chickpeas, dry' },
+        },
+        {
+            case: 'a variant is a catalogVariant pick',
+            proposal: VARIANT_PROPOSAL,
+            expected: { kind: 'catalogVariant', foodVariantId: 'var_canned' },
+        },
+    ])('picking a suggestion commits it: $case', async ({ proposal, expected }) => {
+        mocks.useIngredientSuggestionSource.mockReturnValue(served());
+        mocks.useIngredientNameProposals.mockReturnValue(proposalsAnswer(proposal));
+        const commit = port(committed());
+        const { result } = render([OIL], commit);
+
+        typeSettled(result, TRAILING, 'chickpeas');
+        await act(async () => {
+            result.current.selectSuggestion(proposal);
+        });
+
+        expect(commit).toHaveBeenCalledWith(expected, TRAILING);
+        expect(result.current.textOf(TRAILING)).toBe('');
+    });
+
+    it('a suggestion pick ends the session as a no-pick: the analytics wire names only our database’s groups', async () => {
+        mocks.useIngredientSuggestionSource.mockReturnValue(served());
+        mocks.useIngredientNameProposals.mockReturnValue(proposalsAnswer(ROOT_PROPOSAL));
+        const { result } = render([OIL], port(committed()));
+
+        typeSettled(result, TRAILING, 'chickpeas');
+        await act(async () => {
+            result.current.selectSuggestion(ROOT_PROPOSAL);
+        });
+
+        expect(sessionEvents()).toEqual([
+            expect.objectContaining({
+                served: [{ group: 'catalog', label: 'Chickpeas, canned', foodId: 'food_cp' }],
+                outcome: { kind: 'no_pick' },
+            }),
+        ]);
+    });
+
+    it('with no active field a suggestion pick commits nothing', async () => {
+        const commit = port(committed());
+        const { result } = render([OIL], commit);
+
+        await act(async () => {
+            result.current.selectSuggestion(ROOT_PROPOSAL);
+        });
+
+        expect(commit).not.toHaveBeenCalled();
     });
 });

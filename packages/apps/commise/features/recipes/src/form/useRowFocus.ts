@@ -17,6 +17,7 @@
 import { useState } from 'react';
 
 import type { IngredientRowEditor } from '../hooks/useIngredientRowEditor.js';
+import type { ControlFocus } from '../common/controlFocus.js';
 import type { IngredientLineKey } from './lineKey.js';
 import {
     isFocusRequested,
@@ -25,12 +26,6 @@ import {
     type RowFocusRequest,
     type SettledFocus,
 } from './rowFocus.js';
-
-/** One control's focus request: a level it lowers once it has taken focus. */
-export interface ControlFocus {
-    readonly requested: boolean;
-    readonly onHandled: () => void;
-}
 
 /**
  * A refused save or Next (R7) pointing at one entry field: its OWN level, apart from the field's settled-commit

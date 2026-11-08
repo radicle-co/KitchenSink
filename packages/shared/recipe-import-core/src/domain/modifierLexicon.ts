@@ -51,6 +51,7 @@
  * safe direction — an unclassified word cannot be moved into the wrong field, it can only fail to settle a
  * disagreement that then reaches the adjudication list (U23) as it would have anyway.
  */
+import { trimEdges } from './trimEdges.js';
 
 /**
  * What KTD-11b says a modifier word IS.
@@ -71,7 +72,6 @@ const TEMPERATURES: ReadonlySet<string> = new Set([
     'boiling',
     'chilled',
     'cold',
-    'frozen',
     'hot',
     'iced',
     'lukewarm',
@@ -177,6 +177,30 @@ const ADJECTIVES: ReadonlySet<string> = new Set([
     'powdered',
     'prepared',
     'unsweetened',
+    // ⛔ The rest of the parse prompt's "product descriptors" (`PARSE_SYSTEM_PROMPT` rule 7), added 2026-11-06 after
+    // `unsalted butter` was stored as `butter` and bound to salted butter. The prompt keeps these in the name, and this
+    // list must agree with it: `promptDescriptorParity.test.ts` reads the prompt's list and fails on any word filed
+    // here as preparation, except the ones that test lists with their reason.
+    //
+    // `dried` and `frozen` are here by owner ruling 2026-11-06 ("1 tsp dried thyme" binds dried thyme). `dried` was
+    // KTD-11b's accepted edge and `frozen` sat with the temperatures; ADR-0026 §5 records the carve-out. Consulted before
+    // the `-ed` rule and before `head()`, so `freeze-dried` and `sun-dried` follow.
+    //
+    // `whipped` is here by owner ruling 2026-11-06 ("1 cup whipped cream" binds whipped cream), but only BEFORE the
+    // food: `canonicaliseFood` leaves it in the preparation field (see `STAYS_IN_PREPARATION`).
+    'condensed',
+    'dried',
+    'frozen',
+    'evaporated',
+    'refried',
+    'roasted',
+    'salted',
+    'smoked',
+    'sun-dried',
+    'sweetened',
+    'unbleached',
+    'unsalted',
+    'whipped',
     'pastry',
     'plain',
     'raw',
@@ -200,7 +224,7 @@ const ADJECTIVES: ReadonlySet<string> = new Set([
 const QUALIFIERS: ReadonlySet<string> = new Set(['well']);
 
 /** Everything that is not a letter, a digit or an internal hyphen — punctuation an engine carried along. */
-const NON_WORD_EDGE = /^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu;
+const NON_WORD = /[^\p{L}\p{N}]/u;
 
 /**
  * Reduce a word to the form the sets are keyed on.
@@ -209,7 +233,7 @@ const NON_WORD_EDGE = /^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu;
  * @returns Lower-cased and stripped of leading/trailing punctuation. Pure.
  */
 function fold(word: string): string {
-    return word.trim().toLowerCase().replace(NON_WORD_EDGE, '');
+    return trimEdges(word.trim().toLowerCase(), (character) => NON_WORD.test(character));
 }
 
 /**
@@ -226,6 +250,24 @@ function head(word: string): string {
     const lastHyphen = word.lastIndexOf('-');
 
     return lastHyphen > 0 && lastHyphen < word.length - 1 ? word.slice(lastHyphen + 1) : word;
+}
+
+/**
+ * Words that are identity written BEFORE the food and preparation written AFTER it (owner ruling 2026-11-06):
+ * "1 cup whipped cream" is the food `whipped cream`, "1 cup heavy cream, whipped" is heavy cream the cook whips.
+ * Position is the signal, and the engines already encode it by the field they put the word in.
+ */
+const STAYS_IN_PREPARATION: ReadonlySet<string> = new Set(['whipped']);
+
+/**
+ * Whether a word an engine put in the PREPARATION field is the cook's step even though {@link classifyModifier} calls
+ * it identity.
+ *
+ * @param word - The word as an engine returned it.
+ * @returns True when the comparator must leave it in the preparation. Pure and TOTAL.
+ */
+export function staysInPreparation(word: string): boolean {
+    return STAYS_IN_PREPARATION.has(head(fold(word)));
 }
 
 /**
@@ -252,7 +294,8 @@ export function classifyModifier(word: string): ModifierRole {
         return 'preparation';
     }
 
-    if (ADJECTIVES.has(key)) {
+    // The whole word first, so a listed compound (`sun-dried`) is not decided by its head (`dried`).
+    if (ADJECTIVES.has(key) || ADJECTIVES.has(folded)) {
         return 'identity';
     }
 

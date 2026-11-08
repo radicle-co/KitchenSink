@@ -35,12 +35,10 @@
 # directory (outside the repository), read back with the `read` builtin, and are never on an argv and never printed.
 # Everything after that read runs with AWS pinned to LocalStack and throwaway credentials.
 #
-# ⚠️ The Clerk users are the Maestro tier's FIXED pool slots for ANDROID shard 1, the same users CI's
-# `test-pool-sandbox-maestro-1` group signs in. Their DATA here lives in the local database, so a local run cannot
-# disturb a CI run's world, but both sign the same users in. ⚠️ They also lease the same ERASURE subjects, and this
-# run holds no lane: run concurrently with a CI shard-1 job and both may take the same subject, so one erasure fails
-# (`maestroErasureSlots` in testPool.ts records it). This run does not refill the subjects — CI's job does, through
-# `poolAdmin`.
+# ⚠️ The Clerk users are the run's OWN: `E2E_POOL_NAMESPACE=local` gives every slot a `test-local-*` address on the same
+# Clerk instance, so a local run never signs in, erases or refills a user CI leases, and can run beside a CI job. The run
+# makes them (`poolAdmin --maestro-lane`), mints their `external_id` itself (the sandbox webhook that writes it is down
+# when the sandbox is), and recycles the erasure subjects each time (nothing local deletes an erased user from Clerk).
 
 set -uo pipefail
 
@@ -53,7 +51,11 @@ LOCAL_MAESTRO_AVD='ci_pixel6'
 LOCAL_MAESTRO_CLERK_SECRET_ID='kitchensink/sandbox/identity/keys'
 LOCAL_MAESTRO_METRO_PORT=8081
 # The local sandbox's ports — each service's own `PORT` default (see `localPortFor` in `adapters.ts`).
+# What the DEVICE addresses. The host side may sit on another port when something else holds 3000 (the owner's session UI
+# does): `LOCAL_MAESTRO_RECIPE_HOST_PORT` names it, `local:up` publishes it (`LOCAL_SANDBOX_HOST_PORTS=recipes=<port>`),
+# and `adb reverse` joins the two, so the app is untouched.
 LOCAL_MAESTRO_RECIPE_ORIGIN='http://localhost:3000'
+LOCAL_MAESTRO_RECIPE_HOST_PORT="${LOCAL_MAESTRO_RECIPE_HOST_PORT:-3000}"
 LOCAL_MAESTRO_IDENTITY_ORIGIN='http://localhost:3001'
 LOCAL_MAESTRO_FOOD_ORIGIN='http://localhost:3002'
 # ⛔ The `azp` the seeder's tokens carry must be one the services admit: `localContainerEnv` sets
@@ -104,9 +106,16 @@ local_maestro_state_dir() {
 local_maestro_flows() {
     case "${1-}" in
         all)
-            local verdict
+            local verdict local_verdict
             verdict="$(maestro_select_flows "$FLOW_PLAN")" || return 1
-            printf '%s\n' "$verdict" | sed -n 's/^flow=//p'
+            # ⛔ Flows that need the DEPLOYED sandbox are left out and NAMED, never run to fail and never counted as passed
+            # (`MAESTRO_SANDBOX_ONLY_FLOWS`). Only this local selection reads that table; the deployed run does not.
+            # shellcheck disable=SC2046 # one flow name per word, and flow names carry no whitespace
+            local_verdict="$(maestro_local_flows $(printf '%s\n' "$verdict" | sed -n 's/^flow=//p'))" || return 1
+            # stderr: this runs in a command substitution whose stdout is the flow list.
+            # shellcheck disable=SC2046
+            maestro_local_summary $(printf '%s\n' "$local_verdict" | sed -n 's/^needs-sandbox=\([^|]*\)|.*/\1/p') >&2
+            printf '%s\n' "$local_verdict" | sed -n 's/^flow=//p'
             ;;
         flows)
             shift
@@ -228,13 +237,13 @@ local_maestro_toolchain() {
     export ANDROID_SDK_ROOT="$ANDROID_HOME"
     # ⚠️ Not `JAVA_HOME`: the default `java` here is 11, which neither Maestro 2 nor the Android build accepts.
     export JAVA_HOME="${LOCAL_MAESTRO_JAVA_HOME:-${HOME}/jdk17}"
-    export PATH="${JAVA_HOME}/bin:${ANDROID_HOME}/platform-tools:${ANDROID_HOME}/emulator:${HOME}/.maestro/bin:${PATH}"
+    export PATH="${JAVA_HOME}/bin:${ANDROID_HOME}/platform-tools:${ANDROID_HOME}/emulator:${PATH}"
     export ANDROID_SERIAL="$LOCAL_MAESTRO_SERIAL"
     export MAESTRO_DRIVER_STARTUP_TIMEOUT="${MAESTRO_DRIVER_STARTUP_TIMEOUT:-300000}"
     export MAESTRO_CLI_NO_ANALYTICS=1
 
     local tool missing=0
-    for tool in node npx docker curl jq aws adb emulator maestro java setsid; do
+    for tool in node npx docker curl jq aws adb emulator java setsid; do
         if ! command -v "$tool" >/dev/null 2>&1; then
             local_maestro_fail "missing tool: ${tool}"
             missing=1
@@ -247,11 +256,63 @@ local_maestro_toolchain() {
         *) local_maestro_fail "Node 24 is required (found $(node -v))" || return 1 ;;
     esac
 
-    local version
-    version="$(command maestro --version 2>/dev/null | tail -1)"
-    if [ "$version" != '2.11.0' ]; then
-        echo "local:maestro: ⚠️ Maestro ${version:-unknown} — CI pins 2.11.0" >&2
+    local_maestro_pin_cli || return 1
+}
+
+# The Maestro version CI installs: the one `MAESTRO_VERSION` in `_ci-heavy.yml`, read from there so the pin is stated
+# once. Prints it; fails when the workflow no longer states one.
+local_maestro_ci_pin() {
+    local pin
+    pin="$(sed -nE "s/^[[:space:]]*MAESTRO_VERSION:[[:space:]]*'([0-9.]+)'.*/\1/p" \
+        "${LOCAL_MAESTRO_REPO_ROOT}/.github/workflows/_ci-heavy.yml" | head -1)"
+    if [ -z "$pin" ]; then
+        local_maestro_fail 'could not read MAESTRO_VERSION from .github/workflows/_ci-heavy.yml'
+        return 1
     fi
+    printf '%s\n' "$pin"
+}
+
+# Put CI's pinned Maestro FIRST on PATH. ⛔ Not whichever `maestro` is installed: 2.6.1 ahead of the pin is what ran
+# the iOS flows into "Application … is not running" (its `getForegroundApp()` ignores app state; fixed upstream in
+# 2.7.0 and pinned by 0de2bb7d1). Candidates, in order: `LOCAL_MAESTRO_DIST` (a directory holding `bin/maestro`, used
+# alone when set), `~/maestro2110`, `~/.maestro` (the installer's own directory). A distribution of another version is
+# skipped, and none matching is a refusal that says how to install the pin the way CI does (checksum-verified).
+local_maestro_pin_cli() {
+    local pin dir version seen=''
+    pin="$(local_maestro_ci_pin)" || return 1
+
+    local candidates=("${HOME}/maestro2110" "${HOME}/.maestro")
+    if [ -n "${LOCAL_MAESTRO_DIST:-}" ]; then
+        candidates=("$LOCAL_MAESTRO_DIST")
+    fi
+
+    for dir in "${candidates[@]}"; do
+        [ -x "${dir}/bin/maestro" ] || continue
+        version="$("${dir}/bin/maestro" --version 2>/dev/null | tail -1)"
+        if [ "$version" = "$pin" ]; then
+            export PATH="${dir}/bin:${PATH}"
+            return 0
+        fi
+        seen="${seen} ${dir} (${version:-unknown})"
+    done
+
+    local_maestro_fail "no Maestro ${pin} (CI's pin) found;${seen:- none installed}. Install it as CI does: download cli-${pin}/maestro.zip from github.com/mobile-dev-inc/maestro releases, verify MAESTRO_SHA256 from _ci-heavy.yml, unzip to ~/maestro${pin//./}, or set LOCAL_MAESTRO_DIST"
+    return 1
+}
+
+# The environment the debug APK's BUILD needs. ⛔ `EXPO_PUBLIC_IDP_PUBLISHABLE_KEY` is what CI's build passes
+# (`_ci-heavy.yml`); without it the sign-in screen has no Google button (the 2026-10-30 full run, loginFlow). It is the
+# sandbox Clerk instance's PUBLISHABLE key — public by design, `pk_test_` — which `local_maestro_load_clerk_keys` already
+# holds. It is checked for that prefix and never printed, so a live key cannot reach a build by accident.
+local_maestro_export_build_env() {
+    case "${CLERK_PUBLISHABLE_KEY:-}" in
+        pk_test_*) ;;
+        *)
+            local_maestro_fail 'the APK build needs the Clerk test publishable key (pk_test_…) — load the keys first'
+            return 1
+            ;;
+    esac
+    export EXPO_PUBLIC_IDP_PUBLISHABLE_KEY="$CLERK_PUBLISHABLE_KEY"
 }
 
 # Start a command in its own session (so the whole tree can be stopped), logging to a file. Sets
@@ -290,7 +351,7 @@ local_maestro_cleanup() {
 
 local_maestro_require_services() {
     local origin down=0
-    for origin in "$LOCAL_MAESTRO_RECIPE_ORIGIN" "$LOCAL_MAESTRO_IDENTITY_ORIGIN" "$LOCAL_MAESTRO_FOOD_ORIGIN"; do
+    for origin in "http://localhost:${LOCAL_MAESTRO_RECIPE_HOST_PORT}" "$LOCAL_MAESTRO_IDENTITY_ORIGIN" "$LOCAL_MAESTRO_FOOD_ORIGIN"; do
         if ! curl -fsS --max-time 5 -o /dev/null "${origin}/health"; then
             local_maestro_fail "${origin}/health does not answer"
             down=1
@@ -443,7 +504,8 @@ local_maestro_install_app() {
     if [ "${LOCAL_MAESTRO_BUILD_APK:-}" = '1' ]; then
         echo 'local:maestro: building the debug APK (expo prebuild + gradle assembleDebug)' >&2
         (
-            cd "$LOCAL_MAESTRO_MOBILE_DIR" &&
+            local_maestro_export_build_env &&
+                cd "$LOCAL_MAESTRO_MOBILE_DIR" &&
                 CI=1 npx expo prebuild --platform android --no-install &&
                 cd android && ./gradlew :app:assembleDebug
         ) || {
@@ -458,9 +520,11 @@ local_maestro_install_app() {
     }
 
     local port
-    for port in "$LOCAL_MAESTRO_METRO_PORT" 3000 3001 3002; do
+    for port in "$LOCAL_MAESTRO_METRO_PORT" 3001 3002; do
         adb reverse "tcp:${port}" "tcp:${port}" >/dev/null || return 1
     done
+    # The device's :3000 is recipe, wherever the host publishes it.
+    adb reverse tcp:3000 "tcp:${LOCAL_MAESTRO_RECIPE_HOST_PORT}" >/dev/null || return 1
     # The app's committed `.env.development` names identity at :4000 (the spec's local table); the local sandbox
     # serves it at :3001 (its own `PORT` default).
     adb reverse tcp:4000 tcp:3001 >/dev/null || return 1
@@ -481,15 +545,44 @@ local_maestro_install_app() {
 
 local_maestro_seed_env() {
     local state="$1"
-    export E2E_SEED_RECIPE_URL="$LOCAL_MAESTRO_RECIPE_ORIGIN"
+    export E2E_SEED_RECIPE_URL="http://localhost:${LOCAL_MAESTRO_RECIPE_HOST_PORT}"
+    # ⛔ A local run signs in users of its own, never CI's: see `e2e-fixtures`' `PoolNamespace`.
+    export E2E_POOL_NAMESPACE=local
     export E2E_SEED_FOOD_URL="$LOCAL_MAESTRO_FOOD_ORIGIN"
     export E2E_SEED_IDENTITY_URL="$LOCAL_MAESTRO_IDENTITY_ORIGIN"
     export E2E_SEED_WEB_ORIGIN="$LOCAL_MAESTRO_WEB_ORIGIN"
     export E2E_SEED_STATE_DIR="$state"
     export COMMISE_E2E_SHARD=1
+    # The five read-only role users are CI's own, signed into and never written (the Clerk development instance is full); only
+    # the downgraded owner is local. See `E2E_ROLE_USERS_NAMESPACE` in testPool.ts.
+    if [ "${LOCAL_MAESTRO_ROLE_USERS:-}" = '1' ]; then
+        export E2E_ROLE_USERS_NAMESPACE=shared
+    fi
     # The Android emulator, stated rather than left to the seed tools' default (iOS has pool lanes of its own).
     export MAESTRO_PLATFORM=android
     export MAESTRO_FIXTURE_ENV_FILE="${state}/e2e-seed/fixture.env"
+}
+
+# Make this lane's users, which exist only for a local run: signer, co-author and the erasure subjects. The subjects are
+# RECYCLED (deleted and made again) because the local stack runs no identity deletion worker, so an erased one would
+# otherwise still stand in Clerk. `external_id` is written here too, since the sandbox webhook that writes it for the
+# shared pool is down when the sandbox is. Only Clerk is touched, and only users named `test-local-*`.
+#
+# ⛔ `LOCAL_MAESTRO_REUSE_USERS=1` SKIPS the step. `--recycle` DELETES the erasure subject in Clerk and makes it again, and a
+# run that must neither create nor delete a Clerk user (the development instance is full) reuses the ones standing.
+# `LOCAL_MAESTRO_ROLE_USERS=1` serves the role users `recipes/paidFeaturesByRole` and `recipes/makePublicConfirm` sign in as:
+# the five read-only ones REUSE CI's shared users (nothing created), and only the downgraded owner is made locally, by
+# `poolAdmin --local-roles`, which refuses before its first write when the instance has no room. OFF by default.
+local_maestro_provision_lane_users() {
+    if [ "${LOCAL_MAESTRO_REUSE_USERS:-}" = '1' ]; then
+        echo 'local:maestro: LOCAL_MAESTRO_REUSE_USERS=1 - reusing the standing Clerk users, creating and deleting none' >&2
+    else
+        npx tsx packages/tools/e2e-fixtures/src/poolAdmin.ts --apply --recycle --maestro-lane --platform android --shard 1 || return 1
+    fi
+
+    if [ "${LOCAL_MAESTRO_ROLE_USERS:-}" = '1' ]; then
+        npx tsx packages/tools/e2e-fixtures/src/poolAdmin.ts --apply --local-roles || return 1
+    fi
 }
 
 local_maestro_reset_pool() {
@@ -546,12 +639,24 @@ local_maestro_main() {
     local_maestro_start_metro "$state" || return 1
     local_maestro_install_app "$state" || return 1
 
-    echo 'local:maestro: resetting the pool slots and seeding the world (e2e-seed)' >&2
+    echo 'local:maestro: making the local pool users, resetting their slots and seeding the world (e2e-seed)' >&2
+    local_maestro_provision_lane_users || {
+        local_maestro_fail 'the local pool users could not be made'
+        return 1
+    }
     local_maestro_reset_pool || return 1
     local_maestro_align_identities || {
         local_maestro_fail 'the local identity database could not be aligned with the Clerk external_ids'
         return 1
     }
+    if [ "${LOCAL_MAESTRO_ROLE_USERS:-}" = '1' ]; then
+        # The downgraded owner owns a private recipe and collection yet holds no entitled role; this builds that world
+        # against the LOCAL recipe service and leaves the owner settled.
+        npm run ensure-downgraded --workspace=packages/tools/e2e-seed >&2 || {
+            local_maestro_fail 'the downgraded owner world could not be built'
+            return 1
+        }
+    fi
     mkdir -p -- "${state}/e2e-seed"
     if ! npx tsx packages/tools/e2e-seed/src/provision.ts >"$MAESTRO_FIXTURE_ENV_FILE"; then
         local_maestro_fail 'e2e-seed provision failed — the local services did not accept the seeded world'
@@ -569,6 +674,11 @@ local_maestro_main() {
         echo "local:maestro: PASSED — $(printf '%s ' $flows)" >&2
     else
         echo "local:maestro: FAILED — see the FLOW FAILED lines above" >&2
+    fi
+    # Repeated in the summary: a green local run must not read as covering what it could not run.
+    if [ "$command" = 'all' ]; then
+        # shellcheck disable=SC2046
+        maestro_local_summary $(maestro_sandbox_only_flows | cut -d'|' -f1) >&2
     fi
     return "$rc"
 }

@@ -29,8 +29,16 @@ import {
     UnauthorizedException,
     type NestMiddleware,
 } from '@nestjs/common';
-import { resolveAzpEnforcement, verifyClerkToken } from '@kitchensink/clerk-verify';
+import {
+    ACCOUNT_SUSPENDED_CODE,
+    ACCOUNT_SUSPENDED_MESSAGE,
+    isClerkAccountSuspendedError,
+    resolveAzpEnforcement,
+    verifyClerkToken,
+} from '@kitchensink/clerk-verify';
 import type { NextFunction, Response } from 'express';
+
+import { apiError } from '../common/apiError.js';
 
 import { isDeployedStage, settingFromEnv } from '../config/env.schema.js';
 import { AuthLoadShedder, type AuthLoadShedderOptions } from './AuthLoadShedder.js';
@@ -152,8 +160,22 @@ export class FoodAuthGuard implements NestMiddleware {
         let claims;
 
         try {
-            claims = await verifyClerkToken(bearer, { jwtKey: this.jwtKey, ...this.azp });
-        } catch {
+            claims = await verifyClerkToken(
+                bearer,
+                { jwtKey: this.jwtKey, ...this.azp },
+                {
+                    method: req.method,
+                    path: req.originalUrl,
+                },
+            );
+        } catch (error) {
+            // ADR-0081: a genuine token for a SUSPENDED account is refused by the shared verifier. It is a 403, not an
+            // authentication failure, so it is NOT fed to the 401-rate cap below. Food exempts no route (its erasure
+            // is service-to-service), so every route answers it.
+            if (isClerkAccountSuspendedError(error)) {
+                throw apiError(ACCOUNT_SUSPENDED_CODE, ACCOUNT_SUSPENDED_MESSAGE);
+            }
+
             // Any failure (bad signature, expiry, wrong azp, missing key) → opaque 401 (never the reason).
             // Feed the per-source 401-rate cap so a sustained flood from this source starts shedding.
             this.shedder.recordFailure(sourceKey);

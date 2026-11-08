@@ -87,11 +87,17 @@ describe('planIdentityAlignment', () => {
 
 /** In-memory fakes for the two boundaries: Clerk's user lookup and the local identity table. */
 function fakePorts(
-    clerk: Readonly<Record<string, readonly { id: string; externalId: string | null; testPrincipal?: boolean }[]>>,
+    clerk: Readonly<
+        Record<
+            string,
+            readonly { id: string; externalId: string | null; testPrincipal?: boolean; username?: string | null }[]
+        >
+    >,
     initial: readonly IdentityRow[],
 ) {
     let rows = [...initial];
     const provisioned: { identityId: string; externalId: string; email: string }[] = [];
+    const usernames: { userId: string; username: string }[] = [];
 
     const ports: AlignmentPorts = {
         findUsers: (email) =>
@@ -100,12 +106,18 @@ function fakePorts(
                     id: user.id,
                     externalId: user.externalId,
                     publicMetadata: { testPrincipal: user.testPrincipal ?? true },
+                    username: user.username ?? null,
                 })),
             ),
         rowsFor: (identityId, externalId) =>
             Promise.resolve(rows.filter((r) => r.identityId === identityId || r.id === externalId)),
         removeRow: (identityId) => {
             rows = rows.filter((r) => r.identityId !== identityId);
+
+            return Promise.resolve();
+        },
+        syncUsername: (userId, username) => {
+            usernames.push({ userId, username });
 
             return Promise.resolve();
         },
@@ -117,7 +129,7 @@ function fakePorts(
         },
     };
 
-    return { ports, provisioned, rows: () => rows };
+    return { ports, provisioned, usernames, rows: () => rows };
 }
 
 const signer: PoolSlot = slotFor('maestro', 'signer');
@@ -171,5 +183,57 @@ describe('alignPoolIdentities', () => {
         const ports: AlignmentPorts = { ...fake.ports, provision: () => Promise.resolve(STALE) };
 
         await expect(alignPoolIdentities([signer], ports)).rejects.toThrow(STALE);
+    });
+});
+
+/**
+ * ⛔ Regression, found by the last full local Maestro run: `profileUsername` failed because the local identity profile
+ * carried no username. On the deployed tiers the Clerk webhook (`user.created` / `user.updated`) writes it; no webhook
+ * runs locally, and read-through creation never fills it. Alignment is the one step that already holds both the Clerk
+ * user and the local row, so it states the username Clerk holds, for EVERY slot - an `aligned` row (the signer and
+ * co-author are never recycled) is the common case, and provisioning alone would leave it empty.
+ */
+describe('alignPoolIdentities - the Clerk username', () => {
+    it('syncs the username of a row that is already aligned', async () => {
+        const fake = fakePorts({ [signer.email]: [{ id: SUB, externalId: EXTERNAL, username: 'test_signer' }] }, [
+            row(),
+        ]);
+
+        await alignPoolIdentities([signer], fake.ports);
+
+        expect(fake.usernames).toStrictEqual([{ userId: EXTERNAL, username: 'test_signer' }]);
+    });
+
+    it('syncs it for a provisioned and a replaced row too, keyed by the external_id the row now has', async () => {
+        const fake = fakePorts(
+            {
+                [signer.email]: [{ id: SUB, externalId: EXTERNAL, username: 'test_signer' }],
+                [coAuthor.email]: [{ id: 'user_coauthor', externalId: '01COAUTHOR0000000000000000', username: 'co' }],
+            },
+            [row({ id: STALE })],
+        );
+
+        await alignPoolIdentities([signer, coAuthor], fake.ports);
+
+        expect(fake.usernames).toStrictEqual([
+            { userId: EXTERNAL, username: 'test_signer' },
+            { userId: '01COAUTHOR0000000000000000', username: 'co' },
+        ]);
+    });
+
+    it('states nothing for a Clerk user with no username - absence is not a clear', async () => {
+        const fake = fakePorts({ [signer.email]: [{ id: SUB, externalId: EXTERNAL, username: null }] }, [row()]);
+
+        await alignPoolIdentities([signer], fake.ports);
+
+        expect(fake.usernames).toStrictEqual([]);
+    });
+
+    it('states nothing for an absent slot', async () => {
+        const fake = fakePorts({}, []);
+
+        await alignPoolIdentities([signer], fake.ports);
+
+        expect(fake.usernames).toStrictEqual([]);
     });
 });

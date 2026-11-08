@@ -3,6 +3,7 @@ import { expect, test } from '@playwright/test';
 import { route } from './utils/basePath';
 import { makeRecipeDetail, mockRecipeApi, readViewerAppId } from './utils/recipeApi';
 import { signInWithTicket } from './utils/auth';
+import { NUTRITION_REGION, openNutritionRow } from './utils/nutritionRow';
 
 /**
  * The recipe detail discloses STALE nutrition, end to end through the real web UI (KTD-3b — serve stale, MARKED).
@@ -20,9 +21,6 @@ import { signInWithTicket } from './utils/auth';
 
 /** The localized disclosure, verbatim — a paraphrase in the UI must fail this spec. */
 const STALE_NOTICE = 'These figures include saved food data, so they may be out of date.';
-
-/** The nutrition section's accessible name. */
-const NUTRITION_REGION = 'Nutrition (per serving)';
 
 test.describe('recipe-detail nutrition freshness', () => {
     test('a detail whose nutrition was served from saved food data SAYS so, inside the nutrition region', async ({
@@ -53,7 +51,7 @@ test.describe('recipe-detail nutrition freshness', () => {
         await page.goto(route('/recipes/ec000000-0000-4000-8000-000000000032'));
         await expect(page.getByRole('heading', { level: 1, name: 'Saved-Data Stew' })).toBeVisible();
 
-        const nutrition = page.getByRole('region', { name: NUTRITION_REGION });
+        const nutrition = await openNutritionRow(page);
         await expect(nutrition.getByText('480', { exact: true })).toBeVisible();
         await expect(nutrition.getByText(STALE_NOTICE, { exact: true })).toBeVisible();
     });
@@ -76,7 +74,7 @@ test.describe('recipe-detail nutrition freshness', () => {
         await page.goto(route('/recipes/ec000000-0000-4000-8000-00000000000d'));
         await expect(page.getByRole('heading', { level: 1, name: 'Fresh-Data Stew' })).toBeVisible();
 
-        const nutrition = page.getByRole('region', { name: NUTRITION_REGION });
+        const nutrition = await openNutritionRow(page);
         await expect(nutrition.getByText('420', { exact: true })).toBeVisible();
         await expect(page.getByText(STALE_NOTICE)).toHaveCount(0);
     });
@@ -87,7 +85,7 @@ test.describe('recipe-detail nutrition freshness', () => {
  * line, never four zeros; and the figures a reader sees are whole, grouped numbers.
  */
 test.describe('recipe-detail nutrition states', () => {
-    test('a title-only draft shows four dashes and one line — never zeros', async ({ page }) => {
+    test('a title-only draft shows “Not counted yet”, no figures and one line — never zeros', async ({ page }) => {
         await signInWithTicket(page);
         const viewerId = await readViewerAppId(page);
         await mockRecipeApi(page, {
@@ -108,8 +106,11 @@ test.describe('recipe-detail nutrition states', () => {
         await page.goto(route('/recipes/ec000000-0000-4000-8000-000000000033'));
         await expect(page.getByRole('heading', { level: 1, name: 'Title-Only Draft' })).toBeVisible();
 
-        const nutrition = page.getByRole('region', { name: NUTRITION_REGION });
-        await expect(nutrition.getByText('—', { exact: true })).toHaveCount(4);
+        // REWRITTEN with the collapsed row (`buildLists.md` item 12): its summary reads "Not counted yet", and opened it
+        // leaves the figures out instead of drawing four dashes, with the one line saying why.
+        await expect(page.getByRole('region', { name: NUTRITION_REGION }).getByText('Not counted yet')).toBeVisible();
+        const nutrition = await openNutritionRow(page);
+        await expect(nutrition.getByText('—', { exact: true })).toHaveCount(0);
         await expect(nutrition.getByText('0', { exact: true })).toHaveCount(0);
         await expect(nutrition.getByText('Not counted yet: no ingredient has a food.')).toHaveCount(1);
     });
@@ -139,9 +140,56 @@ test.describe('recipe-detail nutrition states', () => {
 
         await page.goto(route('/recipes/ec000000-0000-4000-8000-000000000034'));
 
-        const nutrition = page.getByRole('region', { name: NUTRITION_REGION });
+        const nutrition = await openNutritionRow(page);
         await expect(nutrition.getByText('1,291', { exact: true })).toBeVisible();
         await expect(nutrition.getByText('1,287 g', { exact: true })).toBeVisible();
         await expect(nutrition.getByText('12 g', { exact: true })).toBeVisible();
+    });
+});
+
+/**
+ * The row itself, as `RecipeDetailWeb1024` and the native app draw it: COLLAPSED on arrival, reading "Nutrition" and
+ * "{n} cal per serving", full width before the two columns, and opened and closed by the keyboard.
+ */
+test.describe('recipe-detail nutrition row', () => {
+    test.use({ viewport: { width: 1280, height: 900 } });
+
+    const RECIPE = 'ec000000-0000-4000-8000-000000000035';
+
+    test('arrives collapsed, sits before the columns at full width, and opens from the keyboard', async ({ page }) => {
+        await signInWithTicket(page);
+        const viewerId = await readViewerAppId(page);
+        await mockRecipeApi(page, {
+            viewerId,
+            paidFeatures: 'granted',
+            recipes: [makeRecipeDetail({ id: RECIPE, ownerId: viewerId, title: 'Row Stew' })],
+        });
+
+        await page.goto(route(`/recipes/${RECIPE}`));
+        await expect(page.getByRole('heading', { level: 1, name: 'Row Stew' })).toBeVisible();
+
+        const region = page.getByRole('region', { name: NUTRITION_REGION });
+        const row = region.getByRole('button', { name: /^Nutrition/u });
+
+        await expect(row).toHaveAttribute('aria-expanded', 'false');
+        await expect(region.getByText('420 cal per serving')).toBeVisible();
+        await expect(region.getByText('Protein')).toHaveCount(0);
+
+        // Before the columns and as wide as the article, not a column of its own.
+        const regionBox = await region.boundingBox();
+        const ingredientsBox = await page.getByRole('region', { name: 'Ingredients' }).boundingBox();
+        const articleBox = await page.getByRole('article', { name: 'Row Stew' }).boundingBox();
+
+        expect(regionBox?.y ?? Number.POSITIVE_INFINITY).toBeLessThan(ingredientsBox?.y ?? Number.NEGATIVE_INFINITY);
+        expect(regionBox?.width ?? 0).toBeGreaterThanOrEqual((articleBox?.width ?? Number.POSITIVE_INFINITY) - 1);
+
+        await row.focus();
+        await page.keyboard.press('Enter');
+        await expect(row).toHaveAttribute('aria-expanded', 'true');
+        await expect(region.getByText('Protein')).toBeVisible();
+
+        await page.keyboard.press('Space');
+        await expect(row).toHaveAttribute('aria-expanded', 'false');
+        await expect(region.getByText('Protein')).toHaveCount(0);
     });
 });

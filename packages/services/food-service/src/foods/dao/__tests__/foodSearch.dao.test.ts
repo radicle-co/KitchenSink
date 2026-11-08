@@ -348,7 +348,8 @@ describe('FoodSearchDao.search — the statement it actually executes', () => {
             expect(score).toContain('CASE');
             expect(score).toContain('food.rank_folded');
             expect(score).toContain('food.rank_tokens');
-            expect(score).toContain('ELSE 0');
+            // Rewritten (code-quality review G1): the base ordinal is bound now, not rendered raw.
+            expect(score).toMatch(/ELSE \$\d+::int END/);
             // ⛔ And it does NO per-row text processing: the fold and the tokenizer are two STORED generated
             // columns (migration 0008), because computing them per row measured 253–357ms at 50,000 rows
             // against SC-007's 200ms budget. Inlining them back would pass every ordering test here.
@@ -457,7 +458,8 @@ describe('the statement ranks by text match alone', () => {
     it('reads `food` and nothing else: no join can carry a popularity weight into the score', async () => {
         const statement = await soleStatementFor('flour');
 
-        expect(statement.text).toMatch(/AS score\s+FROM food\s+WHERE status = 'RESOLVED'/);
+        // Rewritten (ADR-0070): the rung is selected beside the score, from the same text-only `CASE`.
+        expect(statement.text).toMatch(/AS rung_ordinal\s+FROM food\s+WHERE status = 'RESOLVED'/);
         expect(statement.text).not.toMatch(/JOIN/);
     });
 });
@@ -519,7 +521,7 @@ describe('FoodSearchDao.searchCatalog / searchAuthored — the split statements 
 
     it('⛔ takes the query and nothing else: no caller can reach the catalog statement', () => {
         expectTypeOf<Parameters<FoodSearchDao['searchCatalog']>>().toEqualTypeOf<[string]>();
-        expectTypeOf<keyof CatalogSearchHit>().toEqualTypeOf<'id' | 'name' | 'aliases' | 'score'>();
+        expectTypeOf<keyof CatalogSearchHit>().toEqualTypeOf<'id' | 'name' | 'aliases' | 'score' | 'rung'>();
     });
 
     it('⛔ reads catalog rows only: `user_id IS NULL`, live, RESOLVED — and no author branch', async () => {
@@ -576,12 +578,32 @@ describe('FoodSearchDao.searchCatalog / searchAuthored — the split statements 
     it('returns a catalog hit without the author or visibility columns it never needs', async () => {
         const execute = (): Promise<unknown> =>
             Promise.resolve({
-                rows: [{ id: 'f1', name: 'egg', aliases: null, score: '0.5', user_id: null, visibility: 'public' }],
+                rows: [
+                    {
+                        id: 'f1',
+                        name: 'egg',
+                        aliases: null,
+                        score: '0.5',
+                        rung_ordinal: '2',
+                        user_id: null,
+                        visibility: 'public',
+                    },
+                ],
             });
         const dao = new FoodSearchDao({ execute } as unknown as FoodDrizzle);
 
         await expect(dao.searchCatalog('egg')).resolves.toStrictEqual([
-            { id: 'f1', name: 'egg', aliases: null, score: 0.5 },
+            { id: 'f1', name: 'egg', aliases: null, score: 0.5, rung: 'head' },
         ]);
+    });
+
+    it('⛔ throws on a rung ordinal the ladder does not have, rather than publishing a guess (ADR-0070)', async () => {
+        const execute = (): Promise<unknown> =>
+            Promise.resolve({
+                rows: [{ id: 'f1', name: 'egg', aliases: null, score: '0.5', rung_ordinal: '9', user_id: null }],
+            });
+        const dao = new FoodSearchDao({ execute } as unknown as FoodDrizzle);
+
+        await expect(dao.searchCatalog('egg')).rejects.toThrow('rung ordinal 9');
     });
 });

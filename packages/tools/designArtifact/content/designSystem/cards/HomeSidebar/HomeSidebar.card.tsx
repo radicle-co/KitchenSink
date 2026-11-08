@@ -34,7 +34,7 @@ const CHROME = {
 };
 
 const RAIL = {
-    border: '1px solid var(--line-divider, var(--line))',
+    border: '1px solid var(--line-divider)',
     borderRadius: 12,
     overflow: 'hidden',
     height: 600,

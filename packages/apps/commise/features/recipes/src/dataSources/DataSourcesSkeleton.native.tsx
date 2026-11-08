@@ -28,7 +28,7 @@ export const DataSourcesSkeleton: FC = () => {
 
     return (
         <View style={styles.column}>
-            <LiveRegion politeness="polite" style={[styles.caption, { color: colors.inkMuted }]}>
+            <LiveRegion politeness="polite" typeRole="meta" tone="inkMuted">
                 {messages.loading}
             </LiveRegion>
             <View aria-hidden style={styles.column}>
@@ -42,7 +42,6 @@ export const DataSourcesSkeleton: FC = () => {
 
 const styles = StyleSheet.create({
     column: { gap: nativeTokens.spacing[3] },
-    caption: { fontSize: nativeTokens.fontSize.caption },
     // About as tall as a five-line card, so the sheet does not jump when the list lands.
     placeholder: { height: 160, borderRadius: nativeTokens.radius.lg },
 });

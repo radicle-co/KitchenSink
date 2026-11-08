@@ -2,7 +2,7 @@
  * No mobile screen may paint an OPAQUE canvas of its own — doing so hides the root beach-glow gradient.
  *
  * The gradient fix (issue #145) works only if the root `AppCanvas` is actually visible: a screen whose
- * outermost container still sets `backgroundColor: palette.sand` covers the ramp completely and renders the
+ * outermost container still sets `backgroundColor: palette.fog` covers the ramp completely and renders the
  * flat page the wireframes never had. That failure is invisible to a rendering test — the gradient IS in the
  * tree, just occluded — and jsdom has no compositor to catch it, so the invariant is asserted against the
  * SOURCES instead.
@@ -23,7 +23,7 @@ import { describe, expect, it } from 'vitest';
 const SCREEN_DIRS = ['src/screens', 'src/components/home'] as const;
 
 /** The opaque page-background fills that must never dress a screen-level container again. */
-const OPAQUE_CANVAS_FILLS = ['palette.sand', 'palette.pearl', 'palette.white'] as const;
+const OPAQUE_CANVAS_FILLS = ['palette.fog', 'palette.pearl', 'palette.cloud'] as const;
 
 /**
  * Every `.tsx` source directly under the given directories, as `[relativePath, contents]`.

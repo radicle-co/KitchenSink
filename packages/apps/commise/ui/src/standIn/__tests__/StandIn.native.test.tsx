@@ -2,10 +2,12 @@
  * The stand-in chip (native). React Native's nested `Text` takes no border or padding, so the chip is a `View`
  * holding a `Text`; the words are still the content (`docs/design/namelessLineCopy.md` §2c).
  */
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
 import { formatRgb } from 'culori';
 import { afterEach, describe, expect, it } from 'vitest';
 
+import { ARIA_HIDDEN_CONTENT, renderWithTamagui, resolvedColour } from '../../testing/tamaguiTesting.native.js';
+import { nativeTokens } from '../../tokens/native.js';
 import { palette } from '../../tokens/colors.js';
 import { StandIn } from '../StandIn.native.js';
 
@@ -13,18 +15,30 @@ afterEach(cleanup);
 
 describe('StandIn (native)', () => {
     it('renders its words as text a screen reader reads, with no hiding', () => {
-        const { container } = render(<StandIn tone="neutral">Private ingredient</StandIn>);
+        const { container } = renderWithTamagui(<StandIn tone="neutral">Private ingredient</StandIn>, 'light');
 
         expect(screen.getByText('Private ingredient')).toBeTruthy();
-        expect(container.querySelector('[aria-hidden="true"]')).toBeNull();
+        expect(container.querySelector(ARIA_HIDDEN_CONTENT)).toBeNull();
+    });
+
+    // ADR-0080 §8, designer ruling 2026-11-01: body-sized text grows to 2× and no further. The label is the design
+    // system's Text, which draws its own size from the capped scale; a raw React Native Text grew past it on iOS.
+    it('⛔ draws its label at 2× its base size at a system text scale of 3.1, not 3.1×', () => {
+        renderWithTamagui(<StandIn tone="neutral">Private ingredient</StandIn>, 'light', 3.1);
+
+        const label = getComputedStyle(screen.getByText('Private ingredient'));
+
+        expect(label.fontSize).toBe(`${String(nativeTokens.type.caption.fontSize * 2)}px`);
+        expect(label.lineHeight).toBe(`${String(nativeTokens.type.caption.lineHeight * 2)}px`);
     });
 
     it('draws a dashed outline in the tone’s colour', () => {
-        render(
+        renderWithTamagui(
             <>
                 <StandIn tone="neutral">Private ingredient</StandIn>
                 <StandIn tone="caution">Removed food</StandIn>
             </>,
+            'light',
         );
 
         const neutralChip = getComputedStyle(chipOf('Private ingredient'));
@@ -35,8 +49,8 @@ describe('StandIn (native)', () => {
         expect(neutralChip.borderTopColor).toBe(formatRgb(palette.slate));
         expect(cautionChip.borderTopColor).toBe(formatRgb(palette['warning-dark']));
         // ⛔ `warning` is a fill, never a text colour: the caution label is charcoal.
-        expect(getComputedStyle(screen.getByText('Removed food')).color).toBe(formatRgb(palette.charcoal));
-        expect(getComputedStyle(screen.getByText('Private ingredient')).color).toBe(formatRgb(palette.slate));
+        expect(resolvedColour(screen.getByText('Removed food'), 'color')).toBe(formatRgb(palette.charcoal));
+        expect(resolvedColour(screen.getByText('Private ingredient'), 'color')).toBe(formatRgb(palette.slate));
     });
 });
 

@@ -401,12 +401,13 @@ describe('FoodsService.search — the FR-010a minimum (plan U37)', () => {
  * private by the route that served them (property 6). Both keep the FR-010a minimum: no read below it.
  */
 describe('FoodsService.searchCatalog / searchAuthored (plan 002 S3)', () => {
-    const CATALOG_HIT = { id: 'F-cat', name: 'chicken breast', aliases: null, score: 0.8 };
+    const CATALOG_HIT = { id: 'F-cat', name: 'chicken breast', aliases: null, score: 0.8, rung: 'head' as const };
     const AUTHORED_HIT = {
         id: 'F-mine',
         name: 'my chicken breast',
         aliases: null,
         score: 0.7,
+        rung: 'covered' as const,
         userId: CALLER,
         visibility: 'private',
     };
@@ -473,7 +474,25 @@ describe('FoodsService.searchCatalog / searchAuthored (plan 002 S3)', () => {
 
         expect(searchDao.searchCatalog).toHaveBeenCalledWith('chicken breast');
         expect(searchDao.search).not.toHaveBeenCalled();
-        expect(response).toStrictEqual({ results: [{ id: 'F-cat', name: 'chicken breast', score: 0.8 }] });
+        // Rewritten (code-quality review W2): a catalog hit publishes no rung; only a default hit says so.
+        expect(response).toStrictEqual({
+            results: [{ id: 'F-cat', name: 'chicken breast', score: 0.8 }],
+        });
+    });
+
+    it('flags the hit ranked on the default rung, and only that hit (ADR-0070 §4)', async () => {
+        const { service, searchDao } = makeSplitService();
+        searchDao.searchCatalog.mockResolvedValue([
+            { ...CATALOG_HIT, id: 'F-whole', name: 'whole milk', rung: 'default' },
+            { ...CATALOG_HIT, id: 'F-1pct', name: '1% milk', rung: 'head' },
+        ]);
+
+        const { results } = await service.searchCatalog('milk');
+
+        expect(results).toStrictEqual([
+            { id: 'F-whole', name: 'whole milk', score: 0.8, isDefault: true },
+            { id: 'F-1pct', name: '1% milk', score: 0.8 },
+        ]);
     });
 
     it('unshifts the barcode crosswalk hit at score 1, from one read that names it', async () => {
@@ -483,9 +502,38 @@ describe('FoodsService.searchCatalog / searchAuthored (plan 002 S3)', () => {
 
         const { results } = await service.searchCatalog('0012000161155');
 
+        // The crosswalk hit matched an IDENTIFIER, not a name, so it is never the default (ADR-0070).
         expect(results).toStrictEqual([
             { id: 'F-bar', name: 'cereal bar', score: 1 },
             { id: 'F-cat', name: 'chicken breast', score: 0.8 },
+        ]);
+    });
+
+    it('says what each per-caller hit matched: a name with its rung, or an identifier with none', async () => {
+        const { service, searchDao, sources } = makeSplitService();
+        searchDao.search.mockResolvedValue([{ ...CATALOG_HIT, userId: null, visibility: 'public' }]);
+        sources.findCatalogFoodByBarcode.mockResolvedValue({ id: 'F-bar', name: 'cereal bar' });
+
+        const { results } = await service.search('0012000161155', CALLER);
+
+        expect(results).toStrictEqual([
+            { id: 'F-bar', name: 'cereal bar', score: 1, matchedBy: 'identifier' },
+            { id: 'F-cat', name: 'chicken breast', score: 0.8, rung: 'head', matchedBy: 'name' },
+        ]);
+    });
+
+    it('publishes each per-caller hit with the rung it was ranked on (ADR-0070)', async () => {
+        const { service, searchDao } = makeSplitService();
+        searchDao.search.mockResolvedValue([
+            { ...CATALOG_HIT, rung: 'synonym', userId: null, visibility: 'public' },
+            { ...AUTHORED_HIT, id: 'F-mine-2' },
+        ]);
+
+        const { results } = await service.search('chicken breast', CALLER);
+
+        expect(results.map((hit) => [hit.id, hit.rung])).toEqual([
+            ['F-cat', 'synonym'],
+            ['F-mine-2', 'covered'],
         ]);
     });
 

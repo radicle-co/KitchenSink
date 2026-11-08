@@ -8,7 +8,7 @@
 import type { LocalizedMessages } from '@commise/i18n';
 import type { RecipeMealType } from '@kitchensink/recipe-core';
 
-import type { PluralText } from '../editor/messages.js';
+import type { PluralText } from '../format/plural.js';
 
 /** Shared copy for the recipe create/edit form, rendered by both the web and native form leaves. */
 export interface RecipeFormMessages {
@@ -372,6 +372,14 @@ export interface RecipeFormMessages {
     readonly ingredientSuggestionsMoreHeading: string;
     /** The `name` pick (contains `{query}`; item 1). */
     readonly ingredientEntryFindByName: string;
+    /**
+     * The quiet tag after a food the field SUGGESTS from an answer it remembers (a cook's earlier correction, a staff
+     * ruling), drawn as the option's `tag` (designer answer N2: "Suggested"). A suggestion is only offered: it is never
+     * the active option when the list opens, and nothing is chosen until the cook picks it.
+     */
+    readonly ingredientSuggestedTag: string;
+    /** A Suggested option's accessible name (contains `{name}`): the food, then the tag's word (WCAG 2.5.3). */
+    readonly ingredientSuggestedName: string;
     /** The `declared` pick (contains `{query}`; item 1). */
     readonly ingredientEntryUseAsWritten: string;
     /** A pick on a row that names no food failed (contains `{query}`; item 1). Assertive. */
@@ -441,8 +449,8 @@ export interface RecipeFormMessages {
      */
     readonly errorPromptEntryMode: string;
     /**
-     * A nameless row 12's panel (contains `{changeFoodLabel}`, `statusActionChangeFood`;
-     * `docs/design/namelessLineCopy.md` §6c).
+     * A nameless row 12's panel (`docs/design/namelessLineCopy.md` §6c). It names no action: the panel's one primary
+     * action is its own button (bug sweep #11, spec row 24).
      */
     readonly statusExplainFoodRemovedUnnamed: string;
 
@@ -543,6 +551,63 @@ export interface RecipeFormMessages {
     /** Accessible label for the private-visibility toggle. */
     readonly visibilityLabel: string;
 
+    /**
+     * The "Add an ingredient" picker's default food (`docs/design/uiRefreshWorkshop5/redesignCanvas/ingredientMatching.md`,
+     * owner rulings 2026-10-25): the server lists it first, and the list only tags it. Nothing is ever picked for the
+     * cook. The tag's word and the tagged option's name are the matched line's (`ingredientMatching/messages.ts`
+     * `defaultTag`, `defaultOptionName`), so the picker and the matching lists say one word.
+     */
+    readonly foodSearch: {
+        /** Under the list while it shows a default. */
+        readonly defaultHint: string;
+    };
+
+    /**
+     * What the editor's paste flow says AROUND its matched lines (`ingredientMatching.md`, RecipeEditorPasteChoose and
+     * RecipeEditorPasteChooseStates): the summary, the side pane and the notices. A line's own words are the neutral
+     * matched-line copy (`ingredientMatching/messages.ts`), which bulk import reads too. Where the spec names a key
+     * without its words, the words are the signed-off board's.
+     */
+    readonly pasteMatch: {
+        readonly summary: {
+            readonly added: PluralText;
+            /**
+             * The count line's parts, in the owner's order (matched, to choose, being checked; commit 7b62777fc); a part
+             * whose count is 0 is left out. "To choose" counts only default, needsChoice and noMatch lines.
+             */
+            readonly matched: PluralText;
+            readonly choose: PluralText;
+            readonly checking: PluralText;
+            /** Joins the count line's parts: a no-break space, so a dot never starts a line, then a middle dot. */
+            readonly separator: string;
+            /** The counts as a sentence, before the rule in the same paragraph (contains `{counts}`). */
+            readonly countsSentence: string;
+            readonly rule: string;
+        };
+        /** The side pane at 1194 and on web. */
+        readonly pane: {
+            /** The web `aside`'s name. Native draws no name: its heading names it (`nativeContainerNames.md` N1). */
+            readonly label: string;
+            /** The shown line's place among ALL the recipe's lines (contains `{n}`, `{total}`; M4). */
+            readonly position: string;
+            readonly previous: string;
+            readonly next: string;
+        };
+        readonly offline: {
+            /** Keyed by where the draft is kept (D7), as `status.savedOnDevice` / `status.savedInTab` are. */
+            readonly bodyDevice: string;
+            readonly bodyTab: string;
+        };
+        /** 004 FR-022's daily limit; `{time}` is when it resets. */
+        readonly quota: { readonly body: string };
+        /**
+         * `import.paste.noAiCheck` (owner design 2026-10-26, board ImportPasteNoAiCheck): the month's AI check is used up
+         * and these foods were matched without it; `{date}` is the day it comes back, as a day and month in the cook's
+         * locale.
+         */
+        readonly noAiCheck: { readonly body: string };
+    };
+
     /** Localized copy for each `RecipeFormErrorCode` validation error (B20). */
     readonly errors: {
         readonly titleRequired: string;
@@ -616,7 +681,7 @@ export const recipeFormMessages: LocalizedMessages<RecipeFormMessages> = {
             kindOfDish: 'Kind of dish',
             dietAndTags: 'Diet and tags',
         },
-        premiumBadge: 'Premium',
+        premiumBadge: 'Pro',
         pasteStepsClose: 'Close paste steps',
         totalTimeLabel: 'Total time',
         durationMinutes: '{minutes} min',
@@ -652,7 +717,7 @@ export const recipeFormMessages: LocalizedMessages<RecipeFormMessages> = {
         pasteProgressQueued: 'Waiting to read line {line}',
         pasteProgressLookingUp: 'Looking up line {line}',
         pasteRetryAllLabel: { one: 'Try again for {count} line', other: 'Try again for {count} lines' },
-        pasteRetryFailed: 'Couldn’t try again. Check your connection and try again, or add the lines as written.',
+        pasteRetryFailed: 'Couldn’t try again. Check your connection, or add the lines as written.',
         pasteAddRestAsWritten: 'Add the rest as written',
         pasteAddRestAsWrittenLabel: {
             one: 'Add the rest as written: {count} line',
@@ -723,6 +788,8 @@ export const recipeFormMessages: LocalizedMessages<RecipeFormMessages> = {
         createOwnFoodOptionName: 'Create my own food, opens a form',
         ingredientSuggestionsMoreHeading: 'Not listed?',
         ingredientEntryFindByName: 'Find nutrition for “{query}”',
+        ingredientSuggestedTag: 'Suggested',
+        ingredientSuggestedName: '{name}, suggested',
         ingredientEntryUseAsWritten: 'Use “{query}” as written, without nutrition',
         ingredientEntryFindByNameFailed: 'We couldn’t add “{query}”. Try again, or use it as written.',
         ingredientAddedNeedsChoice:
@@ -758,7 +825,7 @@ export const recipeFormMessages: LocalizedMessages<RecipeFormMessages> = {
         errorPromptEntryMode:
             'Fix the name above if it’s not quite right — or, if you know the name is correct, use “{createLabel}”.',
         statusExplainFoodRemovedUnnamed:
-            'This food was removed from our food database, and its name went with it. Your amount is unchanged. Use “{changeFoodLabel}” to pick another.',
+            'This food was removed from our food database, and its name went with it. Your amount is unchanged.',
 
         nutritionNoneAvailable: 'No nutritional data available',
         nutritionWorking: 'We’re still looking this food up — figures will appear once it’s matched.',
@@ -772,7 +839,7 @@ export const recipeFormMessages: LocalizedMessages<RecipeFormMessages> = {
         nutritionUserStatedNote: 'These are the figures you entered for this line.',
         nutritionNoFiguresResolved: 'This food is matched, but no nutrition figures are published for it.',
         nutritionLoading: 'Loading nutrition…',
-        nutritionLoadFailed: 'We couldn’t load the nutrition just now. Try again.',
+        nutritionLoadFailed: 'We couldn’t load the nutrition just now.',
         statusActionRetry: 'Try again',
         statusActionRetryLookupLabel: 'Try again for {food}',
         statusLookupRetrying: 'Looking this up again…',
@@ -792,8 +859,7 @@ export const recipeFormMessages: LocalizedMessages<RecipeFormMessages> = {
         statusExplainNeedsReview:
             'This is matched to a food, but what you wrote and what we matched don’t quite agree.',
         statusExplainNotFound: 'We searched the food database and there’s no match for this.',
-        statusExplainFailed:
-            'We couldn’t reach the food database. Nothing is wrong with your ingredient — try again in a moment.',
+        statusExplainFailed: 'We couldn’t reach the food database. Nothing is wrong with your ingredient.',
         statusExplainFoodRemoved: 'Whoever added this food has since removed it. Your amount and name are unchanged.',
         statusExplainFoodUnreachable:
             'We couldn’t load this ingredient’s name and nutrition just now. It’s still linked to its food, and saving keeps that link.',
@@ -809,6 +875,40 @@ export const recipeFormMessages: LocalizedMessages<RecipeFormMessages> = {
         noSteps: 'No steps yet. Add your first step.',
 
         visibilityLabel: 'Private recipe',
+
+        foodSearch: {
+            defaultHint: '“Default” marks the food most cooks mean. Nothing is picked until you tap one.',
+        },
+
+        pasteMatch: {
+            summary: {
+                added: { one: 'Added {count} line', other: 'Added {count} lines' },
+                matched: { one: '{count} matched', other: '{count} matched' },
+                choose: { one: '{count} to choose', other: '{count} to choose' },
+                checking: { one: '{count} being checked', other: '{count} being checked' },
+                separator: '\u00A0· ',
+                countsSentence: '{counts}.',
+                rule: 'Matched lines are ready, and you can change them. Nothing else is chosen for you.',
+            },
+            pane: {
+                label: 'Choose a food',
+                position: 'Line {n} of {total}',
+                previous: 'Previous',
+                next: 'Next open line',
+            },
+            offline: {
+                bodyDevice:
+                    'You’re offline. Your choices are saved on this device. Search and the check start again when you’re back online.',
+                bodyTab:
+                    'You’re offline. Your choices are kept in this tab. Search and the check start again when you’re back online.',
+            },
+            quota: {
+                body: 'You’ve added a lot today. Matching starts again at {time}. These lines are kept as written, and you can choose foods for them then.',
+            },
+            noAiCheck: {
+                body: 'This month’s AI check is used up, so these foods were matched without it, your matches from before included. Confirm or change each one. The check comes back on {date}.',
+            },
+        },
 
         errors: {
             titleRequired: 'A title is required.',

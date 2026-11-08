@@ -1,6 +1,6 @@
 /**
  * @module @commise/ui/large-title-header — the native design-system {@link LargeTitleHeader} (see `props.ts`): the
- * H1 in `largeTitle`, sized by the screen's container class, under a transparent 44 pt row that holds the `action` at the
+ * H1 in `largeTitle`, sized by the screen's container class, under a transparent row the touch floor tall (44 pt; 48 dp on Android) that holds the `action` at the
  * end. Native shows it at every size, as iOS's large title and Material's collapsing bar do.
  *
  * ⛔ It draws NO Back control, though it keeps the `back` prop (web uses it for the 840+ eyebrow). On native Back is the
@@ -18,31 +18,37 @@
  * The H1's ref is `useScreenReaderFocusOnSignal`'s, sanctioned in the ref register: moving the screen-reader cursor has
  * no declarative form.
  *
+ * The header insets itself {@link SIDE_INSET} on both sides; the action, placed absolutely, carries the same inset.
+ *
  * Presentational: props → JSX.
  *
  * @pattern Visitor — an exhaustive switch over the `HeaderAction` union
  */
-import { useContext, type FC, type ReactNode } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { useContext, type ComponentRef, type FC, type ReactNode } from 'react';
+import { StyleSheet, View } from 'react-native';
 
-import { useContainerClass } from '../layout/useContainerClass.native.js';
+import { touchFloor } from '../layout/touchFloor.native.js';
 import { ScrollHostContext } from '../scrollHost/scrollHostContext.js';
 import { useScreenReaderFocusOnSignal } from '../screenReaderFocus/useScreenReaderFocusOnSignal.native.js';
-import { useTheme } from '../theme/useTheme.native.js';
+import { Text as DesignText } from '../text/Text.native.js';
 import { nativeTokens } from '../tokens/native.js';
 import type { HeaderAction, LargeTitleHeaderProps } from './props.js';
 
-/** The height of the row that holds the action, pt (§3.3). */
-const ROW_HEIGHT = 44;
+/**
+ * The header's own side inset, pt. The header owns it so a screen cannot forget it and leave the title on the screen
+ * edge (bug sweep, B11). A screen that wraps the header in its own side padding must not also keep that padding for the
+ * header, or the title moves in twice.
+ */
+const SIDE_INSET = nativeTokens.spacing[4];
 
 /** The action group, at the end of the row. */
-function actionOf(action: HeaderAction): ReactNode {
+function actionOf(action: HeaderAction, rowHeight: number): ReactNode {
     switch (action.kind) {
         case 'avatar':
-            return <View style={styles.action}>{action.avatar}</View>;
+            return <View style={[styles.action, { height: rowHeight }]}>{action.avatar}</View>;
         case 'controls':
             return (
-                <View style={[styles.action, styles.controls]}>
+                <View style={[styles.action, styles.controls, { height: rowHeight }]}>
                     {action.button}
                     {action.menu}
                 </View>
@@ -59,30 +65,30 @@ export const LargeTitleHeader: FC<LargeTitleHeaderProps> = ({
     segments,
     focusSignal = 0,
 }) => {
-    const { colors } = useTheme();
-    const containerClass = useContainerClass();
-    const heading = useScreenReaderFocusOnSignal<Text>(focusSignal);
+    const heading = useScreenReaderFocusOnSignal<ComponentRef<typeof DesignText>>(focusSignal);
     // Read without throwing: a header outside a host (a sheet, a test) simply reports nowhere.
     const host = useContext(ScrollHostContext);
     const hasRow = action !== undefined;
+    // The row is the touch floor tall (44 pt; 48 dp on Android), so an action's target is not cut to the row.
+    const rowHeight = touchFloor();
 
     return (
         <View style={styles.header}>
-            <View onLayout={host?.headingLayout} style={[styles.titleBlock, hasRow ? styles.underRow : null]}>
-                <Text
-                    ref={heading}
-                    accessibilityRole="header"
-                    style={[nativeTokens.type.largeTitle[containerClass], { color: colors.ink }]}
-                >
+            <View onLayout={host?.headingLayout} style={[styles.titleBlock, hasRow ? { paddingTop: rowHeight } : null]}>
+                {/* The design-system Text, so the title stops at 1.5x and wraps at word boundaries instead of drawing at
+                    about 3x and breaking inside its word (designer finding C-1, reviews/mergedUiIos1.md). */}
+                <DesignText ref={heading} role="heading" aria-level={1} typeRole="largeTitle" color="$ink">
                     {title}
-                </Text>
+                </DesignText>
                 {subtitle === undefined ? null : (
-                    <Text numberOfLines={1} style={[nativeTokens.type.meta, { color: colors.inkMuted }]}>
+                    // Wraps, never cut off: Home's date is a fact the cook reads, at every text size. The design-system
+                    // Text grows its leading with its size, so the wrapped lines never overlap on Android (ADR-0080 §8).
+                    <DesignText typeRole="meta" color="$inkMuted">
                         {subtitle}
-                    </Text>
+                    </DesignText>
                 )}
             </View>
-            {action === undefined ? null : actionOf(action)}
+            {action === undefined ? null : actionOf(action, rowHeight)}
             {afterTitle}
             {segments === undefined ? null : <View style={styles.segments}>{segments}</View>}
         </View>
@@ -90,14 +96,13 @@ export const LargeTitleHeader: FC<LargeTitleHeaderProps> = ({
 };
 
 const styles = StyleSheet.create({
-    header: { position: 'relative', paddingBottom: nativeTokens.spacing[2] },
+    header: { position: 'relative', paddingBottom: nativeTokens.spacing[2], paddingHorizontal: SIDE_INSET },
     titleBlock: { gap: nativeTokens.spacing[1] },
-    underRow: { paddingTop: ROW_HEIGHT },
     action: {
         position: 'absolute',
         top: 0,
-        end: 0,
-        height: ROW_HEIGHT,
+        // An absolute child is placed from the parent's edge, not its padding edge, so it carries the inset itself.
+        end: SIDE_INSET,
         alignItems: 'center',
         justifyContent: 'center',
         zIndex: 1,

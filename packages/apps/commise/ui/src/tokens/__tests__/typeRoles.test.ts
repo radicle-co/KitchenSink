@@ -7,7 +7,7 @@
  * `web/tests/__integration__/tailwindTheme.integration.test.ts`, which runs the real compiler. This file proves the
  * numbers.
  *
- * Mutation lens: change a size, weight or ratio in the table and the table row fails; set a number in Playfair and the
+ * Mutation lens: change a size, weight or leading in the table and the table row fails; set a number in Manrope and the
  * "never sets a number" row fails; let a native role carry `fontWeight` and the native row fails; flatten the large
  * title's clamp to a `vw` or a fixed size and the clamp rows fail.
  */
@@ -19,37 +19,33 @@ import { bodyFontFace, displayFontFace } from '../scale.js';
 import { fontSizes, typeRole, webTypeRoles } from '../typography.js';
 
 describe('typeRole — the §1.5 table', () => {
-    it('states every role at its specified face, size, weight and leading', () => {
+    // REWRITTEN for the owner's type-scale rulings (2026-10-25, 2026-10-26): sizes are 14, 16, 18 and 28 only, a leading
+    // is whole px on a 4 px grid (it was a ratio), and the overline role is retired. `typeScale.test.ts` holds the rule;
+    // this row holds the committed values (`typeScaleSpec` §2).
+    it('states every role at its specified face, size, weight and px leading', () => {
         expect(typeRole).toEqual({
             largeTitle: {
                 face: 'display',
-                size: { narrow: 28, regular: 34, wide: 40 },
-                weight: 'bold',
-                lineHeight: 1.15,
-            },
-            barTitle: { face: 'body', size: 17, weight: 'semibold', lineHeight: 1.2 },
-            sectionTitle: { face: 'body', size: 18, weight: 'semibold', lineHeight: 1.25 },
-            cardTitle: { face: 'body', size: 16, weight: 'semibold', lineHeight: 1.3 },
-            body: { face: 'body', size: 16, weight: 'normal', lineHeight: 1.5 },
-            readingBody: { face: 'body', size: 18, weight: 'normal', lineHeight: 1.6 },
-            meta: { face: 'body', size: 14, weight: 'normal', lineHeight: 1.4 },
-            label: { face: 'body', size: 14, weight: 'semibold', lineHeight: 1.2 },
-            caption: { face: 'body', size: 12, weight: 'medium', lineHeight: 1.4 },
-            overline: {
-                face: 'body',
-                size: 11,
+                size: { narrow: 28, regular: 28, wide: 28 },
                 weight: 'semibold',
-                lineHeight: 1.4,
-                letterSpacingEm: 0.06,
-                uppercase: true,
+                lineHeight: 32,
             },
+            barTitle: { face: 'body', size: 16, weight: 'semibold', lineHeight: 20 },
+            sectionTitle: { face: 'body', size: 18, weight: 'semibold', lineHeight: 24 },
+            cardTitle: { face: 'body', size: 16, weight: 'semibold', lineHeight: 20 },
+            body: { face: 'body', size: 16, weight: 'normal', lineHeight: 24 },
+            readingBody: { face: 'body', size: 18, weight: 'normal', lineHeight: 28 },
+            meta: { face: 'body', size: 14, weight: 'normal', lineHeight: 20 },
+            list: { face: 'body', size: 14, weight: 'normal', lineHeight: 20 },
+            label: { face: 'body', size: 14, weight: 'semibold', lineHeight: 20 },
+            caption: { face: 'body', size: 14, weight: 'medium', lineHeight: 20 },
             figureInline: { face: 'body', size: 'inherit', weight: 'semibold', lineHeight: 'inherit', figure: true },
-            figureStat: { face: 'body', size: 20, weight: 'semibold', lineHeight: 1.2, figure: true },
+            figureStat: { face: 'body', size: 18, weight: 'semibold', lineHeight: 24, figure: true },
         });
     });
 
-    // §1.5: "Playfair sets names only … It never sets a number."
-    it('sets every figure in the body face, never Playfair', () => {
+    // §1.5: "Manrope sets names only … It never sets a number."
+    it('sets every figure in the body face, never Manrope', () => {
         for (const spec of Object.values(typeRole)) {
             if ('figure' in spec) {
                 expect(spec.face).toBe('body');
@@ -72,19 +68,32 @@ describe('typeRole — the §1.5 table', () => {
 });
 
 describe('webTypeRoles — the --text-{role} projection', () => {
-    it('emits each fixed-size role in rem with its leading and weight', () => {
-        expect(webTypeRoles['card-title']).toEqual({ size: '1rem', lineHeight: '1.3', fontWeight: '600' });
-        expect(webTypeRoles['reading-body']).toEqual({ size: '1.125rem', lineHeight: '1.6', fontWeight: '400' });
-        expect(webTypeRoles['figure-stat']).toEqual({ size: '1.25rem', lineHeight: '1.2', fontWeight: '600' });
+    // REWRITTEN for the px model: web writes the leading as the unitless `calc(px / size)`, so it still inherits and a
+    // reader's 1.5x text-spacing override (WCAG 1.4.12) still wins.
+    it('emits each fixed-size role in rem with its leading as calc(px / size) and its weight', () => {
+        expect(webTypeRoles['card-title']).toEqual({ size: '1rem', lineHeight: 'calc(20 / 16)', fontWeight: '600' });
+        expect(webTypeRoles['reading-body']).toEqual({
+            size: '1.125rem',
+            lineHeight: 'calc(28 / 18)',
+            fontWeight: '400',
+        });
+        expect(webTypeRoles['figure-stat']).toEqual({
+            size: '1.125rem',
+            lineHeight: 'calc(24 / 18)',
+            fontWeight: '600',
+        });
     });
 
-    it('carries the overline’s tracking as a letter-spacing sub-property', () => {
-        expect(webTypeRoles.overline).toEqual({
-            size: '0.6875rem',
-            lineHeight: '1.4',
-            fontWeight: '600',
-            letterSpacing: '0.06em',
-        });
+    it('emits the list role at 14 px (0.875rem), leading 20 px, weight 400', () => {
+        expect(webTypeRoles.list).toEqual({ size: '0.875rem', lineHeight: 'calc(20 / 14)', fontWeight: '400' });
+    });
+
+    it('has no overline and no letter-spacing on any role', () => {
+        expect(webTypeRoles).not.toHaveProperty('overline');
+
+        for (const web of Object.values(webTypeRoles)) {
+            expect(web).not.toHaveProperty('letterSpacing');
+        }
     });
 
     // A role with no size of its own has nothing to put in `--text-*`; on web it is Tailwind's own `tabular-nums
@@ -93,13 +102,13 @@ describe('webTypeRoles — the --text-{role} projection', () => {
         expect(webTypeRoles).not.toHaveProperty('figure-inline');
     });
 
-    // `caption` and `overline` share their `--text-*` name with the older ramp, so `themeCss` declares their size
+    // `caption` shares its `--text-*` name with the older ramp, so `themeCss` declares its size
     // once (the ramp's) and adds only the sub-properties. That is correct only while the two sizes agree.
     it('agrees with the ramp on the size of every role that shares a ramp name', () => {
         const ramp: Readonly<Record<string, string>> = fontSizes;
         const shared = Object.keys(webTypeRoles).filter((name) => name in ramp);
 
-        expect(shared.sort()).toEqual(['caption', 'overline']);
+        expect(shared.sort()).toEqual(['caption']);
 
         for (const name of shared) {
             expect(webTypeRoles[name]?.size, name).toBe(ramp[name]);
@@ -116,9 +125,9 @@ describe('webTypeRoles — the --text-{role} projection', () => {
                 'body',
                 'reading-body',
                 'meta',
+                'list',
                 'label',
                 'caption',
-                'overline',
                 'figure-stat',
             ].sort(),
         );
@@ -144,20 +153,14 @@ describe('webTypeRoles — the --text-{role} projection', () => {
             expect(clamp).not.toContain('vw');
         });
 
-        it('floors at the narrow size and caps at the wide size', () => {
-            expect(evaluate(0)).toBe(28);
-            expect(evaluate(4000)).toBe(40);
+        it('never renders above 28 px at any container width (owner rule C1)', () => {
+            for (const px of [0, 320, containerThreshold.regular, containerThreshold.wide, 4000]) {
+                expect(evaluate(px)).toBeCloseTo(28, 5);
+            }
         });
 
-        it.each([
-            ['regular', containerThreshold.regular, 34],
-            ['wide', containerThreshold.wide, 40],
-        ] as const)('reaches the %s size at the %s threshold', (_name, px, size) => {
-            expect(evaluate(px)).toBeCloseTo(size, 1);
-        });
-
-        it('carries the large title’s leading and weight', () => {
-            expect(webTypeRoles['large-title']).toMatchObject({ lineHeight: '1.15', fontWeight: '700' });
+        it('carries the large title’s leading and a weight within the 600 ceiling', () => {
+            expect(webTypeRoles['large-title']).toMatchObject({ lineHeight: 'calc(32 / 28)', fontWeight: '600' });
         });
     });
 });
@@ -167,19 +170,24 @@ describe('nativeTokens.type — a face per weight, a pixel leading', () => {
         expect(nativeTokens.type.body.fontFamily).toBe(bodyFontFace.normal);
         expect(nativeTokens.type.cardTitle.fontFamily).toBe(bodyFontFace.semibold);
         expect(nativeTokens.type.caption.fontFamily).toBe(bodyFontFace.medium);
-        expect(nativeTokens.type.largeTitle.narrow.fontFamily).toBe(displayFontFace.bold);
+        expect(nativeTokens.type.largeTitle.narrow.fontFamily).toBe(displayFontFace.semibold);
+    });
+
+    // REWRITTEN for the px model (2026-10-25): the leading is 20 px as stated, no longer 14 x 1.4 = 19.6.
+    it('sets the list role in the regular body face at 14, with a 20 px leading', () => {
+        expect(nativeTokens.type.list).toEqual({ fontFamily: bodyFontFace.normal, fontSize: 14, lineHeight: 20 });
     });
 
     it('gives the large title one size per container class', () => {
         expect(nativeTokens.type.largeTitle.narrow.fontSize).toBe(28);
-        expect(nativeTokens.type.largeTitle.regular.fontSize).toBe(34);
-        expect(nativeTokens.type.largeTitle.wide.fontSize).toBe(40);
+        expect(nativeTokens.type.largeTitle.regular.fontSize).toBe(28);
+        expect(nativeTokens.type.largeTitle.wide.fontSize).toBe(28);
     });
 
-    it('turns each ratio into an absolute leading', () => {
+    it('uses each role’s px leading as stated, with no ratio math', () => {
         expect(nativeTokens.type.body.lineHeight).toBe(24);
-        expect(nativeTokens.type.cardTitle.lineHeight).toBeCloseTo(20.8, 5);
-        expect(nativeTokens.type.largeTitle.wide.lineHeight).toBeCloseTo(46, 5);
+        expect(nativeTokens.type.cardTitle.lineHeight).toBe(20);
+        expect(nativeTokens.type.largeTitle.wide.lineHeight).toBe(32);
     });
 
     it('sets figures in tabular, lining digits', () => {
@@ -191,10 +199,5 @@ describe('nativeTokens.type — a face per weight, a pixel leading', () => {
     it('leaves the inline figure’s size and leading to the line it sits in', () => {
         expect(nativeTokens.type.figureInline).not.toHaveProperty('fontSize');
         expect(nativeTokens.type.figureInline).not.toHaveProperty('lineHeight');
-    });
-
-    it('uppercases and tracks the overline in px', () => {
-        expect(nativeTokens.type.overline.textTransform).toBe('uppercase');
-        expect(nativeTokens.type.overline.letterSpacing).toBeCloseTo(0.66, 5);
     });
 });

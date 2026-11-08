@@ -36,7 +36,7 @@ appId: ${APP_ID}
 # ── Mirrors visual/authSurfaces.yaml ────────────────────────────────────────────────────────────────────
 - runFlow: ../auth/launchCleared.yaml
 - extendedWaitUntil:
-      visible: 'you@example.com'
+      visible: 'Sign in to Commise'
       timeout: 30000
 - takeScreenshot:
       path: baselines/auth-signin.png
@@ -51,7 +51,7 @@ appId: ${APP_ID}
       label: 'baseline: FR-045a sign-up surface'
 
 - tapOn: 'Sign in'
-- assertVisible: 'you@example.com'
+- assertVisible: 'Sign in to Commise'
 
 # ── Mirrors visual/homeCreateSurfaces.yaml ─────────────────────────────────────────────────────────────
 # The sign-in sub-flow is idempotent, and the cleared state above guarantees its credential block runs.

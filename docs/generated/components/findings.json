@@ -3,13 +3,13 @@
     "counts": {
         "ambiguous-layer-signal": 9,
         "boolean-prop-selects-subtree": 8,
-        "cross-platform-props-diverge": 20,
-        "missing-component-doc": 156,
+        "cross-platform-props-diverge": 21,
+        "missing-component-doc": 166,
         "missing-module-doc": 21,
-        "platform-singleton": 67,
-        "ref-api": 13,
-        "unclassified-layer": 92,
-        "undocumented-prop": 175
+        "platform-singleton": 95,
+        "ref-api": 19,
+        "unclassified-layer": 93,
+        "undocumented-prop": 194
     },
     "findings": [
         {
@@ -111,6 +111,26 @@
             ]
         },
         {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "designSystem/button/ButtonLabel",
+            "sourcePath": "packages/apps/commise/ui/src/button/ButtonLabel.native.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "native"
+            ]
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "designSystem/button/ButtonLabel",
+            "sourcePath": "packages/apps/commise/ui/src/button/ButtonLabel.native.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "ref"
+            ]
+        },
+        {
             "rule": "undocumented-prop",
             "severity": "gap",
             "component": "designSystem/chip/Chip",
@@ -148,6 +168,26 @@
             "message": "props carry no JSDoc description",
             "evidence": [
                 "mode"
+            ]
+        },
+        {
+            "rule": "ref-api",
+            "severity": "violation",
+            "component": "designSystem/choiceRow/ChoiceRow",
+            "sourcePath": "packages/apps/commise/ui/src/choiceRow/ChoiceRow.native.tsx",
+            "message": "refs are near-forbidden; permitted only to wrap an external non-declarative system",
+            "evidence": [
+                "useRef"
+            ]
+        },
+        {
+            "rule": "ref-api",
+            "severity": "violation",
+            "component": "designSystem/choiceRow/ChoiceRow",
+            "sourcePath": "packages/apps/commise/ui/src/choiceRow/ChoiceRow.tsx",
+            "message": "refs are near-forbidden; permitted only to wrap an external non-declarative system",
+            "evidence": [
+                "useRef"
             ]
         },
         {
@@ -207,6 +247,46 @@
             "evidence": []
         },
         {
+            "rule": "ref-api",
+            "severity": "violation",
+            "component": "designSystem/createFab/CreateFab",
+            "sourcePath": "packages/apps/commise/ui/src/createFab/CreateFab.native.tsx",
+            "message": "refs are near-forbidden; permitted only to wrap an external non-declarative system",
+            "evidence": [
+                "useRef"
+            ]
+        },
+        {
+            "rule": "ref-api",
+            "severity": "violation",
+            "component": "designSystem/createFab/CreateFab",
+            "sourcePath": "packages/apps/commise/ui/src/createFab/CreateFab.tsx",
+            "message": "refs are near-forbidden; permitted only to wrap an external non-declarative system",
+            "evidence": [
+                "useRef"
+            ]
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "designSystem/createFab/CreateFab",
+            "sourcePath": "packages/apps/commise/ui/src/createFab/CreateFab.native.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "onFocusRequestHandled"
+            ]
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "designSystem/createFab/CreateFab",
+            "sourcePath": "packages/apps/commise/ui/src/createFab/CreateFab.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "onFocusRequestHandled"
+            ]
+        },
+        {
             "rule": "undocumented-prop",
             "severity": "gap",
             "component": "designSystem/createFab/FabFace",
@@ -226,6 +306,40 @@
             "evidence": [
                 "icon",
                 "label"
+            ]
+        },
+        {
+            "rule": "missing-component-doc",
+            "severity": "gap",
+            "component": "designSystem/dialogActions/DialogActions",
+            "sourcePath": "packages/apps/commise/ui/src/dialogActions/DialogActions.native.tsx",
+            "message": "the component declaration has no JSDoc summary",
+            "evidence": []
+        },
+        {
+            "rule": "missing-component-doc",
+            "severity": "gap",
+            "component": "designSystem/dialogActions/DialogActions",
+            "sourcePath": "packages/apps/commise/ui/src/dialogActions/DialogActions.tsx",
+            "message": "the component declaration has no JSDoc summary",
+            "evidence": []
+        },
+        {
+            "rule": "missing-component-doc",
+            "severity": "gap",
+            "component": "designSystem/dialogFrame/DialogEngine",
+            "sourcePath": "packages/apps/commise/ui/src/dialogFrame/DialogEngine.native.tsx",
+            "message": "the component declaration has no JSDoc summary",
+            "evidence": []
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "designSystem/dialogFrame/DialogEngine",
+            "sourcePath": "packages/apps/commise/ui/src/dialogFrame/DialogEngine.native.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "native"
             ]
         },
         {
@@ -281,6 +395,26 @@
             "evidence": [
                 "web: disabled expanded href icon label onPress",
                 "native: disabled expanded href icon label onPress ref"
+            ]
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "designSystem/horizontalScroller/ScrollChevron",
+            "sourcePath": "packages/apps/commise/ui/src/horizontalScroller/ScrollChevron.native.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "native"
+            ]
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "designSystem/horizontalScroller/ScrollFade",
+            "sourcePath": "packages/apps/commise/ui/src/horizontalScroller/ScrollFade.native.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "native"
             ]
         },
         {
@@ -360,6 +494,34 @@
             ]
         },
         {
+            "rule": "missing-component-doc",
+            "severity": "gap",
+            "component": "designSystem/keyboardAvoider/KeyboardLift",
+            "sourcePath": "packages/apps/commise/ui/src/keyboardAvoider/KeyboardLift.native.tsx",
+            "message": "the component declaration has no JSDoc summary",
+            "evidence": []
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "designSystem/keyboardAvoider/KeyboardLift",
+            "sourcePath": "packages/apps/commise/ui/src/keyboardAvoider/KeyboardLift.native.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "native"
+            ]
+        },
+        {
+            "rule": "ref-api",
+            "severity": "violation",
+            "component": "designSystem/keyboardAvoider/KeyboardLift",
+            "sourcePath": "packages/apps/commise/ui/src/keyboardAvoider/KeyboardLift.native.tsx",
+            "message": "refs are near-forbidden; permitted only to wrap an external non-declarative system",
+            "evidence": [
+                "useRef"
+            ]
+        },
+        {
             "rule": "cross-platform-props-diverge",
             "severity": "review",
             "component": "designSystem/largeTitleHeader/CondensedTitleBar",
@@ -401,6 +563,34 @@
             ]
         },
         {
+            "rule": "missing-component-doc",
+            "severity": "gap",
+            "component": "designSystem/liveRegion/LiveRegionText",
+            "sourcePath": "packages/apps/commise/ui/src/liveRegion/LiveRegionText.native.tsx",
+            "message": "the component declaration has no JSDoc summary",
+            "evidence": []
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "designSystem/liveRegion/LiveRegionText",
+            "sourcePath": "packages/apps/commise/ui/src/liveRegion/LiveRegionText.native.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "native"
+            ]
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "designSystem/liveRegion/LiveRegionText",
+            "sourcePath": "packages/apps/commise/ui/src/liveRegion/LiveRegionText.native.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "ref"
+            ]
+        },
+        {
             "rule": "platform-singleton",
             "severity": "review",
             "component": "designSystem/modal/Modal",
@@ -408,6 +598,91 @@
             "message": "a package that ships to both platforms has only one leaf of this component",
             "evidence": [
                 "native"
+            ]
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "designSystem/overlay/OverlayHost",
+            "sourcePath": "packages/apps/commise/ui/src/overlay/OverlayHost.native.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "native"
+            ]
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "designSystem/overlay/OverlayView",
+            "sourcePath": "packages/apps/commise/ui/src/overlay/OverlayView.native.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "native"
+            ]
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "designSystem/photo/Photo",
+            "sourcePath": "packages/apps/commise/ui/src/photo/Photo.native.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "native"
+            ]
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "designSystem/photo/Photo",
+            "sourcePath": "packages/apps/commise/ui/src/photo/Photo.native.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "dangerouslySetInnerHTML",
+                "debug",
+                "disabled",
+                "htmlFor",
+                "ref",
+                "target"
+            ]
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "designSystem/pinnedSearch/PinnedSearchOverlay",
+            "sourcePath": "packages/apps/commise/ui/src/pinnedSearch/PinnedSearchOverlay.native.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "native"
+            ]
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "designSystem/pinnedSearch/PinnedSearchOverlay",
+            "sourcePath": "packages/apps/commise/ui/src/pinnedSearch/PinnedSearchOverlay.native.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "pin"
+            ]
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "designSystem/pinnedSearch/PinnedSearchSpacer",
+            "sourcePath": "packages/apps/commise/ui/src/pinnedSearch/PinnedSearchSpacer.native.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "native"
+            ]
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "designSystem/pinnedSearch/PinnedSearchSpacer",
+            "sourcePath": "packages/apps/commise/ui/src/pinnedSearch/PinnedSearchSpacer.native.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "pin"
             ]
         },
         {
@@ -536,13 +811,13 @@
             ]
         },
         {
-            "rule": "undocumented-prop",
-            "severity": "gap",
+            "rule": "ref-api",
+            "severity": "violation",
             "component": "designSystem/sheet/BottomSheetPanel",
             "sourcePath": "packages/apps/commise/ui/src/sheet/BottomSheetPanel.native.tsx",
-            "message": "props carry no JSDoc description",
+            "message": "refs are near-forbidden; permitted only to wrap an external non-declarative system",
             "evidence": [
-                "onClose"
+                "useRef"
             ]
         },
         {
@@ -597,6 +872,35 @@
             "message": "props carry no JSDoc description",
             "evidence": [
                 "open"
+            ]
+        },
+        {
+            "rule": "missing-component-doc",
+            "severity": "gap",
+            "component": "designSystem/sheet/SheetEngine",
+            "sourcePath": "packages/apps/commise/ui/src/sheet/SheetEngine.native.tsx",
+            "message": "the component declaration has no JSDoc summary",
+            "evidence": []
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "designSystem/sheet/SheetEngine",
+            "sourcePath": "packages/apps/commise/ui/src/sheet/SheetEngine.native.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "native"
+            ]
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "designSystem/sheet/SheetEngine",
+            "sourcePath": "packages/apps/commise/ui/src/sheet/SheetEngine.native.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "open",
+                "reduceMotion"
             ]
         },
         {
@@ -666,6 +970,46 @@
         {
             "rule": "platform-singleton",
             "severity": "review",
+            "component": "designSystem/surfaceTone/ToneScope",
+            "sourcePath": "packages/apps/commise/ui/src/surfaceTone/ToneScope.native.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "native"
+            ]
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "designSystem/tamagui/DesignSystemProvider",
+            "sourcePath": "packages/apps/commise/ui/src/tamagui/DesignSystemProvider.native.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "native"
+            ]
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "designSystem/tamagui/DesignSystemTheme",
+            "sourcePath": "packages/apps/commise/ui/src/tamagui/DesignSystemTheme.native.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "native"
+            ]
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "designSystem/tamagui/DesignSystemTheme",
+            "sourcePath": "packages/apps/commise/ui/src/tamagui/DesignSystemTheme.native.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "scheme"
+            ]
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
             "component": "designSystem/testing/LucideGlyphStub",
             "sourcePath": "packages/apps/commise/ui/src/testing/lucideNativeGlyph.native.tsx",
             "message": "a package that ships to both platforms has only one leaf of this component",
@@ -714,6 +1058,26 @@
             "message": "a package that ships to both platforms has only one leaf of this component",
             "evidence": [
                 "native"
+            ]
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "designSystem/text/Text",
+            "sourcePath": "packages/apps/commise/ui/src/text/Text.native.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "native"
+            ]
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "designSystem/text/Text",
+            "sourcePath": "packages/apps/commise/ui/src/text/Text.native.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "ref"
             ]
         },
         {
@@ -783,6 +1147,42 @@
             "evidence": [
                 "open"
             ]
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "featuresRecipes/card/MetaLeadContext",
+            "sourcePath": "packages/apps/commise/features/recipes/src/card/metaLine.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "web"
+            ]
+        },
+        {
+            "rule": "unclassified-layer",
+            "severity": "gap",
+            "component": "featuresRecipes/card/MetaLeadContext",
+            "sourcePath": "packages/apps/commise/features/recipes/src/card/metaLine.tsx",
+            "message": "no docblock says whether this is a presentational or an orchestration component",
+            "evidence": []
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "featuresRecipes/card/MetaLine",
+            "sourcePath": "packages/apps/commise/features/recipes/src/card/metaLine.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "web"
+            ]
+        },
+        {
+            "rule": "unclassified-layer",
+            "severity": "gap",
+            "component": "featuresRecipes/card/MetaLine",
+            "sourcePath": "packages/apps/commise/features/recipes/src/card/metaLine.tsx",
+            "message": "no docblock says whether this is a presentational or an orchestration component",
+            "evidence": []
         },
         {
             "rule": "undocumented-prop",
@@ -888,6 +1288,22 @@
         {
             "rule": "missing-component-doc",
             "severity": "gap",
+            "component": "featuresRecipes/collections/CollectionDetailGutter",
+            "sourcePath": "packages/apps/commise/features/recipes/src/collections/CollectionDetailGutter.native.tsx",
+            "message": "the component declaration has no JSDoc summary",
+            "evidence": []
+        },
+        {
+            "rule": "missing-component-doc",
+            "severity": "gap",
+            "component": "featuresRecipes/collections/CollectionDetailGutter",
+            "sourcePath": "packages/apps/commise/features/recipes/src/collections/CollectionDetailGutter.tsx",
+            "message": "the component declaration has no JSDoc summary",
+            "evidence": []
+        },
+        {
+            "rule": "missing-component-doc",
+            "severity": "gap",
             "component": "featuresRecipes/collections/CollectionHeader",
             "sourcePath": "packages/apps/commise/features/recipes/src/collections/CollectionHeader.native.tsx",
             "message": "the component declaration has no JSDoc summary",
@@ -913,6 +1329,7 @@
                 "name",
                 "onAddRecipes",
                 "onDelete",
+                "onMenuFocusHandled",
                 "onRename",
                 "onSaveCopy",
                 "recipeCount",
@@ -931,6 +1348,7 @@
                 "name",
                 "onAddRecipes",
                 "onDelete",
+                "onMenuFocusHandled",
                 "onRename",
                 "onSaveCopy",
                 "recipeCount",
@@ -952,6 +1370,26 @@
             "sourcePath": "packages/apps/commise/features/recipes/src/collections/CollectionListFrame.tsx",
             "message": "the component declaration has no JSDoc summary",
             "evidence": []
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "featuresRecipes/collections/CollectionListFrame",
+            "sourcePath": "packages/apps/commise/features/recipes/src/collections/CollectionListFrame.native.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "onCreateFocusHandled"
+            ]
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "featuresRecipes/collections/CollectionListFrame",
+            "sourcePath": "packages/apps/commise/features/recipes/src/collections/CollectionListFrame.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "onCreateFocusHandled"
+            ]
         },
         {
             "rule": "missing-component-doc",
@@ -1121,6 +1559,7 @@
             "message": "props carry no JSDoc description",
             "evidence": [
                 "onDelete",
+                "onFocusRequestHandled",
                 "onRename",
                 "onSaveCopy",
                 "visibility"
@@ -1447,6 +1886,16 @@
             ]
         },
         {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "featuresRecipes/common/SortOptionRow",
+            "sourcePath": "packages/apps/commise/features/recipes/src/common/SortOptionRow.native.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "native"
+            ]
+        },
+        {
             "rule": "missing-component-doc",
             "severity": "gap",
             "component": "featuresRecipes/components/RecentRecipeGrid",
@@ -1761,21 +2210,11 @@
         {
             "rule": "platform-singleton",
             "severity": "review",
-            "component": "featuresRecipes/detail/DetailFooter",
-            "sourcePath": "packages/apps/commise/features/recipes/src/detail/DetailFooter.native.tsx",
+            "component": "featuresRecipes/detail/DetailFactTiles",
+            "sourcePath": "packages/apps/commise/features/recipes/src/detail/DetailFactTiles.native.tsx",
             "message": "a package that ships to both platforms has only one leaf of this component",
             "evidence": [
                 "native"
-            ]
-        },
-        {
-            "rule": "undocumented-prop",
-            "severity": "gap",
-            "component": "featuresRecipes/detail/DetailFooter",
-            "sourcePath": "packages/apps/commise/features/recipes/src/detail/DetailFooter.native.tsx",
-            "message": "props carry no JSDoc description",
-            "evidence": [
-                "recipe"
             ]
         },
         {
@@ -1824,13 +2263,14 @@
             ]
         },
         {
-            "rule": "platform-singleton",
+            "rule": "cross-platform-props-diverge",
             "severity": "review",
             "component": "featuresRecipes/detail/DetailNutritionSection",
-            "sourcePath": "packages/apps/commise/features/recipes/src/detail/DetailNutritionSection.native.tsx",
-            "message": "a package that ships to both platforms has only one leaf of this component",
+            "sourcePath": "packages/apps/commise/features/recipes/src/detail/DetailNutritionSection.tsx",
+            "message": "the web and native leaves declare different prop names",
             "evidence": [
-                "native"
+                "web: dataSourcesHref expanded onToggle recipe",
+                "native: expanded onOpenDataSources onToggle recipe returnFocusSignal"
             ]
         },
         {
@@ -1844,10 +2284,20 @@
             ]
         },
         {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "featuresRecipes/detail/DetailNutritionSection",
+            "sourcePath": "packages/apps/commise/features/recipes/src/detail/DetailNutritionSection.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "recipe"
+            ]
+        },
+        {
             "rule": "platform-singleton",
             "severity": "review",
-            "component": "featuresRecipes/detail/DetailRatingLine",
-            "sourcePath": "packages/apps/commise/features/recipes/src/detail/DetailRatingLine.native.tsx",
+            "component": "featuresRecipes/detail/DetailStatusRow",
+            "sourcePath": "packages/apps/commise/features/recipes/src/detail/DetailStatusRow.native.tsx",
             "message": "a package that ships to both platforms has only one leaf of this component",
             "evidence": [
                 "native"
@@ -1856,8 +2306,8 @@
         {
             "rule": "platform-singleton",
             "severity": "review",
-            "component": "featuresRecipes/detail/DetailStatStrip",
-            "sourcePath": "packages/apps/commise/features/recipes/src/detail/DetailStatStrip.native.tsx",
+            "component": "featuresRecipes/detail/HeroBand",
+            "sourcePath": "packages/apps/commise/features/recipes/src/detail/heroBand.native.tsx",
             "message": "a package that ships to both platforms has only one leaf of this component",
             "evidence": [
                 "native"
@@ -1899,6 +2349,26 @@
             "evidence": [
                 "photos",
                 "title"
+            ]
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "featuresRecipes/detail/PhotoDots",
+            "sourcePath": "packages/apps/commise/features/recipes/src/detail/PhotoDots.native.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "native"
+            ]
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "featuresRecipes/detail/PhotoPagingChevrons",
+            "sourcePath": "packages/apps/commise/features/recipes/src/detail/PhotoPagingChevrons.native.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "native"
             ]
         },
         {
@@ -1908,8 +2378,8 @@
             "sourcePath": "packages/apps/commise/features/recipes/src/detail/RecipeDetailBody.tsx",
             "message": "the web and native leaves declare different prop names",
             "evidence": [
-                "web: back currentSection dataSourcesHref descriptionExpanded editHref headerActions heroControls marks onEditSection onServingsChange onToggleDescription onViewVersions rating recipe refreshNotice screenOn scrollFooter servings unreachableRetry versionsHref viewerIsOwner visibilityNotice",
-                "native: back bind currentSection dataSourcesHref dataSourcesReturnFocusSignal descriptionExpanded editHref headerActions heroControls layout marks onEditSection onOpenDataSources onServingsChange onToggleDescription onViewVersions rating recipe refreshNotice screenOn scrollFooter servings unreachableRetry versionsHref viewerIsOwner visibilityNotice"
+                "web: back dataSourcesHref descriptionExpanded editHref headerActions heroControls marks nutritionExpanded onEditSection onServingsChange onToggleDescription onToggleNutrition onViewVersions rating recipe refreshNotice screenOn scrollFooter servings unreachableRetry versionsHref viewerIsOwner visibilityNotice",
+                "native: back dataSourcesHref dataSourcesReturnFocusSignal descriptionExpanded editHref headerActions heroControls layout marks nutritionExpanded onEditSection onOpenDataSources onServingsChange onToggleDescription onToggleNutrition onViewVersions rating recipe refreshNotice screenOn scrollFooter servings unreachableRetry versionsHref viewerIsOwner visibilityNotice"
             ]
         },
         {
@@ -2361,6 +2831,72 @@
             "message": "a package that ships to both platforms has only one leaf of this component",
             "evidence": [
                 "native"
+            ]
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "featuresRecipes/discovery/RailLinkBox",
+            "sourcePath": "packages/apps/commise/features/recipes/src/discovery/RailHeadingLayout.native.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "native"
+            ]
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "featuresRecipes/discovery/RailLinkBox",
+            "sourcePath": "packages/apps/commise/features/recipes/src/discovery/RailHeadingLayout.native.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "accessibilityValue",
+                "aria-checked",
+                "aria-disabled",
+                "aria-expanded",
+                "aria-selected",
+                "aria-valuemin",
+                "aria-valuenow",
+                "aria-valuetext",
+                "dangerouslySetInnerHTML",
+                "debug",
+                "disabled",
+                "htmlFor",
+                "nativeBackgroundAndroid",
+                "nativeForegroundAndroid",
+                "onBlurCapture",
+                "onClickCapture",
+                "onFocusCapture",
+                "onGotPointerCapture",
+                "onGotPointerCaptureCapture",
+                "onKeyDownCapture",
+                "onKeyUpCapture",
+                "onLostPointerCapture",
+                "onLostPointerCaptureCapture",
+                "onPointerCancelCapture",
+                "onPointerDownCapture",
+                "onPointerEnter",
+                "onPointerEnterCapture",
+                "onPointerLeave",
+                "onPointerLeaveCapture",
+                "onPointerMoveCapture",
+                "onPointerOut",
+                "onPointerOutCapture",
+                "onPointerOver",
+                "onPointerOverCapture",
+                "onPointerUpCapture",
+                "onResponderEnd",
+                "onResponderStart",
+                "onTouchCancel",
+                "onTouchCancelCapture",
+                "onTouchEnd",
+                "onTouchEndCapture",
+                "onTouchMove",
+                "onTouchMoveCapture",
+                "onTouchStart",
+                "onTouchStartCapture",
+                "ref",
+                "target"
             ]
         },
         {
@@ -3209,7 +3745,7 @@
             "message": "the web and native leaves declare different prop names",
             "evidence": [
                 "web: arrived entryCopy expanded inlineEditor panel row",
-                "native: amountColumn arrived entryCopy expanded inlineEditor m onLayout panel row"
+                "native: arrived entryCopy expanded inlineEditor m onLayout panel row"
             ]
         },
         {
@@ -3395,6 +3931,148 @@
             ]
         },
         {
+            "rule": "missing-component-doc",
+            "severity": "gap",
+            "component": "featuresRecipes/format/AmountText",
+            "sourcePath": "packages/apps/commise/features/recipes/src/format/AmountText.tsx",
+            "message": "the component declaration has no JSDoc summary",
+            "evidence": []
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "featuresRecipes/format/AmountText",
+            "sourcePath": "packages/apps/commise/features/recipes/src/format/AmountText.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "web"
+            ]
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "featuresRecipes/format/AmountText",
+            "sourcePath": "packages/apps/commise/features/recipes/src/format/AmountText.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "text"
+            ]
+        },
+        {
+            "rule": "missing-component-doc",
+            "severity": "gap",
+            "component": "featuresRecipes/format/PrepJoin",
+            "sourcePath": "packages/apps/commise/features/recipes/src/format/PrepJoin.tsx",
+            "message": "the component declaration has no JSDoc summary",
+            "evidence": []
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "featuresRecipes/format/PrepJoin",
+            "sourcePath": "packages/apps/commise/features/recipes/src/format/PrepJoin.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "web"
+            ]
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "featuresRecipes/import/ImportWizardNotice",
+            "sourcePath": "packages/apps/commise/features/recipes/src/import/ImportWizardNotice.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "web"
+            ]
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "featuresRecipes/ingredientMatching/MatchRow",
+            "sourcePath": "packages/apps/commise/features/recipes/src/ingredientMatching/MatchRow.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "web"
+            ]
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "featuresRecipes/list/FillBox",
+            "sourcePath": "packages/apps/commise/features/recipes/src/list/RecipeListLayout.native.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "native"
+            ]
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "featuresRecipes/list/FillBox",
+            "sourcePath": "packages/apps/commise/features/recipes/src/list/RecipeListLayout.native.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "accessibilityValue",
+                "aria-checked",
+                "aria-disabled",
+                "aria-expanded",
+                "aria-selected",
+                "aria-valuemin",
+                "aria-valuenow",
+                "aria-valuetext",
+                "dangerouslySetInnerHTML",
+                "debug",
+                "disabled",
+                "htmlFor",
+                "nativeBackgroundAndroid",
+                "nativeForegroundAndroid",
+                "onBlurCapture",
+                "onClickCapture",
+                "onFocusCapture",
+                "onGotPointerCapture",
+                "onGotPointerCaptureCapture",
+                "onKeyDownCapture",
+                "onKeyUpCapture",
+                "onLostPointerCapture",
+                "onLostPointerCaptureCapture",
+                "onPointerCancelCapture",
+                "onPointerDownCapture",
+                "onPointerEnter",
+                "onPointerEnterCapture",
+                "onPointerLeave",
+                "onPointerLeaveCapture",
+                "onPointerMoveCapture",
+                "onPointerOut",
+                "onPointerOutCapture",
+                "onPointerOver",
+                "onPointerOverCapture",
+                "onPointerUpCapture",
+                "onResponderEnd",
+                "onResponderStart",
+                "onTouchCancel",
+                "onTouchCancelCapture",
+                "onTouchEnd",
+                "onTouchEndCapture",
+                "onTouchMove",
+                "onTouchMoveCapture",
+                "onTouchStart",
+                "onTouchStartCapture",
+                "ref",
+                "target"
+            ]
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "featuresRecipes/list/HostAnimatedScroll",
+            "sourcePath": "packages/apps/commise/features/recipes/src/list/HostAnimatedScroll.native.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "native"
+            ]
+        },
+        {
             "rule": "unclassified-layer",
             "severity": "gap",
             "component": "featuresRecipes/list/LibrarySortMenu",
@@ -3422,6 +4100,204 @@
             "evidence": [
                 "onChange",
                 "value"
+            ]
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "featuresRecipes/list/ListEdge",
+            "sourcePath": "packages/apps/commise/features/recipes/src/list/RecipeListLayout.native.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "native"
+            ]
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "featuresRecipes/list/ListEdge",
+            "sourcePath": "packages/apps/commise/features/recipes/src/list/RecipeListLayout.native.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "accessibilityValue",
+                "aria-checked",
+                "aria-disabled",
+                "aria-expanded",
+                "aria-selected",
+                "aria-valuemin",
+                "aria-valuenow",
+                "aria-valuetext",
+                "dangerouslySetInnerHTML",
+                "debug",
+                "disabled",
+                "htmlFor",
+                "nativeBackgroundAndroid",
+                "nativeForegroundAndroid",
+                "onBlurCapture",
+                "onClickCapture",
+                "onFocusCapture",
+                "onGotPointerCapture",
+                "onGotPointerCaptureCapture",
+                "onKeyDownCapture",
+                "onKeyUpCapture",
+                "onLostPointerCapture",
+                "onLostPointerCaptureCapture",
+                "onPointerCancelCapture",
+                "onPointerDownCapture",
+                "onPointerEnter",
+                "onPointerEnterCapture",
+                "onPointerLeave",
+                "onPointerLeaveCapture",
+                "onPointerMoveCapture",
+                "onPointerOut",
+                "onPointerOutCapture",
+                "onPointerOver",
+                "onPointerOverCapture",
+                "onPointerUpCapture",
+                "onResponderEnd",
+                "onResponderStart",
+                "onTouchCancel",
+                "onTouchCancelCapture",
+                "onTouchEnd",
+                "onTouchEndCapture",
+                "onTouchMove",
+                "onTouchMoveCapture",
+                "onTouchStart",
+                "onTouchStartCapture",
+                "ref",
+                "target"
+            ]
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "featuresRecipes/list/ListHeaderBox",
+            "sourcePath": "packages/apps/commise/features/recipes/src/list/RecipeListLayout.native.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "native"
+            ]
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "featuresRecipes/list/ListHeaderBox",
+            "sourcePath": "packages/apps/commise/features/recipes/src/list/RecipeListLayout.native.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "accessibilityValue",
+                "aria-checked",
+                "aria-disabled",
+                "aria-expanded",
+                "aria-selected",
+                "aria-valuemin",
+                "aria-valuenow",
+                "aria-valuetext",
+                "dangerouslySetInnerHTML",
+                "debug",
+                "disabled",
+                "htmlFor",
+                "nativeBackgroundAndroid",
+                "nativeForegroundAndroid",
+                "onBlurCapture",
+                "onClickCapture",
+                "onFocusCapture",
+                "onGotPointerCapture",
+                "onGotPointerCaptureCapture",
+                "onKeyDownCapture",
+                "onKeyUpCapture",
+                "onLostPointerCapture",
+                "onLostPointerCaptureCapture",
+                "onPointerCancelCapture",
+                "onPointerDownCapture",
+                "onPointerEnter",
+                "onPointerEnterCapture",
+                "onPointerLeave",
+                "onPointerLeaveCapture",
+                "onPointerMoveCapture",
+                "onPointerOut",
+                "onPointerOutCapture",
+                "onPointerOver",
+                "onPointerOverCapture",
+                "onPointerUpCapture",
+                "onResponderEnd",
+                "onResponderStart",
+                "onTouchCancel",
+                "onTouchCancelCapture",
+                "onTouchEnd",
+                "onTouchEndCapture",
+                "onTouchMove",
+                "onTouchMoveCapture",
+                "onTouchStart",
+                "onTouchStartCapture",
+                "ref",
+                "target"
+            ]
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "featuresRecipes/list/ListHeaderGroup",
+            "sourcePath": "packages/apps/commise/features/recipes/src/list/RecipeListLayout.native.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "native"
+            ]
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "featuresRecipes/list/ListHeaderGroup",
+            "sourcePath": "packages/apps/commise/features/recipes/src/list/RecipeListLayout.native.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "accessibilityValue",
+                "aria-checked",
+                "aria-disabled",
+                "aria-expanded",
+                "aria-selected",
+                "aria-valuemin",
+                "aria-valuenow",
+                "aria-valuetext",
+                "dangerouslySetInnerHTML",
+                "debug",
+                "disabled",
+                "htmlFor",
+                "nativeBackgroundAndroid",
+                "nativeForegroundAndroid",
+                "onBlurCapture",
+                "onClickCapture",
+                "onFocusCapture",
+                "onGotPointerCapture",
+                "onGotPointerCaptureCapture",
+                "onKeyDownCapture",
+                "onKeyUpCapture",
+                "onLostPointerCapture",
+                "onLostPointerCaptureCapture",
+                "onPointerCancelCapture",
+                "onPointerDownCapture",
+                "onPointerEnter",
+                "onPointerEnterCapture",
+                "onPointerLeave",
+                "onPointerLeaveCapture",
+                "onPointerMoveCapture",
+                "onPointerOut",
+                "onPointerOutCapture",
+                "onPointerOver",
+                "onPointerOverCapture",
+                "onPointerUpCapture",
+                "onResponderEnd",
+                "onResponderStart",
+                "onTouchCancel",
+                "onTouchCancelCapture",
+                "onTouchEnd",
+                "onTouchEndCapture",
+                "onTouchMove",
+                "onTouchMoveCapture",
+                "onTouchStart",
+                "onTouchStartCapture",
+                "ref",
+                "target"
             ]
         },
         {
@@ -3563,16 +4439,6 @@
             ]
         },
         {
-            "rule": "platform-singleton",
-            "severity": "review",
-            "component": "featuresRecipes/nutrition/NutritionBoundaryShell",
-            "sourcePath": "packages/apps/commise/features/recipes/src/nutrition/NutritionBoundaryShell.tsx",
-            "message": "a package that ships to both platforms has only one leaf of this component",
-            "evidence": [
-                "web"
-            ]
-        },
-        {
             "rule": "unclassified-layer",
             "severity": "gap",
             "component": "featuresRecipes/nutrition/RecipeCalorieChip",
@@ -3587,16 +4453,6 @@
             "sourcePath": "packages/apps/commise/features/recipes/src/nutrition/RecipeCalorieSkeleton.tsx",
             "message": "no docblock says whether this is a presentational or an orchestration component",
             "evidence": []
-        },
-        {
-            "rule": "platform-singleton",
-            "severity": "review",
-            "component": "featuresRecipes/nutrition/RecipeNutritionBoundary",
-            "sourcePath": "packages/apps/commise/features/recipes/src/nutrition/RecipeNutritionBoundary.tsx",
-            "message": "a package that ships to both platforms has only one leaf of this component",
-            "evidence": [
-                "web"
-            ]
         },
         {
             "rule": "platform-singleton",
@@ -3922,6 +4778,28 @@
             "message": "a package that ships to both platforms has only one leaf of this component",
             "evidence": [
                 "web"
+            ]
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "featuresAccount/profile/ProfileFactRow",
+            "sourcePath": "packages/apps/commise/features/account/src/profile/ProfileFactRow.native.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "label",
+                "value"
+            ]
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "featuresAccount/profile/ProfileFactRow",
+            "sourcePath": "packages/apps/commise/features/account/src/profile/ProfileFactRow.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "label",
+                "value"
             ]
         },
         {
@@ -5048,14 +5926,6 @@
             "severity": "gap",
             "component": "mobile/components/AuthGate",
             "sourcePath": "packages/apps/commise/mobile/src/components/AuthGate.tsx",
-            "message": "no docblock says whether this is a presentational or an orchestration component",
-            "evidence": []
-        },
-        {
-            "rule": "unclassified-layer",
-            "severity": "gap",
-            "component": "mobile/components/home/HomeGreeting",
-            "sourcePath": "packages/apps/commise/mobile/src/components/home/HomeGreeting.tsx",
             "message": "no docblock says whether this is a presentational or an orchestration component",
             "evidence": []
         },

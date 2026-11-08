@@ -34,10 +34,14 @@ import {
     inputTokenCeiling,
     inputTokensBeyondBound,
     periodKey,
+    periodEndsAt,
     planReservation,
     rateFor,
     registryEntryFor,
     residencyClearance,
+    PASTE_MATCH_REVIEW_CALL_SITE,
+    SPEND_CALL_SITES,
+    VERIFICATION_GATE_CALL_SITE,
     residencyRefusal,
     settleDeltaMicros,
     utf8ByteLength,
@@ -102,6 +106,27 @@ const fixtureWith = (residencyApproval?: ResidencyApproval) => ({
 });
 const UNWARRANTED_FIXTURE = fixtureWith();
 const WARRANTED_FIXTURE = fixtureWith({ approvedOn: '2026-09-12', reference: 'ADR-0024 §4b (fixture)' });
+
+describe('periodEndsAt', () => {
+    it.each([
+        ['2026-10', '2026-11-01T00:00:00.000Z'],
+        ['2026-12', '2027-01-01T00:00:00.000Z'],
+        ['2026-01', '2026-02-01T00:00:00.000Z'],
+    ])('%s ends at the first instant of the next UTC month', (period, expected) => {
+        expect(periodEndsAt(period)).toBe(expected);
+    });
+
+    it('is the instant after which periodKey names the next period (they cannot disagree)', () => {
+        const end = new Date(periodEndsAt('2026-10') as string);
+
+        expect(periodKey(new Date(end.getTime() - 1))).toBe('2026-10');
+        expect(periodKey(end)).toBe('2026-11');
+    });
+
+    it.each(['', 'garbage', '2026-13', '2026-00', '26-10', '2026-1'])('answers undefined for %j', (period) => {
+        expect(periodEndsAt(period)).toBeUndefined();
+    });
+});
 
 describe('periodKey', () => {
     it.each([
@@ -1090,5 +1115,22 @@ describe('Nova 2 Lite — the shipped parse model', () => {
             perMillion(out, rate.outputMicrosPerMillionTokens);
 
         expect(Math.round(onDemand)).toBe(521); // micro-dollars/line, matching the measured $0.000521
+    });
+});
+
+/**
+ * The paste-match review (ADR-0071) is a NEW claimant on the one pool, not a new pool: it gets its own `CallSite`
+ * value so an emptied pool can say who emptied it, and nothing else. Both properties are asserted — the value
+ * exists under its own name, and it is a member of the closed union the EMF dimension is drawn from.
+ */
+describe('the paste-match review call site (ADR-0071)', () => {
+    it("is 'paste-match-review', a member of the closed call-site union", () => {
+        expect(PASTE_MATCH_REVIEW_CALL_SITE).toBe('paste-match-review');
+        expect(SPEND_CALL_SITES).toContain(PASTE_MATCH_REVIEW_CALL_SITE);
+    });
+
+    it('is distinct from the verification gate it shares a handler with — otherwise it attributes nothing', () => {
+        expect(PASTE_MATCH_REVIEW_CALL_SITE).not.toBe(VERIFICATION_GATE_CALL_SITE);
+        expect(new Set(SPEND_CALL_SITES).size).toBe(SPEND_CALL_SITES.length);
     });
 });

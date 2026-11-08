@@ -49,6 +49,25 @@ const split = (bytes: Uint8Array, index: number): readonly [Uint8Array, Uint8Arr
 /** The index of the second byte of the first `è` in `text`'s UTF-8: a cut there splits the character in two. */
 const insideFirstMultiByte = (text: string): number => encoder.encode(text.slice(0, text.indexOf('è'))).length + 1;
 
+describe('a catalog hit carrying keys this client does not know (ADR-0070 §4, code-quality review W2)', () => {
+    it('keeps the database frame and every hit, answered, with the unknown keys dropped', async () => {
+        const line =
+            '{"type":"database","catalog":{"outcome":"answered","results":[{"id":"food_1","name":"whole milk","score":0.9,"isDefault":true,"rung":"default","matchedBy":"name","popularity":3},{"id":"food_2","name":"1% milk","score":0.5}]},"authored":{"outcome":"answered","results":[]}}';
+
+        const frames = await framesOf(chunksOf(encoder.encode(`${line}\n${COMPLETE_LINE}\n`)));
+        const [database] = frames;
+
+        expect(frames.map((frame) => frame.type)).toEqual(['database', 'complete']);
+        expect(database?.type === 'database' ? database.catalog : undefined).toStrictEqual({
+            outcome: 'answered',
+            results: [
+                { id: 'food_1', name: 'whole milk', score: 0.9, isDefault: true },
+                { id: 'food_2', name: '1% milk', score: 0.5 },
+            ],
+        });
+    });
+});
+
 interface SplitterCase {
     readonly name: string;
     readonly chunks: () => readonly Uint8Array[];

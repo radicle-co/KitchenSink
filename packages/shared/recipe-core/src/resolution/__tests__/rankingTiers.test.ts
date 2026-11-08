@@ -32,7 +32,7 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { describeRankingName, describeRankingQuery } from '../rankingTerms.js';
+import { describeCatalogName, describeRankingQuery } from '../rankingTerms.js';
 import {
     RANKER_VERSION,
     BASE_METRIC_MAX,
@@ -44,17 +44,105 @@ import {
     compareTieredHits,
     rankTierOrdinal,
     tieredRelevanceScore,
+    type RankTier,
 } from '../rankingTiers.js';
 
 /** Classify a (name, query) pair the way a surface's statement does. */
-function tierOf(name: string, query: string): string {
-    return classifyRankTier(describeRankingName(name), describeRankingQuery(query));
+function tierOf(
+    name: string,
+    query: string,
+    synonyms: readonly string[] = [],
+    defaultTerms: readonly string[] = [],
+): string {
+    return classifyRankTier(describeCatalogName(name, synonyms, defaultTerms), describeRankingQuery(query));
 }
 
+describe('the default rung (ADR-0070 §4)', () => {
+    it("holds when the query IS one of the root's default terms, folded and singularized", () => {
+        expect(tierOf('whole milk', 'milk', [], ['milk'])).toBe('default');
+        expect(tierOf('whole milk', '  MILK ', ['vitamin D milk'], ['milk'])).toBe('default');
+        expect(tierOf('all-purpose flour', 'flours', ['white flour'], ['flour'])).toBe('default');
+        expect(tierOf('long-grain white rice', 'rice', ['white rice'], ['rice'])).toBe('default');
+    });
+
+    it('lifts the default above every other head-rung name for its bare noun', () => {
+        // Without the default, whole milk and 1% milk share the head rung and the shorter name wins on the base metric.
+        expect(tierOf('1% milk', 'milk')).toBe('head');
+        expect(rankTierOrdinal(tierOf('whole milk', 'milk', [], ['milk']) as RankTier)).toBeGreaterThan(
+            rankTierOrdinal(tierOf('1% milk', 'milk') as RankTier),
+        );
+    });
+
+    it('ranks a default below a synonym, and above a token set', () => {
+        expect(rankTierOrdinal('default')).toBe(rankTierOrdinal('synonym') - 1);
+        expect(rankTierOrdinal('default')).toBe(rankTierOrdinal('tokenSet') + 1);
+    });
+
+    it('yields to an equal name and to a synonym on the same root', () => {
+        expect(tierOf('milk', 'milk', [], ['milk'])).toBe('exact');
+        expect(tierOf('whole milk', 'milk', ['milk'], ['milk'])).toBe('synonym');
+    });
+
+    it('does not hold for a query that only SHARES words with a default term', () => {
+        expect(tierOf('whole milk', 'milk crackers', [], ['milk'])).not.toBe('default');
+        expect(tierOf('whole milk', 'whole', [], ['milk'])).not.toBe('default');
+    });
+
+    it('never promotes an empty query, even against an empty default term', () => {
+        expect(tierOf('whole milk', '   ', [], ['', '   '])).toBe('base');
+        expect(tierOf('whole milk', '', [], ['milk'])).toBe('base');
+    });
+});
+
+describe('the synonym rung (ADR-0070)', () => {
+    it("holds when the query IS one of the root's synonyms, folded and singularized", () => {
+        expect(tierOf('sugar', 'granulated sugar', ['granulated sugar', 'white sugar'])).toBe('synonym');
+        expect(tierOf('sugar', 'Granulated  Sugars', ['granulated sugar'])).toBe('synonym');
+        expect(tierOf('eggs', 'large eggs', ['chicken eggs', 'large eggs'])).toBe('synonym');
+    });
+
+    it('ranks a synonym below an equal name and above every other rung', () => {
+        expect(rankTierOrdinal('synonym')).toBe(rankTierOrdinal('exact') - 1);
+        expect(rankTierOrdinal('synonym')).toBeGreaterThan(rankTierOrdinal('tokenSet'));
+        // The root whose NAME is the query still wins over a root that merely lists it as a synonym.
+        expect(tierOf('white sugar', 'white sugar', [])).toBe('exact');
+    });
+
+    it('does not hold for a synonym that only SHARES words with the query', () => {
+        // `sugar` is the head of `white sugar`, which is a head-rung fact, not an identity.
+        expect(tierOf('sugar cane', 'sugar', ['white sugar'])).not.toBe('synonym');
+        expect(tierOf('baking soda', 'soda', ['bicarbonate of soda'])).not.toBe('synonym');
+    });
+
+    it('never promotes an empty query, even against an empty synonym', () => {
+        expect(tierOf('sugar', '   ', ['', '   '])).toBe('base');
+    });
+});
+
+describe('rung precedence — a row that qualifies for two rungs takes the higher (code-quality review T1)', () => {
+    it('exact beats synonym and default on the same root', () => {
+        expect(tierOf('white sugar', 'white sugar', ['white sugar'])).toBe('exact');
+        expect(tierOf('white sugar', 'white sugar', [], ['white sugar'])).toBe('exact');
+    });
+
+    it('synonym beats default and token set', () => {
+        expect(tierOf('Sugars, granulated', 'granulated sugar', ['granulated sugar'])).toBe('synonym');
+        expect(tierOf('Sugars, granulated', 'granulated sugar', ['granulated sugar'], ['granulated sugar'])).toBe(
+            'synonym',
+        );
+    });
+
+    it('default beats token set and head', () => {
+        expect(tierOf('Sugars, granulated', 'granulated sugar', [], ['granulated sugar'])).toBe('default');
+        expect(tierOf('Milk, whole', 'milk', [], ['milk'])).toBe('default');
+    });
+});
+
 describe('the ladder', () => {
+    // Rewritten (ADR-0070 §4): the `default` rung sits between `tokenSet` and `synonym`.
     it('is ordered worst-first, so a tier IS its ordinal', () => {
-        expect(RANK_TIERS).toEqual(['base', 'covered', 'head', 'tokenSet', 'exact']);
-        expect(RANK_TIERS.map(rankTierOrdinal)).toEqual([0, 1, 2, 3, 4]);
+        expect(RANK_TIERS).toEqual(['base', 'covered', 'head', 'tokenSet', 'default', 'synonym', 'exact']);
+        expect(RANK_TIERS.map(rankTierOrdinal)).toEqual([0, 1, 2, 3, 4, 5, 6]);
     });
 });
 
@@ -89,9 +177,22 @@ describe('classifyRankTier', () => {
     });
 
     it('leaves each ATTRACTOR at `covered` — it contains the query, and that is all it does', () => {
-        expect(tierOf('Carob flour', 'flour')).toBe('covered');
+        // The four prod binds of 2026-10-25 (ADR-0070): each name contains the query as a MODIFIER only.
+        expect(tierOf('milk crackers', 'milk')).toBe('covered');
+        expect(tierOf('salt cod', 'salt')).toBe('covered');
+        expect(tierOf('cinnamon rolls', 'cinnamon')).toBe('covered');
+        expect(tierOf('bread flour', 'bread')).toBe('covered');
         expect(tierOf('Crackers, milk', 'milk')).toBe('covered');
         expect(tierOf('Candies, sugar-coated almonds', 'sugar')).toBe('covered');
+    });
+
+    it('lifts the real food to `head` above every attractor', () => {
+        expect(tierOf('whole milk', 'milk')).toBe('head');
+        expect(tierOf('kosher salt', 'salt')).toBe('head');
+        expect(tierOf('ground cinnamon', 'cinnamon')).toBe('head');
+        // Rewritten: `Carob flour` was pinned at `covered` while the head rule stood in for a default meaning.
+        // It IS a flour; which flour a bare `flour` means is a seed default now (ADR-0070).
+        expect(tierOf('Carob flour', 'flour')).toBe('head');
     });
 
     it('requires EVERY query token for `covered`, so a partial overlap stays at `base`', () => {
@@ -197,7 +298,7 @@ describe('RANKER_VERSION — the band-authority version key (plan U3, R15)', () 
      * behavior, update BOTH together and say so in the commit.
      */
     it('is pinned to the current ladder era', () => {
-        expect(RANKER_VERSION).toBe('ladder-v3-text-match');
+        expect(RANKER_VERSION).toBe('ladder-v4-head-noun');
     });
 });
 

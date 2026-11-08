@@ -97,6 +97,23 @@ async function seedRecipe(
     return row.id;
 }
 
+/** Seed `count` bare private rows for `ownerId`: what fills a cook's private slots. */
+async function seedPrivateRows(db: RecipeDrizzle, ownerId: string, count: number): Promise<void> {
+    await db.insert(recipes).values(
+        Array.from({ length: count }, (_, index) => ({
+            ownerId,
+            title: `Slot filler ${index}`,
+            servings: 1,
+            prepTimeMinutes: 1,
+            cookTimeMinutes: 1,
+            totalTimeMinutes: 2,
+            cuisine: 'Italian',
+            ingredientNamesText: 'filler',
+            visibility: 'private' as const,
+        })),
+    );
+}
+
 /** A version's stored snapshot lines — what history froze, read from the row rather than a route. */
 async function versionLines(
     pool: pg.Pool,
@@ -337,7 +354,11 @@ describe('Clone + visibility US2 (integration)', () => {
         expect((await readRow(db, metaId)).hasSubstantiveEdit).toBe(false);
     });
 
-    it('free-tier visibility policy: user_created → private is DENIED (400), → public is allowed (200)', async () => {
+    // REWRITTEN for ADR-0073 (was: free-tier user_created -> private is DENIED 400, and so is a free-tier private CREATE).
+    // A free cook may now hold 50 private recipes, so what this proves is that the gate still FIRES on both doors when the
+    // cook has no slot left. The full slot suite (count, lock, race, downgrade, clone) is `privateSlots.e2e.test.ts`.
+    it('free-tier visibility policy: with no slot left user_created → private is DENIED (403 PRIVATE_SLOTS_FULL), → public is allowed (200)', async () => {
+        await seedPrivateRows(db, CLONER, 50);
         const id = await seedRecipe(db, pool, {
             ownerId: CLONER,
             title: 'Visibility Subject',
@@ -345,14 +366,13 @@ describe('Clone + visibility US2 (integration)', () => {
             sourceType: 'user_created',
         });
 
-        // Free-tier user_created is public-only → private denied.
         const denied = await fetch(`${baseUrl}/api/v1/recipes/${id}/visibility`, {
             method: 'PATCH',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({ visibility: 'private' }),
         });
-        expect(denied.status).toBe(400);
-        expect((await denied.json()).code).toBe('INVALID_VISIBILITY');
+        expect(denied.status).toBe(403);
+        expect((await denied.json()).code).toBe('PRIVATE_SLOTS_FULL');
 
         // Public is always allowed for user_created; visibility unchanged but the call succeeds.
         const allowed = await fetch(`${baseUrl}/api/v1/recipes/${id}/visibility`, {
@@ -364,10 +384,10 @@ describe('Clone + visibility US2 (integration)', () => {
         expect((await allowed.json()).visibility).toBe('public');
     });
 
-    // ADV-3 / FR-003: the C-004 gate must fire on CREATE too (not only set-visibility) — otherwise a
-    // free-tier caller can POST a `private` recipe and bypass the policy. If the create gate is removed,
-    // the first request 201s with a private row and this test fails.
-    it('free-tier CREATE with visibility:private is DENIED (400 INVALID_VISIBILITY); no row is written', async () => {
+    // ADV-3 / FR-003, REWRITTEN for ADR-0073: the gate must fire on CREATE too. If the create gate is removed, a cook with
+    // no slot left gets a 51st private row and this test fails.
+    it('free-tier CREATE with visibility:private and NO slot left is DENIED (403 PRIVATE_SLOTS_FULL); no row is written', async () => {
+        await seedPrivateRows(db, CLONER, 50);
         const createBody = {
             title: 'Sneaky Private Create',
             servings: 1,
@@ -384,17 +404,17 @@ describe('Clone + visibility US2 (integration)', () => {
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({ ...createBody, visibility: 'private' }),
         });
-        expect(denied.status).toBe(400);
-        expect((await denied.json()).code).toBe('INVALID_VISIBILITY');
+        expect(denied.status).toBe(403);
+        expect((await denied.json()).code).toBe('PRIVATE_SLOTS_FULL');
 
-        // The gate runs before persistence — the free-tier caller (CLONER) owns no such private row.
+        // The gate runs before persistence - no such row exists.
         const [{ count }] = await db
             .select({ count: sql<number>`count(*)::int` })
             .from(recipes)
             .where(sql`${recipes.ownerId} = ${CLONER} AND ${recipes.title} = 'Sneaky Private Create'`);
         expect(count).toBe(0);
 
-        // The same create with public (the free-tier-allowed value) succeeds.
+        // The same create with public (a move that takes no slot) succeeds.
         const allowed = await fetch(`${baseUrl}/api/v1/recipes`, {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
@@ -403,6 +423,7 @@ describe('Clone + visibility US2 (integration)', () => {
         expect(allowed.status).toBe(201);
         expect((await allowed.json()).visibility).toBe('public');
     });
+
     // ── U13: clone of a private-food line (R20) — the binding is KEPT and no name leaks ────────────────
 
     /**

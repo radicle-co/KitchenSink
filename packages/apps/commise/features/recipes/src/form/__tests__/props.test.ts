@@ -7,7 +7,19 @@
  */
 import { describe, expect, expectTypeOf, it } from 'vitest';
 
-import { classifyUnit, CUISINES, normalizeUnit, RECIPE_MEAL_TYPES, RecipeDifficulty } from '@kitchensink/recipe-core';
+import type { PaidFeatureState } from '@commise/features-account';
+
+import {
+    classifyUnit,
+    CUISINES,
+    normalizeUnit,
+    RECIPE_MEAL_TYPES,
+    RecipeDifficulty,
+    RecipeVisibility,
+} from '@kitchensink/recipe-core';
+
+import type { RecipePrivateFacts } from '../../actions/recipePrivateGate.js';
+import { editorMessages } from '../../editor/messages.js';
 
 import { mintedLineKey, seedLineKey } from '../lineKey.js';
 import { makeRecipeFormValues, withLineKeys, withLineKey } from '../../__fixtures__/index.js';
@@ -31,6 +43,7 @@ import {
     unitClassNote,
     unresolvedLineNote,
     visibilityChoice,
+    visibilityFieldOf,
 } from '../props.js';
 
 const messages: Pick<
@@ -1195,29 +1208,432 @@ describe('splitAtCommas / addChips', () => {
 });
 
 /**
- * The "Who can see it" rule (plan 2026-10-14-009 D14): Private under `upsell` asks for the upsell and never changes the
- * value; under `hidden` or `loading` it changes nothing; going back to a saved Private needs no entitlement.
+ * The "Who can see it" rule, REWRITTEN for ADR-0073 / the owner ruling of 2026-10-26. It was the paid-feature rule alone
+ * (Private under `upsell` asks for the upsell, `hidden` and `loading` change nothing, leaving a held Private asks to confirm
+ * unless granted). A recipe is now under one of two rules: a free cook's private SLOTS, or (imported public-web recipes only)
+ * Pro. Public is never final, so leaving a held Private asks to confirm only where there is a cost worth stating.
  */
 describe('visibilityChoice', () => {
+    const premium = (state: PaidFeatureState): RecipePrivateFacts => ({
+        rule: 'premium',
+        standing: { kind: 'unknown' },
+        state,
+    });
+    const slots = (standing: RecipePrivateFacts['standing']): RecipePrivateFacts => ({
+        rule: 'slots',
+        standing,
+        state: 'hidden',
+    });
+    const OPEN = { kind: 'open', used: 49, limit: 50, left: 1 } as const;
+    const FULL = { kind: 'full', used: 50, limit: 50 } as const;
+
     it.each([
-        // current, chosen, saved, state, expected
-        ['public', 'private', 'public', 'granted', { visibility: 'private' }],
-        ['public', 'private', 'public', 'upsell', 'premiumRequired'],
-        ['public', 'private', 'public', 'hidden', undefined],
-        ['public', 'private', 'public', 'loading', undefined],
-        // Leaving a held Private asks to confirm unless the cook is granted (`makePublicConsequence`).
-        ['private', 'public', 'private', 'hidden', 'confirmPublic'],
-        ['private', 'public', 'private', 'upsell', 'confirmPublic'],
-        ['private', 'public', 'private', 'loading', 'confirmPublic'],
-        ['private', 'public', 'private', 'granted', { visibility: 'public' }],
-        ['private', 'public', 'public', 'upsell', { visibility: 'public' }],
-        // Back to what the server holds — no plan needed, whatever the state.
-        ['public', 'private', 'private', 'hidden', { visibility: 'private' }],
-        ['public', 'private', 'private', 'upsell', { visibility: 'private' }],
-        ['public', 'public', 'public', 'upsell', undefined],
-        ['private', 'private', 'private', 'granted', undefined],
-    ] as const)('from %s, choosing %s (saved %s, %s) gives %o', (current, chosen, saved, state, expected) => {
-        expect(visibilityChoice(current, chosen, saved, state)).toEqual(expected);
+        // current, chosen, saved, facts, expected
+        [
+            'premium rule: public to private, granted',
+            'public',
+            'private',
+            'public',
+            premium('granted'),
+            { visibility: 'private' },
+        ],
+        [
+            'premium rule: public to private, upsell',
+            'public',
+            'private',
+            'public',
+            premium('upsell'),
+            'premiumRequired',
+        ],
+        ['premium rule: public to private, hidden', 'public', 'private', 'public', premium('hidden'), undefined],
+        ['premium rule: public to private, loading', 'public', 'private', 'public', premium('loading'), undefined],
+        // Leaving a held Private under the premium rule: only the upsell has a cost to state (public is never final).
+        [
+            'premium rule: leave held Private, upsell',
+            'private',
+            'public',
+            'private',
+            premium('upsell'),
+            'confirmPublic',
+        ],
+        [
+            'premium rule: leave held Private, hidden',
+            'private',
+            'public',
+            'private',
+            premium('hidden'),
+            { visibility: 'public' },
+        ],
+        [
+            'premium rule: leave held Private, loading',
+            'private',
+            'public',
+            'private',
+            premium('loading'),
+            { visibility: 'public' },
+        ],
+        [
+            'premium rule: leave held Private, granted',
+            'private',
+            'public',
+            'private',
+            premium('granted'),
+            { visibility: 'public' },
+        ],
+        // Slots rule.
+        [
+            'slots: public to private with a slot free',
+            'public',
+            'private',
+            'public',
+            slots(OPEN),
+            { visibility: 'private' },
+        ],
+        [
+            'slots: public to private, Pro',
+            'public',
+            'private',
+            'public',
+            slots({ kind: 'unlimited' }),
+            { visibility: 'private' },
+        ],
+        [
+            'slots: public to private, standing unknown (the server decides)',
+            'public',
+            'private',
+            'public',
+            slots({ kind: 'unknown' }),
+            { visibility: 'private' },
+        ],
+        [
+            'slots: public to private, loading (the server decides)',
+            'public',
+            'private',
+            'public',
+            slots({ kind: 'loading' }),
+            { visibility: 'private' },
+        ],
+        // Full: the field already shows the refusal and its ways forward, so the choice changes nothing.
+        ['slots: public to private with every slot used', 'public', 'private', 'public', slots(FULL), undefined],
+        // Leaving a held Private frees a slot, which is worth saying first - for a cook with slots.
+        ['slots: leave held Private, slot free', 'private', 'public', 'private', slots(OPEN), 'confirmPublic'],
+        ['slots: leave held Private, all used', 'private', 'public', 'private', slots(FULL), 'confirmPublic'],
+        [
+            'slots: leave held Private, Pro',
+            'private',
+            'public',
+            'private',
+            slots({ kind: 'unlimited' }),
+            { visibility: 'public' },
+        ],
+        // Back to what the server holds needs nothing, even with every slot used (the recipe holds its own).
+        [
+            'slots: back to a held Private, all used',
+            'public',
+            'private',
+            'private',
+            slots(FULL),
+            { visibility: 'private' },
+        ],
+        [
+            'premium rule: back to a held Private, hidden',
+            'public',
+            'private',
+            'private',
+            premium('hidden'),
+            { visibility: 'private' },
+        ],
+        ['no change: public stays public', 'public', 'public', 'public', premium('upsell'), undefined],
+        ['no change: private stays private', 'private', 'private', 'private', premium('granted'), undefined],
+    ] as const)('%s', (_label, current, chosen, saved, facts, expected) => {
+        expect(visibilityChoice(current, chosen, saved, facts)).toEqual(expected);
+    });
+});
+
+describe('visibilityFieldOf', () => {
+    const v = editorMessages.en.visibility;
+    const OPEN = { kind: 'open', used: 38, limit: 50, left: 12 } as const;
+    const FULL = { kind: 'full', used: 50, limit: 50 } as const;
+    const base = { saved: RecipeVisibility.PUBLIC, draft: RecipeVisibility.PUBLIC, refusal: undefined, messages: v };
+    const slots = (
+        standing: RecipePrivateFacts['standing'],
+        state: PaidFeatureState = 'upsell',
+    ): RecipePrivateFacts => ({
+        rule: 'slots',
+        standing,
+        state,
+    });
+    const privateCard = (model: ReturnType<typeof visibilityFieldOf>) => model.options[1];
+    const publicCard = (model: ReturnType<typeof visibilityFieldOf>) => model.options[0];
+
+    it('says how many slots are left, from the server numbers, where Private is chosen from', () => {
+        const model = visibilityFieldOf({ ...base, facts: slots(OPEN) });
+
+        expect(privateCard(model).note).toBe('12 of 50 private slots left');
+        expect(privateCard(model).premium).toBe(false);
+        expect(model.slotsFull).toBeUndefined();
+    });
+
+    it('when Private is chosen on a recipe not yet private, says it uses 1 slot and what is left after it', () => {
+        const model = visibilityFieldOf({ ...base, draft: RecipeVisibility.PRIVATE, facts: slots(OPEN) });
+
+        expect(privateCard(model).note).toBe('This recipe uses 1 slot. 11 of 50 left after it.');
+    });
+
+    it('a recipe already private holds its slot: it shows the count as it is, not a second slot used', () => {
+        const model = visibilityFieldOf({
+            ...base,
+            saved: RecipeVisibility.PRIVATE,
+            draft: RecipeVisibility.PRIVATE,
+            facts: slots(OPEN),
+        });
+
+        expect(privateCard(model).note).toBe('12 of 50 private slots left');
+    });
+
+    it('Pro shows no count at all', () => {
+        const model = visibilityFieldOf({ ...base, facts: slots({ kind: 'unlimited' }) });
+
+        expect(privateCard(model).note).toBeUndefined();
+        expect(model.slotsFull).toBeUndefined();
+    });
+
+    it('says it is checking while the standing loads, and nothing when the read failed', () => {
+        expect(privateCard(visibilityFieldOf({ ...base, facts: slots({ kind: 'loading' }) })).note).toBe(
+            'Checking your private slots…',
+        );
+        expect(privateCard(visibilityFieldOf({ ...base, facts: slots({ kind: 'unknown' }) })).note).toBeUndefined();
+    });
+
+    /**
+     * ADDED for the owner ruling of 2026-10-26 (ADR-0073 section 12): a draft holds no slot, so the Private card of a
+     * draft says so instead of counting or refusing, and a draft whose Publish was refused for want of a slot shows the
+     * real refusal (the standing the editor then passes is the cook's own).
+     */
+    it('⛔ a private DRAFT shows no count and no refusal, even with every slot used: it says a draft uses no slot', () => {
+        const model = visibilityFieldOf({
+            ...base,
+            draft: RecipeVisibility.PRIVATE,
+            facts: slots({ kind: 'draft' }),
+        });
+
+        expect(privateCard(model).note).toBe(v.slotsDraft);
+        expect(model.slotsFull).toBeUndefined();
+        expect(model.shown).toBe(RecipeVisibility.PRIVATE);
+    });
+
+    it('a private draft made public costs nothing to say (it frees no slot)', () => {
+        const model = visibilityFieldOf({
+            ...base,
+            saved: RecipeVisibility.PRIVATE,
+            draft: RecipeVisibility.PRIVATE,
+            facts: slots({ kind: 'draft' }),
+        });
+
+        expect(publicCard(model).note).toBeUndefined();
+    });
+
+    it('a draft whose Publish was refused shows the refusal and its ways forward, and keeps Private chosen', () => {
+        const model = visibilityFieldOf({ ...base, draft: RecipeVisibility.PRIVATE, facts: slots(FULL, 'hidden') });
+
+        expect(privateCard(model).note).toBe('Not available. All 50 of your private slots are in use.');
+        expect(model.slotsFull?.ways.map((way) => way.id)).toEqual(['makePublic', 'delete']);
+        expect(model.shown).toBe(RecipeVisibility.PRIVATE);
+    });
+
+    it('with every slot used, refuses Private with the total, and offers the ways forward (Pro among them under the upsell)', () => {
+        const model = visibilityFieldOf({ ...base, facts: slots(FULL, 'upsell') });
+
+        expect(privateCard(model).note).toBe('Not available. All 50 of your private slots are in use.');
+        expect(model.slotsFull).toEqual({
+            title: 'To keep this recipe private',
+            ways: [
+                { id: 'makePublic', label: 'Make a private recipe public', detail: 'It frees its slot' },
+                { id: 'delete', label: 'Delete a private recipe', detail: 'It frees its slot' },
+                { id: 'premium', label: 'Get Pro', detail: 'Private recipes with no limit' },
+            ],
+        });
+    });
+
+    it.each(['hidden', 'loading'] as const)(
+        'hides the Pro way when paid features are %s (no sale where none is shown)',
+        (state) => {
+            const ways = visibilityFieldOf({ ...base, facts: slots(FULL, state) }).slotsFull?.ways.map((way) => way.id);
+
+            expect(ways).toEqual(['makePublic', 'delete']);
+        },
+    );
+
+    it('a downgraded cook over the limit is told the limit, not their larger count', () => {
+        const model = visibilityFieldOf({ ...base, facts: slots({ kind: 'full', used: 60, limit: 50 }) });
+
+        expect(privateCard(model).note).toBe('Not available. All 50 of your private slots are in use.');
+    });
+
+    it('a recipe already private shows no refusal even with every slot used: it holds its own', () => {
+        const model = visibilityFieldOf({
+            ...base,
+            saved: RecipeVisibility.PRIVATE,
+            draft: RecipeVisibility.PRIVATE,
+            facts: slots(FULL),
+        });
+
+        expect(model.slotsFull).toBeUndefined();
+    });
+
+    it('⛔ a private recipe made public says it frees a slot, and never that public is final', () => {
+        const model = visibilityFieldOf({
+            ...base,
+            saved: RecipeVisibility.PRIVATE,
+            draft: RecipeVisibility.PRIVATE,
+            facts: slots(OPEN),
+        });
+
+        expect(publicCard(model).note).toBe(
+            'This frees one of your private slots. To make it private again, you need a free slot.',
+        );
+        expect(publicCard(model).note).not.toMatch(/won.t be able|may not be able/u);
+    });
+
+    it('an imported public-web recipe under the upsell says Pro and a change of their own are needed', () => {
+        const facts: RecipePrivateFacts = { rule: 'premium', standing: { kind: 'unknown' }, state: 'upsell' };
+        const model = visibilityFieldOf({ ...base, facts });
+
+        expect(privateCard(model).note).toBe(v.webPrivate);
+        expect(privateCard(model).premium).toBe(true);
+        expect(model.slotsFull).toBeUndefined();
+    });
+
+    it('the Pro rule keeps its own make-public cost: Pro, only under the upsell', () => {
+        const held = { ...base, saved: RecipeVisibility.PRIVATE, draft: RecipeVisibility.PRIVATE };
+        const costOf = (state: PaidFeatureState) =>
+            publicCard(visibilityFieldOf({ ...held, facts: { rule: 'premium', standing: { kind: 'unknown' }, state } }))
+                .note;
+
+        expect(costOf('upsell')).toBe("To make it private again, you'll need Pro.");
+        expect(costOf('hidden')).toBeUndefined();
+        expect(costOf('loading')).toBeUndefined();
+        expect(costOf('granted')).toBeUndefined();
+    });
+
+    // REWRITTEN: this pinned "the card says nothing and Public applies". A book or paid-site recipe can never be public
+    // (004 FR-014a; the server refuses it), so the card now says WHY it is refused and choosing it applies nothing.
+    it('⛔ a book or paid-site recipe: the Public card is refused with the reason, and choosing it applies nothing', () => {
+        const facts: RecipePrivateFacts = { rule: 'privateOnly', standing: OPEN, state: 'upsell' };
+        const model = visibilityFieldOf({
+            ...base,
+            saved: RecipeVisibility.PRIVATE,
+            draft: RecipeVisibility.PRIVATE,
+            facts,
+        });
+
+        expect(publicCard(model).refused).toBe(true);
+        expect(publicCard(model).note).toBe(
+            'Not for this recipe. Its source is a book or a paid site, not a public web page.',
+        );
+        expect(visibilityChoice('private', 'public', 'private', facts)).toBeUndefined();
+    });
+
+    it.each(['slots', 'premium'] as const)('the Public card is never refused under the %s rule', (rule) => {
+        const facts: RecipePrivateFacts = { rule, standing: OPEN, state: 'upsell' };
+        const model = visibilityFieldOf({
+            ...base,
+            saved: RecipeVisibility.PRIVATE,
+            draft: RecipeVisibility.PRIVATE,
+            facts,
+        });
+
+        expect(publicCard(model).refused).toBe(false);
+    });
+
+    it('describes only the Public card as refused', () => {
+        const facts: RecipePrivateFacts = { rule: 'privateOnly', standing: OPEN, state: 'upsell' };
+        const model = visibilityFieldOf({
+            ...base,
+            saved: RecipeVisibility.PRIVATE,
+            draft: RecipeVisibility.PRIVATE,
+            facts,
+        });
+
+        expect(privateCard(model).refused).toBe(false);
+    });
+
+    it('over the limit: the slots view carries the overLimit sentence and a Pro link only under the upsell', () => {
+        const over = { kind: 'full', used: 60, limit: 50 } as const;
+        const viewOf = (state: PaidFeatureState, standing: RecipePrivateFacts['standing'] = over) =>
+            visibilityFieldOf({ ...base, facts: { rule: 'slots', standing, state } }).slotsFull;
+
+        expect(viewOf('upsell')?.overLimit).toEqual({
+            text: 'You have 60 private recipes and 50 private slots. They stay private. To make another recipe private, first bring your private recipes under 50.',
+            premiumLink: 'About Pro',
+        });
+        expect(viewOf('hidden')?.overLimit?.premiumLink).toBeUndefined();
+        expect(viewOf('upsell')?.ways.map((way) => way.id)).toEqual(['makePublic', 'delete']);
+        // At exactly the limit it is "all in use", not "over".
+        expect(viewOf('upsell', { kind: 'full', used: 50, limit: 50 })?.overLimit).toBeUndefined();
+    });
+
+    it('a kept draft Private the slots refuse is shown as Public, with the slots sentence', () => {
+        const model = visibilityFieldOf({
+            ...base,
+            draft: RecipeVisibility.PRIVATE,
+            refusal: 'slots',
+            facts: slots(FULL),
+        });
+
+        expect(model.shown).toBe(RecipeVisibility.PUBLIC);
+        expect(publicCard(model).note).toBe('Not available. All 50 of your private slots are in use.');
+    });
+
+    /**
+     * Owner ruling 2026-10-26 (design): with paid features HIDDEN an imported public-web recipe can never be private, so
+     * Private is shown REFUSED - the card stays, the reason describes it - rather than offered and asked about at Publish.
+     */
+    describe('an imported public-web recipe with paid features hidden', () => {
+        const premiumRule = (state: PaidFeatureState): RecipePrivateFacts => ({
+            rule: 'premium',
+            standing: { kind: 'unknown' },
+            state,
+        });
+        const REASON = 'Not available. A recipe from a public web page can only be public.';
+
+        it('⛔ refuses the Private card and gives the reason as its note', () => {
+            const model = visibilityFieldOf({ ...base, facts: premiumRule('hidden'), refusal: 'final' });
+
+            expect(privateCard(model).refused).toBe(true);
+            expect(privateCard(model).note).toBe(REASON);
+        });
+
+        it('⛔ a kept Private draft is NOT shown as Public: Private stays chosen, refused, with the reason on its card', () => {
+            const model = visibilityFieldOf({
+                ...base,
+                draft: RecipeVisibility.PRIVATE,
+                facts: premiumRule('hidden'),
+                refusal: 'final',
+            });
+
+            expect(model.shown).toBe(RecipeVisibility.PRIVATE);
+            expect(publicCard(model).note).toBeUndefined();
+            expect(privateCard(model).refused).toBe(true);
+            expect(privateCard(model).note).toBe(REASON);
+        });
+
+        it('does not refuse Private under the upsell (it opens the Pro sheet), for a cook-written recipe, or for one already private', () => {
+            expect(
+                privateCard(visibilityFieldOf({ ...base, facts: premiumRule('upsell'), refusal: 'premium' })).refused,
+            ).toBe(false);
+            expect(privateCard(visibilityFieldOf({ ...base, facts: slots(OPEN, 'hidden') })).refused).toBe(false);
+            expect(
+                privateCard(
+                    visibilityFieldOf({
+                        ...base,
+                        saved: RecipeVisibility.PRIVATE,
+                        draft: RecipeVisibility.PRIVATE,
+                        facts: premiumRule('hidden'),
+                    }),
+                ).refused,
+            ).toBe(false);
+        });
     });
 });
 

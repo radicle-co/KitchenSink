@@ -25,6 +25,7 @@ import { isStandInName, lineAmountName } from '../detail/lineName.js';
 import { formatQuantity, lineSummary } from '../detail/model.js';
 import type { LineCommitTarget } from '../hooks/lineCommit.js';
 import type { IngredientRowEditor } from '../hooks/useIngredientRowEditor.js';
+import { controlName } from '../format/cookAmount.js';
 import { fillTemplate } from '../format/fillTemplate.js';
 import type { RecipeMessages } from '../messages.js';
 import {
@@ -60,7 +61,8 @@ import { rowMenuOf, type RowMenuAction } from './rowMenu.js';
 import { rowSecondLineOf } from './rowSecondLine.js';
 import { shortlistSettledAt, type ShortlistPanelProps } from './shortlistPanel.model.js';
 import { unitSuggestionsOf } from './unitSuggestions.js';
-import type { ControlFocus, RowFocus } from './useRowFocus.js';
+import type { ControlFocus } from '../common/controlFocus.js';
+import type { RowFocus } from './useRowFocus.js';
 import type { RecipeFormErrors } from './validate.js';
 import type { RecipeFormIngredient, RecipeFormValues } from './values.js';
 
@@ -231,7 +233,7 @@ export interface IngredientRowView {
     /** A variant-bound line's parts, from its own binding, so a retired variant still shows them (§S1). */
     readonly variantParts: readonly [string, ...string[]] | undefined;
     readonly changing: boolean;
-    /** The amount column's text ("2–2.5 kg"); `''` for no amount, never an invented "1" (F5). */
+    /** The amount's text ("2–2.5 kg"); `''` for no amount, never an invented "1" (F5). */
     readonly amountText: string;
     /** The preparation after the name, or `undefined` when there is none. */
     readonly prepText: string | undefined;
@@ -656,8 +658,9 @@ export const ingredientRowViewOf = (
     // D21: a count of one reads in the singular. DISPLAY only; `line` keeps the name as stored.
     const displayName = lineAmountName(line, quantity, line.unit, ctx.shared.ingredientLineName);
     const amountText = formatQuantity(quantity, ctx.locale, line.unit);
+    // A stand-in row is named by its amount too, as the row shows it (WCAG 2.5.3, option C).
     const triggerFood = presentation.standIn
-        ? lineSummary({ ...line, quantity }, ctx.locale, ctx.shared.ingredientLineName)
+        ? controlName(lineSummary({ ...line, quantity }, ctx.locale, ctx.shared.ingredientLineName))
         : displayName;
     const failure = ctx.failureOf(target);
     const pendingText = rowPendingSentence(
@@ -728,7 +731,7 @@ export const ingredientRowViewOf = (
         // A stand-in row shows no preparation (the leaves draw it only beside a real name), so its name carries none.
         openLabel: presentation.standIn
             ? rowOpenLabelOf(m, triggerFood, undefined)
-            : rowOpenLabelOf(m, `${amountText} ${displayName}`.trim(), prep === '' ? undefined : prep),
+            : controlName(rowOpenLabelOf(m, `${amountText} ${displayName}`.trim(), prep === '' ? undefined : prep)),
         secondLine,
         amountInvalidNote: marks.quantityInvalid ? m.rowAmountInvalid : undefined,
         inEntry: changing,

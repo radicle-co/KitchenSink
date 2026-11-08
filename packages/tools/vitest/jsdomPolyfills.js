@@ -59,3 +59,34 @@ if (typeof globalThis.TransitionEvent === 'undefined') {
 if (typeof Element !== 'undefined' && typeof Element.prototype.scrollIntoView !== 'function') {
     Element.prototype.scrollIntoView = function scrollIntoView() {};
 }
+
+/**
+ * `IntersectionObserver` — never implemented by jsdom. Tamagui's web `measureInWindow` reads a node's rectangle through
+ * one, so a component that measures itself (the Sheet's `KeyboardLift`) threw an unhandled `ReferenceError` in every lane.
+ * Inert: it never reports, so a measurement stays pending, which is what a jsdom with no layout has to say. A test that
+ * needs a rectangle replaces it with `vi.stubGlobal`.
+ */
+if (typeof globalThis.IntersectionObserver === 'undefined') {
+    class IntersectionObserverPolyfill {
+        /**
+         * @param {IntersectionObserverCallback} callback - Kept so the signature matches the real constructor; never called.
+         * @param {IntersectionObserverInit} [options] - Likewise.
+         */
+        constructor(callback, options) {
+            this.callback = callback;
+            this.options = options;
+        }
+
+        observe() {}
+
+        unobserve() {}
+
+        disconnect() {}
+
+        takeRecords() {
+            return [];
+        }
+    }
+
+    globalThis.IntersectionObserver = IntersectionObserverPolyfill;
+}

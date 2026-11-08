@@ -214,6 +214,10 @@ for (const [scheme, colors] of THEMES) {
 
                     const recent = page.getByRole('heading', { level: 2, name: 'Recent recipes' });
                     const comingSoon = page.getByRole('region', { name: 'Coming soon' });
+                    // The heading is on the skeleton too, so it proves nothing. Measure only once the block has settled:
+                    // the loading status is gone and a seeded card has replaced it (no later shift can move the boxes).
+                    await expect(page.getByRole('status', { name: 'Loading recipes' })).toBeHidden();
+                    await expect(page.getByRole('link', { name: /Weeknight Pasta/u })).toBeVisible();
                     await expect(recent).toBeVisible();
                     await expect(comingSoon.getByRole('heading', { level: 2, name: 'Coming soon' })).toBeAttached();
 
@@ -294,10 +298,11 @@ for (const [scheme, colors] of THEMES) {
 
                     const title = page.getByRole('heading', { level: 1, name: LAMB_TITLE });
                     await expect(title).toBeVisible();
-                    expect(await title.evaluate((node) => getComputedStyle(node).fontFamily)).toMatch(/Playfair/u);
+                    expect(await title.evaluate((node) => getComputedStyle(node).fontFamily)).toMatch(/Manrope/u);
 
-                    // F7: each stat value on one line ("5 h 30 min", "Medium" whole).
-                    for (const value of ['5 h 30 min', '30 min', '5 h', 'Medium']) {
+                    // F7: each fact tile's value on one line ("5 h 30 min", "Medium" whole). REWRITTEN IN SLICE 1: there is no
+                    // Cook tile, so its "5 h" is no longer on the page.
+                    for (const value of ['5 h 30 min', '30 min', 'Medium']) {
                         const cell = page.getByText(value, { exact: true }).first();
                         await expect(cell).toBeVisible();
                         expect(await textLines(cell), value).toBe(1);
@@ -307,7 +312,7 @@ for (const [scheme, colors] of THEMES) {
                         ).toBe(true);
                     }
 
-                    // F9: the group overlines.
+                    // F9: the group labels.
                     await expect(page.getByRole('heading', { level: 3, name: 'For the lamb' })).toBeVisible();
 
                     // F15: below 600 the page gutter is 16 px, the same as a top-level screen.
@@ -315,19 +320,9 @@ for (const [scheme, colors] of THEMES) {
                         expect(Math.round((await title.boundingBox())?.x ?? 0)).toBe(16);
                     }
 
-                    // F14: below a 720 px body the section bar's links never sit under its toggle.
-                    const sections = page.getByRole('navigation', { name: 'Recipe sections' });
-
-                    if (await sections.isVisible()) {
-                        const nutrition = sections.getByRole('link', { name: 'Nutrition' });
-                        await nutrition.focus();
-                        const link = await nutrition.boundingBox();
-                        const nav = await sections.boundingBox();
-                        expect((link?.x ?? 0) + (link?.width ?? 0)).toBeLessThanOrEqual(
-                            (nav?.x ?? 0) + (nav?.width ?? 0) + 1,
-                        );
-                        expect(link?.width ?? 0).toBeGreaterThanOrEqual(24);
-                    }
+                    // REWRITTEN IN SLICE 1: F14's section bar is gone from the recipe page at every width, so its links can no
+                    // longer sit under its toggle; what is asserted is that there is no bar.
+                    await expect(page.getByRole('navigation', { name: 'Recipe sections' })).toHaveCount(0);
 
                     expect(await pageOverflowX(page)).toBeLessThanOrEqual(0);
                 });
@@ -412,7 +407,7 @@ for (const [scheme, colors] of THEMES) {
 
                     const heading = page.getByRole('heading', { level: 1, name: 'We couldn’t find that page.' });
                     await expect(heading).toBeVisible();
-                    expect(await heading.evaluate((node) => getComputedStyle(node).fontFamily)).toMatch(/Playfair/u);
+                    expect(await heading.evaluate((node) => getComputedStyle(node).fontFamily)).toMatch(/Manrope/u);
                     const back = page.getByRole('link', { name: 'Back to Home' });
 
                     // The Button's 44 px floor; a fine pointer at `md` and up takes the desktop density by design.

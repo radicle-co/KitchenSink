@@ -74,6 +74,7 @@ const styles = StyleSheet.create({
     row: { gap: nativeTokens.spacing[1], minHeight: 48, justifyContent: 'center' },
     name: { ...nativeTokens.type.body },
     state: { flexDirection: 'row', alignItems: 'center', gap: nativeTokens.spacing[2] },
-    stateText: { ...nativeTokens.type.caption, flexShrink: 1 },
+    // The 14 pt `list` role under the 16 pt line (the owner's type-scale ruling, 2026-10-25).
+    stateText: { ...nativeTokens.type.list, flexShrink: 1 },
     action: { flexDirection: 'row' },
 });

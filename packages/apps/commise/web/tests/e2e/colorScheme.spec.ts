@@ -148,12 +148,14 @@ for (const [scheme, colors] of THEMES) {
             expect(await computed(menu, 'color')).toBe(rgb(colors.ink));
         });
 
-        test('paints the primary Edit action as the flat action fill', async ({ page }) => {
+        // Owner ruling (buildLists.md "Supersedes buildSpec §6.1": no filled "Edit recipe" button): the
+        // owner's Edit is the ghost text action, an `actionText` label on no fill. It was the flat `action` fill before.
+        test('paints the Edit action as a text action: an actionText label on no fill', async ({ page }) => {
             await openRecipe(page);
 
             const edit = page.getByRole('link', { name: 'Edit recipe' });
-            expect(await computed(edit, 'backgroundColor')).toBe(rgb(colors.action));
-            expect(await computed(edit, 'color')).toBe(rgb(colors.onAction));
+            expect(await computed(edit, 'backgroundColor')).toBe('rgba(0, 0, 0, 0)');
+            expect(await computed(edit, 'color')).toBe(rgb(colors.actionText));
         });
     });
 }

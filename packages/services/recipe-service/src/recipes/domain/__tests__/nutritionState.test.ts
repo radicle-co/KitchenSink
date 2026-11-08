@@ -49,7 +49,6 @@ describe('toRecipeNutritionState — known', () => {
                 referencedFoodCount: 1,
                 resolvedFoodCount: 1,
                 withheldLineCount: 0,
-                pendingLineCount: 0,
             },
             2,
             false,
@@ -78,7 +77,6 @@ describe('toRecipeNutritionState — known', () => {
                     referencedFoodCount: 1,
                     resolvedFoodCount: 1,
                     withheldLineCount: 0,
-                    pendingLineCount: 0,
                 },
                 1,
                 false,
@@ -101,7 +99,6 @@ describe('toRecipeNutritionState — known', () => {
                 referencedFoodCount: 1,
                 resolvedFoodCount: 1,
                 withheldLineCount: 0,
-                pendingLineCount: 0,
             },
             2,
             false,
@@ -121,7 +118,6 @@ describe('toRecipeNutritionState — known', () => {
                 referencedFoodCount: 1,
                 resolvedFoodCount: 1,
                 withheldLineCount: 0,
-                pendingLineCount: 0,
             },
             2,
             true,
@@ -147,7 +143,6 @@ describe('toRecipeNutritionState — known', () => {
                 referencedFoodCount: 2,
                 resolvedFoodCount: 2,
                 withheldLineCount: 0,
-                pendingLineCount: 0,
             },
             2,
             true,
@@ -166,7 +161,6 @@ describe('toRecipeNutritionState — known', () => {
                 referencedFoodCount: 0,
                 resolvedFoodCount: 0,
                 withheldLineCount: 0,
-                pendingLineCount: 0,
             },
             1,
             true,
@@ -183,7 +177,6 @@ describe('toRecipeNutritionState — known', () => {
                 referencedFoodCount: 1,
                 resolvedFoodCount: 1,
                 withheldLineCount: 0,
-                pendingLineCount: 0,
             },
             1,
             true,
@@ -202,7 +195,6 @@ describe('toRecipeNutritionState — unaccounted', () => {
                     referencedFoodCount: 0,
                     resolvedFoodCount: 0,
                     withheldLineCount: 0,
-                    pendingLineCount: 0,
                 },
                 4,
                 false,
@@ -218,7 +210,6 @@ describe('toRecipeNutritionState — unaccounted', () => {
                     referencedFoodCount: 0,
                     resolvedFoodCount: 0,
                     withheldLineCount: 0,
-                    pendingLineCount: 0,
                 },
                 4,
                 false,
@@ -238,7 +229,6 @@ describe('toRecipeNutritionState — unaccounted', () => {
                     referencedFoodCount: 0,
                     resolvedFoodCount: 0,
                     withheldLineCount: 0,
-                    pendingLineCount: 0,
                 },
                 4,
                 true,
@@ -256,7 +246,6 @@ describe('toRecipeNutritionState — unaccounted', () => {
                     referencedFoodCount: 1,
                     resolvedFoodCount: 1,
                     withheldLineCount: 0,
-                    pendingLineCount: 0,
                 },
                 4,
                 false,
@@ -272,7 +261,6 @@ describe('toRecipeNutritionState — unaccounted', () => {
                     referencedFoodCount: 2,
                     resolvedFoodCount: 0,
                     withheldLineCount: 0,
-                    pendingLineCount: 0,
                 },
                 4,
                 false,
@@ -289,7 +277,6 @@ describe('toRecipeNutritionState — unaccounted', () => {
                     referencedFoodCount: 1,
                     resolvedFoodCount: 0,
                     withheldLineCount: 0,
-                    pendingLineCount: 0,
                 },
                 4,
                 true,
@@ -306,7 +293,6 @@ describe('toRecipeNutritionState — unaccounted', () => {
                     referencedFoodCount: 1,
                     resolvedFoodCount: 0,
                     withheldLineCount: 0,
-                    pendingLineCount: 0,
                 },
                 4,
                 true,
@@ -321,7 +307,6 @@ describe('toRecipeNutritionState — unaccounted', () => {
                 referencedFoodCount: 1,
                 resolvedFoodCount: 0,
                 withheldLineCount: 0,
-                pendingLineCount: 0,
             },
             4,
             true,
@@ -351,7 +336,6 @@ describe('toRecipeNutritionState — unaccounted{verification_disagreement}', ()
                     referencedFoodCount: 1,
                     resolvedFoodCount: 1,
                     withheldLineCount: 1,
-                    pendingLineCount: 0,
                 },
                 2,
                 false,
@@ -366,7 +350,6 @@ describe('toRecipeNutritionState — unaccounted{verification_disagreement}', ()
                 referencedFoodCount: 2,
                 resolvedFoodCount: 2,
                 withheldLineCount: 1,
-                pendingLineCount: 0,
             },
             2,
             false,
@@ -382,7 +365,6 @@ describe('toRecipeNutritionState — unaccounted{verification_disagreement}', ()
                 referencedFoodCount: 1,
                 resolvedFoodCount: 0,
                 withheldLineCount: 1,
-                pendingLineCount: 0,
             },
             2,
             true,
@@ -398,7 +380,6 @@ describe('toRecipeNutritionState — unaccounted{verification_disagreement}', ()
                 referencedFoodCount: 1,
                 resolvedFoodCount: 1,
                 withheldLineCount: 1,
-                pendingLineCount: 0,
             },
             2,
             false,
@@ -417,7 +398,6 @@ describe('toRecipeNutritionState — unaccounted{verification_disagreement}', ()
                 referencedFoodCount: 2,
                 resolvedFoodCount: 2,
                 withheldLineCount: 1,
-                pendingLineCount: 0,
             },
             2,
             false,
@@ -436,7 +416,6 @@ describe('toRecipeNutritionState — unaccounted{verification_disagreement}', ()
                     referencedFoodCount: 0,
                     resolvedFoodCount: 0,
                     withheldLineCount: 0,
-                    pendingLineCount: 0,
                 },
                 2,
                 false,
@@ -452,52 +431,7 @@ describe('toRecipeNutritionState — unaccounted{verification_disagreement}', ()
  * re-flows as verdicts land", disagreement says "we checked and disagreed" — one invites patience, the
  * other invites review. And not a food-side reason either: the catalog answered, the withholding is ours.
  */
-describe('toRecipeNutritionState — unaccounted{verification_pending}', () => {
-    it('reports pending when withheld-pending lines are what left the recipe with no figure', () => {
-        expect(
-            toRecipeNutritionState(
-                {
-                    lines: [unaccountableLine],
-                    referencedFoodCount: 1,
-                    resolvedFoodCount: 1,
-                    withheldLineCount: 0,
-                    pendingLineCount: 1,
-                },
-                4,
-                false,
-            ),
-        ).toStrictEqual({ state: 'unaccounted', reason: 'verification_pending' });
-    });
-
-    it('⛔ an explicit DISAGREEMENT outranks pending — the stronger fact wins', () => {
-        expect(
-            toRecipeNutritionState(
-                {
-                    lines: [unaccountableLine],
-                    referencedFoodCount: 1,
-                    resolvedFoodCount: 1,
-                    withheldLineCount: 1,
-                    pendingLineCount: 1,
-                },
-                4,
-                false,
-            ),
-        ).toStrictEqual({ state: 'unaccounted', reason: 'verification_disagreement' });
-    });
-
-    it('pending outranks every food-side reason — the catalog answered; the withholding is ours', () => {
-        expect(
-            toRecipeNutritionState(
-                {
-                    lines: [unaccountableLine],
-                    referencedFoodCount: 1,
-                    resolvedFoodCount: 0,
-                    withheldLineCount: 0,
-                    pendingLineCount: 1,
-                },
-                4,
-                true,
-            ),
-        ).toStrictEqual({ state: 'unaccounted', reason: 'verification_pending' });
-    });
-});
+// ⛔ DELETED (ADR-0071): "unaccounted{verification_pending}". The pending withhold read the latest resolution event on
+// a line's SHARED binding; the detail read no longer reads it, so no line is pending and the accounting no longer
+// carries a pending count. The wire reason stays in the contract, unproduced, because removing an enum member is a
+// one-way door for installed clients.

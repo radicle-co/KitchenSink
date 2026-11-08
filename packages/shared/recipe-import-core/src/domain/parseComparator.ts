@@ -85,7 +85,8 @@ import type { IngredientReviewReason } from '../ingredientLine.js';
 import type { ParsedFacts, ParsedFood, ParsedLine, ParseEngine, ParseProvenance } from '../parsedLine.js';
 import { splitMeasurement } from '../splitMeasurement.js';
 
-import { classifyModifier } from './modifierLexicon.js';
+import { classifyModifier, staysInPreparation } from './modifierLexicon.js';
+import { trimEdges } from './trimEdges.js';
 
 /**
  * An engine that produced no answer at all — a Lambda that threw, or a call the spend ceiling denied.
@@ -167,8 +168,21 @@ const COMPARISON_STOPWORDS: ReadonlySet<string> = new Set([
     'which',
 ]);
 
+/** A list separator an engine writes between preparations (the LLM joins them with ", "). */
+const isSeparator = (character: string): boolean => character === ',' || character === ';';
+
 /** Everything that is not a letter, a digit or an internal hyphen. */
-const NON_WORD_EDGE = /^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu;
+const NON_WORD = /[^\p{L}\p{N}]/u;
+
+/**
+ * Join the words a field keeps, without the separator a moved word left behind.
+ *
+ * @param tokens - The words, in order.
+ * @returns The phrase, with no separator at either end. Pure.
+ */
+function joinKept(tokens: readonly string[]): string {
+    return trimEdges(tokens.join(' '), isSeparator);
+}
 
 /**
  * Split a phrase into words.
@@ -187,7 +201,7 @@ function tokenise(text: string): readonly string[] {
  * @returns Lower-cased and stripped of edge punctuation. Pure.
  */
 function fold(token: string): string {
-    return token.toLowerCase().replace(NON_WORD_EDGE, '');
+    return trimEdges(token.toLowerCase(), (character) => NON_WORD.test(character));
 }
 
 /**
@@ -209,7 +223,8 @@ function destinations(tokens: readonly string[], field: Field): readonly Field[]
                 resolved[index] = 'prep';
                 break;
             case 'identity':
-                resolved[index] = 'name';
+                // A word the cook writes after the food is their step, whatever it would mean before the food.
+                resolved[index] = field === 'prep' && staysInPreparation(tokens[index] ?? '') ? 'prep' : 'name';
                 break;
             case 'qualifier':
                 // It has no home of its own: it goes wherever the word to its right went.
@@ -227,8 +242,12 @@ function destinations(tokens: readonly string[], field: Field): readonly Field[]
 /**
  * Put every word of one food where KTD-11b says it belongs.
  *
- * ⛔ This is the ONE normalisation that also applies to what is STORED, because it deletes nothing — it
- * only decides which field holds a word the line already wrote. Two consequences are deliberate:
+ * ⛔ This is the ONE normalisation that also applies to what is STORED, because it deletes no word of the
+ * source — it only decides which field holds a word the line already wrote. The one thing it drops is a list
+ * separator (`,` `;`) the ENGINE wrote beside a word it moves: an LLM joins its preparations with ", ", so
+ * `blueberries | frozen, thawed` would otherwise store the name `frozen, blueberries`. That separator is the
+ * engine's punctuation between two fields' worth of words, not the cook's, so R1 is untouched. Two
+ * consequences are deliberate:
  *
  *  - **A name is never emptied.** If every word of the name wants to leave and nothing arrives to replace
  *    it, nothing moves. Identity is what the food catalog resolves; a food with an empty name is not a
@@ -264,8 +283,13 @@ export function canonicaliseFood(food: ParsedFood): ParsedFood {
     const alreadyNamed = new Set(keptName.map(fold));
     const alreadyPrepared = new Set(prepStays.map(fold));
 
-    const name = [...toName.filter((token) => !alreadyNamed.has(fold(token))), ...keptName].join(' ');
-    const prep = [...prepStays, ...movedToPrep.filter((token) => !alreadyPrepared.has(fold(token)))].join(' ');
+    // A moved word travels without the separator it sat beside in its old field.
+    const unseparated = (token: string): string => trimEdges(token, isSeparator);
+    const name = joinKept([...toName.filter((token) => !alreadyNamed.has(fold(token))).map(unseparated), ...keptName]);
+    const prep = joinKept([
+        ...prepStays,
+        ...movedToPrep.filter((token) => !alreadyPrepared.has(fold(token))).map(unseparated),
+    ]);
 
     return { name, prep: prep === '' ? null : prep };
 }

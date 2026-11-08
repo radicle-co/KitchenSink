@@ -68,6 +68,15 @@ export const RECIPE_ERROR_STATUS: Readonly<Record<RecipeErrorCode, number>> = {
     VERSION_LINE_UNRESTORABLE: HttpStatus.CONFLICT,
     // ── The publish floor (owner rulings 2026-10-13): a policy answer, a 400 like its sibling INVALID_VISIBILITY ──
     PUBLISH_REQUIREMENTS_UNMET: HttpStatus.BAD_REQUEST,
+    // ── The daily import allowance (004 FR-022): a 429 like the throttler's, with a code of its own — a burst limit
+    //    clears in seconds and is worth retrying, a spent allowance stays spent for hours and is not ──
+    IMPORT_QUOTA_EXCEEDED: HttpStatus.TOO_MANY_REQUESTS,
+    // ── Bulk import (ADR-0072): a missing import is a 404 like a missing parse job; the other two are state conflicts ──
+    IMPORT_NOT_FOUND: HttpStatus.NOT_FOUND,
+    IMPORT_CURSOR_MOVED: HttpStatus.CONFLICT,
+    IMPORT_ITEM_ALREADY_SAVED: HttpStatus.CONFLICT,
+    // ── Private slots (ADR-0073): a 403, NOT a 409 - an installed client reads an unknown 409 as a version conflict ──
+    PRIVATE_SLOTS_FULL: HttpStatus.FORBIDDEN,
 
     // ── Auth and account lifecycle ──
     UNAUTHORIZED: HttpStatus.UNAUTHORIZED,
@@ -78,6 +87,8 @@ export const RECIPE_ERROR_STATUS: Readonly<Record<RecipeErrorCode, number>> = {
     FORBIDDEN: HttpStatus.FORBIDDEN,
     // ADR-0040: a 403, like `FORBIDDEN`, with a code of its own — see the schema's note.
     TEST_PRINCIPAL_CONTAINED: HttpStatus.FORBIDDEN,
+    // ADR-0081: a 403 like `FORBIDDEN`, with a code of its own so a client does not retry or re-sign-in.
+    ACCOUNT_SUSPENDED: HttpStatus.FORBIDDEN,
     ACCOUNT_ALREADY_ERASED: HttpStatus.GONE,
 
     // ── Transport / framework outcomes ──

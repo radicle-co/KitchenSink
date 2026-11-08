@@ -9,6 +9,7 @@
  * never a hairline tone. An invalid field takes the `danger` edge from its own `aria-invalid`, so the state and its
  * styling cannot disagree. The `focusRing` and the 40% disabled state are the state matrix's (§1.10).
  */
+import { FOCUS_RING_CLASS } from '../focusRing/focusRingClass.js';
 
 /**
  * The text-field surface. It sets NO width and NO text colour: both land in the class attribute beside it, and the
@@ -16,5 +17,5 @@
  */
 export const FIELD_CLASS =
     'min-h-12 rounded-md border border-line-control bg-paper px-4 py-3 text-body ' +
-    'placeholder:text-ink-muted aria-invalid:border-danger focus-visible:outline-none focus-visible:ring-2 ' +
-    'focus-visible:ring-focus-ring disabled:cursor-not-allowed disabled:opacity-40';
+    `placeholder:text-ink-muted aria-invalid:border-danger ${FOCUS_RING_CLASS.offset} ` +
+    'disabled:cursor-not-allowed disabled:opacity-40';

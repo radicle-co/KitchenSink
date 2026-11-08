@@ -92,7 +92,7 @@ import { describe, it, expect } from 'vitest';
 
 import type { ParsedFacts, ParsedFood, ParsedLine, ParseEngine, ParseProvenance } from '../../parsedLine.js';
 import { makeParsedLine } from '../../__tests__/__fixtures__/makeParsedLine.js';
-import { compareParses, type ComparedFact, type ParseComparison } from '../parseComparator.js';
+import { canonicaliseFood, compareParses, type ComparedFact, type ParseComparison } from '../parseComparator.js';
 
 /** A stated RANGE, through the same smart constructor. Throws rather than returning a hole. */
 function ranging(low: number, high: number): IngredientQuantity {
@@ -1089,6 +1089,88 @@ describe('compareParses — KTD-11b placement, canonicalised before comparing', 
         expect(onlyFood(result)).toEqual({ name: 'large onion', prep: null });
     });
 
+    it('keeps a form the cook buys in the name, so the line names the food it means', () => {
+        // Dogfooding PR 132: `2 tablespoons unsalted butter, melted` was stored as `butter` / `melted unsalted` and bound
+        // to salted butter, because `unsalted` fell through to the `-ed` suffix rule.
+        const result = compareParses({
+            crf: crfParse({ foods: [{ name: 'unsalted butter', prep: 'melted' }] }),
+            llm: llmParse({ foods: [{ name: 'unsalted butter', prep: 'melted' }] }),
+        });
+
+        expect(result.agreement).toEqual({ kind: 'agree' });
+        expect(onlyFood(result)).toEqual({ name: 'unsalted butter', prep: 'melted' });
+    });
+
+    it('moves a purchasable form out of the preparation into the name', () => {
+        const result = compareParses({
+            crf: crfParse({ foods: [{ name: 'salmon', prep: 'smoked' }] }),
+            llm: llmParse({ foods: [{ name: 'smoked salmon', prep: null }] }),
+        });
+
+        expect(result.agreement).toEqual({ kind: 'agree' });
+        expect(onlyFood(result)).toEqual({ name: 'smoked salmon', prep: null });
+    });
+
+    /**
+     * Owner ruling 2026-11-06. The names below are the REAL CRF answers (`ingredient-parser-nlp` 2.3.0): the 1919
+     * corpus line `one pound of dried Lima beans`, and two lines run 2026-11-06. The engine keeps each word in the
+     * name; the merge used to move `dried` (the `-ed` rule) and `frozen` (a temperature) into the preparation.
+     */
+    it.each([
+        ['dried Lima beans', null],
+        ['dried thyme', null],
+        ['frozen blueberries', 'thawed'],
+        ['canned tomatoes', null],
+    ] as const)('keeps the CRF’s %j in the name, alone', (name, prep) => {
+        const result = compareParses({ crf: crfParse({ foods: [{ name, prep }] }), llm: { unavailable: true } });
+
+        expect(onlyFood(result)).toEqual({ name, prep });
+    });
+
+    it('agrees with an LLM that keeps the word in the name, as its prompt tells it to', () => {
+        const result = compareParses({
+            crf: crfParse({ foods: [{ name: 'dried thyme', prep: null }] }),
+            llm: llmParse({ foods: [{ name: 'dried thyme', prep: null }] }),
+        });
+
+        expect(result.agreement).toEqual({ kind: 'agree' });
+        expect(onlyFood(result)).toEqual({ name: 'dried thyme', prep: null });
+    });
+
+    /**
+     * The LLM joins its preparations with ", ", so a word it wrongly filed there arrives with a separator. The word
+     * moves; the separator it sat beside does not, in either position.
+     */
+    it.each([
+        ['frozen, thawed', 'thawed'],
+        ['thawed, frozen', 'thawed'],
+        ['frozen', null],
+    ] as const)('puts the word back in the name when the LLM files it in %j', (llmPrep, prep) => {
+        expect(canonicaliseFood({ name: 'blueberries', prep: llmPrep })).toEqual({ name: 'frozen blueberries', prep });
+    });
+
+    /**
+     * Owner ruling 2026-11-06: `whipped` BEFORE the food is part of its name ("whipped cream" is its own catalog
+     * food), AFTER the comma it is the cook's step. The two CRF answers are the engine's own for the two lines.
+     */
+    it.each([
+        ['1 cup whipped cream', { name: 'whipped cream', prep: null }],
+        ['1 cup heavy cream, whipped', { name: 'heavy cream', prep: 'whipped' }],
+        ['1 cup heavy cream, well-whipped', { name: 'heavy cream', prep: 'well-whipped' }],
+        ['1 cup frozen cream, whipped', { name: 'frozen cream', prep: 'whipped' }],
+    ] as const)('keeps %j placed by where the word was written', (_line, food) => {
+        const result = compareParses({ crf: crfParse({ foods: [food] }), llm: { unavailable: true } });
+
+        expect(onlyFood(result)).toEqual(food);
+    });
+
+    it('still pulls `whipped` out of the preparation when the LLM filed it with a sold-as word', () => {
+        expect(canonicaliseFood({ name: 'cream', prep: 'frozen, whipped' })).toEqual({
+            name: 'frozen cream',
+            prep: 'whipped',
+        });
+    });
+
     it('treats a colour as identity, not preparation', () => {
         const red = compareParses({
             crf: crfParse({ foods: [{ name: 'peppers', prep: 'red' }] }),
@@ -1569,5 +1651,35 @@ describe('compareParses — R5, the raw line is the placeholder of last resort',
         });
 
         expect(result.merged?.reviewReasons).toEqual(['no_food_returned', 'name_is_source_line']);
+    });
+});
+
+describe('canonicaliseFood — the list separator an engine leaves beside a word it moves', () => {
+    it.each([
+        ['cream', ';;frozen, whipped,,', { name: 'frozen cream', prep: 'whipped' }],
+        ['butter', 'unsalted;', { name: 'unsalted butter', prep: null }],
+        ['blueberries', 'frozen, thawed', { name: 'frozen blueberries', prep: 'thawed' }],
+        ['flour', 'sifted, 1/2 cup;', { name: 'flour', prep: 'sifted, 1/2 cup;' }],
+        ['celery', 'chopped, 2-3 stalks,', { name: 'celery', prep: 'chopped, 2-3 stalks,' }],
+        ['sugar', 'packed;, 1.5 cups,,', { name: 'sugar', prep: 'packed;, 1.5 cups,,' }],
+    ] as const)('places %j with prep %j', (name, prep, expected) => {
+        expect(canonicaliseFood({ name, prep })).toEqual(expected);
+    });
+
+    it('strips edge separators only, never an inner one, and only from the joined field', () => {
+        expect(canonicaliseFood({ name: 'cream', prep: 'frozen, whipped; and, beaten,' })).toEqual({
+            name: 'frozen cream',
+            prep: 'whipped; and, beaten',
+        });
+    });
+
+    it('finishes in linear time on a field made of tens of thousands of separators', () => {
+        const commas = ','.repeat(50_000);
+        const started = performance.now();
+        const food = canonicaliseFood({ name: 'cream', prep: `frozen a${commas}a` });
+        const elapsed = performance.now() - started;
+
+        expect(food).toEqual({ name: 'frozen cream', prep: `a${commas}a` });
+        expect(elapsed).toBeLessThan(250);
     });
 });

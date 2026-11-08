@@ -43,8 +43,13 @@ import {
     SQSClient,
     type Message as SqsMessage,
 } from '@aws-sdk/client-sqs';
-import { verifyIngredientLineMessageSchema } from '@kitchensink/recipe-core/resolution/verification-message';
+import { verificationKey } from '@kitchensink/recipe-core/resolution/verification-key';
+import {
+    verificationOriginOf,
+    verifyIngredientLineMessageSchema,
+} from '@kitchensink/recipe-core/resolution/verification-message';
 
+import { sha256Hex } from '../../../src/common/sha256.js';
 import { bootRecipeApp, type BootedRecipeApp } from '../harness.js';
 import { SEED_VERIFICATION_QUEUE_URL } from '../../support/localHarness.js';
 import { bearerFor, startFoodFake, type FoodFake } from '../../support/foodFake.js';
@@ -201,7 +206,9 @@ describe('the verification gate’s producer (U11 integration)', () => {
         // silently drains to its DLQ while the API reports success.
         const parsed = verifyIngredientLineMessageSchema.parse(JSON.parse(bodies[0] ?? '{}'));
 
-        expect(parsed.recipeId).toBe(created.id);
+        // The producer names its origin (7140fbed8); the legacy `recipeId` is what this used to read, and it was red at
+        // that commit. Read through the one reader of both spellings.
+        expect(verificationOriginOf(parsed)).toStrictEqual({ kind: 'recipe', recipeId: created.id });
         expect(parsed.sourceLine).toBe(SOURCE_LINE);
         expect(parsed.quantityLow).toBe(2);
         expect(parsed.quantityHigh).toBeNull();
@@ -223,6 +230,38 @@ describe('the verification gate’s producer (U11 integration)', () => {
         // FOOD's name, never anything the caller sent — checking our rendering against itself agrees by
         // construction and would report a 100% agreement rate while verifying nothing.
         expect(parsed.candidateFoodName).toBe(FOOD_NAME);
+    });
+
+    it('⛔ asks NOTHING about a line whose verdict is already on record, against the REAL table (ADR-0071)', async () => {
+        // The save path reads `recipe_ingredient_verifications` by the line's key before it enqueues. The row here is
+        // what the worker writes; a band this build does not interpret would count as on record too.
+        const line = '2 cups of flour, judged before';
+        const key = verificationKey(
+            {
+                sourceLine: line,
+                foodRefId: FOOD_ID,
+                quantityLow: 2,
+                quantityHigh: null,
+                unit: 'cup',
+                statedMeasure: null,
+            },
+            sha256Hex,
+        );
+
+        await pool.query(
+            `INSERT INTO recipe_ingredient_verifications
+                 (verification_key, verdict, certainty, band, aspects, model_id, food_id)
+             VALUES ($1, 'agree', 'high', 'verified', ARRAY['identity', 'quantity'], 'test-model', $2)`,
+            [key, FOOD_ID],
+        );
+
+        try {
+            await create(line);
+
+            expect(await drainQueue()).toEqual([]);
+        } finally {
+            await pool.query('DELETE FROM recipe_ingredient_verifications WHERE verification_key = $1', [key]);
+        }
     });
 
     it('sends NOTHING for a recipe the cook authored rather than transcribed', async () => {

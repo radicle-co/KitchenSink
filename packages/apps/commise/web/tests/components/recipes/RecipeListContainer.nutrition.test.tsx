@@ -24,7 +24,7 @@ import { RecipeServiceProvider } from '@kitchensink/recipe-service-client/hooks'
 import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-client/testing';
 import type { RecipeNutritionResponse } from '@kitchensink/schema-recipe';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { act, cleanup, screen } from '@testing-library/react';
+import { act, cleanup, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ReactNode } from 'react';
 import { hydrateRoot } from 'react-dom/client';
@@ -211,6 +211,42 @@ describe('RecipeListContainer — the deferred calorie lookup', () => {
 
         expect(screen.getByText('Your recipe box is empty')).toBeInTheDocument();
         expect(batch, 'an empty batch is a guaranteed 400 — it must never be sent').not.toHaveBeenCalled();
+    });
+});
+
+/**
+ * ADR-0079: the calorie lookup never holds anything up. A new sort is a new library key read under `useDeferredValue`,
+ * and the cards on screen carry calorie slots. Under ADR-0021 those slots suspended on the batch, and a committed
+ * skeleton's retry lane could run ahead of the pinged sort. Here the lookup never settles, and the skeletons are on
+ * screen before the sort is chosen.
+ */
+describe('RecipeListContainer — calories never hold back a new sort (ADR-0079)', () => {
+    it('re-orders the cards for a new sort while the calorie lookup is still in flight', async () => {
+        const user = userEvent.setup();
+        const client = createFakeRecipeServiceClient();
+        const byTitle = makeRecipesPage([
+            makeRecipe({ id: ROAST, title: 'Sunday Roast' }),
+            makeRecipe({ id: PASTA, title: 'Weeknight Pasta' }),
+        ]);
+        vi.spyOn(client, 'listRecipes').mockImplementation(async (params) =>
+            params?.sortBy === 'title' ? byTitle : PAGE,
+        );
+        vi.spyOn(client, 'getRecipeNutrition').mockReturnValue(new Promise<RecipeNutritionResponse>(() => undefined));
+
+        await renderList(client);
+        expect(screen.getAllByText('Loading calories')).toHaveLength(2);
+        const titlesInOrder = (): string[] =>
+            screen
+                .getAllByRole('link')
+                .map((link) => link.getAttribute('aria-label') ?? link.textContent ?? '')
+                .filter((name) => name === 'Weeknight Pasta' || name === 'Sunday Roast');
+        expect(titlesInOrder()).toEqual(['Weeknight Pasta', 'Sunday Roast']);
+
+        await user.click(screen.getByRole('button', { name: 'Sort: Recently edited' }));
+        await user.click(await screen.findByRole('menuitemradio', { name: 'A–Z' }));
+
+        // The default wait: the new order needs the list read only, never the calories.
+        await waitFor(() => expect(titlesInOrder()).toEqual(['Sunday Roast', 'Weeknight Pasta']));
     });
 });
 

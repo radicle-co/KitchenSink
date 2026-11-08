@@ -30,7 +30,7 @@
  * `treatMissingData: NOT_BREACHING`.
  */
 import { describe, expect, it, vi } from 'vitest';
-import { MAX_LINES } from '@kitchensink/ingredient-parser';
+import { MAX_LINE_CHARS, MAX_LINES } from '@kitchensink/ingredient-parser';
 
 import type { EmfMetric } from '../../common/metrics.js';
 import {
@@ -155,6 +155,51 @@ describe('the CRF leg answered', () => {
 
         expect(client.send).toHaveBeenCalledTimes(2);
         expect(availability(emitted).map((metric) => metric.value)).toEqual([0, 0]);
+    });
+});
+
+describe('a line longer than the engine accepts', () => {
+    /** The engine refuses a line over MAX_LINE_CHARS, and a refusal would retry until the allowance ran out. */
+    const LONG_LINE = `1 cup ${'x'.repeat(MAX_LINE_CHARS)}`;
+
+    it('⛔ is never sent, and is absence for that line (ADR-0026 §3), while the others still parse', async () => {
+        const { engine, client } = build(null);
+
+        client.send.mockImplementation((command: { input: { Payload: Uint8Array } }) => {
+            const request = JSON.parse(Buffer.from(command.input.Payload).toString('utf8')) as { lines: string[] };
+
+            return Promise.resolve(payloadOf(responseOf(request.lines.map((line) => okResult(line)))));
+        });
+
+        const answers = await engine.parse([LINE, LONG_LINE, LINE]);
+
+        const sent = (client.send.mock.calls[0]?.[0] as { input: { Payload: Uint8Array } }).input.Payload;
+        expect((JSON.parse(Buffer.from(sent).toString('utf8')) as { lines: string[] }).lines).toEqual([LINE, LINE]);
+        expect(answers).toHaveLength(3);
+        expect(answers[1]).toEqual({ unavailable: true });
+        expect(answers[0]).not.toEqual({ unavailable: true });
+        expect(answers[2]).not.toEqual({ unavailable: true });
+    });
+
+    it('does not invoke at all when every line is too long, and does not reject', async () => {
+        const { engine, client } = build(null);
+
+        await expect(engine.parse([LONG_LINE])).resolves.toEqual([{ unavailable: true }]);
+        expect(client.send).not.toHaveBeenCalled();
+    });
+});
+
+describe('the engine answers a different number of lines than it was sent', () => {
+    it('⛔ is a contract error, not silent absence for the missing lines', async () => {
+        const { engine, emitted } = build(payloadOf(responseOf([okResult(LINE)])));
+
+        const error = await engine.parse([LINE, LINE]).then(
+            () => undefined,
+            (e: unknown) => e,
+        );
+
+        expect(isCrfEngineUnavailableError(error) && error.reason).toBe('contract');
+        expect(availability(emitted).map((metric) => metric.value)).toEqual([1]);
     });
 });
 

@@ -37,11 +37,23 @@ export async function expectBackPinnedWhileScrolling(page: Page, backName: strin
     // The H1 starts at the bar's bottom edge: `<main>` owns the room under the bar, so a page rendered OUTSIDE the shell's
     // `<main>` would leave it at y≈0, under the bar (and one with a leftover 24 px of padding would sit at 80). The Tab walk
     // cannot see this: the H1 is `tabIndex={-1}`.
+    // Polled, not read once. A one-shot read saw the H1 at y=0 on one cold run, and the likely cause (not reproduced: the
+    // Back can be in view before the page under it has settled) is a read taken too early. A settled layout still has
+    // to land in the window; a real fault never does.
     await page.evaluate(() => window.scrollTo(0, 0));
-    const h1Top = (await page.getByRole('heading', { level: 1 }).first().boundingBox())?.y ?? Number.NaN;
+    const h1Top = (): Promise<number> =>
+        page
+            .getByRole('heading', { level: 1 })
+            .first()
+            .boundingBox()
+            .then((box) => box?.y ?? Number.NaN);
 
-    expect(h1Top, 'the H1 starts at the bar’s bottom edge, not under it').toBeGreaterThanOrEqual(BAR_PX);
-    expect(h1Top, 'the H1 is not pushed below the bar by extra padding').toBeLessThan(BAR_PX + 8);
+    await expect
+        .poll(h1Top, { message: 'the H1 starts at the bar’s bottom edge, not under it' })
+        .toBeGreaterThanOrEqual(BAR_PX);
+    await expect
+        .poll(h1Top, { message: 'the H1 is not pushed below the bar by extra padding' })
+        .toBeLessThan(BAR_PX + 8);
 
     await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
     await expect

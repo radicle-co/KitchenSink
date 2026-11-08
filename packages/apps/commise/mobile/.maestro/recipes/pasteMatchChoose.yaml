@@ -1,0 +1,75 @@
+appId: ${APP_ID}
+---
+# A pasted line that NEEDS THE COOK (ADR-0071; ADR-0070 section 5; owner rulings 2026-10-25), on a device. Mobile mirror of
+# the web Playwright `pasteMatchChoose.spec.ts`. "milk" and "salt" carry a seeded DEFAULT: the default is shown with its tag
+# and NOTHING is selected for the cook; the first open line is expanded with a direct Search; choosing a food binds it as
+# the cook's and opens the next open line.
+#
+# It depends on the stage's catalog holding the seeded defaults. In `FLOW_PLAN` since it passed on the local Android stack
+# (2026-11-06), which seeds them.
+- runFlow: ../auth/signin.yaml
+
+- assertVisible: 'My recipes'
+- tapOn: 'New recipe'
+- assertVisible: 'Close editor'
+- runFlow:
+      file: common/jumpToSection.yaml
+      env:
+          SECTION: 'Ingredients'
+- extendedWaitUntil:
+      visible: 'Paste a list'
+      timeout: 20000
+- tapOn: 'Paste a list'
+- assertVisible: 'Ingredient lines'
+- tapOn: 'Ingredient lines'
+- inputText: '2 cups milk'
+- pressKey: Enter
+- inputText: '1 tsp salt'
+- tapOn: 'Add 2 ingredients'
+- extendedWaitUntil:
+      notVisible: 'Ingredient lines'
+      timeout: 30000
+
+# The first open line is expanded; its default carries the tag and nothing is chosen.
+# At a large font the open line sits below the fold, where it is not in the screen's tree, so wait for it by scrolling.
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Choose the milk you use'
+          DIRECTION: DOWN
+          TIMEOUT: 240000
+# iOS merges the default's tag into the row's name ("whole milk, Default"); Android draws the tag alone.
+- assertVisible: '.*Default.*'
+- assertNotVisible:
+      text: '.*your choice.*'
+- assertVisible: 'Search for a food for 2 cups milk'
+# The other open line is a collapsed row that names what it needs. The first line's options fill a phone's screen, so
+# the row sits below them (Android device pass, 2026-11-06: the list ran to the action bar, and the row was off screen).
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: '.*Choose the salt you use.*'
+          DIRECTION: DOWN
+- assertVisible:
+      text: '.*Choose the salt you use.*'
+
+# Choose a food: it binds as the cook's, and the next open line opens.
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: '.*Default.*'
+          DIRECTION: UP
+- tapOn:
+      text: '.*Default.*'
+- extendedWaitUntil:
+      visible:
+          text: '.*your choice.*'
+      timeout: 40000
+- extendedWaitUntil:
+      visible: 'Search for a food for 1 tsp salt'
+      timeout: 20000
+
+- runFlow:
+      file: common/discardDraft.yaml
+      env:
+          SETTLED: 'Saved on this device'

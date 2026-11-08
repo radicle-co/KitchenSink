@@ -13,6 +13,8 @@
 import { useMessages } from '@commise/i18n/react';
 import { useReturnFocusOnClose } from '@commise/ui/dialog-focus';
 import { Icon } from '@commise/ui/icon';
+import { FOCUS_RING_CLASS } from '@commise/ui/focus-ring';
+import { surfaceToneClass, PRESS_FILL_CLASS } from '@commise/ui/surface-tone';
 import * as Dialog from '@radix-ui/react-dialog';
 import type { FC } from 'react';
 
@@ -34,7 +36,7 @@ export const VersionCompareView: FC<VersionCompareViewProps> = ({ open, version,
                 <Dialog.Content
                     onCloseAutoFocus={onCloseAutoFocus}
                     aria-describedby={undefined}
-                    className="fixed inset-y-0 end-0 z-50 flex w-full max-w-md flex-col gap-4 overflow-y-auto bg-paper-overlay p-6 shadow-lg"
+                    className={`fixed inset-y-0 end-0 z-50 flex w-full max-w-md flex-col gap-4 overflow-y-auto ${surfaceToneClass('paperOverlay')} p-6 shadow-lg`}
                 >
                     <div className="flex items-start justify-between gap-3">
                         <Dialog.Title className="text-section-title text-ink">
@@ -42,7 +44,7 @@ export const VersionCompareView: FC<VersionCompareViewProps> = ({ open, version,
                         </Dialog.Title>
                         <Dialog.Close
                             aria-label={compare.close}
-                            className="inline-flex size-11 shrink-0 items-center justify-center rounded-full text-ink-muted hover:bg-ink/6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                            className={`inline-flex size-11 shrink-0 items-center justify-center rounded-full text-ink-muted ${PRESS_FILL_CLASS.pointer} ${FOCUS_RING_CLASS.offset}`}
                         >
                             <Icon name="x" size={20} />
                         </Dialog.Close>

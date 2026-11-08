@@ -6,18 +6,22 @@
  * A caller's `error` is each box's `accessibilityHint` (React Native has no `aria-describedby` or `aria-invalid`) and
  * paints the `danger` edge.
  *
- * Presentational and controlled: it owns no state; the caller holds the seconds.
+ * Each box asks the field reveal host to hold it in view while it has focus (`useRevealedField`), as `Input` does.
+ *
+ * Controlled: the caller holds the seconds.
  *
  * @pattern Adapter — presents a value stored in seconds as an hours/minutes pair, and converts each edit back.
  */
 import type { FC } from 'react';
 import { StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
+import { useRevealedField } from '../fieldReveal/useRevealedField.native.js';
 import { TextInput } from '../textInput/TextInput.native.js';
 import { FIELD_EDGE, fieldGeometry, fieldPaint } from '../input/fieldStyle.js';
 import { useTheme } from '../theme/useTheme.native.js';
 import { nativeTokens } from '../tokens/native.js';
 import { typeRole } from '../tokens/typography.js';
+import { cappedFontScale } from '../text/fontScaleCap.js';
 import { durationBoxWidth } from './boxWidth.js';
 import { durationBoxes, durationFromBoxes } from './duration.js';
 import type { DurationFieldProps } from './props.js';
@@ -33,10 +37,14 @@ export const DurationField: FC<DurationFieldProps> = ({
     error,
 }) => {
     const shown = durationBoxes(value);
+    // Each box holds itself in view while the cook types in it, so the keyboard cannot cover it.
+    const hoursReveal = useRevealedField();
+    const minutesReveal = useRevealedField();
     const theme = useTheme();
     const { colors } = theme;
-    // Two digits at the system text size (Android font scale, iOS Dynamic Type), which the box's own text follows.
-    const { fontScale } = useWindowDimensions();
+    // Two digits at the system text size (Android font scale, iOS Dynamic Type), which the box's own text follows up to
+    // the 2× cap (ADR-0080 §8), so the box stops growing where its digits do.
+    const fontScale = cappedFontScale(useWindowDimensions().fontScale);
     const width = {
         width: durationBoxWidth({
             fontSize: typeRole.body.size * fontScale,
@@ -53,6 +61,7 @@ export const DurationField: FC<DurationFieldProps> = ({
             <View style={styles.row}>
                 <View style={styles.pair}>
                     <TextInput
+                        {...hoursReveal}
                         accessibilityLabel={hoursLabel}
                         accessibilityHint={error}
                         keyboardType="number-pad"
@@ -67,6 +76,7 @@ export const DurationField: FC<DurationFieldProps> = ({
                 </View>
                 <View style={styles.pair}>
                     <TextInput
+                        {...minutesReveal}
                         accessibilityLabel={minutesLabel}
                         accessibilityHint={error}
                         keyboardType="number-pad"

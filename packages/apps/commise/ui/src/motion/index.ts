@@ -5,5 +5,7 @@
  */
 export { EnterTransition } from './EnterTransition.js';
 export { ENTER_DURATION_MS, ENTER_RISE_PX, enterMotionMode, enterTransitionClassName } from './enterMotion.js';
+export { motionPropsOf } from './motionPropsOf.js';
+export type { MotionProps } from './motionPropsOf.js';
 export type { EnterMotionInput, EnterMotionMode } from './enterMotion.js';
 export type { EnterTransitionProps } from './props.js';

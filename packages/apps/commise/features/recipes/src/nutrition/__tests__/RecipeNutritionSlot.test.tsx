@@ -1,40 +1,30 @@
 // @vitest-environment jsdom
 /**
- * Component tests for the web per-card nutrition SLOT — the host-side half of the deferred calorie lookup.
+ * Component tests for the web per-card nutrition SLOT — the selector over ONE page's batch reading.
  *
- * `RecipeNutritionBoundary` renders ONE recipe's promise. A card grid does not have one promise per card: it
- * has ONE batch promise for the whole page, and the answer for any single card is a SELECTION out of it that
- * cannot be made until the batch settles. That selection has a fourth outcome the per-recipe boundary
- * deliberately cannot express — the recipe the response OMITTED (`selectRecipeCalorieState` → `null`, "not
- * for you") — which is why this is its own component rather than a prop on that one.
+ * REWRITTEN for ADR-0079. The slot no longer suspends: it is handed the page's batch READING (`pending`, `failed` or
+ * `settled`) as a value and switches over it. So every state is rendered synchronously here, with no Suspense and no
+ * `act` flushing, and each test names the reading it hands in.
  *
- * ⚠️ SUSPENSE TEST CONVENTION (see `@commise/web`'s `RecipeWidgetSlot.test.tsx:11-22`): resolve a Suspense
- * with `await act(...)`, NEVER with `findBy`/`waitFor`. The second and later such renders in a Vitest worker
- * wedge under polling — the Suspense retry never flushes and the assertion waits out the whole timeout.
+ * The load-bearing cases are the OMITTED recipe (a settled batch that says nothing about this recipe renders nothing —
+ * never a skeleton that outlives its request, and never the `food_unavailable` lie) and the RECOVERY case (a failed
+ * reading is not a latch: the next reading the host hands in is the one rendered).
  *
- * The two load-bearing tests here are the OMITTED case (skeleton, then nothing — never a spinner that
- * outlives a request, and never the `food_unavailable` lie) and the N-slots-ONE-promise case (the whole point
- * of the batch: `use()` memoizes per promise, so N boundaries over one promise fill together).
+ * What a reading MEANS — that a query with data stays `settled` through a failed refetch, and that a background refetch
+ * is not `pending` — is the hook's mapping, and it is pinned where it is made:
+ * `hooks/__tests__/useRecipeNutritionBatches.test.tsx`.
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, cleanup, render, screen, type RenderResult } from '@testing-library/react';
+import { afterEach, describe, expect, it } from 'vitest';
+import { cleanup, render, screen } from '@testing-library/react';
 import type { ReactElement } from 'react';
 
 import { LocaleProvider } from '@commise/i18n/react';
 import type { RecipeNutritionResponse } from '@kitchensink/schema-recipe';
 
 import { RecipeNutritionSlot } from '../RecipeNutritionSlot.js';
+import type { RecipeNutritionBatchReading } from '../model.js';
 
 afterEach(cleanup);
-
-/** React logs a caught render error; silence it so a PASSING run stays readable, and restore after. */
-beforeEach(() => {
-    vi.spyOn(console, 'error').mockImplementation(() => undefined);
-});
-
-afterEach(() => {
-    vi.restoreAllMocks();
-});
 
 const PRESENT = '00000000-0000-4000-8000-00000000000a';
 const OTHER = '00000000-0000-4000-8000-00000000000c';
@@ -63,181 +53,95 @@ const RESPONSE: RecipeNutritionResponse = {
     },
 };
 
-const withLocale = (ui: ReactElement) => <LocaleProvider locale="en">{ui}</LocaleProvider>;
+const PENDING: RecipeNutritionBatchReading = { status: 'pending' };
+const FAILED: RecipeNutritionBatchReading = { status: 'failed' };
+const settled = (response: RecipeNutritionResponse): RecipeNutritionBatchReading => ({ status: 'settled', response });
 
-/** Render inside a sentinel, so "renders nothing" can be told apart from "the tree crashed". */
-const renderSlot = async (nutritionBatchPromise: Promise<RecipeNutritionResponse>, recipeId: string) =>
-    act(async () => {
-        render(
-            withLocale(
-                <div>
-                    <span>sentinel</span>
-                    <RecipeNutritionSlot nutritionBatchPromise={nutritionBatchPromise} recipeId={recipeId} />
-                </div>,
-            ),
-        );
-    });
+/** One slot beside a sentinel, so "renders nothing" can be told apart from "the tree crashed". */
+const slot = (reading: RecipeNutritionBatchReading, recipeId: string): ReactElement => (
+    <LocaleProvider locale="en">
+        <div>
+            <span>sentinel</span>
+            <RecipeNutritionSlot reading={reading} recipeId={recipeId} />
+        </div>
+    </LocaleProvider>
+);
+
+/** Nothing about calories is on screen: no figure, and no skeleton left running. */
+function expectNoFigureAndNoSkeleton(): void {
+    expect(screen.queryByText('Loading calories'), 'no skeleton outlives a settled reading').toBeNull();
+    expect(screen.queryByRole('img')).toBeNull();
+    expect(screen.queryByText(/cal/u)).toBeNull();
+    expect(screen.getByText('sentinel')).toBeTruthy();
+}
 
 describe('RecipeNutritionSlot (web)', () => {
-    it('renders the skeleton while the BATCH is still in flight', async () => {
-        await renderSlot(new Promise<RecipeNutritionResponse>(() => undefined), PRESENT);
+    it('renders the skeleton while the batch is PENDING, and no figure', () => {
+        render(slot(PENDING, PRESENT));
 
         expect(screen.getByText('Loading calories')).toBeTruthy();
         expect(screen.queryByText(/cal$/u)).toBeNull();
     });
 
-    it('replaces the skeleton with THIS recipe’s chip once the batch resolves', async () => {
-        await renderSlot(Promise.resolve(RESPONSE), PRESENT);
+    it('renders THIS recipe’s chip once the batch is SETTLED with a figure for it', () => {
+        render(slot(settled(RESPONSE), PRESENT));
 
         expect(screen.getByRole('img', { name: '420 cal' })).toBeTruthy();
         expect(screen.queryByText('Loading calories')).toBeNull();
     });
 
-    it('selects by recipe id — a sibling’s figure is never rendered in this slot', async () => {
+    it('selects by recipe id — a sibling’s figure is never rendered in this slot', () => {
         // Guards the mutation "index the map by the first key" / "ignore `recipeId`": both would still show a
         // plausible figure, and both would be wrong on every card but one.
-        await renderSlot(Promise.resolve(RESPONSE), OTHER);
+        render(slot(settled(RESPONSE), OTHER));
 
         expect(screen.getByRole('img', { name: '615 cal' })).toBeTruthy();
         expect(screen.queryByText('420 cal')).toBeNull();
     });
 
-    // ⛔ THE OWNER RULING (2026-08-16). A recipe the response OMITTED is neither `known` nor `unaccounted`:
-    // the batch says nothing about it, so the slot renders NOTHING — and above all not a skeleton that
-    // outlives a request that already came back.
-    it('renders NOTHING for a recipe the batch OMITTED — no chip, and no surviving skeleton', async () => {
-        await renderSlot(Promise.resolve(RESPONSE), OMITTED);
+    // ⛔ THE OWNER RULING (2026-08-16). A recipe the settled response OMITTED is neither `known` nor `unaccounted`:
+    // the batch says nothing about it, so the slot renders NOTHING — and above all not a skeleton.
+    it('renders NOTHING for a recipe the SETTLED batch omitted', () => {
+        render(slot(settled(RESPONSE), OMITTED));
 
-        expect(screen.queryByText('Loading calories'), 'the skeleton must not outlive a settled batch').toBeNull();
-        expect(screen.queryByRole('img')).toBeNull();
-        expect(screen.queryByText(/cal/u)).toBeNull();
-        expect(screen.getByText('sentinel')).toBeTruthy();
+        expectNoFigureAndNoSkeleton();
     });
 
-    it('renders an UNACCOUNTED entry as nothing at all — the card’s absent-value rule', async () => {
-        await renderSlot(
-            Promise.resolve<RecipeNutritionResponse>({
-                nutrition: { [PRESENT]: { state: 'unaccounted', reason: 'no_nutrient_data' } },
-            }),
-            PRESENT,
+    it('renders an UNACCOUNTED entry as nothing at all — the card’s absent-value rule', () => {
+        render(
+            slot(settled({ nutrition: { [PRESENT]: { state: 'unaccounted', reason: 'no_nutrient_data' } } }), PRESENT),
         );
 
-        expect(screen.queryByText('Loading calories')).toBeNull();
-        expect(screen.queryByText(/cal/u)).toBeNull();
-        expect(screen.getByText('sentinel')).toBeTruthy();
+        expectNoFigureAndNoSkeleton();
     });
 
-    // ⛔ THE INVARIANT. A rejected batch is a terminal answer, so the fallback must be GONE — a skeleton that
-    // survives its own request is a spinner rendering forever, on every card of the page at once.
-    it('never leaves a terminal skeleton: a REJECTED batch resolves to an answer, not a spinner', async () => {
-        const failed = Promise.reject(new Error('food service unavailable'));
-        failed.catch(() => undefined);
+    // ⛔ THE INVARIANT. A failed batch is a terminal answer (`unaccounted{food_unavailable}`), so the skeleton must be
+    // GONE — a skeleton that survives its own request is a spinner rendering forever, on every card of the page at once.
+    it('renders a FAILED batch as the terminal unavailable answer — no figure and no skeleton', () => {
+        render(slot(FAILED, PRESENT));
 
-        await renderSlot(failed as Promise<RecipeNutritionResponse>, PRESENT);
-
-        expect(screen.queryByText('Loading calories'), 'the skeleton must not outlive the failed batch').toBeNull();
-        expect(screen.queryByLabelText('Loading calories')).toBeNull();
-        expect(screen.queryByText(/cal/u)).toBeNull();
-        expect(screen.getByText('sentinel')).toBeTruthy();
+        expectNoFigureAndNoSkeleton();
     });
 
-    // ⛔ THE OTHER HALF. An error state that outlives its request is the same defect wearing the other mask —
-    // invisible, because a failed lookup renders as nothing. `resetKeys` is what makes a refetch recoverable.
-    it('RECOVERS when a new batch arrives: the error state is not a latch', async () => {
-        const failed = Promise.reject(new Error('food service unavailable'));
-        failed.catch(() => undefined);
-
-        let view: RenderResult | undefined;
-        await act(async () => {
-            view = render(
-                withLocale(
-                    <RecipeNutritionSlot
-                        nutritionBatchPromise={failed as Promise<RecipeNutritionResponse>}
-                        recipeId={PRESENT}
-                    />,
-                ),
-            );
-        });
+    // ⛔ THE OTHER HALF. A failure that outlives its request is the same defect wearing the other mask. The slot holds
+    // no state, so the reading the host hands in next is the one rendered.
+    it('RECOVERS when a later reading settles: a failed reading is not a latch', () => {
+        const view = render(slot(FAILED, PRESENT));
         expect(screen.queryByText(/cal/u), 'the failed batch renders no figure').toBeNull();
 
-        await act(async () => {
-            view?.rerender(
-                withLocale(
-                    <RecipeNutritionSlot nutritionBatchPromise={Promise.resolve(RESPONSE)} recipeId={PRESENT} />,
-                ),
-            );
-        });
+        view.rerender(slot(settled(RESPONSE), PRESENT));
 
         expect(screen.getByRole('img', { name: '420 cal' })).toBeTruthy();
         expect(screen.queryByText('Loading calories')).toBeNull();
     });
 
-    // ⛔ THE POINT OF THE BATCH. `use()` memoizes per promise identity, so N slots over ONE promise are ONE
-    // read: they suspend together and fill together, including the omitted one — whose skeleton disappears
-    // with the rest rather than lingering. (That the batch is ONE HTTP request is proved where the request is
-    // made — `RecipeListContainer.nutrition.test.tsx` counts calls on the client.)
-    it('fills N slots from ONE promise — all three suspend together and settle together', async () => {
-        let resolveBatch: ((value: RecipeNutritionResponse) => void) | undefined;
-        const batch = new Promise<RecipeNutritionResponse>((resolve) => {
-            resolveBatch = resolve;
-        });
+    it('replaces the skeleton with the chip when the same slot’s reading goes from PENDING to SETTLED', () => {
+        const view = render(slot(PENDING, PRESENT));
+        expect(screen.getByText('Loading calories')).toBeTruthy();
 
-        await act(async () => {
-            render(
-                withLocale(
-                    <div>
-                        <RecipeNutritionSlot nutritionBatchPromise={batch} recipeId={PRESENT} />
-                        <RecipeNutritionSlot nutritionBatchPromise={batch} recipeId={OTHER} />
-                        <RecipeNutritionSlot nutritionBatchPromise={batch} recipeId={OMITTED} />
-                    </div>,
-                ),
-            );
-        });
-
-        expect(
-            screen.getAllByText('Loading calories'),
-            'one skeleton per card while the batch is in flight',
-        ).toHaveLength(3);
-
-        await act(async () => {
-            resolveBatch?.(RESPONSE);
-        });
+        view.rerender(slot(settled(RESPONSE), PRESENT));
 
         expect(screen.getByRole('img', { name: '420 cal' })).toBeTruthy();
-        expect(screen.getByRole('img', { name: '615 cal' })).toBeTruthy();
-        expect(screen.queryByText('Loading calories'), 'every slot settles together').toBeNull();
-    });
-
-    // ⛔ THE DERIVED-PROMISE TRAP, which every test above would pass. A slot that built its own promise from
-    // the batch (`use(batch.then(select))`) gets a NEW identity on every render, so `use()` re-suspends and
-    // the settled chip flips back to a skeleton on any parent re-render — a grid that flickers whenever
-    // anything else on the page changes, and never converges while the page is interactive.
-    it('does NOT re-suspend on a parent re-render — the settled chip stays settled', async () => {
-        let view: RenderResult | undefined;
-        const batch = Promise.resolve(RESPONSE);
-
-        const tree = (marker: string): ReactElement =>
-            withLocale(
-                <div>
-                    <span>{marker}</span>
-                    <RecipeNutritionSlot nutritionBatchPromise={batch} recipeId={PRESENT} />
-                </div>,
-            );
-
-        await act(async () => {
-            view = render(tree('first'));
-        });
-        expect(screen.getByRole('img', { name: '420 cal' })).toBeTruthy();
-
-        // A re-render of the HOST with the SAME promise — the ordinary case (a keystroke in the list's search
-        // box, a filter chip, a router update). Rendered synchronously on purpose: `act(async …)` would flush
-        // a re-suspend away, and it is the flash itself this pins down.
-        act(() => {
-            view?.rerender(tree('second'));
-        });
-
-        expect(screen.getByText('second')).toBeTruthy();
-        expect(screen.queryByText('Loading calories'), 'a re-render must not re-suspend the slot').toBeNull();
-        expect(screen.getByRole('img', { name: '420 cal' })).toBeTruthy();
+        expect(screen.queryByText('Loading calories')).toBeNull();
     });
 });

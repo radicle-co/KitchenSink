@@ -17,12 +17,13 @@ import { Icon } from '@commise/ui/icon';
 import { LiveRegion } from '@commise/ui/live-region';
 import { nativeTokens } from '@commise/ui/native';
 import { useTheme } from '@commise/ui/theme';
+import { Surface } from '@commise/ui/surface-tone';
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { useEffect, useEffectEvent, useState, type FC, type ReactNode } from 'react';
 import { StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
 
 import { VariantDetailsDialog } from '../details/VariantDetailsDialog.native.js';
-import { editorMessages, pluralOf } from '../editor/messages.js';
+import { editorMessages } from '../editor/messages.js';
 import { useLastDefined } from '../hooks/useLastDefined.js';
 import { useMainContainerClass } from '../layout/useMainContainerClass.js';
 import { AuthoredFoodSheet } from './AuthoredFoodSheet.native.js';
@@ -39,11 +40,13 @@ import { IngredientsNutritionTotal } from './IngredientsNutritionTotal.native.js
 import { recipeFormMessages } from './messages.js';
 import { MoveToGroupSheet } from './MoveToGroupSheet.native.js';
 import { PastedReadingRow } from './PastedReadingRow.native.js';
+import { PasteMatchedBlock } from './PasteMatchedBlock.native.js';
 import { PasteProgressBlock } from './PasteProgressBlock.native.js';
 import { pasteAnnouncementTextOf } from './pasteStatusCopy.js';
 import type { RecipeIngredientsFieldsProps } from './props.js';
 import { trailingEntryFieldOf } from './trailingEntryField.js';
 import type { SectionAddView } from './useIngredientGroups.js';
+import { usePasteLayout } from './usePasteLayout.js';
 import { useIngredientsFields, type IngredientsFieldsModel } from './useIngredientsFields.js';
 
 /** The dp between a group's list and the add field under it: the stack lays it out, and an arrival adds it. */
@@ -78,9 +81,12 @@ const AddField: FC<{
                 belowField={
                     <>
                         {trailing.readingShown === undefined ? null : (
-                            <Text style={caption}>{trailing.readingShown}</Text>
+                            // For the eye only: the live region below says the reading in words, with no "·".
+                            <Text aria-hidden style={caption}>
+                                {trailing.readingShown}
+                            </Text>
                         )}
-                        <LiveRegion politeness="polite" style={error}>
+                        <LiveRegion politeness="polite" typeRole="caption" tone="dangerText">
                             {trailing.pickFoodNotice ?? ''}
                         </LiveRegion>
                     </>
@@ -159,8 +165,9 @@ export const RecipeIngredientsFields: FC<RecipeIngredientsFieldsProps> = (props)
             </Button>
         ) : null;
     const pasteBesideField = pasteButton !== null && addFieldHere && inline;
-    const amountColumn = inline ? 96 : 72;
-    const rows = model.sections.flatMap((section) => section.rows);
+    // ⛔ NO LINE DRAWN TWICE: the draft lines the paste list owns are drawn by its matched list (`PasteMatchedBlock`).
+    const { wide, sections, matching } = usePasteLayout(model.sections, paste);
+    const rows = sections.flatMap((section) => section.rows);
     // The new row's height, once it has laid out: the add field asks for the row only then, so the ask is made once, with
     // the real distance (`ingredientArrival.md`). A later change of the row's height does not ask again.
     const [arrivedRow, setArrivedRow] = useState<{ readonly key: string; readonly height: number } | undefined>(
@@ -182,7 +189,7 @@ export const RecipeIngredientsFields: FC<RecipeIngredientsFieldsProps> = (props)
             <IngredientRowPanelBody row={row} m={m} nutrition={nutrition} close={close} />
         );
     const detailsOf = (row: IngredientRowView): ReactNode => panelOf(row)(row.lineEditor.onToggleDetails);
-    const empty = model.sections.length === 0 && reading.length === 0;
+    const empty = model.sections.length === 0 && reading.length === 0 && matching === undefined;
 
     const rowOf = (row: IngredientRowView): ReactNode => (
         <IngredientRow
@@ -192,7 +199,6 @@ export const RecipeIngredientsFields: FC<RecipeIngredientsFieldsProps> = (props)
             entryCopy={model.entryCopy}
             panel={panelOf(row)}
             expanded={inline ? row.editorOpen : undefined}
-            amountColumn={amountColumn}
             arrived={model.arrival?.key === row.line.key}
             {...(model.arrival?.key === row.line.key
                 ? {
@@ -203,14 +209,14 @@ export const RecipeIngredientsFields: FC<RecipeIngredientsFieldsProps> = (props)
                 : {})}
             inlineEditor={
                 inline && row.editorOpen ? (
-                    <View style={[styles.inlineEditor, { backgroundColor: colors.surfaceMuted }]}>
+                    <Surface tone="muted" style={[styles.inlineEditor]}>
                         <IngredientLineEditor view={row.lineEditor} index={row.index} m={m} details={detailsOf(row)} />
                         <View style={styles.end}>
                             <Button variant="secondary" icon="check" onPress={row.lineEditor.onDone}>
                                 {m.rowDone}
                             </Button>
                         </View>
-                    </View>
+                    </Surface>
                 ) : null
             }
         />
@@ -236,9 +242,6 @@ export const RecipeIngredientsFields: FC<RecipeIngredientsFieldsProps> = (props)
                     {model.listError}
                 </Text>
             )}
-            <LiveRegion politeness="polite" visuallyHidden>
-                {paste?.added === undefined ? '' : pluralOf(editor.pasteAdded, paste.added.count, locale)}
-            </LiveRegion>
             {/* The paste's ONE polite region: milestones only, never a row (plan 2026-10-15-011). */}
             <LiveRegion politeness="polite" visuallyHidden>
                 {paste?.announcement === undefined ? '' : pasteAnnouncementTextOf(paste.announcement, m, locale)}
@@ -246,7 +249,7 @@ export const RecipeIngredientsFields: FC<RecipeIngredientsFieldsProps> = (props)
             {empty ? (
                 <Text style={[styles.body, { color: colors.inkMuted }]}>{m.noIngredients}</Text>
             ) : (
-                model.sections.map((section) => (
+                sections.map((section) => (
                     <View key={section.key} style={styles.stack}>
                         {section.group !== undefined && (
                             <IngredientGroupHeading id={`${section.key}-heading`} group={section.group} />
@@ -254,13 +257,17 @@ export const RecipeIngredientsFields: FC<RecipeIngredientsFieldsProps> = (props)
                         {/* N1 (`docs/design/nativeContainerNames.md`): no list is named. The editor's section already
                             says "Ingredients", and a group's heading says its name, so a name here would be said
                             twice (N3). The node is kept so the role reaches TalkBack and Maestro. */}
-                        <View role="list" collapsable={false}>
-                            {section.rows.map(rowOf)}
-                        </View>
+                        {section.rows.length === 0 ? null : (
+                            <View role="list" collapsable={false}>
+                                {section.rows.map(rowOf)}
+                            </View>
+                        )}
                         <GroupFoot add={section.addHere} model={model} arrival={arrival} />
                     </View>
                 ))
             )}
+            {/* The paste's matched lines, their summary and the notice (ADR-0071), then the lines not in the recipe yet. */}
+            {matching !== undefined && <PasteMatchedBlock matching={matching} wide={wide} />}
             {/* Pasted lines being read follow the list's own rows (§7.5.4), under ONE progress block. */}
             {paste?.progress !== undefined && reading.length > 0 && (
                 <PasteProgressBlock

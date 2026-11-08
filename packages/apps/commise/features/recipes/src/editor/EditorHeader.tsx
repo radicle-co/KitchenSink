@@ -2,8 +2,8 @@
 
 /**
  * @module @commise/features-recipes/editor — the web editor's header (build spec §7.1): × "Close editor", the title
- * ("New recipe" or "Edit recipe", the page's one H1, never the recipe's own title), the save status in `caption`, and
- * ⋯ "More editor actions" holding the one destructive action. 56 px, sticky, on the page's solid surface — the
+ * ("New recipe" or "Edit recipe", the page's one H1, never the recipe's own title), the save status in `meta`, and
+ * ⋯ "More editor actions" holding the one destructive action. at least 56 px (it grows when the status wraps), sticky, on the page's solid surface — the
  * editor's only glass is its action bar (owner D12).
  *
  * × never asks (Settled 24): the editor saves by itself, so leaving loses nothing.
@@ -14,6 +14,8 @@
  */
 import { ActionMenu } from '@commise/ui/action-menu';
 import { Icon } from '@commise/ui/icon';
+import { FOCUS_RING_CLASS } from '@commise/ui/focus-ring';
+import { surfaceToneClass } from '@commise/ui/surface-tone';
 import type { FC } from 'react';
 
 import { EDITOR_HEADER_ID, type EditorHeaderProps } from './frameProps.js';
@@ -29,19 +31,19 @@ export const EditorHeader: FC<WebEditorHeaderProps> = ({ title, status, closeLab
     <header
         ref={placeRef}
         id={EDITOR_HEADER_ID}
-        className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b border-line-divider bg-paper px-2"
+        className={`sticky top-0 z-30 flex min-h-14 items-center gap-2 border-b border-line-divider ${surfaceToneClass('paper')} px-2`}
     >
         <button
             type="button"
             aria-label={closeLabel}
             onClick={onClose}
-            className="inline-flex size-11 shrink-0 items-center justify-center rounded-md text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+            className={`inline-flex size-11 shrink-0 items-center justify-center rounded-md text-ink ${FOCUS_RING_CLASS.offset}`}
         >
             <Icon name="x" size={24} />
         </button>
-        <div className="flex min-w-0 flex-1 items-baseline gap-3">
+        <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-3">
             <h1 className="shrink-0 truncate text-bar-title text-ink">{title}</h1>
-            {status !== undefined && <p className="min-w-0 truncate text-caption text-ink-muted">{status}</p>}
+            {status !== undefined && <p className="min-w-0 text-meta text-ink-muted">{status}</p>}
         </div>
         {menu !== undefined && (
             <ActionMenu

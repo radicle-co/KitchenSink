@@ -1,0 +1,314 @@
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest';
+import type { SQSEvent } from 'aws-lambda';
+import { PgDialect } from 'drizzle-orm/pg-core';
+import type { SQL } from 'drizzle-orm';
+
+/**
+ * The verification gate driven the way SQS drives it — a queue BODY through the real `handler` (parse → schema →
+ * policy → claim → reserve → Bedrock adapter → settle → verdict store → band feedback → memo), over MOCKED
+ * dependencies (integration mocks them, §7.1a; the real-database proof is
+ * `tests/e2e/verification/pasteOrigin.e2e.test.ts`).
+ *
+ * The real composition root wires the real `createVerdictStore`, `createSpendLedger`, `createBandFeedback` and
+ * Bedrock converse client; only the four things that leave the process are replaced — the recipe database (drizzle
+ * `execute` and the band tables' `pg` pool), the SSM read, and the Bedrock transport's `send`.
+ *
+ * ⛔ WHAT THIS PINS (ADR-0071). A line of a paste job the cook has not saved arrives with
+ * `origin: { kind: 'parseJob', … }`. Its verdict must land in the SAME table under the SAME content key a saved
+ * line would, it must always be asked about identity, its spend must be attributed to `paste-match-review`, and it
+ * must touch NEITHER the shared band tables NOR the shared memo table — each of which the recipe origin, run
+ * through the identical wiring as the control, does.
+ */
+const dialect = new PgDialect();
+
+const { statements, poolQueries, converseRequests, answer, spend } = vi.hoisted(() => ({
+    /** `denied`: the counter row's conditional write returns no row, which IS the ceiling denial (ADR-0024 §2). */
+    spend: { denied: false },
+    statements: [] as { text: string; params: unknown[] }[],
+    poolQueries: [] as string[],
+    converseRequests: [] as unknown[],
+    answer: { text: '{"verdict":"agree","certainty":"high","reason":"matches"}' },
+}));
+
+vi.mock('../../src/common/db.js', () => ({
+    getRecipeDb: () => ({
+        execute: (statement: SQL) => {
+            const query = dialect.sqlToQuery(statement);
+            const text = query.sql.replace(/\s+/gu, ' ').toLowerCase();
+
+            statements.push({ text, params: query.params });
+
+            if (text.includes('insert into recipe_verification_attempts')) {
+                return Promise.resolve({ rows: [{ attempts: 1 }] });
+            }
+
+            if (text.includes('insert into verification_spend')) {
+                return Promise.resolve({ rows: spend.denied ? [] : [{ reserved_micros: '116' }] });
+            }
+
+            if (text.includes('update verification_spend')) {
+                return Promise.resolve({ rows: [{ period: '2026-10' }] });
+            }
+
+            return Promise.resolve({ rows: [] });
+        },
+    }),
+    getRecipePool: () => ({
+        query: (text: string) => {
+            poolQueries.push(text.replace(/\s+/gu, ' ').toLowerCase());
+
+            // A lexical resolution EXISTS for the food — so a band read or observation, were one made, would find a
+            // band to land in. That is what makes "the pool was never queried" a claim about the code, not the data.
+            return Promise.resolve({
+                rows: [{ rung: 'head', margin: '0.40', query_shape: 'single', ranker_version: 'r1' }],
+            });
+        },
+    }),
+}));
+
+vi.mock('../../src/verification/settings.js', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('../../src/verification/settings.js')>()),
+    createSsmSettingsLoader: () => () =>
+        Promise.resolve({ ceilingMicros: 100_000_000, modelId: 'amazon.nova-micro-v1:0' }),
+}));
+
+vi.mock('@kitchensink/bedrock-client', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('@kitchensink/bedrock-client')>()),
+    createBedrockTransport: () => ({
+        client: {},
+        send: (input: unknown) => {
+            converseRequests.push(input);
+
+            return Promise.resolve({
+                output: { message: { role: 'assistant', content: [{ text: answer.text }] } },
+                stopReason: 'end_turn',
+                usage: { inputTokens: 660, outputTokens: 42, totalTokens: 702 },
+            });
+        },
+    }),
+}));
+
+import { handler } from '../../src/handlers/verifyLine.js';
+
+type TestHandler = (event: SQSEvent) => Promise<void>;
+const runHandler = handler as unknown as TestHandler;
+
+const RECIPE_ID = '3f2504e0-4f89-11d3-9a0c-0305e82c3301';
+const FOOD_ID = '01JFOOD000000000000000000';
+
+/** The line's content — everything the verdict key is computed from, and nothing about where it came from. */
+const CONTENT = {
+    sourceLine: '2 cups all-purpose flour',
+    ingredientPhrase: 'all-purpose flour',
+    foodId: FOOD_ID,
+    candidateFoodName: 'Flour, wheat, all-purpose',
+    quantityLow: 2,
+    quantityHigh: null,
+    unit: 'cup',
+    evidenceKind: 'curated-exact',
+    shortlist: [],
+    requestedAt: '2026-10-25T10:00:00.000Z',
+};
+
+const PASTE_ORIGIN = {
+    origin: { kind: 'parseJob', jobId: '6f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b', lineIndex: 3, foodIndex: 1 },
+};
+
+/** One SQS event carrying one body. */
+const event = (body: unknown): SQSEvent =>
+    ({ Records: [{ messageId: 'm-1', body: JSON.stringify(body) }] }) as unknown as SQSEvent;
+
+/** The statements whose text contains `fragment`. */
+const issued = (fragment: string): { text: string; params: unknown[] }[] =>
+    statements.filter((statement) => statement.text.includes(fragment));
+
+/** The verdict INSERT, which carries the key first and the band fourth. */
+const verdictInsert = (): { text: string; params: unknown[] } | undefined =>
+    issued('insert into recipe_ingredient_verifications')[0];
+
+let stdout: MockInstance<typeof console.log>;
+
+/** The `CallSite` of every spend EMF line written this run. */
+const spendCallSites = (): unknown[] =>
+    stdout.mock.calls
+        .map((call): Record<string, unknown> | undefined => {
+            try {
+                return JSON.parse(String(call[0])) as Record<string, unknown>;
+            } catch {
+                return undefined;
+            }
+        })
+        .filter((line): line is Record<string, unknown> => line !== undefined && 'VerificationSpendMicros' in line)
+        .map((line) => line['CallSite']);
+
+beforeAll(() => {
+    // `prod`, so the GATED path runs: the real ledger's reserve and settle SQL are part of what is exercised.
+    process.env['STAGE'] = 'prod';
+    process.env['AWS_REGION'] = 'us-east-1';
+    process.env['VERIFICATION_CLAIM_LEASE_SECONDS'] = '60';
+    process.env['VERIFICATION_ATTEMPT_ALLOWANCE'] = '20';
+});
+
+beforeEach(() => {
+    statements.length = 0;
+    poolQueries.length = 0;
+    converseRequests.length = 0;
+    answer.text = '{"verdict":"agree","certainty":"high","reason":"matches"}';
+    spend.denied = false;
+    stdout = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+});
+
+afterEach(() => {
+    stdout.mockRestore();
+});
+
+describe('the verification gate — a paste-job origin, queue body to verdict row (ADR-0071)', () => {
+    it.each([
+        ['verified', '{"verdict":"agree","certainty":"high","reason":"matches"}'],
+        ['contradicted', '{"verdict":"disagree","certainty":"high","reason":"a different food"}'],
+        ['inconclusive', '{"verdict":"abstain","certainty":"high","reason":"cannot tell"}'],
+    ])('lands a %s verdict and touches neither the band tables nor the memo table', async (band, text) => {
+        answer.text = text;
+
+        await runHandler(event({ ...CONTENT, ...PASTE_ORIGIN }));
+
+        expect(converseRequests).toHaveLength(1);
+        expect(verdictInsert()?.params[3]).toBe(band);
+        expect(issued('insert into ingredient_resolution_memos')).toHaveLength(0);
+        expect(poolQueries).toEqual([]);
+    });
+
+    it('⛔ asks IDENTITY on curated evidence — the aspect a saved line is excused', async () => {
+        await runHandler(event({ ...CONTENT, ...PASTE_ORIGIN }));
+        const pasteAspects = JSON.stringify(verdictInsert()?.params);
+
+        statements.length = 0;
+        await runHandler(event({ ...CONTENT, recipeId: RECIPE_ID }));
+        const recipeAspects = JSON.stringify(verdictInsert()?.params);
+
+        expect(pasteAspects).toContain('identity');
+        expect(recipeAspects).not.toContain('identity');
+    });
+
+    it("attributes the reserved spend to 'paste-match-review', through the real ledger", async () => {
+        await runHandler(event({ ...CONTENT, ...PASTE_ORIGIN }));
+
+        expect(issued('insert into verification_spend')).toHaveLength(1);
+        expect(issued('update verification_spend')).toHaveLength(1);
+        expect(spendCallSites()).toEqual(['paste-match-review']);
+    });
+
+    it('⛔ writes its verdict under the SAME key a saved line with the same content is keyed under', async () => {
+        await runHandler(event({ ...CONTENT, ...PASTE_ORIGIN }));
+        const pasteKey = verdictInsert()?.params[0];
+
+        statements.length = 0;
+        await runHandler(event({ ...CONTENT, recipeId: RECIPE_ID }));
+
+        expect(typeof pasteKey).toBe('string');
+        expect(verdictInsert()?.params[0]).toBe(pasteKey);
+    });
+
+    it('completes a paste origin the schema refuses without calling the model — poison is recorded, not retried', async () => {
+        await runHandler(event({ ...CONTENT, origin: { ...PASTE_ORIGIN.origin, lineIndex: -1 } }));
+
+        expect(converseRequests).toHaveLength(0);
+        expect(verdictInsert()).toBeUndefined();
+    });
+});
+
+/**
+ * A CEILING DENIAL, through the real ledger's SQL (ADR-0024 §3; owner ruling 2026-10-26). The counter's conditional write
+ * returns no row, which is the denial. The paste origin records `budgetSpent` under the key with the captured period and
+ * COMPLETES (the handler resolves, so SQS deletes the message); the saved-recipe origin still throws, so the queue retries.
+ */
+describe('the verification gate: a ceiling denial (queue body to recorded fact)', () => {
+    beforeEach(() => {
+        spend.denied = true;
+    });
+
+    it('⛔ a paste origin resolves, calls no model, writes NO verdict, and records budget spent for the captured period', async () => {
+        await expect(runHandler(event({ ...CONTENT, ...PASTE_ORIGIN }))).resolves.toBeUndefined();
+
+        expect(converseRequests).toHaveLength(0);
+        expect(verdictInsert()).toBeUndefined();
+
+        const recorded = issued('budget_spent_period');
+
+        expect(recorded).toHaveLength(1);
+        expect(recorded[0]?.text).toContain('insert into recipe_verification_attempts');
+        // The period is the clock's at reserve time, in the `YYYY-MM` the counter row is keyed on.
+        expect(recorded[0]?.params).toContainEqual(expect.stringMatching(/^\d{4}-(0[1-9]|1[0-2])$/u));
+        // Nothing was reserved, so nothing is settled.
+        expect(issued('update verification_spend')).toHaveLength(0);
+    });
+
+    it('⛔ the saved-recipe origin STILL throws, so the queue retries it, and records nothing', async () => {
+        await expect(runHandler(event({ ...CONTENT, recipeId: RECIPE_ID }))).rejects.toThrow(/ceiling reached/u);
+
+        expect(issued('budget_spent_period')).toHaveLength(0);
+        expect(verdictInsert()).toBeUndefined();
+    });
+});
+
+/**
+ * The controls: the same wiring, a SAVED recipe's line. The legacy `recipeId` spelling and the `origin` spelling must
+ * produce the same statements and both must remember the phrase, which is what makes the paste origin's silence above
+ * a property of the origin rather than of the fixtures.
+ *
+ * ⛔ The band tables (ADR-0071: dormant by decision). A recipe line reaches them ONLY when its message names its own
+ * band on ranked evidence, and never by reading the shared `ingredient_resolutions` events. Rewritten from "both
+ * spellings report to the band tables": that read filed one cook's verdict under another cook's band.
+ */
+describe('the verification gate — a recipe origin, both spellings', () => {
+    it.each([
+        ['legacy recipeId', { recipeId: RECIPE_ID }],
+        ['origin', { origin: { kind: 'recipe', recipeId: RECIPE_ID } }],
+    ])('the %s spelling remembers the phrase, claims as the gate, and touches no band table', async (_l, o) => {
+        await runHandler(event({ ...CONTENT, evidenceKind: 'unattributed', shortlist: [], ...o }));
+
+        expect(verdictInsert()?.params[3]).toBe('verified');
+        expect(issued('insert into ingredient_resolution_memos')).toHaveLength(1);
+        expect(poolQueries).toEqual([]);
+        expect(spendCallSites()).toEqual(['verification-gate']);
+    });
+
+    it('⛔ a ranked line that names NO band reads no band authority and records no observation', async () => {
+        await runHandler(
+            event({
+                ...CONTENT,
+                evidenceKind: 'ranked',
+                shortlist: [{ foodId: FOOD_ID, score: 0.9 }],
+                recipeId: RECIPE_ID,
+            }),
+        );
+
+        expect(verdictInsert()?.params[3]).toBe('verified');
+        expect(poolQueries).toEqual([]);
+    });
+
+    it('a ranked line naming its own band records under that band, and never reads the shared events', async () => {
+        await runHandler(
+            event({
+                ...CONTENT,
+                evidenceKind: 'ranked',
+                shortlist: [{ foodId: FOOD_ID, score: 0.9 }],
+                bandKey: { rung: 'head', marginBand: 'none', queryShape: 'multi-word', rankerVersion: 'r1' },
+                recipeId: RECIPE_ID,
+            }),
+        );
+
+        expect(poolQueries.some((text) => text.includes('resolution_band_observations'))).toBe(true);
+        expect(poolQueries.some((text) => text.includes('ingredient_resolutions'))).toBe(false);
+    });
+
+    it('issues byte-identical statements for the two spellings', async () => {
+        await runHandler(event({ ...CONTENT, recipeId: RECIPE_ID }));
+        const legacy = [...statements];
+
+        statements.length = 0;
+        await runHandler(event({ ...CONTENT, origin: { kind: 'recipe', recipeId: RECIPE_ID } }));
+
+        expect(statements).toEqual(legacy);
+    });
+});

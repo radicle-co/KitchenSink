@@ -304,6 +304,36 @@ describe('RecipeDetailAssembler.toDetailResponse — names and statuses through 
     });
 });
 
+/**
+ * Rewritten (ADR-0071): this case used to hand the assembler a provenance double and assert it was never read. That
+ * read (`IngredientResolutionsDal.latestResolutionsByLookupIds`) was deleted with the band subsystem's last consumer, so
+ * the assembler has no way to reach provenance at all. What stays is the outcome: an unjudged line reports its catalog
+ * status, never `PENDING_VERIFICATION`.
+ */
+describe('RecipeDetailAssembler — provenance on the SHARED binding no longer shapes a line (ADR-0071)', () => {
+    it('⛔ an unjudged line on a shared binding reports its catalog status, never PENDING_VERIFICATION', async () => {
+        // A binding row is shared by every cook, so its latest event says what ANOTHER cook's add did. Reading it
+        // withheld this cook's line, or (after a later curated bind of the same food) published someone's wrong one.
+        const collaborators = {
+            lookups: fakeFoodLookupsDal(SHARED),
+            refs: refsOf({ 'root:food-shared': found('milk') }).gateway,
+        } as Parameters<typeof makeRecipeDetailAssembler>[0];
+        const stored = aggregateOf('l-shared');
+        const transcribed: RecipeAggregate = {
+            ...stored,
+            ingredients: stored.ingredients.map((line) => ({ ...line, sourceLine: '1 cup milk' })),
+        };
+
+        const detail = await makeRecipeDetailAssembler(collaborators).toDetailResponse(transcribed, [], {
+            caller: CALLER,
+            budget: 'read',
+            viewerId: AUTHOR,
+        });
+
+        expect(detail.ingredients[0]?.resolutionStatus).toBe(FoodResolutionStatus.RESOLVED);
+    });
+});
+
 describe('RecipeDetailAssembler — a binding that vanished between the recipe read and the bindings read', () => {
     it('renders that line unreachable and nameless rather than failing the whole recipe', async () => {
         const detail = await detailOf(

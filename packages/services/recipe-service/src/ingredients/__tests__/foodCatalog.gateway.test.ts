@@ -104,6 +104,48 @@ describe('FoodCatalogGateway', () => {
             ]);
         });
 
+        it('carries the rung food ranked each hit on, and none for a crosswalk hit (ADR-0070)', async () => {
+            search.mockResolvedValue({
+                results: [
+                    makeSearchResultView({ id: 'F-bar', name: 'cereal bar', score: 1 }),
+                    makeSearchResultView({ id: 'F-sugar', name: 'sugar', score: 0.75, rung: 'synonym' }),
+                ],
+            });
+            const gateway = new FoodCatalogGateway(clients, { enabled: true });
+
+            const outcome = await gateway.search(CALLER, 'granulated sugar', 10);
+
+            expect(outcome.hits).toEqual([
+                { foodId: 'F-bar', name: 'cereal bar', score: 1 },
+                { foodId: 'F-sugar', name: 'sugar', score: 0.75, rung: 'synonym' },
+            ]);
+        });
+
+        it("carries food's matchedBy flag through, and omits it when food sent none (ADR-0070)", async () => {
+            search.mockResolvedValue({
+                results: [
+                    makeSearchResultView({ id: 'F-bar', name: 'cereal bar', score: 1, matchedBy: 'identifier' }),
+                    makeSearchResultView({
+                        id: 'F-sugar',
+                        name: 'sugar',
+                        score: 0.7,
+                        rung: 'synonym',
+                        matchedBy: 'name',
+                    }),
+                    makeSearchResultView({ id: 'F-old', name: 'old food', score: 0.5 }),
+                ],
+            });
+            const gateway = new FoodCatalogGateway(clients, { enabled: true });
+
+            const outcome = await gateway.search(CALLER, 'sugar', 10);
+
+            expect(outcome.hits.map((hit) => [hit.foodId, hit.matchedBy])).toEqual([
+                ['F-bar', 'identifier'],
+                ['F-sugar', 'name'],
+                ['F-old', undefined],
+            ]);
+        });
+
         it('breaks score ties on name so the ordering is deterministic', async () => {
             search.mockResolvedValue({
                 results: [
@@ -242,6 +284,37 @@ describe('FoodCatalogGateway', () => {
             expect(logged.length).toBeGreaterThan(0);
             expect(logged.join('\n')).not.toContain('caller-session-jwt');
             vi.restoreAllMocks();
+        });
+    });
+
+    describe('the caller’s deadline signal (ADR-0071)', () => {
+        it('⛔ hands the signal to the food client, so the request ends with the caller’s deadline', async () => {
+            search.mockResolvedValue({ results: [] });
+            const gateway = new FoodCatalogGateway(clients, { enabled: true });
+            const deadline = AbortSignal.timeout(60_000);
+
+            await gateway.search(CALLER, 'egg', 5, { withNutrition: true, signal: deadline });
+
+            expect(search).toHaveBeenCalledWith('egg', true, { signal: deadline });
+        });
+
+        it('an aborted search degrades to `unavailable` and never throws', async () => {
+            search.mockRejectedValue(new FetchUnavailableError(undefined, 'aborted'));
+            const gateway = new FoodCatalogGateway(clients, { enabled: true });
+
+            await expect(gateway.search(CALLER, 'egg', 5, { signal: AbortSignal.abort() })).resolves.toStrictEqual({
+                hits: [],
+                availability: 'unavailable',
+            });
+        });
+    });
+
+    describe('enabled — whether the operator has the blend switched on (ADR-0071)', () => {
+        // The paste matcher asks before it proposes anything: a switched-off catalog cannot rank, and a proposal
+        // stored then would read as "no match" for that line until the cook edits it.
+        it('reports the switch as configured', () => {
+            expect(new FoodCatalogGateway(clients, { enabled: true }).enabled).toBe(true);
+            expect(new FoodCatalogGateway(clients, { enabled: false }).enabled).toBe(false);
         });
     });
 

@@ -117,8 +117,8 @@ appId: ${APP_ID}
           text: 'Maestro Range Loaf.*'
       timeout: 40000
 
-# ⛔ THE SPAN, not its lower bound. An EN DASH, which is what `formatQuantity` prints on BOTH platforms —
-# the same glyph the web spec asserts, so a platform that formatted a range differently fails here. The amount leads
+# ⛔ THE SPAN, not its lower bound. `formatQuantity` prints an EN DASH on BOTH platforms, and the row is a checkbox, so
+# its name is that visible text, "2–3" (WCAG 2.5.3, option C), as the web spec asserts. The amount leads
 # the name in one paragraph (`docs/design/readSurfacesEvaluation.md` D1), so the line is matched from its start.
 - scrollUntilVisible:
       element:

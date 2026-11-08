@@ -6,6 +6,7 @@
  * never overwrites a saved name, and nothing is written until the cook presses Save.
  */
 import { describe, expect, it } from 'vitest';
+import { contentWidthOf } from '@commise/ui/container-class';
 import { patchUserMeRequestSchema } from '@kitchensink/schema-identity';
 
 import {
@@ -13,7 +14,9 @@ import {
     canSaveDisplayName,
     displayNameDraftOf,
     formatNameCounter,
+    profileHeaderTitleOf,
     givenNameOf,
+    labelValueStacksAt,
     nameCounterOf,
     profileReadOf,
 } from '../model.js';
@@ -192,5 +195,54 @@ describe('nameCounterOf (W-26)', () => {
 describe('formatNameCounter (W-26)', () => {
     it('fills the template’s {count} and {max}', () => {
         expect(formatNameCounter('{count}/{max}', { count: 85, max: 100, atLimit: false })).toBe('85/100');
+    });
+});
+
+describe('profileHeaderTitleOf (T8)', () => {
+    const ready = (displayName: string, username: string | null) =>
+        ({ status: 'ready', displayName, email: 'a@b.co', username }) as const;
+
+    it('is the display name when there is one, even if the cook has a username', () => {
+        expect(profileHeaderTitleOf(ready('Eliza Moreno', 'braise'), '@{username}')).toBe('Eliza Moreno');
+    });
+
+    it('falls back to the @username when the cook has no display name', () => {
+        expect(profileHeaderTitleOf(ready('', 'braise'), '@{username}')).toBe('@braise');
+    });
+
+    it('is empty when the cook has neither, so the header is the avatar alone', () => {
+        expect(profileHeaderTitleOf(ready('', null), '@{username}')).toBe('');
+    });
+
+    it('treats a blank username as none', () => {
+        expect(profileHeaderTitleOf(ready('', '  '), '@{username}')).toBe('');
+    });
+});
+
+// Designer ruling 2026-11-01 (`nativeBoards/designAnswers.md`): a label-and-value row stacks by ROOM, when its content
+// width over the capped font scale is below 280. A width is the house's content width (`contentWidthOf`, the window less
+// its gutters), so a 390 pt phone gives 358 and stacks a little above 1.25x, and a wide tablet never stacks at the cap.
+// REPLACES the first ruling's scale-only rule (stack above 1.3x), whose boundary cases these supersede.
+describe('labelValueStacksAt', () => {
+    const phone = contentWidthOf(390);
+    const tablet = contentWidthOf(1024);
+
+    it.each([1, 1.25])('keeps the value beside its label on a 390 pt phone at %sx', (scale) => {
+        expect(labelValueStacksAt(phone, scale)).toBe(false);
+    });
+
+    it.each([1.3, 1.5, 2])('stacks the value under its label on a 390 pt phone at %sx', (scale) => {
+        expect(labelValueStacksAt(phone, scale)).toBe(true);
+    });
+
+    it('never stacks on a wide tablet, even at the 2x cap', () => {
+        expect(labelValueStacksAt(tablet, 2)).toBe(false);
+    });
+
+    it('keeps exactly 280 pt of room beside, and stacks just below it', () => {
+        expect(labelValueStacksAt(280, 1)).toBe(false);
+        expect(labelValueStacksAt(560, 2)).toBe(false);
+        expect(labelValueStacksAt(279.9, 1)).toBe(true);
+        expect(labelValueStacksAt(559, 2)).toBe(true);
     });
 });

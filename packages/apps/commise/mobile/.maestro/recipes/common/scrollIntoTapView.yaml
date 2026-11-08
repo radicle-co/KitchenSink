@@ -23,6 +23,14 @@ appId: ${APP_ID}
 # instead (full local iOS shard 1, 2026-10-18: ingredientGroups typed "P", ingredientRowEditor typed "F"). An
 # on-screen target is left where it is, which is what the bare `scrollUntilVisible` this step replaced did.
 #
+# ⛔ WHY A LAST SWIPE LIFTS THE TARGET CLEAR OF THE TAB BAR. XCUITest counts an element visible while the TAB BAR covers
+# it. Maestro's `above` compares a target's TOP edge, so no `above` anchor can say "its bottom is inside the bar" (QA
+# Private at the cap: "Edit recipe" at [16,752][232,808], bar at [0,774][402,874], 752 < 774), and `centerElement` never
+# runs for a target that is already on screen (the rule above). So when the tab bar (`appTabBar`) is on screen, a downward
+# step ends with ONE fixed short swipe up, and the target must still be visible afterwards. At a page end the swipe moves
+# nothing. No tab bar (the editor, a keyboard) means no swipe, so the rule above still holds there. Downward only: the bar
+# is at the bottom.
+#
 # `maestroScrollThenTap.test.ts` refuses a bare `scrollUntilVisible` followed by a tap on the same element anywhere else,
 # and holds the on-screen rule above.
 - runFlow:
@@ -61,3 +69,15 @@ appId: ${APP_ID}
                 centerElement: true
                 timeout: 4000
                 optional: true
+- runFlow:
+      when:
+          true: ${DIRECTION != 'UP'}
+          visible:
+              id: appTabBar
+      commands:
+          - swipe:
+                start: 50%, 70%
+                end: 50%, 60%
+                duration: 500
+          - assertVisible:
+                text: ${TARGET}

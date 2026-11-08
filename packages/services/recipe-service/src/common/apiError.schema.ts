@@ -129,6 +129,22 @@ export const recipeErrorCodeSchema = z.enum([
     'VERSION_LINE_UNRESTORABLE',
     /** A write would publish a recipe missing what Publish needs; `details.missing` names each (owner 2026-10-13). */
     'PUBLISH_REQUIREMENTS_UNMET',
+    /**
+     * 004 FR-022 — the daily import allowance is spent. A `429` with its own code, so a client can tell it from the
+     * throttler's `TOO_MANY_REQUESTS` (retry later) and show a quota notice; `details.resetsAt` is when it reopens.
+     */
+    'IMPORT_QUOTA_EXCEEDED',
+    /** ADR-0072 — no bulk import with that id owned by the caller (a stranger's and a missing one are one answer). */
+    'IMPORT_NOT_FOUND',
+    /** ADR-0072 — another device moved the wizard's cursor; `details.cursorOrdinal` is where it is now. */
+    'IMPORT_CURSOR_MOVED',
+    /** ADR-0072 — the item's recipe was already saved; an item is saved once. `details.ordinal` names it. */
+    'IMPORT_ITEM_ALREADY_SAVED',
+    /**
+     * ADR-0073 - a free cook has no private slot left. A `403`, NOT a `409`: the recipe client maps any 409 code it does not
+     * know to a version conflict. `details.used` and `details.limit` say how many slots the cook holds and how many they get.
+     */
+    'PRIVATE_SLOTS_FULL',
 
     // ── Auth and account-lifecycle codes, which are NOT recipe-domain errors ──
     /** No, invalid, expired, or wrong-authorized-party bearer token. */
@@ -143,6 +159,11 @@ export const recipeErrorCodeSchema = z.enum([
      * contained my test write, as designed" from a scope gate it should treat as a failure.
      */
     'TEST_PRINCIPAL_CONTAINED',
+    /**
+     * ADR-0081 — the token is genuine but its account is SUSPENDED: a `403` the shared verifier raises before any handler
+     * runs. Its own code so a client tells it from a missing ownership or scope; no retry or sign-in lifts it.
+     */
+    'ACCOUNT_SUSPENDED',
     /** The caller's account has already been erased — a `410` on the erasure route. */
     'ACCOUNT_ALREADY_ERASED',
 
@@ -239,6 +260,41 @@ export const recipeApiErrorSchema = z.discriminatedUnion('code', [
         .loose(),
     z
         .object({
+            code: z.literal('IMPORT_QUOTA_EXCEEDED'),
+            message: z.string(),
+            /** When the allowance reopens for this caller, an ISO 8601 instant. REQUIRED: FR-022 says the refusal carries it. */
+            details: z.object({ resetsAt: z.iso.datetime() }).loose(),
+        })
+        .loose(),
+    z
+        .object({
+            code: z.literal('IMPORT_CURSOR_MOVED'),
+            message: z.string(),
+            /** Where the wizard's cursor is now: an item ordinal, or `null` when it is past the last item. REQUIRED. */
+            details: z.object({ cursorOrdinal: z.number().int().nonnegative().nullable() }).loose(),
+        })
+        .loose(),
+    z
+        .object({
+            code: z.literal('IMPORT_ITEM_ALREADY_SAVED'),
+            message: z.string(),
+            /** The item that is already saved. REQUIRED. */
+            details: z.object({ ordinal: z.number().int().nonnegative() }).loose(),
+        })
+        .loose(),
+    z
+        .object({
+            code: z.literal('PRIVATE_SLOTS_FULL'),
+            message: z.string(),
+            /**
+             * What the cook holds and what they get, both REQUIRED. `used` can exceed `limit` (a downgraded cook keeps every
+             * private recipe), and states the truth rather than clamping, so the refusal can say how far over they are.
+             */
+            details: z.object({ used: z.number().int().nonnegative(), limit: z.number().int().positive() }).loose(),
+        })
+        .loose(),
+    z
+        .object({
             code: z.literal('VERSION_LINE_UNRESTORABLE'),
             message: z.string(),
             /** The 0-based positions, in the snapshot, of the lines that cannot be restored. */
@@ -268,10 +324,12 @@ export const recipeApiErrorSchema = z.discriminatedUnion('code', [
     bare('CANNOT_RATE_OWN_RECIPE'),
     bare('PARSE_JOB_NOT_FOUND'),
     bare('PARSE_JOB_EXPIRED'),
+    bare('IMPORT_NOT_FOUND'),
     bare('UNAUTHORIZED'),
     bare('IDENTITY_SYNC_PENDING'),
     bare('FORBIDDEN'),
     bare('TEST_PRINCIPAL_CONTAINED'),
+    bare('ACCOUNT_SUSPENDED'),
     bare('ACCOUNT_ALREADY_ERASED'),
     bare('NOT_FOUND'),
     bare('PAYLOAD_TOO_LARGE'),

@@ -1,67 +1,91 @@
 /**
  * @module @commise/ui/status-badge — the native badge that states a status (`Draft`, `Custom`, `Needs review`, …).
  *
- * React Native's nested `Text` takes no reliable radius or padding, so the badge is a `View` holding the glyph and a
+ * React Native's nested `Text` takes no reliable radius or padding, so the badge is a row holding the glyph and a
  * `Text`, the same mechanism as `StandIn` (`docs/design/ingredientSpecialization.md` E2 I1). The same contract as the
  * web leaf: the words are the content, the badge is filled and never dashed, each status's label clears 4.5:1 on its
- * fill, the label wraps and is never cut off, and it is 24 pt tall with the `sm` radius.
+ * fill, a neutral one wears a 1 pt `lineDivider` edge, the label wraps and is never cut off, and it is 24 pt tall with
+ * the `sm` radius.
  *
- * @pattern Registry consumer — the status picks its pair and glyph from closed `Record`s (`BADGE_GLYPH`, the tones)
+ * Styled with Tamagui (ADR-0080): every colour is a theme key, so the badge follows the scheme with no hook. PRO's pair
+ * is `proFill` under `proInk`, the PRO tone's own keys. A glyph takes the label's colour, as `currentColor` does on web;
+ * only neutral badges carry one.
+ *
+ * @pattern Registry consumer — the status picks its tone and glyph from closed `Record`s (`TONE_OF`, `BADGE_GLYPH`)
+ * @pattern Variant — the tone is a Tamagui variant on the badge and on its label, the discriminated-union render map
  */
 import type { FC } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { styled, XStack } from 'tamagui';
 
+import { BADGE_BOX } from '../badgeBox/badgeBox.js';
 import { Icon } from '../icon/Icon.native.js';
-import type { Theme } from '../theme/themeFor.js';
-import { useTheme } from '../theme/useTheme.native.js';
-import { proTone } from '../tokens/tones.js';
-import { nativeTokens } from '../tokens/native.js';
+import { Text } from '../text/Text.native.js';
 import { BADGE_GLYPH, type BadgeStatus, type StatusBadgeProps } from './props.js';
 
+/** The three paint jobs a badge has (`componentFixes.md` §7). */
+type BadgeTone = 'pro' | 'attention' | 'neutral';
+
 /**
- * Each status's fill and label in the current theme: the web leaf's pairs (see its note on the `attention` fallback).
- * The PRO pair is fixed in both themes (`darkTheme.md` §2); every other pair re-themes. Pure.
+ * Each status's tone. A neutral badge is paper under `inkMuted` with a 1 pt `lineDivider` edge. Every tone carries the
+ * same 1 pt edge (`BADGE_BOX`), so all tones draw one height at every font scale. PRO's and attention's edge is
+ * transparent: React Native paints the fill under the border, so an edge in a translucent fill's own colour would show.
  */
-function badgePair({ colors }: Theme, status: BadgeStatus): { readonly fill: string; readonly text: string } {
-    switch (status) {
-        case 'pro':
-            return proTone;
-        case 'note':
-            return { fill: colors.surfaceMuted, text: colors.inkMuted };
-        case 'attention':
-            return { fill: colors.attentionTint, text: colors.ink };
-        case 'draft':
-        case 'private':
-        case 'public':
-        case 'soon':
-            return { fill: colors.surfaceMuted, text: colors.ink };
-    }
-}
-
-/** The status badge: filled, and as wide as its words allow. */
-export const StatusBadge: FC<StatusBadgeProps> = ({ status, children }) => {
-    const glyph = BADGE_GLYPH[status];
-    const pair = badgePair(useTheme(), status);
-
-    return (
-        <View style={[styles.badge, { backgroundColor: pair.fill }]}>
-            {glyph === null ? null : <Icon name={glyph} size={16} tone="ink" />}
-            <Text style={[styles.label, { color: pair.text }]}>{children}</Text>
-        </View>
-    );
+const TONE_OF: Readonly<Record<BadgeStatus, BadgeTone>> = {
+    pro: 'pro',
+    attention: 'attention',
+    draft: 'neutral',
+    private: 'neutral',
+    public: 'neutral',
+    soon: 'neutral',
+    note: 'neutral',
 };
 
-const styles = StyleSheet.create({
-    badge: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        alignSelf: 'flex-start',
-        gap: nativeTokens.spacing[1],
-        maxWidth: '100%',
-        minHeight: 24,
-        borderRadius: nativeTokens.radius.sm,
-        paddingHorizontal: nativeTokens.spacing[2],
-        paddingVertical: 2,
-    },
-    label: { ...nativeTokens.type.caption, flexShrink: 1 },
+const Badge = styled(XStack, {
+    name: 'StatusBadge',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: '$1',
+    maxWidth: '100%',
+    minHeight: BADGE_BOX.minHeight,
+    borderRadius: '$sm',
+    paddingHorizontal: '$2',
+    paddingVertical: BADGE_BOX.paddingVertical,
+    borderWidth: BADGE_BOX.borderWidth,
+
+    variants: {
+        tone: {
+            pro: { backgroundColor: '$proFill', borderColor: 'transparent' },
+            attention: { backgroundColor: '$attentionTint', borderColor: 'transparent' },
+            neutral: { backgroundColor: '$paper', borderColor: '$lineDivider' },
+        } as const satisfies Record<BadgeTone, object>,
+    } as const,
 });
+
+const Label = styled(Text, {
+    name: 'StatusBadgeLabel',
+    typeRole: 'caption',
+    flexShrink: 1,
+
+    variants: {
+        tone: {
+            pro: { color: '$proInk' },
+            attention: { color: '$ink' },
+            neutral: { color: '$inkMuted' },
+        } as const satisfies Record<BadgeTone, object>,
+    } as const,
+});
+
+/** The status badge: filled, and as wide as its words allow. */
+export const StatusBadge: FC<StatusBadgeProps> = ({ status, children, onPicture = false }) => {
+    const glyph = BADGE_GLYPH[status];
+    const tone = TONE_OF[status];
+
+    return (
+        <Badge tone={tone}>
+            {glyph === null ? null : <Icon name={glyph} size={16} tone="inkMuted" />}
+            <Label tone={tone} pictorial={onPicture}>
+                {children}
+            </Label>
+        </Badge>
+    );
+};

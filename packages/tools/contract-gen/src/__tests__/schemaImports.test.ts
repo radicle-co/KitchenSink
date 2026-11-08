@@ -42,6 +42,13 @@ describe('isAllowedSpecifier', () => {
         expect(isAllowedSpecifier('./search-response.schema.js', ZOD_ONLY)).toBe(true);
     });
 
+    // The repo names files camelCase (no hyphens), and `parseJobs.schema.ts` is a real sibling: a lowercase-only pattern
+    // refused it, so a contract could not compose the paste match view and was left to restate it.
+    it('allows a flat sibling schema module named in camelCase', () => {
+        expect(isAllowedSpecifier('./parseJobs.schema.js', ZOD_ONLY)).toBe(true);
+        expect(isAllowedSpecifier('./apiError.schema.js', ZOD_ONLY)).toBe(true);
+    });
+
     // Generation FLATTENS every schema into one directory, so a deep relative specifier resolves in the
     // service and breaks after the copy. It must be rejected here, where the author can still see why.
     it('rejects a DEEP sibling schema path', () => {
@@ -371,6 +378,7 @@ describe('siblingModuleName', () => {
     it('returns the flat module name a sibling specifier resolves to', () => {
         expect(siblingModuleName('./foods.schema.js')).toBe('foods.schema');
         expect(siblingModuleName('./search-response.schema.js')).toBe('search-response.schema');
+        expect(siblingModuleName('./parseJobs.schema.js')).toBe('parseJobs.schema');
     });
 
     it('returns undefined for anything that is not a flat sibling schema specifier', () => {

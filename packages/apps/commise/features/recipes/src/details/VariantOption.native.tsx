@@ -12,6 +12,7 @@ import { useTheme } from '@commise/ui/theme';
 import { VariantPartsLine } from '@commise/ui/variant-parts-line';
 import type { FC } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { usePressFill } from '@commise/ui/surface-tone';
 
 /** Props of one option. */
 export interface VariantOptionProps {
@@ -44,8 +45,9 @@ export const VariantOption: FC<VariantOptionProps> = ({
     fontScale,
     onPick,
 }) => {
-    // Colour from the theme at render (D15): the press wash is `ink` at 6% (the web twin's `hover:bg-ink/6`).
-    const { colors, wash } = useTheme();
+    // Colour from the theme at render (D15): the press wash is `surfaceMuted` (the web twin's `hover:bg-surface-muted`).
+    const { colors } = useTheme();
+    const wash = usePressFill();
 
     return (
         <Pressable
@@ -65,7 +67,7 @@ export const VariantOption: FC<VariantOptionProps> = ({
                 <View
                     style={[
                         styles.parts,
-                        { flexBasis: PARTS_BASIS_IN_BODY_SIZES * nativeTokens.fontSize.bodyMd * fontScale },
+                        { flexBasis: PARTS_BASIS_IN_BODY_SIZES * nativeTokens.type.body.fontSize * fontScale },
                     ]}
                 >
                     <VariantPartsLine parts={parts} tone="primary" />
@@ -95,10 +97,10 @@ const styles = StyleSheet.create({
         columnGap: nativeTokens.spacing[3],
     },
     parts: { flexGrow: 1, flexShrink: 1, minWidth: 0 },
-    currentTag: { fontSize: nativeTokens.fontSize.caption, fontWeight: '600' },
+    currentTag: { ...nativeTokens.type.label },
     calories: {
         marginStart: 'auto',
-        fontSize: nativeTokens.fontSize.bodySm,
+        ...nativeTokens.type.meta,
         fontVariant: ['tabular-nums'],
     },
 });

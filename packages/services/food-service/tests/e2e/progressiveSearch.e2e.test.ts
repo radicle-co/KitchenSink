@@ -1,7 +1,7 @@
 /**
  * LOCAL e2e (`docs/CODING_STANDARDS.md` §7.1a): the progressive search and the remote pick through the booted food app
  * on a real Postgres (ADR-0055 points 4 to 10). The app is configured exactly as a deployed task is, with its remote
- * search settings pointing at a loopback stand-in for the CloudFront distribution (`support/searchEdgeStandIn.ts`:
+ * search settings pointing at a loopback stand-in for the CloudFront distribution (`@kitchensink/remote-search-edge`:
  * signatures, cache key, TTLs), in front of a double of the search function (`support/searchFunctionDouble.ts`), and
  * its USDA client at a loopback stub for the pick's one fetch. It proves food's protocol against a model of the CDN,
  * not CloudFront; the deployed distribution is S7.10's.
@@ -47,7 +47,7 @@ import { SilentWorkerLogger } from '../../src/worker/SilentWorkerLogger.js';
 import { makeCatalogFood } from '../__fixtures__/catalogFood.js';
 import { generateClerkKeypair, mintToken } from '../support/jwt.js';
 import { foodDb } from '../support/roleDb.js';
-import { startSearchEdgeStandIn, type SearchEdgeStandIn } from '../support/searchEdgeStandIn.js';
+import { startSearchEdgeStandIn, type SearchEdgeStandIn } from '@kitchensink/remote-search-edge/edge';
 import { searchFunctionDouble } from '../support/searchFunctionDouble.js';
 import { startUsdaStubServer, type UsdaStubServer } from '../support/usdaStubServer.js';
 import { bootFoodApp, callFoodApi } from './harness.js';

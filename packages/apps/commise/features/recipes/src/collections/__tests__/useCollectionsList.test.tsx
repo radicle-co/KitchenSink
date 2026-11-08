@@ -60,7 +60,8 @@ describe('useCollectionsList — the first run', () => {
     // ⚠️ REWRITTEN from "is a first run only once the collection list has settled empty": that boolean was false while
     // the list loaded, so the floating button mounted and then vanished under the cook's finger. It now yields while
     // loading as well, and shows when the list is unreachable (offline or failed) with nothing cached.
-    it('yields the floating create button while the list loads and once it settles empty, not once it holds one', async () => {
+    // REWRITTEN (designer, 2026-11-03): the floating button also stays in the first run, so it yields only while the list loads.
+    it('yields the floating create button only while the list loads, not once it settles empty or holds one', async () => {
         const { queryClient, result } = setup();
 
         expect(result.current.createEntryYields).toBe(true);
@@ -71,7 +72,7 @@ describe('useCollectionsList — the first run', () => {
                 pageParams: [1],
             });
         });
-        await waitFor(() => expect(result.current.createEntryYields).toBe(true));
+        await waitFor(() => expect(result.current.createEntryYields).toBe(false));
 
         act(() => {
             queryClient.setQueryData(result.current.read.queryKey, {
@@ -156,6 +157,31 @@ describe('useCollectionsList — search and the new-collection sheet', () => {
         expect(onCreated).not.toHaveBeenCalled();
     });
 
+    it('gives focus back to the floating button when the sheet is dismissed without a create, and lowers the request when it is taken', () => {
+        const { result } = setup();
+
+        expect(result.current.createFocus.requested).toBe(false);
+
+        act(() => result.current.sheet.onDismissed());
+        expect(result.current.createFocus.requested).toBe(true);
+
+        act(() => result.current.createFocus.onHandled());
+        expect(result.current.createFocus.requested).toBe(false);
+    });
+
+    it('asks for no focus on the button when the sheet created a collection, because the app navigates away', async () => {
+        const { client, result, onCreated } = setup();
+        vi.spyOn(client, 'createCollection').mockResolvedValue({ id: 'c-1' } as never);
+
+        act(() => result.current.sheet.onOpen());
+        act(() => result.current.sheet.onCreate({ name: 'Picnics' }));
+        await waitFor(() => expect(result.current.sheet.open).toBe(false));
+        act(() => result.current.sheet.onDismissed());
+
+        expect(onCreated).toHaveBeenCalledWith('c-1');
+        expect(result.current.createFocus.requested).toBe(false);
+    });
+
     it('keeps the sheet open and says so when the create is refused, and opening again clears it', async () => {
         const { client, onCreated, result } = setup();
         vi.spyOn(client, 'createCollection').mockRejectedValue(new Error('nope'));
@@ -170,5 +196,41 @@ describe('useCollectionsList — search and the new-collection sheet', () => {
         act(() => result.current.sheet.onOpen());
 
         expect(result.current.sheet.failed).toBe(false);
+    });
+});
+
+// Designer ruling (2026-11-02): where the Collections tab has a search field (from six collections) it pins on a band, as Recipes'
+// does. The frame draws it and sits outside the read's boundary, so the hook says whether it shows, from the cached total.
+describe('useCollectionsList — the pinned search shows from six collections', () => {
+    const pages = (total: number) => ({
+        pages: [{ data: [], total, page: 1, pageSize: 20, hasMore: false }],
+        pageParams: [1],
+    });
+
+    it('is hidden while the list loads and below six, and shows from six', async () => {
+        const { queryClient, result } = setup();
+
+        expect(result.current.search.visible).toBe(false);
+
+        act(() => {
+            queryClient.setQueryData(result.current.read.queryKey, pages(5));
+        });
+        await waitFor(() => expect(result.current.search.visible).toBe(false));
+
+        act(() => {
+            queryClient.setQueryData(result.current.read.queryKey, pages(6));
+        });
+        await waitFor(() => expect(result.current.search.visible).toBe(true));
+    });
+
+    it('stays while the cook has typed, so a search can always be cleared', async () => {
+        const { queryClient, result } = setup();
+        act(() => {
+            queryClient.setQueryData(result.current.read.queryKey, pages(2));
+        });
+
+        act(() => result.current.search.onChange('pie'));
+
+        await waitFor(() => expect(result.current.search.visible).toBe(true));
     });
 });

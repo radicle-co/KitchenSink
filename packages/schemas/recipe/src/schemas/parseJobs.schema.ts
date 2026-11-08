@@ -20,10 +20,12 @@
  *     created — R17's digest guard presumes one answer to "what is a line".
  *  2. **Refusals are rejections, never truncations** (ADR-0024's over-cap rule): an over-long line names
  *     its index so the caller can fix THAT line; nothing is silently trimmed to fit.
- *  3. **Proposals only (R19).** The proposal wire shape is a PROJECTION of the worker's stored
- *     `ParsedLine` and deliberately carries NO food id and no resolution: a parse proposes text, and the
- *     reviewed draft binds foods through ordinary `POST /recipes` (`by-food` admission re-validates every
- *     id). A wire field for a binding here would let the parse do what only the reviewed create may.
+ *  3. **Proposals may carry candidates, never a binding (R19, amended by ADR-0071).** The proposal wire shape
+ *     is a PROJECTION of the worker's stored `ParsedLine`. Since ADR-0071 each proposed food also carries a
+ *     `match`: the food recipe-service PROPOSES for it and up to five CANDIDATES, by id, with names food gave
+ *     at read time. None of it is a binding: the reviewed draft still binds foods through ordinary
+ *     `POST /recipes` (`by-food` admission re-validates every id), and nothing on this wire says a line IS
+ *     bound. A wire field for a binding here would let the parse do what only the reviewed create may.
  *
  * ⚠️ `reviewReasons` is `string[]` on the wire ON PURPOSE: the reason taxonomy lives in
  * `@kitchensink/recipe-import-core` (`IngredientReviewReason`), which is NOT an admissible contract import
@@ -127,8 +129,69 @@ export const parseJobLineStatusSchema = z.enum(['pending', 'parsed', 'unparseabl
 export type ParseJobLineStatus = z.infer<typeof parseJobLineStatusSchema>;
 
 /**
- * One food the parse proposes — a NAME to resolve, never a binding (R19: there is no id field here, by
- * construction — `parseJobs.schema.test.ts` pins the key set, so one cannot appear un-argued).
+ * A proposal's state (ADR-0071), derived on the server by `matchStateOf` so web and mobile agree.
+ *
+ * ⛔ A ONE-WAY DOOR: installed clients parse this enum strictly, so a new state is a breaking change. New facts
+ * become new fields or new `reason` keys instead.
+ */
+export const parseProposalMatchStateSchema = z.enum(['checking', 'confident', 'default', 'needsChoice', 'noMatch']);
+
+export type ParseProposalMatchState = z.infer<typeof parseProposalMatchStateSchema>;
+
+/** A food the cook may choose, as food named it on this read. Loose, like every response component. */
+export const parseProposalCandidateSchema = z.object({
+    kind: z.enum(['root', 'variant']),
+    /** The food id — a root's, or a variant's — at the live end food answered. */
+    id: z.string().min(1),
+    /** Food's name for it on this read (a variant names its parts). */
+    name: z.string().min(1),
+    /** Whether it is the seeded default for the phrase. The UI may SHOW it first, never select it. */
+    isDefault: z.boolean(),
+});
+
+export type ParseProposalCandidate = z.infer<typeof parseProposalCandidateSchema>;
+
+/**
+ * What recipe-service matched one proposed food to (ADR-0071) — a PROPOSAL and its candidates, never a binding.
+ *
+ * Nothing here is preselected for the cook: `proposed` is what the server proposes, and the client binds it only in the
+ * states the rulings allow (`confident`). A late verdict never replaces a pick the cook made; that is the client's
+ * rule, and the server only derives the state.
+ */
+export const parseProposalMatchSchema = z.object({
+    state: parseProposalMatchStateSchema,
+    /** Why the food is in this state — an opaque key the clients localize (`matchState.ts`'s `MatchReason`). */
+    reason: z.string().min(1),
+    /**
+     * The proposed food, set ONLY in `checking` and `confident`; `null` in every other state (`matchState.ts`'s
+     * `proposalShownIn`). A default, or a proposal the review contradicted or abstained on, is never shown here: it stays
+     * one of the `candidates`.
+     */
+    proposed: z
+        .object({ kind: z.enum(['root', 'variant']), id: z.string().min(1), name: z.string().min(1) })
+        .nullable(),
+    /**
+     * The foods the cook may choose from: a default first when one applies, then food's order.
+     *
+     * ⛔ NO `max` here, deliberately: the server keeps at most five (the table's CHECK and `MAX_MATCH_CANDIDATES`), and a
+     * bound on the RESPONSE would make every installed client discard the whole view the day the server raised it.
+     */
+    candidates: z.array(parseProposalCandidateSchema),
+    /** A note that rides beside the state without changing it (`reviewDisagreed`) — an opaque key. */
+    reviewNote: z.string().min(1).optional(),
+    /**
+     * When the AI check comes back, as an ISO 8601 instant: the end of the spend period in which the ceiling refused
+     * the review (ADR-0024 §3). Present ONLY with the reason `reviewBudgetSpent`; the paste notice ("the check comes
+     * back on {date}") reads it. Additive and optional, so a client that predates it ignores it.
+     */
+    reviewResetsAt: z.string().min(1).optional(),
+});
+
+export type ParseProposalMatch = z.infer<typeof parseProposalMatchSchema>;
+
+/**
+ * One food the parse proposes — a NAME, and since ADR-0071 the server's MATCH for it: a proposal and candidates,
+ * never a binding (R19 as amended; `parseJobs.schema.test.ts` pins both key sets, so a binding cannot appear un-argued).
  *
  * ⚠️ LOOSE, like every response component (GR-017 §17-c's default): a client must tolerate a field a newer
  * server adds, so response strictness is reserved for the argued exemptions (`RecipeNutritionResponse`).
@@ -140,6 +203,14 @@ export const parseProposalFoodSchema = z.object({
     name: z.string().min(1),
     /** What is done TO the food (`chopped`, `boiling`), or `null` when the line says nothing. */
     prep: z.string().nullable(),
+    /**
+     * The server's match for this food (ADR-0071), or `null` before it has one: the line is not matched yet, or food
+     * could not be asked for names on this read. The client asks for matches when newly parsed lines appear.
+     *
+     * ⚠️ OPTIONAL as well as nullable, for one reason: a server older than ADR-0071 sends no key at all, and a client
+     * reads that exactly as `null`. The server sends the key on every proposed food.
+     */
+    match: parseProposalMatchSchema.nullable().optional(),
 });
 
 export type ParseProposalFood = z.infer<typeof parseProposalFoodSchema>;

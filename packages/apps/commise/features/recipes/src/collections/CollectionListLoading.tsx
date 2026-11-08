@@ -23,7 +23,7 @@ export const CollectionListLoading: FC = () => {
                 {[0, 1, 2].map((row) => (
                     <span
                         key={row}
-                        className="h-16 animate-pulse rounded-2xl bg-surface-muted motion-reduce:animate-none"
+                        className="h-16 animate-pulse rounded-lg bg-surface-muted motion-reduce:animate-none"
                     />
                 ))}
             </div>

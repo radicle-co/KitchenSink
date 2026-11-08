@@ -2,6 +2,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import { AccessibilityInfo } from 'react-native';
 
+import { formatRgb } from 'culori';
+
+import { VISUALLY_HIDDEN_GEOMETRY } from '../../accessibility/visuallyHidden.native.js';
+import { renderWithTamagui, resolvedColour, resolvedStyle } from '../../testing/tamaguiTesting.native.js';
+import { role } from '../../tokens/colors.js';
+import { devicePixelScale, snapLineHeight } from '../../tokens/iosLineHeight.js';
+import { nativeTokens } from '../../tokens/native.js';
+import { typeRole } from '../../tokens/typography.js';
 import { LiveRegion } from '../LiveRegion.native.js';
 
 /**
@@ -227,5 +235,130 @@ describe('LiveRegion (native) — saying the same message again (R8, `occurrence
         const { container } = render(<LiveRegion politeness="assertive">{LIMIT}</LiveRegion>);
 
         expect(regions(container)).toEqual([LIMIT]);
+    });
+});
+
+/**
+ * A region that names its TYPE ROLE and colour (ADR-0080 §8): it is the design-system Text, so it grows with the system
+ * scale, size and leading together, up to the 2× cap, and its tone is a literal theme token the colour guard reads. The old
+ * `style` region stays for callers not yet ported, and the two are exclusive in the type.
+ */
+describe('LiveRegion (native) — a region in a type role', () => {
+    it('draws its message in its role and colour, as a live region', () => {
+        renderWithTamagui(
+            <LiveRegion politeness="polite" typeRole="caption" tone="inkMuted">
+                Saving…
+            </LiveRegion>,
+            'light',
+        );
+
+        const node = screen.getByText('Saving…');
+
+        expect(getComputedStyle(node).fontSize).toBe(`${String(nativeTokens.type.caption.fontSize)}px`);
+        expect(resolvedColour(node, 'color')).toBe(formatRgb(role.inkMuted));
+        expect(node.getAttribute('aria-live')).toBe('polite');
+    });
+
+    // Both forms must say "alert" the same way. The typed form renders through Tamagui's Text, whose web build maps
+    // `role` and not `accessibilityRole`, so a region that lost the role here would still read as assertive text and
+    // never as an alert (kitchensink-9b, 2026-11-01).
+    it('is an alert when assertive', () => {
+        renderWithTamagui(
+            <LiveRegion politeness="assertive" typeRole="body">
+                Could not save.
+            </LiveRegion>,
+            'light',
+        );
+
+        expect(screen.getByRole('alert').textContent).toBe('Could not save.');
+    });
+
+    it('is no alert while an assertive region is empty', () => {
+        renderWithTamagui(
+            <LiveRegion politeness="assertive" typeRole="body">
+                {''}
+            </LiveRegion>,
+            'light',
+        );
+
+        expect(screen.queryByRole('alert')).toBeNull();
+    });
+
+    it('is no alert when polite', () => {
+        renderWithTamagui(
+            <LiveRegion politeness="polite" typeRole="body">
+                Saved.
+            </LiveRegion>,
+            'light',
+        );
+
+        expect(screen.queryByRole('alert')).toBeNull();
+    });
+
+    it('is ink when no tone is named', () => {
+        renderWithTamagui(
+            <LiveRegion politeness="assertive" typeRole="body">
+                Could not save.
+            </LiveRegion>,
+            'light',
+        );
+
+        expect(resolvedColour(screen.getByText('Could not save.'), 'color')).toBe(formatRgb(role.ink));
+    });
+
+    it('draws a failure in dangerText', () => {
+        renderWithTamagui(
+            <LiveRegion politeness="assertive" typeRole="body" tone="dangerText">
+                Could not save.
+            </LiveRegion>,
+            'light',
+        );
+
+        expect(resolvedColour(screen.getByText('Could not save.'), 'color')).toBe(formatRgb(role.dangerText));
+    });
+
+    it('grows its size and leading to 2× above the cap', () => {
+        const { fontSize } = nativeTokens.type.body;
+        // This file runs as iOS: the leading is the RAW token doubled, then snapped once (react/react-native#58970).
+        // Doubling the projection would double its 0.001 shift too.
+        const lineHeight = snapLineHeight(typeRole.body.lineHeight * 2, devicePixelScale());
+
+        renderWithTamagui(
+            <LiveRegion politeness="polite" typeRole="body">
+                Added Basil
+            </LiveRegion>,
+            'light',
+            3.1,
+        );
+
+        expect(getComputedStyle(screen.getByText('Added Basil')).fontSize).toBe(`${String(fontSize * 2)}px`);
+        expect(getComputedStyle(screen.getByText('Added Basil')).lineHeight).toBe(`${String(lineHeight)}px`);
+    });
+
+    // The `offFlow` variant restates `VISUALLY_HIDDEN_GEOMETRY` as a literal for the style guards, so this holds the
+    // two equal: a change to either one alone fails here.
+    it('stays mounted but leaves the layout flow by the one visually-hidden geometry while empty', () => {
+        const { container } = renderWithTamagui(
+            <LiveRegion politeness="polite" typeRole="body">
+                {''}
+            </LiveRegion>,
+            'light',
+        );
+
+        const node = container.querySelector('[aria-live="polite"]') as HTMLElement;
+
+        // Read from the constant's own keys, so a key added to it fails here until the variant carries it too.
+        // `Object.keys` widens to `string[]`; these are the constant's own keys, every one a style property.
+        const keys = Object.keys(VISUALLY_HIDDEN_GEOMETRY) as (keyof typeof VISUALLY_HIDDEN_GEOMETRY)[];
+
+        const expected = (key: (typeof keys)[number]): string => {
+            const value = VISUALLY_HIDDEN_GEOMETRY[key];
+
+            return typeof value === 'number' ? `${String(value)}px` : value;
+        };
+
+        expect(Object.fromEntries(keys.map((key) => [key, resolvedStyle(node, key)]))).toEqual(
+            Object.fromEntries(keys.map((key) => [key, expected(key)])),
+        );
     });
 });

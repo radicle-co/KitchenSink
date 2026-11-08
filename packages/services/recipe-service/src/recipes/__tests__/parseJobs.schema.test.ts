@@ -7,8 +7,9 @@
  *     same function, so what validates is exactly what gets stored (R17's precondition).
  *  2. Refusals are rejections with the offending line NAMED — never truncations (ADR-0024's rule).
  *  3. The proposal wire shape is a PROJECTION of the stored `ParsedLine` (raw, quantity, unit,
- *     statedMeasure, foods, reviewReasons) — proposals only, R19: nothing here carries a food id, so the
- *     wire cannot bind what the parse only proposed.
+ *     statedMeasure, foods, reviewReasons) — proposals only. R19 as AMENDED by ADR-0071: a food may carry match
+ *     CANDIDATES (ids the cook may choose from), never a binding, so the wire still cannot bind what the parse only
+ *     proposed; the reviewed draft binds through by-food admission.
  *  4. Responses are strict: unknown keys in a stored proposal do NOT leak onto the wire.
  */
 import { describe, expect, it } from 'vitest';
@@ -18,6 +19,7 @@ import {
     createParseJobRequestSchema,
     editParseJobLineRequestSchema,
     parseJobLinePhaseSchema,
+    parseProposalMatchSchema,
     parseJobLineSchema,
     parseJobResponseSchema,
     parseProposalFoodSchema,
@@ -93,11 +95,22 @@ describe('parseProposalSchema', () => {
         expect(parseProposalSchema.safeParse(proposal).success).toBe(true);
     });
 
-    it('carries NO food id — proposals bind nothing (R19), pinned on the SHAPE', () => {
-        // The response is deliberately loose (a client tolerates a newer server's fields), so rejection
-        // cannot carry R19. What carries it is the declared key set: a binding field cannot appear here
-        // without failing this pin and arguing itself in review.
-        expect(Object.keys(parseProposalFoodSchema.shape).sort()).toEqual(['name', 'prep']);
+    it('carries candidates and NO binding — proposals bind nothing (R19 as amended by ADR-0071), pinned on the SHAPE', () => {
+        // RE-ARGUED for ADR-0071. The response is deliberately loose (a client tolerates a newer server's fields), so
+        // rejection cannot carry R19. What carries it is the declared key set: a binding field cannot appear here
+        // without failing this pin and arguing itself in review. `match` is that argument: it names food ids, but as a
+        // PROPOSAL and up to five CANDIDATES the cook chooses between, and nothing in it says a line IS bound to one.
+        // The match's own key set is pinned below for the same reason.
+        expect(Object.keys(parseProposalFoodSchema.shape).sort()).toEqual(['match', 'name', 'prep']);
+        expect(Object.keys(parseProposalMatchSchema.shape).sort()).toEqual([
+            'candidates',
+            'proposed',
+            'reason',
+            'reviewNote',
+            // ADR-0024 §3: when the AI check comes back. A date, not a binding.
+            'reviewResetsAt',
+            'state',
+        ]);
         expect(Object.keys(parseProposalSchema.shape).sort()).toEqual([
             'foods',
             'quantity',
@@ -106,6 +119,52 @@ describe('parseProposalSchema', () => {
             'statedMeasure',
             'unit',
         ]);
+    });
+
+    describe('the match on a proposed food (ADR-0071)', () => {
+        const match = {
+            state: 'default',
+            reason: 'defaultApplies',
+            proposed: { kind: 'root', id: 'F-whole', name: 'Milk, whole' },
+            candidates: [
+                { kind: 'root', id: 'F-whole', name: 'Milk, whole', isDefault: true },
+                { kind: 'root', id: 'F-crackers', name: 'Milk crackers', isDefault: false },
+            ],
+        };
+
+        it('accepts a match, and a food with no match yet', () => {
+            expect(parseProposalFoodSchema.safeParse({ name: 'milk', prep: null, match }).success).toBe(true);
+            expect(parseProposalFoodSchema.safeParse({ name: 'milk', prep: null, match: null }).success).toBe(true);
+        });
+
+        it('⛔ the state is a CLOSED enum — a sixth state is refused, which is why new facts become fields', () => {
+            expect(parseProposalMatchSchema.safeParse({ ...match, state: 'bound' }).success).toBe(false);
+        });
+
+        it('⛔ accepts MORE than five candidates — the bound is the server’s, never a one-way door on installed clients', () => {
+            // Rewritten (ADR-0071 review): the response used to refuse a sixth candidate, so a server that ever raised
+            // its bound would make every installed client throw away the whole job view. The bound lives in the
+            // table's CHECK and `MAX_MATCH_CANDIDATES`, which the server can move without breaking a client.
+            const six = Array.from({ length: 6 }, (_, index) => ({
+                kind: 'root',
+                id: `F-${String(index)}`,
+                name: `food ${String(index)}`,
+                isDefault: false,
+            }));
+
+            expect(parseProposalMatchSchema.safeParse({ ...match, candidates: six }).success).toBe(true);
+        });
+
+        it('carries no proposal for a needsChoice or noMatch food', () => {
+            expect(
+                parseProposalMatchSchema.safeParse({
+                    state: 'noMatch',
+                    reason: 'noCandidates',
+                    proposed: null,
+                    candidates: [],
+                }).success,
+            ).toBe(true);
+        });
     });
 
     it('accepts an absent quantity and empty foods (a heading the segmenter admitted)', () => {

@@ -6,8 +6,9 @@
  * The Button is the app-wide standard for a labelled action control, and it encodes its invariants at the type level
  * so callers cannot regress them:
  *  1. **The glyph is a MEANING, not an element.** `icon` is an `IconName` from `@commise/ui/icon`, so a screen cannot
- *     draw its own glyph (`docs/design/uiOverhaul/buildSpec.md` §1.7). It is REQUIRED for `primary`, `secondary` and
- *     `destructive`, and optional only for `ghost` — the one text-like tier (§1.11).
+ *     draw its own glyph (`docs/design/uiOverhaul/buildSpec.md` §1.7). It is REQUIRED for `primary` and
+ *     `destructive`, and optional for `secondary` (a safe choice such as "Keep editing") and the two text-like tiers, `ghost`
+ *     (§1.11) and `quiet`.
  *  2. **The label owns the accessible name.** `children` is the visible text AND the accessible name; the glyph is
  *     always decorative, so a screen reader announces the label alone and name-based selection is stable.
  *  3. **Only a destructive button has a tone**, and only a confirm dialog asks for the filled one (§1.11). The
@@ -20,10 +21,14 @@ import type { PressScaleWidth } from '../pressScale/props.js';
 
 /**
  * The visual tiers (§1.10). `primary` is the one filled call-to-action of a view; `secondary` is neutral (paper, a
- * `lineControl` edge, an `ink` label); `ghost` is an `actionText` label with no surface at rest; `destructive` is a
- * danger label, filled with `danger` only in its `confirm` tone.
+ * `lineControl` edge, an `ink` label); `ghost` is an `actionText` label with no surface at rest; `quiet` is an `ink`
+ * label with no surface at rest and its glyph in `actionText`, for an action that must stay available without a
+ * surface of its own: Try again (`componentFixes.md` §1) and "Keep … as written"
+ * (`docs/design/uiRefreshWorkshop5/redesignCanvas/ingredientMatching.md`). It has no fill on purpose: a tonal fill marks
+ * a chip (`componentFixes.md` §4);
+ * `destructive` is a danger label, filled with `danger` only in its `confirm` tone.
  */
-export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'destructive';
+export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'quiet' | 'destructive';
 
 /** The sizes (§1.6): 52, 44 and 36 visual px. `sm` keeps a 44 px hit area (48 dp on Android). */
 export type ButtonSize = 'lg' | 'md' | 'sm';
@@ -67,10 +72,30 @@ interface ButtonCommon {
      */
     readonly busy?: boolean;
     /**
+     * Refuses the press because a SIBLING's send is in flight (a list of foods while one is sent). Unlike
+     * {@link disabled} it may be raised while the button holds focus, so on WEB the button stays FOCUSABLE —
+     * `aria-disabled`, the click cancelled, no busy claim and no spinner (see `busyControlProps`); on NATIVE the
+     * `Pressable` is disabled, which keeps screen-reader focus on device. It dims as a disabled button does. It
+     * yields to {@link busy} and wins over {@link disabled}.
+     */
+    readonly refused?: boolean;
+    /**
+     * Why the action is on offer, or what went wrong: the control's accessible DESCRIPTION, read after its name, never
+     * part of it. Web draws it in a visually hidden element beside the button and points `aria-describedby` at it;
+     * native hands it over as the `accessibilityHint`, because React Native has no `aria-describedby`.
+     */
+    readonly description?: string;
+    /**
      * Overrides the label-derived accessible name. Use only when the visible label is not a plain string or is
      * insufficient on its own; the visible label must stay contained in it (SC 2.5.3).
      */
     readonly accessibilityLabel?: string;
+    /**
+     * Whether the region this button opens is open: the control is a DISCLOSURE ("See why"). Web sets `aria-expanded`,
+     * native `accessibilityState.expanded`. Stated only for a disclosure: `false` reads COLLAPSED, and absent says
+     * nothing about expansion.
+     */
+    readonly expanded?: boolean;
     /**
      * Sizing across the parent: `fill` fills a column with the label centred, and keeps content width in a row.
      * Defaults to `auto`, which leaves the size to the parent. Passed through to `PressScale`, which owns the box.
@@ -92,11 +117,21 @@ interface ButtonCommon {
     readonly onFocusRequestHandled?: () => void;
 }
 
-/** A primary (the default) or secondary button: a glyph is required. */
-interface SurfacedButton extends ButtonCommon {
-    readonly variant?: 'primary' | 'secondary';
+/** A primary (the default) button: a glyph is required. */
+interface PrimaryButton extends ButtonCommon {
+    readonly variant?: 'primary';
     /** The meaning the button's glyph draws. */
     readonly icon: IconName;
+}
+
+/**
+ * A secondary button: the glyph is optional. A neutral safe choice such as "Keep editing" is text only, because a glyph on
+ * it (an `x`) reads as close or discard, the opposite of keeping the person's work (designer ruling 2026-11-03).
+ */
+interface SecondaryButton extends ButtonCommon {
+    readonly variant: 'secondary';
+    /** The meaning the button's glyph draws, if it has one. */
+    readonly icon?: IconName;
 }
 
 /** A destructive button: a glyph is required, and it may take the confirm tone. */
@@ -108,15 +143,15 @@ interface DestructiveButton extends ButtonCommon {
     readonly tone?: DestructiveTone;
 }
 
-/** A ghost button: the one tier whose glyph is optional. */
-interface GhostButton extends ButtonCommon {
-    readonly variant: 'ghost';
+/** A ghost or quiet button: the text-like tiers, whose glyph is optional. */
+interface TextButton extends ButtonCommon {
+    readonly variant: 'ghost' | 'quiet';
     /** The meaning the button's glyph draws, if it has one. */
     readonly icon?: IconName;
 }
 
 /** The cross-platform Button contract shared by the web and native leaves. */
-export type ButtonProps = SurfacedButton | DestructiveButton | GhostButton;
+export type ButtonProps = PrimaryButton | SecondaryButton | DestructiveButton | TextButton;
 
 /**
  * The surface a set of props asks for: its tier and, for a destructive button, its tone. Pure.

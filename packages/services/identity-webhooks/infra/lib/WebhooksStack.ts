@@ -325,16 +325,15 @@ export class WebhooksStack extends Stack {
         authSecretKey.grantRead(deletionWorkerRole);
         deletionQueue.grantConsumeMessages(deletionWorkerRole);
 
-        // tombstone-sweep (handlers/tombstoneSweep.ts, CR-002 KTD-3): connects as identity_service (getDb) to scrub
-        // expired tombstones, calls the Clerk backend SDK (deleteUser) — so it needs the auth-secret read
-        // fallback — and enqueues the recipe/food erasure legs to the deletion queue (SendMessage). Runs on
-        // its own schedule, off no queue.
+        // tombstone-sweep (handlers/tombstoneSweep.ts, CR-002 KTD-3): connects as identity_service (getDb) to claim
+        // and scrub expired tombstones with a status-guarded write, and enqueues an `erasure` message to the deletion
+        // queue (SendMessage). It does NOT call Clerk: the deletion worker deletes the account and confirms it, so
+        // the sweep holds no Clerk credential, in its role or its environment. Runs on its own schedule, off no queue.
         const tombstoneSweepRole = makeLambdaRole(
             'TombstoneSweepLambdaRole',
             'Least-privilege role for the scheduled 12-month tombstone-sweep Lambda',
         );
         database.grantConnect(tombstoneSweepRole, DATABASE_ROLES.identity.app);
-        authSecretKey.grantRead(tombstoneSweepRole);
         deletionQueue.grantSendMessages(tombstoneSweepRole);
 
         // reconciliation (handlers/reconciliation.ts): connects as identity_service and lists Clerk users via the
@@ -348,7 +347,10 @@ export class WebhooksStack extends Stack {
         database.grantConnect(reconciliationRole, DATABASE_ROLES.identity.app);
         authSecretKey.grantRead(reconciliationRole);
 
-        // erasure-reconciliation (handlers/erasureReconciliation.ts, CR-002 R7 completion contract):
+        // erasure-reconciliation (handlers/erasureReconciliation.ts, CR-002 R7 completion contract). It ALSO re-sends the
+        // convergence trigger for any account whose suspend, unsuspend, closure or reactivation was committed but never
+        // applied at the provider (ADR-0081 §4), which is why it is the one sweep with queue-send authority beside the
+        // read-only queue check:
         // connects as identity_service (getDb) to scan `status='erased'` rows and RE-DRIVES the recipe + food erasure legs
         // over HTTPS (egress via the VPC/NAT to the shared ALB). It also checks the THIRD leg - that Clerk confirmed
         // the account deleted (`users.provider_deleted_at`) - and repairs a missing confirmation by SENDING an `erasure`
@@ -455,8 +457,8 @@ export class WebhooksStack extends Stack {
         });
 
         // CR-002 KTD-3: the 12-month tombstone → erasure sweep. Finds closed (tombstoned) accounts past the
-        // retention window and erases them (identity scrub + Clerk deleteUser + audit + recipe/food erasure
-        // legs). Runs daily (the handler applies the 12-month cutoff itself), on a distinct schedule from
+        // retention window and erases them (identity scrub + audit, then the `erasure` message whose worker deletes the
+        // Clerk account and fans out to recipe/food). Runs daily (the handler applies the 12-month cutoff itself), on a distinct schedule from
         // reconciliation, at 02:00 UTC.
         const tombstoneSweepFn = new lambda.Function(this, 'TombstoneSweepFunction', {
             runtime,
@@ -469,7 +471,8 @@ export class WebhooksStack extends Stack {
             securityGroups: [lambdaSecurityGroup],
             timeout: Duration.seconds(300),
             memorySize: 512,
-            environment: clerkBackendEnv,
+            // commonEnv, not clerkBackendEnv: the sweep claims rows and queues the erasure; it never calls Clerk.
+            environment: commonEnv,
             logGroup: webhooksLogGroup,
         });
 

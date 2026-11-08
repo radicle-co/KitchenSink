@@ -5,6 +5,7 @@ import { withDb, type DbContext } from '../common/handlerPipeline.js';
 
 import { eraseIdentityRow } from '@kitchensink/identity-db';
 import { runErasureFanout, type ErasureFanoutResult, type ErasureFanoutTarget } from '../common/erasureFanout.js';
+import { setSuspendedMark } from '../common/accountStandingClient.js';
 import { banUser, deleteUser, isAlreadyDeleted, unbanUser } from '../common/identityClient.js';
 import { getErasureFanoutConfig } from '../config/env.js';
 import { emitMetric, logger, withObservability } from '../common/observability.js';
@@ -144,7 +145,8 @@ const eraseFromWebhook = async (identityId: string, { db, userDao }: DbContext):
  *
  *  1. **Read** the user's current status and `status_version`. This is the intent, and it is the only
  *     authority — the message's own `event` is just what happened to wake us.
- *  2. **Apply** what that status implies. `tombstoned` means banned; anything else active means not banned.
+ *  2. **Apply** what that status implies. `tombstoned` means banned; anything else means not banned. `suspended`
+ *     also means the Clerk `public_metadata.suspended` mark is set (ADR-0081); every other status clears it.
  *  3. **Settle** `status_applied_version` to the version we read, CONDITIONALLY on it not having moved.
  *     A moved version means a newer intent was recorded while the provider call was in flight — so this
  *     result is already stale, the settle matches zero rows, and we THROW so the redelivery applies the
@@ -158,7 +160,7 @@ const eraseFromWebhook = async (identityId: string, { db, userDao }: DbContext):
  * @param message - The closure or reactivation trigger.
  * @param context - The database handles.
  * @throws When the intent moved during the provider call, so the redelivery applies the newer one.
- * @sideEffect Bans or unbans at the provider; updates `users.status_applied_version`.
+ * @sideEffect Bans or unbans at the provider, writes or clears the suspended mark; updates `users.status_applied_version`.
  */
 const convergeProviderState = async (
     message: { identityId: string; userId?: string },
@@ -194,6 +196,11 @@ const convergeProviderState = async (
     } else {
         await unbanUser(message.identityId);
     }
+
+    // ADR-0081: the token mark follows the stored status too. `suspended` writes it, anything else clears it, so a
+    // stale trigger writes the current truth. It is written BEFORE the settle below, which is what makes a suspend and
+    // an unsuspend racing each other safe: the loser's settle fails and the redelivery applies the newer status.
+    await setSuspendedMark(message.identityId, user.status === 'suspended');
 
     const settled = await userDao.settleStatusVersion(user.id, intendedVersion);
 

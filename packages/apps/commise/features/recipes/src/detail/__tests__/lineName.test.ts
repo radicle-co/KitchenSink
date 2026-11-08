@@ -113,7 +113,7 @@ describe('lineSummary', () => {
     it('joins the quantity and the name — the row’s accessible name (D1)', () => {
         const line = makeIngredientView({ name: 'Olive oil', quantity: { kind: 'exact', value: 2 }, unit: 'tbsp' });
 
-        expect(lineSummary(line, 'en', labels)).toBe('2 tbsp Olive oil');
+        expect(lineSummary(line, 'en', labels)).toBe('2\u00A0tbsp Olive oil');
     });
 
     it('⛔ uses the stand-in on a nameless line, never the word "undefined"', () => {
@@ -124,7 +124,7 @@ describe('lineSummary', () => {
             resolutionStatus: FoodResolutionStatus.RESOLVED_UNAVAILABLE,
         });
 
-        expect(lineSummary(line, 'en', labels)).toBe(`2 tbsp ${labels.privateFood}`);
+        expect(lineSummary(line, 'en', labels)).toBe(`2\u00A0tbsp ${labels.privateFood}`);
     });
 
     it('does not start with a space when the line states no amount and no unit (R40)', () => {

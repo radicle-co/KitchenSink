@@ -17,11 +17,30 @@
  * box-only. A style is resolved through `StyleSheet.create` in the same file; any other reference is read as forming
  * nothing, so a style handed in from outside is not seen.
  *
+ * A Tamagui View-like element (a `View`, a stack, a `ScrollView`, or a `styled(…)` over one: ADR-0080) is read the same
+ * way, with the properties written as Tamagui props and `styled(…)` objects. It offends when one of those properties
+ * is set (i) by a prop that is a conditional or a non-literal, (ii) inside a `variants` value of its `styled(…)`
+ * definition, which applies only while that variant is chosen, or (iii) through a state modifier (`disabled:`,
+ * `press:`, …) or a state key of the object form (`{ base, disabled }`), and no property forms a stacking context in
+ * every render. Tamagui passes `collapsable` through to the host view, so `collapsable={false}` keeps the node, and a
+ * `styled(…)` definition cures every use with `collapsable: false` in its base. ⚠️ A `styled(…)` configuration the walk
+ * cannot read (a spread, a function variant) is reported, because a stacking property could hide in it.
+ *
  * @pattern Specification — a pure predicate over a parsed source file
  */
 import ts from 'typescript';
 
 import { isSetFlag, isViewTag, keepsNode, offenderAt, viewBindingsOf } from './nativeLabelledViews.js';
+import {
+    styledDeclarations,
+    tamaguiStyledNames,
+    unwrapBase,
+    type StyledDeclaration,
+    type StyledKindsOf,
+} from './tamaguiElements.js';
+import { isStateModifier, valueHasModifier } from './tamaguiStateStyles.js';
+import { styledConfig } from './tamaguiStyleObjects.js';
+import { attributeValueOf } from './tamaguiTokenValues.js';
 
 /** Whether a style forms a stacking context in every render, in none, or in some. */
 type Forms = 'always' | 'never' | 'sometimes';
@@ -231,13 +250,7 @@ function keepsNodeAlways(attribute: ts.JsxAttribute): boolean {
 /** Whether one attribute forms a stacking context: the style, or a `pointerEvents` prop. */
 function attributeForms(attribute: ts.JsxAttribute, sheets: Sheets): Forms {
     const name = attribute.name.getText();
-    const value = attribute.initializer;
-    const expression =
-        value !== undefined && ts.isJsxExpression(value)
-            ? value.expression
-            : value !== undefined && ts.isStringLiteral(value)
-              ? value
-              : undefined;
+    const expression = attributeValueOf(attribute);
 
     if (expression === undefined) {
         return 'never';
@@ -251,24 +264,111 @@ function attributeForms(attribute: ts.JsxAttribute, sheets: Sheets): Forms {
 }
 
 /**
+ * Whether a Tamagui value forms a stacking context in every render, none, or some: a state modifier or a state key of
+ * the object form makes it some, anything else reads as a literal or not (`valueForms`).
+ */
+function tamaguiValueForms(key: string, value: ts.Expression): Forms {
+    return valueHasModifier(value, isStateModifier) ? 'sometimes' : valueForms(key, value);
+}
+
+/** Whether a Tamagui prop forms a stacking context. Only the stacking keys are read. */
+function tamaguiAttributeForms(attribute: ts.JsxAttribute): Forms {
+    const name = attribute.name.getText();
+    const expression = attributeValueOf(attribute);
+
+    return expression === undefined || !STACKING_KEYS.has(name) ? 'never' : tamaguiValueForms(name, expression);
+}
+
+/** Whether a `styled(…)` base config keeps its node: `collapsable: false` at the top level, not inside a variant. */
+function configKeepsNode(call: ts.CallExpression): boolean {
+    return styledConfig(call).properties.some(
+        ({ key, value, inVariants }) =>
+            key === 'collapsable' && !inVariants && value.kind === ts.SyntaxKind.FalseKeyword,
+    );
+}
+
+/** The local `styled(…)` bindings that keep their node, a base followed through chains of local bindings. */
+function curedBindings(declarations: readonly StyledDeclaration[]): ReadonlySet<string> {
+    const cured = new Set<string>();
+
+    for (let pass = 0; pass <= declarations.length; pass += 1) {
+        const before = cured.size;
+
+        for (const { name, call } of declarations) {
+            const base = call.arguments[0] === undefined ? undefined : unwrapBase(call.arguments[0]);
+
+            if (configKeepsNode(call) || (base !== undefined && ts.isIdentifier(base) && cured.has(base.text))) {
+                cured.add(name);
+            }
+        }
+
+        if (cured.size === before) {
+            break;
+        }
+    }
+
+    return cured;
+}
+
+/**
+ * Whether a View-like `styled(…)` definition switches a stacking context on a variant, a state or a non-literal, with
+ * nothing forming one in every render, or has a configuration the walk cannot read. Pure.
+ */
+function definitionFlips(call: ts.CallExpression): boolean {
+    const { properties, unreadable } = styledConfig(call);
+    const stacking = properties
+        .filter(({ key }) => STACKING_KEYS.has(key))
+        .map(({ key, value, inVariants }) => ({ inVariants, forms: tamaguiValueForms(key, value) }));
+    const base = together(stacking.filter(({ inVariants }) => !inVariants).map(({ forms }) => forms));
+
+    if (base === 'always') {
+        return false;
+    }
+
+    return (
+        unreadable.length > 0 ||
+        base === 'sometimes' ||
+        stacking.some(({ inVariants, forms }) => inVariants && forms !== 'never')
+    );
+}
+
+/**
  * Every `View` in a source file that forms a stacking context in some renders and not in others, and nothing keeps, as
  * `line: <opening tag>`. Pure.
  *
  * @param source - The file's text.
  * @param fileName - Its name, which decides whether it is parsed as TSX.
- * @returns One entry per offending element.
+ * @param styledKindsOf - The kind of each name a design-system subpath exports as a Tamagui styled component.
+ * @returns One entry per offending element or `styled(…)` definition.
  */
-export function flattenFlippingViews(source: string, fileName: string): readonly string[] {
+export function flattenFlippingViews(
+    source: string,
+    fileName: string,
+    styledKindsOf: StyledKindsOf,
+): readonly string[] {
     const file = ts.createSourceFile(fileName, source, ts.ScriptTarget.Latest, true);
-    const bindings = viewBindingsOf(file);
+    const bindings = viewBindingsOf(file, styledKindsOf);
     const sheets = sheetsOf(file);
+    const declarations = styledDeclarations(file, tamaguiStyledNames(file));
+    const cured = curedBindings(declarations);
     const offenders: string[] = [];
+
+    for (const { name, call } of declarations) {
+        if (bindings.tamagui.get(name) === 'view' && !cured.has(name) && definitionFlips(call)) {
+            offenders.push(offenderAt(file, call.parent));
+        }
+    }
 
     const visit = (node: ts.Node): void => {
         if ((ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) && isViewTag(node.tagName, bindings)) {
             const attributes = node.attributes.properties.filter(ts.isJsxAttribute);
-            const kept = attributes.some(keepsNodeAlways);
-            const forms = together(attributes.map((attribute) => attributeForms(attribute, sheets)));
+            const kept = attributes.some(keepsNodeAlways) || cured.has(node.tagName.getText());
+            const forms = together([
+                ...attributes.map((attribute) => attributeForms(attribute, sheets)),
+                ...(bindings.tamagui.get(node.tagName.getText()) === 'view'
+                    ? attributes.map(tamaguiAttributeForms)
+                    : []),
+            ]);
 
             if (!kept && forms === 'sometimes') {
                 offenders.push(offenderAt(file, node));

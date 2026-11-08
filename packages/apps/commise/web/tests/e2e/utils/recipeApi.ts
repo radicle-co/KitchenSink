@@ -33,6 +33,7 @@ import type {
 } from '@kitchensink/recipe-service-client';
 import {
     createIngredientRequestSchema,
+    type ParseProposalMatch,
     type CollectionResponse as SchemaCollectionResponse,
     type CollectionWithRecipesResponse as SchemaCollectionWithRecipesResponse,
 } from '@kitchensink/schema-recipe';
@@ -73,6 +74,21 @@ const RESTORED_ISO = '2026-01-03T00:00:00.000Z';
 
 /** The contract's `ErrorResponse` body for a 404 (`required: [code, message]`). */
 const NOT_FOUND_BODY = { code: 'NOT_FOUND', message: 'Resource not found' };
+
+/**
+ * A free cook's private-slot limit as the stubbed recipe service states it (ADR-0073). The real service owns the number
+ * and sends it on the wire; this is the double's own copy, so a spec can fill the slots with a handful of seeded recipes.
+ */
+export const E2E_PRIVATE_SLOT_LIMIT = 50;
+
+/** The `403 PRIVATE_SLOTS_FULL` body the service answers a private write with when a free cook has no slot left. */
+function privateSlotsFullBody(used: number, limit: number) {
+    return {
+        code: 'PRIVATE_SLOTS_FULL',
+        message: 'All of your private slots are in use.',
+        details: { used, limit },
+    };
+}
 
 /**
  * The contract's `VersionConflictErrorResponse` body for a 409, in the enriched shape the service ALWAYS sends:
@@ -935,7 +951,34 @@ export interface MockParseJobScript {
      * gone quiet and waits on the cook.
      */
     readonly pendingPhase?: ParseJobLinePhase;
+    /**
+     * What `POST /recipe-parse-jobs/{id}/matches` writes for each parsed food, by the food's name (ADR-0071). A food the
+     * script does not name reads `noMatch`. The settled job carries NO match until that call, as the real service's does.
+     */
+    readonly matches?: Readonly<Record<string, MockFoodMatch>>;
 }
+
+/** A match body, as the service writes it. */
+export type MockMatchBody = Pick<ParseProposalMatch, 'state' | 'reason' | 'proposed' | 'candidates'>;
+
+/**
+ * A food's scripted match. `first` is what the matches call writes. `then` is what a later read of the job answers once
+ * `afterReads` reads have followed it (the review finishing: a `checking` food reading `confident`), which is how a spec
+ * drives a LATE verdict without a clock.
+ */
+export interface MockFoodMatch {
+    readonly first: MockMatchBody;
+    readonly then?: MockMatchBody;
+    /** Reads of the job after the matches call before `then` shows. Defaults to `1`. */
+    readonly afterReads?: number;
+}
+
+/** A candidate of a scripted match. */
+export const mockCandidate = (
+    id: string,
+    name: string,
+    over: { readonly isDefault?: boolean } = {},
+): MockMatchBody['candidates'][number] => ({ kind: 'root', id, name, isDefault: over.isDefault ?? false });
 
 /** Options for {@link mockRecipeApi}. */
 export interface MockRecipeApiOptions {
@@ -957,6 +1000,13 @@ export interface MockRecipeApiOptions {
      * premium cook, `upsell` and `hidden` are not.
      */
     readonly paidFeatures?: PaidFeatures;
+    /**
+     * A free cook's private-slot limit at `GET /api/v1/recipes/private-slots` (ADR-0073). Defaults to
+     * {@link E2E_PRIVATE_SLOT_LIMIT}; a spec lowers it to fill the slots with a few seeded recipes. The stubbed service
+     * counts the viewer's own private recipes in the store, refuses a private create or flip at the limit with
+     * `403 PRIVATE_SLOTS_FULL`, and answers a `granted` viewer (a premium cook) with `unlimited`.
+     */
+    readonly privateSlotLimit?: number;
     /** The app-user id the viewer owns recipes as (matches the recipe `ownerId` so owner controls show). */
     readonly viewerId?: string;
     /** Collections to seed the store with (defaults to none — the collection list starts empty). */
@@ -1071,6 +1121,7 @@ export async function mockRecipeApi(
     const paidFeatures = options.paidFeatures ?? 'granted';
     // What the stubbed recipe service treats the viewer as — the real one decides from roles, which `granted` stands for.
     const tier: 'free' | 'premium' = paidFeatures === 'granted' ? 'premium' : 'free';
+    const privateSlotLimit = options.privateSlotLimit ?? E2E_PRIVATE_SLOT_LIMIT;
     const authorHandles = options.authorHandles ?? {};
     const collectionsPageSize = options.collectionsPageSize ?? 20;
     const store = new Map<string, RecipeDetail>();
@@ -1108,6 +1159,44 @@ export async function mockRecipeApi(
      */
     const parseJobScriptSpent = new Set<string>();
     let nextParseJobId = 1;
+    /** Jobs whose matches the service has written, and how many reads have followed (`MockFoodMatch.afterReads`). */
+    const matchedJobReads = new Map<string, number>();
+    /** The foods the matches script names, by id: `by-food` admits each, as the service admits a catalog food. */
+    const matchedFoodNames = new Map<string, string>();
+
+    for (const scripted of Object.values(options.parseJob?.matches ?? {})) {
+        for (const body of [scripted.first, scripted.then]) {
+            for (const candidate of [...(body?.candidates ?? []), ...(body?.proposed ? [body.proposed] : [])]) {
+                matchedFoodNames.set(candidate.id, candidate.name);
+            }
+        }
+    }
+
+    /** The job as a read answers it once its matches are written: each food's `first` match, or its `then` when due. */
+    const withMatches = (job: ParseJobResponse, reads: number): ParseJobResponse => ({
+        ...job,
+        lines: job.lines.map((line) => ({
+            ...line,
+            proposal:
+                line.proposal === null
+                    ? null
+                    : {
+                          ...line.proposal,
+                          foods: line.proposal.foods.map((food) => {
+                              const scripted = parseJobScript.matches?.[food.name];
+                              const due = scripted?.then !== undefined && reads >= (scripted.afterReads ?? 1);
+                              const body: MockMatchBody = (due ? scripted.then : scripted?.first) ?? {
+                                  state: 'noMatch',
+                                  reason: 'noCandidates',
+                                  proposed: null,
+                                  candidates: [],
+                              };
+
+                              return { ...food, match: body };
+                          }),
+                      },
+        })),
+    });
 
     /** Settle a job's lines into the scripted terminal shape (once) or into `complete` (thereafter). */
     const settleParseJob = (job: ParseJobResponse): ParseJobResponse => {
@@ -1251,6 +1340,15 @@ export async function mockRecipeApi(
         collections.set(collection.id, collection);
     }
 
+    /**
+     * The viewer's private, PUBLISHED, undeleted recipes in the store: what the real service counts (ADR-0073 section 12 -
+     * a draft holds no slot).
+     */
+    const privateSlotsUsed = (): number =>
+        [...store.values()].filter(
+            (recipe) => recipe.ownerId === viewerId && recipe.visibility === 'private' && recipe.status === 'published',
+        ).length;
+
     await page.route('**/api/v1/**', async (route) => {
         const request = route.request();
         const method = request.method();
@@ -1368,6 +1466,26 @@ export async function mockRecipeApi(
 
             if (foodId === E2E_SALT_FOOD.foodId) {
                 return route.fulfill({ json: catalogIngredient });
+            }
+
+            // A food the matches script names (ADR-0071): admitted once as a resolved, food-backed row, then held.
+            const scriptedName = foodId === undefined ? undefined : matchedFoodNames.get(foodId);
+
+            if (foodId !== undefined && scriptedName !== undefined) {
+                const known = authoredIngredientsByFoodId.get(foodId);
+                const ingredient: Ingredient = known ?? {
+                    id: `c0000000-0000-4000-8000-${String(nextAuthoredFoodId++).padStart(12, '0')}`,
+                    name: scriptedName,
+                    foodId,
+                    foodResolutionStatus: FoodResolutionStatus.RESOLVED,
+                    isUserEntered: false,
+                    createdAt: ISO,
+                };
+
+                authoredIngredientsByFoodId.set(foodId, ingredient);
+                ingredientCatalog.set(ingredient.id, bindingOf(ingredient));
+
+                return route.fulfill({ json: ingredient });
             }
 
             if (foodId !== catalogSuggestionFoodId) {
@@ -1660,6 +1778,10 @@ export async function mockRecipeApi(
 
         if (clone && method === 'POST') {
             const source = store.get(clone[1] as string);
+
+            // ADR-0073 section 12: a clone is always a DRAFT (below), and a draft holds no slot, so the service never
+            // refuses a copy for slots. The slot is taken when the cook publishes it (the update route).
+
             // Plan 002: mirror the service's clone — the source's private-food lines (the ones a stranger sees as
             // RESOLVED_UNAVAILABLE, with no name) KEEP their binding on the clone, and the response carries the
             // banner's count of them. Only when there is one, like the real wire.
@@ -1683,6 +1805,17 @@ export async function mockRecipeApi(
             return route.fulfill({ status: 201, json: created });
         }
 
+        // The caller's private-slot standing (ADR-0073). Matched BEFORE the single-recipe route, which would read
+        // `private-slots` as a recipe id. A premium cook has no limit; a free cook's count is their private recipes.
+        if (path.endsWith('/api/v1/recipes/private-slots') && method === 'GET') {
+            return route.fulfill({
+                json:
+                    tier === 'premium'
+                        ? { kind: 'unlimited' }
+                        : { kind: 'limited', used: privateSlotsUsed(), limit: privateSlotLimit },
+            });
+        }
+
         // Visibility toggle.
         const visibility = path.match(/\/api\/v1\/recipes\/([^/]+)\/visibility$/);
 
@@ -1692,6 +1825,18 @@ export async function mockRecipeApi(
 
             if (!current) {
                 return route.fulfill({ status: 404, json: NOT_FOUND_BODY });
+            }
+
+            // A free cook with every slot used is refused a move TO private of a PUBLISHED recipe; a recipe already private
+            // and published holds its slot, and a draft holds none (ADR-0073 section 12).
+            if (
+                body()['visibility'] === 'private' &&
+                current.visibility !== 'private' &&
+                current.status === 'published' &&
+                tier === 'free' &&
+                privateSlotsUsed() >= privateSlotLimit
+            ) {
+                return route.fulfill({ status: 403, json: privateSlotsFullBody(privateSlotsUsed(), privateSlotLimit) });
             }
 
             const updated = {
@@ -1807,6 +1952,20 @@ export async function mockRecipeApi(
                     });
                 }
 
+                // PUBLISHING a private draft takes a slot (ADR-0073 sections 3 and 12): refused when a free cook has none.
+                if (
+                    input['status'] === 'published' &&
+                    current.status === 'draft' &&
+                    current.visibility === 'private' &&
+                    tier === 'free' &&
+                    privateSlotsUsed() >= privateSlotLimit
+                ) {
+                    return route.fulfill({
+                        status: 403,
+                        json: privateSlotsFullBody(privateSlotsUsed(), privateSlotLimit),
+                    });
+                }
+
                 const updated = applyUpdate(current, input, resolveBinding);
                 store.set(id, updated);
 
@@ -1863,7 +2022,25 @@ export async function mockRecipeApi(
 
             if (method === 'POST') {
                 const input = body();
+
+                // A private DRAFT takes no slot (ADR-0073 section 12); only a PUBLISHED private recipe does.
+                if (
+                    input['visibility'] === 'private' &&
+                    (input['status'] ?? 'published') === 'published' &&
+                    tier === 'free' &&
+                    privateSlotsUsed() >= privateSlotLimit
+                ) {
+                    return route.fulfill({
+                        status: 403,
+                        json: privateSlotsFullBody(privateSlotsUsed(), privateSlotLimit),
+                    });
+                }
+
                 const created = makeRecipeDetail({
+                    // The visibility the caller asked for, as the service persists it (the default fixture is public).
+                    ...(input['visibility'] === 'private' || input['visibility'] === 'public'
+                        ? { visibility: input['visibility'] as RecipeVisibility }
+                        : {}),
                     id: `ec200000-0000-4000-8000-${String(nextId++).padStart(12, '0')}`,
                     ownerId: viewerId,
                     title: typeof input['title'] === 'string' ? input['title'] : 'New Recipe',
@@ -2243,6 +2420,7 @@ export async function mockRecipeApi(
         // Matched BEFORE the pass-through, and the ORDER within this block states the specificity: the two
         // sub-resources (`/retry`, `/lines/{i}`) are tested ahead of the bare `/{id}` read.
         if (path.includes('/api/v1/recipe-parse-jobs')) {
+            const matchesMatch = /\/api\/v1\/recipe-parse-jobs\/([^/]+)\/matches$/.exec(path);
             const retryMatch = /\/api\/v1\/recipe-parse-jobs\/([^/]+)\/retry$/.exec(path);
             const lineMatch = /\/api\/v1\/recipe-parse-jobs\/([^/]+)\/lines\/(\d+)$/.exec(path);
             const detailMatch = /\/api\/v1\/recipe-parse-jobs\/([^/]+)$/.exec(path);
@@ -2275,6 +2453,21 @@ export async function mockRecipeApi(
                 parseJobPollsLeft.set(id, parseJobScript.pollsBeforeSettled ?? 1);
 
                 return route.fulfill({ status: 202, json: job });
+            }
+
+            // ADR-0071: the service matches the job's parsed foods as the caller and answers the job with the matches.
+            if (method === 'POST' && matchesMatch) {
+                const job = parseJobs.get(matchesMatch[1] as string);
+
+                if (job === undefined) {
+                    return route.fulfill({ status: 404, json: { code: 'PARSE_JOB_NOT_FOUND', message: 'gone' } });
+                }
+
+                if (!matchedJobReads.has(job.id)) {
+                    matchedJobReads.set(job.id, 0);
+                }
+
+                return route.fulfill({ status: 202, json: withMatches(job, matchedJobReads.get(job.id) ?? 0) });
             }
 
             if (method === 'POST' && retryMatch) {
@@ -2350,7 +2543,16 @@ export async function mockRecipeApi(
                 // reload issues a fresh read, and a mock that quietly un-expires a job would make the one
                 // assertion the URL-addressed route exists for unfalsifiable.
                 if (job.status !== 'running') {
-                    return route.fulfill({ json: job });
+                    const reads = matchedJobReads.get(job.id);
+
+                    if (reads === undefined) {
+                        return route.fulfill({ json: job });
+                    }
+
+                    // Matched: each read after the call is one step nearer a `then` (the review finishing).
+                    matchedJobReads.set(job.id, reads + 1);
+
+                    return route.fulfill({ json: withMatches(job, reads + 1) });
                 }
 
                 const left = parseJobPollsLeft.get(job.id) ?? 0;

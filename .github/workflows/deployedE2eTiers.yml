@@ -1415,7 +1415,10 @@ jobs:
     # ⛔ MAESTRO AND K6 ARE CALLED, NOT COPIED. `_ci-heavy.yml` owns both suites; these two jobs are the only way
     # either door reaches them (`deployedE2eTiers.test.ts` §2).
     #
-    # They run in PARALLEL with the tiers above: nothing orders them, so GitHub schedules them together.
+    # Maestro runs in PARALLEL with the tiers above: nothing orders it, so GitHub schedules them together. k6 does NOT
+    # run beside Maestro: it runs AFTER it (`e2e-load-test` below), because both drive the same stage and k6's parse
+    # scenarios flooded the one-consumer parse queue (~48,600 lines against ~20 parses a minute), so every Maestro paste
+    # waited behind the backlog (run 42117856262). The price is the length of one k6 run on the end of the workflow.
     #
     # ⚠️ `stage` is the Clerk TENANT and `target_stage` is what they drive (`heavyTierTarget.test.ts`). The tenant
     # is `sandbox` for both: Maestro admits no other, and k6 derives its identity leg's tenant from the target
@@ -1710,7 +1713,11 @@ jobs:
 
     e2e-load-test:
         name: k6 (load, deployed)
-        if: ${{ inputs.run_load_test }}
+        # ⛔ AFTER MAESTRO, never beside it (see the comment above `e2e-mobile-maestro`). `!cancelled()` is `always()`
+        # without running on a cancelled workflow: a skipped or failed Maestro tier (prod target, switch off, a red
+        # shard) must not skip k6, but cancelling the run must not start a 40-minute load test. The k6 switch stays.
+        needs: [e2e-mobile-maestro]
+        if: ${{ !cancelled() && inputs.run_load_test }}
         uses: ./.github/workflows/_ci-heavy.yml
         # `_ci-heavy.yml`'s jobs sign in to AWS through `awsAuth`, and a called workflow can only downgrade.
         permissions:

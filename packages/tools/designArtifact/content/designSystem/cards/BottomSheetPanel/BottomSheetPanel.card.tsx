@@ -19,7 +19,7 @@ const stageStyle: CSSProperties = {
     transform: 'translateZ(0)',
 };
 
-const rowStyle: CSSProperties = { padding: '12px 0', borderBottom: '1px solid var(--line)', fontSize: 16 };
+const rowStyle: CSSProperties = { padding: '12px 0', borderBottom: '1px solid var(--line-divider)', fontSize: 16 };
 
 export default defineCard({
     group: 'Overlays',
@@ -36,7 +36,10 @@ export default defineCard({
                     size="content"
                     focusSignal={1}
                     reduceMotion
+                    restoreScrollY={0}
+                    onScrollSettled={noop}
                     onClose={noop}
+                    onSwipeDismiss={noop}
                     footer={
                         <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
                             <Button variant="secondary" icon="x" onPress={noop}>
@@ -60,7 +63,10 @@ export default defineCard({
                     size="content"
                     focusSignal={1}
                     reduceMotion
+                    restoreScrollY={0}
+                    onScrollSettled={noop}
                     onClose={noop}
+                    onSwipeDismiss={noop}
                     toolbar={{
                         heading: <div style={{ font: '600 17px Inter,system-ui' }}>Chicken</div>,
                         controls: (

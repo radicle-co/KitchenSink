@@ -7,10 +7,12 @@
 
 ## Dependencies
 
-| Spec                                                        | Relationship                                                     |
-| ----------------------------------------------------------- | ---------------------------------------------------------------- |
-| [001-commise-recipe-app](../001-commise-recipe-app/spec.md) | **Required** — cooking mode renders Recipe instructions from 001 |
-| [002-user-auth](../002-user-auth/spec.md)                   | **Required** — all features require authentication               |
+| Spec                                                        | Relationship                                                                                                                                                         |
+| ----------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [001-commise-recipe-app](../001-commise-recipe-app/spec.md) | **Required** — cooking mode renders Recipe instructions from 001                                                                                                     |
+| [001-FR-003b](../001-commise-recipe-app/spec.md)            | **Required** — cooking mode cannot start on a draft, or on a recipe in review ([020](../020-content-source-check/spec.md) FR-014a). Opening a draft opens the editor |
+| [002-user-auth](../002-user-auth/spec.md)                   | **Required** — all features require authentication                                                                                                                   |
+| [010-subscriptions](../010-subscriptions/spec.md)           | **Referenced, added 2026-10-28.** The rating prompt (FR-036) never shares a session with a paywall or another prompt there                                           |
 
 ## User Scenarios & Testing _(mandatory)_
 
@@ -46,6 +48,59 @@ A user selects a recipe and enters "Cooking Mode," which presents a step-by-step
 - **FR-033**: System MUST allow users to navigate forward and backward through recipe steps in Cooking Mode.
 - **FR-034**: System MUST provide integrated countdown timers for recipe steps that include time durations.
 - **FR-035**: System MUST keep the device screen active while Cooking Mode is engaged.
+
+**Store rating prompt** _(added 2026-10-28, from the retention brainstorm the owner adopted that day)_
+
+- **FR-036**: After a cook **finishes** a recipe in Cooking Mode, the mobile app MAY ask for a store rating through
+  the platform's own review API, under these rules.
+    - **Finishes** means the cook reached the last step and chose the finish control. Leaving early, or closing the
+      app, is not a finish.
+    - The ask uses only the native API: StoreKit's review request on iOS and the Play In-App Review API on Android.
+      Apple's App Review Guideline 5.6.1 says "Use the provided API to prompt users to review your app" and that
+      Apple will "disallow custom review prompts". iOS shows the prompt "a maximum of three times within a 365-day
+      period" ([Apple](https://developer.apple.com/documentation/storekit/requestreviewaction)). Google's quota is
+      time-bound and unpublished ([Android](https://developer.android.com/guide/playcore/in-app-review)).
+    - **No sentiment gate.** There is no "Do you like Commise?" question, and no path that sends only happy cooks to the
+      store. Google says apps "shouldn't ask the user any questions before or while presenting the rating button or
+      card". The FTC's fake reviews rule bans incentives tied to a review's sentiment
+      ([FTC](https://www.ftc.gov/news-events/news/press-releases/2024/08/federal-trade-commission-announces-final-rule-banning-fake-reviews-testimonials)).
+    - **No button triggers it**, since Google says "you should not have a call-to-action option (such as a button) to
+      trigger the API". A plain "Rate Commise" link in settings may open the store page instead.
+    - **No reward** of any kind for a rating (`023-FR-034`).
+    - **Our own limits, inside the platform's:** only after the cook's second finished recipe, never in the account's
+      first 7 days, at most once in 120 days, and never in the same session as a paywall, an offer or the push
+      permission ask (010, `014-FR-050`). The OS may still show nothing, and the app MUST NOT tell the cook it asked.
+    - **Web: dropped**, with the reason: the web has no store and no native review API. This is a stated disposition
+      under CODING_STANDARDS §14.
+    - _Why_: Apple's summary rating "is displayed on your product page and in search results", and Apple advises asking
+      after the user has "completed an action, level, or task"
+      ([Apple](https://developer.apple.com/app-store/ratings-and-reviews/), via the 2026-10-28 brainstorm).
+      **Plan target**: a store rating of 4.5 or more on both stores by month 3. If the rating falls after a change to
+      the moment, the moment moves.
+    - The moment and the settings link go through `staff-ux-engineer` DESIGN and SPECIFY at plan time.
+
+**Cooking sessions, Resume and timer alerts** _(added 2026-10-29, owner ruling, rows T1 to T4 and S1 in
+`docs/design/uiRefreshWorkshop5/ownerFeedback.md`)_
+
+A cooking session is the open state of one cook: the recipe, the current step and any running timers.
+
+- **FR-037**: A cook MAY have one open cooking session per recipe, and several at once (a roast and a side). Home
+  shows a card for each open session.
+- **FR-038**: While a cooking session is open, the recipe page says "Resume cooking" in place of "Start cooking". The
+  button returns to the current step and its running timer.
+- **FR-039**: Resume asks "Carry on from earlier?" first when the session has been idle for 4 hours or more. A session
+  idle for less reopens straight at the current step.
+- **FR-040**: A session nobody touches ends by itself after 24 hours.
+- **FR-041**: A timer that ends while the app is closed MUST alert the cook with a phone notification, always. The
+  cook can turn timer alerts off in settings.
+    - _Amended 2026-10-29 (owner ruling, row T17):_ the alert is a **local notification**. The phone schedules it when
+      the timer starts. There is no server push, and it does not go through the notification service
+      ([014](../014-notification-service/spec.md)). This is the one allowed exception to mobile push being out of
+      scope there. The earlier wording, that 008 publishes the timer event and 014 delivers it, no longer applies.
+    - Cooking mode code does not exist yet. These are requirements for the build, not a description of it.
+- **FR-042** _(added 2026-10-29, owner ruling, row T22)_: With several sessions open, the timer dock also shows the
+  running timers of the other recipes. Each one is labelled with that recipe's name, and tapping one opens that recipe.
+    - The in-app alarm for another recipe's timer names the recipe, so the cook knows which dish it is for.
 
 ### Non-Functional Requirements _(constitution-derived)_
 

@@ -35,12 +35,14 @@ export const TextArea: FC<TextAreaProps> = ({
     maxRows,
     focusRequested = false,
     onFocusRequestHandled,
+    onFocus,
 }) => {
     const node = useRef<HTMLTextAreaElement>(null);
     useFocusRequest(focusRequested, () => node.current?.focus(), onFocusRequestHandled);
 
     return (
         <textarea
+            onFocus={onFocus}
             ref={node}
             id={id}
             value={value}

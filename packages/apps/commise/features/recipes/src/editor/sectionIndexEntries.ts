@@ -12,7 +12,8 @@
  */
 import type { SectionIndexItem } from '@commise/ui/section-index';
 
-import { pluralOf, type EditorMessages } from './messages.js';
+import { pluralOf } from '../format/plural.js';
+import type { EditorMessages } from './messages.js';
 import { EDITOR_SECTIONS, type EditorSectionId } from './sections.js';
 import { type SectionStatus, type SectionStatuses } from './sectionStatus.js';
 

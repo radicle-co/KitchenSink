@@ -213,6 +213,9 @@ const CONTAINMENT_DISPOSITION: {
                 'Re-parses one edited line of the caller’s own job through the shared LLM pool and parse cache; the ' +
                 'same ADR-0040 Residual risk entry covers it.',
         },
+        // ADR-0071: the matcher's proposals are the caller's own rows; its review requests are the shared-pool spend the
+        // save path's producer is contained from, so the enqueue below checks containment itself.
+        'ParseJobsController.proposeMatches': { reaches: ['requestVerification'] },
         'ParseJobsController.withdrawLines': {
             ownerScoped:
                 'Marks lines of the caller’s own parse job withdrawn; it starts no parse and spends nothing shared, ' +
@@ -251,6 +254,7 @@ const CONTAINMENT_DISPOSITION: {
                 'entry on parse jobs covers it.',
         },
         'RecipesService.requestVerification → this.verificationQueue.enqueue': { reaches: ['requestVerification'] },
+        'MatchProposalService.sendOwed → this.queue.enqueue': { reaches: ['requestVerification'] },
         'VersionsService.enforceRetention → this.pendingArchives.enqueueMany': {
             ownerScoped:
                 'Archives the caller’s own version history under its owner prefix, which the test reset sweeps in ' +

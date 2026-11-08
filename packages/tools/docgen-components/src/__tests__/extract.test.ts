@@ -42,6 +42,8 @@ const FIXTURE_FILES = [
     fixture('badgeElement.tsx'),
     fixture('Orchestrator.tsx'),
     fixture('Orphan.native.tsx'),
+    fixture('StyledSurface.native.tsx'),
+    fixture('ForeignStyled.native.tsx'),
     fixture('Undocumented.tsx'),
 ];
 
@@ -65,6 +67,9 @@ describe('extractImplementations', () => {
         expect(extracted.map((item) => `${item.name}:${item.platform}`).sort()).toEqual([
             'Badge:native',
             'Badge:web',
+            'BangSurface:native',
+            'BareSurface:native',
+            'CastSurface:native',
             'DataTable:web',
             'Diverged:native',
             'Diverged:web',
@@ -73,8 +78,32 @@ describe('extractImplementations', () => {
             'NoProps:web',
             'Orchestrator:web',
             'Orphan:native',
+            'SatisfiedSurface:native',
+            'StyledSurface:native',
             'Undocumented:web',
         ]);
+    });
+
+    // ADR-0080: a Tamagui `styled(…)` export is how the design system defines a component, and its declaration holds no
+    // JSX, so the catalogue must recognise it by the call. Only Tamagui's `styled` counts, and only a component name.
+    it('keeps an exported Tamagui styled() const, which has no JSX, with the doc on its statement', () => {
+        const surface = one('StyledSurface', 'native');
+
+        expect(surface.exportKind).toBe('named');
+        expect(surface.description).toBe('A styled surface.');
+        expect(surface.tags).toContainEqual({ name: 'pattern', text: 'Adapter over a Tamagui View' });
+    });
+
+    it('keeps an undocumented styled() const, which the props library drops, by the compiler’s own reading', () => {
+        const bare = one('BareSurface', 'native');
+
+        expect(bare.detectedBy).toBe('compiler-fallback');
+        expect(bare.description).toBe('');
+    });
+
+    it('does not take a lowercase styled binding, or a styled() that is not Tamagui’s, for a component', () => {
+        expect(extracted.map((item) => item.name)).not.toContain('surfaceStyle');
+        expect(extracted.map((item) => item.name)).not.toContain('ForeignBox');
     });
 
     it('reports the platform from the file suffix, never from the directory', () => {

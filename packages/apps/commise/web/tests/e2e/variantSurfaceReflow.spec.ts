@@ -4,6 +4,7 @@ import type { RecipeIngredientView, RecipeSnapshot } from '@kitchensink/recipe-c
 import { signInWithTicket } from './utils/auth';
 import { route } from './utils/basePath';
 import { mockFoodApi } from './utils/foodApi';
+import { openNutritionRow } from './utils/nutritionRow';
 import { makeRecipeDetail, makeRecipeVersion, mockRecipeApi, readViewerAppId } from './utils/recipeApi';
 import { openRecipeEditor } from './utils/recipeEditor';
 
@@ -188,6 +189,8 @@ test.describe('the read surfaces do not scroll sideways (curated U15, WCAG 1.4.1
                 name: '1 rack lamb rib roast, rack roast, frenched, separable lean and fat, denuded, 0-inch trim, roasted, product of Australia',
             }),
         ).toBeVisible();
+        // The Nutrition row is collapsed until opened (`buildLists.md` item 12); the note and its link live inside it.
+        await openNutritionRow(page);
         await expect(page.getByRole('link', { name: 'Data sources' })).toBeVisible();
         await expectNoSidewaysScroll(page);
     });
@@ -267,7 +270,11 @@ test.describe('the read surfaces do not scroll sideways (curated U15, WCAG 1.4.1
         await sheet.getByRole('button', { name: 'Add 1 ingredient' }).click();
         await applyTextScale(page, testInfo);
 
-        await expect(page.getByRole('list', { name: 'Ingredients' }).getByRole('listitem').first()).toBeVisible();
+        // The pasted lines are the matched-line list (ADR-0071), an unnamed list inside the Ingredients region; the name
+        // `Ingredients` belongs to the region, not to the list.
+        await expect(
+            page.getByRole('region', { name: 'Ingredients', exact: true }).getByRole('listitem').first(),
+        ).toBeVisible();
         await expectNoSidewaysScroll(page);
     });
 });

@@ -78,7 +78,7 @@ export const ProfileSurface: FC = () => {
     return (
         <PushedPageFrame back={back} headingId={headingId} title={t.title}>
             {() => (
-                <div className="mx-auto flex w-full max-w-reading flex-col gap-6 pb-10">
+                <div className="mx-auto flex w-full max-w-reading flex-col gap-6 pb-12">
                     <LargeTitleHeader headingId={headingId} title={t.title} back={back} />
                     <ProfileHeader
                         read={read}
@@ -86,7 +86,12 @@ export const ProfileSurface: FC = () => {
                         onRetry={() => void query.refetch()}
                     />
                     {read.status === 'ready' ? (
-                        <ProfileAccountGroup displayName={read.displayName} onEditDisplayName={editor.openSheet} />
+                        <ProfileAccountGroup
+                            displayName={read.displayName}
+                            username={read.username}
+                            email={read.email}
+                            onEditDisplayName={editor.openSheet}
+                        />
                     ) : null}
                     <ProfileGroup heading={t.preferences}>
                         <ProfileRow

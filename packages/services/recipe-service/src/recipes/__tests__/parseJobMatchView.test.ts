@@ -1,0 +1,834 @@
+/**
+ * `ParseJobMatchView` — the job view's match projection (ADR-0071), against fakes for the match store, the verdict
+ * table and food's refs.
+ *
+ * What it guards:
+ *
+ *  - **Names at READ time, as the caller** (ADR-0045). The store holds ids; food names them on this read, and a food
+ *    food no longer shows is not offered. A food that could not be asked shows no match rather than a wrong one.
+ *  - **The state comes from `matchStateOf`**, fed the stored proposal, the shortlist's default, the gate's verdict and
+ *    the review state (refused for an over-cap line, unchecked when the gate gave up).
+ *  - **Candidates**: at most five, a default first and flagged, then food's order, at the live end food answered.
+ *  - **A stale row is ignored**: a line edited since it was matched shows no match until it is matched again.
+ *  - **The view stays total**: an unreadable match store degrades every food to `match: null`, never a failed poll.
+ */
+import { Logger } from '@nestjs/common';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+
+import { lineDigest, parseStoredLineDigest, type LineDigest } from '@kitchensink/recipe-core/parsing/parse-key';
+
+import { CallerToken } from '../../auth/CallerToken.js';
+import { sha256Hex } from '../../common/sha256.js';
+import type { FoodRef } from '../../database/schema/foodLookupArm.js';
+import type { FoodRefAnswer } from '../../ingredients/domain/foodRefAnswer.js';
+import { canonicalIngredientName } from '../../ingredients/domain/ingredientName.js';
+import type { FoodRefsGateway } from '../../ingredients/foodRefs.gateway.js';
+import type { LineVerdictRow } from '../dal/lineVerifications.dal.js';
+import { matchJudgementDigestOf } from '../domain/matchProposal.js';
+import type { ParseJobMatch } from '../domain/parseJobMatch.js';
+import { ParseJobMatchView } from '../parseJobMatchView.js';
+import type { ParseJobResponse } from '../parseJobs.schema.js';
+
+const OWNER = '01JMATCHVIEWOWNER000000001';
+/** The cook, as the controller hands the acting principal over. */
+const COOK = { userId: OWNER, principalKind: 'real', containment: 'enforce' } as const;
+/** A contained test principal (ADR-0040): its reviews are never sent. */
+const CONTAINED = { userId: OWNER, principalKind: 'test', containment: 'enforce' } as const;
+const JOB = '9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d';
+const CALLER = CallerToken.fromAuthorizationHeader('Bearer cook-token');
+const LINE = '2 cups milk';
+const DIGEST = lineDigest(LINE, sha256Hex);
+
+/** A job view with one parsed line naming the given foods. */
+function viewOf(foods: readonly string[] = ['milk'], sourceLine = LINE): ParseJobResponse {
+    return {
+        id: JOB,
+        status: 'complete',
+        createdAt: '2026-10-25T10:00:00.000Z',
+        expiresAt: '2026-10-26T10:00:00.000Z',
+        lines: [
+            {
+                lineIndex: 0,
+                sourceLine,
+                status: 'parsed',
+                proposal: {
+                    raw: sourceLine,
+                    quantity: { kind: 'exact', value: 2 },
+                    unit: 'cup',
+                    statedMeasure: '2 cups',
+                    foods: foods.map((name) => ({ name, prep: null })),
+                    reviewReasons: [],
+                },
+                progress: null,
+            },
+        ],
+    };
+}
+
+/** The judgement digest {@link viewOf}'s line yields for `milk`, under the given stored line digest. */
+function judgementOf(digest: LineDigest = DIGEST, sourceLine = LINE): string {
+    return matchJudgementDigestOf(
+        {
+            lineDigest: digest,
+            line: { sourceLine, quantity: { kind: 'exact', value: 2 }, unit: 'cup', statedMeasure: '2 cups' },
+            foodIndex: 0,
+            phrase: 'milk',
+        },
+        sha256Hex,
+    );
+}
+
+/** A stored, current match for food 0 of line 0: a lexical proposal of F-whole with two candidates, review owed. */
+function matchOf(overrides: Partial<ParseJobMatch> = {}): ParseJobMatch {
+    // The cast is the fixture's: an override may swap the whole proposal/review/key trio, which `Partial` of a union cannot say.
+    return {
+        lineIndex: 0,
+        foodIndex: 0,
+        lineDigest: DIGEST,
+        judgementDigest: judgementOf(),
+        lineDigestNow: DIGEST,
+        review: 'owed',
+        proposal: { matchedBy: 'lexical', food: { kind: 'root', id: 'F-whole' }, rung: 'head', margin: 0.2 },
+        candidates: [
+            { kind: 'root', id: 'F-whole', rung: 'head' },
+            { kind: 'root', id: 'F-crackers', rung: 'tokenSet' },
+        ],
+        verificationKey: 'v2:milk',
+        enqueuedAt: new Date(),
+        ...overrides,
+    } as ParseJobMatch;
+}
+
+function found(name: string, rootId: string, variantId?: string): FoodRefAnswer {
+    return {
+        outcome: 'found',
+        name: canonicalIngredientName(name),
+        status: 'RESOLVED',
+        isPrivate: false,
+        rootId,
+        ...(variantId === undefined ? {} : { variant: { id: variantId, parts: [{ attribute: 'cut', text: 'flat' }] } }),
+    };
+}
+
+const NAMED: Record<string, FoodRefAnswer> = {
+    'root:F-whole': found('Milk, whole', 'F-whole'),
+    'root:F-crackers': found('Milk crackers', 'F-crackers'),
+    'root:F-default': found('Milk, whole, 3.25%', 'F-default'),
+};
+
+interface Setup {
+    readonly matches?: readonly ParseJobMatch[] | Error;
+    readonly answers?: Record<string, FoodRefAnswer>;
+    readonly verdicts?: ReadonlyMap<string, LineVerdictRow>;
+    readonly exhausted?: ReadonlySet<string>;
+    /** Verification key → the spend period its review was refused in (the DAL answers only the period asked). */
+    readonly budgetSpent?: ReadonlyMap<string, string>;
+}
+
+function setup(options: Setup = {}) {
+    const findForJob = vi.fn(async () => {
+        if (options.matches instanceof Error) {
+            throw options.matches;
+        }
+
+        return options.matches ?? [matchOf()];
+    });
+    const answers = options.answers ?? NAMED;
+    const resolve = vi.fn(async (_caller: unknown, refs: readonly FoodRef[]) => ({
+        answers: new Map(
+            refs.map((ref) => [`${ref.kind}:${ref.id}`, answers[`${ref.kind}:${ref.id}`] ?? { outcome: 'absent' }]),
+        ),
+        degraded: false,
+    }));
+    const verdicts = options.verdicts ?? new Map();
+    const findBandsByKeys = vi.fn(
+        async (keys: readonly string[]) => new Map([...verdicts].filter(([k]) => keys.includes(k))),
+    );
+    const findExhaustedKeys = vi.fn(
+        async (keys: readonly string[]) => new Set(keys.filter((key) => options.exhausted?.has(key) === true)),
+    );
+    const findBudgetSpentKeys = vi.fn(
+        async (keys: readonly string[], period: string) =>
+            new Set(keys.filter((key) => options.budgetSpent?.get(key) === period)),
+    );
+    const metric = vi.fn();
+    // The store's once-per-verdict marker for a curated contradiction: only the first claim of a row wins.
+    const reported = new Set<string>();
+    const claimCurationReport = vi.fn(async (_jobId: string, slot: { lineIndex: number; foodIndex: number }) => {
+        const key = `${String(slot.lineIndex)}:${String(slot.foodIndex)}`;
+        const won = !reported.has(key);
+
+        reported.add(key);
+
+        return won;
+    });
+    const view = new ParseJobMatchView(
+        { findForJob, claimCurationReport },
+        { findBandsByKeys, findExhaustedKeys, findBudgetSpentKeys },
+        { resolve } as unknown as FoodRefsGateway,
+        metric,
+    );
+
+    return {
+        view,
+        findForJob,
+        resolve,
+        metric,
+        claimCurationReport,
+        findBandsByKeys,
+        findExhaustedKeys,
+        findBudgetSpentKeys,
+    };
+}
+
+/** The match on food 0 of line 0 of a decorated view. */
+const firstMatch = (decorated: ParseJobResponse) => decorated.lines[0]?.proposal?.foods[0]?.match;
+
+describe('ParseJobMatchView.decorate', () => {
+    it('gives every proposed food `match: null` when nothing is matched yet, and asks food nothing', async () => {
+        const { view, resolve } = setup({ matches: [] });
+
+        const decorated = await view.decorate(COOK, CALLER, viewOf(['salt', 'pepper']));
+
+        expect(decorated.lines[0]?.proposal?.foods.map((food) => food.match)).toStrictEqual([null, null]);
+        expect(resolve).not.toHaveBeenCalled();
+    });
+
+    it('names the proposal and candidates at READ time, as the caller, and reads `checking` before a verdict', async () => {
+        const { view, resolve } = setup();
+
+        const decorated = await view.decorate(COOK, CALLER, viewOf());
+
+        expect(resolve).toHaveBeenCalledWith(CALLER, expect.any(Array), 'read');
+        expect(firstMatch(decorated)).toStrictEqual({
+            state: 'checking',
+            reason: 'awaitingReview',
+            proposed: { kind: 'root', id: 'F-whole', name: 'Milk, whole' },
+            candidates: [
+                { kind: 'root', id: 'F-whole', name: 'Milk, whole', isDefault: false },
+                { kind: 'root', id: 'F-crackers', name: 'Milk crackers', isDefault: false },
+            ],
+        });
+    });
+
+    it('⛔ reads `default` when a default applies, and lists it FIRST and flagged — selecting nothing', async () => {
+        const { view } = setup({
+            matches: [
+                matchOf({
+                    candidates: [
+                        { kind: 'root', id: 'F-whole', rung: 'head' },
+                        { kind: 'root', id: 'F-default', rung: 'default' },
+                    ],
+                }),
+            ],
+        });
+
+        const match = firstMatch(await view.decorate(COOK, CALLER, viewOf()));
+
+        expect(match?.state).toBe('default');
+        expect(match?.candidates.map((candidate) => [candidate.id, candidate.isDefault])).toStrictEqual([
+            ['F-default', true],
+            ['F-whole', false],
+        ]);
+    });
+
+    describe('owner ruling 5: a default shows only when no match was found (the M2 loop stays closed)', () => {
+        const withDefault = [
+            { kind: 'root', id: 'F-whole', rung: 'head' },
+            { kind: 'root', id: 'F-default', rung: 'default' },
+        ] as const;
+
+        it('a memo of ANOTHER food is a match and wins over the default: confident, and proposed', async () => {
+            const { view } = setup({
+                matches: [
+                    matchOf({
+                        proposal: {
+                            matchedBy: 'memo',
+                            food: { kind: 'root', id: 'F-whole' },
+                            rung: null,
+                            margin: null,
+                        },
+                        candidates: [...withDefault],
+                    }),
+                ],
+            });
+
+            const match = firstMatch(await view.decorate(COOK, CALLER, viewOf()));
+
+            expect(match).toMatchObject({
+                state: 'confident',
+                reason: 'rememberedMatch',
+                proposed: { kind: 'root', id: 'F-whole' },
+            });
+        });
+
+        it('⛔ a memo of the DEFAULT food stays a default and proposes nothing: a kept default must not teach itself', async () => {
+            const { view } = setup({
+                matches: [
+                    matchOf({
+                        proposal: {
+                            matchedBy: 'memo',
+                            food: { kind: 'root', id: 'F-default' },
+                            rung: null,
+                            margin: null,
+                        },
+                        candidates: [...withDefault],
+                    }),
+                ],
+            });
+
+            const match = firstMatch(await view.decorate(COOK, CALLER, viewOf()));
+
+            expect(match).toMatchObject({ state: 'default', reason: 'defaultApplies', proposed: null });
+        });
+
+        it('a curated mapping beats the default, even when it names the default food', async () => {
+            const { view } = setup({
+                matches: [
+                    matchOf({
+                        proposal: {
+                            matchedBy: 'curated',
+                            food: { kind: 'root', id: 'F-default' },
+                            rung: null,
+                            margin: null,
+                        },
+                        candidates: [...withDefault],
+                    }),
+                ],
+            });
+
+            expect(firstMatch(await view.decorate(COOK, CALLER, viewOf()))).toMatchObject({
+                state: 'confident',
+                reason: 'curatedMapping',
+            });
+        });
+    });
+
+    it('reads `confident` once the gate verified identity', async () => {
+        const { view } = setup({
+            verdicts: new Map([
+                [
+                    'v2:milk',
+                    {
+                        band: 'verified',
+                        certainty: 'high',
+                        identityVerdict: 'agree',
+                        aspects: ['identity', 'quantity'],
+                    },
+                ],
+            ]),
+        });
+
+        expect(firstMatch(await view.decorate(COOK, CALLER, viewOf()))?.state).toBe('confident');
+    });
+
+    it('⛔ keeps a CURATED proposal the gate contradicted confident, notes it, and counts it for curation review', async () => {
+        const { view, metric } = setup({
+            matches: [
+                matchOf({
+                    proposal: { matchedBy: 'curated', food: { kind: 'root', id: 'F-whole' }, rung: null, margin: null },
+                }),
+            ],
+            verdicts: new Map([
+                [
+                    'v2:milk',
+                    {
+                        band: 'contradicted',
+                        certainty: 'high',
+                        identityVerdict: 'disagree',
+                        aspects: ['identity', 'quantity'],
+                    },
+                ],
+            ]),
+        });
+
+        const match = firstMatch(await view.decorate(COOK, CALLER, viewOf()));
+
+        expect(match).toMatchObject({ state: 'confident', reason: 'curatedMapping', reviewNote: 'reviewDisagreed' });
+        expect(metric).toHaveBeenCalledTimes(1);
+    });
+
+    it('⛔ counts a curated contradiction ONCE per verdict, however often the client polls', async () => {
+        // Item 18: the count was per READ, so a poll loop counted one contradiction several times. The store's marker
+        // makes the first read that sees it the only one that reports it.
+        const { view, metric, claimCurationReport } = setup({
+            matches: [
+                matchOf({
+                    proposal: { matchedBy: 'curated', food: { kind: 'root', id: 'F-whole' }, rung: null, margin: null },
+                }),
+            ],
+            verdicts: new Map([
+                [
+                    'v2:milk',
+                    {
+                        band: 'contradicted',
+                        certainty: 'high',
+                        identityVerdict: 'disagree',
+                        aspects: ['identity', 'quantity'],
+                    },
+                ],
+            ]),
+        });
+
+        await view.decorate(COOK, CALLER, viewOf());
+        await view.decorate(COOK, CALLER, viewOf());
+        await view.decorate(COOK, CALLER, viewOf());
+
+        expect(metric).toHaveBeenCalledTimes(1);
+        expect(claimCurationReport).toHaveBeenCalledWith(
+            JOB,
+            expect.objectContaining({ lineIndex: 0, foodIndex: 0, verificationKey: 'v2:milk' }),
+        );
+    });
+
+    it.each([
+        [
+            'the gate contradicted it',
+            {
+                verdicts: new Map([
+                    [
+                        'v2:milk',
+                        {
+                            band: 'contradicted',
+                            certainty: 'high',
+                            identityVerdict: 'disagree',
+                            aspects: ['identity', 'quantity'],
+                        },
+                    ],
+                ]),
+            },
+        ],
+        [
+            'the gate abstained',
+            {
+                verdicts: new Map([
+                    [
+                        'v2:milk',
+                        {
+                            band: 'inconclusive',
+                            certainty: 'high',
+                            identityVerdict: 'abstain',
+                            aspects: ['identity', 'quantity'],
+                        },
+                    ],
+                ]),
+            },
+        ],
+        ['the gate gave up', { exhausted: new Set(['v2:milk']) }],
+    ] as const)('⛔ shows NO proposal in `needsChoice` (%s) — the food stays a candidate', async (_label, options) => {
+        const { view } = setup(options as Setup);
+
+        const match = firstMatch(await view.decorate(COOK, CALLER, viewOf()));
+
+        expect(match?.state).toBe('needsChoice');
+        expect(match?.proposed).toBeNull();
+        expect(match?.candidates.map((candidate) => candidate.id)).toContain('F-whole');
+    });
+
+    it('⛔ shows NO proposal in `default` — a default is listed, never selected', async () => {
+        const { view } = setup({
+            matches: [
+                matchOf({
+                    candidates: [
+                        { kind: 'root', id: 'F-whole', rung: 'head' },
+                        { kind: 'root', id: 'F-default', rung: 'default' },
+                    ],
+                }),
+            ],
+        });
+
+        expect(firstMatch(await view.decorate(COOK, CALLER, viewOf()))?.proposed).toBeNull();
+    });
+
+    it('shows the proposal once it is `confident`', async () => {
+        const { view } = setup({
+            verdicts: new Map([
+                [
+                    'v2:milk',
+                    {
+                        band: 'verified',
+                        certainty: 'high',
+                        identityVerdict: 'agree',
+                        aspects: ['identity', 'quantity'],
+                    },
+                ],
+            ]),
+        });
+
+        expect(firstMatch(await view.decorate(COOK, CALLER, viewOf()))?.proposed).toStrictEqual({
+            kind: 'root',
+            id: 'F-whole',
+            name: 'Milk, whole',
+        });
+    });
+
+    it('⛔ drops a candidate food names with an EMPTY name, rather than failing the whole view', async () => {
+        const { view } = setup({
+            answers: {
+                ...NAMED,
+                'root:F-crackers': {
+                    ...(found('x', 'F-crackers') as Extract<FoodRefAnswer, { outcome: 'found' }>),
+                    name: '' as never,
+                },
+            },
+        });
+
+        const match = firstMatch(await view.decorate(COOK, CALLER, viewOf()));
+
+        expect(match?.candidates.map((candidate) => candidate.id)).toStrictEqual(['F-whole']);
+        expect(match?.candidates.every((candidate) => candidate.name.length > 0)).toBe(true);
+    });
+
+    it('⛔ does not trust an AGREE from a verdict that never asked identity — the proposal still reads `checking`', async () => {
+        const { view } = setup({
+            verdicts: new Map([
+                ['v2:milk', { band: 'verified', certainty: 'high', identityVerdict: null, aspects: ['quantity'] }],
+            ]),
+        });
+
+        expect(firstMatch(await view.decorate(COOK, CALLER, viewOf()))?.state).toBe('checking');
+    });
+
+    it('⛔ reads `needsChoice` (reviewNotAsked) for a CONTAINED principal, whose review is never sent — never `checking`', async () => {
+        const { view } = setup();
+
+        expect(firstMatch(await view.decorate(CONTAINED, CALLER, viewOf()))).toMatchObject({
+            state: 'needsChoice',
+            reason: 'reviewNotAsked',
+            proposed: null,
+        });
+    });
+
+    it('reads `needsChoice` when the gate gave up on the key', async () => {
+        const { view } = setup({ exhausted: new Set(['v2:milk']) });
+
+        expect(firstMatch(await view.decorate(COOK, CALLER, viewOf()))).toMatchObject({
+            state: 'needsChoice',
+            reason: 'reviewUnchecked',
+        });
+    });
+
+    it('⛔ reads `needsChoice` for a row whose review was REFUSED — the persisted disposition, never a policy re-run', async () => {
+        // F10: the line here is SHORT, so re-running the gate policy would say "ask"; only the stored `refused` (an
+        // over-cap line, or a request the queue contract refused) can put it here.
+        const { view } = setup({ matches: [matchOf({ verificationKey: null, review: 'refused' })] });
+
+        expect(firstMatch(await view.decorate(COOK, CALLER, viewOf()))).toMatchObject({
+            state: 'needsChoice',
+            reason: 'reviewRefused',
+        });
+    });
+
+    it('⛔ ignores a STALE row — a line edited since it was matched shows no match', async () => {
+        const { view } = setup({ matches: [matchOf({ lineDigest: parseStoredLineDigest('v1:old') })] });
+
+        expect(firstMatch(await view.decorate(COOK, CALLER, viewOf()))).toBeNull();
+    });
+
+    it('⛔ ignores a row whose judgement the current parse no longer gives — the same text reparsed', async () => {
+        const { view } = setup({ matches: [matchOf({ judgementDigest: 'j1:another-parse' })] });
+
+        expect(firstMatch(await view.decorate(COOK, CALLER, viewOf()))).toBeNull();
+    });
+
+    it('⛔ compares the line’s STORED digest, never one recomputed from the text it shows', async () => {
+        // One digest authority (item 8): the store returns the line's digest with the row; the view never re-derives it.
+        const stored = parseStoredLineDigest('v2:as-stored');
+        const { view } = setup({
+            matches: [matchOf({ lineDigest: stored, lineDigestNow: stored, judgementDigest: judgementOf(stored) })],
+        });
+
+        expect(firstMatch(await view.decorate(COOK, CALLER, viewOf()))?.state).toBe('checking');
+    });
+
+    it('⛔ shows NO match for a food whose names food could not be asked for — never a nameless one', async () => {
+        const { view } = setup({ answers: { ...NAMED, 'root:F-whole': { outcome: 'unreachable' } } });
+
+        expect(firstMatch(await view.decorate(COOK, CALLER, viewOf()))).toBeNull();
+    });
+
+    it('drops a proposal food no longer shows the cook, and asks for a choice among the rest', async () => {
+        const { view } = setup({ answers: { 'root:F-crackers': found('Milk crackers', 'F-crackers') } });
+
+        expect(firstMatch(await view.decorate(COOK, CALLER, viewOf()))).toStrictEqual({
+            state: 'needsChoice',
+            reason: 'noProposal',
+            proposed: null,
+            candidates: [{ kind: 'root', id: 'F-crackers', name: 'Milk crackers', isDefault: false }],
+        });
+    });
+
+    it('shows a forwarded food at its LIVE end, a variant by its parts', async () => {
+        const { view } = setup({ answers: { ...NAMED, 'root:F-whole': found('Beef brisket', 'R-brisket', 'V-flat') } });
+
+        expect(firstMatch(await view.decorate(COOK, CALLER, viewOf()))?.proposed).toStrictEqual({
+            kind: 'variant',
+            id: 'V-flat',
+            name: 'Beef brisket (flat)',
+        });
+    });
+
+    it('⛔ stays TOTAL when the match store cannot be read: every food reads `match: null`', async () => {
+        const { view } = setup({ matches: new Error('connection reset') });
+
+        expect(firstMatch(await view.decorate(COOK, CALLER, viewOf()))).toBeNull();
+    });
+});
+
+/**
+ * The view's reads end with the request's deadline (ADR-0071). The matches request hands `decorate` a signal; every
+ * database read is awaited through `boundedBy` and food's names read takes the signal, so a saturated pool or a slow food
+ * cannot carry the response past the client's timeout. What it could not read degrades exactly as an unreadable read does
+ * (the view stays total), and the client's next poll repairs it.
+ */
+/**
+ * A SPENT AI BUDGET (ADR-0071 §9, ADR-0024 §3; owner ruling 2026-10-26). The worker recorded the spend period in which
+ * the ceiling refused the key's review. The view asks for the CURRENT period only, so a month that has moved on reads as
+ * not spent, and a spent key puts every food in front of the cook, a curated or exact-name one included.
+ */
+describe('ParseJobMatchView.decorate: a spent AI budget', () => {
+    afterEach(() => {
+        vi.useRealTimers();
+    });
+
+    const NOW = new Date('2026-10-26T12:00:00.000Z');
+    const exactMatch = matchOf({
+        proposal: { matchedBy: 'lexical', food: { kind: 'root', id: 'F-whole' }, rung: 'exact', margin: 0.2 },
+    });
+
+    it('⛔ surfaces an EXACT-name proposal as a choice with reason `reviewBudgetSpent`, the food kept as a candidate', async () => {
+        vi.useFakeTimers({ now: NOW });
+        const { view } = setup({ matches: [exactMatch], budgetSpent: new Map([['v2:milk', '2026-10']]) });
+
+        expect(firstMatch(await view.decorate(COOK, CALLER, viewOf()))).toStrictEqual({
+            state: 'needsChoice',
+            reason: 'reviewBudgetSpent',
+            proposed: null,
+            candidates: [
+                { kind: 'root', id: 'F-whole', name: 'Milk, whole', isDefault: false },
+                { kind: 'root', id: 'F-crackers', name: 'Milk crackers', isDefault: false },
+            ],
+            reviewResetsAt: '2026-11-01T00:00:00.000Z',
+        });
+    });
+
+    it('asks for the CURRENT period, read from the clock', async () => {
+        vi.useFakeTimers({ now: NOW });
+        const { view, findBudgetSpentKeys } = setup({ matches: [exactMatch] });
+
+        await view.decorate(COOK, CALLER, viewOf());
+
+        expect(findBudgetSpentKeys).toHaveBeenCalledWith(['v2:milk'], '2026-10');
+    });
+
+    it('⛔ a fact recorded in an EARLIER period is not spent: the exact name is confident again', async () => {
+        vi.useFakeTimers({ now: NOW });
+        const { view } = setup({ matches: [exactMatch], budgetSpent: new Map([['v2:milk', '2026-09']]) });
+
+        expect(firstMatch(await view.decorate(COOK, CALLER, viewOf()))).toMatchObject({
+            state: 'confident',
+            reason: 'exactName',
+        });
+    });
+
+    it('moves from spent to not spent when the clock crosses the month boundary', async () => {
+        const { view } = setup({ matches: [exactMatch], budgetSpent: new Map([['v2:milk', '2026-10']]) });
+
+        vi.useFakeTimers({ now: new Date('2026-10-31T23:59:59.000Z') });
+        expect(firstMatch(await view.decorate(COOK, CALLER, viewOf()))?.reason).toBe('reviewBudgetSpent');
+
+        vi.setSystemTime(new Date('2026-11-01T00:00:01.000Z'));
+        expect(firstMatch(await view.decorate(COOK, CALLER, viewOf()))?.reason).toBe('exactName');
+    });
+
+    it('carries `reviewResetsAt` ONLY on the budget-spent reason', async () => {
+        vi.useFakeTimers({ now: NOW });
+        const { view } = setup({ matches: [exactMatch] });
+
+        expect(firstMatch(await view.decorate(COOK, CALLER, viewOf()))).not.toHaveProperty('reviewResetsAt');
+    });
+
+    it('a default stays a default while the budget is spent', async () => {
+        vi.useFakeTimers({ now: NOW });
+        const { view } = setup({
+            matches: [
+                matchOf({
+                    candidates: [
+                        { kind: 'root', id: 'F-whole', rung: 'head' },
+                        { kind: 'root', id: 'F-default', rung: 'default' },
+                    ],
+                }),
+            ],
+            budgetSpent: new Map([['v2:milk', '2026-10']]),
+        });
+
+        expect(firstMatch(await view.decorate(COOK, CALLER, viewOf()))?.state).toBe('default');
+    });
+
+    it('is total: an unreadable fact degrades to "not spent", never a failed poll', async () => {
+        vi.useFakeTimers({ now: NOW });
+        const { view, findBudgetSpentKeys } = setup({ matches: [exactMatch] });
+        findBudgetSpentKeys.mockRejectedValue(new Error('connection terminated'));
+
+        expect(firstMatch(await view.decorate(COOK, CALLER, viewOf()))?.state).toBe('confident');
+    });
+});
+
+describe('ParseJobMatchView.decorate — under a request deadline', () => {
+    it('⛔ hands food’s names read the request’s deadline, beside the read budget', async () => {
+        const { view, resolve } = setup();
+        const deadline = new AbortController();
+
+        await view.decorate(COOK, CALLER, viewOf(), deadline.signal);
+
+        expect(resolve).toHaveBeenCalledWith(CALLER, expect.any(Array), 'read', { signal: deadline.signal });
+    });
+
+    it('⛔ a verdict read that never answers ends at the deadline: the proposal reads as awaiting review', async () => {
+        const deadline = new AbortController();
+        const hanging = new ParseJobMatchView(
+            { findForJob: async () => [matchOf()], claimCurationReport: async () => false },
+            {
+                findBandsByKeys: () => new Promise(() => undefined),
+                findExhaustedKeys: async () => new Set(),
+                findBudgetSpentKeys: async () => new Set(),
+            },
+            {
+                resolve: async (_caller: unknown, refs: readonly FoodRef[]) => ({
+                    answers: new Map(refs.map((ref) => [`${ref.kind}:${ref.id}`, NAMED[`${ref.kind}:${ref.id}`]!])),
+                    degraded: false,
+                }),
+            } as unknown as FoodRefsGateway,
+            vi.fn(),
+        );
+
+        const decorating = hanging.decorate(COOK, CALLER, viewOf(), deadline.signal);
+
+        await new Promise((resolve) => setImmediate(resolve));
+        deadline.abort();
+
+        expect(firstMatch(await decorating)).toMatchObject({ state: 'checking', reason: 'awaitingReview' });
+    });
+
+    it('⛔ a match store read that never answers ends at the deadline: every food reads `match: null`', async () => {
+        const deadline = new AbortController();
+        const hanging = new ParseJobMatchView(
+            { findForJob: () => new Promise(() => undefined), claimCurationReport: async () => false },
+            {
+                findBandsByKeys: async () => new Map(),
+                findExhaustedKeys: async () => new Set(),
+                findBudgetSpentKeys: async () => new Set(),
+            },
+            { resolve: async () => ({ answers: new Map(), degraded: false }) } as unknown as FoodRefsGateway,
+            vi.fn(),
+        );
+
+        const decorating = hanging.decorate(COOK, CALLER, viewOf(), deadline.signal);
+
+        deadline.abort();
+
+        expect(firstMatch(await decorating)).toBeNull();
+    });
+
+    it('⛔ starts no database read once the deadline has passed', async () => {
+        const { view, findForJob, resolve } = setup();
+
+        const decorated = await view.decorate(COOK, CALLER, viewOf(), AbortSignal.abort());
+
+        expect(findForJob).not.toHaveBeenCalled();
+        expect(resolve).not.toHaveBeenCalled();
+        expect(firstMatch(decorated)).toBeNull();
+    });
+
+    it('⛔ a curated-contradiction count that wins after the deadline is still reported, once', async () => {
+        const deadline = new AbortController();
+        const metric = vi.fn();
+        let settle: (won: boolean) => void = () => undefined;
+        const lateClaim = new Promise<boolean>((resolve) => {
+            settle = resolve;
+        });
+        const claim = vi.fn(() => lateClaim);
+        const contradicted: LineVerdictRow = {
+            band: 'contradicted',
+            certainty: 'high',
+            identityVerdict: 'disagree',
+            aspects: ['identity', 'quantity'],
+        };
+        const view = new ParseJobMatchView(
+            {
+                findForJob: async () => [
+                    matchOf({
+                        proposal: {
+                            matchedBy: 'curated',
+                            food: { kind: 'root', id: 'F-whole' },
+                            rung: null,
+                            margin: null,
+                        },
+                    }),
+                ],
+                claimCurationReport: claim,
+            },
+            {
+                findBandsByKeys: async () => new Map([['v2:milk', contradicted]]),
+                findExhaustedKeys: async () => new Set(),
+                findBudgetSpentKeys: async () => new Set(),
+            },
+            {
+                resolve: async (_caller: unknown, refs: readonly FoodRef[]) => ({
+                    answers: new Map(refs.map((ref) => [`${ref.kind}:${ref.id}`, NAMED[`${ref.kind}:${ref.id}`]!])),
+                    degraded: false,
+                }),
+            } as unknown as FoodRefsGateway,
+            metric,
+        );
+
+        const decorating = view.decorate(COOK, CALLER, viewOf(), deadline.signal);
+
+        await vi.waitFor(() => expect(claim).toHaveBeenCalledTimes(1));
+        deadline.abort();
+        const decorated = await decorating;
+
+        settle(true);
+        await vi.waitFor(() => expect(metric).toHaveBeenCalledTimes(1));
+
+        expect(firstMatch(decorated)?.reviewNote).toBe('reviewDisagreed');
+    });
+});
+
+describe('ParseJobMatchView.decorate — every store read degrades on its own and says so', () => {
+    const readFails = new Error('connection terminated');
+
+    afterEach(() => {
+        vi.restoreAllMocks();
+    });
+
+    // One row per read. The degradation and the logged sentence are what an operator sees, so both are pinned: folding
+    // the four reads into one helper must not lose either.
+    it.each([
+        ['matches', /matches could not be read; the view shows none/u],
+        ['verdicts', /verdicts could not be read; proposals read as awaiting review/u],
+        ['exhausted', /verification attempts could not be read/u],
+        ['budgetSpent', /budget-spent facts could not be read/u],
+    ] as const)('an unreadable %s table is logged and never fails the poll', async (which, message) => {
+        const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+        const parts = setup();
+
+        if (which === 'matches') {
+            parts.findForJob.mockRejectedValue(readFails);
+        } else if (which === 'verdicts') {
+            parts.findBandsByKeys.mockRejectedValue(readFails);
+        } else if (which === 'exhausted') {
+            parts.findExhaustedKeys.mockRejectedValue(readFails);
+        } else {
+            parts.findBudgetSpentKeys.mockRejectedValue(readFails);
+        }
+
+        const decorated = await parts.view.decorate(COOK, CALLER, viewOf());
+
+        expect(warn).toHaveBeenCalledOnce();
+        expect(String(warn.mock.calls[0]?.[0])).toMatch(message);
+        expect(String(warn.mock.calls[0]?.[0])).toContain('parse-job ');
+        expect(warn.mock.calls[0]?.[1]).toBe(readFails.stack);
+        expect(firstMatch(decorated) === null).toBe(which === 'matches');
+    });
+});

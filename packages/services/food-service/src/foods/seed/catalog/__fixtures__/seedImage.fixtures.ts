@@ -41,6 +41,7 @@ export function makeSeedImageRoot(overrides: Partial<SeedImageRoot> = {}): SeedI
         seedKey: 'fdc:100',
         name: 'Beef, brisket, whole, raw',
         synonyms: [],
+        defaultFor: [],
         item: 'fdc:100',
         variants: [],
         numbers: { from: 'item' },

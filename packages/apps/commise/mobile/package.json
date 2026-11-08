@@ -13,7 +13,7 @@
         "test": "vitest run && vitest run --config vitest.native.config.ts",
         "test:integration": "vitest run --config vitest.integration.config.ts",
         "lint": "eslint .",
-        "typecheck": "tsc --noEmit",
+        "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.fit.json",
         "format": "prettier --write .",
         "format:check": "prettier --check ."
     },
@@ -28,7 +28,7 @@
         "@commise/query": "*",
         "@commise/ui": "^0.0.0",
         "@expo-google-fonts/inter": "^0.4.2",
-        "@expo-google-fonts/playfair-display": "^0.4.2",
+        "@expo-google-fonts/manrope": "^0.4.2",
         "@expo/metro-runtime": "~57.0.7",
         "@formatjs/intl-getcanonicallocales": "^3.2.11",
         "@formatjs/intl-listformat": "^8.3.13",
@@ -49,8 +49,6 @@
         "@sentry/react-native": "~7.11.0",
         "@shopify/flash-list": "~2.3.2",
         "@t3-oss/env-core": "^0.13.11",
-        "@tamagui/core": "^2.1.0",
-        "@tamagui/web": "^2.1.0",
         "@tanstack/react-query": "^5.62.0",
         "ditox": "^3.3.0",
         "expo": "~57.0.17",
@@ -76,10 +74,10 @@
         "react-error-boundary": "^6.1.2",
         "react-native": "0.86.3",
         "react-native-safe-area-context": "~5.7.0",
-        "react-native-screens": "~4.26.0",
+        "react-native-screens": "~4.28.0",
         "react-native-svg": "15.15.4",
         "react-native-web": "^0.21.2",
-        "tamagui": "^2.3.0",
+        "tamagui": "^3.1.9",
         "zod": "^4.6.7"
     },
     "devDependencies": {
@@ -102,5 +100,12 @@
     },
     "engines": {
         "node": "24.x"
+    },
+    "expo": {
+        "install": {
+            "exclude": [
+                "react-native-screens"
+            ]
+        }
     }
 }

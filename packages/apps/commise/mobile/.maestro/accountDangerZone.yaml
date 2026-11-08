@@ -23,11 +23,26 @@ appId: ${APP_ID}
 # once, under the name (27d6918be). The old "Profile photo" card, a second avatar, is gone.
 - assertVisible: 'Change photo'
 - assertNotVisible: 'Profile photo'
-- assertVisible: '${E2E_SIGNIN_EMAIL}'
+# ⚠️ The Email row is ONE accessibility element (`ProfileFactRow`, c01e63343): iOS names it "Email, <address>" as a
+# single node, and Android publishes the address as its own node.
+- runFlow:
+      when:
+          platform: iOS
+      commands:
+          - assertVisible: 'Email, ${E2E_SIGNIN_EMAIL}'
+- runFlow:
+      when:
+          platform: Android
+      commands:
+          - assertVisible: '${E2E_SIGNIN_EMAIL}'
 
+# ⛔ `centerElement: true`, not a bare scroll: without it the scroll stops the moment the row's label clears the bottom
+# edge, and the description drawn UNDER the label sits beneath the tab bar's edge (local Android run, 2026-10-30,
+# 1080x2400, where the longer `test-local-` address wraps and pushes the zone down).
 - scrollUntilVisible:
       element: 'Erase my data'
       direction: DOWN
+      centerElement: true
 
 # The danger zone presents BOTH actions, distinctly, each with its consequence.
 - assertVisible: 'Close account'

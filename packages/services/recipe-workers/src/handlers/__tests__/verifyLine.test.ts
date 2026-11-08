@@ -18,6 +18,8 @@
  * from a response the model finished normally.** Every error branch below is asserted to record either
  * nothing or `inconclusive` — never an agreement.
  */
+import { createHash } from 'node:crypto';
+
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // ⛔ THE REAL SDK IS FAKED SO THE ISSUE PATH IS OBSERVABLE. `captureHandled` is inert until
@@ -45,6 +47,11 @@ import {
     type ModelRate,
 } from '@kitchensink/recipe-core/spend/spend-arithmetic';
 import { VERIFICATION_MAX_OUTPUT_TOKENS } from '@kitchensink/recipe-core/resolution/verification-prompt';
+import { verificationKey } from '@kitchensink/recipe-core/resolution/verification-key';
+import {
+    verifiedLineIdentityOfMessage,
+    verifyIngredientLineMessageSchema,
+} from '@kitchensink/recipe-core/resolution/verification-message';
 
 import {
     INPUT_BOUND_EXCEEDED_METRIC_NAME,
@@ -71,6 +78,20 @@ const MESSAGE = {
     requestedAt: '2026-08-21T10:00:00.000Z',
 };
 
+/**
+ * The band a ranked message may name (ADR-0071). The band subsystem is DORMANT BY DECISION: no producer sends one, so a
+ * message without it feeds no band and reads no authority. The cases that exercise the band path carry it explicitly.
+ */
+const BAND_KEY = {
+    rung: 'head',
+    marginBand: 'ge-0.9-rung',
+    queryShape: 'multi-word',
+    rankerVersion: 'ladder-v2-comma-head',
+} as const;
+
+/** {@link MESSAGE}, naming its own band: the only shape the worker feeds a band observation from. */
+const BANDED = { ...MESSAGE, bandKey: BAND_KEY };
+
 const SETTINGS = { ceilingMicros: 100_000_000, modelId: 'amazon.nova-micro-v1:0' };
 
 const ANSWERED = {
@@ -91,6 +112,7 @@ function deps(overrides: Partial<VerificationDeps> = {}): VerificationDeps & {
         converse: ReturnType<typeof vi.fn>;
         claimVerification: ReturnType<typeof vi.fn>;
         recordAttemptFailure: ReturnType<typeof vi.fn>;
+        recordBudgetSpent: ReturnType<typeof vi.fn>;
         recordVerdict: ReturnType<typeof vi.fn>;
         rememberAgreement: ReturnType<typeof vi.fn>;
         bandRecord: ReturnType<typeof vi.fn>;
@@ -107,6 +129,7 @@ function deps(overrides: Partial<VerificationDeps> = {}): VerificationDeps & {
         // claim is for — so the default has to say "first delivery of an unjudged line" out loud.
         claimVerification: vi.fn().mockResolvedValue({ kind: 'claimed', attempts: 1 }),
         recordAttemptFailure: vi.fn().mockResolvedValue(undefined),
+        recordBudgetSpent: vi.fn().mockResolvedValue(undefined),
         recordVerdict: vi.fn().mockResolvedValue(undefined),
         rememberAgreement: vi.fn().mockResolvedValue(undefined),
         bandRecord: vi.fn().mockResolvedValue(undefined),
@@ -124,12 +147,13 @@ function deps(overrides: Partial<VerificationDeps> = {}): VerificationDeps & {
         store: {
             claimVerification: spies.claimVerification,
             recordAttemptFailure: spies.recordAttemptFailure,
+            recordBudgetSpent: spies.recordBudgetSpent,
             recordVerdict: spies.recordVerdict,
             rememberAgreement: spies.rememberAgreement,
         },
         claimLeaseSeconds: 60,
         attemptAllowance: 20,
-        bands: { record: spies.bandRecord, authorityForFood: spies.bandAuthority },
+        bands: { record: spies.bandRecord, authorityFor: spies.bandAuthority },
         emit: spies.emit,
         now: () => new Date('2026-08-21T10:00:01.000Z'),
         ...overrides,
@@ -238,7 +262,12 @@ describe('the verification claim (U7)', () => {
 
         await processVerification(d, MESSAGE);
 
-        expect(d.spies.claimVerification).toHaveBeenCalledWith(expect.any(String), SETTINGS.modelId, 60);
+        expect(d.spies.claimVerification).toHaveBeenCalledWith(
+            expect.any(String),
+            SETTINGS.modelId,
+            60,
+            expect.any(Array),
+        );
     });
 
     /**
@@ -700,6 +729,119 @@ describe('the memo is keyed on the parsed phrase, and only a phrase the model ac
     });
 });
 
+/**
+ * A CEILING DENIAL ON THE PASTE PATH IS NOT RETRIED (ADR-0024 §3, ADR-0071 §7; owner ruling 2026-10-26).
+ *
+ * The gate is injected: `stage: 'prod'` with a ledger that answers `denied`, so no case depends on a real stage or a
+ * real counter. The paste-match review records the fact (key, model, and the period CAPTURED AT RESERVE) and the message
+ * completes; the SAVE path's review still throws, so the queue retries it. An unreadable counter is transient on every
+ * path.
+ */
+describe('a ceiling denial: the paste path records it and acknowledges, the save path retries', () => {
+    const { recipeId: _legacy, ...CONTENT } = MESSAGE;
+    const PASTE = {
+        ...CONTENT,
+        origin: {
+            kind: 'parseJob' as const,
+            jobId: '6f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b',
+            lineIndex: 3,
+            foodIndex: 1,
+        },
+    };
+    const RECIPE = { ...CONTENT, origin: { kind: 'recipe' as const, recipeId: MESSAGE.recipeId } };
+
+    function denied(): ReturnType<typeof deps> {
+        const d = deps({ stage: 'prod' });
+        d.spies.reserve.mockResolvedValue({ kind: 'denied', period: '2026-10' });
+
+        return d;
+    }
+
+    it('⛔ PASTE: resolves without throwing, so the message completes and is never redelivered', async () => {
+        await expect(processVerification(denied(), PASTE)).resolves.toBeUndefined();
+    });
+
+    it('⛔ PASTE: records budget spent under the verification key and model, with the period the reserve captured', async () => {
+        const d = denied();
+        await processVerification(d, PASTE);
+
+        expect(d.spies.recordBudgetSpent).toHaveBeenCalledTimes(1);
+        expect(d.spies.recordBudgetSpent).toHaveBeenCalledWith(
+            expect.stringMatching(/^v\d+:[0-9a-f]{64}$/u),
+            SETTINGS.modelId,
+            '2026-10',
+        );
+    });
+
+    it("PASTE: the period recorded is the DENIAL's, not one recomputed from the clock (a month boundary mid-call)", async () => {
+        const d = denied();
+        d.spies.reserve.mockResolvedValue({ kind: 'denied', period: '2026-09' });
+        await processVerification(d, PASTE);
+
+        expect(d.spies.recordBudgetSpent.mock.calls[0]?.[2]).toBe('2026-09');
+    });
+
+    it('PASTE: calls no provider, records no verdict, settles nothing, and gives no attempt-failure code', async () => {
+        const d = denied();
+        await processVerification(d, PASTE);
+
+        expect(d.spies.converse).not.toHaveBeenCalled();
+        expect(d.spies.recordVerdict).not.toHaveBeenCalled();
+        expect(d.spies.settle).not.toHaveBeenCalled();
+        expect(d.spies.recordAttemptFailure).not.toHaveBeenCalled();
+    });
+
+    it('PASTE: meters the denial under the paste-match-review call site', async () => {
+        const d = denied();
+        await processVerification(d, PASTE);
+
+        const metric = d.spies.emit.mock.calls
+            .map((call) => call[0] as { name: string; dimensions?: Record<string, string> })
+            .find((m) => m.name === 'VerificationBudgetSpent');
+
+        expect(metric?.dimensions).toEqual({ CallSite: 'paste-match-review' });
+    });
+
+    it('PASTE: if the budget-spent write FAILS the handler throws, so the message retries (nothing was billed)', async () => {
+        const d = denied();
+        d.spies.recordBudgetSpent.mockRejectedValue(new Error('connection terminated'));
+
+        await expect(processVerification(d, PASTE)).rejects.toThrow('connection terminated');
+    });
+
+    it('⛔ GUARD, SAVE PATH: a recipe-origin review STILL throws on a ceiling denial, and records no budget fact', async () => {
+        const d = denied();
+
+        await expect(processVerification(d, RECIPE)).rejects.toThrow(/ceiling reached/u);
+        expect(d.spies.recordBudgetSpent).not.toHaveBeenCalled();
+        expect(d.spies.recordVerdict).not.toHaveBeenCalled();
+    });
+
+    it('⛔ GUARD, LEGACY SAVE PATH: a message with no origin (a producer before ADR-0071) is a recipe line and retries', async () => {
+        const d = denied();
+
+        await expect(processVerification(d, MESSAGE)).rejects.toThrow(/ceiling reached/u);
+        expect(d.spies.recordBudgetSpent).not.toHaveBeenCalled();
+    });
+
+    it('⛔ an UNREADABLE counter is transient on the paste path too: it throws and records nothing', async () => {
+        const d = deps({ stage: 'prod' });
+        d.spies.reserve.mockRejectedValue(new Error('connection terminated'));
+
+        await expect(processVerification(d, PASTE)).rejects.toThrow('connection terminated');
+        expect(d.spies.recordBudgetSpent).not.toHaveBeenCalled();
+    });
+
+    it('an UNGATED stage never reserves, so it never records budget spent', async () => {
+        const d = deps({ stage: 'sandbox' });
+        await processVerification(d, PASTE);
+
+        expect(d.spies.reserve).not.toHaveBeenCalled();
+        expect(d.spies.recordBudgetSpent).not.toHaveBeenCalled();
+        expect(d.spies.recordVerdict).toHaveBeenCalledTimes(1);
+    });
+});
+
 describe('outcomes that must NOT spend', () => {
     it('does not call the provider when the ceiling denies the reservation', async () => {
         const d = deps();
@@ -980,6 +1122,28 @@ describe('a line whose measure was RESTATED', () => {
         expect(userTurn(d.spies)).not.toContain('cup');
     });
 
+    it.each([
+        ['a root line', MESSAGE],
+        ['a restated line', RESTATED],
+        ['a variant line', { ...MESSAGE, foodId: undefined, foodVariantId: '01JVARIANT0000000000000000' }],
+    ])(
+        '⛔ claims and writes %s under recipe-core’s key for the message — the key the producer stored',
+        async (_l, m) => {
+            // ADR-0071: the paste matcher stores the key of the exact message it sends, derived the same way. A second,
+            // inline derivation here could drift from it, and the job view would never find the verdict.
+            const d = deps();
+            await processVerification(d, m);
+
+            const expected = verificationKey(
+                verifiedLineIdentityOfMessage(verifyIngredientLineMessageSchema.parse(m)),
+                (input) => createHash('sha256').update(input).digest('hex'),
+            );
+
+            expect(d.spies.claimVerification.mock.calls[0]?.[0]).toBe(expected);
+            expect(d.spies.recordVerdict.mock.calls[0]?.[0]?.verificationKey).toBe(expected);
+        },
+    );
+
     it('keys the verdict on a DIFFERENT identity than the same line un-restated', async () => {
         const restated = deps();
         await processVerification(restated, RESTATED);
@@ -1002,14 +1166,67 @@ describe('a line whose measure was RESTATED', () => {
     });
 });
 
-describe('band feedback (plan U3)', () => {
-    it('reports the TERMINAL verdict to the band store, after the verdict is recorded', async () => {
+/**
+ * Band feedback (plan U3), ONLY from the band the message names (ADR-0071: the band subsystem is DORMANT BY DECISION).
+ *
+ * Rewritten: these cases used to prove that every ranked recipe verdict reached the band store, which then looked the
+ * band up from the food's latest lexical resolution event, a row every cook shares. One cook's verdict moved a band
+ * another cook was ranked in. They now prove the opposite default: no key on the message, no observation, no read.
+ */
+/**
+ * The claim answers `already-verified` only for a verdict that asked every aspect this delivery asks (ADR-0071, item 7).
+ * A quantity-only verdict under the same key says nothing about the food; trusting it would leave a line whose identity
+ * is owed a review un-asked forever.
+ */
+describe('the claim names the aspects this delivery asks', () => {
+    it('passes the decision’s aspects to the claim', async () => {
         const d = deps();
         await processVerification(d, MESSAGE);
 
+        expect(d.spies.claimVerification).toHaveBeenCalledWith(expect.any(String), 'amazon.nova-micro-v1:0', 60, [
+            'identity',
+            'quantity',
+        ]);
+    });
+});
+
+describe('band feedback (plan U3) — only from the band the message names', () => {
+    it('⛔ an unattributed, recipe-origin, identity-verified verdict writes no band observation and reads no authority', async () => {
+        const d = deps();
+        await processVerification(d, { ...MESSAGE, evidenceKind: 'unattributed', shortlist: [] });
+
+        expect(d.spies.recordVerdict.mock.calls[0]?.[0]).toMatchObject({
+            band: 'verified',
+            aspects: expect.arrayContaining(['identity']),
+        });
+        expect(d.spies.bandRecord).not.toHaveBeenCalled();
+        expect(d.spies.bandAuthority).not.toHaveBeenCalled();
+    });
+
+    it('⛔ a ranked message that names no band feeds nothing and reads nothing', async () => {
+        const d = deps();
+        await processVerification(d, MESSAGE);
+
+        expect(bandRecorded(d.spies)).toBe('verified');
+        expect(d.spies.bandRecord).not.toHaveBeenCalled();
+        expect(d.spies.bandAuthority).not.toHaveBeenCalled();
+    });
+
+    it('⛔ a band key on a non-ranked message feeds nothing: the key describes a ranking that did not happen', async () => {
+        const d = deps();
+        await processVerification(d, { ...BANDED, evidenceKind: 'unattributed', shortlist: [] });
+
+        expect(d.spies.bandRecord).not.toHaveBeenCalled();
+        expect(d.spies.bandAuthority).not.toHaveBeenCalled();
+    });
+
+    it('reports the TERMINAL verdict under the message’s own band, after the verdict is recorded', async () => {
+        const d = deps();
+        await processVerification(d, BANDED);
+
         expect(d.spies.bandRecord).toHaveBeenCalledWith(
             expect.objectContaining({
-                food: { kind: 'root', id: MESSAGE.foodId },
+                bandKey: BAND_KEY,
                 band: 'verified',
                 aspects: expect.arrayContaining(['identity']),
             }),
@@ -1023,7 +1240,7 @@ describe('band feedback (plan U3)', () => {
         const d = deps();
         d.spies.bandRecord.mockRejectedValue(new Error('band store down'));
 
-        await expect(processVerification(d, MESSAGE)).resolves.toBeUndefined();
+        await expect(processVerification(d, BANDED)).resolves.toBeUndefined();
     });
 
     it('an unreadable answer reports inconclusive — which the mapping discards as absence', async () => {
@@ -1034,7 +1251,7 @@ describe('band feedback (plan U3)', () => {
             stopReason: 'end_turn',
             usage: { inputTokens: 660, outputTokens: 42, totalTokens: 702 },
         });
-        await processVerification(d, MESSAGE);
+        await processVerification(d, BANDED);
 
         expect(d.spies.bandRecord).toHaveBeenCalledWith(expect.objectContaining({ band: 'inconclusive' }));
     });
@@ -1060,18 +1277,18 @@ describe('band authority at the worker (plan U4b, KTD-A)', () => {
         },
     ];
 
-    it('reads its OWN authority — never the message — and an authorized band narrows to quantity', async () => {
+    it('reads its OWN authority for the band the message named, and an authorized band narrows to quantity', async () => {
         const d = deps();
         d.spies.bandAuthority.mockResolvedValue({ state: 'authorized', epoch: 1 });
-        await processVerification(d, { ...MESSAGE, shortlist: AGREEING });
+        await processVerification(d, { ...BANDED, shortlist: AGREEING });
 
-        expect(d.spies.bandAuthority).toHaveBeenCalledWith({ kind: 'root', id: MESSAGE.foodId });
+        expect(d.spies.bandAuthority).toHaveBeenCalledWith(BAND_KEY);
         expect(d.spies.recordVerdict.mock.calls[0]?.[0]?.aspects).toEqual(['quantity']);
     });
 
     it('day one — no authority — a ranked line asks identity and quantity', async () => {
         const d = deps();
-        await processVerification(d, { ...MESSAGE, shortlist: AGREEING });
+        await processVerification(d, { ...BANDED, shortlist: AGREEING });
 
         expect(d.spies.recordVerdict.mock.calls[0]?.[0]?.aspects).toEqual(
             expect.arrayContaining(['identity', 'quantity']),
@@ -1081,7 +1298,7 @@ describe('band authority at the worker (plan U4b, KTD-A)', () => {
     it('⛔ a SHADOW-sampled message never consults authority — the coin already decided to ask', async () => {
         const d = deps();
         d.spies.bandAuthority.mockResolvedValue({ state: 'authorized', epoch: 1 });
-        await processVerification(d, { ...MESSAGE, shortlist: AGREEING, shadowSample: true });
+        await processVerification(d, { ...BANDED, shortlist: AGREEING, shadowSample: true });
 
         expect(d.spies.bandAuthority).not.toHaveBeenCalled();
         expect(d.spies.recordVerdict.mock.calls[0]?.[0]?.aspects).toEqual(
@@ -1094,7 +1311,7 @@ describe('band authority at the worker (plan U4b, KTD-A)', () => {
         const d = deps();
         d.spies.bandAuthority.mockRejectedValue(new Error('band table unreachable'));
 
-        await expect(processVerification(d, { ...MESSAGE, shortlist: AGREEING })).resolves.toBeUndefined();
+        await expect(processVerification(d, { ...BANDED, shortlist: AGREEING })).resolves.toBeUndefined();
         expect(d.spies.recordVerdict.mock.calls[0]?.[0]?.aspects).toEqual(
             expect.arrayContaining(['identity', 'quantity']),
         );
@@ -1111,9 +1328,9 @@ describe('U11/R20 — private-food and author-augmented lines stay OUT of the sh
         expect(d.spies.rememberAgreement).not.toHaveBeenCalled();
     });
 
-    it('a privateFood message feeds NO band observation and consults NO authority', async () => {
+    it('a privateFood message feeds NO band observation and consults NO authority, even naming a band', async () => {
         const d = deps();
-        await processVerification(d, { ...MESSAGE, privateFood: true });
+        await processVerification(d, { ...BANDED, privateFood: true });
 
         expect(d.spies.bandRecord).not.toHaveBeenCalled();
         expect(d.spies.bandAuthority).not.toHaveBeenCalled();
@@ -1121,7 +1338,7 @@ describe('U11/R20 — private-food and author-augmented lines stay OUT of the sh
 
     it('an authorAugmented message feeds NO band observation — but the memo is NOT its concern', async () => {
         const d = deps();
-        await processVerification(d, { ...MESSAGE, authorAugmented: true });
+        await processVerification(d, { ...BANDED, authorAugmented: true });
 
         expect(d.spies.bandRecord).not.toHaveBeenCalled();
         expect(d.spies.bandAuthority).not.toHaveBeenCalled();
@@ -1138,7 +1355,7 @@ describe('U11/R20 — private-food and author-augmented lines stay OUT of the sh
             stopReason: 'end_turn',
             usage: { inputTokens: 660, outputTokens: 42, totalTokens: 702 },
         });
-        await processVerification(d, { ...MESSAGE, privateFood: true });
+        await processVerification(d, { ...BANDED, privateFood: true });
 
         expect(d.spies.bandRecord).not.toHaveBeenCalled();
     });
@@ -1231,15 +1448,12 @@ describe('a VARIANT-bound line (curated U9)', () => {
         expect(d.spies.rememberAgreement).toHaveBeenCalledWith(
             expect.objectContaining({ food: { kind: 'variant', id: VARIANT_ID } }),
         );
-        expect(d.spies.bandRecord).toHaveBeenCalledWith(
-            expect.objectContaining({ food: { kind: 'variant', id: VARIANT_ID } }),
-        );
     });
 
     it('⛔ always asks identity on ranked evidence, even under an AUTHORIZED band — the shortlist ranked roots', async () => {
         const d = deps();
         d.spies.bandAuthority.mockResolvedValue({ state: 'authorized', epoch: 1 });
-        await processVerification(d, { ...variantMessage, shortlist: AGREEING });
+        await processVerification(d, { ...variantMessage, bandKey: BAND_KEY, shortlist: AGREEING });
 
         expect(d.spies.recordVerdict.mock.calls[0]?.[0]?.aspects).toEqual(['identity', 'quantity']);
     });
@@ -1247,8 +1461,245 @@ describe('a VARIANT-bound line (curated U9)', () => {
     it('the same message as a ROOT narrows to quantity — the positive control', async () => {
         const d = deps();
         d.spies.bandAuthority.mockResolvedValue({ state: 'authorized', epoch: 1 });
-        await processVerification(d, { ...MESSAGE, shortlist: AGREEING });
+        await processVerification(d, { ...BANDED, shortlist: AGREEING });
 
         expect(d.spies.recordVerdict.mock.calls[0]?.[0]?.aspects).toEqual(['quantity']);
+    });
+});
+
+/**
+ * A line of a PASTE JOB the cook has not saved yet (ADR-0071) — the gate judging a match recipe-service PROPOSED.
+ *
+ * ⛔ FOUR RULES, each of which the recipe-origin path does the opposite of, so every case below has a control:
+ *
+ *  - **Identity is always asked** (owner ruling 2026-10-25: "the review LLM checks every paste-import match"). Neither
+ *    an earned band nor a curated mapping excuses it, and the worker does not even READ band authority.
+ *  - **No band observation.** A paste message names no band (`bandKey`), and the worker never looks one up, so
+ *    nothing is observed (ADR-0071: the band subsystem is dormant by decision).
+ *  - **No memo.** The message does not say whether the proposal came from the `default` rung, and a memo of
+ *    `salt → table salt` would make the next pasted `salt` an exact-memo match — a CONFIDENT bind of a default,
+ *    which the owner's rule forbids. A memo is shared across every cook, so this fails closed.
+ *  - **Its spend is attributed to `paste-match-review`**, in the one pool.
+ *
+ * The verdict itself lands exactly as a recipe line's does, under the same content key — which is what lets the
+ * save path read it back instead of paying for the same judgement twice.
+ */
+describe('a paste-job origin (ADR-0071)', () => {
+    const { recipeId: _legacy, ...CONTENT } = MESSAGE;
+    const PASTE = {
+        ...CONTENT,
+        origin: {
+            kind: 'parseJob' as const,
+            jobId: '6f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b',
+            lineIndex: 3,
+            foodIndex: 1,
+        },
+    };
+    const RECIPE = { ...CONTENT, origin: { kind: 'recipe' as const, recipeId: MESSAGE.recipeId } };
+
+    /** A shortlist that opens the ranked door when a band is authorized: a wide margin and agreeing nutrients. */
+    const WIDE_AGREEING = [
+        { foodId: MESSAGE.foodId, score: 0.95, energyKcalPer100g: 364, proteinGPer100g: 10, fatGPer100g: 1 },
+        {
+            foodId: '01JFOOD000000000000000001',
+            score: 0.1,
+            energyKcalPer100g: 364,
+            proteinGPer100g: 10,
+            fatGPer100g: 1,
+        },
+    ].map((candidate) => ({ ...candidate, carbohydrateGPer100g: 76 }));
+
+    const answering = (text: string): typeof ANSWERED => ({ ...ANSWERED, text });
+
+    describe('the verdict', () => {
+        it.each([
+            ['verified', '{"verdict":"agree","certainty":"high","reason":"matches"}', 'verified'],
+            ['contradicted', '{"verdict":"disagree","certainty":"high","reason":"a different food"}', 'contradicted'],
+            ['abstained', '{"verdict":"abstain","certainty":"high","reason":"cannot tell"}', 'inconclusive'],
+            ['unreadable', 'not json at all', 'inconclusive'],
+        ])(
+            'a %s answer records its band, asked about identity, and NO band observation',
+            async (_label, text, band) => {
+                const d = deps();
+                d.spies.converse.mockResolvedValue(answering(text));
+
+                await processVerification(d, PASTE);
+
+                expect(d.spies.recordVerdict).toHaveBeenCalledTimes(1);
+                expect(d.spies.recordVerdict.mock.calls[0]?.[0]).toMatchObject({
+                    band,
+                    food: { kind: 'root', id: MESSAGE.foodId },
+                    aspects: ['identity', 'quantity'],
+                });
+                expect(d.spies.bandRecord).not.toHaveBeenCalled();
+            },
+        );
+
+        it('the control: a RECIPE origin naming its own band does report to the band store', async () => {
+            const d = deps();
+
+            await processVerification(d, { ...RECIPE, bandKey: BAND_KEY });
+
+            expect(d.spies.bandRecord).toHaveBeenCalledTimes(1);
+        });
+
+        it('⛔ lands under the SAME key a recipe line with the same content claims — the key is content', async () => {
+            const paste = deps();
+            const recipe = deps();
+
+            await processVerification(paste, PASTE);
+            await processVerification(recipe, RECIPE);
+
+            const pasteKey = paste.spies.claimVerification.mock.calls[0]?.[0] as string;
+
+            expect(pasteKey).toMatch(/\S/u);
+            expect(pasteKey).toBe(recipe.spies.claimVerification.mock.calls[0]?.[0]);
+            expect(paste.spies.recordVerdict.mock.calls[0]?.[0]?.verificationKey).toBe(pasteKey);
+        });
+    });
+
+    describe('identity is never excused', () => {
+        it('⛔ asks identity on CURATED evidence, which a recipe line is excused on', async () => {
+            const paste = deps();
+            const recipe = deps();
+
+            await processVerification(paste, { ...PASTE, evidenceKind: 'curated-exact', shortlist: [] });
+            await processVerification(recipe, { ...RECIPE, evidenceKind: 'curated-exact', shortlist: [] });
+
+            expect(paste.spies.recordVerdict.mock.calls[0]?.[0]?.aspects).toEqual(['identity', 'quantity']);
+            expect(recipe.spies.recordVerdict.mock.calls[0]?.[0]?.aspects).toEqual(['quantity']);
+        });
+
+        it('⛔ never READS band authority, and asks identity where an authorized band excuses a recipe line', async () => {
+            const paste = deps();
+            const recipe = deps();
+            paste.spies.bandAuthority.mockResolvedValue({ state: 'authorized', epoch: 1 });
+            recipe.spies.bandAuthority.mockResolvedValue({ state: 'authorized', epoch: 1 });
+
+            await processVerification(paste, { ...PASTE, bandKey: BAND_KEY, shortlist: WIDE_AGREEING });
+            await processVerification(recipe, { ...RECIPE, bandKey: BAND_KEY, shortlist: WIDE_AGREEING });
+
+            expect(paste.spies.bandAuthority).not.toHaveBeenCalled();
+            expect(paste.spies.recordVerdict.mock.calls[0]?.[0]?.aspects).toEqual(['identity', 'quantity']);
+            expect(recipe.spies.recordVerdict.mock.calls[0]?.[0]?.aspects).toEqual(['quantity']);
+        });
+
+        it('shows the model the identity question — the prompt, not only the recorded aspects', async () => {
+            const paste = deps();
+            const recipe = deps();
+
+            await processVerification(paste, { ...PASTE, evidenceKind: 'curated-exact', shortlist: [] });
+            await processVerification(recipe, { ...RECIPE, evidenceKind: 'curated-exact', shortlist: [] });
+
+            const promptOf = (d: ReturnType<typeof deps>): string =>
+                String((d.spies.converse.mock.calls[0]?.[0] as { userMessage?: string } | undefined)?.userMessage);
+
+            expect(promptOf(paste)).not.toBe(promptOf(recipe));
+        });
+    });
+
+    describe('the memo', () => {
+        it('⛔ writes NO memo on a verified identity — the message cannot say the proposal was not a default', async () => {
+            const d = deps();
+
+            await processVerification(d, PASTE);
+
+            expect(d.spies.recordVerdict.mock.calls[0]?.[0]?.band).toBe('verified');
+            expect(d.spies.rememberAgreement).not.toHaveBeenCalled();
+        });
+
+        it('the control: the same verified recipe line DOES remember the phrase', async () => {
+            const d = deps();
+
+            await processVerification(d, RECIPE);
+
+            expect(d.spies.rememberAgreement).toHaveBeenCalledWith(
+                expect.objectContaining({ phrase: MESSAGE.ingredientPhrase }),
+            );
+        });
+    });
+
+    describe('the call site', () => {
+        const callSitesOf = (d: ReturnType<typeof deps>, name: string): unknown[] =>
+            d.spies.emit.mock.calls
+                .map((call) => call[0] as EmfMetric)
+                .filter((metric) => metric.name === name)
+                .map((metric) => metric.dimensions?.CallSite);
+
+        it.each(['prod', 'sandbox'])("attributes the %s spend to 'paste-match-review'", async (stage) => {
+            const d = deps({ stage });
+
+            await processVerification(d, PASTE);
+
+            expect(callSitesOf(d, 'VerificationSpendMicros')).toEqual(['paste-match-review']);
+        });
+
+        it("attributes the over-bound detector to 'paste-match-review'", async () => {
+            const d = deps();
+            d.spies.converse.mockResolvedValue({
+                ...ANSWERED,
+                usage: { inputTokens: 9_000, outputTokens: 42, totalTokens: 9_042 },
+            });
+
+            await processVerification(d, PASTE);
+
+            expect(callSitesOf(d, INPUT_BOUND_EXCEEDED_METRIC_NAME)).toEqual(['paste-match-review']);
+        });
+
+        it("attributes a residency refusal to 'paste-match-review'", async () => {
+            const d = deps({ registry: UNWARRANTED_REGISTRY });
+            d.settings.resolve = vi.fn().mockResolvedValue({ ...SETTINGS, modelId: UNWARRANTED_MODEL_ID });
+
+            await processVerification(d, PASTE);
+
+            expect(callSitesOf(d, RESIDENCY_REFUSED_METRIC_NAME)).toEqual(['paste-match-review']);
+        });
+
+        it("keeps a recipe origin on 'verification-gate' — and changes no reservation", async () => {
+            const paste = deps({ stage: 'prod' });
+            const recipe = deps({ stage: 'prod' });
+
+            await processVerification(paste, PASTE);
+            await processVerification(recipe, RECIPE);
+
+            expect(callSitesOf(recipe, 'VerificationSpendMicros')).toEqual(['verification-gate']);
+            // ⛔ One pool: the plan the ceiling is reserved against does not learn who asked.
+            expect(paste.spies.reserve.mock.calls[0]?.[0]).toEqual(recipe.spies.reserve.mock.calls[0]?.[0]);
+        });
+    });
+});
+
+/**
+ * The LEGACY spelling — a message from a producer that predates `origin` and carries only `recipeId`. Workers deploy
+ * before the service, so the queue holds these. It must be read as exactly the recipe origin it means: every side
+ * effect identical, call for call.
+ */
+describe('a legacy recipeId message', () => {
+    it('behaves exactly like the same line sent with a recipe origin', async () => {
+        const { recipeId, ...content } = MESSAGE;
+        const legacy = deps();
+        const modern = deps();
+
+        await processVerification(legacy, BANDED);
+        await processVerification(modern, { ...content, bandKey: BAND_KEY, origin: { kind: 'recipe', recipeId } });
+
+        for (const spy of [
+            'claimVerification',
+            'reserve',
+            'recordVerdict',
+            'rememberAgreement',
+            'bandRecord',
+            'bandAuthority',
+            'emit',
+        ] as const) {
+            expect(legacy.spies[spy].mock.calls, spy).toEqual(modern.spies[spy].mock.calls);
+        }
+
+        expect(legacy.spies.bandRecord).toHaveBeenCalledTimes(1);
+        expect(
+            legacy.spies.emit.mock.calls
+                .map((call) => call[0] as EmfMetric)
+                .find((metric) => metric.name === 'VerificationSpendMicros')?.dimensions,
+        ).toEqual({ CallSite: 'verification-gate' });
     });
 });

@@ -3,10 +3,8 @@
  * (presentational). Mirrors `ViewSaveFailedNotice.tsx`: the view has already gone back to what it was, and this says so.
  */
 import { useMessages } from '@commise/i18n/react';
-import { nativeTokens } from '@commise/ui/native';
-import { useTheme } from '@commise/ui/theme';
+import { Text } from '@commise/ui/text';
 import type { FC } from 'react';
-import { StyleSheet, Text } from 'react-native';
 
 import { recipeMessages } from '../messages.js';
 
@@ -18,15 +16,10 @@ import { recipeMessages } from '../messages.js';
  */
 export const ViewSaveFailedNotice: FC = () => {
     const { list } = useMessages(recipeMessages);
-    const { colors } = useTheme();
 
     return (
-        <Text role="alert" style={[styles.text, { color: colors.dangerText }]}>
+        <Text role="alert" typeRole="meta" color="$dangerText" paddingHorizontal="$4">
             {list.viewSaveFailed}
         </Text>
     );
 };
-
-const styles = StyleSheet.create({
-    text: { ...nativeTokens.type.meta },
-});

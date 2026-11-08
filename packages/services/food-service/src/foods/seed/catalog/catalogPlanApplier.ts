@@ -64,6 +64,14 @@ interface StagedTable<Row> {
 const COPY_CHUNK_ROWS = 1_000;
 
 /**
+ * A staged root's `default_terms` (ADR-0070 §4) as the `text[]` the column holds, in seed order. The terms stage as
+ * their `JSON.stringify` text, because a COPY field carries no array: JSON's escaping is the standard one, where a
+ * hand-built `{…}` array literal would need its own quoting rules. Read off the staging alias `s`.
+ */
+const DEFAULT_TERMS_OF_STAGED = `ARRAY(SELECT term.value FROM jsonb_array_elements_text(s.default_terms)
+                                      WITH ORDINALITY AS term(value, position) ORDER BY term.position)`;
+
+/**
  * A staging table's definition. Pure.
  *
  * @param name - Its suffix.
@@ -120,9 +128,19 @@ const STAGED = {
             ['name', 'text'],
             ['normalized_name', 'text'],
             ['aliases', 'text'],
+            ['default_terms', 'jsonb'],
             ['restore', 'boolean'],
         ],
-        (row) => [row.id, row.seedKey, row.itemId, row.name, row.normalizedName, row.aliases, row.restore],
+        (row) => [
+            row.id,
+            row.seedKey,
+            row.itemId,
+            row.name,
+            row.normalizedName,
+            row.aliases,
+            JSON.stringify(row.defaultTerms),
+            row.restore,
+        ],
     ),
     root: stagedTable<Rows['rootInserts'][number]>(
         'root',
@@ -133,8 +151,17 @@ const STAGED = {
             ['name', 'text'],
             ['normalized_name', 'text'],
             ['aliases', 'text'],
+            ['default_terms', 'jsonb'],
         ],
-        (row) => [row.id, row.seedKey, row.itemId, row.name, row.normalizedName, row.aliases],
+        (row) => [
+            row.id,
+            row.seedKey,
+            row.itemId,
+            row.name,
+            row.normalizedName,
+            row.aliases,
+            JSON.stringify(row.defaultTerms),
+        ],
     ),
     variant: stagedTable<Rows['variantInserts'][number]>(
         'variant',
@@ -555,7 +582,8 @@ async function writeOwners(run: ApplyRun, set: CatalogWriteSet): Promise<void> {
         await run.run(
             'rootUpdate',
             `UPDATE public.food f
-                SET name = s.name, normalized_name = s.normalized_name, aliases = s.aliases, item_id = s.item_id,
+                SET name = s.name, normalized_name = s.normalized_name, aliases = s.aliases,
+                    default_terms = ${DEFAULT_TERMS_OF_STAGED}, item_id = s.item_id,
                     retired_at = CASE WHEN s.restore THEN NULL ELSE f.retired_at END, updated_at = now()
                FROM ${staged} s
               WHERE f.id = s.id AND f.seed_key = s.seed_key`,
@@ -580,10 +608,11 @@ async function writeOwners(run: ApplyRun, set: CatalogWriteSet): Promise<void> {
         STAGED.root,
         set.rootInserts,
         'rootInsert',
-        `INSERT INTO public.food (id, seed_key, item_id, name, normalized_name, aliases, status, kind, visibility)
-         SELECT id, seed_key, item_id, name, normalized_name, aliases,
+        `INSERT INTO public.food (id, seed_key, item_id, name, normalized_name, aliases, default_terms, status, kind,
+                                  visibility)
+         SELECT id, seed_key, item_id, name, normalized_name, aliases, ${DEFAULT_TERMS_OF_STAGED},
                 $1::public.food_status, $2::public.food_kind, $3::text
-           FROM ${stagingTable(STAGED.root)}`,
+           FROM ${stagingTable(STAGED.root)} s`,
         [SEEDED_ROOT_COLUMNS.status, SEEDED_ROOT_COLUMNS.kind, SEEDED_ROOT_COLUMNS.visibility],
     );
     await run.overIds(

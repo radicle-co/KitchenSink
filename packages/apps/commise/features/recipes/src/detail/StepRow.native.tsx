@@ -8,16 +8,23 @@
  * that is NOT an accessibility element, so a screen reader meets the text and the one button rather than a button
  * that swallows the text. The current step shows the 3 pt `hereBar` and fills its numeral with `action`.
  *
+ * The instruction and the timer are set by the design-system `Text` (ADR-0080), which turns system scaling off and draws
+ * the size and leading itself. This is the migration only: it did NOT change the iOS clip of step 11 (QA batch 4, device
+ * check at 08ae6ba75), whose cause is still open.
+ *
  * Presentational: props → JSX.
  */
 import { useMessages } from '@commise/i18n/react';
 import { Icon } from '@commise/ui/icon';
 import { nativeTokens } from '@commise/ui/native';
 import { useTheme } from '@commise/ui/theme';
+import { touchFloor } from '@commise/ui/layout';
+import { Text as DesignText } from '@commise/ui/text';
 import type { FC } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 
 import { fillTemplate } from '../format/fillTemplate.js';
+import { numeralDiscOf } from '../format/numeralDisc.js';
 import { recipeMessages } from '../messages.js';
 import type { StepRowProps } from './cookRowProps.js';
 import { stepTimerLabel } from './model.js';
@@ -26,6 +33,8 @@ import { stepTimerLabel } from './model.js';
 export const StepRow: FC<StepRowProps> = ({ step, current, onToggle }) => {
     const { detail, duration } = useMessages(recipeMessages);
     const { colors } = useTheme();
+    // The numeral caps at 1.5x and its circle grows with it (designer ruling 2026-11-03).
+    const disc = numeralDiscOf('caption', useWindowDimensions().fontScale);
     const timer = stepTimerLabel(step.timerSeconds, detail.stepTimer, duration);
 
     return (
@@ -39,18 +48,32 @@ export const StepRow: FC<StepRowProps> = ({ step, current, onToggle }) => {
                 onPress={() => onToggle(step.stepNumber)}
                 style={styles.toggle}
             >
-                <View style={[styles.numeral, { backgroundColor: current ? colors.action : colors.selectedFill }]}>
-                    <Text style={[styles.numeralText, { color: current ? colors.onAction : colors.ink }]}>
+                <View
+                    style={[
+                        styles.numeral,
+                        {
+                            minWidth: disc,
+                            minHeight: disc,
+                            borderRadius: disc / 2,
+                            backgroundColor: current ? colors.action : colors.selectedFill,
+                        },
+                    ]}
+                >
+                    <DesignText typeRole="caption" chromeCap="1.5" figures color={current ? '$onAction' : '$ink'}>
                         {step.stepNumber}
-                    </Text>
+                    </DesignText>
                 </View>
             </Pressable>
             <View style={styles.body}>
-                <Text style={[styles.text, { color: colors.ink }]}>{step.instruction}</Text>
+                <DesignText typeRole="readingBody" color="$ink">
+                    {step.instruction}
+                </DesignText>
                 {timer !== undefined && (
                     <View style={[styles.timer, { backgroundColor: colors.surfaceMuted }]}>
                         <Icon name="timer" size={16} label={detail.stepTimerIcon} />
-                        <Text style={[styles.timerText, { color: colors.ink }]}>{timer}</Text>
+                        <DesignText typeRole="meta" color="$ink">
+                            {timer}
+                        </DesignText>
                     </View>
                 )}
             </View>
@@ -65,12 +88,10 @@ const styles = StyleSheet.create({
         gap: nativeTokens.spacing[3],
         paddingStart: nativeTokens.spacing[3],
     },
-    hereBar: { position: 'absolute', top: 0, bottom: 0, start: 0, width: 3, borderRadius: 2 },
-    toggle: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
-    numeral: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
-    numeralText: { ...nativeTokens.type.label, fontVariant: ['tabular-nums', 'lining-nums'] },
+    hereBar: { position: 'absolute', top: 0, bottom: 0, start: 0, width: 3, borderRadius: nativeTokens.radius.full },
+    toggle: { width: touchFloor(), height: touchFloor(), alignItems: 'center', justifyContent: 'center' },
+    numeral: { alignItems: 'center', justifyContent: 'center' },
     body: { flex: 1, minWidth: 0, gap: nativeTokens.spacing[2], paddingTop: nativeTokens.spacing[2] },
-    text: { ...nativeTokens.type.readingBody },
     timer: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -80,5 +101,4 @@ const styles = StyleSheet.create({
         paddingHorizontal: nativeTokens.spacing[2],
         paddingVertical: 2,
     },
-    timerText: { ...nativeTokens.type.meta },
 });

@@ -3,6 +3,7 @@ import { expect, test } from '@playwright/test';
 import { route } from './utils/basePath';
 import { makeRecipeDetail, mockRecipeApi, readViewerAppId } from './utils/recipeApi';
 import { signInWithTicket } from './utils/auth';
+import { paragraphWith } from './utils/pasteList';
 import { editorSection, openNewRecipe } from './utils/recipeEditor';
 
 /**
@@ -11,7 +12,12 @@ import { editorSection, openNewRecipe } from './utils/recipeEditor';
  * `parseIngredients.spec.ts`: the paste page and its review page are retired, and the flow ends inside the recipe.
  *
  * What only this tier proves: the POLL advances the rows on its own (the mock answers `running` once, then settles), the
- * pasted lines join the draft through the real lookup, and the recipe's CREATE carries what each line was read from.
+ * pasted lines are MATCHED (ADR-0071) and join the draft, and the recipe's CREATE carries what each line was read from.
+ *
+ * ⛔ REWRITTEN for ADR-0071 (2026-10-26). The lines used to join through `POST /ingredients/by-name`, which bound a ranked
+ * guess (milk crackers for milk); that route is never called now, and a line the service cannot match joins AS WRITTEN
+ * and asks the cook. The matched-list cases (confident, choosing, checking, the pane, publishing) are in the
+ * `pasteMatch*.spec.ts` files; what stays here is the reading phase and the cook's way out of a stalled paste.
  * Since plan 2026-10-15-011 it also proves the live statuses: each row says what the server reports its line is doing,
  * one progress block says where the paste is, and a paste the server calls stalled waits on the cook (no time limit)
  * until Add the rest as written joins it.
@@ -54,9 +60,12 @@ for (const colorScheme of SCHEMES) {
             await expect(pasted.getByRole('listitem').filter({ hasText: '2 cups flour' })).toBeVisible();
             await expect(ingredients.getByText('Added 0 of 2 lines')).toBeVisible();
 
-            // ⛔ THE POLL, not a click: nothing below touches the page.
+            // ⛔ THE POLL, not a click: nothing below touches the page. The service finds no food for either line (the mock
+            // names no match), so both join AS WRITTEN and ask the cook; nothing is chosen for them.
             await expect(pasted).toHaveCount(0, { timeout: POLL_SETTLE_TIMEOUT_MS });
             await expect(page.getByRole('status').filter({ hasText: 'Added 2 ingredients.' })).toHaveCount(1);
+            await expect(paragraphWith(ingredients, 'Added 2 lines')).toBeVisible();
+            await expect(paragraphWith(ingredients, /2 to choose/u)).toBeVisible();
             // Paste is offered once more, now in the section's heading row.
             await expect(ingredients.getByRole('button', { name: 'Paste a list' })).toBeVisible();
         });
@@ -75,6 +84,7 @@ for (const colorScheme of SCHEMES) {
             await expect(page.getByRole('status').filter({ hasText: 'Added 1 ingredient.' })).toHaveCount(1, {
                 timeout: POLL_SETTLE_TIMEOUT_MS,
             });
+            await expect(paragraphWith(ingredients, 'No food found for this').first()).toBeVisible();
 
             // The recipe has no server row yet: its first checkpoint after a title (a section change, A3) creates it.
             const created = page.waitForRequest(

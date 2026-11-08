@@ -1,0 +1,1064 @@
+/**
+ * `MatchProposalService` — the paste matcher's orchestration (ADR-0071), against fakes for every port.
+ *
+ * What each case guards, and the failure it is written against:
+ *
+ *  - **Owner-only, live jobs.** A stranger's job is one 404 with an absent one; an expired job is a 409, like retry.
+ *  - **Proposals, never binds, as the cook.** The chain runs AS the caller and its answer is stored as a proposal. The
+ *    lexical shortlist runs for EVERY proposal, because the candidates and the "a default applies" fact come from it.
+ *  - **An outage is never stored as "no match".** A tier that could not look, a food service that could not be asked,
+ *    or a switched-off catalog writes no row, so the next call retries; a stored no-match is never recomputed.
+ *  - **One message per proposal, paid once.** The verdict key equals what the save path computes for a kept line; a
+ *    verdict already on record, or a row already sent, sends nothing; a send is claimed, and a failed one released.
+ *  - **The work is bounded.** A long paste is matched over several calls, never in one unbounded request.
+ */
+import { describe, expect, it, vi } from 'vitest';
+
+import { lineDigest, parseStoredLineDigest } from '@kitchensink/recipe-core/parsing/parse-key';
+import { verificationDeliveryBoundSeconds } from '@kitchensink/recipe-core/resolution/verification-delivery';
+import { verificationKey } from '@kitchensink/recipe-core/resolution/verification-key';
+import { verifiedLineIdentityOfMessage } from '@kitchensink/recipe-core/resolution/verification-message';
+
+import { CallerToken } from '../../auth/CallerToken.js';
+import type { Principal } from '../../auth/principal.js';
+import { isDeadlineExceededError } from '../../common/boundedBy.js';
+import { sha256Hex } from '../../common/sha256.js';
+import type { FoodRef } from '../../database/schema/foodLookupArm.js';
+import type { FoodRefAnswer } from '../../ingredients/domain/foodRefAnswer.js';
+import { canonicalIngredientName } from '../../ingredients/domain/ingredientName.js';
+import type { FoodRefsGateway } from '../../ingredients/foodRefs.gateway.js';
+import type { RankedCandidate, ResolutionTier } from '../../ingredients/resolution/resolutionCascade.js';
+import { fakeLineVerificationsDal } from '../__fixtures__/lineVerificationsDal.fixture.js';
+import {
+    inMemoryParseJobMatches,
+    makeParseJobLine,
+    makeParseJobRecord,
+    makeStoredProposal,
+} from '../__fixtures__/parseJobMatches.fixture.js';
+import { fakeVerificationQueue } from '../__fixtures__/verificationQueue.fixture.js';
+import type { LineVerificationsDal } from '../dal/lineVerifications.dal.js';
+import { matchJudgementDigestOf } from '../domain/matchProposal.js';
+import { MATCH_PROPOSE_DEADLINE_MS, MATCH_TAIL_MS, MAX_MATCH_SEARCH_TIMEOUT_MS } from '../../config/matchBudget.js';
+import {
+    DEFAULT_MATCH_PROPOSAL_LIMITS,
+    emitUnmadeProposals,
+    MatchProposalService,
+    type MatchProposalLimits,
+    type UnmadeProposalsReport,
+} from '../matchProposal.service.js';
+import type { ParseJobRecord } from '../parseJobs.service.js';
+import { isRecipeDomainError } from '../recipe.error.js';
+
+const OWNER = '01JMATCHPROPOSALOWNER00001';
+/** The catalog's per-search timeout the suite runs under: the shipped default. */
+const SEARCH_TIMEOUT_MS = 600;
+const JOB = '9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d';
+const CALLER = CallerToken.fromAuthorizationHeader('Bearer cook-token');
+
+/** The verified cook, as the auth middleware hands it over. */
+const principal = (userId: string, overrides: Partial<Principal> = {}): Principal => ({
+    userId,
+    sub: `clerk_${userId}`,
+    scopes: [],
+    permissions: [],
+    roles: [],
+    principalKind: 'real',
+    containment: 'enforce',
+    ...overrides,
+});
+const COOK = principal(OWNER);
+
+/** What each tier holds for the phrase it is asked about. */
+interface World {
+    curated?: FoodRef;
+    memo?: FoodRef;
+    /** `'unavailable'` makes the lexical tier throw, as it does on a down catalog. */
+    lexical?: readonly RankedCandidate[] | 'unavailable';
+}
+
+/** Stub tiers in the proposal chain's order, reading `world` at call time. */
+function tiersOver(world: World) {
+    const curated = vi.fn(async (_query?: unknown, _context?: unknown) =>
+        world.curated === undefined
+            ? ({ kind: 'pass', tier: 'curated', reason: 'none' } as const)
+            : ({ kind: 'resolved', tier: 'curated', food: world.curated, evidence: 'curated' } as const),
+    );
+    const memo = vi.fn(async (_query?: unknown, _context?: unknown) =>
+        world.memo === undefined
+            ? ({ kind: 'pass', tier: 'memo', reason: 'none' } as const)
+            : ({ kind: 'resolved', tier: 'memo', food: world.memo, evidence: 'memo' } as const),
+    );
+    const lexical = vi.fn(async (_query?: unknown, _context?: unknown) => {
+        if (world.lexical === 'unavailable') {
+            throw new Error('catalog unavailable');
+        }
+
+        const [top] = world.lexical ?? [];
+
+        return top === undefined
+            ? ({ kind: 'pass', tier: 'lexical', reason: 'none' } as const)
+            : ({
+                  kind: 'resolved',
+                  tier: 'lexical',
+                  food: top.food,
+                  evidence: 'lexical',
+                  rung: top.rung,
+                  confidence: 0.2,
+                  candidates: world.lexical === undefined ? [] : [...world.lexical],
+              } as const);
+    });
+    const tiers: readonly ResolutionTier[] = [
+        { id: 'curated', resolve: curated },
+        { id: 'memo', resolve: memo },
+        { id: 'lexical', resolve: lexical },
+    ];
+
+    return { tiers, curated, memo, lexical };
+}
+
+/** A found answer naming a root, or a variant of `rootId`. */
+function found(name: string, rootId: string, variantId?: string, isPrivate = false): FoodRefAnswer {
+    return {
+        outcome: 'found',
+        name: canonicalIngredientName(name),
+        status: 'RESOLVED',
+        isPrivate,
+        rootId,
+        ...(variantId === undefined ? {} : { variant: { id: variantId, parts: [{ attribute: 'cut', text: 'flat' }] } }),
+    };
+}
+
+/** A found answer, narrowed, so a case can override one of its fields. */
+function foundRecord(name: string, rootId: string): Extract<FoodRefAnswer, { outcome: 'found' }> {
+    const answer = found(name, rootId);
+
+    if (answer.outcome !== 'found') {
+        throw new Error('unreachable');
+    }
+
+    return answer;
+}
+
+/** A refs gateway answering from a table; unlisted refs are `absent`. */
+function refsAnswering(answers: Record<string, FoodRefAnswer>) {
+    const resolve = vi.fn(
+        async (_caller: unknown, refs: readonly FoodRef[], _budget?: unknown, _options?: { signal?: AbortSignal }) => ({
+            answers: new Map(
+                refs.map((ref) => [`${ref.kind}:${ref.id}`, answers[`${ref.kind}:${ref.id}`] ?? { outcome: 'absent' }]),
+            ),
+            degraded: false,
+        }),
+    );
+
+    return { gateway: { resolve } as unknown as FoodRefsGateway, resolve };
+}
+
+const MILK_RANKED: readonly RankedCandidate[] = [
+    { food: { kind: 'root', id: 'F-whole' }, rung: 'head' },
+    { food: { kind: 'root', id: 'F-crackers' }, rung: 'tokenSet' },
+];
+
+interface Setup {
+    readonly job?: ParseJobRecord | undefined;
+    readonly world?: World;
+    readonly answers?: Record<string, FoodRefAnswer>;
+    readonly verdicts?: LineVerificationsDal;
+    readonly enabled?: boolean;
+    readonly limits?: MatchProposalLimits;
+}
+
+function setup(options: Setup = {}) {
+    const job = 'job' in options ? options.job : makeParseJobRecord();
+    // The store reads each line's digest NOW from the job record, so a suite that edits a line is seen as one.
+    const matches = inMemoryParseJobMatches(new Map([[JOB, OWNER]]), (_jobId, lineIndex) => {
+        const line = job?.lines.find((candidate) => candidate.lineIndex === lineIndex);
+
+        return line === undefined ? undefined : parseStoredLineDigest(line.lineDigest);
+    });
+    const chain = tiersOver(options.world ?? { lexical: MILK_RANKED });
+    const refs = refsAnswering(
+        options.answers ?? {
+            'root:F-whole': found('Milk, whole', 'F-whole'),
+            'root:F-crackers': found('Milk crackers', 'F-crackers'),
+        },
+    );
+    const queue = fakeVerificationQueue();
+    const getJob = vi.fn(async (ownerId: string) => (ownerId === OWNER ? job : undefined));
+    const service = new MatchProposalService(
+        { getJob },
+        matches,
+        chain.tiers,
+        { enabled: options.enabled ?? true, searchTimeoutMs: () => SEARCH_TIMEOUT_MS },
+        refs.gateway,
+        queue,
+        options.verdicts ?? fakeLineVerificationsDal(),
+        options.limits ?? DEFAULT_MATCH_PROPOSAL_LIMITS,
+        vi.fn(),
+    );
+
+    return { service, matches, chain, refs, queue, getJob };
+}
+
+/**
+ * The verdict key the save path computes for "2 cups whole milk" kept on `foodId`. The unit is the cook's word, `cups`
+ * from the parse's `statedMeasure`, because that is what the editor saves (`pastedLineRowOf`, ADR-0071).
+ */
+const milkKey = (foodId: string): string =>
+    verificationKey(
+        {
+            sourceLine: '2 cups whole milk',
+            foodRefId: foodId,
+            quantityLow: 2,
+            quantityHigh: null,
+            unit: 'cups',
+            statedMeasure: null,
+        },
+        sha256Hex,
+    );
+
+/** A stored, CURRENT row for the default job's one line: the judgement its parse yields now, its review owed. */
+function currentMilkRow() {
+    const digest = lineDigest('2 cups whole milk', sha256Hex);
+
+    return {
+        lineIndex: 0,
+        foodIndex: 0,
+        lineDigest: digest,
+        judgementDigest: matchJudgementDigestOf(
+            {
+                lineDigest: digest,
+                line: {
+                    sourceLine: '2 cups whole milk',
+                    quantity: { kind: 'exact', value: 2 },
+                    unit: 'cup',
+                    statedMeasure: '2 cups',
+                },
+                foodIndex: 0,
+                phrase: 'whole milk',
+            },
+            sha256Hex,
+        ),
+        proposal: { matchedBy: 'lexical', food: { kind: 'root', id: 'F-whole' }, rung: 'head', margin: 0.2 },
+        candidates: [{ kind: 'root', id: 'F-whole', rung: 'head' }],
+        verificationKey: milkKey('F-whole'),
+        review: 'owed',
+    } as const;
+}
+
+describe('MatchProposalService.propose — whose job, and which jobs', () => {
+    it('⛔ answers PARSE_JOB_NOT_FOUND for a stranger, and writes nothing', async () => {
+        const { service, matches, queue } = setup();
+
+        await expect(service.propose(principal('01JSTRANGER0000000000000001'), CALLER, JOB)).rejects.toSatisfy(
+            (error) => isRecipeDomainError(error) && error.code === 'PARSE_JOB_NOT_FOUND',
+        );
+        expect(matches.rows.size).toBe(0);
+        expect(queue.enqueue).not.toHaveBeenCalled();
+    });
+
+    it('⛔ answers PARSE_JOB_EXPIRED once the TTL passed', async () => {
+        const { service, matches } = setup({ job: makeParseJobRecord({ expiresAt: new Date(Date.now() - 1_000) }) });
+
+        await expect(service.propose(COOK, CALLER, JOB)).rejects.toSatisfy(
+            (error) => isRecipeDomainError(error) && error.code === 'PARSE_JOB_EXPIRED',
+        );
+        expect(matches.rows.size).toBe(0);
+    });
+
+    it('matches only PARSED lines with a proposal — pending, withdrawn and unparseable lines wait or are done', async () => {
+        const { service, matches } = setup({
+            job: makeParseJobRecord({
+                lines: [
+                    makeParseJobLine({ lineIndex: 0, status: 'pending', proposal: null }),
+                    makeParseJobLine({ lineIndex: 1, status: 'withdrawn', proposal: null }),
+                    makeParseJobLine({ lineIndex: 2, status: 'unparseable', proposal: null }),
+                ],
+            }),
+        });
+
+        await service.propose(COOK, CALLER, JOB);
+
+        expect(matches.rows.size).toBe(0);
+    });
+
+    it('⛔ proposes NOTHING while the operator has the catalog switched off — a no-match then would stick', async () => {
+        const { service, matches, chain } = setup({ enabled: false });
+
+        await service.propose(COOK, CALLER, JOB);
+
+        expect(matches.rows.size).toBe(0);
+        expect(chain.curated).not.toHaveBeenCalled();
+    });
+});
+
+describe('MatchProposalService.propose — the proposal and its message', () => {
+    it('stores the lexical proposal with its candidates, and sends ONE parse-job verification', async () => {
+        const { service, matches, queue, chain } = setup();
+
+        await service.propose(COOK, CALLER, JOB);
+
+        // AS the cook: the chain gets the caller and the owner.
+        expect(chain.lexical).toHaveBeenCalledWith(expect.objectContaining({ phrase: 'whole milk' }), {
+            userId: OWNER,
+            caller: CALLER,
+            signal: expect.any(AbortSignal),
+        });
+        const [row] = matches.rows.values();
+
+        expect(row).toMatchObject({
+            lineIndex: 0,
+            foodIndex: 0,
+            // The line's stored digest, carried onto the row so a later edit is seen as stale.
+            lineDigest: lineDigest('2 cups whole milk', sha256Hex),
+            proposal: { matchedBy: 'lexical', food: { kind: 'root', id: 'F-whole' }, rung: 'head', margin: 0.2 },
+            candidates: [
+                { kind: 'root', id: 'F-whole', rung: 'head' },
+                { kind: 'root', id: 'F-crackers', rung: 'tokenSet' },
+            ],
+            verificationKey: milkKey('F-whole'),
+        });
+        expect(row?.enqueuedAt).not.toBeNull();
+        expect(queue.enqueue).toHaveBeenCalledTimes(1);
+
+        const [message] = queue.enqueue.mock.calls[0]?.[0] ?? [];
+
+        expect(message).toStrictEqual({
+            origin: { kind: 'parseJob', jobId: JOB, lineIndex: 0, foodIndex: 0 },
+            sourceLine: '2 cups whole milk',
+            foodId: 'F-whole',
+            candidateFoodName: 'Milk, whole',
+            quantityLow: 2,
+            quantityHigh: null,
+            // The cook's word, as the editor saves it (`pastedLineRowOf`), so the kept line's key is this one.
+            unit: 'cups',
+            evidenceKind: 'unattributed',
+            shortlist: [],
+            requestedAt: expect.any(String),
+        });
+    });
+
+    it('⛔ stores a RUNG-LESS lexical proposal with no rung, keeping its margin and candidates', async () => {
+        // Moved here from the by-name path (ADR-0071): a food older than this service, or a rung this build cannot read,
+        // sends hits with no rung. The proposal and its shortlist are facts about the scores; only the rung is absent.
+        const { service, matches, queue } = setup({
+            world: {
+                lexical: [
+                    { food: { kind: 'root', id: 'F-whole' }, rung: undefined },
+                    { food: { kind: 'root', id: 'F-crackers' }, rung: undefined },
+                ],
+            },
+        });
+
+        await service.propose(COOK, CALLER, JOB);
+
+        const [row] = matches.rows.values();
+
+        expect(row).toMatchObject({
+            proposal: { matchedBy: 'lexical', food: { kind: 'root', id: 'F-whole' }, rung: null, margin: 0.2 },
+            candidates: [
+                { kind: 'root', id: 'F-whole', rung: null },
+                { kind: 'root', id: 'F-crackers', rung: null },
+            ],
+        });
+        expect(queue.enqueue).toHaveBeenCalledTimes(1);
+    });
+
+    it('keys a SECOND food of a line with no measure, as the editor saves it', async () => {
+        const { service, queue } = setup({
+            job: makeParseJobRecord({
+                lines: [
+                    makeParseJobLine({
+                        sourceLine: 'salt and pepper',
+                        proposal: makeStoredProposal({
+                            raw: 'salt and pepper',
+                            quantity: { kind: 'absent' },
+                            unit: null,
+                            statedMeasure: null,
+                            foods: [
+                                { name: 'salt', prep: null },
+                                { name: 'pepper', prep: null },
+                            ],
+                        }),
+                    }),
+                ],
+            }),
+        });
+
+        await service.propose(COOK, CALLER, JOB);
+
+        const messages = queue.enqueue.mock.calls[0]?.[0] ?? [];
+
+        expect(messages.map((message) => message.origin)).toStrictEqual([
+            { kind: 'parseJob', jobId: JOB, lineIndex: 0, foodIndex: 0 },
+            { kind: 'parseJob', jobId: JOB, lineIndex: 0, foodIndex: 1 },
+        ]);
+        expect(messages[1]).toMatchObject({ quantityLow: null, quantityHigh: null, unit: null });
+    });
+
+    it('⛔ runs the lexical shortlist even when a CURATED mapping answered — the candidates and the default come from it', async () => {
+        const { service, matches, chain } = setup({
+            world: {
+                curated: { kind: 'root', id: 'F-whole' },
+                lexical: [...MILK_RANKED, { food: { kind: 'root', id: 'F-default' }, rung: 'default' }],
+            },
+            answers: { 'root:F-whole': found('Milk, whole', 'F-whole') },
+        });
+
+        await service.propose(COOK, CALLER, JOB);
+
+        expect(chain.lexical).toHaveBeenCalledTimes(1);
+        const [row] = matches.rows.values();
+
+        expect(row?.proposal?.matchedBy).toBe('curated');
+        expect(row?.candidates.map((candidate) => candidate.id)).toStrictEqual(['F-whole', 'F-crackers', 'F-default']);
+    });
+
+    it('⛔ stores the proposal at its FORWARD END, and keys the verdict there — where the kept line will be bound', async () => {
+        const { service, matches, queue } = setup({
+            world: { memo: { kind: 'root', id: 'F-retired' }, lexical: [] },
+            answers: { 'root:F-retired': found('Beef brisket', 'R-brisket', 'V-flat') },
+        });
+
+        await service.propose(COOK, CALLER, JOB);
+
+        const [row] = matches.rows.values();
+
+        expect(row?.proposal?.food).toStrictEqual({ kind: 'variant', id: 'V-flat' });
+        expect(queue.enqueue.mock.calls[0]?.[0]?.[0]).toMatchObject({
+            foodVariantId: 'V-flat',
+            candidateFoodName: 'Beef brisket (flat)',
+        });
+    });
+
+    it('marks a proposal of the cook’s own PRIVATE food, so the worker writes no memo for it', async () => {
+        const { service, queue } = setup({
+            answers: { 'root:F-whole': found('Gran’s milk', 'F-whole', undefined, true) },
+        });
+
+        await service.propose(COOK, CALLER, JOB);
+
+        expect(queue.enqueue.mock.calls[0]?.[0]?.[0]?.privateFood).toBe(true);
+    });
+
+    it('drops a proposal food no longer shows the cook — the candidates remain, and nothing is asked', async () => {
+        const { service, matches, queue } = setup({
+            answers: { 'root:F-crackers': found('Milk crackers', 'F-crackers') },
+        });
+
+        await service.propose(COOK, CALLER, JOB);
+
+        const [row] = matches.rows.values();
+
+        expect(row?.proposal).toBeNull();
+        expect(row?.candidates.map((candidate) => candidate.id)).toStrictEqual(['F-crackers']);
+        expect(queue.enqueue).not.toHaveBeenCalled();
+    });
+
+    it('stores NO MATCH for a phrase with no candidates, and asks nothing', async () => {
+        const { service, matches, queue } = setup({ world: { lexical: [] } });
+
+        await service.propose(COOK, CALLER, JOB);
+
+        expect([...matches.rows.values()]).toMatchObject([{ proposal: null, candidates: [], verificationKey: null }]);
+        expect(queue.enqueue).not.toHaveBeenCalled();
+    });
+
+    it('⛔ REFUSES to ask about an over-cap line: the proposal is stored with no key, never truncated', async () => {
+        const long = `2 cups whole milk ${'x'.repeat(400)}`;
+        const { service, matches, queue } = setup({
+            job: makeParseJobRecord({ lines: [makeParseJobLine({ sourceLine: long })] }),
+        });
+
+        await service.propose(COOK, CALLER, JOB);
+
+        const [row] = matches.rows.values();
+
+        expect(row?.proposal?.food.id).toBe('F-whole');
+        expect(row?.verificationKey).toBeNull();
+        // F10: the refusal is PERSISTED, so the job view never re-runs the policy to find it.
+        expect(row?.review).toBe('refused');
+        expect(queue.enqueue).not.toHaveBeenCalled();
+    });
+
+    it('⛔ persists `refused` for a request the queue CONTRACT refuses, sends nothing, and never tries again', async () => {
+        // A stated unit longer than the queue's 64-character bound: the editor saves it, the consumer refuses it. The
+        // request is undeliverable, so it is parked as refused (logged at error) rather than claimed, failed and
+        // released on every poll.
+        const unit = 'x'.repeat(70);
+        const { service, matches, queue } = setup({
+            job: makeParseJobRecord({
+                lines: [
+                    makeParseJobLine({
+                        sourceLine: `2 ${unit} whole milk`,
+                        proposal: makeStoredProposal({ raw: `2 ${unit} whole milk`, statedMeasure: `2 ${unit}` }),
+                    }),
+                ],
+            }),
+        });
+
+        await service.propose(COOK, CALLER, JOB);
+        await service.propose(COOK, CALLER, JOB);
+
+        const [row] = matches.rows.values();
+
+        expect(row).toMatchObject({ review: 'refused', verificationKey: null, enqueuedAt: null });
+        expect(queue.enqueue).not.toHaveBeenCalled();
+    });
+
+    it('⛔ a proposal food cannot name is stored as NO proposal, its food kept as a candidate — a terminal reading', async () => {
+        const answers: Record<string, FoodRefAnswer> = {
+            'root:F-whole': { ...foundRecord('Milk, whole', 'F-whole'), name: undefined },
+            'root:F-crackers': found('Milk crackers', 'F-crackers'),
+        };
+        const { service, matches, queue, chain } = setup({ answers });
+
+        await service.propose(COOK, CALLER, JOB);
+
+        // Not "nothing stored": a client that polls until every food has a match would call again forever, and each call
+        // would re-run the chain. And not a proposal either: a proposal food cannot name has no review to send.
+        const [row] = [...matches.rows.values()];
+
+        expect(row).toMatchObject({ proposal: null, verificationKey: null, review: null });
+        expect(row?.candidates.map((candidate) => candidate.id)).toStrictEqual(['F-whole', 'F-crackers']);
+        expect(queue.enqueue).not.toHaveBeenCalled();
+
+        // The next call finds the row current and does not match the line again.
+        await service.propose(COOK, CALLER, JOB);
+
+        expect(chain.lexical).toHaveBeenCalledTimes(1);
+    });
+
+    it('⛔ refuses, with a terminal disposition, a proposal on a line the gate is never asked about (a blank line)', async () => {
+        const { service, matches, queue } = setup({
+            job: makeParseJobRecord({ lines: [makeParseJobLine({ sourceLine: '   ' })] }),
+        });
+
+        await service.propose(COOK, CALLER, JOB);
+
+        // A proposal with NO review would read `checking` forever once food named it: nothing would ever send it.
+        expect([...matches.rows.values()][0]).toMatchObject({ review: 'refused', verificationKey: null });
+        expect([...matches.rows.values()].every((row) => row.proposal === null || row.review !== null)).toBe(true);
+        expect(queue.enqueue).not.toHaveBeenCalled();
+    });
+});
+
+/**
+ * The stored key IS the worker's key (ADR-0071). The gate's verdict lands under the key the WORKER derives from the
+ * message (`verifiedLineIdentityOfMessage`), and the job view reads it back through the key the ROW stored. The row's
+ * key is therefore derived from the exact message that is sent, so the two cannot diverge.
+ */
+describe('MatchProposalService.propose — the stored key is the key of the message it sends', () => {
+    it('⛔ stores, for every proposal it sends, the key the message itself derives', async () => {
+        const { service, matches, queue } = setup({
+            job: makeParseJobRecord({
+                lines: [
+                    makeParseJobLine(),
+                    makeParseJobLine({
+                        lineIndex: 1,
+                        sourceLine: '2 tbsp salt and pepper',
+                        proposal: makeStoredProposal({
+                            raw: '2 tbsp salt and pepper',
+                            quantity: { kind: 'exact', value: 2 },
+                            unit: 'tablespoon',
+                            statedMeasure: '2 tbsp',
+                            foods: [
+                                { name: 'salt', prep: null },
+                                { name: 'pepper', prep: null },
+                            ],
+                        }),
+                    }),
+                ],
+            }),
+        });
+
+        await service.propose(COOK, CALLER, JOB);
+
+        const messages = queue.enqueue.mock.calls.flatMap((call) => [...call[0]]);
+        const rows = [...matches.rows.values()];
+
+        expect(messages).toHaveLength(3);
+
+        for (const message of messages) {
+            const origin = message.origin?.kind === 'parseJob' ? message.origin : undefined;
+            const row = rows.find(
+                (candidate) => candidate.lineIndex === origin?.lineIndex && candidate.foodIndex === origin.foodIndex,
+            );
+
+            expect(row?.verificationKey).toBe(verificationKey(verifiedLineIdentityOfMessage(message), sha256Hex));
+        }
+    });
+
+    it('⛔ sends nothing for a stored row whose key is not the key of the message it would send', async () => {
+        const { service, matches, queue } = setup();
+
+        await matches.saveMatches(JOB, [{ ...currentMilkRow(), verificationKey: 'v2:not-the-message-key' }]);
+
+        await service.propose(COOK, CALLER, JOB);
+
+        expect(queue.enqueue).not.toHaveBeenCalled();
+    });
+});
+
+describe('MatchProposalService.propose — an outage is never a stored no-match', () => {
+    it('⛔ writes NO row when a tier could not look — the next call retries', async () => {
+        const { service, matches } = setup({ world: { lexical: 'unavailable' } });
+
+        await service.propose(COOK, CALLER, JOB);
+
+        expect(matches.rows.size).toBe(0);
+    });
+
+    it('⛔ writes NO row when food could not be asked about the proposal', async () => {
+        const { service, matches } = setup({ answers: { 'root:F-whole': { outcome: 'unreachable' } } });
+
+        await service.propose(COOK, CALLER, JOB);
+
+        expect(matches.rows.size).toBe(0);
+    });
+});
+
+describe('MatchProposalService.propose — idempotent, and paid once', () => {
+    it('⛔ a second call for the same lines runs no tier and sends nothing', async () => {
+        const { service, chain, queue } = setup();
+
+        await service.propose(COOK, CALLER, JOB);
+        chain.lexical.mockClear();
+        queue.enqueue.mockClear();
+        await service.propose(COOK, CALLER, JOB);
+
+        expect(chain.lexical).not.toHaveBeenCalled();
+        expect(queue.enqueue).not.toHaveBeenCalled();
+    });
+
+    it('re-matches a line whose text was EDITED, and asks about the new proposal', async () => {
+        const lines = [makeParseJobLine()];
+        const { service, chain, queue } = setup({ job: makeParseJobRecord({ lines }) });
+
+        await service.propose(COOK, CALLER, JOB);
+        lines.splice(0, 1, makeParseJobLine({ lineDigest: 'digest-edited' }));
+        chain.lexical.mockClear();
+        queue.enqueue.mockClear();
+        await service.propose(COOK, CALLER, JOB);
+
+        expect(chain.lexical).toHaveBeenCalledTimes(1);
+        expect(queue.enqueue).toHaveBeenCalledTimes(1);
+    });
+
+    it('⛔ re-matches a line REPARSED with the same text into another food — the judgement moved', async () => {
+        const lines = [makeParseJobLine()];
+        const { service, chain, matches } = setup({ job: makeParseJobRecord({ lines }) });
+
+        await service.propose(COOK, CALLER, JOB);
+        // Same text, same digest; the parse now reads another food.
+        lines.splice(
+            0,
+            1,
+            makeParseJobLine({ proposal: makeStoredProposal({ foods: [{ name: 'skim milk', prep: null }] }) }),
+        );
+        chain.lexical.mockClear();
+        await service.propose(COOK, CALLER, JOB);
+
+        expect(chain.lexical).toHaveBeenCalledWith(expect.objectContaining({ phrase: 'skim milk' }), expect.anything());
+        expect(matches.rows.size).toBe(1);
+    });
+
+    it('⛔ claims each review for the digest and key it was computed for, under the queue’s delivery bound', async () => {
+        const { service, matches } = setup();
+        const claim = vi.spyOn(matches, 'claimEnqueue');
+
+        await service.propose(COOK, CALLER, JOB);
+
+        expect(claim).toHaveBeenCalledWith(
+            JOB,
+            [
+                {
+                    lineIndex: 0,
+                    foodIndex: 0,
+                    lineDigest: lineDigest('2 cups whole milk', sha256Hex),
+                    verificationKey: milkKey('F-whole'),
+                },
+            ],
+            verificationDeliveryBoundSeconds(),
+        );
+    });
+
+    it('⛔ sends again a review claimed longer ago than the delivery bound — the request was lost', async () => {
+        const { service, matches, queue } = setup();
+
+        await matches.saveMatches(JOB, [currentMilkRow()]);
+        const [key, row] = [...matches.rows.entries()][0] ?? [];
+
+        if (key === undefined || row === undefined) {
+            throw new Error('no row');
+        }
+
+        matches.rows.set(key, {
+            ...row,
+            enqueuedAt: new Date(Date.now() - (verificationDeliveryBoundSeconds() + 60) * 1_000),
+        });
+        await service.propose(COOK, CALLER, JOB);
+
+        expect(queue.enqueue).toHaveBeenCalledTimes(1);
+    });
+
+    it('sends nothing for a review claimed inside the delivery bound — it is still in flight', async () => {
+        const { service, matches, queue } = setup();
+
+        await matches.saveMatches(JOB, [currentMilkRow()]);
+        const [key, row] = [...matches.rows.entries()][0] ?? [];
+
+        if (key === undefined || row === undefined) {
+            throw new Error('no row');
+        }
+
+        matches.rows.set(key, { ...row, enqueuedAt: new Date(Date.now() - 60_000) });
+        await service.propose(COOK, CALLER, JOB);
+
+        expect(queue.enqueue).not.toHaveBeenCalled();
+    });
+
+    it('⛔ asks NOTHING when a verdict for the proposal is already on record', async () => {
+        const verdicts = fakeLineVerificationsDal(new Map([[milkKey('F-whole'), 'verified']]));
+        const { service, matches, queue } = setup({ verdicts });
+
+        await service.propose(COOK, CALLER, JOB);
+
+        expect(queue.enqueue).not.toHaveBeenCalled();
+        expect([...matches.rows.values()][0]?.enqueuedAt).toBeNull();
+    });
+
+    it('⛔ releases the claim when the send fails, so the next call sends it — and the request still succeeds', async () => {
+        const { service, matches, queue } = setup();
+
+        queue.enqueue.mockRejectedValueOnce(new Error('SQS down'));
+        await service.propose(COOK, CALLER, JOB);
+
+        expect([...matches.rows.values()][0]?.enqueuedAt).toBeNull();
+
+        await service.propose(COOK, CALLER, JOB);
+
+        expect(queue.enqueue).toHaveBeenCalledTimes(2);
+        expect([...matches.rows.values()][0]?.enqueuedAt).not.toBeNull();
+    });
+});
+
+describe('MatchProposalService.propose — ADR-0040 containment', () => {
+    it('⛔ stores a TEST principal’s proposals on an enforcing stage, but sends the review gate nothing', async () => {
+        // The review spends ADR-0024's shared production pool, which a test principal is contained from, exactly as
+        // the save path's verification producer is. The proposals are the cook's own rows.
+        const { service, matches, queue } = setup();
+
+        await service.propose({ ...COOK, principalKind: 'test', containment: 'enforce' }, CALLER, JOB);
+
+        expect(matches.rows.size).toBe(1);
+        expect(queue.enqueue).not.toHaveBeenCalled();
+    });
+
+    it('still sends for a test principal on a stage that does not contain', async () => {
+        const { service, queue } = setup();
+
+        await service.propose({ ...COOK, principalKind: 'test', containment: 'off' }, CALLER, JOB);
+
+        expect(queue.enqueue).toHaveBeenCalledTimes(1);
+    });
+});
+
+/**
+ * Bounded work under ONE request deadline (ADR-0071). The client gives `POST …/matches` 10 s, and the same response
+ * carries the job view's reads after it; so the matcher stops at {@link MATCH_PROPOSE_DEADLINE_MS}, and EVERY leg of it
+ * ends with that deadline: a wave starts only when its searches can finish before the tail, the searches themselves
+ * take the deadline as an abort signal, the refs read and the send do too, and every database call is awaited through
+ * `boundedBy`. What is left is matched or sent on the client's next call.
+ *
+ * Two clocks, both injected: the budget runs on `limits.now`, and the deadline SIGNAL comes from `limits.signalAt`, so a
+ * case can fire it by hand. A signal the code never reads would not fail a test that only checks its type.
+ */
+describe('MatchProposalService.propose — bounded work under one request deadline', () => {
+    /** A clock the test moves, and a deadline the test fires: each lexical search costs `costMs` of the fake clock. */
+    function clockedSetup(lineCount: number, costMs: number, extra: Partial<Setup> = {}) {
+        let now = 1_000_000;
+        const deadline = new AbortController();
+        const lines = Array.from({ length: lineCount }, (_, index) =>
+            makeParseJobLine({ lineIndex: index, lineDigest: `digest-${String(index)}` }),
+        );
+        const built = setup({
+            job: makeParseJobRecord({ lines }),
+            limits: { concurrency: 1, tailMs: MATCH_TAIL_MS, now: () => now, signalAt: () => deadline.signal },
+            ...extra,
+        });
+
+        built.chain.lexical.mockImplementation(async () => {
+            now += costMs;
+
+            return {
+                kind: 'resolved',
+                tier: 'lexical',
+                food: { kind: 'root', id: 'F-whole' },
+                evidence: 'lexical',
+                rung: 'head',
+                confidence: 0.2,
+                candidates: [...MILK_RANKED],
+            } as const;
+        });
+
+        return { ...built, deadline, advance: (ms: number) => (now += ms) };
+    }
+
+    it('⛔ starts no wave that could end past the cutoff, and leaves the rest for the next call', async () => {
+        // Deadline 2 800 ms; tail 1 000 ms; a wave may need two 600 ms searches: no wave starts after 600 ms.
+        // Each search here costs 500 ms, so waves start at 0 and 500 ms and the third (at 1 000 ms) does not.
+        const { service, matches } = clockedSetup(6, 500);
+
+        await service.propose(COOK, CALLER, JOB);
+
+        expect(matches.rows.size).toBe(2);
+        expect(MATCH_PROPOSE_DEADLINE_MS).toBe(2_800);
+    });
+
+    it('matches a long paste over waves of the configured width while time remains', async () => {
+        const { service, matches } = clockedSetup(5, 0, {});
+
+        await service.propose(COOK, CALLER, JOB);
+
+        expect(matches.rows.size).toBe(5);
+    });
+
+    it('⛔ hands the refs read and the send the request deadline itself', async () => {
+        const { service, refs, queue, deadline } = clockedSetup(1, 0);
+
+        await service.propose(COOK, CALLER, JOB);
+
+        expect(refs.resolve.mock.calls[0]?.[3]?.signal).toBe(deadline.signal);
+        expect(queue.enqueue.mock.calls[0]?.[1]?.signal).toBe(deadline.signal);
+    });
+
+    it('⛔ hands every tier the request deadline, so a catalog search cannot outlive it', async () => {
+        const { service, chain, deadline } = clockedSetup(1, 0);
+
+        await service.propose(COOK, CALLER, JOB);
+
+        for (const tier of [chain.curated, chain.memo, chain.lexical]) {
+            expect(tier.mock.calls[0]?.[1]).toMatchObject({ signal: deadline.signal });
+        }
+    });
+
+    it('⛔ an abort STOPS the work in flight: nothing is stored, no later wave starts, nothing is sent', async () => {
+        const { service, chain, matches, queue, refs, deadline } = clockedSetup(4, 0);
+
+        // A catalog search that honours its signal, as the real client does: it settles only when the signal fires.
+        chain.lexical.mockImplementation(
+            (_query?: unknown, context?: unknown) =>
+                new Promise((_resolve, reject) => {
+                    (context as { signal?: AbortSignal }).signal?.addEventListener('abort', () =>
+                        reject(new Error('aborted')),
+                    );
+                }),
+        );
+
+        const proposing = service.propose(COOK, CALLER, JOB);
+
+        await vi.waitFor(() => expect(chain.lexical).toHaveBeenCalledTimes(1));
+        deadline.abort();
+        await proposing;
+
+        expect(chain.lexical).toHaveBeenCalledTimes(1);
+        expect(matches.rows.size).toBe(0);
+        expect(refs.resolve).not.toHaveBeenCalled();
+        expect(queue.enqueue).not.toHaveBeenCalled();
+    });
+
+    it('answers with the job it read, so the controller needs no second read to build its view', async () => {
+        const { service } = clockedSetup(1, 0);
+
+        await expect(service.propose(COOK, CALLER, JOB)).resolves.toMatchObject({ id: JOB });
+    });
+
+    it('⛔ still answers with the job when a LATER database call outlives the deadline', async () => {
+        const { service, matches, deadline } = clockedSetup(1, 0);
+
+        vi.spyOn(matches, 'findForJob').mockImplementation(() => new Promise(() => undefined));
+
+        const proposing = service.propose(COOK, CALLER, JOB);
+
+        deadline.abort();
+
+        await expect(proposing).resolves.toMatchObject({ id: JOB });
+    });
+
+    it('⛔ fails, rather than hangs, when the job read itself outlives the deadline', async () => {
+        const { service, getJob, deadline } = clockedSetup(1, 0);
+
+        getJob.mockImplementation(() => new Promise(() => undefined));
+
+        const proposing = service.propose(COOK, CALLER, JOB).catch((error: unknown) => error);
+
+        deadline.abort();
+
+        expect(isDeadlineExceededError(await proposing)).toBe(true);
+    });
+
+    it('⛔ a database read that never answers ends at the deadline instead of holding the request', async () => {
+        const { service, matches, chain, deadline } = clockedSetup(1, 0);
+
+        vi.spyOn(matches, 'findForJob').mockImplementation(() => new Promise(() => undefined));
+
+        const proposing = service.propose(COOK, CALLER, JOB);
+
+        deadline.abort();
+        await proposing;
+
+        expect(chain.lexical).not.toHaveBeenCalled();
+    });
+
+    it('⛔ a claim that lands after the deadline is released at once, never left holding a send nobody makes', async () => {
+        const { service, matches, deadline } = clockedSetup(1, 0);
+        const realClaim = matches.claimEnqueue;
+        let landed: (() => void) | undefined;
+
+        vi.spyOn(matches, 'claimEnqueue').mockImplementation(async (...args) => {
+            await new Promise<void>((resolve) => {
+                landed = resolve;
+            });
+
+            return realClaim(...args);
+        });
+        const release = vi.spyOn(matches, 'releaseEnqueue');
+
+        const proposing = service.propose(COOK, CALLER, JOB);
+
+        await vi.waitFor(() => expect(landed).toBeDefined());
+        deadline.abort();
+        await proposing;
+        landed?.();
+        await vi.waitFor(() => expect(release).toHaveBeenCalledTimes(1));
+
+        expect(release.mock.calls[0]?.[1]).toHaveLength(1);
+        expect([...matches.rows.values()].every((row) => row.enqueuedAt === null)).toBe(true);
+    });
+
+    it('⛔ the search timeout at its configured CEILING still starts a wave', async () => {
+        const matches = inMemoryParseJobMatches(new Map([[JOB, OWNER]]));
+        const chain = tiersOver({ lexical: MILK_RANKED });
+        const slow = new MatchProposalService(
+            { getJob: async () => makeParseJobRecord() },
+            matches,
+            chain.tiers,
+            { enabled: true, searchTimeoutMs: () => MAX_MATCH_SEARCH_TIMEOUT_MS },
+            refsAnswering({ 'root:F-whole': found('Milk, whole', 'F-whole') }).gateway,
+            fakeVerificationQueue(),
+            fakeLineVerificationsDal(),
+            DEFAULT_MATCH_PROPOSAL_LIMITS,
+            vi.fn(),
+        );
+
+        await slow.propose(COOK, CALLER, JOB);
+
+        expect(chain.lexical).toHaveBeenCalledTimes(1);
+        expect(matches.rows.size).toBe(1);
+    });
+
+    it('⛔ past the deadline it asks food nothing and sends nothing — the line is matched on the next call', async () => {
+        const { service, refs, queue, matches } = clockedSetup(1, 5_000);
+
+        await service.propose(COOK, CALLER, JOB);
+
+        expect(refs.resolve).not.toHaveBeenCalled();
+        expect(queue.enqueue).not.toHaveBeenCalled();
+        expect(matches.rows.size).toBe(0);
+    });
+});
+
+/**
+ * A call that leaves proposals unmade says so (ADR-0071): a log line and a Stage-dimensioned count, so a configuration
+ * or a food outage that quietly stops a paste matching shows on a dashboard rather than only in a cook's complaint.
+ */
+describe('MatchProposalService.propose — proposals left unmade are reported', () => {
+    function reportingSetup(lineCount: number, extra: Partial<Setup> = {}) {
+        const report = vi.fn<(report: UnmadeProposalsReport) => void>();
+        const lines = Array.from({ length: lineCount }, (_, index) =>
+            makeParseJobLine({ lineIndex: index, lineDigest: `digest-${String(index)}` }),
+        );
+        const built = setup({ job: makeParseJobRecord({ lines }), ...extra });
+        const service = new MatchProposalService(
+            { getJob: async () => makeParseJobRecord({ lines }) },
+            built.matches,
+            built.chain.tiers,
+            { enabled: true, searchTimeoutMs: () => SEARCH_TIMEOUT_MS },
+            built.refs.gateway,
+            built.queue,
+            fakeLineVerificationsDal(),
+            extra.limits ?? DEFAULT_MATCH_PROPOSAL_LIMITS,
+            report,
+        );
+
+        return { ...built, service, report };
+    }
+
+    it('reports nothing when every owed proposal was made', async () => {
+        const { service, report } = reportingSetup(2);
+
+        await service.propose(COOK, CALLER, JOB);
+
+        expect(report).not.toHaveBeenCalled();
+    });
+
+    it('⛔ reports how many were left when the catalog could not be searched', async () => {
+        const { service, report } = reportingSetup(3, { world: { lexical: 'unavailable' } });
+
+        await service.propose(COOK, CALLER, JOB);
+
+        expect(report).toHaveBeenCalledExactlyOnceWith({ jobId: JOB, owed: 3, made: 0, notStarted: 0 });
+    });
+
+    it('⛔ reports the lines the budget never started', async () => {
+        let now = 1_000_000;
+        const { service, report, chain } = reportingSetup(6, {
+            limits: {
+                concurrency: 1,
+                tailMs: MATCH_TAIL_MS,
+                now: () => now,
+                signalAt: () => new AbortController().signal,
+            },
+        });
+
+        // Each search costs the fake clock 500 ms, so only two of the six waves start.
+        chain.lexical.mockImplementation(async () => {
+            now += 500;
+
+            return {
+                kind: 'resolved',
+                tier: 'lexical',
+                food: { kind: 'root', id: 'F-whole' },
+                evidence: 'lexical',
+                rung: 'head',
+                confidence: 0.2,
+                candidates: [...MILK_RANKED],
+            } as const;
+        });
+
+        await service.propose(COOK, CALLER, JOB);
+
+        expect(report).toHaveBeenCalledExactlyOnceWith({ jobId: JOB, owed: 6, made: 2, notStarted: 4 });
+    });
+});
+
+describe('emitUnmadeProposals — the production report', () => {
+    it('⛔ writes one count dimensioned by Stage (ADR-0062), carrying the counts as context', () => {
+        const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+        emitUnmadeProposals({ jobId: JOB, owed: 6, made: 2, notStarted: 4 });
+
+        const line = JSON.parse(String(log.mock.calls[0]?.[0])) as Record<string, unknown> & {
+            _aws: { CloudWatchMetrics: { Dimensions: string[][]; Metrics: { Name: string }[] }[] };
+        };
+
+        log.mockRestore();
+
+        expect(line._aws.CloudWatchMetrics[0]?.Dimensions).toStrictEqual([['Stage']]);
+        expect(line._aws.CloudWatchMetrics[0]?.Metrics).toStrictEqual([
+            { Name: 'paste-proposals-unmade', Unit: 'Count' },
+        ]);
+        expect(line).toMatchObject({ 'paste-proposals-unmade': 1, owed: '6', made: '2', notStarted: '4' });
+        expect(JSON.stringify(line)).not.toContain(JOB);
+    });
+});

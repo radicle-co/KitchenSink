@@ -45,6 +45,62 @@ export const createIngredientRequestSchema = z.strictObject({
 export type CreateIngredientRequest = z.infer<typeof createIngredientRequestSchema>;
 
 /**
+ * Query of `GET /api/v1/ingredients/by-name/proposals`: the phrase the cook typed in the add-by-name field.
+ *
+ * The same trimmed, bounded name as {@link createIngredientRequestSchema}, derived from it so the two cannot drift.
+ * Open, like every read query: a caller with a tracking tag on the URL must still be answered (GR-017 §17-c).
+ */
+export const ingredientNameProposalsQuerySchema = z.object({
+    name: createIngredientRequestSchema.shape.name,
+});
+
+/** Query for the name proposals. */
+export type IngredientNameProposalsQuery = z.infer<typeof ingredientNameProposalsQuerySchema>;
+
+/**
+ * One food the add-by-name field OFFERS for a typed phrase, as food named it on this read (ADR-0045).
+ *
+ * It is a PROPOSAL, never a binding: the cook binds it by picking it, through `by-food` or `by-food-variant`. Nothing
+ * here says "selected", and the client never preselects one (ADR-0070, owner ruling 2026-10-25).
+ *
+ * The first three fields are the paste candidate's (`parseProposalCandidateSchema` in the recipes contract), written
+ * again here because a `*.schema.ts` may import only flat siblings. A test holds the two shapes together.
+ *
+ * ⛔ `source` is an OPEN string key, not an enum: installed clients parse responses strictly, so a new source (a new
+ * kind of remembered answer) must be able to ship without breaking an older build. Today's keys are `ownCorrection`,
+ * `staffRuling`, `corroborated` and `remembered`; a client that meets another still shows the food.
+ */
+export const ingredientNameProposalSchema = z.object({
+    kind: z.enum(['root', 'variant']),
+    /** The food id, a root's or a variant's, at the live end food answered. */
+    id: z.string().min(1),
+    /** Food's name for it on this read. A variant names its parts. */
+    name: z.string().min(1),
+    /** Which settled source offered it. An opaque key; the client picks its caption from it, or none. */
+    source: z.string().min(1),
+});
+
+/** One proposed food. */
+export type IngredientNameProposal = z.infer<typeof ingredientNameProposalSchema>;
+
+/**
+ * Response of `GET /api/v1/ingredients/by-name/proposals`: the typed phrase and the foods offered for it, strongest
+ * source first. Always `200`: a food food will not show, or a source that could not be read, is simply absent, so an
+ * empty list says nothing about why and reveals no other cook's private food.
+ *
+ * ⛔ NO `max` on the list: a bound on a RESPONSE would make every installed client discard the whole answer the day the
+ * server raised it (the same rule as the paste candidates).
+ */
+export const ingredientNameProposalsResponseSchema = z.object({
+    /** The phrase as the server read it. */
+    phrase: z.string().min(1),
+    proposals: z.array(ingredientNameProposalSchema),
+});
+
+/** Response body of the name proposals. */
+export type IngredientNameProposalsResponse = z.infer<typeof ingredientNameProposalsResponseSchema>;
+
+/**
  * Response of `GET /api/v1/ingredients/food-references/{foodId}` (plan U18, R22) — what the food service
  * consults before honouring a voluntary authored-food DELETE (and what its 409 reports back).
  *

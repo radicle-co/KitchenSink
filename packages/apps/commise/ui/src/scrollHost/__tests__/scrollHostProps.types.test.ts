@@ -5,12 +5,21 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import type { ScrollHostProps, ScrollHostWebProps } from '../props.js';
+import type { ScrollBind, ScrollHostProps, ScrollHostWebProps } from '../props.js';
 
 type SharedHasTopInset = 'topInset' extends keyof ScrollHostProps ? true : false;
 type WebHasTopInset = 'topInset' extends keyof ScrollHostWebProps ? true : false;
 
+// A plain ScrollView calls `props.onScroll(e)`: an object there is a fatal "is not a function" on iOS (2026-11-02).
+type BindScrollIsFunction = ScrollBind['onScroll'] extends (event: never) => void ? true : false;
+
 describe('ScrollHost props', () => {
+    it('keeps bind.onScroll a plain function, which every scroller can call', () => {
+        const isFunction: BindScrollIsFunction = true;
+
+        expect(isFunction).toBe(true);
+    });
+
     it('keeps topInset off the shared props and on the web props', () => {
         const shared: SharedHasTopInset = false;
         const web: WebHasTopInset = true;

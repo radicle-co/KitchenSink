@@ -12,8 +12,8 @@ throttle saturates — recording sustained throughput and how it degrades. See t
 - **Real USDA burn.** Every `add-by-name` that misses cache hits the **paid** USDA API. A big/long run
   spends real quota. Start small.
 - **Test users.** Nothing here creates a Clerk user. The run LEASES slots of the fixed test pool
-  (`@kitchensink/e2e-fixtures/testPool`), which only `poolAdmin` provisions, and at most 20 VU slots exist —
-  so `POOL_SIZE`/`MAX_VUS` cannot exceed 20.
+  (`@kitchensink/e2e-fixtures/testPool`), which only `poolAdmin` provisions, and at most 10 VU slots exist —
+  so `POOL_SIZE`/`MAX_VUS` cannot exceed 10.
 - `tokens.json` / `pool.json` hold live session JWTs — **secrets, gitignored, never commit.**
 
 This is the `@kitchensink/loadtest` workspace (`packages/tools/loadtest`); commands run from here.
@@ -41,7 +41,7 @@ export CLERK_SECRET_KEY=$(aws secretsmanager get-secret-value \
 
 # One command — lease the pool → k6 + server-side collection → correlated report.md. The pool is the FIXED
 # test pool; there is no teardown because a run creates no user:
-POOL_SIZE=20 ORIGIN=<web origin> CLERK_PUBLISHABLE_KEY=<pk_test_…> \
+POOL_SIZE=10 ORIGIN=<web origin> CLERK_PUBLISHABLE_KEY=<pk_test_…> \
   FOOD_BASE_URL="$(node printPublicOrigin.mjs food pr-73 commise.app)" npm run loadtest
 ```
 
@@ -50,7 +50,7 @@ Or the steps individually: `npm run provision:pool`, `npm run journey`, `npm run
 
 ### The pool is leased, never minted
 
-`npm run provision:pool` LEASES up to 20 VU slots plus the `food:admin` slot of the fixed test pool: it looks
+`npm run provision:pool` LEASES up to 10 VU slots plus the `food:admin` slot of the fixed test pool: it looks
 each up in Clerk, refuses a slot `poolAdmin` has not provisioned, signs in by ticket through the Frontend API
 (so the token carries the `azp` the deployed guard requires) and stores the session handles, so the next run
 re-mints instead of signing in again. `REUSE_POOL=1 npm run loadtest:reuse` skips the lease and reuses the
@@ -95,7 +95,7 @@ Prefer not to run it locally? Trigger the **`Food API load test`** workflow
 ```bash
 gh workflow run food-loadtest.yml \
   -f target_stage=pr-73 \
-  -f hold_rate=2 -f ramp_rate=3 -f pool_size=100 -f max_vus=100
+  -f hold_rate=2 -f ramp_rate=3 -f max_vus=10
 ```
 
 It installs k6, resolves the Clerk secret/FAPI/azp for the stage from AWS, runs `run.mjs`, prints

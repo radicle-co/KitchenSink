@@ -32,9 +32,9 @@ export function NutritionWidgetSkeleton(): JSX.Element {
                 <div className="size-16 shrink-0 rounded-full border-4 border-surface-muted" />
                 <div className="flex flex-1 flex-col gap-2">
                     {/* "CALORIES" overline, the figure, and the "of N cal" caption — as blocks, not values. */}
-                    <div className="h-3 w-20 rounded bg-surface-muted" />
-                    <div className="h-7 w-28 rounded bg-surface-muted" />
-                    <div className="h-3 w-24 rounded bg-surface-muted" />
+                    <div className="h-3 w-20 rounded-sm bg-surface-muted" />
+                    <div className="h-7 w-28 rounded-sm bg-surface-muted" />
+                    <div className="h-3 w-24 rounded-sm bg-surface-muted" />
                 </div>
             </div>
         </PlaceholderWidgetCard>

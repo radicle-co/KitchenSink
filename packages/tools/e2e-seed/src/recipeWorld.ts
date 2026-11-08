@@ -16,6 +16,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 import {
     isFetchUnavailableError,
     type CreateAuthoredFoodInput,
+    type CreateAuthoredFoodResult,
     type FoodServiceClient,
 } from '@kitchensink/food-service-client';
 import type { RecipeServiceClient } from '@kitchensink/recipe-service-client';
@@ -199,6 +200,67 @@ export interface AuthoredFoodRetry {
 const DEFAULT_AUTHORED_FOOD_RETRY: AuthoredFoodRetry = { retries: 4, minTimeoutMs: 1_000, maxTimeoutMs: 8_000 };
 
 /**
+ * The authoring create, with the probe's macros.
+ *
+ * @sideEffect May author one food.
+ */
+const createProbeFood = (clients: Pick<ProbeFoodClients, 'food'>, name: string): Promise<CreateAuthoredFoodResult> =>
+    clients.food.createAuthoredFood({ name, macros: PROBE_FOOD_MACROS });
+
+/**
+ * One authoring write to food, retried on "food is not usably available" and nothing else (see
+ * {@link ensureAuthoredFood}). A busy answer means food did not act, so a repeat is safe. A transport failure may have
+ * acted: a repeated create answers the same food, and a repeated withdraw answers `404`, which fails loudly.
+ *
+ * @sideEffect Calls food. Sleeps between retries.
+ */
+async function whileFoodBusy<T>(write: () => Promise<T>, retry: AuthoredFoodRetry): Promise<T> {
+    return pRetry(write, {
+        retries: retry.retries,
+        minTimeout: retry.minTimeoutMs,
+        maxTimeout: retry.maxTimeoutMs,
+        shouldRetry: ({ error }) => isFetchUnavailableError(error),
+        onFailedAttempt: async ({ error, retryDelay }) => {
+            // p-retry sleeps `retryDelay` itself; only the part of the hint it does not already cover is added.
+            const hintMs = isFetchUnavailableError(error) ? (error.retryAfterSeconds ?? 0) * 1000 : 0;
+            const extraMs = Math.min(hintMs, retry.maxTimeoutMs) - retryDelay;
+
+            if (extraMs > 0) {
+                await delay(extraMs);
+            }
+        },
+    });
+}
+
+/**
+ * Bind an authored food through recipe's `by-food`, refusing one that is not a food or has another name.
+ *
+ * @sideEffect Binds the food.
+ */
+async function bindAuthoredFood(
+    clients: Pick<ProbeFoodClients, 'recipe'>,
+    authored: CreateAuthoredFoodResult,
+    name: string,
+    label: string,
+): Promise<FoodBinding> {
+    const food = await clients.recipe.addIngredientByFood(
+        authored.kind === 'created' ? authored.food.id : authored.existingId,
+    );
+
+    if (food.foodId === undefined) {
+        throw new Error(`e2e-seed: ${label} "${name}" came back with no food id, so it is not a food`);
+    }
+
+    if (food.name !== name) {
+        throw new Error(
+            `e2e-seed: ${label} is named "${food.name}", not "${name}" — a flow looks for it by that exact name`,
+        );
+    }
+
+    return food;
+}
+
+/**
  * Author a food as the caller at food, or take the one they already authored under `name`, and bind it.
  *
  * Food answers a name the caller already authored with the EXISTING food's id. Either food is bound through recipe's
@@ -228,36 +290,9 @@ async function ensureAuthoredFood(
     label: string,
     retry: AuthoredFoodRetry = DEFAULT_AUTHORED_FOOD_RETRY,
 ): Promise<FoodBinding> {
-    const authored = await pRetry(() => clients.food.createAuthoredFood({ name, macros: PROBE_FOOD_MACROS }), {
-        retries: retry.retries,
-        minTimeout: retry.minTimeoutMs,
-        maxTimeout: retry.maxTimeoutMs,
-        shouldRetry: ({ error }) => isFetchUnavailableError(error),
-        onFailedAttempt: async ({ error, retryDelay }) => {
-            // p-retry sleeps `retryDelay` itself; only the part of the hint it does not already cover is added.
-            const hintMs = isFetchUnavailableError(error) ? (error.retryAfterSeconds ?? 0) * 1000 : 0;
-            const extraMs = Math.min(hintMs, retry.maxTimeoutMs) - retryDelay;
+    const authored = await whileFoodBusy(() => createProbeFood(clients, name), retry);
 
-            if (extraMs > 0) {
-                await delay(extraMs);
-            }
-        },
-    });
-    const food = await clients.recipe.addIngredientByFood(
-        authored.kind === 'created' ? authored.food.id : authored.existingId,
-    );
-
-    if (food.foodId === undefined) {
-        throw new Error(`e2e-seed: ${label} "${name}" came back with no food id, so it is not a food`);
-    }
-
-    if (food.name !== name) {
-        throw new Error(
-            `e2e-seed: ${label} is named "${food.name}", not "${name}" — a flow looks for it by that exact name`,
-        );
-    }
-
-    return food;
+    return bindAuthoredFood(clients, authored, name, label);
 }
 
 /** The calls the private-food recipe needs: its food's, and the recipe routes that keep the recipe. */
@@ -371,6 +406,7 @@ export function toCreateRequest(
 
 /** The calls the ambiguity probe needs: its food's, and the recipe routes that create it and read the verdict back. */
 export interface AmbiguityProbeClients extends ProbeFoodClients {
+    readonly food: Pick<FoodServiceClient, 'createAuthoredFood' | 'deleteAuthoredFood'>;
     readonly recipe: Pick<RecipeServiceClient, 'addIngredientByFood' | 'createRecipe' | 'getRecipeById'>;
 }
 
@@ -407,27 +443,46 @@ export const DEFAULT_AMBIGUITY_TIMING: AmbiguityTiming = {
  *
  * Does not delete an older probe: `planWorldReset` already did, as residue, before this runs.
  *
+ * ⛔ THE FOOD IS MADE NEW EVERY RUN. The verifier's verdict is keyed by the bound food's id plus the line, and food
+ * answers a name the signer already authored with the OLD food. On a stage whose database outlives the run (a `pr-{N}`
+ * database survives Sandbox Down and Up, ADR-0006) the old food's id meant the old verdict was found, nothing was sent
+ * to the verifier, and the lines read RESOLVED (run 42117856262, Android shard 7). So a food left over is WITHDRAWN
+ * (`DELETE /api/v1/foods/{id}`, ADR-0029, which frees the name) and authored again, which gives a new id and one new
+ * verifier call. A verdict is still an LLM's, so a new one can still come back as something other than AMBIGUOUS.
+ *
  * @param clients - Clients authenticated as the SIGNER, the food's author and the recipe's owner.
  * @param recipe - The run-scoped fixture (`deriveAmbiguityProbe`).
  * @param foodName - The food both lines are bound to: the ambiguity word `provision` chose.
  * @param timing - How the verdict is waited on.
+ * @param retry - How a busy food is retried, for the create and the withdraw alike.
  * @returns The recipe's id.
  * @throws {Error} When the food is not a food or has another name, or when the lines are not all AMBIGUOUS by the deadline.
- * @sideEffect May author a food; creates one recipe; polls the recipe service.
+ * @sideEffect May author and withdraw a food; creates one recipe; polls the recipe service.
  */
 export async function ensureAmbiguityProbe(
     clients: AmbiguityProbeClients,
     recipe: FixtureRecipe,
     foodName: string,
     timing: AmbiguityTiming = DEFAULT_AMBIGUITY_TIMING,
+    retry: AuthoredFoodRetry = DEFAULT_AUTHORED_FOOD_RETRY,
 ): Promise<string> {
-    const binding = await ensureAuthoredFood(clients, foodName, 'the ambiguity probe food');
+    const label = 'the ambiguity probe food';
+    const create = (): Promise<CreateAuthoredFoodResult> =>
+        whileFoodBusy(() => createProbeFood(clients, foodName), retry);
+    const first = await create();
+    const authored =
+        first.kind === 'created'
+            ? first
+            : await whileFoodBusy(() => clients.food.deleteAuthoredFood(first.existingId), retry).then(create);
+    const binding = await bindAuthoredFood(clients, authored, foodName, label);
     const created = await clients.recipe.createRecipe(toCreateRequest(recipe, new Map([[foodName, binding.id]])));
     const startedAt = timing.now();
+    let firstStatuses: readonly string[] | undefined;
 
     for (;;) {
         const detail = await clients.recipe.getRecipeById(created.id);
         const statuses = detail.ingredients.map((line) => line.resolutionStatus ?? 'none');
+        firstStatuses ??= statuses;
 
         if (statuses.length === recipe.ingredients.length && statuses.every((status) => status === 'AMBIGUOUS')) {
             return created.id;
@@ -438,7 +493,10 @@ export async function ensureAmbiguityProbe(
                 `e2e-seed: "${recipe.title}" never read AMBIGUOUS on every line within ${timing.deadlineMs} ms ` +
                     `(its ${recipe.ingredients.length} lines read: ${statuses.join(', ') || 'no lines'}). ` +
                     'PENDING_VERIFICATION means the verification worker has not answered; anything else means it answered ' +
-                    'something other than a high-certainty identity contradiction.',
+                    'something other than a high-certainty identity contradiction.' +
+                    (firstStatuses.length > 0 && !firstStatuses.includes('PENDING_VERIFICATION')
+                        ? ' The very first read was already final, so a stored verdict was reused and the verifier was not asked.'
+                        : ''),
             );
         }
 

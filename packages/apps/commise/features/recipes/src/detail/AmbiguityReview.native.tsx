@@ -19,6 +19,7 @@ import { useState, type FC, type JSX } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { useAmbiguityPick, type AmbiguityPickController } from '../hooks/useAmbiguityPick.js';
+import { spokenAmountsLabel } from '../format/cookAmount.js';
 import { recipeMessages } from '../messages.js';
 import {
     ambiguityReviewLines,
@@ -60,14 +61,18 @@ const AmbiguityReviewRow: FC<{ readonly review: AmbiguityReviewLine; readonly pi
     review,
     picker,
 }): JSX.Element => {
-    const { detail } = useMessages(recipeMessages);
+    const { detail, amountWords } = useMessages(recipeMessages);
     const row = useAmbiguityReviewRow(review, picker);
     const paint = paintOf(useTheme());
 
     return (
         // Named by the line's summary, its header (`AmbiguityReviewRowModel.summary`; `nativeContainerNames.md` N1).
         <View style={[styles.row, paint.card]}>
-            <Text accessibilityRole="header" style={[styles.rowPhrase, paint.ink]}>
+            <Text
+                accessibilityRole="header"
+                accessibilityLabel={spokenAmountsLabel(row.summary, amountWords)}
+                style={[styles.rowPhrase, paint.ink]}
+            >
                 {row.summary}
             </Text>
 
@@ -100,7 +105,7 @@ const AmbiguityReviewRow: FC<{ readonly review: AmbiguityReviewLine; readonly pi
 
             {/* Mounted while empty, so each change of the sentence is spoken (`LiveRegion`, WCAG 4.1.3); after the
                 chips, so a sentence that empties at the end moves none of them (P12). */}
-            <LiveRegion politeness="polite" style={[styles.muted, paint.muted]}>
+            <LiveRegion politeness="polite" typeRole="meta" tone="inkMuted">
                 {row.status}
             </LiveRegion>
             {row.refreshed && <Text style={[styles.muted, paint.muted]}>{detail.ambiguousReviewRefreshed}</Text>}
@@ -229,21 +234,21 @@ const TARGET_DP = 48;
 
 const styles = StyleSheet.create({
     section: { gap: 10 },
-    banner: { borderRadius: 12, flexDirection: 'row', gap: 10, padding: 12 },
-    bannerText: { flex: 1, fontSize: 13 },
+    banner: { borderRadius: nativeTokens.radius.lg, flexDirection: 'row', gap: 10, padding: 12 },
+    bannerText: { ...nativeTokens.type.meta, flex: 1 },
     entry: {
         alignItems: 'center',
-        borderRadius: 12,
+        borderRadius: nativeTokens.radius.lg,
         borderWidth: 1,
         flexDirection: 'row',
         gap: 8,
         padding: 12,
     },
-    entryText: { flex: 1, fontSize: 13, fontWeight: '500' },
-    entryBadge: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
-    entryBadgeLabel: { fontSize: 12, fontWeight: '600' },
-    row: { borderRadius: 10, borderWidth: 1, gap: 8, padding: 10 },
-    rowPhrase: { fontSize: 13, fontWeight: '600' },
+    entryText: { ...nativeTokens.type.caption, flex: 1 },
+    entryBadge: { borderRadius: nativeTokens.radius.full, paddingHorizontal: 10, paddingVertical: 4 },
+    entryBadgeLabel: { ...nativeTokens.type.label },
+    row: { borderRadius: nativeTokens.radius.lg, borderWidth: 1, gap: 8, padding: 10 },
+    rowPhrase: { ...nativeTokens.type.label },
     candidates: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
     candidate: {
         borderRadius: nativeTokens.radius.full,
@@ -251,10 +256,10 @@ const styles = StyleSheet.create({
         minHeight: TARGET_DP,
         paddingHorizontal: nativeTokens.spacing[3],
     },
-    candidateLabel: { fontSize: nativeTokens.fontSize.bodySm },
+    candidateLabel: { ...nativeTokens.type.meta },
     disabled: { opacity: 0.6 },
     failedRow: { alignItems: 'center', flexDirection: 'row', gap: 8 },
-    muted: { fontSize: 12 },
-    saved: { fontSize: 13 },
-    error: { fontSize: 13 },
+    muted: { ...nativeTokens.type.meta },
+    saved: { ...nativeTokens.type.meta },
+    error: { ...nativeTokens.type.meta },
 });

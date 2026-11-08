@@ -53,10 +53,7 @@ import {
 import { deleteBindingsMatching } from '../../support/bindingCleanup.js';
 import { readFailureRecord } from '../../support/lineChain.js';
 import { recipeDb } from '../../support/roleDb.js';
-import {
-    makeFakeIngredientResolutionsDal,
-    makeFakeResolutionBandsDal,
-} from '../../../src/ingredients/__fixtures__/resolutionDals.fixture.js';
+import { makeFakeIngredientResolutionsDal } from '../../../src/ingredients/__fixtures__/resolutionDals.fixture.js';
 
 const roleDb = recipeDb();
 const MAPPED_FOOD = '01JU10LOOP0000000000MAPPED';
@@ -121,7 +118,6 @@ describe('the curated-resolution learning loop', () => {
             new FoodRefsGateway(clients),
             [createCuratedTier(mappings), createMemoTier(mappings)],
             makeFakeIngredientResolutionsDal(),
-            makeFakeResolutionBandsDal(),
         );
     });
 
@@ -152,7 +148,7 @@ describe('the curated-resolution learning loop', () => {
 
     /** Add the phrase by name, as the given user. */
     async function addByName(phrase: string, userId: string | undefined) {
-        return ingredients.addByName(CALLER, makeCanonicalName(`${PREFIX} ${phrase}`), userId);
+        return ingredients.addByNameThroughCascade(CALLER, makeCanonicalName(`${PREFIX} ${phrase}`), userId);
     }
 
     it('a CURATOR’s single correction resolves the phrase for a different user, with no food-service add', async () => {

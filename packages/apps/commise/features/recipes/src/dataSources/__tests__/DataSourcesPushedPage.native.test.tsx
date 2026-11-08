@@ -5,7 +5,8 @@
  * sentences show whatever state the read is in, and Back to Profile is the one visible way out.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { sideInsetOf } from '@commise/test-utils';
+import { cleanup, fireEvent, screen } from '@testing-library/react';
 import { AccessibilityInfo, Text } from 'react-native';
 import { role, roleDark } from '@commise/ui/colors';
 import { rgb, systemScheme } from '@commise/ui/testing/system-color-scheme';
@@ -13,6 +14,7 @@ import { rgb, systemScheme } from '@commise/ui/testing/system-color-scheme';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { DataSourcesPushedPage } from '../DataSourcesPushedPage.native.js';
 import { dataSourcesMessages } from '../messages.js';
+import { render, resolvedColour } from '@commise/ui/testing/tamagui';
 
 vi.mock('react-native', async (importOriginal) => {
     const actual = await importOriginal<typeof import('react-native')>();
@@ -138,8 +140,22 @@ describe.each(['light', 'dark'] as const)('DataSourcesPushedPage (native) — th
         );
         const m = dataSourcesMessages.en;
 
-        expect(getComputedStyle(screen.getByRole('heading', { name: m.title })).color).toBe(rgb(colours.ink));
+        // REWRITTEN: the title is the design-system Text, so its colour is a theme token, read resolved.
+        expect(resolvedColour(screen.getByRole('heading', { name: m.title }), 'color')).toBe(rgb(colours.ink));
         expect(getComputedStyle(screen.getByText(m.intro)).color).toBe(rgb(colours.ink));
         expect(getComputedStyle(screen.getByText(m.closeMatchNote)).color).toBe(rgb(colours.inkMuted));
+    });
+});
+
+describe('DataSourcesPushedPage (native) — one side inset (bug sweep, LargeTitleHeader)', () => {
+    it('insets the title once (its own 16) and pads the content under it by 16', () => {
+        render(
+            <DataSourcesPushedPage back={BACK} headingFocusSignal={0}>
+                <Text>sources list</Text>
+            </DataSourcesPushedPage>,
+        );
+
+        expect(sideInsetOf(screen.getByRole('heading', { name: 'Data sources', level: 1 }))).toBe(16);
+        expect(sideInsetOf(screen.getByText('sources list'))).toBe(16);
     });
 });

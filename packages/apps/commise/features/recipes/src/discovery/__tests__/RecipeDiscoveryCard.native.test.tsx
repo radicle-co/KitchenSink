@@ -7,7 +7,7 @@
  * and this file pinned that button's tier and its row-unique name. "Clone" is retired by the glossary and the control is
  * now an icon in the card's footer; the row-unique name is kept ("Save a copy of {title}").
  */
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -18,6 +18,7 @@ import { toRecipeCardModel } from '../../card/model.js';
 import { RecipeDiscoveryCard } from '../RecipeDiscoveryCard.native.js';
 import type { RecipeDiscoveryCardProps } from '../model.js';
 import { isolate } from '../../byline/bylineText.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 afterEach(cleanup);
 
@@ -114,4 +115,29 @@ describe('RecipeDiscoveryCard (native)', () => {
             expect(screen.getByRole('button', { name: 'Save a copy of Lamb Shoulder' })).toBeTruthy();
         },
     );
+});
+
+// UI Designer ruling (2026-11-03): a cook chooses from Discover cards, so even the compact one draws the full run
+// (time · difficulty · rating · calories).
+describe('RecipeDiscoveryCard (native) — the meta line', () => {
+    it.each(['grid', 'compact'] as const)('draws the full run on the %s card', (variant) => {
+        renderCard({
+            variant,
+            recipe: toRecipeCardModel(
+                makeRecipe({
+                    id: 'rec_1',
+                    title: 'Lamb Shoulder',
+                    totalTimeMinutes: 45,
+                    difficulty: 'easy',
+                    ratingCount: 0,
+                }),
+            ),
+            nutrition: <span>370 cal</span>,
+        });
+        const card = screen.getByText('Lamb Shoulder').parentElement as HTMLElement;
+
+        expect(card.textContent).toContain(
+            '45\u00A0min\u2060\u00A0\u2060· Easy\u2060\u00A0\u2060· No\u00A0ratings\u00A0yet',
+        );
+    });
 });

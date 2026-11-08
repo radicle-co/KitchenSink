@@ -309,3 +309,55 @@ describe('planWorldReset — ambiguity mode', () => {
         expect(plan.deleteRecipeIds).toEqual(['probe']);
     });
 });
+
+/**
+ * `recipes/headerScrollsAway` scrolls the Recipes list until the header leaves the screen, so its library must be longer
+ * than a screen. The extra recipes belong to that flow's mode ALONE: every other flow asserts "3 recipes" on the signer's
+ * library, so the fillers are residue in every other mode, by title, exactly as the ambiguity probe is.
+ */
+describe('planWorldReset — library mode', () => {
+    it('creates the signer recipes AND the fillers against an empty world', () => {
+        const plan = planWorldReset(snapshot(), manifest, 'library');
+
+        expect(plan.create.map((recipe) => recipe.title)).toEqual([
+            ...signerTitles,
+            ...manifest.libraryFillers.map((recipe) => recipe.title),
+        ]);
+    });
+
+    it('holds more than a screenful of recipes: the signer three plus at least six fillers', () => {
+        expect(manifest.libraryFillers.length).toBeGreaterThanOrEqual(6);
+        expect(new Set(manifest.libraryFillers.map((recipe) => recipe.title)).size).toBe(
+            manifest.libraryFillers.length,
+        );
+    });
+
+    it('plans nothing against a library that already holds the fillers', () => {
+        const settledLibrary = snapshot({
+            recipes: [...signerTitles, ...manifest.libraryFillers.map((recipe) => recipe.title)].map((title, index) =>
+                row(`r${index}`, title),
+            ),
+        });
+
+        expect(planWorldReset(settledLibrary, manifest, 'library')).toEqual({
+            deleteRecipeIds: [],
+            deleteCollectionIds: [],
+            create: [],
+        });
+    });
+
+    it('⛔ seeded mode deletes the fillers, so every flow after the long-library one sees "3 recipes" again', () => {
+        const fillerRows = manifest.libraryFillers.map((recipe, index) => row(`f${index}`, recipe.title));
+        const plan = planWorldReset(snapshot({ recipes: [...settled().recipes, ...fillerRows] }), manifest, 'seeded');
+
+        expect(plan.deleteRecipeIds).toEqual(fillerRows.map((filler) => filler.id));
+        expect(plan.create).toEqual([]);
+    });
+
+    it('keeps the fillers out of the seeded manifest, which every other flow counts', () => {
+        const fillerTitles = new Set(manifest.libraryFillers.map((recipe) => recipe.title));
+
+        expect(manifest.recipes.some((recipe) => fillerTitles.has(recipe.title))).toBe(false);
+        expect(manifest.libraryFillers.every((recipe) => recipe.owner === 'signer')).toBe(true);
+    });
+});

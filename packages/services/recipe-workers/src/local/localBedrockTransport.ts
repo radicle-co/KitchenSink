@@ -52,6 +52,7 @@ import type { ConverseTransport } from '@kitchensink/bedrock-client';
  */
 type ConverseCommandInput = Parameters<ConverseTransport>[0];
 import { FOODNESS_SYSTEM_PROMPT } from '@kitchensink/recipe-core/parsing/foodness-prompt';
+import { leadingAmount } from '@kitchensink/recipe-core/parsing/measure-reader';
 import { PARSE_SYSTEM_PROMPT } from '@kitchensink/recipe-core/parsing/parse-prompt';
 import { buildVerificationPrompt } from '@kitchensink/recipe-core/resolution/verification-prompt';
 import { namesNoFood } from '@kitchensink/recipe-import-core';
@@ -90,12 +91,6 @@ const VERIFICATION_SYSTEM_PROMPT = buildVerificationPrompt({
 
 /** The line the parse prompts delimit. Kept in step with `parsePrompt.ts`'s tags by the suite. */
 const DELIMITED_LINE = /<input>([\s\S]*)<\/input>/u;
-
-/** A leading amount, a unit word, and the rest — the three-part shape. */
-const MEASURE_UNIT_FOOD = /^\s*([\d]+(?:[./-][\d]+)?)\s+(\S+)\s+(\S[\s\S]*)$/u;
-
-/** A leading amount and the rest — the two-part shape (`1 egg`), where the line states no unit. */
-const MEASURE_FOOD = /^\s*([\d]+(?:[./-][\d]+)?)\s+(\S[\s\S]*)$/u;
 
 /** One `Converse` answer, in the envelope the shipped client's zod accepts. */
 function envelope(text: string): unknown {
@@ -142,6 +137,10 @@ function lineOf(userMessage: string): string {
 /**
  * A deterministic, deliberately mechanical reading of one line, in the model's own answer shape.
  *
+ * The amount is the line's leading amount as the house measure reader reads it (a mixed number and a spoken range are
+ * one amount), the next word is the unit when a food follows it, and the rest is the food. A reader that took one
+ * token as the amount read `1 1/2 cups whole milk` as the unit `1/2` and the food `cups whole milk`.
+ *
  * ⚠️ The measure is stated in the SOURCE'S OWN WORDS (`cups`, not the canonical `cup`), because that is what
  * `modelParseAnswerSchema` describes and what `normalizeParseAnswer` expects. Running the line through
  * `parseIngredientLine` instead would emit a CANONICALISED unit — a shape no model ever sends, so the local
@@ -154,11 +153,14 @@ function parseAnswerFor(line: string): string {
     const comma = line.indexOf(',');
     const head = (comma < 0 ? line : line.slice(0, comma)).trim();
     const prep = comma < 0 ? '' : line.slice(comma + 1).trim();
-    const three = MEASURE_UNIT_FOOD.exec(head);
-    const two = three === null ? MEASURE_FOOD.exec(head) : null;
-    const quantity = three?.[1] ?? two?.[1] ?? null;
-    const unit = three?.[2] ?? null;
-    const food = (three?.[3] ?? two?.[2] ?? head).trim();
+    const words = head.split(/\s+/u).filter((word) => word !== '');
+    // The house measure reader, so `1 1/2` and `2 to 3` are ONE amount, as a model reads them.
+    const amount = leadingAmount(words);
+    const rest = words.slice(amount?.taken ?? 0);
+    // A word after the amount is a unit only when a food follows it: `1 egg` states none.
+    const unit = amount !== undefined && rest.length > 1 ? (rest[0] ?? null) : null;
+    const quantity = amount === undefined ? null : words.slice(0, amount.taken).join(' ');
+    const food = rest.slice(unit === null ? 0 : 1).join(' ');
 
     return JSON.stringify([
         {

@@ -1,0 +1,166 @@
+/**
+ * @module @commise/features-recipes/import — `ImportWizardStep` (native): the React Native leaf of
+ * `./ImportWizardStep.tsx`, on the same props and words (`wizardCopy.ts`). A frame of its own: Save and leave, the
+ * recipe heading, the progress and the lines scroll; Back, Skip and Next recipe sit in a bar OUTSIDE the scroll region,
+ * at the bottom, within thumb reach: Next recipe fills its own row nearest the thumb, Back and Skip on the row above
+ * (one row beside the rail at the wide class). At the wide container class (1194) the recipe rail stands beside the step.
+ *
+ * At large text or on a short screen the bar would take the frame: past half of it the bar becomes the scroll region's
+ * last item instead (`usePinnedFooter`, `docs/design/compactHeightLayout.md` §3.1), the house rule the Sheet and the
+ * recipe wizard share.
+ *
+ * When a pick leaves nothing open, the host asks Next recipe to take focus (`nextFocus`), so focus is never dropped to
+ * the top of the page (staff-ux 2026-10-25).
+ *
+ * Presentational: the host decides what each action does.
+ */
+import { useLocale, useMessages } from '@commise/i18n/react';
+import { Button } from '@commise/ui/button';
+import { useContainerClass, usePinnedFooter } from '@commise/ui/layout';
+import { nativeTokens } from '@commise/ui/native';
+import { ProgressBar } from '@commise/ui/progress-bar';
+import { useTheme } from '@commise/ui/theme';
+import { Surface } from '@commise/ui/surface-tone';
+import type { FC } from 'react';
+import { ScrollView, StyleSheet, Text, View, type ViewStyle } from 'react-native';
+
+import { fillTemplate } from '../format/fillTemplate.js';
+import { importMessages } from './messages.js';
+import type { ImportWizardStepProps } from './props.js';
+import { backTargetOf, progressTextOf } from './wizardCopy.js';
+
+/** The rail's width beside the step at the wide class, dp. */
+const RAIL_WIDTH = 256;
+
+/** One step of the import review. */
+export const ImportWizardStep: FC<ImportWizardStepProps> = ({
+    recipeTitle,
+    position,
+    total,
+    openLines,
+    checkingLines,
+    children,
+    rail,
+    onBack,
+    onSkip,
+    onNext,
+    onSaveAndLeave,
+    nextFocus,
+}) => {
+    const { wizard: w } = useMessages(importMessages);
+    const locale = useLocale();
+    const { colors } = useTheme();
+    const wide = useContainerClass() === 'wide';
+    const layout: BarLayout = wide ? 'row' : 'stacked';
+    const pinning = usePinnedFooter();
+    const backTo = backTargetOf(position);
+
+    const bar = (
+        <Surface
+            tone="paper"
+            role="group"
+            aria-label={w.actionsLabel}
+            onLayout={pinning.onFooterLayout}
+            style={[BAR[layout].bar, { borderTopColor: colors.lineDivider }]}
+        >
+            <View style={BAR[layout].secondary}>
+                {backTo === undefined ? null : (
+                    <Button
+                        variant="secondary"
+                        icon="chevronLeft"
+                        accessibilityLabel={fillTemplate(w.backName, { n: backTo })}
+                        onPress={onBack}
+                    >
+                        {w.back}
+                    </Button>
+                )}
+                <Button variant="quiet" onPress={onSkip}>
+                    {w.skip}
+                </Button>
+            </View>
+            <Button
+                icon="chevronRight"
+                iconPlacement="end"
+                width={layout === 'stacked' ? 'fill' : 'auto'}
+                focusRequested={nextFocus.requested}
+                onFocusRequestHandled={nextFocus.onHandled}
+                onPress={onNext}
+            >
+                {w.next}
+            </Button>
+        </Surface>
+    );
+
+    return (
+        <View style={styles.frame} onLayout={pinning.onFrameLayout}>
+            <View style={styles.body}>
+                {wide && rail !== undefined ? <View style={styles.rail}>{rail}</View> : null}
+                <ScrollView
+                    style={styles.grow}
+                    contentContainerStyle={styles.content}
+                    keyboardShouldPersistTaps="handled"
+                >
+                    <View style={styles.saveLeave}>
+                        <Button variant="ghost" size="sm" onPress={onSaveAndLeave}>
+                            {w.saveLeave}
+                        </Button>
+                    </View>
+                    <Text accessibilityRole="header" style={[styles.title, { color: colors.ink }]}>
+                        {recipeTitle}
+                    </Text>
+                    <View style={styles.progress}>
+                        <Text style={[styles.meta, { color: colors.inkMuted }]}>
+                            {progressTextOf({ position, total, openLines, checkingLines }, w, locale)}
+                        </Text>
+                        <ProgressBar label={w.progressLabel} value={position} max={total} />
+                    </View>
+                    {children}
+                    {pinning.unpinned ? bar : null}
+                </ScrollView>
+            </View>
+            {pinning.unpinned ? null : bar}
+        </View>
+    );
+};
+
+const styles = StyleSheet.create({
+    frame: { flex: 1 },
+    body: { flex: 1, flexDirection: 'row', gap: nativeTokens.spacing[6] },
+    rail: { width: RAIL_WIDTH },
+    grow: { flex: 1 },
+    content: { gap: nativeTokens.spacing[4], paddingBottom: nativeTokens.spacing[4] },
+    saveLeave: { flexDirection: 'row', justifyContent: 'flex-end' },
+    title: nativeTokens.type.largeTitle.narrow,
+    progress: { gap: nativeTokens.spacing[2] },
+    meta: nativeTokens.type.meta,
+});
+
+/**
+ * The action bar's two layouts. `stacked` (below the wide class): Back and Skip on a row, then Next recipe filling its
+ * own row nearest the thumb — three actions in one row need 383 px against 288 at 320 dp and clipped Next (review
+ * finding M3). `row` (the wide class, beside the rail): the three on one row, Next at its end. A display derivation of
+ * the container class, so the actions and their order are the same in both.
+ */
+type BarLayout = 'stacked' | 'row';
+
+const BAR: Readonly<Record<BarLayout, { readonly bar: ViewStyle; readonly secondary: ViewStyle }>> = {
+    stacked: StyleSheet.create({
+        bar: {
+            flexDirection: 'column',
+            gap: nativeTokens.spacing[2],
+            paddingVertical: nativeTokens.spacing[3],
+            borderTopWidth: StyleSheet.hairlineWidth,
+        },
+        secondary: { flexDirection: 'row', alignItems: 'center', gap: nativeTokens.spacing[3] },
+    }),
+    row: StyleSheet.create({
+        bar: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: nativeTokens.spacing[3],
+            paddingVertical: nativeTokens.spacing[3],
+            borderTopWidth: StyleSheet.hairlineWidth,
+        },
+        secondary: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: nativeTokens.spacing[3] },
+    }),
+};

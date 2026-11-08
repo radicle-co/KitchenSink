@@ -8,7 +8,7 @@
  * caller-supplied prop (no i18n import here).
  *
  * The buttons are verbs, never "OK" and "Cancel" (`docs/design/uiOverhaul/buildSpec.md` §1.11, §6.5): `confirm` names
- * the destructive act and wears the filled `danger` tone, `keep` names what the person keeps and is where focus opens.
+ * the destructive act and wears the filled `danger` tone, `keep` names what the person keeps, is where focus opens, and draws no glyph unless the caller names one.
  * Every caller confirms something destructive, so the old `destructive` flag is gone: a non-destructive confirmation
  * has no use in this product, and the flag let a caller draw the danger fill on a safe action by mistake.
  *
@@ -25,7 +25,10 @@ export interface ConfirmAction {
     readonly icon: IconName;
 }
 
-/** The safe action: its verb, and a glyph if not the default `x`. */
+/**
+ * The safe action: its verb, and a glyph only when it means something (a lock for "stay private"). With none it is text only:
+ * an `x` reads as close or discard, the opposite of keeping the person's work.
+ */
 export interface KeepAction {
     readonly label: string;
     readonly icon?: IconName;

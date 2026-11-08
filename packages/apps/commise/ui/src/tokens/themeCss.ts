@@ -33,9 +33,23 @@
  * Do not add a `--spacing-*` block back, and do not "fix" a size by defining the missing step. Any new token
  * family must be checked against Tailwind's namespace list first, and covered by the compiled-output test.
  */
-import { palette, role, roleDark, semantic } from './colors.js';
+import {
+    FAB_BOTTOM_MARGIN_PX,
+    FAB_FLOATS_FROM_HEIGHT_PX,
+    FAB_RESERVED_BOTTOM_PX,
+} from '../createFab/createFabPolicy.js';
+import {
+    chipFillRoleOf,
+    chipFillVarOf,
+    chipPressToneOf,
+    chipPressVarOf,
+    pressFillsOf,
+    pressVarOf,
+    SURFACE_TONE_NAMES,
+} from '../surfaceTone/surfaceTone.js';
+import { palette, role, roleDark, semantic, semanticDark } from './colors.js';
 import { coverTint, coverTintDark } from './covers.js';
-import { difficultyTone, difficultyToneDark, proTone, type Difficulty, type Tone } from './tones.js';
+import { difficultyTone, difficultyToneDark, proTone, proToneDark, type Difficulty, type Tone } from './tones.js';
 import { kebab, pxToRemUnit } from './emit.js';
 import { barMaterial } from './barMaterial.js';
 import { gradient, gradientCss, heroDark } from './gradients.js';
@@ -43,7 +57,7 @@ import { containerThreshold, contentWidth, pinnedBarHeight, viewportThreshold } 
 import { motionKeyframes, motionThemeDeclarations } from './motion.js';
 import { radius } from './radius.js';
 import { shadows } from './shadows.js';
-import { fonts, fontSizes, fontWeights, lineHeights, webTypeRoles } from './typography.js';
+import { fonts, fontSizes, fontWeights, webTypeRoles } from './typography.js';
 
 /** A token map as emitted: keys become custom-property suffixes, values are written verbatim. */
 type TokenMap = Readonly<Record<string, string | number>>;
@@ -56,7 +70,7 @@ function declarations(prefix: string, tokens: TokenMap, kebabKeys = true): reado
 /**
  * The app-wide CANVAS gradient, as `--background-image-hero`.
  *
- * `gradient.hero` is the wireframes' own `--gradient-beach-glow` — the wash all nine screens paint on `body`.
+ * `gradient.hero` is the flat canvas wash all nine screens paint on `body`.
  * It is emitted here for one reason: the web canvas can only be painted from STYLESHEET position. `<body>`'s background is not a React element's inline style, so `globals.css`
  * needs a custom property to reference; native takes the identical spec through `GradientSurface` /
  * `toNativeGradient`, so neither platform re-spells the ramp.
@@ -68,7 +82,7 @@ function declarations(prefix: string, tokens: TokenMap, kebabKeys = true): reado
  * NAMED key to a live namespace is also categorically different from the `--spacing-*` hijack: it introduces
  * `bg-hero` and redefines nothing Tailwind ships.
  *
- * Only the canvas ramp is emitted. `brand` already reaches the web as the Button's `from-seafoam
+ * Only the canvas ramp is emitted. `brand` already reaches the web as the Button's `from-steel
  * to-ocean-dark` utilities and `scrim` as the recipe-detail cover's own, so emitting those would create a
  * second web representation of one piece of knowledge.
  */
@@ -78,10 +92,10 @@ function canvasGradientDeclarations(): readonly string[] {
 
 /**
  * The type roles (§1.5) as `--text-{role}` plus the sub-properties Tailwind v4 folds into the `text-{role}` utility
- * (`--line-height`, `--font-weight`, `--letter-spacing`, each behind its `--tw-*` override, so an explicit `leading-*`
+ * (`--line-height` and `--font-weight`, each behind its `--tw-*` override, so an explicit `leading-*`
  * or `font-*` class still wins).
  *
- * Two roles share a name with the older ramp (`caption`, `overline`). For those the size is NOT declared again — the
+ * One role shares a name with the older ramp (`caption`). For that one the size is NOT declared again — the
  * ramp already declares it — and only the sub-properties are added. A role whose size disagrees with the ramp entry of
  * the same name throws, because two declarations of one custom property would let the later one win silently.
  *
@@ -101,7 +115,6 @@ function typeRoleDeclarations(): readonly string[] {
             ...(declared === undefined ? [`    --text-${name}: ${spec.size};`] : []),
             `    --text-${name}--line-height: ${spec.lineHeight};`,
             `    --text-${name}--font-weight: ${spec.fontWeight};`,
-            ...(spec.letterSpacing === undefined ? [] : [`    --text-${name}--letter-spacing: ${spec.letterSpacing};`]),
         ];
     });
 }
@@ -133,6 +146,77 @@ function layoutDeclarations(): readonly string[] {
 }
 
 /**
+ * The floating create button's room (`createFab/createFabPolicy.ts`), as two plain custom properties, not a Tailwind
+ * namespace:
+ *
+ *  - `--fab-bottom-margin`: how far above the bottom chrome the button rests (`FAB_BOTTOM_MARGIN_PX`).
+ *  - `--fab-reserved-bottom`: the room a page the button covers leaves at its foot, the button's height, that margin and
+ *    16 (`FAB_RESERVED_BOTTOM_PX`, designer ruling 2026-11-01). `<main>`'s foot, the document's `scroll-padding-bottom`
+ *    and "Back to top" read it, so the web and native cannot disagree. No safe-area inset: every use adds it to
+ *    `--bottom-chrome`, the tab bar's height, which already holds the inset.
+ */
+function fabDeclarations(): readonly string[] {
+    return [
+        `    --fab-bottom-margin: ${pxToRemUnit(FAB_BOTTOM_MARGIN_PX)};`,
+        `    --fab-reserved-bottom: ${pxToRemUnit(FAB_RESERVED_BOTTOM_PX)};`,
+    ];
+}
+
+/**
+ * The web floating button below `FAB_FLOATS_FROM_HEIGHT_PX` of viewport height (designer ruling 2026-11-02), generated
+ * from that one constant:
+ *
+ *  - the `fab-floats` variant, which the button's classes put on everything that makes it float (`fab-floats:fixed`), so
+ *    a shorter viewport leaves it an inline control in the page header;
+ *  - a media rule that sets `--fab-reserved-bottom` to nothing there, after the theme has declared it. `<main>`'s foot,
+ *    the document's `scroll-padding-bottom` and "Back to top" all read that property, so they follow with no rule of
+ *    their own. Plain CSS, not `@theme`: a theme variable cannot be redefined inside a media query.
+ */
+function fabShortViewportRules(): readonly string[] {
+    const from = `${String(FAB_FLOATS_FROM_HEIGHT_PX)}px`;
+
+    return [
+        `@custom-variant fab-floats (@media (height >= ${from}));`,
+        '',
+        `@media (height < ${from}) {`,
+        '    :root {',
+        '        --fab-reserved-bottom: 0px;',
+        '    }',
+        '}',
+    ];
+}
+
+/**
+ * Each surface's press fill as `--color-press-<tone>` (`surfaceTone.ts`): the surface with the theme's ink laid over it,
+ * derived there from the same table native reads, so the two platforms cannot disagree. Not a colour ROLE (a designer
+ * does not choose a press), so it is emitted beside the roles, not as one of them. Pure.
+ *
+ * @param scheme - Which theme's press fills.
+ */
+function pressDeclarations(scheme: 'light' | 'dark'): readonly string[] {
+    const press = pressFillsOf(scheme === 'light' ? role : roleDark, scheme);
+
+    return SURFACE_TONE_NAMES.map((tone) => `    ${pressVarOf(tone)}: ${press[tone]};`);
+}
+
+/**
+ * Each surface's chip fill and chip press as `--color-chip-fill-<tone>` and `--color-chip-press-<tone>`
+ * (`surfaceTone.ts`, `componentFixes.md` §10b): a chip's fill is chosen per theme (on `paperRaised` it is `paper` in dark,
+ * where `paperRaised` is `surfaceMuted`), so each tone states its own and the surface class points at it. Pure.
+ *
+ * @param scheme - Which theme's chip fills.
+ */
+function chipDeclarations(scheme: 'light' | 'dark'): readonly string[] {
+    const colors = scheme === 'light' ? role : roleDark;
+    const press = pressFillsOf(colors, scheme);
+
+    return SURFACE_TONE_NAMES.flatMap((tone) => [
+        `    ${chipFillVarOf(tone)}: ${colors[chipFillRoleOf(tone, scheme)]};`,
+        `    ${chipPressVarOf(tone)}: ${press[chipPressToneOf(tone, scheme)]};`,
+    ]);
+}
+
+/**
  * The difficulty badge's pairs as `--color-difficulty-{level}-fill` and `-ink` (`buildSpec.md` §1.4): the same tones
  * native reads from `difficultyTone`/`difficultyToneDark`, so the two platforms cannot disagree on them. Pure.
  *
@@ -148,8 +232,8 @@ function difficultyDeclarations(tones: Readonly<Record<Difficulty, Tone>>): read
 
 /**
  * The dark theme (`docs/design/uiOverhaul/darkTheme.md` §6): one `prefers-color-scheme: dark` override of the same
- * custom properties the `@theme` block declares — every role from `roleDark`, the cover tints and the canvas
- * wash — then `color-scheme: light dark` so form controls and scrollbars follow. Unlayered `:root` rules beat
+ * custom properties the `@theme` block declares — every role from `roleDark`, the semantic names that follow them,
+ * the PRO chip, the cover tints and the canvas wash — then `color-scheme: light dark` so form controls and scrollbars follow. Unlayered `:root` rules beat
  * Tailwind's `@layer theme` declarations, and every role utility reads `var(--color-*)`, so this block IS the theme
  * switch; no component carries a `dark:` variant. Pure.
  */
@@ -159,6 +243,10 @@ function darkThemeLines(): readonly string[] {
         '@media (prefers-color-scheme: dark) {',
         '    :root {',
         ...declarations('color', roleDark).map((line) => `    ${line}`),
+        ...pressDeclarations('dark').map((line) => `    ${line}`),
+        ...chipDeclarations('dark').map((line) => `    ${line}`),
+        ...declarations('color', semanticDark).map((line) => `    ${line}`),
+        ...declarations('color-pro', { fill: proToneDark.fill, ink: proToneDark.text }).map((line) => `    ${line}`),
         ...declarations('color-cover', coverTintDark).map((line) => `    ${line}`),
         ...difficultyDeclarations(difficultyToneDark).map((line) => `    ${line}`),
         `        --background-image-hero: ${gradientCss(heroDark)};`,
@@ -187,12 +275,11 @@ export function themeCss(): string {
         ...declarations('font', fonts),
         // `--text-*` / `--leading-*` are Tailwind v4's namespaces for font size and line height. They were
         // once emitted as `--font-size-*` / `--line-height-*` — spellings that match the SOURCE VARIABLE's
-        // name but no namespace at all — so `text-body-sm`, `text-display-md`, `leading-body` and friends
+        // name but no namespace at all — so `text-body-sm`, `text-display-md` and friends
         // generated NO rule and every one of their 324 call sites silently inherited the parent's size. The
         // whole DS type ramp had never reached the browser. See `__integration__/tailwindTheme` in the web
         // app, which compiles this artifact and asserts what a utility resolves to.
         ...declarations('text', fontSizes),
-        ...declarations('leading', lineHeights),
         ...declarations('font-weight', fontWeights),
         ...declarations('radius', radius, false),
         ...declarations('shadow', shadows, false),
@@ -200,6 +287,8 @@ export function themeCss(): string {
         ...canvasGradientDeclarations(),
         // The overhaul's roles and layout (§1.2-§1.5), appended after everything above for the same reason.
         ...declarations('color', role),
+        ...pressDeclarations('light'),
+        ...chipDeclarations('light'),
         ...typeRoleDeclarations(),
         ...layoutDeclarations(),
         ...declarations('color-cover', coverTint),
@@ -209,7 +298,11 @@ export function themeCss(): string {
         `    --color-bar: ${barMaterial.light};`,
         // The animation tokens (`tokens/motion.ts`), appended last for the same reason.
         ...motionThemeDeclarations(),
+        // The floating create button's room, appended last for the same reason.
+        ...fabDeclarations(),
         '}',
+        '',
+        ...fabShortViewportRules(),
         '',
         ...motionKeyframes(),
         ...darkThemeLines(),

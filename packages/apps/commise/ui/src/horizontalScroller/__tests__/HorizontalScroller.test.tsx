@@ -26,6 +26,8 @@ interface Geometry {
     scrollWidth: number;
     clientWidth: number;
     scrollLeft: number;
+    /** The box around the scroller and the chevron's gutter; absent, jsdom reports 0 and the hook reads the scroller. */
+    outerWidth?: number;
 }
 
 /** Report `geometry` for any element handed to `onScroller`, reading it live so a test can move it. */
@@ -34,6 +36,14 @@ function reporting(geometry: Geometry, onScroller?: (el: HTMLElement | null) => 
         if (el !== null) {
             Object.defineProperty(el, 'scrollWidth', { configurable: true, get: () => geometry.scrollWidth });
             Object.defineProperty(el, 'clientWidth', { configurable: true, get: () => geometry.clientWidth });
+
+            if (el.parentElement !== null) {
+                Object.defineProperty(el.parentElement, 'clientWidth', {
+                    configurable: true,
+                    get: () => geometry.outerWidth ?? 0,
+                });
+            }
+
             Object.defineProperty(el, 'scrollLeft', {
                 configurable: true,
                 get: () => geometry.scrollLeft,
@@ -97,11 +107,11 @@ describe('HorizontalScroller (web) — the chevron', () => {
         expect(scroller.dataset['hint']).toBeUndefined();
     });
 
-    it('shows the chevron at the start of a scroller that overflows, and widens the fade to its band', () => {
+    it('shows the chevron at the start of a scroller that overflows, with the fade the scroller always has', () => {
         const { scroller } = mount({ scrollWidth: 640, clientWidth: 300, scrollLeft: 0 });
 
         expect(opacityOf(scroller)).toBe('1');
-        expect(scroller.dataset['hint']).toBe('start');
+        expect(scroller.dataset['hint']).toBe('more');
     });
 
     it('hides the chevron on the first scroll, keeps the narrower fade while more lies ahead, and brings it back at the start', () => {
@@ -117,7 +127,7 @@ describe('HorizontalScroller (web) — the chevron', () => {
 
         scrollTo(scroller, 0);
         expect(opacityOf(scroller)).toBe('1');
-        expect(scroller.dataset['hint']).toBe('start');
+        expect(scroller.dataset['hint']).toBe('more');
     });
 
     it('shows neither the chevron nor the fade at the end', () => {
@@ -144,11 +154,12 @@ describe('HorizontalScroller (web) — the chevron', () => {
         expect(opacityOf(scroller)).toBe('0');
     });
 
-    it('watches both the scroller and its content box for a change of size', () => {
+    it('watches the scroller, its content box and the box around it for a change of size', () => {
         const { scroller } = mount({ scrollWidth: 640, clientWidth: 300, scrollLeft: 0 });
 
         expect(resizeObserver.observed.has(scroller)).toBe(true);
-        expect(resizeObserver.observed.size).toBe(2);
+        expect(resizeObserver.observed.has(scroller.parentElement as HTMLElement)).toBe(true);
+        expect(resizeObserver.observed.size).toBe(3);
     });
 
     it('reads a right-to-left scroller, whose scrollLeft runs negative, from its start edge', () => {
@@ -186,6 +197,55 @@ describe('HorizontalScroller (web) — the chevron', () => {
         expect(chevron.className.split(' ')).toContain('pointer-events-none');
         expect(chevron.querySelector('[tabindex]')).toBeNull();
         expect(chevron.className).toContain('motion-safe:transition-opacity');
+    });
+});
+
+/**
+ * The chevron has a column of its own beside the scroller (`docs/design/uiOverhaul/horizontalScrollHint.md` §3.6, the
+ * gutter rule, owner report 2026-10-27 and `staff-ux-engineer` ruling B): drawn over the scroller it sat on the last
+ * chip and hid its last characters at a 255 px width. jsdom lays nothing out, so these read the classes that make the
+ * column; the rectangles are asserted in Playwright (`recipeListChips.spec.ts`, `horizontalScrollHint.spec.ts`).
+ */
+describe('HorizontalScroller (web) — the chevron gutter', () => {
+    const boxOf = (scroller: HTMLElement): HTMLElement => scroller.parentElement as HTMLElement;
+
+    it('puts the chevron in a column beside the scroller, not over it, while the content overflows', () => {
+        const { scroller } = mount({ scrollWidth: 640, clientWidth: 276, outerWidth: 300, scrollLeft: 0 });
+        const classes = chevronOf(scroller).className.split(' ');
+
+        expect(boxOf(scroller).className).toContain('grid-cols-');
+        expect(classes).not.toContain('absolute');
+        expect(classes).not.toContain('hidden');
+        expect(classes).toContain('w-6');
+    });
+
+    it('keeps the column through a scroll, so nothing reflows when the chevron fades', () => {
+        const { scroller } = mount({ scrollWidth: 640, clientWidth: 276, outerWidth: 300, scrollLeft: 0 });
+
+        scrollTo(scroller, 120);
+
+        expect(opacityOf(scroller)).toBe('0');
+        expect(boxOf(scroller).className).toContain('grid-cols-');
+        expect(chevronOf(scroller).className.split(' ')).not.toContain('hidden');
+    });
+
+    it('takes no room while the content fits, though the scroller is as narrow as a gutter would leave it', () => {
+        // 280 px fits the 300 px box. Read against the 276 px scroller it would overflow, and the gutter would flip.
+        const { scroller } = mount({ scrollWidth: 280, clientWidth: 276, outerWidth: 300, scrollLeft: 0 });
+
+        expect(boxOf(scroller).className).not.toContain('grid-cols-');
+        expect(chevronOf(scroller).className.split(' ')).toContain('hidden');
+        expect(opacityOf(scroller)).toBe('0');
+    });
+
+    it('draws no wide band over the content: the fade is one short ramp at the scroller’s own edge', () => {
+        const { scroller } = mount({ scrollWidth: 640, clientWidth: 276, outerWidth: 300, scrollLeft: 0 });
+
+        expect(scroller.className).toContain(
+            'data-[hint=more]:[mask-image:linear-gradient(to_right,black_calc(100%-16px)',
+        );
+        expect(scroller.className).not.toContain('data-[hint=start]');
+        expect(scroller.className).toContain('scroll-pe-4');
     });
 });
 
@@ -386,10 +446,10 @@ describe('HorizontalScroller (web) — focus', () => {
         expect(scrollIntoView).not.toHaveBeenCalled();
     });
 
-    it('keeps the end of the scroll box clear of the hint band', () => {
+    it('keeps the end of the scroll box clear of the fade ramp', () => {
         const { scroller } = mount({ scrollWidth: 640, clientWidth: 300, scrollLeft: 0 });
 
-        expect(scroller.className.split(' ')).toContain('scroll-pe-10');
+        expect(scroller.className.split(' ')).toContain('scroll-pe-4');
     });
 });
 

@@ -6,8 +6,8 @@ import { coverTintOf } from '../coverTint.js';
 
 /**
  * RecipeCover (web) — spec §1.8: the photo when there is one; otherwise a monogram cover — one of six tints chosen by
- * the recipe's id, the title's first letter in Playfair 700 `ink` at 40% of the cover's height, and the cuisine as an
- * `overline` under it, but never on a cover under 96 px tall. Either way the cover is decorative: the title is the
+ * the recipe's id, the title's first letter in Manrope 700 `ink` at 40% of the cover's height, and the cuisine as an
+ * `caption` under it, but never on a cover under 96 px tall. Either way the cover is decorative: the title is the
  * name of the link it sits in. Every cover states its aspect ratio, so nothing shifts as an image loads.
  */
 
@@ -33,13 +33,12 @@ describe('RecipeCover (web) — a photo', () => {
 
 describe('RecipeCover (web) — a monogram', () => {
     it('grounds the cover in the recipe’s own tint and shows the title’s first letter, hidden from assistive tech', () => {
-        const { container } = render(<RecipeCover recipeId="rec_42" title="lemon tart" aspect="4:3" />);
-        const ground = container.querySelector<HTMLElement>('[aria-hidden="true"]');
+        const { container, getByText } = render(<RecipeCover recipeId="rec_42" title="lemon tart" aspect="4:3" />);
 
         // The tint's CLASS, whose custom property the dark block overrides (D15) — not an inline light hex.
-        expect(ground?.className.split(/\s+/u)).toContain(`bg-cover-${coverTintOf('rec_42')}`);
-        expect(ground?.style.backgroundColor).toBe('');
-        expect(ground?.textContent).toBe('L');
+        expect(tokensOf(container.firstElementChild)).toContain(`bg-cover-${coverTintOf('rec_42')}`);
+        expect((container.firstElementChild as HTMLElement).style.backgroundColor).toBe('');
+        expect(getByText('L').closest('[aria-hidden="true"]')?.textContent).toBe('L');
         expect(container.querySelector('img')).toBeNull();
     });
 
@@ -51,33 +50,33 @@ describe('RecipeCover (web) — a monogram', () => {
         );
     });
 
-    it('sets the cuisine as an overline in ink, shown only on a cover 96px tall or taller', () => {
+    it('sets the cuisine as a caption in ink, shown only on a cover 96px tall or taller', () => {
         const { getByText } = render(
             <RecipeCover recipeId="rec_42" title="Lemon tart" cuisine="French" aspect="4:3" />,
         );
 
         expect(tokensOf(getByText('French'))).toEqual(
-            expect.arrayContaining(['text-overline', 'text-ink', 'hidden', '[@container_cover_(height>=6rem)]:block']),
+            expect.arrayContaining(['text-caption', 'text-ink', 'hidden', '[@container_cover_(height>=6rem)]:block']),
         );
     });
 
-    it('shows no overline without a cuisine', () => {
+    it('shows no cuisine without a cuisine', () => {
         const { getByText, container } = render(<RecipeCover recipeId="rec_42" title="Lemon tart" aspect="4:3" />);
 
         expect(getByText('L').parentElement?.children).toHaveLength(1);
         expect(container.textContent).toBe('L');
     });
 
-    it('draws no overline when told the cover carries a chip over it (W-08), and still shows the letter', () => {
+    it('draws no cuisine when told the cover carries a chip over it (W-08), and still shows the letter', () => {
         const { queryByText, getByText } = render(
-            <RecipeCover recipeId="rec_42" title="Lemon tart" cuisine="French" aspect="4:3" overline={false} />,
+            <RecipeCover recipeId="rec_42" title="Lemon tart" cuisine="French" aspect="4:3" showCuisine={false} />,
         );
 
         expect(queryByText('French')).toBeNull();
         expect(getByText('L')).toBeTruthy();
     });
 
-    it('keeps the overline by default, so a caller that says nothing sees no change', () => {
+    it('keeps the cuisine by default, so a caller that says nothing sees no change', () => {
         const { getByText } = render(
             <RecipeCover recipeId="rec_42" title="Lemon tart" cuisine="French" aspect="4:3" />,
         );
@@ -85,12 +84,33 @@ describe('RecipeCover (web) — a monogram', () => {
         expect(getByText('French')).toBeTruthy();
     });
 
-    it('is a size container, so the letter and the overline read the cover’s own height', () => {
+    it('is a size container, so the letter and the cuisine read the cover’s own height', () => {
         const { container } = render(<RecipeCover recipeId="rec_42" title="Lemon tart" aspect="1:1" />);
 
         expect(tokensOf(container.firstElementChild)).toEqual(
             expect.arrayContaining(['[container-type:size]', '[container-name:cover]']),
         );
+    });
+});
+
+describe('RecipeCover (web) — the letter is centred in the whole cover', () => {
+    it('centres the letter in the whole cover', () => {
+        const { container, getByText } = render(<RecipeCover recipeId="rec_42" title="Lemon tart" aspect="4:3" />);
+        const region = getByText('L').closest('[aria-hidden="true"]');
+
+        expect(Array.from(container.firstElementChild?.children ?? [])).toEqual([region]);
+        expect(tokensOf(region)).toEqual(expect.arrayContaining(['flex-1', 'items-center', 'justify-center']));
+    });
+});
+
+// Designer ruling (2026-11-03): the letter centres by its CAP BAND, not its line box. `text-box: trim-both cap alphabetic`
+// trims the line to the cap band, so flex centring centres the capital itself, at every size. A browser without it
+// (Firefox) keeps the line box, which for Manrope puts the cap band 0.023 em low, inside the 2 px allowance.
+describe('RecipeCover (web) — the letter is centred by its cap band', () => {
+    it('trims the letter’s line to its cap band', () => {
+        const { getByText } = render(<RecipeCover recipeId="rec_42" title="Lemon tart" aspect="4:3" />);
+
+        expect(tokensOf(getByText('L'))).toContain('[text-box:trim-both_cap_alphabetic]');
     });
 });
 

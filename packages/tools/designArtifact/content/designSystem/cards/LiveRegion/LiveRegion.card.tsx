@@ -6,7 +6,7 @@ import { defineCard } from '../../../../src/cards/defineCard.js';
 
 const CARD = {
     background: 'var(--paper)',
-    border: '1px solid var(--line)',
+    border: '1px solid var(--line-divider)',
     borderRadius: 12,
     padding: 12,
 } as const;

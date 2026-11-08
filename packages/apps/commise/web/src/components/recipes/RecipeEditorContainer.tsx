@@ -34,6 +34,7 @@ import {
     sectionFromHash,
     useDeviceDraft,
     useRecipeEditorSession,
+    useRecipePrivate,
     type DraftStore,
     type EditorNavigation,
     type EditorSectionId,
@@ -335,6 +336,9 @@ const RecipeEditorSession: FC<RecipeEditorSessionProps> = ({ locale, mode, draft
     const paidFeatures = paidFeatureStateOf(profile);
     // What a WRITE may rely on: the profile's own answer, never the display's fail-closed `hidden` (review B1).
     const knownPaidFeatures = knownPaidFeaturesOf(profile);
+    // ADR-0073: which rule the recipe's Private is under, where the cook stands on private slots (the server's read), and
+    // the refusal that is KNOWN - what the session must not send.
+    const recipePrivate = useRecipePrivate({ sourceType: seed.recipe?.sourceType, knownPaidFeatures });
     const [initialSection] = useState<EditorSectionId | undefined>(() => sectionFromHash(window.location.hash));
     // The session's navigation port, on the Next router.
     const navigation: EditorNavigation = {
@@ -355,7 +359,7 @@ const RecipeEditorSession: FC<RecipeEditorSessionProps> = ({ locale, mode, draft
         reportError: reportErrorToSentry,
         ...(mode === 'create' ? { onRecipeRef: (ref: string) => replaceUrlFor(locale, ref) } : {}),
         openPaste,
-        knownPaidFeatures,
+        privateRefusal: recipePrivate.refusal,
     });
 
     return (
@@ -366,6 +370,8 @@ const RecipeEditorSession: FC<RecipeEditorSessionProps> = ({ locale, mode, draft
             keep="tabSession"
             paidFeatures={paidFeatures}
             knownPaidFeatures={knownPaidFeatures}
+            privateRule={recipePrivate.rule}
+            slotStanding={recipePrivate.standing}
             renderPhotos={(target) => <RecipePhotoUploaderContainer {...target} />}
             {...(initialSection === undefined ? {} : { initialSection })}
             onClose={() => {

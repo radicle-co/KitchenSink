@@ -20,15 +20,17 @@
  * @pattern Mediator client — a choice is handed to the screen's `ScrollHost`, which performs the jump
  */
 import { useState, type FC } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
+import { touchFloor } from '../layout/touchFloor.native.js';
 import { Icon } from '../icon/Icon.native.js';
 import { useContainerClass } from '../layout/useContainerClass.native.js';
 import { useScrollHost } from '../scrollHost/scrollHostContext.js';
 import { Sheet } from '../sheet/Sheet.native.js';
+import { Text } from '../text/Text.native.js';
 import { useTheme } from '../theme/useTheme.native.js';
 import { nativeTokens } from '../tokens/native.js';
-import type { SectionIndexItem, SectionIndexProps } from './props.js';
+import type { SectionIndexItem, SectionIndexProps, SectionIndexTone } from './props.js';
 import {
     TONE_GLYPH,
     TONE_ROLE,
@@ -38,6 +40,8 @@ import {
     descriptionOf,
     shownCountOf,
 } from './sectionIndexModel.js';
+import { Surface } from '../surfaceTone/Surface.native.js';
+import { usePressFill } from '../surfaceTone/usePressFill.native.js';
 
 type Colors = ReturnType<typeof useTheme>['colors'];
 
@@ -56,6 +60,62 @@ function linkProps(item: SectionIndexItem, current: boolean, withHint: boolean) 
     };
 }
 
+interface ToneTextProps {
+    readonly tone: SectionIndexTone;
+    readonly typeRole: 'label' | 'caption';
+    readonly numberOfLines?: number;
+    readonly hidden?: boolean;
+    readonly children: string | number;
+}
+
+/**
+ * A text in its tone's colour. The colour guard reads tokens from the source, so each is spelled out here, once; it is
+ * `TONE_ROLE` in the same words, and `SectionIndex.native.test.tsx` holds the drawn colours to it.
+ */
+const ToneText: FC<ToneTextProps> = ({ tone, typeRole, numberOfLines, hidden = false, children }) => {
+    // A reason wraps inside its row; a count keeps its width.
+    const common = {
+        typeRole,
+        numberOfLines,
+        'aria-hidden': hidden || undefined,
+        flexShrink: typeRole === 'caption' ? 1 : 0,
+    };
+
+    switch (tone) {
+        case 'fix':
+            return (
+                <Text {...common} color="$dangerText">
+                    {children}
+                </Text>
+            );
+        case 'attention':
+            return (
+                <Text {...common} color="$attention">
+                    {children}
+                </Text>
+            );
+        case 'muted':
+            return (
+                <Text {...common} color="$inkMuted">
+                    {children}
+                </Text>
+            );
+        case 'complete':
+            return (
+                <Text {...common} color="$ink">
+                    {children}
+                </Text>
+            );
+
+        default: {
+            // A fifth tone is a compile error here, not a text that draws nothing.
+            const unknown: never = tone;
+
+            return unknown;
+        }
+    }
+};
+
 interface ListRowProps {
     readonly item: SectionIndexItem;
     readonly current: boolean;
@@ -68,6 +128,7 @@ interface ListRowProps {
 /** One rail or sheet row: the label, then the status line in `caption`, then the hint. */
 const ListRow: FC<ListRowProps> = ({ item, current, height, colors, onChoose }) => {
     const glyph = TONE_GLYPH[item.tone];
+    const pressFill = usePressFill();
 
     return (
         <Pressable
@@ -76,19 +137,13 @@ const ListRow: FC<ListRowProps> = ({ item, current, height, colors, onChoose }) 
             style={({ pressed }) => [
                 styles.row,
                 height === 'rail' ? styles.railRow : styles.sheetRow,
-                pressed ? { backgroundColor: colors.surfaceMuted } : null,
+                pressed ? { backgroundColor: pressFill } : null,
             ]}
         >
             {current ? <View style={[styles.startBar, { backgroundColor: colors.hereBar }]} /> : null}
             <View style={styles.line}>
                 {item.tone === 'complete' && glyph !== undefined ? <Icon name={glyph} size={16} tone="ink" /> : null}
-                <Text
-                    numberOfLines={2}
-                    style={[
-                        current ? styles.labelCurrent : styles.label,
-                        { color: current ? colors.ink : colors.inkMuted },
-                    ]}
-                >
+                <Text numberOfLines={2} typeRole={current ? 'label' : 'meta'} color={current ? '$ink' : '$inkMuted'}>
                     {item.label}
                 </Text>
             </View>
@@ -97,13 +152,15 @@ const ListRow: FC<ListRowProps> = ({ item, current, height, colors, onChoose }) 
                     {item.tone !== 'complete' && glyph !== undefined ? (
                         <Icon name={glyph} size={16} tone={TONE_ROLE[item.tone]} />
                     ) : null}
-                    <Text numberOfLines={2} style={[styles.caption, { color: colors[TONE_ROLE[item.tone]] }]}>
+                    <ToneText tone={item.tone} typeRole="caption" numberOfLines={2}>
                         {item.reason}
-                    </Text>
+                    </ToneText>
                 </View>
             ) : null}
             {item.hint !== undefined ? (
-                <Text style={[styles.caption, { color: colors.inkMuted }]}>{item.hint}</Text>
+                <Text typeRole="caption" color="$inkMuted" flexShrink={1}>
+                    {item.hint}
+                </Text>
             ) : null}
         </Pressable>
     );
@@ -126,18 +183,17 @@ const StripItem: FC<StripItemProps> = ({ item, current, colors, onChoose }) => {
             {glyph !== undefined ? <Icon name={glyph} size={16} tone={TONE_ROLE[item.tone]} /> : null}
             <Text
                 numberOfLines={1}
-                style={[
-                    current ? styles.labelCurrent : styles.label,
-                    styles.shrink,
-                    { color: current ? colors.ink : colors.inkMuted },
-                ]}
+                typeRole={current ? 'label' : 'meta'}
+                color={current ? '$ink' : '$inkMuted'}
+                flexShrink={1}
+                minWidth={0}
             >
                 {item.shortLabel ?? item.label}
             </Text>
             {count !== undefined ? (
-                <Text aria-hidden style={[styles.labelCurrent, { color: colors[TONE_ROLE[item.tone]] }]}>
+                <ToneText tone={item.tone} typeRole="label" hidden>
                     {count}
-                </Text>
+                </ToneText>
             ) : null}
             {current ? <View style={[styles.underBar, { backgroundColor: colors.hereBar }]} /> : null}
         </Pressable>
@@ -199,11 +255,11 @@ export const SectionIndex: FC<SectionIndexProps> = ({
 
     if (containerClass === 'regular') {
         return (
-            <View
-                collapsable={false}
+            <Surface
+                tone="paperRaised"
                 role="navigation"
                 aria-label={label}
-                style={[styles.strip, { backgroundColor: colors.paperRaised, borderBottomColor: colors.lineDivider }]}
+                style={[styles.strip, { borderBottomColor: colors.lineDivider }]}
             >
                 {items.map((item) => (
                     <StripItem
@@ -216,14 +272,14 @@ export const SectionIndex: FC<SectionIndexProps> = ({
                         }}
                     />
                 ))}
-            </View>
+            </Surface>
         );
     }
 
     const barItem = barItemOf(items, currentId);
 
     return (
-        <View style={{ backgroundColor: colors.paperRaised }}>
+        <Surface tone="paperRaised">
             <Pressable
                 role="button"
                 aria-label={barName}
@@ -233,14 +289,21 @@ export const SectionIndex: FC<SectionIndexProps> = ({
                 }}
                 style={styles.bar}
             >
-                <Text numberOfLines={1} style={[styles.labelCurrent, styles.shrink, { color: colors.ink }]}>
+                <Text numberOfLines={1} typeRole="label" chromeCap="1.5" color="$ink" flexShrink={1} minWidth={0}>
                     {barItem?.label}
                     {barSuffix !== undefined ? (
-                        <Text style={[styles.label, { color: colors.inkMuted }]}>{barSuffix}</Text>
+                        <Text typeRole="meta" chromeCap="1.5" color="$inkMuted">
+                            {barSuffix}
+                        </Text>
                     ) : null}
                 </Text>
                 {barCount !== undefined ? (
-                    <Text aria-hidden style={[styles.labelCurrent, { color: colors[barCountRoleOf(items)] }]}>
+                    <Text
+                        aria-hidden
+                        typeRole="label"
+                        chromeCap="1.5"
+                        color={barCountRoleOf(items) === TONE_ROLE.fix ? '$dangerText' : '$attention'}
+                    >
                         {barCount}
                     </Text>
                 ) : null}
@@ -296,7 +359,7 @@ export const SectionIndex: FC<SectionIndexProps> = ({
                     />
                 ))}
             </Sheet>
-        </View>
+        </Surface>
     );
 };
 
@@ -319,13 +382,8 @@ const styles = StyleSheet.create({
     },
     railRow: { minHeight: 48 },
     sheetRow: { minHeight: 56 },
-    startBar: { position: 'absolute', top: 4, bottom: 4, start: 0, width: 3, borderRadius: 2 },
+    startBar: { position: 'absolute', top: 4, bottom: 4, start: 0, width: 3, borderRadius: nativeTokens.radius.full },
     line: { flexDirection: 'row', alignItems: 'flex-start', gap: 6 },
-    // The label at 400 is the `meta` face: a native face is chosen by weight, never by `fontWeight` (tokens/native.ts).
-    label: { ...nativeTokens.type.meta },
-    labelCurrent: { ...nativeTokens.type.label },
-    caption: { ...nativeTokens.type.caption, flexShrink: 1 },
-    shrink: { flexShrink: 1, minWidth: 0 },
     strip: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -337,17 +395,24 @@ const styles = StyleSheet.create({
     stripItem: {
         flexShrink: 1,
         minWidth: 0,
-        minHeight: 44,
+        minHeight: touchFloor(),
         flexDirection: 'row',
         alignItems: 'center',
         gap: 4,
         paddingHorizontal: nativeTokens.spacing[3],
     },
-    underBar: { position: 'absolute', bottom: 0, start: 12, end: 12, height: 3, borderRadius: 2 },
+    underBar: {
+        position: 'absolute',
+        bottom: 0,
+        start: 12,
+        end: 12,
+        height: 3,
+        borderRadius: nativeTokens.radius.full,
+    },
     bar: {
         flexDirection: 'row',
         alignItems: 'center',
-        minHeight: 44,
+        minHeight: touchFloor(),
         gap: nativeTokens.spacing[2],
         paddingHorizontal: nativeTokens.spacing[4],
     },

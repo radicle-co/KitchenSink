@@ -593,6 +593,9 @@
                                     "id": {
                                         "type": "string"
                                     },
+                                    "isDefault": {
+                                        "type": "boolean"
+                                    },
                                     "name": {
                                         "type": [
                                             "string",
@@ -683,6 +686,9 @@
                             "id": {
                                 "type": "string"
                             },
+                            "isDefault": {
+                                "type": "boolean"
+                            },
                             "name": {
                                 "type": [
                                     "string",
@@ -752,6 +758,9 @@
             "properties": {
                 "id": {
                     "type": "string"
+                },
+                "isDefault": {
+                    "type": "boolean"
                 },
                 "name": {
                     "type": [
@@ -1138,6 +1147,9 @@
                                             "id": {
                                                 "type": "string"
                                             },
+                                            "isDefault": {
+                                                "type": "boolean"
+                                            },
                                             "name": {
                                                 "type": [
                                                     "string",
@@ -1238,6 +1250,7 @@
                 "UNAUTHORIZED",
                 "IDENTITY_SYNC_PENDING",
                 "FORBIDDEN",
+                "ACCOUNT_SUSPENDED",
                 "FOOD_PENDING",
                 "FOOD_NOT_FOUND",
                 "CANDIDATE_MISMATCH",
@@ -1375,6 +1388,23 @@
                     "properties": {
                         "code": {
                             "const": "FORBIDDEN",
+                            "type": "string"
+                        },
+                        "message": {
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "code",
+                        "message"
+                    ],
+                    "type": "object"
+                },
+                {
+                    "additionalProperties": {},
+                    "properties": {
+                        "code": {
+                            "const": "ACCOUNT_SUSPENDED",
                             "type": "string"
                         },
                         "message": {
@@ -2880,6 +2910,9 @@
                                                     "id": {
                                                         "type": "string"
                                                     },
+                                                    "isDefault": {
+                                                        "type": "boolean"
+                                                    },
                                                     "name": {
                                                         "type": [
                                                             "string",
@@ -3140,6 +3173,19 @@
                 "tombstone"
             ],
             "type": "object"
+        },
+        "rankTierSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "enum": [
+                "base",
+                "covered",
+                "head",
+                "tokenSet",
+                "default",
+                "synonym",
+                "exact"
+            ],
+            "type": "string"
         },
         "remoteFoodViewSchema": {
             "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -3461,6 +3507,13 @@
                             "id": {
                                 "type": "string"
                             },
+                            "matchedBy": {
+                                "enum": [
+                                    "name",
+                                    "identifier"
+                                ],
+                                "type": "string"
+                            },
                             "name": {
                                 "type": [
                                     "string",
@@ -3469,6 +3522,18 @@
                             },
                             "proteinGPer100g": {
                                 "type": "number"
+                            },
+                            "rung": {
+                                "enum": [
+                                    "base",
+                                    "covered",
+                                    "head",
+                                    "tokenSet",
+                                    "default",
+                                    "synonym",
+                                    "exact"
+                                ],
+                                "type": "string"
                             },
                             "score": {
                                 "type": "number"
@@ -3547,6 +3612,13 @@
                 "id": {
                     "type": "string"
                 },
+                "matchedBy": {
+                    "enum": [
+                        "name",
+                        "identifier"
+                    ],
+                    "type": "string"
+                },
                 "name": {
                     "type": [
                         "string",
@@ -3555,6 +3627,18 @@
                 },
                 "proteinGPer100g": {
                     "type": "number"
+                },
+                "rung": {
+                    "enum": [
+                        "base",
+                        "covered",
+                        "head",
+                        "tokenSet",
+                        "default",
+                        "synonym",
+                        "exact"
+                    ],
+                    "type": "string"
                 },
                 "score": {
                     "type": "number"

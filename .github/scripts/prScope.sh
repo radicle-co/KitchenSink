@@ -65,6 +65,10 @@ pr_scope_belongs() {
 # The rule is now: the token must be delimited on both sides by start/end-of-string, `/`, or `-`.
 pr_scope_path_belongs() {
     pr_scope_is_token "${1-}" || return 2
+    # The sweep this serves enumerates EVERY log group in an account that also hosts another app, so a group is
+    # ours only if its name says KitchenSink: `kitchensink-…` (Lambda, Container Insights) or `/kitchensink/…`
+    # (service logs), so a run by hand with wider credentials still cannot reach another app's group.
+    case "${2-}" in *kitchensink[-/]*) ;; *) return 1 ;; esac
     pr_scope_belongs "$1" "${2-}" && return 0
     case "${2-}" in *"/$1" | *"/$1-"* | *"/$1/"*) return 0 ;; esac
 

@@ -103,6 +103,7 @@ const ALL_RECIPE_PROBES: readonly CacheProbeName[] = [
     'recipeAVersions',
     'recipeAPhotos',
     'recipeB',
+    'privateSlots',
 ];
 
 /** Every probe under the `collections` prefix. */
@@ -146,12 +147,26 @@ const UPDATE_PROBES: readonly CacheProbeName[] = [
 ];
 
 /**
+ * ADR-0073 section 12: a PATCH `update` can PUBLISH a draft (or send a published recipe back to draft), and a slot is a
+ * private PUBLISHED recipe, so it moves the cook's private-slot standing too. A rebind answers through the same
+ * `applyRecipeUpdated`, so it stales the standing as well (one cheap read; it never changes status, but the two cannot
+ * disagree about what an updated recipe stales). A restore has its own cache effects and keeps {@link UPDATE_PROBES}.
+ */
+const UPDATE_WITH_STATUS_PROBES: readonly CacheProbeName[] = [...UPDATE_PROBES, 'privateSlots'];
+
+/**
  * DA3 — what `PATCH .../visibility` on recipe A stales. Same shape as {@link UPDATE_PROBES} MINUS
  * `recipeAVersions`: confirmed against the server DAL (`recipes.dal.ts` `setVisibility`) that a visibility
  * flip is a pure single-column metadata UPDATE with no `recipe_versions` insert and no `currentVersion`
  * bump, so — unlike a content edit or a restore — it records no new version for the list to reflect.
  */
-const VISIBILITY_PROBES: readonly CacheProbeName[] = ['recipeList', 'recipeSearch', ...ALL_COLLECTION_PROBES];
+// ADR-0073: a visibility flip moves a recipe in or out of the private slots, so the standing is stale too.
+const VISIBILITY_PROBES: readonly CacheProbeName[] = [
+    'recipeList',
+    'recipeSearch',
+    'privateSlots',
+    ...ALL_COLLECTION_PROBES,
+];
 
 /**
  * DA3 — what restoring a version of recipe A stales. A restore is server-side a full content rewrite off the
@@ -169,6 +184,8 @@ const RESTORE_PROBES: readonly CacheProbeName[] = UPDATE_PROBES;
  * recipe lists and search need to reflect the new row. A fresh clone is a member of no collection, so
  * (unlike update/delete/visibility) `collections` is deliberately excluded.
  */
+// ADR-0073 section 12: a clone is always a DRAFT, and a draft holds no slot, so the private-slot standing is NOT stale
+// (it used to be, when a private clone took a slot). The slot is taken when the cook publishes it (an update).
 const CLONE_PROBES: readonly CacheProbeName[] = ['recipeList', 'recipeSearch'];
 
 /**
@@ -295,14 +312,14 @@ describe('useUpdateRecipe', () => {
         expect(result.current.data).toEqual(updated);
     });
 
-    it('invalidates the version list, every recipe list, search, and every collection — but NOT the detail (DA3)', async () => {
+    it('invalidates the version list, every recipe list, search, every collection and the private-slot standing — but NOT the detail (DA3)', async () => {
         const { result, client, probes } = renderMutation(() => useUpdateRecipe());
         vi.spyOn(client, 'updateRecipe').mockResolvedValue(makeRecipeDetail({ id: PROBE_RECIPE_ID }));
 
         act(() => result.current.mutate({ id: PROBE_RECIPE_ID, input: { expectedVersion: 1, title: 'New' } }));
         await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
-        expect(probes()).toEqual(expectedProbes(UPDATE_PROBES));
+        expect(probes()).toEqual(expectedProbes(UPDATE_WITH_STATUS_PROBES));
     });
 
     it('writes the update response through to the detail cache instead of invalidating it (DA3, no refetch round-trip)', async () => {
@@ -533,7 +550,7 @@ describe('useRebindIngredientLine (plan 002 U5)', () => {
         await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
         expect(queryClient.getQueryData(recipeServiceKeys.recipe(PROBE_RECIPE_ID))).toEqual(updated);
-        expect(probes()).toEqual(expectedProbes(UPDATE_PROBES));
+        expect(probes()).toEqual(expectedProbes(UPDATE_WITH_STATUS_PROBES));
     });
 
     it('surfaces a 409 version conflict and invalidates nothing', async () => {

@@ -15,7 +15,7 @@ import type { LocalizedMessages } from '@commise/i18n';
 /** Copy for the calorie chip, its loading placeholder, and the reasons a figure can be missing. */
 export interface RecipeNutritionMessages {
     /**
-     * Names/announces the calorie placeholder while the lookup is in flight (the Suspense fallback). This is
+     * Names/announces the calorie placeholder while the lookup is in flight (the slot's `pending` reading). This is
      * the ONLY string tied to `pending`, which exists on the client and never on the wire.
      */
     readonly loadingLabel: string;

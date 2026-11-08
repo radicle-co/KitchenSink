@@ -15,7 +15,8 @@ import { useTheme } from '@commise/ui/theme';
 import type { FC } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { editorMessages, pluralOf } from '../editor/messages.js';
+import { editorMessages } from '../editor/messages.js';
+import { pluralOf } from '../format/plural.js';
 import { pasteListFieldId } from './fieldIds.js';
 import { recipeFormMessages } from './messages.js';
 import type { PasteListSheetProps } from './pasteListSheetProps.js';

@@ -29,6 +29,10 @@
  */
 import { z } from 'zod';
 
+import { MAX_PARSE_JOB_LINES } from '../parsing/parseJobText.js';
+import { MARGIN_BANDS, QUERY_SHAPES } from './bandPolicy.js';
+import type { VerifiedLineIdentity } from './verificationKey.js';
+
 /**
  * An ISO-8601 instant.
  *
@@ -140,10 +144,63 @@ export const scoredCandidateSchema = z.object({
  * it does not purge SQS). The queue is SSE-encrypted and this DLQ's retention is shortened accordingly — see
  * `RecipeWorkersStack`. Recorded here so the next field added is weighed against the same question.
  */
+/**
+ * WHERE a line to verify came from (ADR-0071): a SAVED recipe, or a line of a paste job the cook has not saved yet.
+ *
+ * The verdict is keyed on CONTENT, never on this: the worker writes it to the one verdict table under the
+ * verification key, and recipe-service reads it back onto a proposal through the key that proposal's match row
+ * records. A paste-job origin names the line AND the food within it, because one parsed line can propose more
+ * than one food (`salt and pepper`), so a log or an alarm can say which proposal a message was about.
+ *
+ * What the origin DOES change at the worker is how the line is judged: a paste proposal always asks identity and is
+ * attributed to its own spend call site (`verifyLine.ts`). It feeds no band and no memo because of what its message
+ * CARRIES, never because of its origin: the worker feeds a band only for a `ranked` message that names its own band
+ * key, and writes a memo only for a message that carries an `ingredientPhrase`, and the paste producer sends neither.
+ * A message of either origin that did carry them would feed them.
+ */
+export const verificationOriginSchema = z.discriminatedUnion('kind', [
+    z.object({ kind: z.literal('recipe'), recipeId: z.uuid() }),
+    z.object({
+        kind: z.literal('parseJob'),
+        jobId: z.uuid(),
+        lineIndex: z
+            .number()
+            .int()
+            .min(0)
+            .max(MAX_PARSE_JOB_LINES - 1),
+        foodIndex: z.number().int().min(0),
+    }),
+]);
+
+/** One origin of a line to verify. */
+export type VerificationOrigin = z.infer<typeof verificationOriginSchema>;
+
+/**
+ * The band a verdict on this line is observed in, named BY THE PRODUCER (ADR-0071).
+ *
+ * ⛔ The worker never looks a band up from the shared resolution events (ADR-0071 records why). A band is the one
+ * the message names, from the ranking that produced THIS line, or none.
+ *
+ * ⚠️ No producer sends it today: the band subsystem is DORMANT BY DECISION (ADR-0071). It is fed again when the paste
+ * origin carries the match row's rung, margin, query shape and ranker version.
+ */
+export const verificationBandKeySchema = z.object({
+    rung: z.string().min(1).max(32),
+    marginBand: z.enum(MARGIN_BANDS),
+    queryShape: z.enum(QUERY_SHAPES),
+    rankerVersion: z.string().min(1).max(64),
+});
+
 export const verifyIngredientLineMessageSchema = z
     .object({
-        /** The recipe the line belongs to. Correlation only — the verdict is keyed on content, not on this. */
-        recipeId: z.uuid(),
+        /**
+         * The LEGACY spelling of a recipe origin: the only field an older producer sends. Read it through
+         * {@link verificationOriginOf}, never directly. ⚠️ Remove it one release after every producer sends
+         * `origin`: workers deploy before the service, so the queue still holds messages that carry only this.
+         */
+        recipeId: z.uuid().optional(),
+        /** Where the line came from (ADR-0071). Exactly one of this and the legacy `recipeId` is set. */
+        origin: verificationOriginSchema.optional(),
         /**
          * ⛔ `ownerId` STOOD HERE AND WAS REMOVED — owner ruling 2026-08-25, ADR-0027. Do not re-add it.
          *
@@ -272,13 +329,10 @@ export const verifyIngredientLineMessageSchema = z
          * back to a default, and both defaults are wrong: "verify everything" spends on lines that need not be
          * checked, "skip identity" publishes an unchecked resolution.
          *
-         * ⚠️ `unattributed` is NOT what the producer sends for every line: migration `0035_ingredient_resolutions
-         * .sql` persists which cascade tier resolved the catalog row, `resolveThroughCascade` writes the event, and
-         * `verificationRequests.ts`'s `evidenceFor` sends `curated-exact`, `remembered` or `ranked` off it.
-         * `unattributed` is the fallback for a line with
-         * no usable event — a best-effort write that was lost, a stored shortlist the wire schema rejects, or the
-         * `llm` tier, which has no evidence member. It is NOT a placeholder, and it opens no door, which is
-         * KTD-3's own default. ⛔ It must never become a value a CLIENT can declare:
+         * ⚠️ `unattributed` IS what both producers send for every line since ADR-0071: the save path reads no
+         * provenance from the shared binding, and a paste review always asks identity. It opens no door, which is
+         * KTD-3's own default. The other members stay for the worker's re-run of the policy (and a band key, which
+         * no producer sends: the band subsystem is dormant by decision). ⛔ It must never become a value a CLIENT can declare:
          * `curated-exact` suppresses the identity check, which would be a conclusion wearing an input's clothes
          * — exactly what this contract's "INPUTS, NEVER CONCLUSIONS" rule forbids.
          */
@@ -306,9 +360,17 @@ export const verifyIngredientLineMessageSchema = z
          * observation. The verdict itself still lands — the author's own line is verified like any other.
          */
         privateFood: z.boolean().optional(),
+        /**
+         * The band the verdict is observed in, on `ranked` evidence only ({@link verificationBandKeySchema}). Absent
+         * means no band observation and no band authority: what every producer sends today.
+         */
+        bandKey: verificationBandKeySchema.optional(),
     })
     .refine((message) => (message.foodId === undefined) !== (message.foodVariantId === undefined), {
         error: 'a verification message names exactly one food: a foodId or a foodVariantId',
+    })
+    .refine((message) => (message.recipeId === undefined) !== (message.origin === undefined), {
+        error: 'a verification message names exactly one origin: an origin or the legacy recipeId',
     });
 
 /** The verification gate's message contract. */
@@ -337,6 +399,28 @@ export function verificationFoodOf(
 }
 
 /**
+ * Where a PARSED message came from — the one reader of both spellings of its origin.
+ *
+ * @param message - A message the schema accepted, which names exactly one origin.
+ * @returns The origin; a legacy `recipeId` reads as a recipe origin.
+ * @throws {Error} when the message names neither or both, which the schema refuses — a caller that skipped the parse.
+ *   Pure.
+ */
+export function verificationOriginOf(
+    message: Partial<Pick<VerifyIngredientLineMessage, 'recipeId' | 'origin'>>,
+): VerificationOrigin {
+    if (message.origin !== undefined && message.recipeId === undefined) {
+        return message.origin;
+    }
+
+    if (message.origin === undefined && message.recipeId !== undefined) {
+        return { kind: 'recipe', recipeId: message.recipeId };
+    }
+
+    throw new Error('a verification message must name exactly one origin; parse it before reading it');
+}
+
+/**
  * A food's arc fields on the wire — the inverse of {@link verificationFoodOf}, for the producer.
  *
  * @param food - The food the line is bound to.
@@ -346,4 +430,26 @@ export function verificationFoodFieldsOf(
     food: VerificationFood,
 ): Pick<VerifyIngredientLineMessage, 'foodId' | 'foodVariantId'> {
     return food.kind === 'root' ? { foodId: food.id } : { foodVariantId: food.id };
+}
+
+/**
+ * The judgement a PARSED message asks for — the identity its verdict is keyed on (ADR-0071).
+ *
+ * ⛔ One mapping for both ends of the verdict table. The producer reads the table by this identity's key before it
+ * enqueues (a judgement already on record is never paid for twice), and the worker writes the verdict under the same
+ * fields. A second mapping would let the read miss the write, and the miss would show up only as a bill.
+ *
+ * @param message - A message the schema accepted.
+ * @returns The identity: the line, the food it names (root or variant), the parsed measure, the stated measure.
+ * @throws {Error} when the message names no food, which the schema refuses. Pure.
+ */
+export function verifiedLineIdentityOfMessage(message: VerifyIngredientLineMessage): VerifiedLineIdentity {
+    return {
+        sourceLine: message.sourceLine,
+        foodRefId: verificationFoodOf(message).id,
+        quantityLow: message.quantityLow,
+        quantityHigh: message.quantityHigh,
+        unit: message.unit,
+        statedMeasure: message.statedMeasure ?? null,
+    };
 }

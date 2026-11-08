@@ -98,7 +98,7 @@ const EXEMPT_FROM_TEST_RESET: ReadonlyMap<string, string> = new Map([
  * user-bearing table is forced to make BOTH decisions. Measured at 13 on 2026-09-13 (ADR-0040's 0044 and 0045 took
  * it from 11). Red on a legitimate addition is the accepted cost — raise it in that same change.
  */
-const EXPECTED_USER_BEARING_TABLES = 13;
+const EXPECTED_USER_BEARING_TABLES = 15;
 
 describe('test-principal purge coverage (ADR-0040)', () => {
     it('mutates every user-bearing table, or exempts it for a written reason', () => {

@@ -11,11 +11,12 @@
  * ⚠️ The on-device proof is the Maestro landscape flow, which types into the filter sheet with the keyboard up.
  */
 import { resizeObserver as observer } from '../../testing/resizeObserver.js';
-import { act, cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, screen } from '@testing-library/react';
 import { createElement, type ComponentProps, type JSX } from 'react';
 import { Text, type ScrollView as ScrollViewType } from 'react-native';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { render } from '../../testing/tamaguiTesting.native.js';
 import type { SheetProps } from '../props.js';
 import { Sheet } from '../Sheet.native.js';
 
@@ -94,8 +95,13 @@ function appliedStyle(element: Element, property: string): string | undefined {
 /** The sheet: the dialog nearest around its title header, which names it (`docs/design/nativeContainerNames.md` N1). */
 const dialog = (): HTMLElement =>
     screen.getByRole('heading', { name: 'Filter recipes' }).closest('[role="dialog"]') as HTMLElement;
-/** The title row: the row that holds the title's box and Close. */
-const titleRow = (): HTMLElement => screen.getByRole('button', { name: 'Close filters' }).parentElement as HTMLElement;
+/**
+ * The top block the footer decision measures: the swipe zone, which holds the grab handle AND the title row that holds
+ * the title's box and Close (Close's grandparent). REWRITTEN for parity item 7: it used to be the title row alone; the
+ * handle joined the zone, and the measure must count it or the footer unpins about 17 pt late.
+ */
+const titleRow = (): HTMLElement =>
+    screen.getByRole('button', { name: 'Close filters' }).parentElement?.parentElement as HTMLElement;
 /** The footer: the view that holds Done. */
 const footer = (): HTMLElement => screen.getByRole('button', { name: 'Done' }).parentElement as HTMLElement;
 const scrollRegion = (): Element => dialog().querySelector('[data-scroll-region]') as Element;

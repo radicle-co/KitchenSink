@@ -6,11 +6,11 @@
     "coverage": {
         "components": 82,
         "implementations": 82,
-        "props": 98,
+        "props": 99,
         "documentedComponents": 79,
         "implementationsWithModuleDoc": 63,
         "implementationsWithComponentDoc": 58,
-        "documentedProps": 65,
+        "documentedProps": 66,
         "classifiedComponents": 35,
         "componentsWithPatternTag": 30,
         "crossPlatformComponents": 0
@@ -2370,7 +2370,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/web/src/components/home/chrome/HomeChrome.tsx",
                     "dir": "packages/apps/commise/web/src/components/home/chrome",
-                    "moduleDoc": "home/chrome/HomeChrome — the web app shell's layout (`docs/design/uiOverhaul/buildSpec.md` §3.2): the\n{@link HomeSidebar} at `nav` (840) and wider, the bottom {@link HomeTabBar} below it, and the page in the `<main>`\nlandmark between. There is no top bar and no drawer: each page's large title is its H1 (`LargeTitleHeader`).\n\n`<main>` is the `main` container every page queries; its gutters are padding, so a query reads the content box. Below\n`nav` its foot reserves the tab bar plus the floating create button's 88 px, and the same reservation is the\ndocument's `scroll-padding-bottom` (`globals.css`, keyed on the bar), so a focused last card is never hidden (SC\n2.4.11). `--bottom-chrome` — the tab bar's height, 0 from `nav` and on a focused task — is what the floating button,\n\"Back to top\" and the snackbar stand on.\n\nA pushed page (`PushedPageFrame`) pins a Back bar over the top below `nav`. `<main>` takes the bar's height as its top\npadding on such a page (`--main-top`, `globals.css`), so the notice below sits under the bar, and it offers the frame a\nslot ahead of the notice, so Back also comes first in reading and focus order.\n\nThe sidebar's collapse comes from `useSidebarPreference`, which holds it above every page.\n\n⚠️ PRESENTATIONAL about data: the profile arrives from `AppShell`, which is where data enters the chrome.",
+                    "moduleDoc": "home/chrome/HomeChrome — the web app shell's layout (`docs/design/uiOverhaul/buildSpec.md` §3.2): the\n{@link HomeSidebar} at `nav` (840) and wider, the bottom {@link HomeTabBar} below it, and the page in the `<main>`\nlandmark between. There is no top bar and no drawer: each page's large title is its H1 (`LargeTitleHeader`).\n\n`<main>` is the `main` container every page queries; its gutters are padding, so a query reads the content box. Below\n`nav` its foot reserves the tab bar plus the floating create button's room (`--fab-reserved-bottom`, 88 px from\n`@commise/ui`'s theme), and the same reservation is the document's `scroll-padding-bottom` (`globals.css`, keyed on\nthe bar), so a focused last card is never hidden (SC 2.4.11). `--bottom-chrome` — the tab bar's height, 0 from `nav`\nand on a focused task — is what the floating button, \"Back to top\" and the snackbar stand on.\n\nA pushed page (`PushedPageFrame`) pins a Back bar over the top below `nav`. `<main>` takes the bar's height as its top\npadding on such a page (`--main-top`, `globals.css`), so the notice below sits under the bar, and it offers the frame a\nslot ahead of the notice, so Back also comes first in reading and focus order.\n\nThe sidebar's collapse comes from `useSidebarPreference`, which holds it above every page.\n\n⚠️ PRESENTATIONAL about data: the profile arrives from `AppShell`, which is where data enters the chrome.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -2620,7 +2620,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/web/src/components/home/chrome/HomeTabBar.tsx",
                     "dir": "packages/apps/commise/web/src/components/home/chrome",
-                    "moduleDoc": "home/chrome/HomeTabBar — the bottom tab bar on web below `nav` (840) (`docs/design/uiOverhaul/buildSpec.md`\n§3.2): the reachable destinations of the shared nav model (`resolveHomeNav` — Home, Recipes, Discover today), each a\n24 px glyph over a `caption` label, on the floating layer's material (`ChromeSurface`).\n\n- The active tab: `ink` glyph and label at weight 600 and a 32 × 3 px `hereBar` above the glyph, `aria-current`.\n  Inactive: `inkMuted`. (Lucide has no filled glyph set, and a filled compass hides its needle, so the active tab is\n  told by the bar, the weight and the colour — the blueprint's Q6, awaiting `staff-ux-engineer`.)\n- A second tap on the active tab goes to the tab's root from a pushed route, and at the root scrolls to the top\n  (`tabRootOf`; the page's `ScrollHost` moves the document).\n- 64 px plus the bottom safe-area inset; each item at least 96 × 56 at 320 px.\n- Compact height (owner 2026-10-13; a window under 480 px tall, which is a phone held sideways): the label sits BESIDE\n  the glyph and the bar is 48 px plus the inset. Both sides pad their safe-area inset, so a cutout or the 3-button navigation\n  bar never covers a tab. Pure CSS (`max-height: 479px`, one pixel under `isCompactHeight`'s 480): the bar already\n  exists only below `nav` (840), so that is the whole condition. The label stays the link's accessible name.\n\n⚠️ ORCHESTRATION in one respect: it reads the route (`usePathname`) and the page's scroll host to answer the second\ntap. Everything it draws is derived from props.",
+                    "moduleDoc": "home/chrome/HomeTabBar — the bottom tab bar on web below `nav` (840) (`docs/design/uiOverhaul/buildSpec.md`\n§3.2): the reachable destinations of the shared nav model (`resolveHomeNav` — Home, Recipes, Discover today), each a\n24 px glyph over a `caption` label, on the floating layer's material (`ChromeSurface`).\n\n- The active tab: `ink` glyph and label at weight 600 and a 32 × 3 px `hereBar` above the glyph, `aria-current`.\n  Inactive: `inkMuted`. (Lucide has no filled glyph set, and a filled compass hides its needle, so the active tab is\n  told by the bar, the weight and the colour — the blueprint's Q6, awaiting `staff-ux-engineer`.)\n- A second tap on the active tab goes to the tab's root from a pushed route, and at the root scrolls to the top\n  (`tabRootOf`; the page's `ScrollHost` moves the document).\n- The glyphs are one row: every tab's column starts at the top, 8 px down, glyph first and label under it, so a label\n  that wraps never moves its glyph (`deviceShots2.md` M-2).\n- 64 px plus the bottom safe-area inset; each item at least 96 × 56 at 320 px.\n- Compact height (owner 2026-10-13; a window under 480 px tall, which is a phone held sideways): the label sits BESIDE\n  the glyph and the bar is 48 px plus the inset. Both sides pad their safe-area inset, so a cutout or the 3-button navigation\n  bar never covers a tab. Pure CSS (`max-height: 479px`, one pixel under `isCompactHeight`'s 480): the bar already\n  exists only below `nav` (840), so that is the whole condition. The label stays the link's accessible name.\n\n⚠️ ORCHESTRATION in one respect: it reads the route (`usePathname`) and the page's scroll host to answer the second\ntap. Everything it draws is derived from props.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -2723,11 +2723,11 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/web/src/components/home/chrome/ProfileAvatarEntry.tsx",
                     "dir": "packages/apps/commise/web/src/components/home/chrome",
-                    "moduleDoc": "home/chrome/ProfileAvatarEntry — the avatar at the end of a top-level page's header below `nav`, opening\nProfile (`docs/design/uiOverhaul/buildSpec.md` §3.3). From `nav` the header drops it; the sidebar's profile row is the\nsame entry there.\n\nORCHESTRATION: it reads the signed-in profile (`useUserProfile`, the same cached query `AppShell` reads) and the\nrouter, and hands `@commise/ui/avatar` its state. Data enters the page chrome here, and only here.",
+                    "moduleDoc": "home/chrome/ProfileAvatarEntry — the avatar at the end of a top-level page's header, opening Profile\n(`docs/design/uiOverhaul/buildSpec.md` §3.3). Home's header shows it at every width, as the Home boards draw it; the\nsidebar's profile row is the same entry beside it from `nav`.\n\nORCHESTRATION: it reads the signed-in profile (`useUserProfile`, the same cached query `AppShell` reads) and the\nrouter, and hands `@commise/ui/avatar` its state. Data enters the page chrome here, and only here.",
                     "moduleTags": [
                         {
                             "name": "module",
-                            "text": "home/chrome/ProfileAvatarEntry — the avatar at the end of a top-level page's header below `nav`, opening"
+                            "text": "home/chrome/ProfileAvatarEntry — the avatar at the end of a top-level page's header, opening Profile"
                         },
                         {
                             "name": "pattern",
@@ -2735,10 +2735,32 @@
                         }
                     ],
                     "description": "The page header's profile entry.",
-                    "tags": [],
+                    "tags": [
+                        {
+                            "name": "param",
+                            "text": "props - The disc's form."
+                        },
+                        {
+                            "name": "returns",
+                            "text": "The avatar link to Profile."
+                        }
+                    ],
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
-                    "props": [],
+                    "props": [
+                        {
+                            "name": "size",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"default\"",
+                                "\"large\""
+                            ],
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The disc's form; Home's header asks for `large`. Omitted, it is the 32 px disc.",
+                            "declaredIn": "packages/apps/commise/web/src/components/home/chrome/ProfileAvatarEntry.tsx"
+                        }
+                    ],
                     "usesRefApi": [],
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
@@ -2827,11 +2849,11 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/web/src/components/home/HomeGreeting.tsx",
                     "dir": "packages/apps/commise/web/src/components/home",
-                    "moduleDoc": "home/HomeGreeting — Home's large title: the time-of-day greeting as the page's H1 and the date under it (web;\nUS-000 / FR-046; `docs/design/uiOverhaul/buildSpec.md` §4.2), drawn by the design system's `LargeTitleHeader` with the\nheader's action (the avatar) and the floating create button right after the H1.\n\n\"Good afternoon, Eliza\" over \"Sunday, May 31, 2026\"; \"Good afternoon\" when the cook has no name yet. Both are derived from the viewer's\nLOCAL clock, by the shared `useHomeGreeting` in `@commise/features-core/home`, so web and mobile greet\nidentically (FR-044).\n\n## Why the clock is read AFTER hydration, not during the server render (#144)\n\nThis surface is server-rendered and then hydrated, and only ONE of those two runtimes knows the viewer's\ntimezone: the client. Whatever the Next server's `new Date()` says is the server's zone, so a server-computed\nbucket greets an Auckland viewer at 9am with \"Good evening\" and can be a whole calendar day out.\n\n`suppressHydrationWarning` was the previous answer and it does NOT work: React never patches a suppressed\ntext mismatch — it KEEPS the server-rendered text — so the greeting and the long date were permanently the\nserver's clock (measured: with the browser clock pinned to 03:00, the `night` bucket, the DOM still read\n\"Good afternoon, Chef!\"). Suppression silences the warning about the divergence; it does not resolve it.\n\nSo the reading is gated on hydration ({@link useIsHydrated}) and the server pass renders a reserved,\n`aria-hidden` placeholder instead of a guess. Three consequences, all deliberate:\n - **No flash of a WRONG greeting.** The pre-hydration frame commits to no bucket at all, so the text never\n   changes from one greeting to a different one — the correction that would itself be the defect.\n - **No layout shift.** The placeholder lines carry the SAME typography classes as the real ones, so each\n   reserves its exact line box (`mb-1` included) rather than a hand-guessed pixel height.\n - **The greeting becomes testable end-to-end.** A browser-side clock pin (Playwright's `page.clock`) cannot\n   reach the Next server, which is why the visual suites had to MASK these two lines. Now that the client\n   clock is the authority, the pin reaches the render and the masks can be replaced by real assertions.\n\nA viewer's-timezone header (Vercel's geo-IP `x-vercel-ip-timezone`) or a zone cookie were both rejected: the\nformer is provider-coupled and wrong behind a VPN, the latter is wrong on the first visit — and neither is\nreachable from a browser test, so both would keep the masks.",
+                    "moduleDoc": "home/HomeGreeting — Home's header: the time-of-day greeting as the page's H1 and the date under it (web;\nUS-000 / FR-046; `docs/design/uiOverhaul/buildSpec.md` §4.2), in ONE row as the Home boards draw it — the text stacked\non the start side, the 44 px profile button on the end side at every width — with the floating create button right\nafter the row in DOM order. It is no longer the shared `LargeTitleHeader`: the greeting is a `cardTitle`, not a large\ntitle.\n\n\"Good afternoon, Eliza\" over \"Sunday, May 31, 2026\"; \"Good afternoon\" when the cook has no name yet. Both are derived from the viewer's\nLOCAL clock, by the shared `useHomeGreeting` in `@commise/features-core/home`, so web and mobile greet\nidentically (FR-044).\n\n## Why the clock is read AFTER hydration, not during the server render (#144)\n\nThis surface is server-rendered and then hydrated, and only ONE of those two runtimes knows the viewer's\ntimezone: the client. Whatever the Next server's `new Date()` says is the server's zone, so a server-computed\nbucket greets an Auckland viewer at 9am with \"Good evening\" and can be a whole calendar day out.\n\n`suppressHydrationWarning` was the previous answer and it does NOT work: React never patches a suppressed\ntext mismatch — it KEEPS the server-rendered text — so the greeting and the long date were permanently the\nserver's clock (measured: with the browser clock pinned to 03:00, the `night` bucket, the DOM still read\n\"Good afternoon, Chef!\"). Suppression silences the warning about the divergence; it does not resolve it.\n\nSo the reading is gated on hydration ({@link useIsHydrated}) and the server pass renders a reserved,\n`aria-hidden` placeholder instead of a guess. Three consequences, all deliberate:\n - **No flash of a WRONG greeting.** The pre-hydration frame commits to no bucket at all, so the text never\n   changes from one greeting to a different one — the correction that would itself be the defect.\n - **No layout shift.** The placeholder lines carry the SAME typography classes as the real ones, so each\n   reserves its exact line box (`mb-1` included) rather than a hand-guessed pixel height.\n - **The greeting becomes testable end-to-end.** A browser-side clock pin (Playwright's `page.clock`) cannot\n   reach the Next server, which is why the visual suites had to MASK these two lines. Now that the client\n   clock is the authority, the pin reaches the render and the masks can be replaced by real assertions.\n\nA viewer's-timezone header (Vercel's geo-IP `x-vercel-ip-timezone`) or a zone cookie were both rejected: the\nformer is provider-coupled and wrong behind a VPN, the latter is wrong on the first visit — and neither is\nreachable from a browser test, so both would keep the masks.",
                     "moduleTags": [
                         {
                             "name": "module",
-                            "text": "home/HomeGreeting — Home's large title: the time-of-day greeting as the page's H1 and the date under it (web;"
+                            "text": "home/HomeGreeting — Home's header: the time-of-day greeting as the page's H1 and the date under it (web;"
                         }
                     ],
                     "description": "The Home large title.",
@@ -2854,7 +2876,7 @@
                             "typeDetail": null,
                             "required": false,
                             "defaultValue": null,
-                            "description": "The header's action: the avatar, below 840.",
+                            "description": "The header's action: the avatar, at every width.",
                             "declaredIn": "packages/apps/commise/web/src/components/home/HomeGreeting.tsx"
                         },
                         {
@@ -3128,7 +3150,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/web/src/components/home/RecipeWidgetSlot.tsx",
                     "dir": "packages/apps/commise/web/src/components/home",
-                    "moduleDoc": "home/RecipeWidgetSlot — the recipe Home widget's host slot (web).\n\nThe Home composition root renders one slot per curated widget id; this is the slot for the recipe\n(recent-recipes) widget. It owns what the generic host cannot: it code-splits the widget module through the\ndescriptor's loader seam via **`next/dynamic`**, and it supplies the widget's data — the viewer's recent recipes as\na **promise** the slot starts and hands down, so the widget streams under its own `<Suspense>`.\n\nIt also owns the block's navigation and presentation (`docs/design/uiOverhaul/buildSpec.md` §4.2, owner ruling D8):\nthe card variant from the container class of `<main>` (compact below 960, full from 960), \"See all\" in the block's\nheading row — kept on a failure, so the route to My recipes never fails with the content — the first run's three\nways in, and the routes each card leads to. A failed READ shows Try again, which starts a fresh read.\n\nFinally it owns the DEFERRED CALORIE LOOKUP (ADR-0021 §6) — see {@link RecipeWidgetNutritionContainer}.",
+                    "moduleDoc": "home/RecipeWidgetSlot — the recipe Home widget's host slot (web).\n\nThe Home composition root renders one slot per curated widget id; this is the slot for the recipe\n(recent-recipes) widget. It owns what the generic host cannot: it code-splits the widget module through the\ndescriptor's loader seam via **`next/dynamic`**, and it supplies the widget's data — the viewer's recent recipes as\na **promise** the slot starts and hands down, so the widget streams under its own `<Suspense>`.\n\nIt also owns the block's navigation and presentation (`docs/design/uiOverhaul/buildSpec.md` §4.2, owner ruling D8):\nthe card variant from the container class of `<main>` (compact below 960, full from 960), \"See all\" in the block's\nheading row — kept on a failure, so the route to My recipes never fails with the content — the first run's three\nways in, and the routes each card leads to. A failed READ shows Try again, which starts a fresh read.\n\nFinally it owns the DEFERRED CALORIE LOOKUP (ADR-0079 §6) — see {@link RecipeWidgetNutritionContainer}.",
                     "moduleTags": [
                         {
                             "name": "module",

@@ -137,6 +137,50 @@ describe('HomeTabBar (web)', () => {
 });
 
 /**
+ * Design review 2026-11-01 (`deviceShots2.md` M-2): when one label wraps and the others do not, a tab that centres its
+ * content in the row's height moves its glyph down. The glyph row is one fixed row at the top of every tab: each column
+ * starts at the top, 8 px down (the 1x look: 8 + 24 glyph + 4 + 20 label in 64), glyph first, label under it. The
+ * compact row, where the label sits beside the glyph, stays centred.
+ *
+ * ⚠️ jsdom lays nothing out, so these pin the declared classes. Only a browser or a device proves the row lines up.
+ */
+describe('HomeTabBar (web) — one glyph row, whatever the labels do', () => {
+    const COMPACT = '[@media(max-height:479px)]';
+
+    it('starts every tab’s column at the top, 8 px down, centred across', () => {
+        renderBar();
+
+        for (const link of within(bar()).getAllByRole('link')) {
+            const classes = link.className.split(/\s+/u);
+
+            expect(classes).toEqual(expect.arrayContaining(['flex-col', 'items-center', 'justify-start', 'pt-2']));
+            expect(classes).not.toContain('justify-center');
+        }
+    });
+
+    it('draws each tab’s glyph before its label', () => {
+        renderBar();
+
+        for (const link of within(bar()).getAllByRole('link')) {
+            const glyph = link.querySelector('svg');
+            const label = within(link).getByText(link.textContent ?? '');
+
+            expect(glyph).not.toBeNull();
+            expect(glyph!.compareDocumentPosition(label) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+        }
+    });
+
+    it('keeps the compact row centred, with no top padding, in a window under 480 px tall only', () => {
+        renderBar();
+
+        for (const link of within(bar()).getAllByRole('link')) {
+            expect(link.className).toContain(`${COMPACT}:justify-center`);
+            expect(link.className).toContain(`${COMPACT}:pt-0`);
+        }
+    });
+});
+
+/**
  * Owner 2026-10-13: a landscape phone (a window under 480 px tall, below the 840 px sidebar breakpoint) gets a compact bar —
  * the label beside the glyph, 48 px tall — that clears a side cutout. jsdom evaluates no media query, so what these pin is
  * the declared rule: the utilities are keyed on `max-height: 479px` (one pixel under the 480 dp compact class,

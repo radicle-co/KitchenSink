@@ -157,7 +157,12 @@ export const VariantDetailsDialog: FC<VariantDetailsDialogProps> = ({ open, food
                             {copy.loadFailed}
                         </Text>
                         <View style={styles.retry}>
-                            <Button variant="secondary" icon="refreshCw" onPress={details.onRetry}>
+                            <Button
+                                variant="quiet"
+                                icon="refreshCw"
+                                description={copy.loadFailed}
+                                onPress={details.onRetry}
+                            >
                                 {copy.retry}
                             </Button>
                         </View>
@@ -261,7 +266,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: nativeTokens.spacing[4],
         paddingBottom: nativeTokens.spacing[4],
     },
-    foodName: { fontSize: nativeTokens.fontSize.bodyMd, fontWeight: '600' },
+    foodName: { ...nativeTokens.type.cardTitle },
     introRow: {
         flexDirection: 'row',
         flexWrap: 'wrap',
@@ -269,9 +274,9 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         columnGap: nativeTokens.spacing[3],
     },
-    intro: { fontSize: nativeTokens.fontSize.bodySm },
-    caption: { fontSize: nativeTokens.fontSize.caption },
-    currentLabel: { fontWeight: '600' },
+    intro: { ...nativeTokens.type.meta },
+    caption: { ...nativeTokens.type.meta },
+    currentLabel: { ...nativeTokens.type.label },
     labelRow: {
         flexDirection: 'row',
         flexWrap: 'wrap',
@@ -279,7 +284,7 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         columnGap: nativeTokens.spacing[3],
     },
-    searchLabel: { fontSize: nativeTokens.fontSize.bodySm, fontWeight: '500' },
+    searchLabel: { ...nativeTokens.type.caption },
     searchRow: { flexDirection: 'row', alignItems: 'center', gap: nativeTokens.spacing[2] },
     input: {
         flex: 1,
@@ -287,19 +292,17 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderRadius: nativeTokens.radius.md,
         paddingHorizontal: nativeTokens.spacing[3],
-        fontSize: nativeTokens.fontSize.bodyMd,
     },
     clear: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
     block: { gap: nativeTokens.spacing[3], paddingHorizontal: nativeTokens.spacing[4] },
-    body: { fontSize: nativeTokens.fontSize.bodyMd },
+    body: { ...nativeTokens.type.body },
     retry: { alignSelf: 'flex-start' },
     skeleton: { height: 48, borderRadius: nativeTokens.radius.md },
     groupHeader: {
         paddingTop: nativeTokens.spacing[5],
         paddingBottom: nativeTokens.spacing[2],
         paddingHorizontal: nativeTokens.spacing[4],
-        fontSize: nativeTokens.fontSize.bodySm,
-        fontWeight: '600',
+        ...nativeTokens.type.label,
     },
     firstHeader: { paddingTop: nativeTokens.spacing[3] },
     footer: { gap: nativeTokens.spacing[3] },

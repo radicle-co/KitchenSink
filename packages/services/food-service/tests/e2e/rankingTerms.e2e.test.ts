@@ -27,7 +27,14 @@ import { randomUUID } from 'node:crypto';
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import pg from 'pg';
-import { describeRankingName, foldForRanking, rankingTokens } from '@kitchensink/recipe-core/resolution/ranking-terms';
+import {
+    describeCatalogName,
+    describeRankingName,
+    foldForRanking,
+    rankingTokens,
+} from '@kitchensink/recipe-core/resolution/ranking-terms';
+
+import { ALIAS_DELIMITER } from '../../src/foods/foodAliases.js';
 
 import { makeCatalogFood } from '../__fixtures__/catalogFood.js';
 import { makePool } from '../support/db.js';
@@ -63,6 +70,30 @@ const NAMES: readonly string[] = [
     'GAS',
 ];
 
+/**
+ * Names that separate the head-noun rule from the first-word rule it replaced (ADR-0070): natural-order names,
+ * a bracketed qualifier, a trailing `in …` phrase, a standalone-word boundary, and an empty first segment.
+ */
+const HEAD_NOUN_NAMES: readonly string[] = [
+    'milk crackers',
+    'salt cod',
+    'cinnamon rolls',
+    'bread flour',
+    'whole milk',
+    'ground cinnamon',
+    'Tamales (Navajo)',
+    'Cheese (cheddar, sharp), shredded',
+    'walnuts in syrup',
+    'Fish, tuna, light, canned in water',
+    'Beans, in tomato sauce',
+    'cream of mushroom soup',
+    'instant oatmeal',
+    'raisin bread',
+    '(boiled), potatoes',
+    '( )',
+    'IN SEASON greens IN brine',
+];
+
 describe('food.rank_folded / rank_tokens (migration 0008, integration)', () => {
     let pool: pg.Pool;
 
@@ -80,7 +111,7 @@ describe('food.rank_folded / rank_tokens (migration 0008, integration)', () => {
         await foodDb().truncate();
     });
 
-    describe('food.rank_head (migration 0011) mirrors the comma-segment head rule (plan U1, D4b)', () => {
+    describe('food.rank_head (migration 0025) mirrors the English head-noun rule (ADR-0070)', () => {
         it('the column exists, is GENERATED, and is STORED', async () => {
             const { rows } = await pool.query(
                 `SELECT is_generated FROM information_schema.columns
@@ -92,7 +123,13 @@ describe('food.rank_folded / rank_tokens (migration 0008, integration)', () => {
         });
 
         it('⛔ computes EXACTLY what describeRankingName().head computes, for every name', async () => {
-            for (const name of [...NAMES, 'Cinnamon buns, frosted', 'Salad dressing, russian', ', frosted']) {
+            for (const name of [
+                ...NAMES,
+                ...HEAD_NOUN_NAMES,
+                'Cinnamon buns, frosted',
+                'Salad dressing, russian',
+                ', frosted',
+            ]) {
                 await makeCatalogFood(pool, { name, normalizedName: `${name}-${randomUUID()}` });
             }
 
@@ -115,6 +152,179 @@ describe('food.rank_folded / rank_tokens (migration 0008, integration)', () => {
             const { rows } = await pool.query(`SELECT rank_head FROM food WHERE id = 'u1-cinnamon'`);
 
             expect(rows[0].rank_head).toBe('bun');
+        });
+
+        it('reads the head noun LAST in a natural-order name — the prod binds of 2026-10-25', async () => {
+            for (const [id, name] of [
+                ['h-crackers', 'milk crackers'],
+                ['h-milk', 'whole milk'],
+                ['h-cod', 'salt cod'],
+                ['h-walnut', 'walnuts in syrup'],
+                ['h-tamale', 'Tamales (Navajo)'],
+            ] as const) {
+                await makeCatalogFood(pool, { id, name, normalizedName: id });
+            }
+
+            const { rows } = await pool.query<{ id: string; rank_head: string }>(
+                `SELECT id, rank_head FROM food WHERE id LIKE 'h-%' ORDER BY id`,
+            );
+
+            expect(Object.fromEntries(rows.map((row) => [row.id, row.rank_head]))).toEqual({
+                'h-cod': 'cod',
+                'h-crackers': 'cracker',
+                'h-milk': 'milk',
+                'h-tamale': 'tamale',
+                'h-walnut': 'walnut',
+            });
+        });
+
+        it('rank_head_of() is IMMUTABLE, so the generated column may call it', async () => {
+            const { rows } = await pool.query<{ provolatile: string }>(
+                `SELECT provolatile FROM pg_proc WHERE proname = 'rank_head_of'`,
+            );
+
+            expect(rows).toEqual([{ provolatile: 'i' }]);
+        });
+    });
+
+    describe('food.rank_alias_keys (migration 0026) mirrors the synonym keys (ADR-0070)', () => {
+        const SYNONYM_SETS: readonly (readonly string[])[] = [
+            ['granulated sugar', 'white sugar'],
+            ['Chicken Eggs', 'large eggs'],
+            ['bacalao', 'baccalà', 'salted cod'],
+            ['half-and-half', 'half & half'],
+            ['   ', '---', 'Peaches'],
+        ];
+
+        it('the column exists, is GENERATED, and is a text array', async () => {
+            const { rows } = await pool.query(
+                `SELECT is_generated, data_type FROM information_schema.columns
+                 WHERE table_name = 'food' AND column_name = 'rank_alias_keys'`,
+            );
+
+            expect(rows).toEqual([{ is_generated: 'ALWAYS', data_type: 'ARRAY' }]);
+        });
+
+        it('⛔ computes EXACTLY what describeCatalogName().synonymKeys computes, for every synonym set', async () => {
+            for (const [index, synonyms] of SYNONYM_SETS.entries()) {
+                await makeCatalogFood(pool, {
+                    id: `syn-${String(index)}`,
+                    name: `root ${String(index)}`,
+                    normalizedName: `syn-${String(index)}`,
+                    aliases: synonyms.join(ALIAS_DELIMITER),
+                });
+            }
+
+            const { rows } = await pool.query<{ id: string; rank_alias_keys: string[] }>(
+                `SELECT id, rank_alias_keys FROM food WHERE id LIKE 'syn-%' ORDER BY id`,
+            );
+
+            expect(rows.map((row) => row.rank_alias_keys)).toEqual(
+                SYNONYM_SETS.map((synonyms) => [...describeCatalogName('root', synonyms, []).synonymKeys]),
+            );
+        });
+
+        it('rank_alias_keys_of() is IMMUTABLE, so the generated column may call it', async () => {
+            // It calls array_to_string, which pg_proc marks STABLE; over a text[] it is immutable (migration 0026).
+            const { rows } = await pool.query<{ provolatile: string }>(
+                `SELECT provolatile FROM pg_proc WHERE proname = 'rank_alias_keys_of'`,
+            );
+
+            expect(rows).toEqual([{ provolatile: 'i' }]);
+        });
+
+        it('is an EMPTY array, never NULL, for a root with no synonyms', async () => {
+            await makeCatalogFood(pool, { id: 'syn-none', name: 'plain', normalizedName: 'syn-none', aliases: null });
+
+            const { rows } = await pool.query(`SELECT rank_alias_keys FROM food WHERE id = 'syn-none'`);
+
+            expect(rows).toEqual([{ rank_alias_keys: [] }]);
+        });
+    });
+
+    describe('food.default_terms and food.rank_default_keys (migration 0027) mirror the default keys (ADR-0070 §4)', () => {
+        const DEFAULT_SETS: readonly (readonly string[])[] = [
+            ['milk'],
+            ['Flours', 'all purpose flour'],
+            ['jalapeño', 'Crème'],
+            ['   ', '---', 'rice'],
+            [],
+        ];
+
+        it('default_terms is a seed-owned text array, NOT NULL, empty by default; rank_default_keys is GENERATED', async () => {
+            const { rows } = await pool.query(
+                `SELECT column_name, is_generated, data_type, is_nullable, column_default
+                   FROM information_schema.columns
+                  WHERE table_name = 'food' AND column_name IN ('default_terms', 'rank_default_keys')
+                  ORDER BY column_name`,
+            );
+
+            expect(rows).toEqual([
+                {
+                    column_name: 'default_terms',
+                    is_generated: 'NEVER',
+                    data_type: 'ARRAY',
+                    is_nullable: 'NO',
+                    column_default: "'{}'::text[]",
+                },
+                {
+                    column_name: 'rank_default_keys',
+                    is_generated: 'ALWAYS',
+                    data_type: 'ARRAY',
+                    is_nullable: 'YES',
+                    column_default: null,
+                },
+            ]);
+        });
+
+        it('rank_default_keys is STORED, not virtual', async () => {
+            const { rows } = await pool.query(
+                `SELECT attgenerated FROM pg_attribute
+                  WHERE attrelid = 'public.food'::regclass AND attname = 'rank_default_keys'`,
+            );
+
+            expect(rows).toEqual([{ attgenerated: 's' }]);
+        });
+
+        it('rank_default_keys_of() is IMMUTABLE, so the generated column may call it', async () => {
+            const { rows } = await pool.query<{ provolatile: string }>(
+                `SELECT provolatile FROM pg_proc WHERE proname = 'rank_default_keys_of'`,
+            );
+
+            expect(rows).toEqual([{ provolatile: 'i' }]);
+        });
+
+        it('⛔ computes EXACTLY what describeCatalogName().defaultKeys computes, for every default set', async () => {
+            for (const [index, defaultTerms] of DEFAULT_SETS.entries()) {
+                await makeCatalogFood(pool, {
+                    id: `def-${String(index)}`,
+                    name: `root ${String(index)}`,
+                    normalizedName: `def-${String(index)}`,
+                    defaultTerms,
+                });
+            }
+
+            const { rows } = await pool.query<{ id: string; rank_default_keys: string[] }>(
+                `SELECT id, rank_default_keys FROM food WHERE id LIKE 'def-%' ORDER BY id`,
+            );
+
+            expect(rows.map((row) => row.rank_default_keys)).toEqual(
+                DEFAULT_SETS.map((defaultTerms) => [...describeCatalogName('root', [], defaultTerms).defaultKeys]),
+            );
+        });
+
+        it('a food written without default_terms holds an empty array in both columns', async () => {
+            await pool.query(
+                `WITH item AS (INSERT INTO food_item (id, owner_kind) VALUES ('item-def-omitted', 'root') RETURNING id)
+                 INSERT INTO food (id, item_id, name, normalized_name, status, kind, visibility)
+                 SELECT 'def-omitted', item.id, 'omitted', 'def-omitted', 'RESOLVED', 'generic', 'public' FROM item`,
+            );
+
+            const { rows } = await pool.query(
+                `SELECT default_terms, rank_default_keys FROM food WHERE id = 'def-omitted'`,
+            );
+
+            expect(rows).toEqual([{ default_terms: [], rank_default_keys: [] }]);
         });
     });
 

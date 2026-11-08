@@ -1,19 +1,21 @@
 /**
  * @module @commise/ui/load-more — the native "Load more" control of a server-paged list (no infinite scroll).
  *
- * Three states over one `Pressable`: idle, busy (native `disabled` — a disabled native control keeps the
- * screen-reader cursor — plus `aria-busy`, which react-native-web projects and React Native aliases to
- * `accessibilityState.busy`) and failed ("Try again", with the reason as its hint). The failure is SPOKEN through an
+ * Three states over one `Button`, ghost while idle and busy (an `actionText` label with a chevronDown after it, so colour
+ * and glyph mark it pressable) and quiet when failed: idle, busy (the button's native `disabled`, which keeps the screen-reader
+ * cursor, plus `aria-busy`) and failed ("Try again", with the reason as its hint). The failure is SPOKEN through an
  * assertive `LiveRegion` mounted empty above the button, so it announces when its text appears on both platforms; a
  * retry in flight clears it, so a second failure announces again. The pages already loaded stay on screen.
  *
  * A presentational leaf: the caller derives `loading` and `failed` from its infinite query.
  *
- * @pattern Facade over one `Pressable` and an assertive `LiveRegion` — the same contract as the web leaf
+ * @pattern Facade over the design system's ghost and quiet `Button` and an assertive `LiveRegion` — the same contract as the web
+ *     leaf
  */
 import type { FC } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
+import { Button } from '../button/Button.native.js';
 import { LiveRegion } from '../liveRegion/LiveRegion.native.js';
 import { useTheme } from '../theme/useTheme.native.js';
 import { nativeTokens } from '../tokens/native.js';
@@ -35,32 +37,22 @@ export const LoadMoreControl: FC<LoadMoreControlProps> = ({ hasMore, loading, fa
             <LiveRegion politeness="assertive" style={[styles.message, { color: colors.inkMuted }]}>
                 {showFailure ? labels.failed : ''}
             </LiveRegion>
-            <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={label}
-                {...(showFailure ? { accessibilityHint: labels.failed } : {})}
-                accessibilityState={{ busy: loading, disabled: loading }}
-                aria-busy={loading || undefined}
-                disabled={loading}
+            <Button
+                variant={failed ? 'quiet' : 'ghost'}
+                busy={loading}
                 onPress={onLoadMore}
-                style={[styles.button, { backgroundColor: colors.surfaceMuted }, loading && styles.busy]}
+                {...(failed
+                    ? { icon: 'refreshCw' as const }
+                    : { icon: 'chevronDown' as const, iconPlacement: 'end' as const })}
+                {...(showFailure ? { description: labels.failed } : {})}
             >
-                <Text style={[styles.label, { color: colors.ink }]}>{label}</Text>
-            </Pressable>
+                {label}
+            </Button>
         </View>
     );
 };
 
 const styles = StyleSheet.create({
     footer: { alignItems: 'center', gap: nativeTokens.spacing[2], marginTop: nativeTokens.spacing[2] },
-    message: { fontSize: nativeTokens.fontSize.bodySm, textAlign: 'center' },
-    button: {
-        borderRadius: nativeTokens.radius.full,
-        paddingVertical: 10,
-        paddingHorizontal: nativeTokens.spacing[5],
-        minHeight: 44,
-        justifyContent: 'center',
-    },
-    busy: { opacity: 0.6 },
-    label: { fontSize: nativeTokens.fontSize.bodySm, fontWeight: '600' },
+    message: { ...nativeTokens.type.meta, textAlign: 'center' },
 });

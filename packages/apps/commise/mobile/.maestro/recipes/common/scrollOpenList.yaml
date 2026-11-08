@@ -36,6 +36,15 @@ appId: ${APP_ID}
 # anchor is the keyboard's own `inputView` (its top is the suggestion strip, 539 pt on the iPhone 17), by id: the Space
 # key's text is a single space, so `above: space` never matched, and the Space row is the keyboard's LAST row, so a
 # target above it can still sit under the letter rows (Mac Simulator, 2026-10-18: the tap typed a "y").
+# ⛔ ABOVE THE KEYBOARD MEANS THE WHOLE OPTION, NOT ITS TOP. Maestro keeps a match `above` ANY element that matches
+# the anchor, comparing TOP edges strictly (`Filters.relativeTo`, read from the 2.11.0 bytecode, 2026-10-31). So
+# `above: inputView` alone stopped with the option's top 1 pt clear: it spanned 538 to 594, the suggestion strip began
+# at 539, and `pickFromOpenList.yaml`'s tap near the top landed at 540, on the strip (Mac run 2026-10-31, iOS,
+# `ingredientArrival`: "Use .*Maestro Row Two.* as written.*" still there 30 s later; it passed on the rerun because
+# the page's scroll position is not the same twice). The check therefore asks for an element BELOW the target that is
+# itself above the keyboard. Rows do not overlap, so that element is the next row or later page content, and the whole
+# option is on screen; page content below the list counts, so the last option is not stranded. It must carry a letter,
+# so a scroll indicator ("48%") never counts (`maestroOpenListPick.test.ts`).
 # Android's accessibility tree drops what the keyboard covers, so plain visibility there already means "on screen".
 - runFlow:
       when:
@@ -110,7 +119,9 @@ appId: ${APP_ID}
                     notVisible:
                         text: ${TARGET}
                         above:
-                            id: inputView
+                            text: '[\s\S]*[A-Za-z][\s\S]*'
+                            above:
+                                id: inputView
                 times: 10
                 commands:
                     - runFlow:
@@ -135,4 +146,6 @@ appId: ${APP_ID}
           - assertVisible:
                 text: ${TARGET}
                 above:
-                    id: inputView
+                    text: '[\s\S]*[A-Za-z][\s\S]*'
+                    above:
+                        id: inputView

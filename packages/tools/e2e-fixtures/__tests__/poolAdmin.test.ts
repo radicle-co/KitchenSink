@@ -6,7 +6,7 @@
  * slots are created, which are re-marked, what counts as drift — and that a dry run writes nothing at all.
  */
 import { ClerkAPIResponseError } from '@clerk/backend/errors';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
     clerkPoolAdminPort,
@@ -16,6 +16,7 @@ import {
     planPool,
     poolProfileReassert,
     poolScopeOptions,
+    refuseUnsafeScope,
     poolUserCreateInput,
     laneHoldsPhase,
     reconcilePool,
@@ -214,6 +215,14 @@ describe('reconcilePool', () => {
                 }
             }),
             readExternalId: vi.fn(async () => 'ext_new'),
+            writeExternalId: vi.fn(async (userId: string, externalId: string) => {
+                const index = users.findIndex((candidate) => candidate.id === userId);
+                const found = users[index];
+
+                if (found !== undefined) {
+                    users[index] = { ...found, externalId };
+                }
+            }),
             reassertProfile: vi.fn(async (_userId: string, _profile: PoolProfileReassert) => undefined),
         } satisfies PoolAdminPort;
 
@@ -919,5 +928,423 @@ describe('setLanePhase — move one lane between its two states', () => {
 
     it('laneHoldsPhase is false for an absent lane rather than throwing', async () => {
         expect(await laneHoldsPhase(portOver([]), owner, 'settled')).toBe(false);
+    });
+});
+
+describe('reconcilePool minting external ids (a local-namespace run)', () => {
+    /**
+     * ⛔ The identity webhook writes a pool user's `external_id` — and the SANDBOX owns that webhook, which is down when
+     * the sandbox is. A local run therefore writes the id itself, for its OWN users only. The failure that matters is
+     * overwriting an id someone already wrote: it is the claim every service authorizes on.
+     */
+    const users = (...held: ObservedPoolUser[]) => {
+        const state = [...held];
+        const holding = (email: string) => state.filter((u) => u.emails.some((e) => e.toLowerCase() === email));
+        const writes: [string, string][] = [];
+
+        return {
+            writes,
+            port: {
+                findUsers: vi.fn(async (email: string) => holding(email)),
+                listUsers: vi.fn(async () => [...state]),
+                createUser: vi.fn(async (input: PoolUserCreate) => {
+                    state.push({
+                        id: `created_${input.emailAddress[0] ?? ''}`,
+                        emails: [...input.emailAddress],
+                        publicMetadata: { ...input.publicMetadata },
+                        externalId: null,
+                    });
+
+                    return { id: `created_${input.emailAddress[0] ?? ''}` };
+                }),
+                mergeMetadata: vi.fn(async () => undefined),
+                readExternalId: vi.fn(async () => null),
+                writeExternalId: vi.fn(async (userId: string, externalId: string) => {
+                    writes.push([userId, externalId]);
+                    const index = state.findIndex((u) => u.id === userId);
+                    const found = state[index];
+
+                    if (found !== undefined) {
+                        state[index] = { ...found, externalId };
+                    }
+                }),
+                reassertProfile: vi.fn(async () => undefined),
+            } satisfies PoolAdminPort,
+        };
+    };
+
+    // A clock that advances when it is slept on, so the webhook wait reaches its deadline instead of spinning.
+    let clock = 0;
+    const base = {
+        randomPassword: () => 'random',
+        now: () => clock,
+        sleep: async (ms: number) => {
+            clock += ms;
+        },
+        drift: 'skip' as const,
+    };
+    let counter = 0;
+    const mint = () => `01MINTED${String(++counter).padStart(18, '0')}`;
+
+    it('writes a minted id to a user it creates, and does not wait for a webhook that will not come', async () => {
+        const { port, writes } = users();
+
+        const report = await reconcilePool(port, { ...base, slots: [signer], apply: true, externalId: { mint } });
+
+        expect(writes).toEqual([[`created_${signer.email}`, expect.stringMatching(/^01MINTED/u)]]);
+        expect(port.readExternalId).not.toHaveBeenCalled();
+        expect(report.unleasable).toEqual([]);
+        expect(report.healthy).toBe(true);
+    });
+
+    it('gives an existing user that has none an id, and never replaces one it has', async () => {
+        const bare = { ...marked(alfa), externalId: null };
+        const claimed = { ...marked(signer), externalId: '01CLAIMEDBYANOTHERWRITER000' };
+        const { port, writes } = users(bare, claimed);
+
+        await reconcilePool(port, { ...base, slots: [alfa, signer], apply: true, externalId: { mint } });
+
+        expect(writes.map(([userId]) => userId)).toEqual([bare.id]);
+    });
+
+    it('writes nothing on a dry run', async () => {
+        const { port, writes } = users();
+
+        await reconcilePool(port, { ...base, slots: [signer], apply: false, externalId: { mint } });
+
+        expect(writes).toEqual([]);
+        expect(port.createUser).not.toHaveBeenCalled();
+    });
+
+    it('is not what the shared pool does: without the option it waits on the webhook and writes no id', async () => {
+        const { port, writes } = users();
+
+        await expect(reconcilePool(port, { ...base, slots: [signer], apply: true })).rejects.toThrow();
+        expect(port.readExternalId).toHaveBeenCalled();
+        expect(writes).toEqual([]);
+    });
+
+    it('refuses to mint through a port that cannot write', async () => {
+        const { port } = users();
+        const { writeExternalId: _unused, ...readOnly } = port;
+
+        await expect(
+            reconcilePool(readOnly, { ...base, slots: [signer], apply: true, externalId: { mint } }),
+        ).rejects.toThrow(/writeExternalId/u);
+    });
+});
+
+describe('the Maestro lane scope', () => {
+    it('parses the lane flag with its platform and shard', () => {
+        expect(parsePoolAdminArgs(['--apply', '--maestro-lane', '--platform', 'ios', '--shard', '1']).scope).toEqual({
+            kind: 'maestroLane',
+            platform: 'ios',
+            shard: 1,
+        });
+    });
+
+    it.each([
+        [['--maestro-lane', '--shard', '1']],
+        [['--maestro-lane', '--platform', 'ios']],
+        [['--maestro-lane', '--maestro-erasure', '--platform', 'ios', '--shard', '1']],
+        [['--maestro-lane', '--settle-downgraded', '--platform', 'ios', '--shard', '1']],
+        [['--maestro-lane', '--platform', 'tvos', '--shard', '1']],
+    ])('refuses %j', (argv) => {
+        expect(() => parsePoolAdminArgs(argv)).toThrow(/poolAdmin/u);
+    });
+
+    it("reconciles the lane's signer, co-author and, on the erasure shard, ONE erasure subject (the Clerk cap is 100)", () => {
+        expect(
+            poolScopeOptions({ kind: 'maestroLane', platform: 'ios', shard: 1 }).slots.map((slot) => slot.id),
+        ).toEqual(['iossigner01', 'ioscoauthor01', 'erasure06']);
+        expect(
+            poolScopeOptions({ kind: 'maestroLane', platform: 'android', shard: 2 }).slots.map((slot) => slot.id),
+        ).toEqual(['signer02', 'coauthor02']);
+    });
+});
+
+describe('recycling the consumable users of a local-namespace run', () => {
+    /**
+     * ⛔ In the deployed world an erased subject is deleted from Clerk by the identity deletion worker, and the next run's
+     * refill recreates it. The local stack runs no such worker (its queue URL is a placeholder), so an erased subject
+     * would still stand in Clerk, still be the first one a lease takes, and be a CLOSED account locally. A local run
+     * therefore starts from subjects it has just made. The failure that matters is deleting anyone else: only a
+     * consumable slot IN SCOPE may go, and only when the caller asked.
+     */
+    const erasure = slotFor('maestro', 'erasure01');
+    const held = (slot: typeof erasure): ObservedPoolUser => ({ ...marked(slot), externalId: '01HELD' });
+
+    const portWith = (...users: ObservedPoolUser[]) => {
+        const state = [...users];
+        const deleted: string[] = [];
+
+        return {
+            deleted,
+            port: {
+                findUsers: vi.fn(async (email: string) => state.filter((u) => u.emails.includes(email))),
+                listUsers: vi.fn(async () => [...state]),
+                createUser: vi.fn(async (input: PoolUserCreate) => {
+                    const id = `created_${input.emailAddress[0] ?? ''}`;
+
+                    state.push({
+                        id,
+                        emails: [...input.emailAddress],
+                        publicMetadata: { ...input.publicMetadata },
+                        externalId: null,
+                    });
+
+                    return { id };
+                }),
+                mergeMetadata: vi.fn(async () => undefined),
+                readExternalId: vi.fn(async () => null),
+                writeExternalId: vi.fn(async (userId: string, externalId: string) => {
+                    const index = state.findIndex((u) => u.id === userId);
+                    const found = state[index];
+
+                    if (found !== undefined) {
+                        state[index] = { ...found, externalId };
+                    }
+                }),
+                deleteUser: vi.fn(async (userId: string) => {
+                    deleted.push(userId);
+                    state.splice(
+                        state.findIndex((u) => u.id === userId),
+                        1,
+                    );
+                }),
+                reassertProfile: vi.fn(async () => undefined),
+            } satisfies PoolAdminPort,
+        };
+    };
+
+    const base = {
+        randomPassword: () => 'random',
+        now: () => 0,
+        sleep: async () => undefined,
+        drift: 'skip' as const,
+        externalId: { mint: () => '01MINTEDMINTEDMINTEDMINTED' },
+    };
+
+    it('deletes the consumable subject in scope and makes a fresh one, and leaves the signer alone', async () => {
+        const subject = held(erasure);
+        const signerUser = held(signer);
+        const { port, deleted } = portWith(subject, signerUser);
+
+        const report = await reconcilePool(port, {
+            ...base,
+            slots: [signer, erasure],
+            apply: true,
+            recycle: 'consumables',
+        });
+
+        expect(deleted).toEqual([subject.id]);
+        expect(port.createUser).toHaveBeenCalledTimes(1);
+        expect(port.createUser).toHaveBeenCalledWith(poolUserCreateInput(erasure, 'random'));
+        expect(report.healthy).toBe(true);
+    });
+
+    it('does nothing to a slot outside the scope it was given', async () => {
+        const other = held(slotFor('maestro', 'erasure02'));
+        const { port, deleted } = portWith(other);
+
+        await reconcilePool(port, { ...base, slots: [erasure], apply: true, recycle: 'consumables' });
+
+        expect(deleted).toEqual([]);
+    });
+
+    it('deletes nothing on a dry run', async () => {
+        const { port, deleted } = portWith(held(erasure));
+
+        await reconcilePool(port, { ...base, slots: [erasure], apply: false, recycle: 'consumables' });
+
+        expect(deleted).toEqual([]);
+    });
+
+    it('deletes nothing unless asked', async () => {
+        const { port, deleted } = portWith(held(erasure));
+
+        await reconcilePool(port, { ...base, slots: [erasure], apply: true });
+
+        expect(deleted).toEqual([]);
+    });
+
+    it('refuses through a port that cannot delete', async () => {
+        const { port } = portWith(held(erasure));
+        const { deleteUser: _unused, ...cannotDelete } = port;
+
+        await expect(
+            reconcilePool(cannotDelete, { ...base, slots: [erasure], apply: true, recycle: 'consumables' }),
+        ).rejects.toThrow(/deleteUser/u);
+    });
+
+    it('is a flag only of the lanes that have consumables', () => {
+        expect(parsePoolAdminArgs(['--maestro-lane', '--recycle', '--platform', 'ios', '--shard', '1']).recycle).toBe(
+            true,
+        );
+        expect(
+            parsePoolAdminArgs(['--maestro-erasure', '--recycle', '--platform', 'ios', '--shard', '1']).recycle,
+        ).toBe(true);
+        expect(parsePoolAdminArgs(['--maestro-lane', '--platform', 'ios', '--shard', '1']).recycle).toBeUndefined();
+        expect(() => parsePoolAdminArgs(['--recycle'])).toThrow(/poolAdmin/u);
+    });
+});
+
+describe('the local role users scope', () => {
+    afterEach(() => {
+        vi.unstubAllEnvs();
+    });
+
+    /**
+     * Local Maestro's `paidFeaturesByRole` and `makePublicConfirm` sign in as the `roles` tier (`test-local-roledefault`
+     * and its five siblings), which no local scope created. The Clerk development instance holds 100 users and was at
+     * 99, so creation is opt-in, local-namespace-only, and REFUSES BEFORE ITS FIRST WRITE when the instance lacks room -
+     * a partial create would leave half a tier and a run that fails on whichever role came last.
+     */
+    it('parses --local-roles to its own scope', () => {
+        expect(parsePoolAdminArgs(['--apply', '--local-roles'])).toEqual({
+            apply: true,
+            phase: 'seeding',
+            scope: { kind: 'localRoles' },
+        });
+    });
+
+    it.each([
+        [['--local-roles', '--maestro-lane', '--platform', 'ios', '--shard', '1']],
+        [['--local-roles', '--maestro-erasure', '--platform', 'ios', '--shard', '1']],
+        [['--local-roles', '--shard', '1']],
+        [['--local-roles', '--platform', 'ios']],
+        [['--local-roles', '--recycle']],
+        [['--local-roles', '--settle-downgraded']],
+    ])('refuses %j', (argv) => {
+        expect(() => parsePoolAdminArgs(argv)).toThrow(/poolAdmin/u);
+    });
+
+    it('reconciles exactly the roles tier, with no drift audit and no profile rewrite', () => {
+        vi.stubEnv('E2E_POOL_NAMESPACE', 'local');
+
+        const options = poolScopeOptions({ kind: 'localRoles' });
+
+        expect(options.slots.map((slot) => slot.id)).toEqual(
+            rosterSlots()
+                .filter((slot) => slot.tier === 'roles')
+                .map((slot) => slot.id),
+        );
+        expect(options.slots.length).toBeGreaterThanOrEqual(6);
+        expect(options).toMatchObject({ drift: 'skip', profile: 'leave' });
+    });
+
+    describe('the capacity pre-check', () => {
+        const roleSlots = rosterSlots().filter((slot) => slot.tier === 'roles');
+
+        const stateful = (total: number) => {
+            const created: string[] = [];
+            const port: PoolAdminPort = {
+                findUsers: vi.fn(async () => []),
+                listUsers: vi.fn(async () => []),
+                createUser: vi.fn(async (input: PoolUserCreate) => {
+                    created.push(input.emailAddress[0] ?? '');
+
+                    return { id: 'x' };
+                }),
+                mergeMetadata: vi.fn(async () => undefined),
+                readExternalId: vi.fn(async () => 'ext'),
+                writeExternalId: vi.fn(async () => undefined),
+                reassertProfile: vi.fn(async () => undefined),
+                countUsers: vi.fn(async () => total),
+            };
+
+            return { port, created };
+        };
+
+        const base = { randomPassword: () => 'r', now: () => 0, sleep: async () => undefined, drift: 'skip' } as const;
+
+        it('⛔ creates NOTHING when the instance cannot hold every missing user', async () => {
+            const { port, created } = stateful(99);
+
+            await expect(
+                reconcilePool(port, { ...base, slots: roleSlots, apply: true, capacity: { limit: 100 } }),
+            ).rejects.toThrow(/100/u);
+            expect(created).toEqual([]);
+            expect(port.createUser).not.toHaveBeenCalled();
+        });
+
+        it('proceeds when there is exactly room for all of them (the bound is inclusive)', async () => {
+            const { port, created } = stateful(100 - roleSlots.length);
+
+            await reconcilePool(port, {
+                ...base,
+                slots: roleSlots,
+                apply: true,
+                capacity: { limit: 100 },
+                externalId: { mint: () => 'ext' },
+            });
+
+            expect(created).toHaveLength(roleSlots.length);
+        });
+
+        it('counts only the users it would CREATE, so a re-run over a complete tier needs no room at all', async () => {
+            const { port } = stateful(100);
+            const holding = (email: string): ObservedPoolUser => ({
+                id: `u_${email}`,
+                emails: [email],
+                publicMetadata: {
+                    ...poolSlotMetadata(roleSlots.find((slot) => slot.email === email) ?? roleSlots[0]!),
+                },
+                externalId: 'ext',
+            });
+
+            vi.mocked(port.findUsers).mockImplementation(async (email: string) => [holding(email)]);
+
+            await expect(
+                reconcilePool(port, { ...base, slots: roleSlots, apply: true, capacity: { limit: 100 } }),
+            ).resolves.toBeDefined();
+            expect(port.createUser).not.toHaveBeenCalled();
+        });
+
+        it('refuses a port that cannot count when a capacity is asked for - the check is never silently skipped', async () => {
+            const { port } = stateful(0);
+            const { countUsers: _omitted, ...withoutCount } = port;
+
+            await expect(
+                reconcilePool(withoutCount, { ...base, slots: roleSlots, apply: true, capacity: { limit: 100 } }),
+            ).rejects.toThrow(/countUsers/u);
+        });
+    });
+});
+
+describe('the local role users scope when the shared role users are reused', () => {
+    afterEach(() => {
+        vi.unstubAllEnvs();
+    });
+
+    it('⛔ creates only what a local run owns: the downgraded owner, never a user CI shares', () => {
+        vi.stubEnv('E2E_POOL_NAMESPACE', 'local');
+        vi.stubEnv('E2E_ROLE_USERS_NAMESPACE', 'shared');
+
+        expect(poolScopeOptions({ kind: 'localRoles' }).slots.map((slot) => slot.id)).toEqual([
+            DOWNGRADED_OWNER_LANE_ID,
+        ]);
+    });
+});
+
+describe('refuseUnsafeScope', () => {
+    /**
+     * ⛔ `poolAdmin --apply` (the whole roster) with `E2E_POOL_NAMESPACE=local` was NOT refused: it would try to create
+     * every roster lane under `test-local-*` - about 92 users on an instance that holds 100 in total. The whole roster is
+     * the owner's run against the SHARED pool; a local run's scopes are the narrow ones.
+     */
+    it('refuses the whole roster in the local namespace, applied or not', () => {
+        expect(() => refuseUnsafeScope({ kind: 'roster' }, true)).toThrow(/whole roster/u);
+    });
+
+    it('allows the whole roster in the shared namespace, and every narrow scope in the local one', () => {
+        expect(() => refuseUnsafeScope({ kind: 'roster' }, false)).not.toThrow();
+        expect(() => refuseUnsafeScope({ kind: 'localRoles' }, true)).not.toThrow();
+        expect(() => refuseUnsafeScope({ kind: 'maestroLane', platform: 'android', shard: 1 }, true)).not.toThrow();
+        expect(() => refuseUnsafeScope({ kind: 'maestroErasure', platform: 'android', shard: 1 }, true)).not.toThrow();
+    });
+
+    it('refuses --local-roles outside the local namespace', () => {
+        expect(() => refuseUnsafeScope({ kind: 'localRoles' }, false)).toThrow(/E2E_POOL_NAMESPACE=local/u);
     });
 });

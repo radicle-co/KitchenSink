@@ -1,13 +1,13 @@
-export { chart, palette, semantic, tint } from './tokens/colors.js';
-export type { Chart, Palette, Semantic } from './tokens/colors.js';
+export { chart, chartDark, palette, semantic, tint } from './tokens/colors.js';
+export type { Chart, ChartDark, Palette, Semantic } from './tokens/colors.js';
 export { size, space } from './tokens/spacing.js';
 export type { Size, Space } from './tokens/spacing.js';
 export { radius } from './tokens/radius.js';
 export type { Radius } from './tokens/radius.js';
 export { shadows } from './tokens/shadows.js';
 export type { Shadows } from './tokens/shadows.js';
-export { fontSizes, fontWeights, fonts, lineHeights } from './tokens/typography.js';
-export type { FontSizes, FontWeights, Fonts, LineHeights } from './tokens/typography.js';
+export { fontSizes, fontWeights, fonts } from './tokens/typography.js';
+export type { FontSizes, FontWeights, Fonts } from './tokens/typography.js';
 export { gradient, gradientCss, toNativeGradient } from './tokens/gradients.js';
 export type { GradientName, GradientSpec, GradientStop, NativeGradient } from './tokens/gradients.js';
 export { nativeTokens } from './tokens/native.js';

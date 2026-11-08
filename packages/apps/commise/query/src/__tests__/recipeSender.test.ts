@@ -21,13 +21,14 @@ import {
     ForbiddenError,
     InvalidRequestError,
     NotFoundError,
+    PrivateSlotsFullError,
     RecipeServiceClientError,
     SourceUnavailableError,
     VersionConflictError,
 } from '@kitchensink/recipe-service-client';
 import type { VersionConflictSide } from '@kitchensink/recipe-core';
 import { makeRecipeVersion } from '@kitchensink/recipe-core/testing';
-import { classifyFailure, type OutboxRecord } from '@kitchensink/sync';
+import { classifyFailure, resendsWhenParked, type OutboxRecord } from '@kitchensink/sync';
 
 import { recipeSender } from '../recipeSender.js';
 
@@ -145,6 +146,36 @@ describe('recipeSender', () => {
     });
 
     /**
+     * ⛔ ADR-0073 / code owed 9: A QUEUED PRIVATE WRITE THAT MEETS `PRIVATE_SLOTS_FULL` IS FINAL. Offline mode makes this
+     * common: a cook can queue private writes while another device uses the last slot. It is a `403`, so
+     * `classifyFailure` calls it terminal (the cook edits or frees a slot), it parks, and the drain NEVER re-sends it by
+     * itself - a second copy would meet the same full slots, and for a create an unknown outcome is never repeated.
+     */
+    // Only a CREATE can meet it: an update's body carries no visibility, and a visibility write is not a sendable intent.
+    it.each([
+        ['a create', 'create', 'createRecipe'],
+        ['an update (a Publish)', 'update', 'updateRecipe'],
+    ] as const)(
+        '⛔ %s refused for want of a private slot parks as a terminal 403 and is never re-sent',
+        async (_label, kind, method) => {
+            const refuse = vi.fn().mockRejectedValue(new PrivateSlotsFullError(50, 50));
+            const send = recipeSender(() => ({ [method]: refuse }) as never);
+
+            // The server's used and limit travel with the refusal (`recipeSlotsFull`), so the editor can say the number.
+            expect(await send(record(kind, { id: 'r1', input: {} }))).toStrictEqual({
+                outcome: 'failed',
+                status: 403,
+                answer: { kind: 'recipeSlotsFull', used: 50, limit: 50 },
+            });
+
+            const failure = { entity: 'recipe', intentKind: kind, localId: 'r1', status: 403 } as const;
+
+            expect(classifyFailure(failure)).toBe('terminal');
+            expect(resendsWhenParked(failure)).toBe(false);
+        },
+    );
+
+    /**
      * ⛔ A BODY THE CLIENT REFUSED LOCALLY IS TERMINAL, NOT `unknown`. `InvalidRequestError` is thrown from
      * `request()` BEFORE any HTTP call and carries no status, so a structural `.status` read classified it
      * `unknown` — which `itemStatus.ts` defines as "may have been processed server-side, so replaying it
@@ -252,6 +283,25 @@ describe('recipeSender', () => {
         expect(classifyFailure({ entity: 'recipe', intentKind: 'create', localId: 'r1', status: 401 })).not.toBe(
             'unknown',
         );
+    });
+});
+
+describe('recipeSender — Retry-After', () => {
+    /** ⛔ The wait the client read off the header must reach the drain, or its deferral never runs. */
+    it('copies the stated wait of a throttled answer into the result', async () => {
+        const error = new RecipeServiceClientError('slow', 429, 'TOO_MANY_REQUESTS', 60);
+        const send = recipeSender(() => ({ updateRecipe: vi.fn().mockRejectedValue(error) }) as never);
+
+        const result = await send(record('update', { id: 'r1', input: {} }));
+
+        expect(result).toStrictEqual({ outcome: 'failed', status: 429, retryAfterSeconds: 60 });
+    });
+
+    it('adds no wait when the client read none', async () => {
+        const error = new RecipeServiceClientError('slow', 429, 'TOO_MANY_REQUESTS');
+        const send = recipeSender(() => ({ updateRecipe: vi.fn().mockRejectedValue(error) }) as never);
+
+        expect(await send(record('update', { id: 'r1', input: {} }))).toStrictEqual({ outcome: 'failed', status: 429 });
     });
 });
 

@@ -32,7 +32,7 @@ describe('RecipeHero (web) — photos present: the hero IS the carousel', () => 
     );
 
     it('shows every photo once, the cover first', () => {
-        renderHero(<RecipeHero recipeId="rec_herb" title="Herb Risotto" photos={photos} />);
+        renderHero(<RecipeHero title="Herb Risotto" photos={photos} />);
 
         expect(screen.getAllByRole('region', { name: 'Recipe photos' })).toHaveLength(1);
         expect(screen.getByRole('img', { name: 'Herb Risotto photo 1' }).getAttribute('src')).toBe(
@@ -42,7 +42,7 @@ describe('RecipeHero (web) — photos present: the hero IS the carousel', () => 
     });
 
     it('does NOT render the no-photo placeholder when there are photos', () => {
-        renderHero(<RecipeHero recipeId="rec_herb" title="Herb Risotto" photos={photos} />);
+        renderHero(<RecipeHero title="Herb Risotto" photos={photos} />);
 
         expect(screen.queryByRole('img', { name: 'No photo yet' })).toBeNull();
     });
@@ -53,23 +53,38 @@ describe('RecipeHero (web) — photos present: the hero IS the carousel', () => 
  * The spec (§1.8, §6.7) is the 96 px `RecipeCover` band with the monogram: the title's first letter on a tint chosen by
  * the recipe id, decorative because the H1 already names the recipe. These replace the old glyph-placeholder tests.
  */
-describe('RecipeHero (web) — no photo: the 96 px monogram band', () => {
-    const noPhoto = <RecipeHero recipeId="rec_herb" title="Herb Risotto" cuisine="Italian" photos={[]} />;
+describe('RecipeHero (web) — no photo: the 96 px gradient band', () => {
+    // REWRITTEN IN SLICE 1 (designer, `designAnswers.md` 2026-11-02, iosBatch1): the no-photo band on the recipe page is the
+    // tint only, with no monogram letter and no cuisine label. Cards and thumbnails keep the monogram. The page's own cuisine
+    // eyebrow is the one place the cuisine is said.
+    const noPhoto = <RecipeHero title="Herb Risotto" photos={[]} />;
 
-    it('draws the title’s first letter on a decorative band, with no image and no picture glyph', () => {
+    it('draws a decorative band with no letter, no cuisine, no image and no picture glyph', () => {
         const { container } = renderHero(noPhoto);
+        const band = container.querySelector('.h-24') as HTMLElement;
 
+        expect(band.getAttribute('aria-hidden')).toBe('true');
+        expect(band.textContent).toBe('');
         expect(container.querySelector('img')).toBeNull();
-        expect(container.querySelector('svg.lucide-image')).toBeNull();
+        expect(container.querySelector('svg')).toBeNull();
         expect(screen.queryByRole('img')).toBeNull();
-        expect(screen.getByText('H').closest('[aria-hidden="true"]')).not.toBeNull();
+        expect(screen.queryByText('H')).toBeNull();
+    });
+
+    // The ONE no-photo gradient the cards use (designer ruling C2): sky to cream at 170 degrees, alone on the band.
+    it('paints the shared sky-to-cream gradient at 170 degrees', () => {
+        const { container } = renderHero(noPhoto);
+        const band = container.querySelector('.h-24') as HTMLElement;
+
+        expect(band.className.split(' ')).toEqual(
+            expect.arrayContaining(['bg-linear-[170deg]', 'from-cover-sky', 'to-cover-cream']),
+        );
     });
 
     it('reserves the 96 px band, never the full hero box', () => {
         const { container } = renderHero(noPhoto);
-        const band = container.querySelector('.h-24');
 
-        expect(band).not.toBeNull();
+        expect(container.querySelector('.h-24')).not.toBeNull();
         expect(container.querySelector('.h-64')).toBeNull();
     });
 });
@@ -87,7 +102,7 @@ describe('RecipeHero (web) — the overlay over the photo', () => {
         ['photos present', photos],
         ['no photo', []],
     ])('draws the overlay over the top of the hero (%s)', (_state, list) => {
-        renderHero(<RecipeHero recipeId="rec_herb" title="Herb Risotto" photos={list} overlay={overlay} />);
+        renderHero(<RecipeHero title="Herb Risotto" photos={list} overlay={overlay} />);
 
         const back = screen.getByRole('button', { name: 'Back' });
         const layer = back.parentElement;
@@ -98,7 +113,7 @@ describe('RecipeHero (web) — the overlay over the photo', () => {
     });
 
     it('puts the overlay before the photos in the reading order', () => {
-        renderHero(<RecipeHero recipeId="rec_herb" title="Herb Risotto" photos={photos} overlay={overlay} />);
+        renderHero(<RecipeHero title="Herb Risotto" photos={photos} overlay={overlay} />);
 
         const back = screen.getByRole('button', { name: 'Back' });
         const region = screen.getByRole('region', { name: 'Recipe photos' });
@@ -107,7 +122,7 @@ describe('RecipeHero (web) — the overlay over the photo', () => {
     });
 
     it('adds no wrapper when there is no overlay', () => {
-        const { container } = renderHero(<RecipeHero recipeId="rec_herb" title="Herb Risotto" photos={photos} />);
+        const { container } = renderHero(<RecipeHero title="Herb Risotto" photos={photos} />);
 
         expect(container.querySelector('.relative > .absolute.top-0')).toBeNull();
     });

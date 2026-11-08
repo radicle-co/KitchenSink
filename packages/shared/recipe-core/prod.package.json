@@ -46,6 +46,10 @@
             "types": "./dist/resolution/verificationVerdict.d.ts",
             "default": "./dist/resolution/verificationVerdict.js"
         },
+        "./parsing/measure-reader": {
+            "types": "./dist/parsing/measureReader.d.ts",
+            "default": "./dist/parsing/measureReader.js"
+        },
         "./parsing/parse-job-message": {
             "types": "./dist/parsing/parseJobMessage.d.ts",
             "default": "./dist/parsing/parseJobMessage.js"
@@ -77,6 +81,10 @@
             "types": "./dist/resolution/verificationKey.d.ts",
             "default": "./dist/resolution/verificationKey.js"
         },
+        "./resolution/verification-delivery": {
+            "types": "./dist/resolution/verificationDelivery.d.ts",
+            "default": "./dist/resolution/verificationDelivery.js"
+        },
         "./resolution/confidence": {
             "types": "./dist/resolution/confidence.d.ts",
             "default": "./dist/resolution/confidence.js"
@@ -88,6 +96,10 @@
         "./parsing/parse-key": {
             "types": "./dist/parsing/parseKey.d.ts",
             "default": "./dist/parsing/parseKey.js"
+        },
+        "./parsing/pasted-line-measure": {
+            "types": "./dist/parsing/pastedLineMeasure.d.ts",
+            "default": "./dist/parsing/pastedLineMeasure.js"
         },
         "./spend/spend-arithmetic": {
             "types": "./dist/spend/spendArithmetic.d.ts",
@@ -107,6 +119,7 @@
         }
     },
     "dependencies": {
+        "numeric-quantity": "^3.3.1",
         "zod": "^4.6.7"
     },
     "engines": {

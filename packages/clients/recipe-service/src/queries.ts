@@ -121,6 +121,14 @@ export const recipeServiceKeys = {
      * third SHAPE of the same region, so its own segment, still under `recipeLists` for every broad invalidation.
      */
     recipeLibrary: (params: LibraryParams = {}) => ['recipe-service', 'recipes', 'list', 'library', params] as const,
+    /**
+     * The caller's private-slot standing (`GET /api/v1/recipes/private-slots`, ADR-0073).
+     *
+     * Under the `recipes` prefix on purpose: every write that moves a recipe in or out of private is a recipe write that
+     * already invalidates that prefix (create, delete), and the two that do not (a visibility flip, a clone) invalidate this
+     * key explicitly. NOT under `recipe(id)`: it is the cook's, not a recipe's.
+     */
+    recipePrivateSlots: ['recipe-service', 'recipes', 'private-slots'] as const,
     recipe: (id: string) => ['recipe-service', 'recipes', 'detail', id] as const,
     recipeVersions: (id: string) => ['recipe-service', 'recipes', 'detail', id, 'versions'] as const,
     recipeVersion: (id: string, versionNumber: number) =>
@@ -157,6 +165,11 @@ export const recipeServiceKeys = {
      * invalidation stales them all.
      */
     ingredientSearches: ['recipe-service', 'search', 'ingredients'] as const,
+    /**
+     * One typed name's suggestions (`GET /api/v1/ingredients/by-name/proposals`). Under `ingredients`, not `search`: it
+     * is not the bound-foods typeahead, so an ingredient write that stales every search leaves it alone.
+     */
+    ingredientNameProposals: (name: string) => ['recipe-service', 'ingredients', 'name-proposals', name] as const,
     ingredientSearch: (query: string, limit?: number) =>
         ['recipe-service', 'search', 'ingredients', query, limit ?? null] as const,
     /**
@@ -402,6 +415,20 @@ export function recipeQueries(client: RecipeServiceClient) {
                 queryFn: () => client.getRecipeById(id),
                 staleTime: RECIPE_STANDARD_STALE_TIME_MS,
             }),
+        /**
+         * `GET /api/v1/recipes/private-slots` - the caller's private-slot standing (ADR-0073).
+         *
+         * `staleTime: 0` is a DECISION: this is a number on a screen ("12 of 50 left") that another device can change, and a
+         * mount that showed a 30 s old count would offer a Private the server is about to refuse. Every private, public,
+         * delete and clone write also invalidates it at once. The count is still only a display fact; the server decides
+         * every write.
+         */
+        privateSlots: () =>
+            queryOptions({
+                queryKey: recipeServiceKeys.recipePrivateSlots,
+                queryFn: () => client.getPrivateSlots(),
+                staleTime: 0,
+            }),
         /** `GET /api/v1/recipes/{id}/versions` — a recipe's recent versions. */
         versions: (id: string) =>
             queryOptions({
@@ -431,17 +458,24 @@ export function recipeQueries(client: RecipeServiceClient) {
          * expressed), and at the published id cap the equivalent query string would exceed the CDN's URL
          * limit. It has no side effect, so it belongs in the cache, not in `useMutation`.
          *
-         * ⛔ THE DEADLINE IS THE LOAD-BEARING PART. `signal` composes TanStack's own cancellation (unmount,
-         * key change) with a finite {@link NUTRITION_BATCH_DEADLINE_MS} timeout, so this promise ALWAYS
-         * settles — which is what makes the `pending` skeleton a card renders temporary. Without it the
-         * transport's per-attempt timeout still permits four attempts plus backoff, and the union's
-         * deliberate lack of a `pending` wire state would be undone on the client instead of by a server.
+         * ⛔ THE DEADLINE IS THE LOAD-BEARING PART. The request runs under a finite
+         * {@link NUTRITION_BATCH_DEADLINE_MS} timeout, so this read ALWAYS settles — which is what makes the
+         * `pending` skeleton a card renders temporary. Without it the transport's per-attempt timeout still
+         * permits four attempts plus backoff, and the union's deliberate lack of a `pending` wire state would be
+         * undone on the client instead of by a server.
+         *
+         * ⛔ TANSTACK'S OWN `signal` IS DELIBERATELY NOT READ (ADR-0079 §6). A query whose request read it is
+         * CANCELLED when its last observer leaves mid-fetch, and the next mount asks again with a fresh deadline.
+         * A host that remounts while its batch is in flight — Discover moves its results to a new parent when
+         * `<main>` is first measured — then pays a cancelled request and a second one for an answer it was about
+         * to receive. The batch is one shared, cheap-to-keep answer, so it outlives its observers; the deadline
+         * alone bounds it.
          */
         nutritionBatch: (recipeIds: readonly string[]) =>
             queryOptions({
                 queryKey: recipeServiceKeys.recipeNutrition(recipeIds),
-                queryFn: ({ signal }) =>
-                    readWithinDeadline(signal, NUTRITION_BATCH_DEADLINE_MS, (deadline) =>
+                queryFn: () =>
+                    readWithinDeadline(undefined, NUTRITION_BATCH_DEADLINE_MS, (deadline) =>
                         client.getRecipeNutrition(recipeIds, { signal: deadline }),
                     ),
                 staleTime: NUTRITION_BATCH_STALE_TIME_MS,
@@ -542,6 +576,18 @@ export function ingredientQueries(client: RecipeServiceClient) {
                 // The service refuses an empty list, so asking would be a guaranteed 400.
                 enabled: refs.length > 0,
             }),
+        /**
+         * `GET /api/v1/ingredients/by-name/proposals` — what the settled sources remember for a typed name. A hint: the
+         * add field has its own list to fall back on, so it retries as the typeahead does and a keystroke cancels it.
+         */
+        nameProposals: (name: string) =>
+            queryOptions({
+                queryKey: recipeServiceKeys.ingredientNameProposals(name),
+                queryFn: ({ signal }) => client.getIngredientNameProposals(name, { signal }),
+                staleTime: INGREDIENT_SEARCH_STALE_TIME_MS,
+                // The typeahead's rule: a keystroke is the retry, and a food outage is never retried.
+                retry: shouldRetryIngredientSearch,
+            }),
         /** `GET /api/v1/ingredients/search` — the bound foods matching a query (the recipe-search filter's read). */
         search: (query: string, limit?: number) =>
             queryOptions({
@@ -598,8 +644,11 @@ export function parseJobIsLive(job: Pick<ParseJobResponse, 'expiresAt'>, now: nu
 /**
  * How often to read a parse job again, or `false` to stop — the poll's whole rule, as a pure decision.
  *
- * - not live (`expiresAt` passed or unreadable), `complete` or `expired`: stop — nothing more can be learned;
+ * - not live (`expiresAt` passed or unreadable) or `expired`: stop — nothing more can be learned;
  * - `partial`: the settling cadence (see {@link PARSE_JOB_SETTLING_POLL_INTERVAL_MS});
+ * - `complete`: stop - UNLESS a parsed food has no match yet or one still `checking` (ADR-0071: the job view is the
+ *   only change notice, and a verdict can land after every line has parsed), when the settling cadence applies until
+ *   they settle or `expiresAt` passes;
  * - `running`: the running cadence, UNLESS every pending line reads `stalled`, when nothing is moving and the settling
  *   cadence applies. A running job with no pending line is waiting on its aggregate, which the next landing or read
  *   settles, so it keeps the running cadence.
@@ -625,9 +674,23 @@ export function parseJobPollIntervalOf(job: ParseJobResponse, now: number, runni
         case 'partial':
             return PARSE_JOB_SETTLING_POLL_INTERVAL_MS;
         case 'complete':
+            return hasFoodAwaitingMatch(job) ? PARSE_JOB_SETTLING_POLL_INTERVAL_MS : false;
         case 'expired':
             return false;
     }
+}
+
+/**
+ * Whether a parsed food is still waiting on its match: it has none yet (`match` null or absent) or the review is still
+ * deciding (`checking`). Lines that carry no proposal (pending, withdrawn, unparseable) have no food to wait on. Pure.
+ *
+ * @param job - The job as last read.
+ * @returns `true` while any parsed food's match can still change.
+ */
+function hasFoodAwaitingMatch(job: ParseJobResponse): boolean {
+    return job.lines.some((line) =>
+        (line.proposal?.foods ?? []).some((food) => food.match == null || food.match.state === 'checking'),
+    );
 }
 
 /**
@@ -643,7 +706,7 @@ export function parseJobQueries(client: RecipeServiceClient) {
          *
          * The poll is SELF-LIMITING, and it runs while the job can still MOVE — `running` (work in
          * progress) and `partial` (see {@link PARSE_JOB_SETTLING_POLL_INTERVAL_MS} for why that one is not
-         * terminal). It stops on `complete`, on `expired`, before the first response has landed, and —
+         * terminal). It stops on `complete` (once every parsed food has a settled match), on `expired`, before the first response has landed, and —
          * the case a status-only rule misses — once `expiresAt` has passed.
          *
          * ⛔ EXPIRY IS THE TIMESTAMP, NOT THE STATUS. The TTL sweep rides a 15-minute tick while

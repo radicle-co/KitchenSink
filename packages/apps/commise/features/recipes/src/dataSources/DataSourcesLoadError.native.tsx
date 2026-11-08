@@ -25,7 +25,7 @@ export const DataSourcesLoadError: FC<DataSourcesLoadErrorNativeProps> = ({ onRe
 
     return (
         <View style={styles.action}>
-            <Button variant="secondary" icon="refreshCw" onPress={onRetry} busy={retrying}>
+            <Button variant="quiet" icon="refreshCw" onPress={onRetry} busy={retrying}>
                 {messages.retry}
             </Button>
         </View>

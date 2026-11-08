@@ -11,35 +11,50 @@
  *     that command and nothing else.
  */
 import type { FC } from 'react';
-import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text } from 'react-native';
 
+import { usePressFill } from '../surfaceTone/usePressFill.native.js';
 import { useTheme } from '../theme/useTheme.native.js';
 import { nativeTokens } from '../tokens/native.js';
-import type { UndoSnackbarProps } from './props.js';
+import type { SnackbarAction, UndoSnackbarProps } from './props.js';
+import { touchFloor } from '../layout/touchFloor.native.js';
+import { Surface } from '../surfaceTone/Surface.native.js';
 
-/** The action's target: 44 pt on iOS, 48 dp on Android (spec §1.6). */
-const actionTarget = (): number => (Platform.OS === 'android' ? 48 : 44);
+/**
+ * The Undo action. A component of its own so it reads the press fill from INSIDE the bar's inverse surface: a hook called
+ * in `UndoSnackbar` itself would read the surface the bar floats over.
+ */
+const UndoAction: FC<{ readonly action: SnackbarAction }> = ({ action }) => {
+    const { colors } = useTheme();
+    const press = usePressFill();
+
+    return (
+        <Pressable
+            role="button"
+            aria-label={action.label}
+            onPress={action.onAction}
+            style={({ pressed }) => [
+                styles.action,
+                { minHeight: touchFloor(), minWidth: touchFloor() },
+                pressed && { backgroundColor: press },
+            ]}
+        >
+            <Text style={[styles.actionLabel, { color: colors.inverseAction }]}>{action.label}</Text>
+        </Pressable>
+    );
+};
 
 /** The native snackbar. */
 export const UndoSnackbar: FC<UndoSnackbarProps> = ({ message, action }) => {
     const { colors } = useTheme();
 
     return (
-        <View style={[styles.bar, { backgroundColor: colors.inverse }]}>
+        <Surface tone="inverse" style={[styles.bar]}>
             <Text numberOfLines={2} style={[styles.message, { color: colors.inverseInk }]}>
                 {message}
             </Text>
-            {action === undefined ? null : (
-                <Pressable
-                    role="button"
-                    aria-label={action.label}
-                    onPress={action.onAction}
-                    style={[styles.action, { minHeight: actionTarget(), minWidth: actionTarget() }]}
-                >
-                    <Text style={[styles.actionLabel, { color: colors.inverseAction }]}>{action.label}</Text>
-                </Pressable>
-            )}
-        </View>
+            {action === undefined ? null : <UndoAction action={action} />}
+        </Surface>
     );
 };
 

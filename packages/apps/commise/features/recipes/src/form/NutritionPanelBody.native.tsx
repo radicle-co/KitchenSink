@@ -63,7 +63,7 @@ export const NutritionPanelBody: FC<NutritionPanelBodyProps> = ({ state, onRetry
                 <View style={styles.panelStack}>
                     <Text style={text}>{m.nutritionLoadFailed}</Text>
                     <View style={styles.addAction}>
-                        <Button variant="secondary" icon="refreshCw" onPress={onRetry}>
+                        <Button variant="quiet" icon="refreshCw" description={m.nutritionLoadFailed} onPress={onRetry}>
                             {m.statusActionRetry}
                         </Button>
                     </View>

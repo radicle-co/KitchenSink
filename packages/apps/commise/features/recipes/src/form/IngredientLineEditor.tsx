@@ -14,6 +14,8 @@
 import { Button } from '@commise/ui/button';
 import { Combobox } from '@commise/ui/combobox';
 import { FieldLabel, FIELD_CLASS } from '@commise/ui/input';
+import { FOCUS_RING_CLASS } from '@commise/ui/focus-ring';
+import { PRESS_FILL_CLASS } from '@commise/ui/surface-tone';
 import type { FC, ReactNode } from 'react';
 
 import { ingredientUnitNoteId } from './fieldErrorIds.js';
@@ -154,7 +156,7 @@ export const IngredientLineEditor: FC<IngredientLineEditorProps> = ({ view, inde
                     type="button"
                     aria-expanded={view.detailsOpen}
                     onClick={view.onToggleDetails}
-                    className="inline-flex min-h-11 items-center rounded-full px-3 text-body-md font-medium text-action-text transition hover:bg-ink/6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                    className={`inline-flex min-h-11 items-center rounded-full px-3 text-body-md font-medium text-action-text transition ${PRESS_FILL_CLASS.pointer} ${FOCUS_RING_CLASS.offset}`}
                 >
                     {m.rowFoodDetails}
                 </button>

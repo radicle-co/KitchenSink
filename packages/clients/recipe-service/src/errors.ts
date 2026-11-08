@@ -28,12 +28,15 @@ export class RecipeServiceClientError extends Error {
     public readonly status: number | undefined;
     /** The recipe-domain error code from the response body (`ErrorResponse.code`), when present. */
     public readonly code: string | undefined;
+    /** The seconds the response's `Retry-After` asked for, when it carried one this client could read. */
+    public readonly retryAfterSeconds: number | undefined;
 
-    public constructor(message: string, status?: number, code?: string) {
+    public constructor(message: string, status?: number, code?: string, retryAfterSeconds?: number) {
         super(message);
         this.name = 'RecipeServiceClientError';
         this.status = status;
         this.code = code;
+        this.retryAfterSeconds = retryAfterSeconds;
         Object.setPrototypeOf(this, RecipeServiceClientError.prototype);
     }
 }
@@ -290,6 +293,115 @@ export function isParseJobExpiredError(error: unknown): error is ParseJobExpired
 }
 
 /**
+ * `429 IMPORT_QUOTA_EXCEEDED` — the caller's daily import allowance is spent (004 FR-022). NOTHING was created.
+ *
+ * ⛔ ITS OWN TYPE, and deliberately NOT retryable. It shares a status with the service's burst throttle, and the two could
+ * not be more different: a throttle clears in seconds and is worth coming back for, a spent allowance stays spent until
+ * `resetsAt`, hours away. A retry loop (the transport's, TanStack's, the outbox's) that treated it as a throttle would
+ * hammer the server for hours and the cook would never see why their paste did nothing. `retryPolicy.ts` classifies it
+ * terminal, and a test pins that.
+ *
+ * `resetsAt` is the instant the allowance reopens, kept as the ISO string the wire carries: a surface localises the date
+ * itself, and a `Date` here would be a conversion this client has no reason to own.
+ */
+export class ImportQuotaExceededError extends RecipeServiceClientError {
+    /** When the allowance reopens for this caller, an ISO 8601 instant. */
+    public readonly resetsAt: string;
+
+    public constructor(resetsAt: string, message = 'The daily import allowance is spent') {
+        super(message, 429, 'IMPORT_QUOTA_EXCEEDED');
+        this.name = 'ImportQuotaExceededError';
+        this.resetsAt = resetsAt;
+        Object.setPrototypeOf(this, ImportQuotaExceededError.prototype);
+    }
+}
+
+/**
+ * `409 IMPORT_CURSOR_MOVED` — the bulk-import wizard's cursor is not where this request said it was (ADR-0072): another
+ * device moved it. NOTHING was changed.
+ *
+ * ITS OWN TYPE, because the remedy is not a retry: the surface adopts `cursorOrdinal` (where the cursor is now, `null`
+ * when it is past the last item) and shows that item, and repeating the same request would be refused the same way.
+ */
+export class ImportCursorMovedError extends RecipeServiceClientError {
+    /** The item ordinal the cursor is on now, or `null` when it is done. */
+    public readonly cursorOrdinal: number | null;
+
+    public constructor(cursorOrdinal: number | null, message = 'The import has moved on') {
+        super(message, 409, 'IMPORT_CURSOR_MOVED');
+        this.name = 'ImportCursorMovedError';
+        this.cursorOrdinal = cursorOrdinal;
+        Object.setPrototypeOf(this, ImportCursorMovedError.prototype);
+    }
+}
+
+/** Type guard for {@link ImportCursorMovedError}. */
+export function isImportCursorMovedError(error: unknown): error is ImportCursorMovedError {
+    return error instanceof ImportCursorMovedError;
+}
+
+/**
+ * `409 IMPORT_ITEM_ALREADY_SAVED` — the item's recipe was already saved (ADR-0072). An item is saved once.
+ *
+ * ITS OWN TYPE: for a client that retried a save it means the first request landed (treat the item as done), and for
+ * one that tried to change a saved item it means the edit belongs in the recipe editor now. Neither is a retry.
+ */
+export class ImportItemAlreadySavedError extends RecipeServiceClientError {
+    /** The item that is already saved. */
+    public readonly ordinal: number;
+
+    public constructor(ordinal: number, message = 'This import item has already been saved') {
+        super(message, 409, 'IMPORT_ITEM_ALREADY_SAVED');
+        this.name = 'ImportItemAlreadySavedError';
+        this.ordinal = ordinal;
+        Object.setPrototypeOf(this, ImportItemAlreadySavedError.prototype);
+    }
+}
+
+/** Type guard for {@link ImportItemAlreadySavedError}. */
+export function isImportItemAlreadySavedError(error: unknown): error is ImportItemAlreadySavedError {
+    return error instanceof ImportItemAlreadySavedError;
+}
+
+/**
+ * `403 PRIVATE_SLOTS_FULL` - a free cook has no private slot left (ADR-0073). NOTHING was written.
+ *
+ * ⛔ ITS OWN TYPE, and not a {@link ForbiddenError}: a `ForbiddenError` is a scope or ownership gate, and this one has a
+ * remedy the surface offers (make a private recipe public, delete one, take Premium). It is a 403 on the wire so that an
+ * installed client that predates the code reads a plain refusal and not the version-conflict view a 409 would open.
+ *
+ * ⛔ TERMINAL for the retry policy: repeating the write meets the same full slots. The editor's outbox parks it for the cook
+ * to resolve and never re-sends it.
+ *
+ * `used` can exceed `limit`: a cook who lost Premium keeps every private recipe, and the refusal says how far over they are.
+ */
+export class PrivateSlotsFullError extends RecipeServiceClientError {
+    /** The private recipes the cook holds, as the server counted them. */
+    public readonly used: number;
+
+    /** The cook's private-slot limit. */
+    public readonly limit: number;
+
+    public constructor(used: number, limit: number, message = 'All of your private slots are in use') {
+        super(message, 403, 'PRIVATE_SLOTS_FULL');
+        this.name = 'PrivateSlotsFullError';
+        this.used = used;
+        this.limit = limit;
+        Object.setPrototypeOf(this, PrivateSlotsFullError.prototype);
+    }
+}
+
+/** Type guard for {@link PrivateSlotsFullError}. */
+export function isPrivateSlotsFullError(error: unknown): error is PrivateSlotsFullError {
+    return error instanceof PrivateSlotsFullError;
+}
+
+/** Type guard for {@link ImportQuotaExceededError}. */
+export function isImportQuotaExceededError(error: unknown): error is ImportQuotaExceededError {
+    return error instanceof ImportQuotaExceededError;
+}
+
+/**
  * `409 VERSION_LINE_UNRESTORABLE` — a version restore would drop lines whose foods no longer exist and whose version
  * froze no name to find them by (plan 002 R52). NOTHING was restored.
  *
@@ -358,9 +470,15 @@ export class UnexpectedResponseError extends RecipeServiceClientError {
      *   service converged onto one error envelope, a status this client has no dedicated error class for still
      *   arrives with a machine-readable code (`MAX_PHOTOS_EXCEEDED`, `TOO_MANY_REQUESTS`, `NOT_READY`, …), and
      *   dropping it here would discard the only actionable part of the body.
+     * @param retryAfterSeconds - The wait the response's `Retry-After` header asked for, when it carried one.
      */
-    public constructor(status: number, message = `Unexpected recipe-service response (${status})`, code?: string) {
-        super(message, status, code);
+    public constructor(
+        status: number,
+        message = `Unexpected recipe-service response (${status})`,
+        code?: string,
+        retryAfterSeconds?: number,
+    ) {
+        super(message, status, code, retryAfterSeconds);
         this.name = 'UnexpectedResponseError';
         Object.setPrototypeOf(this, UnexpectedResponseError.prototype);
     }

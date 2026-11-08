@@ -111,7 +111,9 @@ describe('RecipeDetailView (web) — a variant-bound line (F1/AE1 display, R25)'
  * The quantity reads with the name (`docs/design/variantDetailsMockup.html` frame 1, the E2 re-check;
  * `docs/design/readSurfacesEvaluation.md` D1). jsdom lays nothing out, so this pins the STRUCTURE that keeps the two on
  * one line: the row holds the checkbox and one text block, and the quantity flows inside that block before the name.
- * The measured geometry is `web/tests/e2e/recipeDetailLineAlignment.spec.ts`'s.
+ * The measured geometry is `web/tests/e2e/recipeDetailLineAlignment.spec.ts`'s. Rewritten 2026-11-06 for
+ * `designAnswers.md` #144 item 12: a stand-in's quantity still leads it inside the block, but as its own line above
+ * the chip, so no space joins the two (the line itself is pinned in `namelessLineSurface.test.tsx`).
  */
 describe('RecipeDetailView (web) — the quantity flows with the name (D1)', () => {
     it('puts the quantity inside the text block, just before the name, never in a flex item of its own', () => {
@@ -130,7 +132,8 @@ describe('RecipeDetailView (web) — the quantity flows with the name (D1)', () 
 
         expect(item.children).toHaveLength(2);
         expect(block?.contains(quantity)).toBe(true);
-        expect(block?.textContent?.startsWith('2 lb beef brisket')).toBe(true);
+        // The amount is joined to its unit by a no-break space (Q5); the order is what this pins.
+        expect(block?.textContent?.replace(/\u00A0/gu, ' ').startsWith('2 lb beef brisket')).toBe(true);
     });
 
     it('aligns the row’s items to the top, so a two-line row keeps its checkbox by the first line', () => {
@@ -162,10 +165,14 @@ describe('RecipeDetailView (web) — the quantity flows with the name (D1)', () 
             const block = item.lastElementChild;
             const name = within(item).getByText(shape.name);
 
+            // A stand-in's quantity is its own line, so it ends where the chip begins; any other flows on after a space.
+            const lead = shape.ownLine === true ? shape.quantity : `${shape.quantity} ${shape.name}`;
+
             expect(item.children).toHaveLength(2);
             expect(block?.contains(name)).toBe(true);
+            // The amount is joined to its unit by a no-break space (Q5); the order is what this pins.
             expect(
-                block?.textContent?.startsWith(shape.quantity === '' ? shape.name : `${shape.quantity} ${shape.name}`),
+                block?.textContent?.replace(/\u00A0/gu, ' ').startsWith(shape.quantity === '' ? shape.name : lead),
             ).toBe(true);
 
             if (shape.quantity !== '') {

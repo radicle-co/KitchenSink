@@ -12,7 +12,7 @@ import { DisplayNameSheet } from '../DisplayNameSheet.js';
 import { ProfileGroup } from '../ProfileGroup.js';
 import { ProfileHeader } from '../ProfileHeader.js';
 import { ProfileRow } from '../ProfileRow.js';
-import { DISPLAY_NAME_MAX_LENGTH } from '../model.js';
+import { DISPLAY_NAME_MAX_LENGTH, LABEL_VALUE_MIN_ROOM } from '../model.js';
 import type { DisplayNameSheetProps, ProfileRowProps } from '../props.js';
 
 afterEach(cleanup);
@@ -27,7 +27,7 @@ describe('ProfileHeader (web)', () => {
         expect(screen.queryByRole('alert')).toBeNull();
     });
 
-    it('shows the name and the email once ready, with the initials decorative', () => {
+    it('shows the avatar and the display name once ready, with the initials decorative', () => {
         render(
             <ProfileHeader
                 read={{ status: 'ready', displayName: 'Eliza Moreno', email: 'eliza@example.com', username: null }}
@@ -37,24 +37,14 @@ describe('ProfileHeader (web)', () => {
         );
 
         expect(screen.getByText('Eliza Moreno')).toBeTruthy();
-        expect(screen.getByText('eliza@example.com')).toBeTruthy();
+        // S2: facts the page does not let you edit show once, in the Account group, never also in the header.
+        expect(screen.queryByText('eliza@example.com')).toBeNull();
         expect(screen.getByText('EM').getAttribute('aria-hidden')).toBe('true');
     });
 
-    it('lets an unbroken email wrap anywhere instead of overflowing 320 px', () => {
-        render(
-            <ProfileHeader
-                read={{ status: 'ready', displayName: '', email: 'a@b.co', username: null }}
-                initials=""
-                onRetry={noop}
-            />,
-        );
-
-        expect(screen.getByText('a@b.co').className).toContain('[overflow-wrap:anywhere]');
-    });
-
-    // Plan 2026-10-15-010 D12: the public "@username" under the display name, read-only (Clerk owns it).
-    it('shows the username under the name, read-only, when the cook has one', () => {
+    // S2 (owner, 2026-10-27): the header is the avatar and the display name. The read-only username and email show once,
+    // in the Account group (`ProfileAccountGroup`), so a cook sees each fact one time.
+    it('shows neither the username nor the email in the header', () => {
         render(
             <ProfileHeader
                 read={{ status: 'ready', displayName: 'Eliza Moreno', email: 'eliza@example.com', username: 'braise' }}
@@ -63,21 +53,36 @@ describe('ProfileHeader (web)', () => {
             />,
         );
 
-        expect(screen.getByText('@braise')).toBeTruthy();
-        expect(screen.queryByRole('button', { name: /username/iu })).toBeNull();
+        expect(screen.getByText('Eliza Moreno')).toBeTruthy();
+        expect(screen.queryByText('@braise')).toBeNull();
+        expect(screen.queryByText('eliza@example.com')).toBeNull();
     });
 
-    it('shows no username line for a cook without one — never a “Not set” with no way to set it', () => {
+    // T8 (owner, 2026-10-29): with no display name, the header shows the @username next to the avatar.
+    it('shows the @username when the cook has no display name', () => {
         render(
             <ProfileHeader
-                read={{ status: 'ready', displayName: 'Eliza Moreno', email: 'eliza@example.com', username: null }}
-                initials="EM"
+                read={{ status: 'ready', displayName: '', email: 'a@b.co', username: 'braise' }}
+                initials=""
                 onRetry={noop}
             />,
         );
 
-        expect(screen.queryByText(/^@/u)).toBeNull();
-        expect(screen.getByText('eliza@example.com')).toBeTruthy();
+        expect(screen.getByText('@braise')).toBeTruthy();
+        expect(screen.queryByText('a@b.co')).toBeNull();
+    });
+
+    it('shows no text at all for a cook with no name yet — the page never invents one', () => {
+        render(
+            <ProfileHeader
+                read={{ status: 'ready', displayName: '', email: 'a@b.co', username: null }}
+                initials=""
+                onRetry={noop}
+            />,
+        );
+
+        expect(screen.queryByText('a@b.co')).toBeNull();
+        expect(screen.queryByText('Add your name')).toBeNull();
     });
 
     it('reports a failed read with a Try again control that retries', async () => {
@@ -201,6 +206,40 @@ describe('ProfileRow (web)', () => {
     });
 });
 
+// Designer ruling 2026-11-01 (`nativeBoards/designAnswers.md`): ProfileRow ("Display name") stacks by the same room as a
+// fact row, its label never breaks inside a word, and its value wraps and never truncates. Its label and value draw
+// through `LabelValuePair`, whose suite pins the container-query classes.
+describe('ProfileRow (web) — label and value', () => {
+    const below = `@max-[${String(LABEL_VALUE_MIN_ROOM / 16)}rem]/rows:`;
+
+    it('wraps the value and never truncates it', () => {
+        render(<ProfileRow label="Display name" value="Eliza" tone="ink" chevron onPress={noop} />);
+        const classes = screen.getByText('Eliza').className.split(' ');
+
+        expect(classes).toContain('[overflow-wrap:anywhere]');
+        expect(classes.filter((name) => /^(truncate|line-clamp-|max-w-)/u.test(name))).toEqual([]);
+    });
+
+    it('stacks the value under its label below 17.5 rem of room, the chevron still at the row’s end', () => {
+        render(<ProfileRow label="Display name" value="Eliza" tone="ink" chevron onPress={noop} />);
+        const button = screen.getByRole('button', { name: 'Display name' });
+        const pair = screen.getByText('Eliza').parentElement as HTMLElement;
+
+        expect(pair.className.split(' ')).toContain(`${below}flex-col`);
+        expect(pair.parentElement).toBe(button);
+        expect(button.lastElementChild).not.toBe(pair);
+    });
+
+    it('lets the label block keep its longest word beside a value: it does not set a zero minimum width', () => {
+        render(<ProfileRow label="Display name" value="Eliza" tone="ink" chevron onPress={noop} />);
+        const pair = screen.getByText('Eliza').parentElement as HTMLElement;
+        const labelBlock = pair.firstElementChild as HTMLElement;
+
+        expect(labelBlock.textContent).toBe('Display name');
+        expect(labelBlock.className.split(' ')).not.toContain('min-w-0');
+    });
+});
+
 describe('ProfileGroup (web)', () => {
     it('names a group by its H2 heading', () => {
         render(
@@ -222,6 +261,23 @@ describe('ProfileGroup (web)', () => {
 
         expect(screen.getByRole('region', { name: 'Account' })).toBeTruthy();
         expect(screen.queryByRole('heading')).toBeNull();
+    });
+});
+
+// Designer ruling 2026-11-01 (`nativeBoards/designAnswers.md`): a label-and-value row stacks by the room its column
+// has, as a container query. The group's card is that column, so it is the `rows` container every row queries.
+describe('ProfileGroup (web) — the rows container', () => {
+    it('makes its card the rows container, so a row measures the column it sits in', () => {
+        render(
+            <ProfileGroup label="Account">
+                <ProfileRow label="Email" tone="ink" chevron={false} onPress={() => undefined} />
+            </ProfileGroup>,
+        );
+        const card = screen.getByRole('button', { name: 'Email' }).parentElement as HTMLElement;
+
+        // Assembled, not spelled: Tailwind scans this package's files as text too, and a literal here would generate the
+        // container whatever the card says, so `tailwindTheme.integration.test.ts` could no longer catch its absence.
+        expect(card.className.split(' ')).toContain('@container/'.concat('rows'));
     });
 });
 

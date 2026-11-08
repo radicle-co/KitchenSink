@@ -4,7 +4,7 @@
  * only on the primitives they say it with.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
 
 import { LocaleProvider } from '@commise/i18n/react';
 import { rgb, rolesFor, systemScheme } from '@commise/ui/testing/system-color-scheme';
@@ -12,6 +12,7 @@ import { rgb, rolesFor, systemScheme } from '@commise/ui/testing/system-color-sc
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { RecipeCalorieChip } from '../RecipeCalorieChip.native.js';
 import type { RecipeCalorieReading, RecipeCalorieState } from '../model.js';
+import { render, rendersNothing } from '@commise/ui/testing/tamagui';
 
 vi.mock('react-native', async (importOriginal) => {
     const { withSystemScheme } = await import('@commise/ui/testing/system-color-scheme');
@@ -58,7 +59,7 @@ describe('RecipeCalorieChip (native) — known', () => {
         const stale = screen.getByRole('img', { name: '420 cal, may be out of date' });
         const staleClasses = new Set(stale.className.split(' '));
 
-        expect(stale.textContent).toBe('420 cal');
+        expect(stale.textContent).toBe('420\u00A0cal');
         cleanup();
 
         renderChip(reading());
@@ -107,7 +108,7 @@ describe('RecipeCalorieChip (native) — known', () => {
         const { container } = renderChip(reading({ caloriesPerServing: 0 }));
 
         expect(screen.getByText('0 cal')).toBeTruthy();
-        expect(container.textContent).toBe('0 cal');
+        expect(container.textContent).toBe('0\u00A0cal');
     });
 });
 
@@ -117,7 +118,7 @@ describe('RecipeCalorieChip (native) — unaccounted', () => {
         (reason) => {
             const { container } = renderChip({ state: 'unaccounted', reason });
 
-            expect(container.innerHTML).toBe('');
+            expect(rendersNothing(container)).toBe(true);
             expect(screen.queryByText(/cal/)).toBeNull();
         },
     );

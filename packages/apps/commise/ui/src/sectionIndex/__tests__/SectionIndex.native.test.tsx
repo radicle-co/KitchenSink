@@ -7,17 +7,21 @@
  * wrapped to record it. `useContainerClass` is replaced so a test chooses the width, and `useColorScheme` so it chooses
  * the theme. The jump goes through the screen's `ScrollHost`, injected through its context with a spy.
  */
-import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, screen, within } from '@testing-library/react';
 import { formatRgb } from 'culori';
-import { createElement, createRef, type ComponentProps } from 'react';
+import { createRef, type ComponentProps } from 'react';
 import type { Pressable as PressableType } from 'react-native';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { render, resolvedColour } from '../../testing/tamaguiTesting.native.js';
 import type { ContainerClass } from '../../layout/containerClass.js';
 import type { ScrollHostApi, ScrollTarget } from '../../scrollHost/props.js';
 import { ScrollHostContext } from '../../scrollHost/scrollHostContext.js';
+import { Surface } from '../../surfaceTone/Surface.native.js';
+import { themeFor } from '../../theme/themeFor.js';
 import { role, roleDark } from '../../tokens/colors.js';
-import type { SectionIndexItem, SectionIndexProps } from '../props.js';
+import type { SectionIndexItem, SectionIndexProps, SectionIndexTone } from '../props.js';
+import { TONE_ROLE } from '../sectionIndexModel.js';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native` leaf.
 import { SectionIndex } from '../SectionIndex.native.js';
 
@@ -29,10 +33,14 @@ const state = vi.hoisted(() => ({
     /** Each pressable's `aria-selected`, by its `aria-label`: React Native has no `aria-current`, so this is what a
      * device's screen reader hears (react-native-web writes `aria-current` to the DOM; a device ignores it). */
     selected: new Map<string, boolean | undefined>(),
+    /** Whether every pressable renders its `pressed` branch (react-native-web does not toggle it from jsdom events). */
+    pressed: false,
 }));
 
 vi.mock('react-native', async (importOriginal) => {
     const actual = await importOriginal<typeof import('react-native')>();
+    const { pressedPressable } = await import('../../testing/pressedPressable.js');
+    const pressed = pressedPressable(actual, () => state.pressed);
 
     return {
         ...actual,
@@ -43,7 +51,7 @@ vi.mock('react-native', async (importOriginal) => {
                 state.selected.set(props['aria-label'], props['aria-selected']);
             }
 
-            return createElement(actual.Pressable, props);
+            return pressed(props);
         },
     };
 });
@@ -57,6 +65,7 @@ afterEach(() => {
     state.scheme = null;
     state.hints.clear();
     state.selected.clear();
+    state.pressed = false;
 });
 
 const ITEMS: readonly SectionIndexItem[] = [
@@ -178,10 +187,10 @@ describe('SectionIndex (native)', () => {
             renderIndex();
             const nav = screen.getByRole('navigation', { name: NAV });
 
-            expect(getComputedStyle(within(nav).getByText('2 need a match')).color).toBe(formatRgb(colors.attention));
-            expect(getComputedStyle(within(nav).getByText('Fix 1 thing')).color).toBe(formatRgb(colors.dangerText));
-            expect(getComputedStyle(within(nav).getByText('Not started')).color).toBe(formatRgb(colors.inkMuted));
-            expect(getComputedStyle(within(nav).getByText('Ingredients')).color).toBe(formatRgb(colors.ink));
+            expect(resolvedColour(within(nav).getByText('2 need a match'), 'color')).toBe(formatRgb(colors.attention));
+            expect(resolvedColour(within(nav).getByText('Fix 1 thing'), 'color')).toBe(formatRgb(colors.dangerText));
+            expect(resolvedColour(within(nav).getByText('Not started'), 'color')).toBe(formatRgb(colors.inkMuted));
+            expect(resolvedColour(within(nav).getByText('Ingredients'), 'color')).toBe(formatRgb(colors.ink));
             expect(glyphColour(within(nav).getByRole('link', { name: 'Ingredients' }))).toBe(colors.attention);
             expect(glyphColour(within(nav).getByRole('link', { name: 'Photos & publish' }))).toBe(colors.dangerText);
         });
@@ -257,5 +266,62 @@ describe('SectionIndex (native)', () => {
             expect(seen).toEqual(['jump steps, sheet closed', 'onJump steps']);
             expect(screen.queryByText('Sections')).toBeNull();
         });
+    });
+});
+
+describe('SectionIndex (native) — a pressed row takes the press of the surface it sits on (componentFixes.md §10a)', () => {
+    it.each(['light', 'dark'] as const)('presses a rail row to the paperRaised press in %s', (scheme) => {
+        state.scheme = scheme;
+        state.pressed = true;
+        render(
+            <ScrollHostContext.Provider value={fakeHost(vi.fn())}>
+                <Surface tone="paperRaised">
+                    <SectionIndex
+                        label={NAV}
+                        sheetTitle="Sections"
+                        sheetCloseLabel="Close sections"
+                        items={ITEMS}
+                        currentId="ingredients"
+                        barName={BAR_NAME}
+                        barCount="⚠ 3"
+                    />
+                </Surface>
+            </ScrollHostContext.Provider>,
+        );
+        const row = within(screen.getByRole('navigation', { name: NAV })).getByRole('link', { name: 'Steps' });
+
+        expect(getComputedStyle(row).backgroundColor).toBe(formatRgb(themeFor(scheme).press.paperRaised));
+        expect(getComputedStyle(row).backgroundColor).not.toBe(
+            formatRgb(scheme === 'dark' ? roleDark.surfaceMuted : role.surfaceMuted),
+        );
+    });
+});
+
+describe('SectionIndex (native): the bar count’s colour', () => {
+    // The count takes `dangerText` when any section needs a fix, and `attention` otherwise (`barCountRoleOf`).
+    it.each([
+        ['a fix', ITEMS, role.dangerText],
+        ['no fix', ITEMS.filter((item) => item.tone !== 'fix'), role.attention],
+    ] as const)('paints the count for %s', (_name, items, colour) => {
+        state.containerClass = 'narrow';
+        renderIndex({ items, barCount: '⚠ 3' });
+
+        expect(resolvedColour(screen.getByText('⚠ 3'), 'color')).toBe(formatRgb(colour));
+    });
+});
+
+/** Whether a key of `TONE_ROLE` is a tone: a new tone in the table is tested without a list kept here. */
+const isTone = (key: string): key is SectionIndexTone => Object.hasOwn(TONE_ROLE, key);
+
+describe('SectionIndex (native): every tone’s text colour is its TONE_ROLE', () => {
+    // The tone texts spell each colour token in the source (the colour guard reads them there), so this holds the spelled
+    // tokens to the one `TONE_ROLE` table that the icons read: the two cannot drift.
+    it.each(Object.keys(TONE_ROLE).filter(isTone))('paints a %s reason in its TONE_ROLE colour', (tone) => {
+        renderIndex({
+            items: [{ id: 'one', label: 'One', tone, reason: `reason ${tone}` }],
+            currentId: 'one',
+        });
+
+        expect(resolvedColour(screen.getByText(`reason ${tone}`), 'color')).toBe(formatRgb(role[TONE_ROLE[tone]]));
     });
 });

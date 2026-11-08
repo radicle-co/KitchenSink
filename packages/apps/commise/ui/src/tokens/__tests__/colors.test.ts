@@ -6,7 +6,7 @@
  *
  * Everything below the chart block exists because the palette shipped tiers on which **NEITHER** a white nor a
  * dark label reached the WCAG 2.1 AA 4.5:1 floor, and the defect was invisible from any single call site: each
- * `bg-action text-on-action` looked like a local styling choice, so ~50 of them accumulated. `seafoam` measured
+ * `bg-action text-on-action` looked like a local styling choice, so ~50 of them accumulated. `steel` measured
  * 4.02:1 under white and 3.16:1 under charcoal — a fill with NO legible label — and `error` measured 3.16:1
  * under white and 4.02:1 under charcoal, the same trap in the other direction.
  *
@@ -21,7 +21,7 @@
  *
  * The destructive red carries two jobs with OPPOSING contrast requirements: as a FILL it must be dark enough
  * for a white label (SC 1.4.3 against white), and as TEXT it must be dark enough against near-white surfaces
- * — `white` cards, the `sand` app background, `pearl`, and its own `error/10` alert tint. The text job is
+ * — `white` cards, the `fog` app background, `pearl`, and its own `error/10` alert tint. The text job is
  * strictly the harder one, so one hex serving both is pinned to the text constraint and ends up darker than
  * the brand red the mockups draw. Measured: the lightest single hex satisfying both is `#BB4E34`, which is
  * 2.6% of the way from `#BA4D34` to the mockups' `#E17055` and leaves 0.03 of slack on `pearl` — i.e. one
@@ -30,7 +30,7 @@
  * asserted below: same hue, `error-dark` strictly darker, each clearing the floor of its own role.
  *
  * Hue is pinned alongside the ratios: the fix for a failing tier is to move its LIGHTNESS, never to re-hue the
- * brand, and the hue assertion is what makes "seafoam was darkened" distinguishable from "seafoam was
+ * brand, and the hue assertion is what makes "steel was darkened" distinguishable from "steel was
  * replaced" — a green button that passes AA is still a regression.
  *
  * `culori` supplies the luminance math — the same library `@commise/test-utils/contrast` wraps. That module
@@ -74,37 +74,35 @@ interface FilledAccent {
  * are what keep each site pointed at the pairing named here.
  */
 const FILLED_ACCENTS: readonly FilledAccent[] = [
-    // Teal CTAs: the primary button, the FAB, selected chips/tabs, step markers, the avatar disc.
-    { fill: 'seafoam', label: 'white' },
+    // Steel CTAs: the primary button, the FAB, selected chips/tabs, step markers, the avatar disc.
+    { fill: 'steel', label: 'snow' },
     // The hover/pressed end of the same CTA, and the dark stop of the primary gradient.
-    { fill: 'ocean-dark', label: 'white' },
+    { fill: 'ocean-dark', label: 'snow' },
     // Destructive buttons, the wizard's invalid step, failed-upload badges.
-    { fill: 'error', label: 'white' },
+    { fill: 'error', label: 'snow' },
     // The FOREGROUND red is also a legal fill (the pressed end of a destructive control), same as `ocean-dark`.
-    { fill: 'error-dark', label: 'white' },
+    { fill: 'error-dark', label: 'snow' },
     // Photo-overlay chrome.
-    { fill: 'charcoal', label: 'white' },
+    { fill: 'charcoal', label: 'snow' },
     // Light/pastel fills. A white label on any of these is FAR below the floor (1.88:1 on warning), so they
     // take a dark label instead — darkening them enough to carry white would cost the tone its identity.
     { fill: 'success', label: 'charcoal' },
     { fill: 'warning', label: 'charcoal' },
-    { fill: 'premium', label: 'charcoal' },
-    { fill: 'coral', label: 'charcoal' },
+    { fill: 'cream', label: 'charcoal' },
 ];
 
 /** The tiers a fill may legitimately be drawn from — the set rule (2) polices. */
 const ACCENT_TIERS = [
-    'seafoam',
-    'seafoam-light',
+    'steel',
+    'steel-light',
     'ocean-dark',
-    'coral',
+    'cream',
     'sky',
     'success',
     'warning',
     'warning-dark',
     'error',
     'error-dark',
-    'premium',
     'charcoal',
     'slate',
 ] as const satisfies readonly (keyof typeof palette)[];
@@ -114,21 +112,21 @@ const ACCENT_TIERS = [
  * re-hueing is a brand change rather than an accessibility one, so it must not pass silently.
  */
 const BRAND_HUE: Readonly<Record<(typeof ACCENT_TIERS)[number], number>> = {
-    seafoam: 188.5,
-    'seafoam-light': 186.8,
-    'ocean-dark': 186.9,
-    coral: 35.6,
-    sky: 228.7,
+    // The redesign's storm-ocean blue: steel, its light and its pressed end share one hue.
+    steel: 245.5,
+    'steel-light': 245.7,
+    'ocean-dark': 245.7,
+    // Pale cream and pale blue washes (the same values as the cover tints).
+    cream: 74.3,
+    sky: 242.7,
     success: 158.2,
     warning: 75.3,
-    // `darkTheme.md` §1 moved it to #8C5A00, 3° warmer than the fill: the pin follows the designer's value.
     'warning-dark': 72.1,
     error: 34.6,
-    'error-dark': 34.6,
-    premium: 67.1,
-    charcoal: 216.8,
-    // D11 warms the grey (#636E72 → #6B645C), which moves its hue by design.
-    slate: 71.2,
+    'error-dark': 34.3,
+    // The cool neutrals lean the same blue as the steel.
+    charcoal: 254.1,
+    slate: 254.0,
 };
 
 /** How far a tier's hue may sit from its brand hue. 3° is below a just-noticeable shift at these chromas. */
@@ -140,10 +138,7 @@ describe('filled-accent label contrast (WCAG 2.1 AA, SC 1.4.3)', () => {
     });
 
     it.each(ACCENT_TIERS)('%s is labelable — white or charcoal clears 4.5:1 on it', (tier) => {
-        const best = Math.max(
-            wcagContrast(palette.white, palette[tier]),
-            wcagContrast(palette.charcoal, palette[tier]),
-        );
+        const best = Math.max(wcagContrast(palette.snow, palette[tier]), wcagContrast(palette.charcoal, palette[tier]));
 
         expect(best, `no legible label exists for a filled ${tier}`).toBeGreaterThanOrEqual(AA_NORMAL_TEXT);
     });
@@ -162,13 +157,15 @@ describe('accent-as-text contrast (WCAG 2.1 AA, SC 1.4.3)', () => {
     // at 4.36:1 while the single-token `error` was believed to pass, because only the flat surfaces were ever
     // measured. The tint is derived from the FILL token (`bg-danger/10` is what the markup says), so a re-theme
     // of either half moves this assertion.
-    it.each(['white', 'sand', 'pearl'] as const)('error-dark reads as text on %s', (surface) => {
+    it.each(['cloud', 'fog', 'pearl'] as const)('error-dark reads as text on %s', (surface) => {
         expect(wcagContrast(palette['error-dark'], palette[surface])).toBeGreaterThanOrEqual(AA_NORMAL_TEXT);
     });
 
     // The tint is measured over the two surfaces an alert banner sits on (`darkTheme.md` §3.2). ⚠️ Not over linen
     // (`pearl`, D11): there it is 4.30:1, so an error banner never sits on a muted surface (raised with the designer).
-    it.each(['white', 'sand'] as const)('error-dark reads as text on a 10%-alpha error tint over %s', (surface) => {
+    // The tint is measured over the two surfaces an alert banner sits on. (`error-dark` was retuned to #A53E27 by the
+    // design session so the banner clears 4.5:1 over the cool canvas too; the old #B1442B measured 4.45:1 there.)
+    it.each(['cloud', 'fog'] as const)('error-dark reads as text on a 10%-alpha error tint over %s', (surface) => {
         expect(
             wcagContrast(palette['error-dark'], over(tint(palette.error, 0.1), palette[surface])),
         ).toBeGreaterThanOrEqual(AA_NORMAL_TEXT);
@@ -183,7 +180,7 @@ describe('accent-as-text contrast (WCAG 2.1 AA, SC 1.4.3)', () => {
     // `text-ink`; the amber is never painted on its own tint, so that pairing has no call site to measure.
     // The red's case is the opposite — its alert copy sits INSIDE the `error/10` banner — which is why the tint
     // is asserted there and not here.
-    it.each(['white', 'sand', 'pearl'] as const)('warning-dark reads as text on %s', (surface) => {
+    it.each(['cloud', 'fog', 'pearl'] as const)('warning-dark reads as text on %s', (surface) => {
         expect(wcagContrast(palette['warning-dark'], palette[surface])).toBeGreaterThanOrEqual(AA_NORMAL_TEXT);
     });
 
@@ -212,12 +209,12 @@ describe('accent-as-text contrast (WCAG 2.1 AA, SC 1.4.3)', () => {
         expect(foreground?.l).toBeLessThan(fill?.l ?? 0);
     });
 
-    // The tint rule the palette JSDoc states, kept measured: a label on a 10%-alpha seafoam chip takes
-    // `ocean-dark`. Darkening `seafoam` darkens that tint too, which is exactly how moving one token can push
+    // The tint rule the palette JSDoc states, kept measured: a label on a 10%-alpha steel chip takes
+    // `ocean-dark`. Darkening `steel` darkens that tint too, which is exactly how moving one token can push
     // an already-PASSING pair back under the floor.
-    it('ocean-dark reads on a 10%-alpha seafoam tint over white', () => {
+    it('ocean-dark reads on a 10%-alpha steel tint over white', () => {
         expect(
-            wcagContrast(palette['ocean-dark'], over(tint(palette.seafoam, 0.1), palette.white)),
+            wcagContrast(palette['ocean-dark'], over(tint(palette.steel, 0.1), palette.cloud)),
         ).toBeGreaterThanOrEqual(AA_NORMAL_TEXT);
     });
 });
@@ -225,21 +222,45 @@ describe('accent-as-text contrast (WCAG 2.1 AA, SC 1.4.3)', () => {
 /**
  * The overhaul's colour ROLES (`docs/design/uiOverhaul/buildSpec.md` §1.4). A screen names a role, never a palette
  * tier, so the measured contract lives here once: every pairing the spec's contrast column states is recomputed from
- * the tokens, on the surfaces the role is actually painted on (`paper` = white, `canvas` = sand).
+ * the tokens, on the surfaces the role is actually painted on (`paper` = white, `canvas` = fog).
  *
  * Mutation lens: point a role at a neighbouring tier (`inkMuted` → `mist`, `lineControl` → `mist`, `rating` →
  * `warning`) and its row fails; re-spell `selectedFill` by hand and the recomputation fails; repurpose a legacy
  * `semantic` key instead of adding a role and the "never changes an existing key" row fails.
  */
 describe('colour roles (§1.4)', () => {
-    it('adds the two new primitives at their specified values (pewter warmed by D11)', () => {
-        expect(palette.pewter).toBe('#8A847C');
-        expect(palette.honey).toBe('#A86A12');
+    // REWRITTEN for the redesign (exact values are pinned to the design sources in `redesignPin.test.ts`): the amber
+    // star (`honey`) and the PRO tan (`premium`) are gone, because each became a copy of another entry.
+    it('has dropped the amber star and the PRO tan, which the redesign made copies of charcoal and slate', () => {
+        expect(Object.keys(palette)).not.toContain('honey');
+        expect(Object.keys(palette)).not.toContain('premium');
+        expect(role.rating).toBe(palette.charcoal);
     });
 
-    it('draws every role but the four derived fills from a palette entry', () => {
+    // The palette names its tones for what they are. `cloud` is the card colour (#FCFDFF) and `snow` the pure white; a
+    // key `white` would shadow Tailwind's own `white` (#FFFFFF) in the emitted theme, so it must not exist.
+    it('names the card colour cloud and the pale cream cream, and keeps no key called white, coral or premium', () => {
+        expect(palette.cloud).toBe('#FCFDFF');
+        expect(palette.snow).toBe('#FFFFFF');
+        expect(palette.cream).toBe('#F7E9D7');
+        expect(role.paper).toBe(palette.cloud);
+
+        for (const retired of ['white', 'coral', 'premium', 'honey']) {
+            expect(Object.keys(palette), retired).not.toContain(retired);
+        }
+    });
+
+    // REWRITTEN: `dangerPressed` is a fifth role with no palette entry (a press step off `error`, like the dark theme's
+    // own `danger`), so it joins the exemptions; every other role is still a palette entry.
+    it('draws every role but the five derived or press fills from a palette entry', () => {
         const paletteValues = new Set<string>(Object.values(palette));
-        const derived = new Set<keyof typeof role>(['selectedFill', 'attentionTint', 'photoChip', 'scrim']);
+        const derived = new Set<keyof typeof role>([
+            'selectedFill',
+            'attentionTint',
+            'photoChip',
+            'scrim',
+            'dangerPressed',
+        ]);
 
         for (const [name, value] of Object.entries(role)) {
             if (!derived.has(name as keyof typeof role)) {
@@ -250,37 +271,44 @@ describe('colour roles (§1.4)', () => {
 
     it('names each role after the tier the spec assigns it', () => {
         expect(role).toMatchObject({
-            canvas: palette.sand,
-            paper: palette.white,
+            canvas: palette.fog,
+            paper: palette.cloud,
             ink: palette.charcoal,
             inkMuted: palette.slate,
             lineControl: palette.pewter,
             lineDivider: palette.mist,
-            action: palette.seafoam,
-            actionText: palette['ocean-dark'],
-            selectedEdge: palette.seafoam,
-            hereBar: palette.seafoam,
-            focusRing: palette['ocean-dark'],
-            rating: palette.honey,
+            action: palette.steel,
+            actionText: palette.steel,
+            selectedEdge: palette.steel,
+            hereBar: palette.steel,
+            focusRing: palette.steel,
+            rating: palette.charcoal,
             attention: palette['warning-dark'],
             danger: palette.error,
             dangerText: palette['error-dark'],
         });
     });
 
-    it('pins selectedFill to 14% seafoam composited over white', () => {
-        expect(over(tint(palette.seafoam, 0.14), palette.white)).toBe(toRgbString(role.selectedFill));
+    // REWRITTEN for the redesign: `selectedFill` is the designer's literal (#E4EEF7), no longer 14% of the action composited
+    // over white. What is held is its meaning: a pale wash of the steel's own hue, lighter than the steel-light accent.
+    it('keeps selectedFill a pale wash in the steel hue', () => {
+        const fill = toOklch(role.selectedFill);
+        const steel = toOklch(palette.steel);
+
+        expect(Math.abs((fill?.h ?? Number.NaN) - (steel?.h ?? Number.NaN))).toBeLessThanOrEqual(10);
+        expect(fill?.l ?? 0).toBeGreaterThan(toOklch(palette['steel-light'])?.l ?? 1);
     });
 
     it('derives attentionTint from the warning fill at 20%', () => {
         expect(role.attentionTint).toBe(tint(palette.warning, 0.2));
     });
 
-    // The never-repurpose rule (A19): the coral `secondary` and the seafoam-light `ring` keep their meaning until
-    // their consumers have moved; the new roles are additions beside them.
-    it('leaves the legacy semantic keys meaning what they meant', () => {
-        expect(semantic.secondary).toBe(palette.coral);
-        expect(semantic.ring).toBe(palette['seafoam-light']);
+    // REWRITTEN for the redesign: the legacy semantic names now FOLLOW the roles (they used to point at palette tiers of
+    // their own: `secondary` was coral, `ring` was the light teal), so a utility in either vocabulary paints one colour.
+    // Both themes are pinned in `redesignPin.test.ts`.
+    it('makes the legacy semantic keys follow the roles', () => {
+        expect(semantic.secondary).toBe(role.surfaceMuted);
+        expect(semantic.ring).toBe(role.focusRing);
     });
 
     describe('text roles clear 4.5:1 (SC 1.4.3)', () => {
@@ -335,10 +363,11 @@ describe('colour roles (§1.4)', () => {
         });
     });
 
-    // `rating` is for filled stars only (§1.4: "Never text"). It sits between the two floors on purpose; if it ever
-    // cleared 4.5:1 the "never text" rule would be a matter of taste rather than of measurement.
-    it('rating is a graphic colour, under the text floor on paper', () => {
-        expect(wcagContrast(role.rating, role.paper)).toBeLessThan(AA_NORMAL_TEXT);
+    // REWRITTEN for the redesign: stars are ink, never an amber, so `rating` now clears the text floor on paper. It is
+    // still never TEXT (the number beside the stars is `ink`); the redesign simply stopped needing the in-between tone.
+    it('rating is ink: the stars are the colour of the text', () => {
+        expect(role.rating).toBe(role.ink);
+        expect(wcagContrast(role.rating, role.paper)).toBeGreaterThanOrEqual(AA_NORMAL_TEXT);
     });
 
     it('lineDivider stays a hairline — it never clears the 3:1 a component edge needs', () => {
@@ -348,13 +377,13 @@ describe('colour roles (§1.4)', () => {
 
 describe('tint', () => {
     it('spells a palette colour at an alpha in the notation React Native and jsdom both use', () => {
-        expect(tint(palette.coral, 0.1)).toBe('rgba(232, 145, 122, 0.1)');
+        expect(tint(palette.cream, 0.1)).toBe('rgba(247, 233, 215, 0.1)');
     });
 
     it('derives from the token, so re-theming a tier moves its tint with it', () => {
-        const rgb = toRgb(palette.seafoam);
+        const rgb = toRgb(palette.steel);
 
-        expect(tint(palette.seafoam, 0.12)).toBe(
+        expect(tint(palette.steel, 0.12)).toBe(
             `rgba(${Math.round((rgb?.r ?? 0) * 255)}, ${Math.round((rgb?.g ?? 0) * 255)}, ${Math.round(
                 (rgb?.b ?? 0) * 255,
             )}, 0.12)`,
@@ -366,20 +395,9 @@ describe('tint', () => {
     });
 
     it('rejects an alpha outside 0..1 — a percentage passed by mistake paints an opaque fill', () => {
-        expect(() => tint(palette.seafoam, 10)).toThrow(/alpha/i);
+        expect(() => tint(palette.steel, 10)).toThrow(/alpha/i);
     });
 });
-
-/** An opaque `#RRGGBB` as the `rgb(r, g, b)` string {@link over} returns, so the two compare directly. Pure. */
-function toRgbString(hex: string): string {
-    const rgb = toRgb(hex);
-
-    if (rgb === undefined) {
-        throw new Error(`Expected a parsable colour, received "${hex}".`);
-    }
-
-    return `rgb(${Math.round(rgb.r * 255)}, ${Math.round(rgb.g * 255)}, ${Math.round(rgb.b * 255)})`;
-}
 
 /** Flatten a translucent `rgba(...)` onto an opaque backdrop, as the `rgb(...)` a reader sees. Pure. */
 function over(color: string, backdrop: string): string {

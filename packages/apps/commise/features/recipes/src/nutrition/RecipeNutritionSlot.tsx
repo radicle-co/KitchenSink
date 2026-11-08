@@ -1,77 +1,65 @@
 'use client';
 
 /**
- * @module @commise/features-recipes/nutrition — web per-card nutrition slot (the orchestration layer).
+ * @module @commise/features-recipes/nutrition — one card's calorie slot, read out of its page's batch (both platforms;
+ * the orchestration layer).
  *
- * **Pattern: Suspense boundary + selector.** What a card grid actually holds is ONE batch promise for the
- * whole page (`POST /api/v1/recipes/nutrition-batch`), not one promise per card. This component is the seam
- * between the two: N of these over ONE promise are ONE read, because `use()` memoizes on promise identity —
- * they suspend together, settle together, and cost a single request. Handing each card its own promise would
- * pass every per-card test and issue N requests.
+ * What a card grid holds is ONE batch reading per page (`POST /api/v1/recipes/nutrition-batch`), not one per card.
+ * This component is the seam between the two: it takes the page's reading and this card's recipe id and SELECTS which
+ * render component stands in the card, one of four outcomes — the skeleton while the batch is pending, this recipe's
+ * chip once it has settled, nothing at all when the settled response OMITTED this recipe (owner ruling 2026-08-16: "not for you", never
+ * `food_unavailable`), and the terminal `unaccounted{food_unavailable}` answer when the batch failed.
  *
- * ⛔ WHY THIS IS NOT A PROP ON `RecipeNutritionBoundary`. Selecting one recipe out of the batch has a
- * FOURTH outcome the per-recipe boundary deliberately cannot express: the recipe the response OMITTED.
- * `selectRecipeCalorieState` returns `null` for it, `null` is not assignable to that component's promise, and
- * the owner ruling (2026-08-16) is that such a card renders the skeleton while the lookup is in flight and
- * then renders NOTHING — never `unaccounted{food_unavailable}`, because food was fine and the viewer simply
- * may not read that recipe. The decision needs the settled response, so it happens INSIDE the suspending
- * content, here; a boolean/mode prop switching that behaviour on the other component is exactly the
- * orchestration-layer decision this codebase keeps out of render components.
+ * ⛔ IT NEVER SUSPENDS (ADR-0079). The reading is a VALUE, so the choice is an exhaustive switch rather than React's
+ * unwinding. A suspending slot held every deferred update on its screen — "See all", a sort, a collection switch —
+ * behind the calorie lookup, because a committed fallback's retry lane runs ahead of a pinged transition.
+ * `repoGuards`' `nutritionNeverSuspends` refuses `use(`, `Suspense` and `useSuspense*` under this folder.
  *
- * The boundary NESTING (ErrorBoundary → Suspense, and why `resetKeys` is load-bearing) is stated once, in
- * {@link NutritionBoundaryShell}, and shared with `RecipeNutritionBoundary` so the two cannot drift.
+ * Platform-agnostic: the chip and the skeleton are the platform pair (`.native.tsx` leaves), so this one component
+ * serves both apps.
  *
- * @pattern Suspense boundary + selector over ONE batch promise — N slots over one promise are one read, because
- *     `use()` memoizes on promise identity, and the omitted recipe is a fourth outcome the per-recipe boundary cannot
- *     express.
+ * @pattern Visitor — exhaustive switch over the batch reading's discriminated union, then a selector over the settled
+ *     response
  */
-import { use, type FC } from 'react';
+import { useMessages } from '@commise/i18n/react';
+import type { FC } from 'react';
 
-import type { RecipeNutritionResponse } from '@kitchensink/schema-recipe';
-
-import { NutritionBoundaryShell } from './NutritionBoundaryShell.js';
+import { recipeNutritionMessages } from './messages.js';
 import { RecipeCalorieChip } from './RecipeCalorieChip.js';
-import { selectRecipeCalorieState } from './model.js';
+import { RecipeCalorieSkeleton } from './RecipeCalorieSkeleton.js';
+import { NUTRITION_FOOD_UNAVAILABLE, selectRecipeCalorieState, type RecipeNutritionBatchReading } from './model.js';
 
 /** Props for {@link RecipeNutritionSlot}. */
 export interface RecipeNutritionSlotProps {
-    /**
-     * The page's deferred nutrition batch, as a promise the HOST starts and does NOT await — created in the
-     * server component (React streams a pending promise across the RSC boundary) or memoized in the client
-     * container for a surface with no server pass.
-     *
-     * ⚠️ HOST CONTRACT: this promise's IDENTITY is the retry signal (see {@link NutritionBoundaryShell}), and
-     * it MUST be stable across re-renders. A promise rebuilt every render re-suspends every card on every
-     * render — a grid of skeletons that never settles.
-     */
-    readonly nutritionBatchPromise: Promise<RecipeNutritionResponse>;
+    /** Where the page's batch lookup stands — `useRecipeNutritionBatches`' answer for this recipe. */
+    readonly reading: RecipeNutritionBatchReading;
     /** The recipe whose figure this slot renders. */
     readonly recipeId: string;
 }
 
 /**
- * Suspends on the shared batch, SELECTS this recipe's answer out of it, and renders it — or nothing at all
- * when the batch omitted this recipe.
- */
-const RecipeNutritionSlotContent: FC<RecipeNutritionSlotProps> = ({ nutritionBatchPromise, recipeId }) => {
-    // `selectRecipeCalorieState`, never a bare `response.nutrition[recipeId]`: this repo does not enable
-    // `noUncheckedIndexedAccess`, so the index types as a state that is not there — see the selector's doc
-    // for the three ways that goes wrong without a compile error.
-    const nutrition = selectRecipeCalorieState(use(nutritionBatchPromise), recipeId);
-
-    return nutrition === null ? null : <RecipeCalorieChip nutrition={nutrition} />;
-};
-
-/**
- * One card's deferred calorie figure, read out of the page's shared nutrition batch: its skeleton while the
- * batch is in flight, its chip once the batch settles, and nothing at all when the batch failed or omitted
- * this recipe.
+ * One card's deferred calorie figure, read out of the page's batch: its skeleton while the batch is pending, its chip
+ * once the batch has settled, and nothing at all when the batch failed or omitted this recipe.
  *
- * @param props - The shared batch promise and the recipe this slot speaks for.
- * @returns The boundary rendering exactly one of the four outcomes.
+ * @param props - The page's batch reading and the recipe this slot speaks for.
+ * @returns Exactly one of the four outcomes.
  */
-export const RecipeNutritionSlot: FC<RecipeNutritionSlotProps> = ({ nutritionBatchPromise, recipeId }) => (
-    <NutritionBoundaryShell resetKey={nutritionBatchPromise}>
-        <RecipeNutritionSlotContent nutritionBatchPromise={nutritionBatchPromise} recipeId={recipeId} />
-    </NutritionBoundaryShell>
-);
+export const RecipeNutritionSlot: FC<RecipeNutritionSlotProps> = ({ reading, recipeId }) => {
+    const { loadingLabel } = useMessages(recipeNutritionMessages);
+
+    switch (reading.status) {
+        case 'pending':
+            return <RecipeCalorieSkeleton label={loadingLabel} />;
+
+        case 'failed':
+            return <RecipeCalorieChip nutrition={NUTRITION_FOOD_UNAVAILABLE} />;
+
+        case 'settled': {
+            // `selectRecipeCalorieState`, never a bare `response.nutrition[recipeId]`: this repo does not enable
+            // `noUncheckedIndexedAccess`, so the index types as a state that is not there — see the selector's doc.
+            const nutrition = selectRecipeCalorieState(reading.response, recipeId);
+
+            return nutrition === null ? null : <RecipeCalorieChip nutrition={nutrition} />;
+        }
+    }
+};

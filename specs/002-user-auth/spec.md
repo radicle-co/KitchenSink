@@ -17,6 +17,11 @@
 | [005-ai-integration](../005-ai-integration/spec.md)         | **Downstream** — external agent OAuth (FR-018) builds on the auth layer                  |
 | [010-subscriptions](../010-subscriptions/spec.md)           | **Downstream** — subscription tier is stored on the Account entity (FR-040–043)          |
 
+> **Plans (owner, 2026-10-27).** The plans are Free, Pro and Pro with AI, and "Pro" names the paid plan. The old
+> name "Premium" survives only in quoted rulings and shipped strings. Which plan carries which feature is in 010's
+> [plan register](../010-subscriptions/spec.md#plan-register). Open questions are 010's
+> [owner inputs](../010-subscriptions/spec.md#owner-inputs-still-needed).
+
 ## User Scenarios & Testing _(mandatory)_
 
 <!--
@@ -296,7 +301,7 @@ The authentication layer consists of:
 
 - **User**: Represents a registered Commise user stored in our database. Key attributes: `id` (ULID, e.g., `01ARZ3NDEKTSV4RRFFQ69G5FAV` — the canonical identifier across all Commise systems, app-generated at signup), `identity_id` (the IdP's `user.id`, e.g., `user_abc123` — secondary key, unique, used only for IdP Backend API calls), `email` (synced from the IdP via `user.created` webhook), `name` (display name, nullable), `picture` (avatar URL, nullable), `status` (enum: `active` | `suspended` — default: `active`; suspended users are blocked in the IdP and denied API access; status is managed by backend admin operations), `createdAt` (ISO 8601), `updatedAt` (ISO 8601), `deletedAt` (ISO 8601, nullable — soft-delete marker). The User entity is the owner of all user-generated content (recipes, meal plans, etc.) and is the target of the cascade delete on account deletion. This entity fulfills Commise FR-045 ("System MUST require user authentication for all features").
 
-- **Account**: Represents the account/profile details associated with a User. Key attributes: `id` (UUIDv4), `userId` (foreign key to User — stores the User's ULID `id`), `subscriptionTier` (free | premium — default: free, managed by subscription feature), `createdAt` (ISO 8601), `updatedAt` (ISO 8601). The Account entity is created alongside the User during signup and deleted alongside the User during account deletion. It provides the extension point for subscription management (Commise FR-040/FR-041) without overloading the User entity.
+- **Account**: Represents the account/profile details associated with a User. Key attributes: `id` (UUIDv4), `userId` (foreign key to User — stores the User's ULID `id`), `subscriptionTier` (free | Pro — default: free, managed by subscription feature), `createdAt` (ISO 8601), `updatedAt` (ISO 8601). The Account entity is created alongside the User during signup and deleted alongside the User during account deletion. It provides the extension point for subscription management (Commise FR-040/FR-041) without overloading the User entity.
 
 - **Profile**: Represents the user's public-facing profile. Key attributes: `id` (UUIDv4), `userId` (foreign key to User — stores the User's ULID `id`), `displayName` (user-editable), `avatarUrl` (nullable — pre-signed S3 URL to the media bucket; updated after successful upload via T-032b), `bio` (nullable), `updatedAt` (ISO 8601). Created alongside User and Account during signup.
 

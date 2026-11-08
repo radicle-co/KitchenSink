@@ -8,9 +8,12 @@
  * `mobile/src/hooks/useScrollResetOnChange.ts`). `handle` wraps that same scroller for React Navigation's
  * `useScrollToTop`, so the one scroller has one handle.
  *
- * ⚠️ It holds ONE ref, sanctioned in `patternRegister.test.ts`'s `REF_MODULES`: `last`, a previous-value latch (the last
+ * ⚠️ It holds TWO refs, sanctioned in `patternRegister.test.ts`'s `REF_MODULES`. `last` is a previous-value latch (the last
  * y, and the scroll spy's last section) read and advanced ONLY inside the scroll handler, never during render. The
  * section half is what lets the handler raise a section change (`onCurrentChange`) as an event, once per change.
+ * `lastScroller` is an identity latch, written ONLY in the `bind.ref` callback and never during render: it tells a DIFFERENT
+ * scroller replacing the old one (the screen's list remounted) from the same one re-attaching, and only the first resets the
+ * offset, the scroll state, a held section and a waiting jump.
  *
  * A jump asked for before its section has reported its layout (a deep link, on mount) lands when that layout arrives.
  * A jump holds `current` on the section it named, even when the page is too short for that section to reach the line,
@@ -27,6 +30,7 @@
  * @pattern Observer — the scroll spy, through the one `currentSectionOf` algorithm
  */
 import { useCallback, useEffect, useMemo, useRef, useState, type FC, type ReactNode } from 'react';
+import { Animated } from 'react-native';
 
 import { useReduceMotion } from '../motion/useReduceMotion.native.js';
 import type { LayoutReport, ScrollBind, ScrollHostApi, ScrollHostProps, ScrollReport, ScrollTarget } from './props.js';
@@ -41,6 +45,9 @@ const END_SLOP_PX = 1;
 
 /** How long a jump's own scroll is given to end when it reports no momentum end (a jump that did not move). */
 const JUMP_SETTLE_MS = 1_000;
+
+/** The default section list: one array, so an omitted `sections` does not rebuild the scroll handler every render. */
+const NO_SECTIONS: readonly string[] = [];
 
 /** A jump's hold: the section it named, and whether the jump's own scroll has ended (so the next scroll releases). */
 interface Hold {
@@ -67,10 +74,13 @@ const BoundScreen: FC<{ readonly render: (bind: ScrollBind) => ReactNode; readon
 }) => render(bind);
 
 /** The native design-system scroll host. */
-export const ScrollHost: FC<ScrollHostProps> = ({ sections = [], activationOffset = 0, children }) => {
+export const ScrollHost: FC<ScrollHostProps> = ({ sections = NO_SECTIONS, activationOffset = 0, children }) => {
     const [scroller, setScroller] = useState<ScrollTarget | null>(null);
     const last = useRef<{ y: number; current: string | undefined }>({ y: 0, current: undefined });
     const [changes] = useState(createCurrentChangeSubject);
+    // One value for the host's life. The host only owns it: a list that attaches a native scroll event writes the offset
+    // into it, and a chrome interpolates from it on the native thread (the search pin).
+    const [scrollY] = useState(() => new Animated.Value(0));
     const reduceMotion = useReduceMotion() === true;
     const [state, setState] = useState(INITIAL_SCROLL_STATE);
     const [headingBottom, setHeadingBottom] = useState<number | undefined>(undefined);
@@ -134,6 +144,7 @@ export const ScrollHost: FC<ScrollHostProps> = ({ sections = [], activationOffse
         () => ({
             ...state,
             current: held?.id ?? state.current,
+            scrollY,
             onCurrentChange: changes.subscribe,
             scrollToTop: () => {
                 setHeld(undefined);
@@ -167,10 +178,14 @@ export const ScrollHost: FC<ScrollHostProps> = ({ sections = [], activationOffse
             revealSpan: () => false,
             headingLayout: (event: LayoutReport) => {
                 const { y, height } = event.nativeEvent.layout;
-                setHeadingBottom(y + height);
+                const bottom = Math.round(y + height);
+
+                // Android re-sends a layout for float noise; a rounded, unchanged value must not cost a commit.
+                setHeadingBottom((previous) => (previous === bottom ? previous : bottom));
             },
             sectionLayout: (id) => (event: LayoutReport) => {
-                const { y } = event.nativeEvent.layout;
+                const y = Math.round(event.nativeEvent.layout.y);
+
                 setTops((previous) => (previous[id] === y ? previous : { ...previous, [id]: y }));
 
                 if (pendingJump === id && scroller !== null) {
@@ -180,18 +195,42 @@ export const ScrollHost: FC<ScrollHostProps> = ({ sections = [], activationOffse
             },
             handle: { current: scroller },
         }),
-        [activationOffset, changes, held, pendingJump, reduceMotion, scroller, state, tops],
+        [activationOffset, changes, held, pendingJump, reduceMotion, scrollY, scroller, state, tops],
+    );
+
+    // The last scroller that attached. A DIFFERENT one replaces it when the screen's list remounts (a layout change keys the
+    // Recipes list anew): the new scroller starts at offset 0, but `scrollY` is written only by native scroll events and would
+    // keep its last value, so a pin reading it stays pinned over a list at the top. The same scroller re-attaching resets nothing.
+    const lastScroller = useRef<ScrollTarget | null>(null);
+    const attach = useCallback(
+        (node: ScrollTarget | null): void => {
+            if (node !== null && lastScroller.current !== null && node !== lastScroller.current) {
+                scrollY.setValue(0);
+                last.current = { y: 0, current: undefined };
+                setState(INITIAL_SCROLL_STATE);
+                // A hold and a waiting jump belong to the old scroller's position, not the new one's.
+                setHeld(undefined);
+                setPendingJump(undefined);
+            }
+
+            if (node !== null) {
+                lastScroller.current = node;
+            }
+
+            setScroller(node);
+        },
+        [scrollY],
     );
 
     const bind = useMemo<ScrollBind>(
         () => ({
-            ref: setScroller,
+            ref: attach,
             onScroll,
             onScrollBeginDrag: () => setHeld(undefined),
             onMomentumScrollEnd: () => setHeld((hold) => (hold === undefined ? hold : { ...hold, settled: true })),
             scrollEventThrottle: 16,
         }),
-        [onScroll],
+        [attach, onScroll],
     );
 
     return (

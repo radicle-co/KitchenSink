@@ -119,7 +119,9 @@ describe('CondensedTitleBar (web)', () => {
         const { container } = render(<CondensedTitleBar title="Weeknight dinners" surfaceShown titleShown />);
         const { className } = container.firstElementChild as HTMLElement;
 
-        expect(className).toContain('h-[var(--pinned-bar-block)]');
+        // REWRITTEN (designer ruling c10ecadbf, 2026-11-03): the property is the bar's MINIMUM; it grows to fit its text.
+        expect(className).toContain('min-h-[var(--pinned-bar-block)]');
+        expect(className.split(/\s+/u)).not.toContain('h-[var(--pinned-bar-block)]');
         expect(className).not.toContain('3.5rem');
     });
 

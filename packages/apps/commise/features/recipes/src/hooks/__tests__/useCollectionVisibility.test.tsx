@@ -1,7 +1,7 @@
 /**
  * Changing a collection's visibility from its ⋯ menu (`docs/design/uiOverhaul/buildSpec.md` §5.2; blueprint Part C,
  * slice 5). It happens at once (the cached collection changes before the server answers), says so in a snackbar, and
- * Undo is a COMPENSATING change ordered after the first. A free-tier cook choosing private gets the Premium sheet
+ * Undo is a COMPENSATING change ordered after the first. A free-tier cook choosing private gets the Pro sheet
  * instead and nothing is sent; one who made a private collection public gets no Undo, because the reverse would be
  * refused. A refused change rolls back and says so.
  */
@@ -106,7 +106,7 @@ describe('useCollectionVisibility', () => {
         expect(update).toHaveBeenLastCalledWith('col_1', { visibility: 'public' });
     });
 
-    it('under upsell, opens the Premium sheet and sends nothing', async () => {
+    it('under upsell, opens the Pro sheet and sends nothing', async () => {
         const { update } = await setup(RecipeVisibility.PUBLIC, 'upsell');
 
         press('make private');

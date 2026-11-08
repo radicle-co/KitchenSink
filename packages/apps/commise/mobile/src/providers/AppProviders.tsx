@@ -6,13 +6,13 @@
  * them), so it MUST sit below both `ClerkProvider` and `QueryClientProvider` — the same invariant the web
  * facade documents.
  *
- * Composes, top to bottom: `TamaguiProvider` (design tokens/theme) → `LocaleProvider` (device-locale i18n)
- * → `ClerkProvider` (auth session, secure-store-backed token cache) → `QueryClientProvider` (TanStack cache)
- * → `RecipeServiceGate` (the typed recipe-service client) → `SafeAreaProvider` (device insets) → `children`.
+ * Composes, top to bottom: `SafeAreaProvider` (device insets) → `DesignSystemProvider` (the design system's Tamagui
+ * config, at the scheme the device is in; the same provider component tests mount) → `LocaleProvider` (device-locale i18n) → `ClerkProvider` (auth session, secure-store-backed
+ * token cache) → `QueryClientProvider` (TanStack cache) → `OfflineReadNoticeProvider` → `RecipeServiceGate` (the typed
+ * recipe-service client) → `children`.
  *
- * This is a pure extraction (Facade pattern) — the tree and its order are UNCHANGED from what `App.tsx`
- * hand-stacked before; only the composition now lives in one reusable, testable place. `App.tsx` keeps
- * ownership of everything that is NOT a provider (font loading, the status bar, `AuthGate`, the navigator).
+ * The composition lives in one reusable, testable place. `App.tsx` keeps ownership of everything that is NOT a
+ * provider (font loading, the status bar, `AuthGate`, the navigator).
  *
  * ⚠️ Read as SHAPE this is props → JSX with one `useState`, which is the profile of a render leaf exactly.
  * It is ORCHESTRATION all the same, for the same reason the web facade is: the identity of what it mounts —
@@ -32,15 +32,14 @@ import { offlineNoticeMessages } from '@commise/features-core/offline';
 import { OfflineReadNoticeProvider } from '@commise/query/offline';
 
 import { OfflineReadSlot } from '@commise/ui/offline-notice';
+import { DesignSystemProvider } from '@commise/ui/tamagui-provider';
 import type { JSX, ReactNode } from 'react';
 import { useState } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { TamaguiProvider } from 'tamagui';
 
 import { env } from '../config/env.js';
 import { LocaleProvider } from '../i18n/LocaleProvider.js';
 import { tokenCache } from '../storage/tokenCache.js';
-import tamaguiConfig from '../../tamagui.config.js';
 import { RecipeServiceGate } from './RecipeServiceGate.js';
 
 /**
@@ -60,29 +59,31 @@ export function AppProviders({ children }: { readonly children: ReactNode }): JS
     const [queryClient] = useState(createAppQueryClient);
 
     return (
-        <TamaguiProvider config={tamaguiConfig} defaultTheme="light">
-            <LocaleProvider>
-                <ClerkProvider
-                    publishableKey={env.EXPO_PUBLIC_IDP_PUBLISHABLE_KEY}
-                    tokenCache={tokenCache}
-                    telemetry={false}
-                >
-                    <QueryClientProvider client={queryClient}>
-                        {/* ⛔ MOUNTED IMMEDIATELY INSIDE THE QUERY CLIENT PROVIDER, structurally rather than
+        // SafeAreaProvider is outermost: Tamagui 3 reads the insets of a provider ABOVE TamaguiProvider (the v3 guide,
+        // and tests/providers/AppProviders.safeAreaOrder.native.test.tsx).
+        <SafeAreaProvider>
+            <DesignSystemProvider>
+                <LocaleProvider>
+                    <ClerkProvider
+                        publishableKey={env.EXPO_PUBLIC_IDP_PUBLISHABLE_KEY}
+                        tokenCache={tokenCache}
+                        telemetry={false}
+                    >
+                        <QueryClientProvider client={queryClient}>
+                            {/* ⛔ MOUNTED IMMEDIATELY INSIDE THE QUERY CLIENT PROVIDER, structurally rather than
                 conveniently. `OfflineReadNoticeProvider`'s default is the identity function, so a
                 `QueryBoundary` that escaped this provider degrades SILENTLY back to a skeleton and could
                 never report itself. Co-mounting makes "has a query client" imply "has offline copy", and a
                 boundary outside the client provider already fails loudly for the missing client. */}
-                        <OfflineReadNoticeProvider
-                            renderOffline={() => <OfflineReadSlot message={offline.readOffline} />}
-                        >
-                            <RecipeServiceGate>
-                                <SafeAreaProvider>{children}</SafeAreaProvider>
-                            </RecipeServiceGate>
-                        </OfflineReadNoticeProvider>
-                    </QueryClientProvider>
-                </ClerkProvider>
-            </LocaleProvider>
-        </TamaguiProvider>
+                            <OfflineReadNoticeProvider
+                                renderOffline={() => <OfflineReadSlot message={offline.readOffline} />}
+                            >
+                                <RecipeServiceGate>{children}</RecipeServiceGate>
+                            </OfflineReadNoticeProvider>
+                        </QueryClientProvider>
+                    </ClerkProvider>
+                </LocaleProvider>
+            </DesignSystemProvider>
+        </SafeAreaProvider>
     );
 }

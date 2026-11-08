@@ -38,7 +38,7 @@ appId: ${APP_ID}
 # Populated ⇒ the pinned FAB is the create control and the first-run CTA is absent (L1: exactly one create
 # control per state). Asserted as a PAIR, because either one alone is satisfied by more than one state.
 - assertVisible: 'New recipe'
-- assertNotVisible: 'Add your first recipe'
+- assertNotVisible: 'Add a recipe'
 - assertNotVisible: 'Your recipe box is empty'
 
 # W1/L8 — pull-to-refresh: a downward swipe on the list triggers the RefreshControl (smoke: the list
@@ -63,8 +63,8 @@ appId: ${APP_ID}
 # contains, so on its own it proves the component mounted and NOT that this recipe's data arrived. The content
 # assertions below are the story.
 #
-# ⚠️ `Instructions` and `Nutrition (per serving)` used to be asserted blind, right here. They no longer can be:
-# the seeded lamb now carries five ingredient lines and four steps (see below), which pushes both headings
+# ⚠️ `Instructions` used to be asserted blind, right here. It no longer can be:
+# the seeded lamb now carries five ingredient lines and four steps (see below), which pushes the heading
 # roughly a screen further down. They are still asserted — with `scrollUntilVisible`, in document order, at
 # the point the walk reaches them — because a blind assert on them would now go red for a TALLER FIXTURE
 # rather than for a broken screen, which is the least useful way a flow can fail.
@@ -73,8 +73,8 @@ appId: ${APP_ID}
 # ⛔ THE RECIPE'S OWN SEEDED DATA — the half the headings above cannot prove. Every value here comes from the
 # lamb's row in `packages/services/recipe-service/src/database/seed.ts` (15 prep / 30 cook / 45 total, 4
 # servings, private), so a detail that rendered another recipe, a skeleton, or a partial projection fails.
-# The three durations are asserted as a SET on purpose: any one alone is also produced by a screen that
-# renders a single stat cell and drops the rest.
+# The tiles below are asserted together on purpose: any one alone is also produced by a screen that renders a single
+# tile and drops the rest.
 #
 # ⚠️ Every value here sits ABOVE the `Ingredients` heading already asserted immediately before it (title band
 # → stat strip → Ingredients), so these additions need nothing from Maestro's visibility rules that this flow
@@ -84,9 +84,13 @@ appId: ${APP_ID}
 - assertVisible: 'Herb-marinated grilled lamb.'
 # The serving count sits beside the Ingredients heading ("for 4", build spec §6.1), no longer in the stat strip.
 - assertVisible: 'for 4'
-- assertVisible: '15 min'
-- assertVisible: '30 min'
-- assertVisible: '45 min'
+# The fact tiles are Total, Prep and Difficulty (`DetailFactTiles`, `RecipeDetailAndroid384`); the cook time has no tile of
+# its own. Each tile is one group named "{label}: {value}", so the pair is asserted as one name: a tile that swapped the two
+# numbers would fail it. The lamb states no difficulty, so the Difficulty tile is only proven ABSENT here; its presence is
+# not covered by this flow.
+- assertVisible: 'Total: 45 min'
+- assertVisible: 'Prep: 15 min'
+- assertNotVisible: 'Difficulty'
 
 # ⛔ THE RECIPE'S COMPOSITION — what this flow could not assert until the shared seed grew it. The seed used
 # to insert rows into `recipes` ONLY (no `recipe_ingredients`, no `recipe_steps`), so every seeded recipe
@@ -161,10 +165,14 @@ appId: ${APP_ID}
 # in `src/database/__tests__/seed.test.ts`), so a missing control is a real failure.
 - tapOn: 'Mark step 1 as current'
 
-- scrollUntilVisible:
-      element: 'Nutrition (per serving)'
-      direction: DOWN
-      timeout: 20000
+# The Nutrition row is a collapsed row ABOVE Ingredients (`RecipeDetailAndroid384`, build list item 12): scroll back up to
+# it, open it, and the notes appear under it. Its name is "Nutrition, {summary}", so it is matched by prefix.
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Nutrition, .*'
+          DIRECTION: UP
+- tapOn: 'Nutrition, .*'
 - scrollUntilVisible:
       element: 'Custom ingredients count only the nutrition you entered for them.'
       direction: DOWN

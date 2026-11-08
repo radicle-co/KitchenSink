@@ -18,7 +18,7 @@ import { nativeTokens } from '@commise/ui/native';
 import { PushedPageFrame } from '@commise/ui/pushed-page';
 import { useTheme } from '@commise/ui/theme';
 import { useId, type FC } from 'react';
-import { ScrollView, StyleSheet, Text } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { dataSourcesMessages } from './messages.js';
 import type { DataSourcesPushedPageProps } from './model.js';
@@ -49,9 +49,11 @@ export const DataSourcesPushedPage: FC<DataSourcesPushedPageProps> = ({ back, ch
                         back={back}
                         focusSignal={headingFocusSignal}
                     />
-                    <Text style={[styles.intro, { color: colors.ink }]}>{messages.intro}</Text>
-                    <Text style={[styles.intro, { color: colors.inkMuted }]}>{messages.closeMatchNote}</Text>
-                    {children}
+                    <View style={styles.rest}>
+                        <Text style={[styles.intro, { color: colors.ink }]}>{messages.intro}</Text>
+                        <Text style={[styles.intro, { color: colors.inkMuted }]}>{messages.closeMatchNote}</Text>
+                        {children}
+                    </View>
                 </ScrollView>
             )}
         </PushedPageFrame>
@@ -61,9 +63,10 @@ export const DataSourcesPushedPage: FC<DataSourcesPushedPageProps> = ({ back, ch
 const styles = StyleSheet.create({
     region: { flex: 1 },
     body: {
-        paddingHorizontal: nativeTokens.spacing[4],
         paddingBottom: nativeTokens.spacing[6],
         gap: nativeTokens.spacing[3],
     },
+    // Everything under the title: the title insets its own sides, so the rest pads itself.
+    rest: { paddingHorizontal: nativeTokens.spacing[4], gap: nativeTokens.spacing[3] },
     intro: { ...nativeTokens.type.body },
 });

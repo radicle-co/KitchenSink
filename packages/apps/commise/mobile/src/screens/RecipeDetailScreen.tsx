@@ -24,8 +24,8 @@
  * cook who may clone; Back and the ⋯ menu are discs over the hero photo, the menu's entries coming from the shared
  * `detailMenuOf` (Version history, Make private/public, Clear checks, then Delete); the rating block goes in the
  * view's `rating` slot, under the nutrition. The cook's marks, the serving scale, Screen on and the page's scroller
- * are bound by the view itself; this screen reads the marks only to offer Clear checks, and hands the view what must
- * scroll with the page (the failed-visibility alert and the delete dialog) as its `scrollFooter`.
+ * are bound by the view itself; this screen reads the marks only to offer Clear checks, and hands the view the
+ * failed-visibility alert, which scrolls with the page, and the dialogs, which open in a modal, as its `scrollFooter`.
  *
  * Back is named for where it goes ("Back to Discover"), read from the navigator's stack read-only: the tab stacks
  * and their routes are the navigator's, and this screen only looks at the route below it.
@@ -244,15 +244,18 @@ function SettledRecipeDetail({
         return <RecipeDetailSkeleton label={loadCopy.loadingLabel} />;
     }
 
-    // The row's primary; Back and ⋯ are discs over the photo, always (§6.1, §3.5). An empty View keeps ⋯ at the end when
+    // The page's text action, Edit recipe or Save a copy (`designAnswers.md` section
+    // "2026-11-02: card, Home header and Recipe detail build questions", bullet "Start cooking", and `buildLists.md`
+    // "Recipe detail" item 8: no filled button, no Start cooking). Back
+    // and ⋯ are discs over the photo, always (§6.1, §3.5). An empty View keeps ⋯ at the end when
     // there is no Back to its start.
     const primary =
         page.primary === 'edit' ? (
-            <Button variant="primary" icon="pencilLine" onPress={() => onEdit?.(recipeId)}>
+            <Button variant="ghost" icon="pencilLine" onPress={() => onEdit?.(recipeId)}>
                 {detailActions.editRecipe}
             </Button>
         ) : page.primary === 'saveCopy' ? (
-            <Button variant="primary" icon="copyPlus" busy={page.clone.pending} onPress={page.clone.run}>
+            <Button variant="ghost" icon="copyPlus" busy={page.clone.pending} onPress={page.clone.run}>
                 {detailActions.saveCopy}
             </Button>
         ) : undefined;

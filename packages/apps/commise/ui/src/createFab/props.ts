@@ -9,7 +9,7 @@
  * - **Where:** web draws it fixed at the bottom trailing corner above the tab bar (16 px in on phones, 24 on tablets;
  *   bottom-left in RTL) and puts it RIGHT AFTER the H1 in DOM order (`LargeTitleHeader.afterTitle`), so a screen reader
  *   meets it early. Native draws it over the screen's foot, a sibling of the scroller.
- * - **Surface:** solid `action` at level 3 on web, Android and older iOS; seafoam-tinted Liquid Glass with a semibold
+ * - **Surface:** solid `action` at level 3 on web, Android and older iOS; steel-tinted Liquid Glass with a semibold
  *   label on iOS 26 (D13), whose system keeps the label legible.
  */
 import type { IconName } from '../icon/props.js';
@@ -28,6 +28,12 @@ export interface CreateFabProps {
      * own start buttons take its place. A button with focus stays until it loses focus.
      */
     readonly yielded?: boolean;
+    /**
+     * A level-triggered request for the button to take focus (the same pattern as `Input`): a sheet raises it when it
+     * closes, so focus returns to the control that opened it. The button acknowledges with `onFocusRequestHandled`.
+     */
+    readonly focusRequested?: boolean;
+    readonly onFocusRequestHandled?: () => void;
 }
 
 /** The face the floating create control (`CreateFab`) draws. */

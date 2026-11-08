@@ -1,10 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
-import { Platform } from 'react-native';
 
 import { placeholderContrast } from '@commise/test-utils';
 
+import { withPlatformOs } from '../../testing/platformOs.native.js';
+import { render, resolvedColour } from '../../testing/tamaguiTesting.native.js';
 import { FieldLabel } from '../FieldLabel.native.js';
 import { Input } from '../Input.native.js';
 import { TextArea } from '../TextArea.native.js';
@@ -23,6 +24,37 @@ import { nativeTokens } from '../../tokens/native.js';
  */
 
 afterEach(cleanup);
+
+// A host that sets a field aside while it asks a question needs to know which field had focus, to give it back.
+describe('Input and TextArea (native) — onFocus', () => {
+    it.each([
+        [
+            'Input',
+            (onFocus: () => void) => <Input id="f" value="" onChangeText={vi.fn()} label="Name" onFocus={onFocus} />,
+        ],
+        [
+            'TextArea',
+            (onFocus: () => void) => (
+                <TextArea
+                    id="f"
+                    value=""
+                    onChangeText={vi.fn()}
+                    label="Name"
+                    minRows={1}
+                    maxRows={2}
+                    onFocus={onFocus}
+                />
+            ),
+        ],
+    ] as const)('%s tells the host when it takes focus', (_name, field) => {
+        const onFocus = vi.fn();
+        render(field(onFocus));
+
+        act(() => screen.getByLabelText('Name').focus());
+
+        expect(onFocus).toHaveBeenCalledTimes(1);
+    });
+});
 
 /** `#RRGGBB` → jsdom's `rgb(r, g, b)`. */
 function rgb(hex: string): string {
@@ -152,13 +184,14 @@ describe('Input + FieldLabel (native)', () => {
 });
 
 describe('FieldLabel (native)', () => {
+    // REWRITTEN (H-1): the label is the design-system Text, whose colour is a theme variable, so it is read resolved.
     it('sets the label in the label role, in inkMuted', () => {
         render(<FieldLabel forId="title" label="Title" />);
 
-        const label = getComputedStyle(screen.getByText('Title'));
+        const label = screen.getByText('Title');
 
-        expect(label.fontFamily).toBe(nativeTokens.type.label.fontFamily);
-        expect(label.color).toBe(rgb(role.inkMuted));
+        expect(getComputedStyle(label).fontFamily).toContain(nativeTokens.type.label.fontFamily);
+        expect(resolvedColour(label, 'color')).toBe(rgb(role.inkMuted));
     });
 
     it('renders a hint in the caption role under the label, under the id the field describes itself by', () => {
@@ -318,10 +351,7 @@ describe('TextArea (native)', () => {
 
     it('still grows to fit a device-style report, the text height alone', () => {
         reportsPadding = false;
-        const original = Platform.OS;
-        Object.defineProperty(Platform, 'OS', { value: 'ios', configurable: true });
-
-        try {
+        withPlatformOs('ios', () => {
             renderSteps(2, 4);
 
             const line = nativeTokens.type.body.lineHeight ?? 0;
@@ -333,9 +363,7 @@ describe('TextArea (native)', () => {
 
             measure(line);
             expect(heightOf()).toBe(`${2 * line + 34}px`);
-        } finally {
-            Object.defineProperty(Platform, 'OS', { value: original, configurable: true });
-        }
+        });
     });
 
     it('is a multi-line field named by its FieldLabel', () => {

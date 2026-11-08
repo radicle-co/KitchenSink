@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
-import { Platform } from 'react-native';
 import { useState } from 'react';
 
+import { withPlatformOs } from '../../testing/platformOs.native.js';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { Stepper } from '../Stepper.native.js';
 import type { StepperProps } from '../props.js';
@@ -14,13 +14,6 @@ import type { StepperProps } from '../props.js';
  */
 
 afterEach(cleanup);
-
-function onPlatform(os: 'ios' | 'android'): () => void {
-    const original = Platform.OS;
-    Object.defineProperty(Platform, 'OS', { value: os, configurable: true });
-
-    return () => Object.defineProperty(Platform, 'OS', { value: original, configurable: true });
-}
 
 function Servings(props: Partial<StepperProps> & { readonly initial?: number }) {
     const [value, setValue] = useState(props.initial ?? 2);
@@ -113,9 +106,7 @@ describe('Stepper (native)', () => {
             ['ios', '44px'],
             ['android', '48px'],
         ] as const) {
-            const restore = onPlatform(os);
-
-            try {
+            withPlatformOs(os, () => {
                 const { unmount } = render(<Servings />);
 
                 for (const [name, glyph] of [
@@ -132,9 +123,7 @@ describe('Stepper (native)', () => {
                 }
 
                 unmount();
-            } finally {
-                restore();
-            }
+            });
         }
     });
 

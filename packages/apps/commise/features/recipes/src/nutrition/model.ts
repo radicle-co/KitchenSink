@@ -3,7 +3,7 @@
  *
  * A recipe's per-serving energy is a THREE-state fact, and this module is where the third state lives.
  * `known` and `unaccounted` are the two the WIRE carries ({@link RecipeNutritionState}); `pending` exists
- * ONLY here, as the condition of a promise that has not settled — and its absence from the wire is the
+ * ONLY here, as the condition of a lookup that has not answered — and its absence from the wire is the
  * enforcement, not an omission: the moment a server can say "pending", a skeleton can become permanent,
  * because a spinner rendering forever is exactly what an origin saying "still working" produces when nothing
  * ever contradicts it. `unaccounted` is terminal by contrast; it is the ANSWER, not the absence of one.
@@ -11,8 +11,8 @@
  * **Design pattern: discriminated union + exhaustive switch (Visitor, satisfied by the language).** Each leaf
  * renders the RESOLVED union with an exhaustive `switch` rather than re-deriving the state from raw flags —
  * the same shape the entry's `EntrySearchView` uses. `pending` is deliberately NOT in the union the chip
- * switches over: it is the Suspense fallback, a DIFFERENT component, which is what makes a permanent skeleton
- * unrepresentable rather than merely discouraged.
+ * switches over: the slot renders it as the skeleton, a DIFFERENT component, which is what makes a permanent
+ * skeleton unrepresentable rather than merely discouraged (ADR-0079 §2).
  *
  * ⛔ NOTHING HERE RE-DECLARES A WIRE SHAPE (§15 / ADR-0014). The two settled members are DERIVED from
  * `@kitchensink/schema-recipe`'s `RecipeNutritionState` with `Extract` + `Pick`, so a field added to,
@@ -61,7 +61,7 @@ export type RecipeCalorieUnaccountedReason = RecipeCalorieUnaccounted['reason'];
  */
 export type RecipeCalorieState = RecipeCalorieReading | RecipeCalorieUnaccounted;
 
-/** The client-only in-flight state: the condition of an unsettled promise, and never a wire value. */
+/** The client-only in-flight state: the condition of a lookup that has not answered, and never a wire value. */
 export interface RecipeCaloriePending {
     readonly state: 'pending';
 }
@@ -70,10 +70,27 @@ export interface RecipeCaloriePending {
  * The full client view state space: the settled answers plus the in-flight condition.
  *
  * Composed so that `Exclude<RecipeNutritionViewState, RecipeCaloriePending>` is EXACTLY
- * {@link RecipeCalorieState} by construction — the boundary between "what Suspense renders as a fallback"
+ * {@link RecipeCalorieState} by construction — the boundary between "what the slot renders as a skeleton"
  * and "what a render component may switch over" is a type relation, not a convention.
  */
 export type RecipeNutritionViewState = RecipeCaloriePending | RecipeCalorieState;
+
+/**
+ * Where ONE page's batch lookup stands, as a value a card reads without suspending (ADR-0079 §6).
+ *
+ * The three members are the three things a card can do with a batch: wait (`pending` → the skeleton), give up
+ * (`failed` → the terminal `unaccounted{food_unavailable}` answer) or read its own entry out of the answer
+ * (`settled`). `settled` carries the WIRE response verbatim; selecting one recipe out of it is
+ * {@link selectRecipeCalorieState}'s job, because that selection has a fourth outcome — the recipe the response
+ * omitted — that only the settled answer can reveal.
+ *
+ * ⛔ A VALUE, NEVER A PROMISE. A card that suspended on the batch held every deferred update on its screen behind
+ * the lookup (ADR-0079's context); a reading cannot suspend, so the lookup can never hold anything up.
+ */
+export type RecipeNutritionBatchReading =
+    | { readonly status: 'pending' }
+    | { readonly status: 'settled'; readonly response: RecipeNutritionResponse }
+    | { readonly status: 'failed' };
 
 /**
  * The answer for a lookup that FAILED. Named once, because a failed lookup is a terminal `unaccounted`
@@ -107,12 +124,12 @@ export const NUTRITION_FOOD_UNAVAILABLE: RecipeCalorieUnaccounted = {
  * OWNER RULING (2026-08-16): an omitted recipe renders NOTHING where the figure would be — it is neither
  * `known` nor `unaccounted`, because the response says nothing about it and food was never the reason. So the
  * absence is returned as a value a host must BRANCH on, and `null` is deliberately not assignable to
- * `RecipeNutritionBoundary`'s promise: a host that ignores it does not compile.
+ * `RecipeCalorieChip`'s `nutrition`: a host that ignores it does not compile.
  *
  * Without this, a host indexes `response.nutrition[id]` directly and gets `undefined` with NO compile error —
  * this repo does not enable `noUncheckedIndexedAccess`, so the index types as a `RecipeNutritionState` that
  * simply is not there. From there the three ways to be wrong all look reasonable in review: pass `undefined`
- * into the chip's exhaustive switch, mount the boundary with no promise to settle (**a skeleton that renders
+ * into the chip's exhaustive switch, keep the slot on its skeleton for want of an entry (**a skeleton that renders
  * forever** — the exact failure this design exists to make unrepresentable), or substitute
  * `NUTRITION_FOOD_UNAVAILABLE` and tell the viewer about an outage that did not happen.
  *
@@ -135,10 +152,9 @@ export const selectRecipeCalorieState = (
  * presentational grids and the deferred lookup.
  *
  * **Pattern: Strategy as a render prop.** It exists so a list/grid stays a pure `props → JSX` component that
- * knows nothing about promises, Suspense, or the batch endpoint: it calls this once per card and drops the
- * result into `RecipeCard`'s `nutrition` slot. The ORCHESTRATION layer (a container, or a server page that
- * streamed a pending promise into one) closes over the page's single batch promise and hands the closure
- * down, which is what makes N cards ONE read.
+ * knows nothing about the lookup or the batch endpoint: it calls this once per card and drops the result into
+ * `RecipeCard`'s `nutrition` slot. The ORCHESTRATION layer (a container) closes over the page's batch lookup
+ * and hands the closure down, which is what makes N cards ONE read.
  *
  * ⚠️ OPTIONAL EVERYWHERE ON PURPOSE. A surface with no host-supplied renderer renders no nutrition line at
  * all — the card's established absent-value rule — rather than a placeholder or a fabricated zero. That is

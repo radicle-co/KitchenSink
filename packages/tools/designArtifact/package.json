@@ -20,7 +20,7 @@
         "@commise/features-recipes": "*",
         "@commise/ui": "*",
         "@expo-google-fonts/inter": "^0.4.2",
-        "@expo-google-fonts/playfair-display": "^0.4.2",
+        "@expo-google-fonts/manrope": "^0.4.2",
         "@kitchensink/docgen-components": "*",
         "@radix-ui/react-compose-refs": "^1.1.5",
         "@tailwindcss/postcss": "^4.3.1",

@@ -42,8 +42,14 @@ type Exact<A, B> = (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ?
  */
 type PinnedMembers = 'statedMeasure' | 'quantity' | 'unit' | 'foods' | 'reviewReasons';
 
-/** The generation the list above belongs to. Moves with it, in the same edit. */
-const PINNED_GENERATION = 'v2';
+/**
+ * The generation the list above belongs to. Moves with it, in the same edit.
+ *
+ * ⚠️ `v3` moved WITHOUT the list moving, and that is the other direction of the same rule: the members are `v2`'s,
+ * but what `statedMeasure` holds changed (the source's words, not the CRF's re-rendering; `parseKey.ts`), and a row is
+ * retired when its payload stops meaning what the reader takes it to mean, not only when its shape changes.
+ */
+const PINNED_GENERATION = 'v3';
 
 describe('the stored parse payload and the cache generation', () => {
     /**

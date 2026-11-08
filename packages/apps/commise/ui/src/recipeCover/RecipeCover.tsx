@@ -3,10 +3,14 @@
  *
  * With a photo it draws the photo: lazily loaded, decoded off the main thread, cropped to cover its box from the
  * centre 40% down. Without one it draws a monogram: the recipe's own tint (`coverTintOf`), the title's first letter in
- * Playfair 700 `ink` at 40% of the cover's height, and the cuisine as an `overline` under it on a cover 96 px tall or
- * taller, unless the caller lays a chip over the cover (`overline={false}`). The cover is a SIZE container, so both rules read its own height (`cqh`, a container query), never the
+ * Manrope 600 `ink` at 40% of the cover's height, and the cuisine as a `caption` under it on a cover 96 px tall or
+ * taller, unless the caller lays a chip over the cover (`showCuisine={false}`). The cover is a SIZE container, so both rules read its own height (`cqh`, a container query), never the
  * viewport. It is decorative either way — the photo has an empty `alt` and the monogram is hidden — because the title
  * is the name of the link the cover sits in. Each aspect reserves its box, so nothing shifts as an image arrives.
+ *
+ * The letter's region is the whole cover, so the letter is centred in it. No measuring. Its line is trimmed to the cap band
+ * (`text-box: trim-both cap alphabetic`), so it is the capital that is centred; a browser without it keeps the line box, which
+ * for Manrope is 0.023 em low.
  *
  * @pattern Null Object — the monogram stands in for a missing photo, so a caller never branches on one
  */
@@ -28,25 +32,36 @@ const ASPECT: Readonly<Record<CoverAspect, string>> = {
  * dark block overrides (D15).
  */
 const COVER_CLASS: Readonly<Record<CoverTintName, string>> = {
-    seafoam: 'bg-cover-seafoam',
-    coral: 'bg-cover-coral',
+    steel: 'bg-cover-steel',
+    cream: 'bg-cover-cream',
     sky: 'bg-cover-sky',
-    premium: 'bg-cover-premium',
+    peach: 'bg-cover-peach',
     success: 'bg-cover-success',
     warning: 'bg-cover-warning',
 };
 
 /** The web design-system recipe cover. */
-export const RecipeCover: FC<RecipeCoverProps> = ({ recipeId, title, cuisine, photoUrl, aspect, overline = true }) => (
-    <div className={`relative overflow-hidden [container-name:cover] [container-type:size] ${ASPECT[aspect]}`}>
+export const RecipeCover: FC<RecipeCoverProps> = ({
+    recipeId,
+    title,
+    cuisine,
+    photoUrl,
+    aspect,
+    showCuisine = true,
+}) => (
+    <div
+        className={`relative flex flex-col overflow-hidden [container-name:cover] [container-type:size] ${ASPECT[aspect]} ${
+            photoUrl === undefined ? COVER_CLASS[coverTintOf(recipeId)] : ''
+        }`}
+    >
         {photoUrl === undefined ? (
-            <div
-                aria-hidden="true"
-                className={`absolute inset-0 flex flex-col items-center justify-center gap-1 ${COVER_CLASS[coverTintOf(recipeId)]}`}
-            >
-                <span className="font-display font-bold leading-none text-ink text-[40cqh]">{monogramOf(title)}</span>
-                {cuisine === undefined || !overline ? null : (
-                    <span className="hidden text-overline text-ink [@container_cover_(height>=6rem)]:block">
+            // The region: the whole cover, with the letter centred in it.
+            <div aria-hidden="true" className="flex min-h-0 flex-1 flex-col items-center justify-center gap-1">
+                <span className="font-display font-bold leading-none text-ink text-[40cqh] [text-box:trim-both_cap_alphabetic]">
+                    {monogramOf(title)}
+                </span>
+                {cuisine === undefined || !showCuisine ? null : (
+                    <span className="hidden text-caption text-ink [@container_cover_(height>=6rem)]:block">
                         {cuisine}
                     </span>
                 )}

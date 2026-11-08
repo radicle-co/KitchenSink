@@ -6,7 +6,6 @@
 export {
     MAX_INLINE_WAIT_MS,
     drain,
-    resendsWhenParked,
     type DrainJournal,
     type DrainOptions,
     type DrainReport,
@@ -17,6 +16,7 @@ export {
 export {
     classifyFailure,
     remedyFor,
+    resendsWhenParked,
     scopeOf,
     type FailureClass,
     type FailureScope,

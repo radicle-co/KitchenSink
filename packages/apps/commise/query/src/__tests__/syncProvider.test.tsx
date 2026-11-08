@@ -1283,6 +1283,46 @@ describe('SyncProvider — a change of cook while a drain is on the wire', () =>
         expect(sent).toStrictEqual(['a:A1', 'a:A2']);
     });
 
+    /**
+     * ⛔ THE NEXT COOK MUST NOT SEE THE LAST COOK'S QUEUE. Until B's own read resolves (or for good, if it rejects),
+     * the mirror held A's log, so B's screen showed A's pending count and failures.
+     */
+    it.each([
+        ['is still pending', 'pending'],
+        ['rejects', 'rejected'],
+    ] as const)('⛔ A→B: while B`s read %s, B sees an empty queue, not A`s', async (_name, mode) => {
+        act(() => {
+            onlineManager.setOnline(false);
+        });
+        const memory = createMemoryOutboxStore();
+        let log = appendIntent(appendIntent(EMPTY_OUTBOX, updateOf('A1')), updateOf('A2'));
+        log = settle(log, { seq: 2, outcome: 'parked', status: 422 });
+        await saveOutbox(memory, 'cook_a', log);
+        const bKey = storeKeyFor('cook_b');
+        const store: OutboxStore = {
+            ...memory,
+            getItem: (key) =>
+                key === bKey
+                    ? mode === 'pending'
+                        ? new Promise<string | null>(() => undefined)
+                        : Promise.reject(new Error('read failed'))
+                    : memory.getItem(key),
+        };
+        const { Capture } = captureQueue();
+        const view = render(providerFor('cook_a', heldSender('a', []).send, store, Capture));
+
+        await waitFor(() => expect(screen.getByText('failed:1')).toBeTruthy());
+        expect(screen.getByText('pending:2')).toBeTruthy();
+
+        view.rerender(providerFor('cook_b', heldSender('b', []).send, store, Capture));
+        await act(async () => {
+            await idle();
+        });
+
+        expect(screen.getByText('pending:0')).toBeTruthy();
+        expect(screen.getByText('failed:0')).toBeTruthy();
+    });
+
     it('⛔ sign-out mid-drain: the request settles into A`s log unheard, nothing more is sent, and A`s next session drains the rest', async () => {
         const store = createMemoryOutboxStore();
         await seed(store, 'cook_a', ['A1', 'A2']);

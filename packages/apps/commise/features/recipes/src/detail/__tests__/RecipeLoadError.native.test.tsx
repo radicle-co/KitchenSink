@@ -3,7 +3,9 @@
  * the way back below, and no retry for a recipe that is gone.
  */
 import { NotFoundError } from '@kitchensink/recipe-service-client';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, screen } from '@testing-library/react';
+// The detail leaves draw through the design system's Tamagui components (ADR-0080), so the tree renders in its provider.
+import { render } from '@commise/ui/testing/tamagui';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { RecipeLoadError } from '../RecipeLoadError.js';

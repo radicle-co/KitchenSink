@@ -212,17 +212,31 @@ describe('the e2e branch is one graph', () => {
         );
     });
 
-    it('⛔ Maestro and k6 run in PARALLEL with the tiers — neither waits for the other or for a tier', () => {
-        // Chaining them behind the e2e tiers would serialise ~20 minutes of independent work for an
+    it('⛔ Maestro runs in PARALLEL with the tiers — it waits for no tier', () => {
+        // Chaining it behind the e2e tiers would serialise ~20 minutes of independent work for an
         // ordering nothing needs.
-        const jobs = jobsOf(TIERS);
         const tiers = new Set(deployedTiers());
+        const blocked = needsOf(jobsOf(TIERS)['e2e-mobile-maestro'] ?? {}).filter((need) => tiers.has(need));
 
-        for (const id of ['e2e-mobile-maestro', 'e2e-load-test']) {
-            const blocked = needsOf(jobs[id] ?? {}).filter((need) => tiers.has(need));
+        expect(blocked, `e2e-mobile-maestro waits on ${blocked.join(', ')}`).toStrictEqual([]);
+    });
 
-            expect(blocked, `${id} waits on ${blocked.join(', ')}`).toStrictEqual([]);
-        }
+    /**
+     * REWRITTEN (parse-stall investigation, run 42117856262, 2026-11-05): k6 used to run in PARALLEL with Maestro on
+     * the same stage. Its `parseJobCreate.load.js` put ~48,600 lines on a parse queue whose one consumer parses ~20 a
+     * minute, so every Maestro paste waited behind the backlog. k6 now runs AFTER Maestro and waits for nothing else.
+     * `!cancelled()` is required so a skipped or failed Maestro tier does not skip k6, and the switch
+     * `inputs.run_load_test` is kept: without it a run that did not ask for k6 would run it.
+     */
+    it('⛔ k6 runs AFTER Maestro, never beside it, and still obeys its switch', () => {
+        const jobs = jobsOf(TIERS);
+        const k6 = jobs['e2e-load-test'] ?? {};
+
+        expect(needsOf(k6), 'k6 must wait for Maestro and nothing else').toStrictEqual(['e2e-mobile-maestro']);
+        expect(k6.if, 'k6 must run whatever Maestro did, unless the run was cancelled').toMatch(
+            /always\(\)|!cancelled\(\)/u,
+        );
+        expect(k6.if, 'k6 must still obey its switch').toContain('inputs.run_load_test');
     });
 
     /**

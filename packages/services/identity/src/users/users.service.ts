@@ -1,6 +1,13 @@
-import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import {
+    BadRequestException,
+    ConflictException,
+    ForbiddenException,
+    Inject,
+    Injectable,
+    NotFoundException,
+} from '@nestjs/common';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { provisionCompleteUser, type CreatedByline, type Db, type ProvisionDeps } from '@kitchensink/identity-utils';
 import {
     composeAvatarUrl,
@@ -335,11 +342,8 @@ export class UsersService {
             this.assertAvatarKeyOwned(userId, newAvatarKey);
         }
 
-        const [existing] = await this.db.select().from(users).where(eq(users.id, userId)).limit(1);
-
-        if (!existing) {
-            throw new NotFoundException('User not found');
-        }
+        // The same status gate `getUserMe` uses: a suspended or closed account must not change its profile.
+        const { user: existing } = await this.resolver.resolveUser(userId);
 
         // Verified BEFORE any write: a refused key must leave the profile untouched.
         if (newAvatarKey !== undefined) {
@@ -350,28 +354,41 @@ export class UsersService {
         // The profile as THIS statement left it. ⛔ `RETURNING`, not a read-back: a second statement could see a
         // concurrent webhook's later write, and the snapshot published below must be exactly the state this write's
         // stamp keys (plan 2026-10-15-010 D6).
-        const [updatedProfile] =
-            input.displayName !== undefined || input.avatarKey !== undefined
-                ? await this.db
-                      .update(profiles)
-                      .set({
-                          // Trimmed: one name has one stored form, and the consumer would trim it anyway.
-                          ...(input.displayName !== undefined ? { displayName: input.displayName.trim() } : {}),
-                          // ⛔ BOTH columns, in the one statement: a profile holds a Clerk URL OR an uploaded key, never
-                          // both (`profiles_avatar_key_xor_url`), so choosing a key clears the URL and clearing the
-                          // avatar clears both.
-                          ...(input.avatarKey !== undefined ? { avatarKey: input.avatarKey, avatarUrl: null } : {}),
-                          // ⛔ U9/R21: the OWED MARKER moves with the name, in this one statement and on the
-                          // database's clock (`profileClock`). The publish below happens after the commit and is
-                          // best-effort, so without the marker a failed fan-out left nothing behind.
-                          //
-                          // ⚠️ Only on a NAME change: an avatar edit changes no byline, so it owes nothing.
-                          ...(renamed ? { handleSyncOwedAt: profileClock, handleSyncFailureCode: null } : {}),
-                          updatedAt: profileClock,
-                      })
-                      .where(eq(profiles.userId, userId))
-                      .returning()
-                : await this.db.select().from(profiles).where(eq(profiles.userId, userId)).limit(1);
+        const writesProfile = input.displayName !== undefined || input.avatarKey !== undefined;
+        const [updatedProfile] = writesProfile
+            ? await this.db
+                  .update(profiles)
+                  .set({
+                      // Trimmed: one name has one stored form, and the consumer would trim it anyway.
+                      ...(input.displayName !== undefined ? { displayName: input.displayName.trim() } : {}),
+                      // ⛔ BOTH columns, in the one statement: a profile holds a Clerk URL OR an uploaded key, never
+                      // both (`profiles_avatar_key_xor_url`), so choosing a key clears the URL and clearing the
+                      // avatar clears both.
+                      ...(input.avatarKey !== undefined ? { avatarKey: input.avatarKey, avatarUrl: null } : {}),
+                      // ⛔ U9/R21: the OWED MARKER moves with the name, in this one statement and on the
+                      // database's clock (`profileClock`). The publish below happens after the commit and is
+                      // best-effort, so without the marker a failed fan-out left nothing behind.
+                      //
+                      // ⚠️ Only on a NAME change: an avatar edit changes no byline, so it owes nothing.
+                      ...(renamed ? { handleSyncOwedAt: profileClock, handleSyncFailureCode: null } : {}),
+                      updatedAt: profileClock,
+                  })
+                  // ⛔ The active-status test is part of THIS statement. `resolveUser` above checked it earlier, and a
+                  // suspension landing in between must still block the edit (and its republished byline).
+                  .where(
+                      and(
+                          eq(profiles.userId, userId),
+                          sql`exists (select 1 from ${users} where ${users.id} = ${userId} and ${users.status} = 'active')`,
+                      ),
+                  )
+                  .returning()
+            : await this.db.select().from(profiles).where(eq(profiles.userId, userId)).limit(1);
+
+        // Nothing matched: either the status changed since the check (the gate answers it) or there is no profile row.
+        if (writesProfile && updatedProfile === undefined) {
+            await this.resolver.resolveUser(userId);
+        }
+
         const [updatedAccount] = await this.db.select().from(accounts).where(eq(accounts.userId, userId)).limit(1);
 
         // After the write committed: remove what the new avatar superseded (or everything, on a clear) and purge the
@@ -456,13 +473,20 @@ export class UsersService {
             throw new NotFoundException('User not found');
         }
 
+        // Only an active account can be closed, the rule `resolveUser` applies. A suspension is a moderation hold
+        // that a later reactivation would lift; a closed or erased row must not be re-tombstoned. Refused here, not
+        // in the auth middleware: a suspended user must still be able to ERASE (GDPR).
+        if (existing.status !== 'active') {
+            throw new ForbiddenException(existing.status === 'suspended' ? 'User is suspended' : 'Account is closed');
+        }
+
         const now = new Date();
         const directive = computeProfileScrub('closure', userId);
 
         // Lock the users row FIRST (the UPDATE), then touch the profile — matching provisionCompleteUser's
         // lock order so a delete racing a concurrent provision of the same identity can't deadlock (d59e11c).
         await this.db.transaction(async (tx) => {
-            await tx
+            const closed = await tx
                 .update(users)
                 .set({
                     ...directive.userColumns,
@@ -474,7 +498,14 @@ export class UsersService {
                     // that outlived its intent" — which it cannot do from the event name alone.
                     statusVersion: sql`${users.statusVersion} + 1`,
                 })
-                .where(eq(users.id, userId));
+                // The status read above is in the WHERE: an erasure (or any other move) committing since the read
+                // must not be rewritten into a tombstone.
+                .where(and(eq(users.id, userId), eq(users.status, existing.status)))
+                .returning({ id: users.id });
+
+            if (closed.length === 0) {
+                throw new ConflictException('The account changed while it was being closed; try again');
+            }
 
             // Closure keeps the companion rows (displayName survives for recovery); scrub only the avatar.
             if (directive.profileScrub) {

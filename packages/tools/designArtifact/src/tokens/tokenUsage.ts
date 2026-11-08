@@ -14,7 +14,7 @@ import type { TypeRole } from '@commise/ui/tokens/typography';
 type Role = keyof typeof role;
 
 /** A palette tone the artifact lists as a brand tone. The rest are reachable only through a role. */
-export type BrandTone = Exclude<keyof typeof palette, 'slate' | 'mist' | 'pearl' | 'white' | 'pewter'>;
+export type BrandTone = Exclude<keyof typeof palette, 'slate' | 'mist' | 'pearl' | 'cloud' | 'pewter'>;
 
 /** The group a type style is filed under. */
 export type TypeGroupName = 'Display' | 'Headings' | 'Text';
@@ -37,7 +37,7 @@ export const ROLE_USAGE: Readonly<Record<Role, string>> = {
     lineControl: 'Edge of an input, chip or secondary button.',
     lineDivider: 'Hairline dividers only. Never text, never a control edge.',
     action: 'Fill of the one primary call to action. Carries a white label.',
-    actionText: 'Teal used as text or an icon on a light surface.',
+    actionText: 'Storm blue used as text or an icon on a light surface.',
     actionPressed: 'Pressed end of the action fill.',
     onAction: 'Label on an action fill.',
     selectedFill: 'Fill of a selected chip or row.',
@@ -48,6 +48,7 @@ export const ROLE_USAGE: Readonly<Record<Role, string>> = {
     attention: 'Caution text.',
     attentionTint: 'Caution surface under ink or attention text.',
     danger: 'Destructive fill. Carries a white label.',
+    dangerPressed: 'Pressed end of the destructive fill. Carries the same label as the fill.',
     dangerText: 'Error copy and destructive labels.',
     inverse: 'Surface that flips the theme, such as a toast.',
     inverseInk: 'Text on inverse.',
@@ -59,27 +60,26 @@ export const ROLE_USAGE: Readonly<Record<Role, string>> = {
 /** What the colour tokens that are not roles are for. */
 export const EXTRA_COLOR_USAGE = {
     bar: 'Translucent top and bottom bars.',
-    proFill: 'Premium badge fill.',
-    proInk: 'Label on the premium badge.',
+    proFill: 'Pro badge fill.',
+    proInk: 'Label on the Pro badge.',
     cover: 'Tinted recipe-cover ground behind a placeholder.',
 } as const;
 
 /** What each brand tone is for. */
 export const BRAND_USAGE: Readonly<Record<BrandTone, string>> = {
-    seafoam: 'Brand teal. Accent, fill, border.',
-    'seafoam-light': 'Light teal. Accent only, never a fill under white text.',
-    'ocean-dark': 'Dark teal for text on light surfaces.',
-    coral: 'Warm accent. Carries a charcoal label.',
-    sky: 'Cool accent. Carries a charcoal label.',
-    sand: 'Warm page tone.',
+    steel: 'Brand storm blue. Accent, fill, border.',
+    'steel-light': 'Light storm blue. Accent only, never a fill under white text.',
+    'ocean-dark': 'Dark storm blue for the pressed fill and text on light surfaces.',
+    cream: 'Pale cream fill. Carries a charcoal label.',
+    sky: 'Pale blue fill. Carries a charcoal label.',
+    fog: 'Cool mist-grey page tone.',
     charcoal: 'Deep ink.',
+    snow: 'Pure white for raised surfaces and the label on a filled control.',
     success: 'Positive state fill.',
     warning: 'Caution fill. Not text.',
     'warning-dark': 'Caution text.',
     error: 'Destructive fill.',
     'error-dark': 'Error text.',
-    premium: 'Premium accent.',
-    honey: 'Star tone.',
 };
 
 /** Group and usage of each type role. `figureInline` takes the size of its line, so it has a note but no style. */
@@ -91,9 +91,9 @@ export const TYPE_ROLE_DOC: Readonly<Record<TypeRole, TypeRoleDoc>> = {
     body: { group: 'Text', usage: 'Default text.' },
     readingBody: { group: 'Text', usage: 'Long-form recipe method text.' },
     meta: { group: 'Text', usage: 'Metadata line.' },
+    list: { group: 'Text', usage: 'A line in a list, such as an ingredient.' },
     label: { group: 'Text', usage: 'Control label.' },
     caption: { group: 'Text', usage: 'Caption.' },
-    overline: { group: 'Text', usage: 'Overline, set in capitals with wide tracking.' },
     figureInline: { group: 'Text', usage: 'A number inside a line, set in tabular figures.' },
     figureStat: { group: 'Text', usage: 'Statistic figure.' },
 };

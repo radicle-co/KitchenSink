@@ -155,10 +155,14 @@ describe('recipeRowToDomain', () => {
     });
 
     it('derives usesPremiumCapability from visibility + sourceType via the ONE recipe-core rule', () => {
-        // Chosen-private → PRO.
+        // REWRITTEN for ADR-0073 section 10: only a private imported_public recipe is PRO. A private user_created recipe
+        // is a free cook's private slot, not a premium capability.
+        expect(
+            recipeRowToDomain(row({ visibility: 'private', sourceType: 'imported_public' })).usesPremiumCapability,
+        ).toBe(true);
         expect(
             recipeRowToDomain(row({ visibility: 'private', sourceType: 'user_created' })).usesPremiumCapability,
-        ).toBe(true);
+        ).toBe(false);
         // Forced-private import → NOT PRO (the `visibility === 'private'` trap must not be re-derived here).
         expect(
             recipeRowToDomain(row({ visibility: 'private', sourceType: 'imported_physical' })).usesPremiumCapability,

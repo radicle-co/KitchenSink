@@ -14,6 +14,9 @@
  * from the accessibility hierarchy, which is how Maestro's `collectionsPull` flow caught it — and put the
  * Cancel/Pull row UNDER the navigation bar's own tap targets.
  *
+ * The Cancel and Pull actions sit in the design-system `DialogActions`, which stacks them full width on a phone, Pull on
+ * top, instead of a row that clips the first button.
+ *
  * A discriminated three-way state (mutually exclusive, matching {@link PullUpdatesDialogProps}'s JSDoc):
  * (1) a `progressbar` affordance while `isLoadingPreview`, or before any `diff` has arrived; (2) an `alert`
  * for a failed preview/commit — `'drift'` (409, the previewed diff went stale) is deliberately NOT a dead
@@ -27,7 +30,9 @@
  */
 import { useMessages } from '@commise/i18n/react';
 import { Button } from '@commise/ui/button';
+import { DialogActions } from '@commise/ui/dialog-actions';
 import { FullScreenSheet } from '@commise/ui/full-screen-sheet';
+import { nativeTokens } from '@commise/ui/native';
 import { useTheme } from '@commise/ui/theme';
 import type { FC } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
@@ -37,6 +42,13 @@ import { collectionMessages } from './messages.js';
 import { bylineMessages } from '../byline/messages.js';
 import { sourceOwnerBylineText } from './sourceOwnerByline.js';
 import type { PullUpdatesDialogProps } from './model.js';
+
+/**
+ * The width of the action row from which Cancel and Pull sit side by side: "Cancel" and "Pull 1000 Recipes" at +35% for
+ * a translation, measured at about 407 (see `DialogActionsSideBySideFrom`). A phone stacks them, Pull on top, where a
+ * row that could not wrap would clip the first button at the sheet edge.
+ */
+const SIDE_BY_SIDE_FROM = 440;
 
 export const PullUpdatesDialog: FC<PullUpdatesDialogProps> = ({
     open,
@@ -121,15 +133,24 @@ export const PullUpdatesDialog: FC<PullUpdatesDialogProps> = ({
                     </View>
                 )}
 
+                {/* `marginTop: 'auto'` keeps the actions at the foot of the sheet when the body is short. */}
                 <View style={styles.actions}>
-                    <Button variant="secondary" icon="x" onPress={onCancel}>
-                        {pull.cancel}
-                    </Button>
-                    {showDiff && diff !== undefined && (
-                        <Button icon="check" busy={isCommitting} disabled={diff.added.length === 0} onPress={onConfirm}>
-                            {fillTemplate(pull.confirm, { count: diff.added.length })}
+                    <DialogActions sideBySideFrom={SIDE_BY_SIDE_FROM}>
+                        <Button variant="secondary" icon="x" width="fill" onPress={onCancel}>
+                            {pull.cancel}
                         </Button>
-                    )}
+                        {showDiff && diff !== undefined && (
+                            <Button
+                                icon="check"
+                                busy={isCommitting}
+                                disabled={diff.added.length === 0}
+                                width="fill"
+                                onPress={onConfirm}
+                            >
+                                {fillTemplate(pull.confirm, { count: diff.added.length })}
+                            </Button>
+                        )}
+                    </DialogActions>
                 </View>
             </>
         </FullScreenSheet>
@@ -138,11 +159,11 @@ export const PullUpdatesDialog: FC<PullUpdatesDialogProps> = ({
 
 const styles = StyleSheet.create({
     header: { gap: 4 },
-    title: { fontSize: 20, fontWeight: '600' },
-    attribution: { fontSize: 14 },
-    body: { fontSize: 15, lineHeight: 22 },
+    title: { ...nativeTokens.type.sectionTitle },
+    attribution: { ...nativeTokens.type.meta },
+    body: { ...nativeTokens.type.body },
     counts: { gap: 8 },
-    note: { fontSize: 13, fontStyle: 'italic' },
-    error: { fontSize: 15 },
-    actions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 12, marginTop: 'auto' },
+    note: { ...nativeTokens.type.meta, fontStyle: 'italic' },
+    error: { ...nativeTokens.type.body },
+    actions: { marginTop: 'auto' },
 });

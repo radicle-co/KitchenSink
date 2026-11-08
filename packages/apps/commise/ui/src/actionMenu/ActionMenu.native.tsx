@@ -29,6 +29,7 @@ import { useTheme } from '../theme/useTheme.native.js';
 import { nativeTokens } from '../tokens/native.js';
 import { actionNamed, type ActionMenuItem, type ActionMenuProps, type ActionMenuSnapshot } from './props.js';
 import { useFocusRequest } from '../focusRequest/useFocusRequest.js';
+import { usePressFill } from '../surfaceTone/usePressFill.native.js';
 
 /** The native target floor the spec sets (§3a, 2.5.8: 48 × 48 dp). */
 const TARGET_DP = 48;
@@ -41,7 +42,8 @@ const MenuItem: FC<{
     readonly tone: 'ink' | 'dangerText';
     readonly onChoose: (id: string) => void;
 }> = ({ item, reason, tone, onChoose }) => {
-    const { colors, wash } = useTheme();
+    const { colors } = useTheme();
+    const wash = usePressFill();
     const unavailable = reason !== undefined;
     // A positional `disabled` (the first photo cannot move earlier) needs no reason; either way the row stays on the
     // screen-reader cursor and runs nothing.
@@ -86,7 +88,8 @@ export const ActionMenu: FC<ActionMenuProps> = ({
     unavailable = false,
 }) => {
     const [open, setOpen] = useState(false);
-    const { colors, wash } = useTheme();
+    const { colors } = useTheme();
+    const wash = usePressFill();
     // What the open sheet shows: the actions as they were when the sheet opened.
     const [shown, setShown] = useState<ActionMenuSnapshot>({ items, destructiveItem });
     // The chosen item's key, waiting for the sheet to go.

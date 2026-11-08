@@ -41,7 +41,7 @@ export const UnreadableWorkNotice: FC<UnreadableWorkNoticeProps> = ({
     return (
         <div ref={region} role="status" tabIndex={-1} className="px-4 outline-none">
             {shown && (
-                <div className="flex flex-wrap items-start gap-x-3 gap-y-1 rounded-2xl bg-attention-tint px-4 py-3">
+                <div className="flex flex-wrap items-start gap-x-3 gap-y-1 rounded-lg bg-attention-tint px-4 py-3">
                     <span className="pt-0.5 text-attention">
                         <Icon name="triangleAlert" size={20} tone="attention" />
                     </span>

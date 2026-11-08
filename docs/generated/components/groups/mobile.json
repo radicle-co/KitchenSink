@@ -6,12 +6,12 @@
     "coverage": {
         "components": 55,
         "implementations": 55,
-        "props": 154,
+        "props": 155,
         "documentedComponents": 54,
         "implementationsWithModuleDoc": 53,
         "implementationsWithComponentDoc": 40,
-        "documentedProps": 148,
-        "classifiedComponents": 39,
+        "documentedProps": 149,
+        "classifiedComponents": 40,
         "componentsWithPatternTag": 26,
         "crossPlatformComponents": 0
     },
@@ -340,7 +340,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/mobile/src/components/AppCanvas.tsx",
                     "dir": "packages/apps/commise/mobile/src/components",
-                    "moduleDoc": "components/AppCanvas — the app-wide brand background wash (native; issue #145).\n\n## Pattern\n\nDecorator over the shared {@link GradientSurface} surface-treatment adapter: it adds the app's canvas\ntreatment to an arbitrary subtree without knowing anything about it. Pure and presentational — `props →\nJSX`, no state, no effects, no data.\n\n## Why it exists, and why it is mounted ONCE at the root\n\nAll nine wireframes paint their page with the SAME named token, `--gradient-beach-glow`, which is\n`@commise/ui`'s `gradient.hero`. Mobile instead painted a flat `palette.sand` on each screen's own\ncontainer, so every surface read as a plain sand page. Mounting the wash here — above the navigator, below\nthe providers — is the native mirror of web's single `body` rule in `globals.css`: one gradient, one\ndefinition (the token), one consumer per platform. Painting it per-screen instead would put the same\nknowledge in a dozen places and guarantee the next screen forgets it.\n\nBecause the canvas lives at the root, screen containers MUST stay transparent — an opaque full-bleed fill\noccludes the ramp completely and silently restores the old flat look. `tests/canvasSurfaces.native.test.tsx`\nenforces that.\n\nThere is no motion here (a background wash is static), so there is nothing to gate on reduced motion.",
+                    "moduleDoc": "components/AppCanvas — the app-wide brand background wash (native; issue #145).\n\n## Pattern\n\nDecorator over the shared {@link GradientSurface} surface-treatment adapter: it adds the app's canvas\ntreatment to an arbitrary subtree without knowing anything about it. Pure and presentational — `props →\nJSX`, no state, no effects, no data.\n\n## Why it exists, and why it is mounted ONCE at the root\n\nAll nine wireframes paint their page with the SAME named token, `--gradient-beach-glow`, which is\n`@commise/ui`'s `gradient.hero`. Before this component, mobile painted a flat page colour on each screen's\nown container, so every surface read as a plain page. Mounting the wash here — above the navigator, below\nthe providers — is the native mirror of web's single `body` rule in `globals.css`: one gradient, one\ndefinition (the token), one consumer per platform. Painting it per-screen instead would put the same\nknowledge in a dozen places and guarantee the next screen forgets it.\n\nBecause the canvas lives at the root, screen containers MUST stay transparent — an opaque full-bleed fill\noccludes the ramp completely and silently restores the old flat look. `tests/canvasSurfaces.native.test.tsx`\nenforces that.\n\nThere is no motion here (a background wash is static), so there is nothing to gate on reduced motion.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -807,7 +807,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/mobile/src/components/auth/AuthSwitchLink.tsx",
                     "dir": "packages/apps/commise/mobile/src/components/auth",
-                    "moduleDoc": "components/auth/AuthSwitchLink — the \"New to Commise? Create an account\" row at the foot of both signed-out\nscreens (`buildSpec.md` §8 Order): the prompt, then an inline LINK, wrapping to a second line rather than\noverflowing. Sign-in and sign-up differ only in the words and the handler, so the shape lives here once.\n\nThe link text never breaks across lines (`numberOfLines={1}`) and its target is 48 px tall, so the narrow-screen\nand large-font cases wrap the ROW, not the link.\n\nPresentational: props → JSX.",
+                    "moduleDoc": "components/auth/AuthSwitchLink — the \"New to Commise? Create an account\" row at the foot of both signed-out\nscreens (`buildSpec.md` §8 Order): the prompt, then an inline LINK, wrapping to a second line rather than\noverflowing. Sign-in and sign-up differ only in the words and the handler, so the shape lives here once.\n\nThe row wraps first, so the link moves under its prompt on a narrow screen. When the link alone is wider than the\nscreen, at the system's largest text, its label wraps too: a control's label is never cut off (owner ruling; it read\n\"Create an accou..\" at Android font_scale 3.1). Its target is 48 px tall.\n\nPresentational: props → JSX.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -1296,7 +1296,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/mobile/src/components/home/chrome/HomeTabBar.tsx",
                     "dir": "packages/apps/commise/mobile/src/components/home/chrome",
-                    "moduleDoc": "home/chrome/HomeTabBar — the native bottom tab bar (`docs/design/uiOverhaul/buildSpec.md` §3.2; ownerDecisions\nD6, D14). The reachable destinations of the shared nav model (`resolveHomeNav` — Home, Recipes, Discover today), each a\n24 pt glyph over a `caption` label, on every phone and tablet, iPad included in both orientations.\n\nIt is our own bar, with real Liquid Glass BEHIND it on iOS 26 and a solid `paperRaised` surface elsewhere\n(`@commise/ui/chrome-surface`); native system tabs wait until React Navigation marks them stable (D14).\n\n- The active tab: `ink` glyph and label at weight 600, a 32 × 3 pt `hereBar` above the glyph, and\n  `accessibilityState.selected`. Inactive: `inkMuted`. (No filled glyph: Lucide has none, and a filled compass hides\n  its needle — the blueprint's Q6, awaiting `staff-ux-engineer`.)\n- Targets: at least 48 dp tall on Android, 44 pt on iOS. The bar pads its foot by the bottom safe-area inset.\n- Compact height (owner 2026-10-13; the window under 480 dp, which is every phone held sideways): the label sits\n  BESIDE the glyph and the bar is 48 dp (44 pt on iOS). Both sides pad their safe-area inset, so a cutout or the\n  3-button navigation bar never covers a tab. The label stays the tab's accessible name.\n\nPresentational: props → JSX. `AppTabBar` adapts React Navigation's tab state to it.",
+                    "moduleDoc": "home/chrome/HomeTabBar — the native bottom tab bar (`docs/design/uiOverhaul/buildSpec.md` §3.2; ownerDecisions\nD6, D14). The reachable destinations of the shared nav model (`resolveHomeNav` — Home, Recipes, Discover today), each a\n24 pt glyph over its label (its role is set out below), on every phone and tablet, iPad included in both orientations.\n\nIt is our own bar, with real Liquid Glass BEHIND it on iOS 26 and a solid `paperRaised` surface elsewhere\n(`@commise/ui/chrome-surface`); native system tabs wait until React Navigation marks them stable (D14).\n\n- The active tab: `ink` glyph, its label in the `label` role (weight 600) in `ink`, a 32 × 3 pt `hereBar` above the\n  glyph, and `accessibilityState.selected`. Inactive: `inkMuted`, the label in the `caption` role (weight 500). Colour\n  and the here-bar mark the active tab too, so weight is never the only signal. (No filled glyph: Lucide has none, and\n  a filled compass hides its needle — the blueprint's Q6, awaiting `staff-ux-engineer`.)\n- Each label is the design-system Text at the navigation-chrome cap (`chromeCap=\"1.5\"`, designer ruling 2026-11-01;\n  ADR-0080 §8): it grows with the system text size to 1.5×, where the rest of the screen grows to 2×.\n- The glyphs are one row: every tab's column starts at the top, glyph first and label under it, so a label that wraps\n  grows its tab downward and never moves its glyph (`deviceShots2.md` M-2).\n- Targets: at least 48 dp tall on Android, 44 pt on iOS. The bar pads its foot by the bottom safe-area inset.\n- Compact height (owner 2026-10-13; the window under 480 dp, which is every phone held sideways): the label sits\n  BESIDE the glyph and the bar is 48 dp (44 pt on iOS). Both sides pad their safe-area inset, so a cutout or the\n  3-button navigation bar never covers a tab. The label stays the tab's accessible name.\n\nPresentational: props → JSX. `AppTabBar` adapts React Navigation's tab state to it.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -1421,7 +1421,7 @@
             "packageName": "@commise/mobile",
             "layer": "app",
             "dir": "packages/apps/commise/mobile/src/components/home",
-            "kind": "unclassified",
+            "kind": "presentational",
             "patterns": [],
             "platforms": [
                 "web"
@@ -1435,14 +1435,14 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/mobile/src/components/home/HomeGreeting.tsx",
                     "dir": "packages/apps/commise/mobile/src/components/home",
-                    "moduleDoc": "home/HomeGreeting — Home's large title on native (US-000 / FR-046; `docs/design/uiOverhaul/buildSpec.md`\n§4.2): the time-of-day greeting as the screen's header, \"Good afternoon, Eliza\" (\"Good afternoon\" without a name),\nover the local calendar date, drawn by the design system's `LargeTitleHeader` with the avatar as its action.\n\nBoth lines derive from the viewer's local clock via the SHARED `useHomeGreeting` in `@commise/features-core/home`,\nso web and mobile greet identically (FR-044). The surface is\nclient-rendered on device, so (unlike web) there is no hydration concern — reading the clock in render is fine.",
+                    "moduleDoc": "home/HomeGreeting — Home's header on native (US-000 / FR-046; `docs/design/uiOverhaul/buildSpec.md` §4.2): ONE\nrow, as the Home boards draw it. The greeting (\"Good afternoon, Eliza\"; \"Good afternoon\" without a name) and the local\ndate stack on the start side; the 44 pt profile button sits on the end side, centred on the pair.\n\nIt is no longer the shared `LargeTitleHeader`: Home's greeting is a `cardTitle`, not a large title, and the condensed\nbar that echoed a large title is gone from Home (designer, 2026-11-02). Both lines derive from the viewer's local\nclock via the SHARED `useHomeGreeting` in `@commise/features-core/home`, so web and mobile greet identically\n(FR-044). The surface is client-rendered on device, so (unlike web) there is no hydration concern.\n\nPresentational once the greeting is read: the layout is Tamagui stacks, the colours are theme keys.",
                     "moduleTags": [
                         {
                             "name": "module",
-                            "text": "home/HomeGreeting — Home's large title on native (US-000 / FR-046; `docs/design/uiOverhaul/buildSpec.md`"
+                            "text": "home/HomeGreeting — Home's header on native (US-000 / FR-046; `docs/design/uiOverhaul/buildSpec.md` §4.2): ONE"
                         }
                     ],
-                    "description": "Home's large title (native).",
+                    "description": "Home's header (native).",
                     "tags": [
                         {
                             "name": "param",
@@ -1450,7 +1450,7 @@
                         },
                         {
                             "name": "returns",
-                            "text": "The greeting as the header and the localized full date under it."
+                            "text": "The greeting over the date, with the profile button at the end of the same row."
                         }
                     ],
                     "detectedBy": "react-docgen-typescript",
@@ -1478,7 +1478,7 @@
                     "usesRefApi": [],
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
-                        "presentational": false,
+                        "presentational": true,
                         "orchestration": false
                     }
                 }
@@ -1552,7 +1552,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/mobile/src/components/home/HomeWidgetSurface.tsx",
                     "dir": "packages/apps/commise/mobile/src/components/home",
-                    "moduleDoc": "home/HomeWidgetSurface — the post-login Home widget-surface host (mobile; US-000 / FR-046).\n\nThe composition root of the three-layer Home surface, mirroring the web host:\n - **discovery** — features register their widget descriptors into the ditox {@link homeContainer};\n   resolved here via `resolveHomeWidgets`.\n - **composition** — `curateHomeWidgets` gates the resolved descriptors by live **capability** and the\n   viewer's subscription **tier**. In Home v1 the recipe widget is the only **live** widget; the unshipped\n   005–009 cohort is present as **skeleton placeholders** (CR-001) that gate themselves out the moment the\n   backing service ships and the feature's live widget (same id) takes over.\n - **render** — each curated descriptor is drawn through a slot wrapped in a per-widget `ErrorBoundary`:\n   a live widget with a **bespoke** slot (the recipe widget, which needs its data + nav) through\n   `renderers`; a **placeholder** through the generic {@link RoadmapWidgetSlot} loader seam. A live id with\n   no bespoke renderer is **skipped** (graceful version skew).\n\nThe host also renders Home's large title (the greeting, with the avatar as its action) as the scroller's first\nchild, takes the scroller's `bind` from the screen's `ScrollHost`, and threads the navigation intents down to the\nrecipe slot. The tab bar, the condensed title bar and the floating create button are NOT here: the navigator owns the\nbar and `HomeScreen` floats the other two over this scroller. `container` and `renderers` are injectable seams.",
+                    "moduleDoc": "home/HomeWidgetSurface — the post-login Home widget-surface host (mobile; US-000 / FR-046).\n\nThe composition root of the three-layer Home surface, mirroring the web host:\n - **discovery** — features register their widget descriptors into the ditox {@link homeContainer};\n   resolved here via `resolveHomeWidgets`.\n - **composition** — `curateHomeWidgets` gates the resolved descriptors by live **capability** and the\n   viewer's subscription **tier**. In Home v1 the recipe widget is the only **live** widget; the unshipped\n   005–009 cohort is present as **skeleton placeholders** (CR-001) that gate themselves out the moment the\n   backing service ships and the feature's live widget (same id) takes over.\n - **render** — each curated descriptor is drawn through a slot wrapped in a per-widget `ErrorBoundary`:\n   a live widget with a **bespoke** slot (the recipe widget, which needs its data + nav) through\n   `renderers`; a **placeholder** through the generic {@link RoadmapWidgetSlot} loader seam. A live id with\n   no bespoke renderer is **skipped** (graceful version skew).\n\nThe host also renders Home's large title (the greeting, with the avatar as its action) as the scroller's first\nchild, takes the scroller's `bind` from the screen's `ScrollHost`, and threads the navigation intents down to the\nrecipe slot. The tab bar and the floating create button are NOT here: the navigator owns the\nbar and `HomeScreen` floats the other two over this scroller. `container` and `renderers` are injectable seams.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -2045,7 +2045,7 @@
                             "text": "home/skeletons/PlaceholderWidgetCard — the shared shell of a roadmap skeleton placeholder (mobile)."
                         }
                     ],
-                    "description": "The shell of a roadmap skeleton placeholder (mobile): a level-1 card carrying the real widget's heading, a visible\n\"Soon\" badge, and the caller's shape.\n\nThe card is `paper` under a hairline `lineDivider` at the `sm` elevation (`buildSpec.md` §1.6), never glass: owner\nD12 keeps glass off cards, and the translucent white tier this used had no dark value, so dark mode drew light ink\non light glass (`evaluateFinal.md` F1). Every colour is a role read from `useTheme()`.",
+                    "description": "The shell of a roadmap skeleton placeholder (mobile): a level-1 card carrying the real widget's heading, a visible\n\"Soon\" badge, and the caller's shape.\n\nThe card is `paper` under a hairline `lineDivider` at the `sm` elevation (`buildSpec.md` §1.6), never glass: owner\nD12 keeps glass off cards, and the translucent white tier this used had no dark value, so dark mode drew light ink\non light glass (`evaluateFinal.md` F1). The title and the badge are the design system's capped `Text` in theme colour\nkeys (ADR-0080); the card's fill and the edges are roles read from `useTheme()`.",
                     "tags": [
                         {
                             "name": "param",
@@ -2571,7 +2571,7 @@
                     "tags": [
                         {
                             "name": "param",
-                            "text": "props - What a press does."
+                            "text": "props - What a press does, and the disc's form."
                         },
                         {
                             "name": "returns",
@@ -2588,6 +2588,18 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "Push Profile onto the current tab's stack.",
+                            "declaredIn": "packages/apps/commise/mobile/src/navigation/ProfileAvatarEntry.tsx"
+                        },
+                        {
+                            "name": "size",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"default\"",
+                                "\"large\""
+                            ],
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The disc's form; Home's header asks for `large`. Omitted, it is the 32 pt disc.",
                             "declaredIn": "packages/apps/commise/mobile/src/navigation/ProfileAvatarEntry.tsx"
                         }
                     ],
@@ -3004,7 +3016,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/mobile/src/providers/AppProviders.tsx",
                     "dir": "packages/apps/commise/mobile/src/providers",
-                    "moduleDoc": "`AppProviders` (DA10-a) — the mobile app's provider-tree Facade, the native counterpart of the web\n`RecipeProviders` (`web/src/components/recipes/RecipeProviders.tsx`). Centralizes the ENFORCED provider\norder that used to be hand-stacked directly in `App.tsx`: `RecipeServiceGate` calls `useAuth` (Clerk) AND\nreads no query client of its own (its hooks run against whichever `QueryClientProvider` is mounted above\nthem), so it MUST sit below both `ClerkProvider` and `QueryClientProvider` — the same invariant the web\nfacade documents.\n\nComposes, top to bottom: `TamaguiProvider` (design tokens/theme) → `LocaleProvider` (device-locale i18n)\n→ `ClerkProvider` (auth session, secure-store-backed token cache) → `QueryClientProvider` (TanStack cache)\n→ `RecipeServiceGate` (the typed recipe-service client) → `SafeAreaProvider` (device insets) → `children`.\n\nThis is a pure extraction (Facade pattern) — the tree and its order are UNCHANGED from what `App.tsx`\nhand-stacked before; only the composition now lives in one reusable, testable place. `App.tsx` keeps\nownership of everything that is NOT a provider (font loading, the status bar, `AuthGate`, the navigator).\n\n⚠️ Read as SHAPE this is props → JSX with one `useState`, which is the profile of a render leaf exactly.\nIt is ORCHESTRATION all the same, for the same reason the web facade is: the identity of what it mounts —\nthe query cache, the Clerk session and its secure-store token cache, the recipe client — is the app's data\nand auth capability, and the ENFORCED order between them is a decision this component owns alone.",
+                    "moduleDoc": "`AppProviders` (DA10-a) — the mobile app's provider-tree Facade, the native counterpart of the web\n`RecipeProviders` (`web/src/components/recipes/RecipeProviders.tsx`). Centralizes the ENFORCED provider\norder that used to be hand-stacked directly in `App.tsx`: `RecipeServiceGate` calls `useAuth` (Clerk) AND\nreads no query client of its own (its hooks run against whichever `QueryClientProvider` is mounted above\nthem), so it MUST sit below both `ClerkProvider` and `QueryClientProvider` — the same invariant the web\nfacade documents.\n\nComposes, top to bottom: `SafeAreaProvider` (device insets) → `DesignSystemProvider` (the design system's Tamagui\nconfig, at the scheme the device is in; the same provider component tests mount) → `LocaleProvider` (device-locale i18n) → `ClerkProvider` (auth session, secure-store-backed\ntoken cache) → `QueryClientProvider` (TanStack cache) → `OfflineReadNoticeProvider` → `RecipeServiceGate` (the typed\nrecipe-service client) → `children`.\n\nThe composition lives in one reusable, testable place. `App.tsx` keeps ownership of everything that is NOT a\nprovider (font loading, the status bar, `AuthGate`, the navigator).\n\n⚠️ Read as SHAPE this is props → JSX with one `useState`, which is the profile of a render leaf exactly.\nIt is ORCHESTRATION all the same, for the same reason the web facade is: the identity of what it mounts —\nthe query cache, the Clerk session and its secure-store token cache, the recipe client — is the app's data\nand auth capability, and the ENFORCED order between them is a decision this component owns alone.",
                     "moduleTags": [
                         {
                             "name": "pattern",
@@ -3444,7 +3456,7 @@
             "dir": "packages/apps/commise/mobile/src/screens",
             "kind": "orchestration",
             "patterns": [
-                "Mediator — floats the condensed bar and the create button over the Home surface's one scroller"
+                "Mediator — floats the create button over the Home surface's one scroller"
             ],
             "platforms": [
                 "web"
@@ -3458,11 +3470,11 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/mobile/src/screens/HomeScreen.tsx",
                     "dir": "packages/apps/commise/mobile/src/screens",
-                    "moduleDoc": "Home screen (mobile): the Home tab's root (`docs/design/uiOverhaul/buildSpec.md` §4.2). It composes the\n{@link HomeWidgetSurface} — whose scroller takes the screen's `ScrollHost` bind and whose first child is the large\ntitle — and floats two things over it: the condensed title bar, once the greeting scrolls under the top, and the\nfloating \"New recipe\" button, a sibling after the scroller so it stays put.\n\nOne tap opens the empty editor (§3.4, D4). The button yields while the recent-recipes page the widget reads is\nloading (so it never appears and cannot vanish) and on the first run (a settled empty page), whose own start buttons\ntake its place; offline or on a load error it shows.\n\n⚠️ ORCHESTRATION of chrome, not of data: it reads the scroll host and the cook's name for the condensed title.",
+                    "moduleDoc": "Home screen (mobile): the Home tab's root (`docs/design/uiOverhaul/buildSpec.md` §4.2). It composes the\n{@link HomeWidgetSurface} — whose scroller takes the screen's `ScrollHost` bind and whose first child is the one-row\ngreeting header — and floats the \"New recipe\" button over it, a sibling after the scroller so it stays put. Home has no\ncondensed title bar: it is a top-level page with a small title, and the tab bar already says where you are.\n\nOne tap opens the empty editor (§3.4, D4). The button yields while the recent-recipes page the widget reads is\nloading (so it never appears and cannot vanish) and on the first run (a settled empty page), whose own start buttons\ntake its place; offline or on a load error it shows.\n\n⚠️ ORCHESTRATION of chrome, not of data.",
                     "moduleTags": [
                         {
                             "name": "pattern",
-                            "text": "Mediator — floats the condensed bar and the create button over the Home surface's one scroller"
+                            "text": "Mediator — floats the create button over the Home surface's one scroller"
                         }
                     ],
                     "description": "The Home tab's root.",
@@ -3473,7 +3485,7 @@
                         },
                         {
                             "name": "returns",
-                            "text": "The Home surface, with the condensed title bar and the create button over it."
+                            "text": "The Home surface, with the create button over it."
                         }
                     ],
                     "detectedBy": "react-docgen-typescript",
@@ -3710,7 +3722,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/mobile/src/screens/RecipeDetailScreen.tsx",
                     "dir": "packages/apps/commise/mobile/src/screens",
-                    "moduleDoc": "Recipe-detail screen (mobile). Drives the shared, presentational native `RecipeDetailView` building block from a\nsuspense read under `QueryBoundary`, which owns the localized loading state and the failure: a distinct not-found\nmessage with no retry, or the generic error with a retry that refetches — the same three outcomes as the web\ncontainer. The settled view is keyed on `recipeId`, so a `replace`/deep-link that reuses this screen with a new id\nremounts it: every mutation and the delete dialog start fresh, and nothing of the previous recipe can leak.\nOn top of the read view it composes the owner and viewer action blocks (T068 delete, T074 visibility,\nT075 clone) plus edit (T067) and version-history (T069) entry points, gated by ownership and the paid features:\n\n- Owner actions (edit, version history, delete, visibility) render only for the recipe's owner. Make private is a\n  paid feature (C-004): offered when granted or upsell (where it opens the Premium sheet), and not at all when the\n  paid features are hidden or the profile is loading (plan 2026-10-14-009 D14).\n- The clone action renders for a PUBLIC recipe the viewer does not own (US2), copying it into their recipes.\n\nEvery DECISION the page makes — who the viewer is, the ownership and clone gates, the Private gate, the visibility\nnotice, the ⋯ menu, the rating block and the owner dialogs — is `useRecipeDetailController`\n(`@commise/features-recipes/detail`), the SAME hook the web container runs, so the two platforms cannot diverge on a\ngate (this closes D7). The viewer is the session's `external_id` claim and, when the claim is absent, the profile's\n`user.id` (owner ruling 2026-10-16); with the claim in hand the body shows without waiting for the profile. Every\nmutation is reported upward so the navigator can route (back to the list after delete, to the new recipe after clone).\nRemote state stays in the query cache — this screen derives its view state from it.\n\nThe recipe page (build spec §6): the action row's primary — Edit recipe for the owner, Save a copy for another\ncook who may clone; Back and the ⋯ menu are discs over the hero photo, the menu's entries coming from the shared\n`detailMenuOf` (Version history, Make private/public, Clear checks, then Delete); the rating block goes in the\nview's `rating` slot, under the nutrition. The cook's marks, the serving scale, Screen on and the page's scroller\nare bound by the view itself; this screen reads the marks only to offer Clear checks, and hands the view what must\nscroll with the page (the failed-visibility alert and the delete dialog) as its `scrollFooter`.\n\nBack is named for where it goes (\"Back to Discover\"), read from the navigator's stack read-only: the tab stacks\nand their routes are the navigator's, and this screen only looks at the route below it.",
+                    "moduleDoc": "Recipe-detail screen (mobile). Drives the shared, presentational native `RecipeDetailView` building block from a\nsuspense read under `QueryBoundary`, which owns the localized loading state and the failure: a distinct not-found\nmessage with no retry, or the generic error with a retry that refetches — the same three outcomes as the web\ncontainer. The settled view is keyed on `recipeId`, so a `replace`/deep-link that reuses this screen with a new id\nremounts it: every mutation and the delete dialog start fresh, and nothing of the previous recipe can leak.\nOn top of the read view it composes the owner and viewer action blocks (T068 delete, T074 visibility,\nT075 clone) plus edit (T067) and version-history (T069) entry points, gated by ownership and the paid features:\n\n- Owner actions (edit, version history, delete, visibility) render only for the recipe's owner. Make private is a\n  paid feature (C-004): offered when granted or upsell (where it opens the Premium sheet), and not at all when the\n  paid features are hidden or the profile is loading (plan 2026-10-14-009 D14).\n- The clone action renders for a PUBLIC recipe the viewer does not own (US2), copying it into their recipes.\n\nEvery DECISION the page makes — who the viewer is, the ownership and clone gates, the Private gate, the visibility\nnotice, the ⋯ menu, the rating block and the owner dialogs — is `useRecipeDetailController`\n(`@commise/features-recipes/detail`), the SAME hook the web container runs, so the two platforms cannot diverge on a\ngate (this closes D7). The viewer is the session's `external_id` claim and, when the claim is absent, the profile's\n`user.id` (owner ruling 2026-10-16); with the claim in hand the body shows without waiting for the profile. Every\nmutation is reported upward so the navigator can route (back to the list after delete, to the new recipe after clone).\nRemote state stays in the query cache — this screen derives its view state from it.\n\nThe recipe page (build spec §6): the action row's primary — Edit recipe for the owner, Save a copy for another\ncook who may clone; Back and the ⋯ menu are discs over the hero photo, the menu's entries coming from the shared\n`detailMenuOf` (Version history, Make private/public, Clear checks, then Delete); the rating block goes in the\nview's `rating` slot, under the nutrition. The cook's marks, the serving scale, Screen on and the page's scroller\nare bound by the view itself; this screen reads the marks only to offer Clear checks, and hands the view the\nfailed-visibility alert, which scrolls with the page, and the dialogs, which open in a modal, as its `scrollFooter`.\n\nBack is named for where it goes (\"Back to Discover\"), read from the navigator's stack read-only: the tab stacks\nand their routes are the navigator's, and this screen only looks at the route below it.",
                     "moduleTags": [],
                     "description": "The recipe-detail screen: the read boundary around the settled detail.",
                     "tags": [

@@ -13,7 +13,9 @@
  * ⚠️ `sendAccessibilityEvent` and `announceForAccessibilityWithOptions` are mocked because react-native-web does not
  * implement them, and `Platform.OS` because react-native-web is `'web'`: a case sets `'ios'` to hear iOS's channel.
  */
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, screen } from '@testing-library/react';
+// The option tag is the Tamagui status badge, so the tree renders in the design system's provider (ADR-0080).
+import { ARIA_HIDDEN_CONTENT, render } from '../../testing/tamaguiTesting.native.js';
 import { useState, type FC } from 'react';
 import { AccessibilityInfo, Dimensions, Keyboard, Text, View } from 'react-native';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
@@ -29,6 +31,12 @@ const platform = vi.hoisted(() => ({ os: undefined as 'ios' | undefined }));
 /** The props the latest `ScrollView` was given: react-native-web never calls `onScrollEndDrag`, so a case calls it. */
 const scroller = vi.hoisted(() => ({ props: undefined as { onScrollEndDrag?: () => void } | undefined }));
 
+/**
+ * Each `Pressable`'s latest props by accessibility label: react-native-web fires no `onPressIn` from jsdom events (only
+ * a click reaches `onPress`), so a case calls the press-in handler itself, as a finger touching down would.
+ */
+const pressables = vi.hoisted(() => new Map<string, { onPressIn?: () => void }>());
+
 vi.mock('react-native', async (importOriginal) => {
     const actual = await importOriginal<typeof import('react-native')>();
 
@@ -36,6 +44,13 @@ vi.mock('react-native', async (importOriginal) => {
 
     return {
         ...actual,
+        Pressable: (props: { accessibilityLabel?: string; onPressIn?: () => void }) => {
+            if (props.accessibilityLabel !== undefined) {
+                pressables.set(props.accessibilityLabel, props);
+            }
+
+            return createElement(actual.Pressable, props);
+        },
         ScrollView: (props: { onScrollEndDrag?: () => void }) => {
             scroller.props = props;
 
@@ -308,6 +323,40 @@ describe('Combobox (native) — typing and choosing', () => {
     });
 });
 
+describe('Combobox (native) — a press whose list changed under the finger picks nothing', () => {
+    const A = { key: 'a', label: 'Aubergine', accessibleName: 'Aubergine' } as const;
+    const B = { key: 'b', label: 'Basil', accessibleName: 'Basil' } as const;
+    const listOf = (...options: readonly (typeof A | typeof B)[]): readonly ComboboxGroup[] => [{ key: 'g', options }];
+    const choice = (name: string) => screen.getByRole('button', { name });
+
+    const touchDown = (name: string): void => {
+        act(() => pressables.get(name)?.onPressIn?.());
+    };
+
+    it('pressing A, then the list changes so B sits there, and releasing on B picks nothing', () => {
+        const onSelect = vi.fn();
+        const { rerender } = render(<Host groups={listOf(A, B)} onSelect={onSelect} />);
+
+        type('x');
+        touchDown('Aubergine');
+        rerender(<Host groups={listOf(B)} onSelect={onSelect} />);
+        fireEvent.click(choice('Basil'));
+
+        expect(onSelect).not.toHaveBeenCalled();
+    });
+
+    it('a press with no list change still picks', () => {
+        const onSelect = vi.fn();
+
+        render(<Host groups={listOf(A, B)} onSelect={onSelect} />);
+        type('x');
+        touchDown('Aubergine');
+        fireEvent.click(choice('Aubergine'));
+
+        expect(onSelect).toHaveBeenCalledExactlyOnceWith('a');
+    });
+});
+
 describe('Combobox (native) — the list’s own lines', () => {
     // The lines are SHOWN and never announced by themselves: the host speaks through the polite and the assertive
     // channel, so a status is never spoken twice (`docs/design/rowEditorOpenDecisions.md` system change 2). These
@@ -329,7 +378,7 @@ describe('Combobox (native) — the list’s own lines', () => {
         const line = screen.getByText('Searching ingredients');
         expect(isLive(line)).toBe(false);
         expect(screen.getByText('⌕').closest('[aria-hidden="true"]')).not.toBeNull();
-        expect(document.querySelectorAll('[aria-hidden="true"]')).toHaveLength(1);
+        expect(document.querySelectorAll(ARIA_HIDDEN_CONTENT)).toHaveLength(1);
     });
 
     it('NOTE shows with the options, and it is not live', () => {
@@ -560,6 +609,54 @@ describe('Combobox (native) — an option’s detail line and own name (system c
         expect(brisket.textContent).toContain('flat half');
         fireEvent.click(brisket);
         expect(onSelect).toHaveBeenCalledExactlyOnceWith('brisket-flat');
+    });
+});
+
+describe('Combobox (native) — a quiet tag after an option’s label (the picker’s Default, owner ruling 2026-10-25)', () => {
+    const tagged: readonly ComboboxGroup[] = [
+        {
+            key: 'catalog',
+            label: 'Food catalog',
+            options: [
+                { key: 'skim', label: 'Skim milk' },
+                { key: 'whole', label: 'Whole milk', tag: 'Default', accessibleName: 'Whole milk, Default' },
+                {
+                    key: 'oat',
+                    label: 'Oat milk',
+                    detailParts: ['unsweetened'],
+                    tag: 'Default',
+                    accessibleName: 'Oat milk, unsweetened, Default',
+                },
+            ],
+        },
+    ];
+
+    it('a tagged option shows its tag after its label, and its name says the tag', () => {
+        const onSelect = vi.fn();
+        render(<Host groups={tagged} onSelect={onSelect} />);
+        type('m');
+
+        const whole = screen.getByRole('button', { name: 'Whole milk, Default' });
+        expect(whole.textContent).toContain('Whole milk');
+        expect(whole.textContent).toContain('Default');
+        fireEvent.click(whole);
+        expect(onSelect).toHaveBeenCalledExactlyOnceWith('whole');
+    });
+
+    it('an option without a tag shows none, wherever the tagged one falls', () => {
+        render(<Host groups={tagged} />);
+        type('m');
+
+        expect(screen.getByRole('button', { name: 'Skim milk' }).textContent).toBe('Skim milk');
+    });
+
+    it('a tagged option keeps its variant’s parts', () => {
+        render(<Host groups={tagged} />);
+        type('m');
+
+        const oat = screen.getByRole('button', { name: 'Oat milk, unsweetened, Default' });
+        expect(oat.textContent).toContain('unsweetened');
+        expect(oat.textContent).toContain('Default');
     });
 });
 

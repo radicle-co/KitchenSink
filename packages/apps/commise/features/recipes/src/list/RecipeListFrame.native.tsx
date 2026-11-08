@@ -8,6 +8,15 @@
  * When `headingFocusSignal` advances — a retry from the refresh notice inside the boundary succeeded and removed the
  * button the viewer pressed — the screen-reader cursor moves to the heading.
  *
+ * ## Reading order
+ *
+ * The drawn field sits in an overlay after the list, so a screen reader would reach it behind every card. The header's
+ * spacer is therefore the field's accessible stand-in, a `search` role named for the search that sits where the field
+ * shows (after the segments, before the chips). Pressing it advances `focusSignal` on the field. Exactly one of the two
+ * is reachable: the field while it has focus, holds a query or the page has scrolled (the stand-in has left the screen
+ * and the pinned field is what shows), the stand-in otherwise. Which order VoiceOver and TalkBack
+ * really swipe in, and focusing a field that was hidden from accessibility, are physical-device checks.
+ *
  * ## Compact height (`docs/design/compactHeightLayout.md` §5)
  *
  * On a phone held sideways the stacked header (title, then the field) took too much of 369 dp before one recipe. In
@@ -25,13 +34,15 @@ import { LargeTitleHeader } from '@commise/ui/large-title-header';
 import { nativeTokens } from '@commise/ui/native';
 import { useCompactHeight } from '@commise/ui/layout';
 import { useScreenReaderFocusOnSignal } from '@commise/ui/screen-reader-focus';
-import { SearchField } from '@commise/ui/search-field';
+import { PinnedSearchOverlay, PinnedSearchSpacer, usePinnedSearch } from '@commise/ui/pinned-search';
 import { SegmentedControl } from '@commise/ui/segmented-control';
 import { useTheme } from '@commise/ui/theme';
 import { useId, type FC } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text } from 'react-native';
 
 import { recipeMessages } from '../messages.js';
+import { RecipeListHeaderContext } from './recipeListHeaderContext.js';
+import { FillBox, HEADER_TOP_PX, ListHeaderBox, ListHeaderGroup } from './RecipeListLayout.native.js';
 import { RecipeCreateButton } from './RecipeCreateButton.native.js';
 import { RECIPES_SEGMENTS, RECIPES_TITLE_ID, type RecipeListFrameProps, type RecipesSegment } from './model.js';
 
@@ -81,11 +92,15 @@ export const RecipeListFrame: FC<RecipeListFrameProps> = ({
             />
         );
 
-    return (
-        // No name on the container: the header Text inside it says it (`nativeContainerNames.md` N1).
-        <View collapsable={false} style={[styles.container, compact && styles.containerCompact]}>
-            {/* ONE header group in every layout, the field its last child, so the field never remounts. */}
-            <View style={compact ? styles.headerGroupCompact : styles.headerGroup}>
+    // The pinned search (`@commise/ui/pinned-search`): the field is drawn ONCE, below, above the list; the list's header holds only a
+    // spacer of its size, which is also the field's stand-in for a screen reader.
+    const pin = usePinnedSearch(searchValue, HEADER_TOP_PX);
+
+    // The header is handed to the one list below (`RecipeListHeaderContext`), which draws it as its first child: it scrolls
+    // away with the cards on a phone, and never unmounts when the read changes state.
+    const header = (
+        <ListHeaderBox compact={compact}>
+            <ListHeaderGroup compact={compact}>
                 {/* The large title (slice 3) with the avatar and the segments; in compact height — a phone held sideways — the
                     plain heading shares its row with the field, so the list keeps its room. */}
                 {compact ? (
@@ -109,47 +124,43 @@ export const RecipeListFrame: FC<RecipeListFrameProps> = ({
                     />
                 )}
 
-                {searchVisible ? (
-                    <View style={compact ? styles.searchCompact : null}>
-                        <SearchField
-                            id={searchId}
-                            label={list.searchLabel}
-                            labelVisibility="hidden"
-                            clearLabel={list.clearSearch}
-                            placeholder={list.searchPlaceholder}
-                            value={searchValue}
-                            onChangeText={onSearchChange}
-                        />
-                    </View>
-                ) : null}
-            </View>
+                {searchVisible ? <PinnedSearchSpacer pin={pin} label={list.searchLabel} compact={compact} /> : null}
+            </ListHeaderGroup>
+        </ListHeaderBox>
+    );
 
-            {children}
+    return (
+        // No name on the container: the header Text inside it says it (`nativeContainerNames.md` N1).
+        <FillBox collapsable={false}>
+            <RecipeListHeaderContext.Provider value={header}>
+                <FillBox>{children}</FillBox>
+            </RecipeListHeaderContext.Provider>
+            {/* The ONE search field, a later sibling of the list so it draws above the cards, over the spacer the list holds
+                for it. It slides with the scroll on the native side and stops at the top; its parent never changes, so the
+                field never remounts and keeps focus and the keyboard. Hidden until the spacer has been measured. */}
+            {searchVisible ? (
+                <PinnedSearchOverlay
+                    pin={pin}
+                    field={{
+                        id: searchId,
+                        label: list.searchLabel,
+                        labelVisibility: 'hidden',
+                        clearLabel: list.clearSearch,
+                        placeholder: list.searchPlaceholder,
+                        value: searchValue,
+                        onChangeText: onSearchChange,
+                    }}
+                />
+            ) : null}
             {/* A sibling after the boundary: it floats over the screen's foot and never leaves with a pending, offline or
                 failed read (§3.4). The host decides when it yields. */}
             <RecipeCreateButton onCreateRecipe={onCreateRecipe} yielded={createEntryYields} />
-        </View>
+        </FillBox>
     );
 };
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        gap: nativeTokens.spacing[4],
-        paddingHorizontal: nativeTokens.spacing[4],
-        paddingTop: nativeTokens.spacing[2],
-    },
-    containerCompact: { gap: nativeTokens.spacing[2] },
-    headerGroup: { gap: nativeTokens.spacing[4] },
-    headerGroupCompact: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        alignItems: 'center',
-        gap: nativeTokens.spacing[3],
-    },
-    heading: {
-        fontFamily: nativeTokens.fontFace.display.bold,
-        fontSize: nativeTokens.fontSize.displayMd,
-    },
-    searchCompact: { flexGrow: 1, flexBasis: 240, minWidth: 0 },
+    // The large title role at its narrow size, the face and the 28 px cap the full header draws (owner rule C1), not a
+    // 700 face of its own.
+    heading: nativeTokens.type.largeTitle.narrow,
 });

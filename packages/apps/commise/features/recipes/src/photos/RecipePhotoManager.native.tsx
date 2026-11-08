@@ -86,7 +86,7 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
                 CHANGE to a live region it already holds; iOS is handed an announcement by `LiveRegion`). The first
                 carries its label as visible text (`LoadingNotice` doctrine, specSharedSystem.md §18); the second is
                 spoken only, once per finished file. A failure keeps its own assertive alert. */}
-            <LiveRegion politeness="polite" style={[styles.muted, { color: colors.inkMuted }]}>
+            <LiveRegion politeness="polite" typeRole="meta" tone="inkMuted">
                 {uploading === true ? m.uploadingLabel : ''}
             </LiveRegion>
             <LiveRegion politeness="polite" visuallyHidden occurrence={finished}>
@@ -296,27 +296,26 @@ const styles = StyleSheet.create({
     container: { gap: 12 },
     heading: nativeTokens.type.label,
     empty: { gap: 12 },
-    coverPreview: { width: '100%', maxWidth: 320, borderRadius: 12, overflow: 'hidden' },
-    muted: { fontSize: 13 },
-    formatHint: { fontSize: 11 },
-    error: { fontSize: 13 },
+    coverPreview: { width: '100%', maxWidth: 320, borderRadius: nativeTokens.radius.lg, overflow: 'hidden' },
+    muted: { ...nativeTokens.type.meta },
+    formatHint: { ...nativeTokens.type.meta },
+    error: { ...nativeTokens.type.meta },
     // Each cell claims its share of the row (`CELL_WIDTH`), minus the inter-cell gap.
     grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-    cell: { position: 'relative', aspectRatio: 1, borderRadius: 12, overflow: 'hidden' },
+    cell: { position: 'relative', aspectRatio: 1, borderRadius: nativeTokens.radius.lg, overflow: 'hidden' },
     // A queue cell's image box: square like a photo cell, but it does not hold the failure's message.
-    frame: { position: 'relative', aspectRatio: 1, borderRadius: 12, overflow: 'hidden' },
+    frame: { position: 'relative', aspectRatio: 1, borderRadius: nativeTokens.radius.lg, overflow: 'hidden' },
     photo: { width: '100%', height: '100%' },
     statusBadge: {
         position: 'absolute',
         top: 6,
         left: 6,
-        fontSize: 11,
-        fontWeight: '500',
-        borderRadius: 999,
+        ...nativeTokens.type.caption,
+        borderRadius: nativeTokens.radius.full,
         paddingVertical: 2,
         paddingHorizontal: 8,
     },
-    itemError: { marginTop: 4, paddingHorizontal: 2, fontSize: 11 },
+    itemError: { ...nativeTokens.type.meta, marginTop: 4, paddingHorizontal: 2 },
     queueControls: { position: 'absolute', bottom: 6, left: 6, right: 6 },
     // The tile's ⋯ menu button, top-right (`appearance="disc"`: 44 pt, 48 dp hit frame on Android).
     menuButton: { position: 'absolute', top: 2, right: 2 },
@@ -326,9 +325,8 @@ const styles = StyleSheet.create({
         left: 6,
         right: 6,
         textAlign: 'center',
-        fontSize: 11,
-        fontWeight: '500',
-        borderRadius: 999,
+        ...nativeTokens.type.caption,
+        borderRadius: nativeTokens.radius.full,
         paddingVertical: 2,
         overflow: 'hidden',
     },
@@ -337,9 +335,8 @@ const styles = StyleSheet.create({
         position: 'absolute',
         bottom: 6,
         left: 6,
-        fontSize: 11,
-        fontWeight: '600',
-        borderRadius: 999,
+        ...nativeTokens.type.label,
+        borderRadius: nativeTokens.radius.full,
         paddingVertical: 2,
         paddingHorizontal: 8,
         overflow: 'hidden',

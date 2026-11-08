@@ -227,6 +227,8 @@ describe('every advisory lock is namespaced by a registered class', () => {
             recipePhoto: 8,
             foodCatalogSeed: 10,
             foodRemoteAdoption: 11,
+            recipeImportAllowance: 12,
+            recipePrivateSlots: 13,
         });
         expect(RETIRED_ADVISORY_LOCK_CLASSES).toEqual({ foodMirrorSync: 9 });
     });

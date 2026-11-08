@@ -5,32 +5,13 @@
 import { act, renderHook } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
+import { makePasteIntoIngredients } from '../../__fixtures__/pasteMatching.js';
 import type { PasteIntoIngredients } from '../usePasteIntoIngredients.js';
 import { usePasteListSheet } from '../usePasteListSheet.js';
 
 const COPY = { lineTooLong: 'Line {line} is too long.', tooManyLines: 'Too many.' };
 
-const paste = (over: Partial<PasteIntoIngredients> = {}): PasteIntoIngredients => ({
-    available: true,
-    submit: vi.fn(),
-    submitting: false,
-    failed: false,
-    clearFailure: vi.fn(),
-    acceptedCount: 0,
-    reading: [],
-    progress: undefined,
-    retryLookup: vi.fn(),
-    retryParse: vi.fn(),
-    addAsWritten: vi.fn(),
-    addRestAsWritten: vi.fn(),
-    focusSignal: 0,
-    retryFailed: false,
-    focusRow: undefined,
-    onRowFocusHandled: vi.fn(),
-    announcement: undefined,
-    added: undefined,
-    ...over,
-});
+const paste = (over: Partial<PasteIntoIngredients> = {}): PasteIntoIngredients => makePasteIntoIngredients(over);
 
 function render(initial: PasteIntoIngredients, initiallyOpen = false) {
     return renderHook(({ current }) => usePasteListSheet(current, { initiallyOpen, copy: COPY }), {

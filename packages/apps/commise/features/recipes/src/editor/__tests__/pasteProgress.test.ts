@@ -50,7 +50,7 @@ describe('pasteRowsOf — one row per line not in the recipe yet', () => {
                 awaiting(6, 'stalled'),
                 awaiting(7, 'retryable'),
             ],
-            done: 0,
+            joined: new Set(),
             failedAt: undefined,
             waiting: false,
         });
@@ -72,7 +72,7 @@ describe('pasteRowsOf — one row per line not in the recipe yet', () => {
         const rows = pasteRowsOf({
             jobId: 'j',
             lines: [settled(0), settled(1), reading(2, 'queued')],
-            done: 2,
+            joined: new Set([0, 1]),
             failedAt: undefined,
             waiting: false,
         });
@@ -84,7 +84,7 @@ describe('pasteRowsOf — one row per line not in the recipe yet', () => {
         const rows = pasteRowsOf({
             jobId: 'j',
             lines: [settled(0), reading(1, 'reading'), awaiting(2, 'retryable')],
-            done: 0,
+            joined: new Set(),
             failedAt: 0,
             waiting: true,
         });

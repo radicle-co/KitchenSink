@@ -29,7 +29,7 @@ export default defineCard({
                     style={{
                         width: 300,
                         background: 'var(--paper)',
-                        border: '1px solid var(--line)',
+                        border: '1px solid var(--line-divider)',
                         borderRadius: 12,
                         padding: 12,
                         boxShadow: '0 8px 24px rgba(0,0,0,.25)',

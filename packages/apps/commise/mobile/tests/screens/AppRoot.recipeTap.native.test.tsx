@@ -1,6 +1,9 @@
 /**
  * Integration test for the Home → recipe-detail navigation chain (mobile).
  *
+ * Updated for the recipe detail rebuild (fix/im-recipedetail, b2b1294bc): the title moved from a heading-role Text
+ * to a header-role View that wraps the Text, so the heading is found by the text's heading ANCESTOR.
+ *
  * This is the test that actually proves the feature: it renders the REAL `AppRoot` with the REAL `HomeScreen`,
  * `HomeWidgetSurface`, `RecipeWidgetSlot`, the real lazily-loaded recipe widget, and the real shared card
  * leaves — then taps a "Recent recipes" card and asserts the recipes surface opens on THAT recipe's detail.
@@ -43,7 +46,7 @@ vi.mock('@clerk/expo', () => ({ useAuth: () => ({ signOut: () => undefined }) })
 
 /** The recipe the Home widget lists and the detail then resolves — ONE id threaded through the whole chain. */
 
-// The screens under test now START the deferred calorie batch (ADR-0021 §6) through this shared hook, which
+// The screens under test now START the deferred calorie batch (ADR-0079 §6) through this shared hook, which
 // reaches the real recipe-service client and query cache. This file is not about nutrition, so the lookup is
 // stubbed to "no batch covers this recipe" — the branch that renders no nutrition line at all, leaving every
 // assertion below unchanged. The wiring itself is covered by `tests/screens/screenNutrition.native.test.tsx`.
@@ -76,6 +79,8 @@ vi.mock('@kitchensink/recipe-service-client/hooks', () => {
         useAllOwnerRecipes: () => ({ recipes: [], isLoading: false, isError: false }),
         useDeleteRecipe: () => idle,
         useSetRecipeVisibility: () => idle,
+        // ADR-0073: the detail decides Make private from the cook's private slots; this file is not about them, so a slot is free.
+        usePrivateSlots: () => ({ data: { kind: 'limited', used: 0, limit: 50 }, isPending: false }),
         // The detail screen reads a refused visibility write from the mutation cache under this key.
         RECIPE_VISIBILITY_MUTATION_KEY: ['recipe-service', 'mutations', 'recipeVisibility'],
         useSetRecipeRating: () => idle,
@@ -88,6 +93,16 @@ vi.mock('@kitchensink/recipe-service-client/hooks', () => {
     };
 });
 
+// ⛔ Loaded at module scope, never inside the test: loading `AppRoot` transforms and evaluates every screen, and inside
+// the test that cost counted against its timeout (6.4 s alone, past 20 s on a contended machine). `vi.mock` is hoisted
+// above this line, so the mocks above are in force.
+const { AppRoot } = await import('../../src/screens/AppRoot.js');
+const { CookMarksProvider, recipeHomeWidgetDescriptor } = await import('@commise/features-recipes');
+
+// The Home widget is a lazy chunk the descriptor loads on first render. Loading it once here puts its transform in the
+// module cache, so the lazy load inside the test resolves from cache instead of compiling the widget on the clock.
+await recipeHomeWidgetDescriptor.load();
+
 afterEach(() => {
     cleanup();
     vi.clearAllMocks();
@@ -98,8 +113,6 @@ describe('Home → recipe detail (mobile, end to end)', () => {
         listRecipesMock.mockResolvedValue(makeRecipePage([TAPPED, OTHER]));
         getRecipeByIdMock.mockImplementation(async (id: string) => makeRecipeDetail({ id, title: 'Weeknight Pasta' }));
 
-        const { AppRoot } = await import('../../src/screens/AppRoot.js');
-        const { CookMarksProvider } = await import('@commise/features-recipes');
         // The app's providers mount the cook-marks store above the root (`RecipeServiceGate`); so does this render.
         renderWithProviders(
             <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
@@ -126,8 +139,12 @@ describe('Home → recipe detail (mobile, end to end)', () => {
         // role=heading"; reproduced locally with the test's core oversubscribed). Only the detail renders this title as
         // a heading (the hidden Home card shows it as plain text), and the detail commits in one go when its boundary
         // settles, so one match means the heading is there. The `getByRole` below is the same assertion as before.
+        // The detail's title is a header View wrapping the large-title Text (recipe detail rebuild), so the text node is
+        // INSIDE the heading, not the heading itself: match the text, then ask for its nearest heading ancestor.
         await waitFor(() =>
-            expect(screen.queryAllByText('Weeknight Pasta', { selector: '[role="heading"]' })).toHaveLength(1),
+            expect(
+                screen.queryAllByText('Weeknight Pasta').filter((node) => node.closest('[role="heading"]') !== null),
+            ).toHaveLength(1),
         );
         expect(screen.getByRole('heading', { name: 'Weeknight Pasta' })).toBeTruthy();
         // 20s, not the 5s default. This is the heaviest test in the monorepo — the ONLY one that exceeds

@@ -4,6 +4,7 @@ import { ROLE_LANE_IDS, slotFor } from '@kitchensink/e2e-fixtures/testPool';
 
 import { signInWithTicket } from './utils/auth';
 import { route } from './utils/basePath';
+import { deployedTargetOrigin } from './utils/deployedTarget';
 
 /**
  * The paid features by ROLE, against the real identity service (plan 2026-10-14-009 D12; owner ruling 2026-10-13: "tests
@@ -24,6 +25,12 @@ import { route } from './utils/basePath';
  * profile.
  *
  * Its own blank context per test (`SESSION_OWNING_SPECS`): it signs in as five different users.
+ *
+ * ⛔ It SKIPS when the run has no deployed target (`utils/deployedTarget.ts`), and the skip is not a pass. A local run
+ * is not that target: its browser serves at a free port and asks the local stack, which admits a browser only from the
+ * origin the stack is configured with, so every test used to wait 60 s for a `200` that could not come. The owner's
+ * rulings (2026-09-05, 2026-10-03) say a DEPLOYED-target spec skips when its target is absent and is never re-pointed at
+ * localhost. Mobile's `recipes/paidFeaturesByRole` flow checks the same rule, and it can run against the local stack.
  */
 test.use({ storageState: { cookies: [], origins: [] } });
 
@@ -47,33 +54,44 @@ async function openEditorAs(page: Page, role: keyof typeof ROLE_LANE_IDS): Promi
 }
 
 test.describe('paid features by role (deployed identity)', () => {
+    test.skip(
+        deployedTargetOrigin(process.env) === undefined,
+        'No deployed target: PLAYWRIGHT_BASE_URL names no non-loopback origin, and this spec reads the DEPLOYED ' +
+            'identity, so it is not run. A skip here proves nothing about paid features by role.',
+    );
+
     for (const role of ['premium', 'vip', 'superuser'] as const) {
-        test(`${role}: always granted — Private is a choice, with no Premium badge`, async ({ page }) => {
+        test(`${role}: always granted — Private is a choice, with no count and no Pro badge`, async ({ page }) => {
             expect(await openEditorAs(page, role)).toBe('granted');
 
             await expect(page.getByRole('radio', { name: 'Private' })).toBeVisible();
-            await expect(page.getByText('Premium', { exact: true })).toHaveCount(0);
+            await expect(page.getByText('Pro', { exact: true })).toHaveCount(0);
+            // Pro has no slot limit, so the server reports no count and none is shown (ADR-0073).
+            await expect(page.getByText(/private slots left/u)).toHaveCount(0);
         });
     }
 
     for (const role of ['default', 'admin'] as const) {
-        test(`⛔ ${role}: never granted, and shows only what the stage’s gate allows`, async ({ page }) => {
+        test(`⛔ ${role}: never granted — and Private is a slot, not Pro, whatever the stage’s gate says`, async ({
+            page,
+        }) => {
             const paidFeatures = await openEditorAs(page, role);
 
             expect(['upsell', 'hidden']).toContain(paidFeatures);
 
-            if (paidFeatures === 'upsell') {
-                // Gate on: the upsell, and only the upsell — Private carries the Premium badge and opens the sheet.
-                await expect(page.getByText('Premium', { exact: true })).toBeVisible();
-                await page.getByRole('radio', { name: 'Private' }).click();
-                await expect(page.getByRole('dialog', { name: 'Private recipes are part of Premium.' })).toBeVisible();
-                await expect(page.getByRole('radio', { name: 'Public', includeHidden: true })).toBeChecked();
-            } else {
-                // Gate off: no paid feature and no upsell at all.
-                await expect(page.getByText('Who can see it')).toBeVisible();
-                await expect(page.getByRole('radio', { name: 'Private' })).toHaveCount(0);
-                await expect(page.getByText('Premium', { exact: true })).toHaveCount(0);
-            }
+            // REWRITTEN for ADR-0073 (owner ruling 2026-10-26) and again for ADR-0073 section 12 / 001-FR-003b: this test
+            // PROVES THE NEW RULE, not the old one. A free cook keeps up to the server's limit of recipes private, so
+            // Private is offered in both gate answers. But a NEW recipe is a DRAFT and a draft holds no slot, so the
+            // Private card says that instead of counting; "N of M private slots left" belongs to a saved, published recipe.
+            // Mobile's `common/gateDecidesPrivate.yaml` asserts the same pair. Choosing Private saves nothing (the draft is
+            // not stored until a title is typed).
+            await expect(page.getByText(/A private draft uses no slot\. Publishing it uses one\./u)).toBeVisible();
+            await expect(page.getByText(/private slots left/u)).toHaveCount(0);
+            await page.getByRole('radio', { name: /^Private/u }).check();
+            await expect(page.getByRole('radio', { name: /^Private/u })).toBeChecked();
+            await expect(page.getByText('Pro', { exact: true })).toHaveCount(0);
+            await expect(page.getByRole('dialog', { name: 'Keep more recipes private' })).toHaveCount(0);
+            await expect(page.getByRole('dialog', { name: 'Private needs Pro for this recipe' })).toHaveCount(0);
         });
     }
 });

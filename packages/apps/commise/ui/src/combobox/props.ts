@@ -9,25 +9,49 @@
  */
 import type { ReactNode } from 'react';
 
-/** One suggestion. Its decoration is presentation only: an option holds no control (APG). */
-export interface ComboboxOption {
+/** What every suggestion carries, tagged or not. */
+interface ComboboxOptionFields {
     /** Stable identity among the options: the active descendant and the selection are keyed by it. */
     readonly key: string;
-    /** The option's visible text, and its accessible name unless {@link accessibleName} is given. */
+    /** The option's visible text, and its accessible name unless {@link ComboboxOption.accessibleName} is given. */
     readonly label: string;
     /** A variant's parts, in wire order, drawn under the label as `VariantPartsLine` draws them. */
     readonly detailParts?: readonly [string, ...string[]];
-    /**
-     * The option's accessible name, when it says more than its visible text. It starts with {@link label}
-     * (WCAG 2.5.3).
-     */
-    readonly accessibleName?: string;
     /**
      * Work the option started is in flight (a pick being added): it reads busy and refuses a second press or Enter.
      * `aria-disabled`, never `disabled`, so it keeps its place in the list (V1 sign-off, "Busy and disabled").
      */
     readonly busy?: boolean;
 }
+
+/**
+ * One suggestion. Its decoration is presentation only: an option holds no control (APG).
+ *
+ * An option may carry a quiet `tag` after its label, a `note` `StatusBadge` such as the picker's "Default"
+ * (`docs/design/uiRefreshWorkshop5/redesignCanvas/ingredientMatching.md`, owner ruling 2026-10-25), drawn by
+ * `OptionLabel`. A tag is visible text, so the union REQUIRES a tagged option to carry an
+ * {@link ComboboxOption.accessibleName}, which becomes the option's name on both platforms. ⚠️ The type proves only that
+ * a name is present. That it says the tag and starts with the label (WCAG 2.5.3) is the caller's to build and test
+ * (`foodChoiceNameOf` in `@commise/features-recipes`); nothing here checks the words. The tag is drawing only: the
+ * Combobox gives a tagged option no other treatment, so it is never made active or selected by its tag.
+ */
+export type ComboboxOption = ComboboxOptionFields &
+    (
+        | {
+              /**
+               * The option's accessible name, when it says more than its visible text. It starts with
+               * {@link ComboboxOptionFields.label} (WCAG 2.5.3).
+               */
+              readonly accessibleName?: string;
+              readonly tag?: undefined;
+          }
+        | {
+              /** The option's accessible name: its label, then what the tag says. */
+              readonly accessibleName: string;
+              /** The quiet word drawn after the label. Localised by the host. */
+              readonly tag: string;
+          }
+    );
 
 /** A labelled run of options, such as one source's results. */
 export interface ComboboxGroup {

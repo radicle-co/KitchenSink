@@ -29,6 +29,9 @@ import type { FC } from 'react';
 
 import { ROADMAP_WIDGET_IDS, type RoadmapWidgetId } from '@commise/features-core';
 import { renderWithProviders } from '@commise/test-utils';
+import { nativeTokens } from '@commise/ui/native';
+import { rgb, rolesFor } from '@commise/ui/testing/system-color-scheme';
+import { ARIA_HIDDEN_CONTENT, renderWithTamagui, resolvedColour } from '@commise/ui/testing/tamagui';
 
 import { MealPlanWidgetSkeleton } from '../../../src/components/home/skeletons/MealPlanWidgetSkeleton.js';
 import { NutritionWidgetSkeleton } from '../../../src/components/home/skeletons/NutritionWidgetSkeleton.js';
@@ -157,7 +160,8 @@ describe('roadmap skeletons (mobile) — no fake data (the CR-001 red line)', ()
         const { container } = renderWithProviders(<MealPlanWidgetSkeleton />);
 
         // One hidden thumbnail per day tile — the unknown, and nothing else on the strip.
-        expect(container.querySelectorAll('[aria-hidden="true"]')).toHaveLength(7);
+        // `ARIA_HIDDEN_CONTENT` leaves out the hidden config marker the design system's provider adds (ADR-0080).
+        expect(container.querySelectorAll(ARIA_HIDDEN_CONTENT)).toHaveLength(7);
 
         for (const day of ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']) {
             expect(
@@ -176,5 +180,27 @@ describe('roadmap skeletons (mobile) — no fake data (the CR-001 red line)', ()
         );
 
         expect(scrollers).toHaveLength(0);
+    });
+});
+
+// ADR-0080: the weekday draws through the design system's `Text`, in the `caption` role and `inkMuted` like the web
+// tile's `text-caption text-ink-muted`, so it follows the device's dark scheme and the 2x text cap.
+describe('MealPlanWidgetSkeleton (mobile) — the weekday’s type and colour', () => {
+    const firstDay = (): Element => screen.getByLabelText('Monday').firstElementChild as Element;
+
+    it('sets each weekday in the caption role', () => {
+        const spec = nativeTokens.type.caption;
+        renderWithTamagui(<MealPlanWidgetSkeleton />, 'light');
+        const style = getComputedStyle(firstDay());
+
+        expect(style.fontFamily).toContain(spec.fontFamily);
+        expect(style.fontSize).toBe(`${String(spec.fontSize)}px`);
+        expect(style.lineHeight).toBe(`${String(spec.lineHeight)}px`);
+    });
+
+    it.each(['light', 'dark'] as const)('paints each weekday in inkMuted in the %s scheme', (scheme) => {
+        renderWithTamagui(<MealPlanWidgetSkeleton />, scheme);
+
+        expect(resolvedColour(firstDay(), 'color')).toBe(rgb(rolesFor(scheme).inkMuted));
     });
 });

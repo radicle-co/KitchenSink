@@ -42,6 +42,7 @@ describe('evaluateVisibility — requested public', () => {
                     isPremium,
                     hasSubstantiveEdit: false,
                     requested: PUBLIC,
+                    hasAvailablePrivateSlot: true,
                 }),
                 true,
             );
@@ -56,6 +57,7 @@ describe('evaluateVisibility — requested public', () => {
                 isPremium: false,
                 hasSubstantiveEdit: false,
                 requested: PUBLIC,
+                hasAvailablePrivateSlot: true,
             }),
             true,
         );
@@ -68,6 +70,7 @@ describe('evaluateVisibility — requested public', () => {
             isPremium: true,
             hasSubstantiveEdit: true,
             requested: PUBLIC,
+            hasAvailablePrivateSlot: true,
         });
         const paid = evaluateVisibility({
             ...REAL_ENFORCING,
@@ -75,6 +78,7 @@ describe('evaluateVisibility — requested public', () => {
             isPremium: true,
             hasSubstantiveEdit: true,
             requested: PUBLIC,
+            hasAvailablePrivateSlot: true,
         });
 
         expectDecision(physical, false);
@@ -86,91 +90,162 @@ describe('evaluateVisibility — requested public', () => {
     });
 });
 
-describe('evaluateVisibility — requested private', () => {
-    it('user_created: ALLOWS private only for premium (free-tier is public-only)', () => {
-        const premium = evaluateVisibility({
-            ...REAL_ENFORCING,
-            sourceType: RecipeSourceType.USER_CREATED,
+describe('evaluateVisibility — requested private (ADR-0073 §6 truth table)', () => {
+    /**
+     * REWRITTEN for ADR-0073. It used to assert that a free user_created private request is denied outright and that
+     * imported_physical/imported_paid are always allowed. It now proves the §6 matrix cell by cell, against a LITERAL
+     * table (not a re-implementation of the rule), over every source type x tier x slot fact x substantive edit.
+     */
+    interface Row {
+        readonly sourceType: RecipeSourceType;
+        readonly isPremium: boolean;
+        readonly hasAvailablePrivateSlot: boolean;
+        readonly hasSubstantiveEdit: boolean;
+        readonly allowed: boolean;
+        /** For a refusal: whether it is the slot refusal (`privateSlots`) or an ordinary policy refusal. */
+        readonly denial?: 'policy' | 'privateSlots';
+    }
+
+    const UC = RecipeSourceType.USER_CREATED;
+    const IP = RecipeSourceType.IMPORTED_PUBLIC;
+    const PH = RecipeSourceType.IMPORTED_PHYSICAL;
+    const PD = RecipeSourceType.IMPORTED_PAID;
+
+    const TABLE: readonly Row[] = [
+        // user_created / imported_physical / imported_paid: Premium, or a free slot. The edit flag never matters.
+        ...[UC, PH, PD].flatMap((sourceType): Row[] =>
+            [false, true].flatMap((hasSubstantiveEdit): Row[] => [
+                { sourceType, isPremium: true, hasAvailablePrivateSlot: true, hasSubstantiveEdit, allowed: true },
+                { sourceType, isPremium: true, hasAvailablePrivateSlot: false, hasSubstantiveEdit, allowed: true },
+                { sourceType, isPremium: false, hasAvailablePrivateSlot: true, hasSubstantiveEdit, allowed: true },
+                {
+                    sourceType,
+                    isPremium: false,
+                    hasAvailablePrivateSlot: false,
+                    hasSubstantiveEdit,
+                    allowed: false,
+                    denial: 'privateSlots',
+                },
+            ]),
+        ),
+        // imported_public: Premium AND a substantive edit. A slot never helps, and a missing one is never the reason.
+        { sourceType: IP, isPremium: true, hasAvailablePrivateSlot: true, hasSubstantiveEdit: true, allowed: true },
+        { sourceType: IP, isPremium: true, hasAvailablePrivateSlot: false, hasSubstantiveEdit: true, allowed: true },
+        {
+            sourceType: IP,
             isPremium: true,
+            hasAvailablePrivateSlot: true,
             hasSubstantiveEdit: false,
-            requested: PRIVATE,
-        });
-        const free = evaluateVisibility({
+            allowed: false,
+            denial: 'policy',
+        },
+        {
+            sourceType: IP,
+            isPremium: true,
+            hasAvailablePrivateSlot: false,
+            hasSubstantiveEdit: false,
+            allowed: false,
+            denial: 'policy',
+        },
+        {
+            sourceType: IP,
+            isPremium: false,
+            hasAvailablePrivateSlot: true,
+            hasSubstantiveEdit: true,
+            allowed: false,
+            denial: 'policy',
+        },
+        {
+            sourceType: IP,
+            isPremium: false,
+            hasAvailablePrivateSlot: true,
+            hasSubstantiveEdit: false,
+            allowed: false,
+            denial: 'policy',
+        },
+        {
+            sourceType: IP,
+            isPremium: false,
+            hasAvailablePrivateSlot: false,
+            hasSubstantiveEdit: true,
+            allowed: false,
+            denial: 'policy',
+        },
+        {
+            sourceType: IP,
+            isPremium: false,
+            hasAvailablePrivateSlot: false,
+            hasSubstantiveEdit: false,
+            allowed: false,
+            denial: 'policy',
+        },
+    ];
+
+    it('covers every cell of the matrix exactly once', () => {
+        expect(TABLE).toHaveLength(4 * 2 * 2 * 2);
+        expect(
+            new Set(
+                TABLE.map((r) => `${r.sourceType}|${r.isPremium}|${r.hasAvailablePrivateSlot}|${r.hasSubstantiveEdit}`),
+            ).size,
+        ).toBe(TABLE.length);
+    });
+
+    it.each(TABLE)('%j', (row) => {
+        const decision = evaluateVisibility({
             ...REAL_ENFORCING,
-            sourceType: RecipeSourceType.USER_CREATED,
+            sourceType: row.sourceType,
+            isPremium: row.isPremium,
+            hasSubstantiveEdit: row.hasSubstantiveEdit,
+            requested: PRIVATE,
+            hasAvailablePrivateSlot: row.hasAvailablePrivateSlot,
+        });
+
+        expectDecision(decision, row.allowed);
+
+        if (!decision.allowed) {
+            // The slot refusal is a DISTINCT denial: the service maps it to 403 PRIVATE_SLOTS_FULL, never to the
+            // generic 400 INVALID_VISIBILITY a cook cannot act on.
+            expect(decision.denial).toBe(row.denial);
+        }
+    });
+
+    it('the slot refusal and the Premium refusal explain themselves differently', () => {
+        const noSlot = evaluateVisibility({
+            ...REAL_ENFORCING,
+            sourceType: UC,
             isPremium: false,
             hasSubstantiveEdit: false,
             requested: PRIVATE,
+            hasAvailablePrivateSlot: false,
         });
-
-        expectDecision(premium, true);
-        expectDecision(free, false);
-    });
-
-    it('imported_public: ALLOWS private only when premium AND hasSubstantiveEdit', () => {
-        const both = evaluateVisibility({
+        const noPremium = evaluateVisibility({
             ...REAL_ENFORCING,
-            sourceType: RecipeSourceType.IMPORTED_PUBLIC,
-            isPremium: true,
-            hasSubstantiveEdit: true,
-            requested: PRIVATE,
-        });
-        const premiumNoEdit = evaluateVisibility({
-            ...REAL_ENFORCING,
-            sourceType: RecipeSourceType.IMPORTED_PUBLIC,
-            isPremium: true,
-            hasSubstantiveEdit: false,
-            requested: PRIVATE,
-        });
-        const editNoPremium = evaluateVisibility({
-            ...REAL_ENFORCING,
-            sourceType: RecipeSourceType.IMPORTED_PUBLIC,
+            sourceType: IP,
             isPremium: false,
             hasSubstantiveEdit: true,
             requested: PRIVATE,
+            hasAvailablePrivateSlot: true,
         });
 
-        expectDecision(both, true);
-        expectDecision(premiumNoEdit, false);
-        expectDecision(editNoPremium, false);
-    });
-
-    it('imported_physical: ALLOWS private (private-only anyway), regardless of tier/edit', () => {
-        expectDecision(
-            evaluateVisibility({
-                ...REAL_ENFORCING,
-                sourceType: RecipeSourceType.IMPORTED_PHYSICAL,
-                isPremium: false,
-                hasSubstantiveEdit: false,
-                requested: PRIVATE,
-            }),
-            true,
-        );
-    });
-
-    it('imported_paid: ALLOWS private (private-only, permanent), regardless of tier/edit', () => {
-        expectDecision(
-            evaluateVisibility({
-                ...REAL_ENFORCING,
-                sourceType: RecipeSourceType.IMPORTED_PAID,
-                isPremium: false,
-                hasSubstantiveEdit: false,
-                requested: PRIVATE,
-            }),
-            true,
-        );
+        expect(noSlot.reason).not.toBe(noPremium.reason);
     });
 });
 
 describe('defaultCloneVisibility', () => {
     it('defaults user_created + imported_public clones to public', () => {
-        expect(defaultCloneVisibility(RecipeSourceType.USER_CREATED, REAL_ENFORCING)).toBe(PUBLIC);
-        expect(defaultCloneVisibility(RecipeSourceType.IMPORTED_PUBLIC, REAL_ENFORCING)).toBe(PUBLIC);
+        expect(defaultCloneVisibility(RecipeSourceType.USER_CREATED, REAL_ENFORCING, PUBLIC)).toBe(PUBLIC);
+        expect(defaultCloneVisibility(RecipeSourceType.IMPORTED_PUBLIC, REAL_ENFORCING, PUBLIC)).toBe(PUBLIC);
+    });
+
+    it('FR-005c: a clone of a PRIVATE source (only the owner can make one) is private, whatever its label', () => {
+        for (const sourceType of Object.values(RecipeSourceType)) {
+            expect(defaultCloneVisibility(sourceType, REAL_ENFORCING, PRIVATE)).toBe(PRIVATE);
+        }
     });
 
     it('defaults imported_physical + imported_paid clones to private', () => {
-        expect(defaultCloneVisibility(RecipeSourceType.IMPORTED_PHYSICAL, REAL_ENFORCING)).toBe(PRIVATE);
-        expect(defaultCloneVisibility(RecipeSourceType.IMPORTED_PAID, REAL_ENFORCING)).toBe(PRIVATE);
+        expect(defaultCloneVisibility(RecipeSourceType.IMPORTED_PHYSICAL, REAL_ENFORCING, PRIVATE)).toBe(PRIVATE);
+        expect(defaultCloneVisibility(RecipeSourceType.IMPORTED_PAID, REAL_ENFORCING, PRIVATE)).toBe(PRIVATE);
     });
 });
 
@@ -186,6 +261,7 @@ describe('evaluateVisibility — test-principal containment (ADR-0040)', () => {
                 isPremium: true,
                 hasSubstantiveEdit: true,
                 requested: PUBLIC,
+                hasAvailablePrivateSlot: true,
             });
 
             expectDecision(decision, false);
@@ -195,27 +271,22 @@ describe('evaluateVisibility — test-principal containment (ADR-0040)', () => {
         }
     });
 
-    it('⛔ leaves a test principal’s PRIVATE requests to the unchanged C-004 matrix', () => {
-        const premium = evaluateVisibility({
+    it('⛔ leaves a test principal’s PRIVATE requests to the C-004 matrix, slots included (ADR-0073)', () => {
+        const base = {
             principalKind: 'test',
             containment: 'enforce',
             sourceType: RecipeSourceType.USER_CREATED,
-            isPremium: true,
             hasSubstantiveEdit: false,
             requested: PRIVATE,
-        });
-        const free = evaluateVisibility({
-            principalKind: 'test',
-            containment: 'enforce',
-            sourceType: RecipeSourceType.USER_CREATED,
-            isPremium: false,
-            hasSubstantiveEdit: false,
-            requested: PRIVATE,
-        });
+        } as const;
+        const premium = evaluateVisibility({ ...base, isPremium: true, hasAvailablePrivateSlot: false });
+        const freeWithSlot = evaluateVisibility({ ...base, isPremium: false, hasAvailablePrivateSlot: true });
+        const freeNoSlot = evaluateVisibility({ ...base, isPremium: false, hasAvailablePrivateSlot: false });
 
         expectDecision(premium, true);
-        expectDecision(free, false);
-        expect(free.allowed === false && free.denial).toBe('policy');
+        expectDecision(freeWithSlot, true);
+        expectDecision(freeNoSlot, false);
+        expect(freeNoSlot.allowed === false && freeNoSlot.denial).toBe('privateSlots');
     });
 
     it('ALLOWS a test principal’s public request where containment is `off` (sandbox and pr-{N})', () => {
@@ -227,6 +298,7 @@ describe('evaluateVisibility — test-principal containment (ADR-0040)', () => {
                 isPremium: false,
                 hasSubstantiveEdit: false,
                 requested: PUBLIC,
+                hasAvailablePrivateSlot: true,
             }),
             true,
         );
@@ -239,6 +311,7 @@ describe('evaluateVisibility — test-principal containment (ADR-0040)', () => {
             isPremium: true,
             hasSubstantiveEdit: true,
             requested: PUBLIC,
+            hasAvailablePrivateSlot: true,
         });
 
         expect(decision.allowed === false && decision.denial).toBe('policy');
@@ -248,13 +321,19 @@ describe('evaluateVisibility — test-principal containment (ADR-0040)', () => {
 describe('defaultCloneVisibility — test-principal containment (ADR-0040)', () => {
     it('⛔ defaults EVERY clone by a contained test principal to private — a clone default must never publish', () => {
         for (const sourceType of Object.values(RecipeSourceType)) {
-            expect(defaultCloneVisibility(sourceType, { principalKind: 'test', containment: 'enforce' })).toBe(PRIVATE);
+            expect(defaultCloneVisibility(sourceType, { principalKind: 'test', containment: 'enforce' }, PUBLIC)).toBe(
+                PRIVATE,
+            );
         }
     });
 
     it('keeps the source-derived default for a test principal where containment is `off`', () => {
         expect(
-            defaultCloneVisibility(RecipeSourceType.USER_CREATED, { principalKind: 'test', containment: 'off' }),
+            defaultCloneVisibility(
+                RecipeSourceType.USER_CREATED,
+                { principalKind: 'test', containment: 'off' },
+                PUBLIC,
+            ),
         ).toBe(PUBLIC);
     });
 });

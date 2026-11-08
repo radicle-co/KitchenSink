@@ -2,7 +2,7 @@
  * @module @commise/features-recipes — the native version history's FAILED state (D3, D13; `buildSpec.md` §6.6: "We
  * couldn't load the history." + Try again), the twin of the web leaf.
  *
- * The settled list's title, so nothing moves between loading, failed and loaded; then an alert and a secondary Try again.
+ * The settled list's title, so nothing moves between loading, failed and loaded; then an alert and a quiet Try again.
  * The way back is the SCREEN's pinned bar, which is there in every state, so the header draws none and the props carry no
  * way back (`onBack` and `backHref` are the web leaf's, `RecipeVersionListErrorWebProps`), as the native skeleton does. The
  * copy arrives as props from the app's boundary dictionary.
@@ -22,7 +22,7 @@ import type { RecipeVersionListErrorProps } from './RecipeVersionListError.js';
 
 /**
  * @param props - The words, the retry and, when given, the way back.
- * @returns The title, an alert, and a secondary Try again button.
+ * @returns The title, an alert, and a quiet Try again button.
  */
 export const RecipeVersionListError: FC<RecipeVersionListErrorProps> = ({ title, retryLabel, onRetry }) => {
     const { versionList } = useMessages(recipeVersionMessages);
@@ -34,7 +34,7 @@ export const RecipeVersionListError: FC<RecipeVersionListErrorProps> = ({ title,
             <LargeTitleHeader headingId={headingId} title={versionList.heading} />
             <View role="alert" collapsable={false} style={styles.alert}>
                 <Text style={[nativeTokens.type.body, { color: colors.ink }]}>{title}</Text>
-                <Button variant="secondary" icon="refreshCw" onPress={onRetry}>
+                <Button variant="quiet" icon="refreshCw" onPress={onRetry}>
                     {retryLabel}
                 </Button>
             </View>

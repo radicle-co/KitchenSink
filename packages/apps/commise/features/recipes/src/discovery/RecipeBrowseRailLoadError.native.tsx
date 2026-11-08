@@ -9,6 +9,7 @@ import { useMessages } from '@commise/i18n/react';
 import { LiveRegion } from '@commise/ui/live-region';
 import { nativeTokens } from '@commise/ui/native';
 import { useTheme } from '@commise/ui/theme';
+import { touchFloor } from '@commise/ui/layout';
 import type { FC } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -38,7 +39,7 @@ export const RecipeBrowseRailLoadError: FC<RecipeBrowseRailLoadErrorProps> = ({ 
 
 const styles = StyleSheet.create({
     row: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: nativeTokens.spacing[2] },
-    note: { fontSize: nativeTokens.fontSize.bodySm },
-    retry: { minHeight: 44, justifyContent: 'center', paddingHorizontal: nativeTokens.spacing[2] },
-    retryLabel: { fontSize: nativeTokens.fontSize.bodySm, fontWeight: '600' },
+    note: { ...nativeTokens.type.meta },
+    retry: { minHeight: touchFloor(), justifyContent: 'center', paddingHorizontal: nativeTokens.spacing[2] },
+    retryLabel: { ...nativeTokens.type.label },
 });

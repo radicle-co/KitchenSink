@@ -22,7 +22,13 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { InvalidRequestError, NotFoundError, ParseJobExpiredError, RecipeServiceClient } from '../index.js';
+import {
+    ImportQuotaExceededError,
+    InvalidRequestError,
+    NotFoundError,
+    ParseJobExpiredError,
+    RecipeServiceClient,
+} from '../index.js';
 import {
     FIXTURE_PARSE_JOB_UUID,
     makeCompleteParseJob,
@@ -106,6 +112,52 @@ describe('RecipeServiceClient — parse jobs', () => {
         expect(req.url).toBe(`${BASE}/api/v1/recipe-parse-jobs/${FIXTURE_PARSE_JOB_UUID}/retry`);
     });
 
+    it('proposeParseJobMatches POSTs /{id}/matches with no body and returns the job view with matches (202)', async () => {
+        const job = makeParseJob({
+            lines: [
+                makeParseJobLine({
+                    status: 'parsed',
+                    progress: null,
+                    proposal: {
+                        raw: '2 cups milk',
+                        quantity: { kind: 'exact', value: 2 },
+                        unit: 'cup',
+                        statedMeasure: '2 cups',
+                        reviewReasons: [],
+                        foods: [
+                            {
+                                name: 'milk',
+                                prep: null,
+                                match: {
+                                    state: 'default',
+                                    reason: 'defaultApplies',
+                                    proposed: { kind: 'root', id: 'F-whole', name: 'Milk, whole' },
+                                    candidates: [{ kind: 'root', id: 'F-whole', name: 'Milk, whole', isDefault: true }],
+                                },
+                            },
+                        ],
+                    },
+                }),
+            ],
+        });
+        const fetchMock = stubFetch(202, job);
+
+        const result = await makeClient(fetchMock).proposeParseJobMatches(FIXTURE_PARSE_JOB_UUID);
+
+        expect(result.lines[0]?.proposal?.foods[0]?.match?.state).toBe('default');
+        const req = requestAt(fetchMock);
+        expect(req.method).toBe('POST');
+        expect(req.url).toBe(`${BASE}/api/v1/recipe-parse-jobs/${FIXTURE_PARSE_JOB_UUID}/matches`);
+    });
+
+    it('proposeParseJobMatches surfaces the expiry refusal', async () => {
+        const fetchMock = stubFetch(409, { code: 'PARSE_JOB_EXPIRED', message: 'expired' });
+
+        await expect(makeClient(fetchMock).proposeParseJobMatches(FIXTURE_PARSE_JOB_UUID)).rejects.toBeInstanceOf(
+            ParseJobExpiredError,
+        );
+    });
+
     it('withdrawParseJobLines POSTs /{id}/withdraw-lines with the indexes and returns the job view (200)', async () => {
         const job = makeParseJob({ lines: [makeParseJobLine({ lineIndex: 3, status: 'withdrawn', progress: null })] });
         const fetchMock = stubFetch(200, job);
@@ -176,6 +228,36 @@ describe('RecipeServiceClient — parse jobs', () => {
 
         expect(error).toBeInstanceOf(ParseJobExpiredError);
         expect(error).toMatchObject({ status: 409, code: 'PARSE_JOB_EXPIRED' });
+    });
+
+    it('⛔ maps 429 IMPORT_QUOTA_EXCEEDED to its OWN typed error carrying resetsAt, not a throttle (004 FR-022)', async () => {
+        const fetchMock = stubFetch(429, {
+            code: 'IMPORT_QUOTA_EXCEEDED',
+            message: 'The daily import allowance is spent.',
+            details: { resetsAt: '2026-10-27T03:30:00.000Z' },
+        });
+
+        const error = await makeClient(fetchMock)
+            .createParseJob({ text: '2 cups flour' })
+            .catch((thrown: unknown) => thrown);
+
+        expect(error).toBeInstanceOf(ImportQuotaExceededError);
+        expect(error).toMatchObject({
+            status: 429,
+            code: 'IMPORT_QUOTA_EXCEEDED',
+            resetsAt: '2026-10-27T03:30:00.000Z',
+        });
+    });
+
+    it('does not mistake a plain throttle 429 for the quota: that one stays a generic, retryable response', async () => {
+        const fetchMock = stubFetch(429, { code: 'TOO_MANY_REQUESTS', message: 'Slow down.' });
+
+        const error = await makeClient(fetchMock)
+            .createParseJob({ text: '2 cups flour' })
+            .catch((thrown: unknown) => thrown);
+
+        expect(error).not.toBeInstanceOf(ImportQuotaExceededError);
+        expect(error).toMatchObject({ status: 429, code: 'TOO_MANY_REQUESTS' });
     });
 
     it('editParseJobLine surfaces the same expiry error — the TTL bounds every mutation, not just retry', async () => {

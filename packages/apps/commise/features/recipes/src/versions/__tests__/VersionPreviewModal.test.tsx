@@ -8,7 +8,7 @@
  * dismissal (Cancel + Escape/focus-return).
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 
@@ -195,6 +195,32 @@ describe('VersionPreviewModal (web) — populated version', () => {
         expect(screen.getByText('Changed from current: 1 ingredient, 1 step')).toBeTruthy();
     });
 
+    // A title-only edit used to read "0 ingredients, 0 steps", which at the top of the sheet says nothing changed.
+    it('names a changed title rather than counting zero ingredients and steps', () => {
+        const titleOnly: SnapshotDiff = {
+            changedFields: ['title'],
+            steps: { added: 0, removed: 0, modified: 0 },
+            ingredients: { added: 0, removed: 0, modified: 0 },
+            summary: { added: 0, removed: 0, modified: 1 },
+        };
+        render(<VersionPreviewModal {...baseProps({ version: populatedVersion, diffFromCurrent: titleOnly })} />);
+
+        expect(screen.getByText('Changed from current: Title')).toBeTruthy();
+        expect(screen.queryByText(/0 ingredients/)).toBeNull();
+    });
+
+    it('says so when the version is the same as the current one', () => {
+        const same: SnapshotDiff = {
+            changedFields: [],
+            steps: { added: 0, removed: 0, modified: 0 },
+            ingredients: { added: 0, removed: 0, modified: 0 },
+            summary: { added: 0, removed: 0, modified: 0 },
+        };
+        render(<VersionPreviewModal {...baseProps({ version: populatedVersion, diffFromCurrent: same })} />);
+
+        expect(screen.getByText('Same as the current version.')).toBeTruthy();
+    });
+
     it('omits the "changed from current" line when no diff was supplied', () => {
         render(<VersionPreviewModal {...baseProps({ version: populatedVersion })} />);
 
@@ -298,7 +324,7 @@ describe('VersionPreviewModal (web) — error', () => {
         const onCancel = vi.fn();
         render(<VersionPreviewModal {...baseProps({ error: true, onCancel })} />);
 
-        expect(screen.getByRole('alert').textContent).toBe('We couldn’t load that version. Please try again.');
+        expect(screen.getByRole('alert').textContent).toBe('We couldn’t load that version. Try again.');
         expect(screen.queryByRole('status')).toBeNull();
         expect(screen.queryByRole('button', { name: 'Restore this version' })).toBeNull();
 
@@ -314,7 +340,7 @@ describe('VersionPreviewModal (web) — error', () => {
         const onCancel = vi.fn();
         render(<VersionPreviewModal {...baseProps({ isLoading: false, onCancel })} />);
 
-        expect(screen.getByRole('alert').textContent).toBe('We couldn’t load that version. Please try again.');
+        expect(screen.getByRole('alert').textContent).toBe('We couldn’t load that version. Try again.');
         expect(screen.queryByRole('status')).toBeNull();
 
         await user.click(screen.getByRole('button', { name: 'Keep current version' }));
@@ -589,5 +615,175 @@ describe('VersionPreviewModal (web) — the design-system Button (UI overhaul sl
         render(<VersionPreviewModal {...baseProps({ version: populatedVersion, diffFromCurrent: populatedDiff })} />);
 
         expectDesignSystemButton(screen.getByRole('button', { name: 'Keep current version' }), 'secondary', 'x');
+    });
+});
+
+/**
+ * The decision comes first (`versionPreviewParity.md`): a cook opens a preview to learn what a restore changes, so the
+ * "Changed from current" line follows the title and the errors, the recipe body is the ONLY part that scrolls, and the
+ * two actions are pinned under it. On a long recipe the dialog used to scroll as one block, which put the line and both
+ * actions below the fold. The actions stack at a narrow width instead of overflowing.
+ */
+describe('VersionPreviewModal — the decision comes first', () => {
+    const summaryText = 'Changed from current: 3 ingredients, 1 step';
+
+    const bodyScroller = (): HTMLElement => {
+        const scroller = screen.getByText('Title').closest('div.overflow-y-auto');
+
+        if (!(scroller instanceof HTMLElement)) {
+            throw new Error('the recipe body is not inside a scroller');
+        }
+
+        return scroller;
+    };
+
+    it('puts the summary before the recipe fields, outside the scroller', () => {
+        render(<VersionPreviewModal {...baseProps({ version: populatedVersion, diffFromCurrent: populatedDiff })} />);
+
+        const summary = screen.getByText(summaryText);
+
+        expect(
+            summary.compareDocumentPosition(screen.getByText('Title')) & Node.DOCUMENT_POSITION_FOLLOWING,
+        ).toBeTruthy();
+        expect(bodyScroller().contains(summary)).toBe(false);
+    });
+
+    it('puts the restore error above the summary', () => {
+        render(
+            <VersionPreviewModal
+                {...baseProps({
+                    version: populatedVersion,
+                    diffFromCurrent: populatedDiff,
+                    restoreError: { kind: 'generic', versionNumber: 10 },
+                })}
+            />,
+        );
+
+        expect(
+            screen.getByRole('alert').compareDocumentPosition(screen.getByText(summaryText)) &
+                Node.DOCUMENT_POSITION_FOLLOWING,
+        ).toBeTruthy();
+    });
+
+    it('scrolls the recipe body only: the dialog itself and the actions are outside the scroller', () => {
+        render(<VersionPreviewModal {...baseProps({ version: populatedVersion, diffFromCurrent: populatedDiff })} />);
+
+        const scroller = bodyScroller();
+
+        expect(screen.getByRole('dialog').className.split(/\s+/u)).not.toContain('overflow-y-auto');
+        expect(scroller.contains(screen.getByRole('button', { name: 'Restore this version' }))).toBe(false);
+        expect(scroller.contains(screen.getByRole('button', { name: 'Keep current version' }))).toBe(false);
+        expect(scroller.className.split(/\s+/u)).toEqual(expect.arrayContaining(['min-h-0', 'flex-1']));
+    });
+
+    it('stacks the actions at a narrow width, Restore on top, and sets them in a row from 600', () => {
+        render(<VersionPreviewModal {...baseProps({ version: populatedVersion })} />);
+
+        const keep = screen.getByRole('button', { name: 'Keep current version' });
+        const row = keep.parentElement as HTMLElement;
+        const classes = row.className.split(/\s+/u);
+
+        expect(classes).toContain('flex-col-reverse');
+        expect(classes).toContain('@[37.5rem]/dialog:flex-row');
+        expect([...row.querySelectorAll('button')].map((button) => button.textContent)).toStrictEqual([
+            'Keep current version',
+            'Restore this version',
+        ]);
+    });
+
+    it('fills the stacked row with Keep as well as Restore, so the two are one width', () => {
+        render(<VersionPreviewModal {...baseProps({ version: populatedVersion })} />);
+
+        const keep = screen.getByRole('button', { name: 'Keep current version' });
+
+        expect(keep.className.split(/\s+/u)).toEqual(expect.arrayContaining(['w-full', '@[37.5rem]/dialog:w-auto']));
+        expect(screen.getByRole('button', { name: 'Restore this version' }).parentElement?.className).toContain(
+            'self-stretch',
+        );
+    });
+});
+
+/**
+ * The pinned-footer limit (`docs/design/compactHeightLayout.md` §3.1, `versionPreviewParity.md` §3). At large text on a
+ * short phone the pinned title, errors and summary plus the stacked actions can take most of the dialog and leave the
+ * recipe a sliver. Past half the dialog the actions drop into the end of the body's scroller; below it they stay pinned.
+ * jsdom lays nothing out, so the test states each part's height through `getBoundingClientRect` and fires the observers.
+ */
+describe('VersionPreviewModal — the pinned-footer limit', () => {
+    const reports = new Set<() => void>();
+
+    class ResizeObserverStub {
+        private readonly report: () => void;
+
+        public constructor(callback: ResizeObserverCallback) {
+            this.report = () => callback([], this);
+        }
+
+        public observe(): void {
+            reports.add(this.report);
+        }
+
+        public unobserve(): void {
+            reports.delete(this.report);
+        }
+
+        public disconnect(): void {
+            reports.delete(this.report);
+        }
+    }
+
+    afterEach(() => {
+        vi.restoreAllMocks();
+        vi.unstubAllGlobals();
+        reports.clear();
+    });
+
+    /** Render, then report `heights` for the dialog (the frame), its pinned top and its actions. */
+    function renderMeasured(heights: { readonly frame: number; readonly top: number; readonly footer: number }): void {
+        vi.stubGlobal('ResizeObserver', ResizeObserverStub);
+        render(<VersionPreviewModal {...baseProps({ version: populatedVersion, diffFromCurrent: populatedDiff })} />);
+
+        const frame = screen.getByRole('dialog');
+        const top = screen.getByRole('heading', { level: 2 }).parentElement as HTMLElement;
+        const footer = screen.getByRole('button', { name: 'Keep current version' }).parentElement?.parentElement
+            ?.parentElement as HTMLElement;
+        const heightOf = new Map<Element, number>([
+            [frame, heights.frame],
+            [top, heights.top],
+            [footer, heights.footer],
+        ]);
+
+        vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+            return { height: heightOf.get(this) ?? 0 } as DOMRect;
+        });
+        act(() => {
+            for (const report of reports) {
+                report();
+            }
+        });
+    }
+
+    const scrollerOf = (): HTMLElement => screen.getByText('Title').closest('div.overflow-y-auto') as HTMLElement;
+
+    it('keeps the actions pinned under the scroller while the pinned parts are under half the dialog', () => {
+        renderMeasured({ frame: 600, top: 120, footer: 120 });
+
+        expect(scrollerOf().contains(screen.getByRole('button', { name: 'Restore this version' }))).toBe(false);
+    });
+
+    it('drops the actions to the end of the scroller once the pinned parts pass half the dialog', () => {
+        renderMeasured({ frame: 400, top: 120, footer: 120 });
+
+        const scroller = scrollerOf();
+        const restore = screen.getByRole('button', { name: 'Restore this version' });
+
+        expect(scroller.contains(restore)).toBe(true);
+        expect(scroller.contains(screen.getByRole('button', { name: 'Keep current version' }))).toBe(true);
+        // Last in the scroller: the recipe is read first, then the choice.
+        expect(
+            screen.getByText('Steps at v10').compareDocumentPosition(restore) & Node.DOCUMENT_POSITION_FOLLOWING,
+        ).toBeTruthy();
+        // The title and the summary stay pinned outside it.
+        expect(scroller.contains(screen.getByText(/^Changed from current:/))).toBe(false);
     });
 });

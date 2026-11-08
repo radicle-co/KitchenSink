@@ -69,7 +69,7 @@ export function formatNameCounter(template: string, counter: NameCounter): strin
 /**
  * @param template - The localized username line, with `{username}` (`profileMessages.usernameValue`).
  * @param username - The Clerk username.
- * @returns The line the header shows, such as `@braise`. Pure.
+ * @returns The value the Username row shows, such as `@braise`. Pure.
  */
 export function formatUsername(template: string, username: string): string {
     return template.replace('{username}', () => username);
@@ -144,6 +144,27 @@ export type ProfileRead =
           readonly username: string | null;
       };
 
+/**
+ * The line beside the avatar: the display name, else the @username, else nothing (owner ruling T8, 2026-10-29). The
+ * username shows here only when there is no name to show, so a cook with a name sees each fact once (ruling S2).
+ *
+ * @param read - The ready profile read.
+ * @param usernameTemplate - The localized username line (`profileMessages.usernameValue`).
+ * @returns The text to draw, or an empty string when the cook has neither (the header is the avatar alone). Pure.
+ */
+export function profileHeaderTitleOf(
+    read: Extract<ProfileRead, { readonly status: 'ready' }>,
+    usernameTemplate: string,
+): string {
+    const username = nonBlank(read.username);
+
+    if (read.displayName !== '') {
+        return read.displayName;
+    }
+
+    return username === undefined ? '' : formatUsername(usernameTemplate, username);
+}
+
 /** The slice of a profile query this reads. */
 export interface ProfileQueryState {
     readonly isError: boolean;
@@ -168,4 +189,23 @@ export function profileReadOf(query: ProfileQueryState): ProfileRead {
     }
 
     return { status: query.isError ? 'failed' : 'loading' };
+}
+
+/**
+ * The room, in points of text at 1x, below which a label-and-value row stacks its value under its label (designer ruling
+ * 2026-11-01, `nativeBoards/designAnswers.md`). The web reads the same room as a 17.5 rem container query.
+ */
+export const LABEL_VALUE_MIN_ROOM = 280;
+
+/**
+ * Whether a label-and-value row stacks: by ROOM, as the recipe page's stat strip is judged (`detailNativeLayoutOf`), so a
+ * wide tablet that has room never stacks. The room is the content width in units of text: the width over the scale the
+ * text is drawn at. Pure.
+ *
+ * @param contentWidth - The width the page's content gets, in points (native: `contentWidthOf` of the window).
+ * @param cappedScale - The font scale the text is drawn at (`cappedFontScale`).
+ * @returns `true` when the room is below {@link LABEL_VALUE_MIN_ROOM}; exactly 280 stays beside.
+ */
+export function labelValueStacksAt(contentWidth: number, cappedScale: number): boolean {
+    return contentWidth / cappedScale < LABEL_VALUE_MIN_ROOM;
 }

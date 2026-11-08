@@ -77,12 +77,13 @@ test.describe('ingredient groups (build spec §7.5.5)', () => {
 
         const paste = ingredients.getByRole('list', { name: 'Paste' });
 
-        await expect(paste.getByRole('button', { name: /^Edit / })).toHaveText(['1 tspGarlic', '1 tspGinger']);
+        // One text run per row (#144): the amount, a space, then the food.
+        await expect(paste.getByRole('button', { name: /^Edit / })).toHaveText(['1 tsp Garlic', '1 tsp Ginger']);
         await expect(ingredientOpen(ingredients.getByRole('list', { name: 'Ingredients' }), 'Cumin')).toBeVisible();
 
         // Move up inside the group; focus stays on the row's ⋯.
         await chooseRowAction(page, 'Ginger', 'Move up');
-        await expect(paste.getByRole('button', { name: /^Edit / })).toHaveText(['1 tspGinger', '1 tspGarlic']);
+        await expect(paste.getByRole('button', { name: /^Edit / })).toHaveText(['1 tsp Ginger', '1 tsp Garlic']);
         await expect(page.getByRole('button', { name: 'Actions for Ginger' })).toBeFocused();
 
         // Rename the group: every line in it follows.
@@ -132,7 +133,7 @@ test.describe('ingredient groups (build spec §7.5.5)', () => {
         await expect(ingredients.getByRole('heading', { level: 3 })).toHaveCount(0);
         await expect(
             ingredients.getByRole('list', { name: 'Ingredients' }).getByRole('button', { name: /^Edit / }),
-        ).toHaveText(['1 tspCumin', '1 tspGarlic']);
+        ).toHaveText(['1 tsp Cumin', '1 tsp Garlic']);
     });
 
     // Build spec §7.2 and §7.5.6: from 960 the section rail's foot carries the Ingredients total too, the same line as

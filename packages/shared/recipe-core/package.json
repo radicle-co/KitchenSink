@@ -22,6 +22,7 @@
         "./resolution/verification-gate-policy": "./src/resolution/verificationGatePolicy.ts",
         "./resolution/verification-message": "./src/resolution/verificationMessage.ts",
         "./resolution/verification-key": "./src/resolution/verificationKey.ts",
+        "./resolution/verification-delivery": "./src/resolution/verificationDelivery.ts",
         "./resolution/confidence": "./src/resolution/confidence.ts",
         "./resolution/search-minimum": "./src/resolution/searchMinimum.ts",
         "./resolution/food-search-groups": "./src/resolution/foodSearchGroups.ts",
@@ -33,6 +34,8 @@
         "./parsing/parse-job-aggregate": "./src/parsing/parseJobAggregate.ts",
         "./parsing/parse-line-delivery": "./src/parsing/parseLineDelivery.ts",
         "./parsing/parse-key": "./src/parsing/parseKey.ts",
+        "./parsing/measure-reader": "./src/parsing/measureReader.ts",
+        "./parsing/pasted-line-measure": "./src/parsing/pastedLineMeasure.ts",
         "./spend/spend-arithmetic": "./src/spend/spendArithmetic.ts",
         "./parsing/parse-prompt": "./src/parsing/parsePrompt.ts",
         "./parsing/parse-retry-prompt": "./src/parsing/parseRetryPrompt.ts",
@@ -41,6 +44,7 @@
         "./external-url": "./src/externalUrl.ts"
     },
     "dependencies": {
+        "numeric-quantity": "^3.3.1",
         "zod": "^4.6.7"
     },
     "scripts": {

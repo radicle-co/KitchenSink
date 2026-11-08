@@ -18,10 +18,10 @@ import { useRefreshNotice } from '@commise/query/refresh-notice';
 import { nativeRecentSearchStore } from '../storage/recentSearchStore.js';
 
 /**
- * The host closure every wired surface writes: one slot per card, all reading the SAME batch promise.
+ * The host closure every wired surface writes: one slot per card, each reading its page's batch (ADR-0079).
  *
- * `null` from the lookup means no batch covers this recipe — render nothing, rather than mounting a boundary with no
- * promise to settle (a skeleton that would never come down).
+ * `null` from the lookup means no batch covers this recipe — render nothing, rather than mounting a slot with no
+ * reading to settle (a skeleton that would never come down).
  *
  * @param recipeIdPages - The recipe ids on screen, grouped as they were LOADED (one page per fetched page).
  * @returns The `renderNutrition` render prop the presentational views call once per card.

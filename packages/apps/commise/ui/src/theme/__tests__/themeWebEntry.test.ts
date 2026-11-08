@@ -25,4 +25,10 @@ describe('@commise/ui/theme on web', () => {
 
         expect(() => useTheme()).toThrow(/native-only/u);
     });
+
+    it('refuses useColorSchemeName, which is native-only, with a message that says where the web scheme lives', async () => {
+        const { useColorSchemeName } = await import('../index.js');
+
+        expect(() => useColorSchemeName()).toThrow(/native-only/u);
+    });
 });

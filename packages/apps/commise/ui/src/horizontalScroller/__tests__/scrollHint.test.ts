@@ -119,6 +119,42 @@ describe('scrollExtentOf and scrollHintOf', () => {
     });
 });
 
+describe('scrollExtentOf — the outer box, which includes the gutter the chevron takes', () => {
+    // The chevron has its own 24 px column beside the scroller, so the scroller (the viewport) is narrower than the box
+    // around both (the outer box) whenever the content overflows. Whether it overflows is decided against the OUTER
+    // box: the viewport itself moves with the gutter, so deciding against it would flip the gutter on and off.
+    it('decides overflow against the outer box, not the narrower scroller', () => {
+        // 280 px of content fits a 300 px box, and is wider than the 276 px scroller the gutter would leave.
+        expect(scrollExtentOf({ startOffset: 0, viewport: 276, outer: 300, content: 280 })).toEqual({
+            measured: true,
+            overflows: false,
+            atStart: true,
+            atEnd: true,
+        });
+    });
+
+    it('overflows once the content is wider than the outer box', () => {
+        expect(scrollExtentOf({ startOffset: 0, viewport: 276, outer: 300, content: 310 })).toMatchObject({
+            overflows: true,
+            atStart: true,
+            atEnd: false,
+        });
+    });
+
+    it('finds the end against the scroller, which is what the reader scrolls', () => {
+        // 310 - 276 = 34 px of travel, though the content is only 10 px wider than the outer box.
+        expect(scrollExtentOf({ startOffset: 32, viewport: 276, outer: 300, content: 310 }).atEnd).toBe(false);
+        expect(scrollExtentOf({ startOffset: 34, viewport: 276, outer: 300, content: 310 }).atEnd).toBe(true);
+    });
+
+    it('reads the viewport as the outer box when none is reported', () => {
+        expect(scrollExtentOf({ startOffset: 0, viewport: 300, content: 640 })).toEqual(
+            scrollExtentOf({ startOffset: 0, viewport: 300, outer: 300, content: 640 }),
+        );
+        expect(scrollExtentOf({ startOffset: 0, viewport: 300, outer: 0, content: 640 }).overflows).toBe(true);
+    });
+});
+
 describe('startOffsetOf', () => {
     // x, viewport, content, rtl, platform → distance from the START edge. Overscroll reads as 0.
     it.each([

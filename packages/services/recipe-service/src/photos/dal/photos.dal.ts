@@ -46,7 +46,8 @@ export class PhotosDal {
     /**
      * Persist a confirmed photo's metadata, enforcing the {@link MAX_PHOTOS_PER_RECIPE} cap. Runs the
      * COUNT and the INSERT in one transaction so the cap check and the write are consistent, and assigns
-     * the new row's `sortOrder` as append-to-end.
+     * the new row's `sortOrder` as append-to-end. A key that already has a row (a retried confirm) returns
+     * that row and writes nothing.
      *
      * @throws `MAX_PHOTOS_EXCEEDED` when the recipe already holds {@link MAX_PHOTOS_PER_RECIPE} photos.
      * @sideEffect Reads a COUNT and inserts one `recipe_photos` row.
@@ -60,6 +61,27 @@ export class PhotosDal {
             await tx.execute(
                 sql`SELECT pg_advisory_xact_lock(${ADVISORY_LOCK_CLASSES.recipePhoto}, hashtext(${input.recipeId}))`,
             );
+
+            // A retried confirm names an object already stored: answer with its row. This comes BEFORE the cap
+            // check, because the retry adds no photo and must not fail as "over the cap". Under the lock above,
+            // and with `uq_recipe_photos_s3_key` behind it, one object can never have two rows.
+            const [existing] = await tx.select().from(recipePhotos).where(eq(recipePhotos.s3Key, input.s3Key)).limit(1);
+
+            if (existing) {
+                // The thumbnail key is the original's key plus a suffix, so a retry rewrites the SAME object. If the
+                // first confirm stored no thumbnail, record this one, or the object is orphaned from its row.
+                if (existing.thumbnailKey === null && input.thumbnailKey !== undefined) {
+                    const [healed] = await tx
+                        .update(recipePhotos)
+                        .set({ thumbnailKey: input.thumbnailKey, updatedAt: new Date() })
+                        .where(eq(recipePhotos.id, existing.id))
+                        .returning();
+
+                    return healed ?? existing;
+                }
+
+                return existing;
+            }
 
             const count = await this.countByRecipe(tx, input.recipeId);
 

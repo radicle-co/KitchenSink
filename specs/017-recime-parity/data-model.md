@@ -50,6 +50,17 @@ household_members
    redelivery (FR-032b). `display_name` is re-derived if it carried the erased owner's handle (FR-032c).
 6. **Seats** are `min(subscription seat allowance, active member count)`. The allowance is read from the
    signed `public_metadata` claim `010-FR-044` already publishes — **no new lookup, no new token claim**.
+   ⚠️ **Amended 2026-10-27 (FR-034, owner ruling).** There are no paid seats. The limit is 6 accounts for every
+   household, from 010's plan register. Coverage is the higher paid plan held by any active member (FR-034a). It
+   flows into each member's effective plan (FR-034b), so the claim now carries more than one cook's own purchase.
+   `staff-architect` decides at plan time whether that still needs no new lookup.
+   ⚠️ **Amended 2026-10-28 (owner ruling: "Let's plan that for the household then").** Coverage no longer flows
+   into each member's own plan. The computation has two outputs (FR-034b): the member's **own plan** (own purchase,
+   referral reward, household upgrade) and the **household plan** (the higher paid plan of any active member, or Pro
+   under the upgrade). Neither is stored. Both are derived, so a lapse or a departure cannot leave a stale copy. The
+   one new input is whether the household upgrade is on. Its source of truth is the payer's RevenueCat entitlement,
+   so it is read, not stored here. A household AI use (FR-034c, FR-034m) is charged to one account's allowance and
+   records the acting member and the charged account. `staff-architect` places that record with 005's credit ledger.
 
 **Migration ordering (EXPAND-FIRST)**: create tables → backfill one household per existing account →
 add `household_id` to plans/lists **nullable** → dual-write → flip reads → drop owner-scoping in a _later_
@@ -57,11 +68,13 @@ release. `006-FR-029`'s owner scoping is only removed once nothing reads it.
 
 ### Ownership transfer, stated explicitly
 
-| Today                                     | After                                                                |
-| ----------------------------------------- | -------------------------------------------------------------------- |
-| `meal_plans.owner_user_id` (`006-FR-029`) | `meal_plans.household_id`                                            |
-| grocery lists scoped to owner             | `grocery_lists.household_id`                                         |
-| personal recipes                          | **unchanged** — still `user_id`. Recipes are not household property. |
+| Today                                       | After                                                                |
+| ------------------------------------------- | -------------------------------------------------------------------- |
+| `meal_plans.owner_user_id` (`006-FR-029`)   | `meal_plans.household_id`                                            |
+| grocery lists scoped to owner               | `grocery_lists.household_id`                                         |
+| `user_pantry_items.owner_id` (`007-FR-040`) | `household_id`, on every plan (FR-034a, added 2026-10-28)            |
+| a household collection (FR-034j)            | owned by the household, not by one member (added 2026-10-28)         |
+| personal recipes                            | **unchanged** — still `user_id`. Recipes are not household property. |
 
 That last row is deliberate: making recipes household-owned would silently change who can erase them and
 collide with `015`'s reward grants and `016`'s per-user content licence.
@@ -164,6 +177,9 @@ mean the system default; a household never sees an empty taxonomy.
 ---
 
 ## 5. Library migration
+
+> ⚠️ The resource and its URL wait on open question OQ-P1 in [contracts/portability.md](contracts/portability.md). If
+> library migration is ADR-0072's bulk import, these two tables become that import's tables, not a second set.
 
 ```text
 library_migrations

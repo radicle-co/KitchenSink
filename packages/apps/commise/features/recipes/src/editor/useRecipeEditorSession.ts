@@ -9,9 +9,10 @@
  * The session binds the editor's lifecycle (`useRecipeEditor`) to everything else it needs:
  *
  * - **The hand-offs, through a navigation port** ({@link EditorNavigation}): the editor says how it handed off, and each
- *   platform says where that goes (web pushes a route, native goes back or to the recipe). A Publish or Save changes
- *   first sends the visibility the write's answer lacks (`visibilityFollowUp`) — never a Private the server is known to
- *   refuse, which the finish reports instead.
+ *   platform says where that goes (web pushes a route, native goes back or to the recipe). A first Publish is
+ *   preceded by the visibility write (the editor's `writeVisibilityFirst`), so a recipe marked Private is never public
+ *   first; a Save changes of a published recipe sends the visibility its answer lacks afterwards (`visibilityFollowUp`).
+ *   Never a Private the server is known to refuse, which the finish reports instead.
  * - **A leave by another route than ×**: the exit checkpoint. Native hears Back and the swipe through `subscribeToLeave`
  *   (`beforeRemove`); on both platforms the editor UNMOUNTING is a leave too, because the web has no such event — browser
  *   Back or a shell link simply unmounts it.
@@ -27,11 +28,10 @@
  * @pattern Mediator — the editor, the row editor, the paste and the navigation port coordinated in one place
  * @pattern Port — {@link EditorNavigation}, the platform's router behind the editor's hand-offs
  */
-import type { PaidFeatureState } from '@commise/features-account';
 import type { ErrorReporter } from '@commise/features-core';
 import type { Locale } from '@commise/i18n';
 import { RecipeVisibility, type RecipeDetail } from '@kitchensink/recipe-core';
-import { recipeQueries } from '@kitchensink/recipe-service-client';
+import { recipeQueries, recipeServiceKeys } from '@kitchensink/recipe-service-client';
 import {
     useRebindIngredientLine,
     useRecipeServiceClient,
@@ -40,7 +40,8 @@ import {
 import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useEffectEvent, useState } from 'react';
 
-import { effectiveVisibility, heldVisibility, privateRefusalOf } from '../actions/privateGate.js';
+import { effectiveVisibility, heldVisibility, type PrivateRefusal } from '../actions/privateGate.js';
+import { recipeIsPublished, refusalWhileDrafting } from '../actions/recipePrivateGate.js';
 import type { LookupRetry, ObservedIngredientStatus, SettledAnswer } from '../form/ingredientStatus.js';
 import { rebindRequestOf } from '../hooks/lineCommit.js';
 import { useIngredientRowEditor, type IngredientRowEditor } from '../hooks/useIngredientRowEditor.js';
@@ -98,12 +99,13 @@ export interface UseRecipeEditorSessionOptions {
     /** Open Paste a list at once: Home's first-run Paste ingredients (§7.5.4). */
     readonly openPaste: boolean;
     /**
-     * The profile's own answer (`knownPaidFeaturesOf`): `undefined` while unknown, a failed read included. REQUIRED: it
-     * decides whether a Private may go out at all — on a create, and after a publish or Save changes
-     * (`privateRefusalOf`). ⛔ Never the display state, whose fail-closed `hidden` would withhold an entitled cook's
-     * Private and publish the recipe.
+     * Why the server is KNOWN to refuse a change to private for this cook (`useRecipePrivate().refusal`): `undefined`
+     * while nothing is known, a loading or failed read of the paid features or the slot count included. REQUIRED: it
+     * decides whether a Private may go out at all — on a create, and after a publish or Save changes. ⛔ Never a display
+     * state: a fail-closed `hidden`, or a count that has not loaded, would withhold an entitled cook's Private and
+     * publish the recipe.
      */
-    readonly knownPaidFeatures: Exclude<PaidFeatureState, 'loading'> | undefined;
+    readonly privateRefusal: PrivateRefusal | undefined;
 }
 
 /** The preview sheet's state and the recipe it shows. */
@@ -140,7 +142,7 @@ export interface RecipeEditorSession {
  */
 export function useRecipeEditorSession(options: UseRecipeEditorSessionOptions): RecipeEditorSession {
     const { seed, locale, keep, port, drafts, navigation, reportError, onRecipeRef, openPaste } = options;
-    const privateRefusal = privateRefusalOf(options.knownPaidFeatures ?? 'loading');
+    const { privateRefusal } = options;
     const client = useRecipeServiceClient();
     const queryClient = useQueryClient();
     const setVisibility = useSetRecipeVisibility();
@@ -204,11 +206,26 @@ export function useRecipeEditorSession(options: UseRecipeEditorSessionOptions): 
         reportError,
         ...(onRecipeRef === undefined ? {} : { onRecipeRef }),
         rebindLine: (address, target) => rebind.mutateAsync(rebindRequestOf(address, target)),
+        // The first Publish's visibility goes first (`writeVisibilityFirst`), through the same mutation the recipe page reads
+        // a refusal from.
+        setVisibility: (id, visibility) => setVisibility.mutateAsync({ id, visibility }),
         // The outbox's cache observer writes each synced recipe write's answer here, so this is usually a cache read.
         readRecipe: (id) => queryClient.ensureQueryData(recipeQueries(client).detail(id)),
         pasteHold,
         privateRefusal,
     });
+
+    // ADR-0073 section 12: a write that PARKS before the first publish may be a Publish the server refused for want of a
+    // private slot the client could not see coming (the slot read had failed or was stale, so the Publish was sent by
+    // design). Try again asks the gate with the standing as it is then, so the standing is re-read now, when it matters.
+    // It is an event in the outbox, outside React, which is what an effect is for. A published recipe's Save changes takes
+    // no slot, so only a recipe not yet published asks.
+    const publishParked = editor.parked !== undefined && editor.lifecycle !== 'published';
+    useEffect(() => {
+        if (publishParked) {
+            void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.recipePrivateSlots });
+        }
+    }, [publishParked, queryClient]);
 
     // Every way out of the editor does what × does (build spec §3.5, ADR-0057 §2): the exit checkpoint. × runs its own
     // first; any later one is refused while that write is on the wire, finds nothing changed, or finds the lane closed by
@@ -253,9 +270,14 @@ export function useRecipeEditorSession(options: UseRecipeEditorSessionOptions): 
         offered: editor.pasteAvailable,
         keepsSource: editor.pasteKeepsSource,
         dispatch,
-        lineCount: editor.values.ingredients.length,
+        lineKeys: editor.values.ingredients.map((line) => line.key),
         initiallyOpen: openPaste,
         hold: pasteHold,
+        rowEditor,
+        keep,
+        // A line the review confirms binds by itself only while the recipe is a draft (paste is offered until the first
+        // publish, D10): a published recipe's lines change only at the cook's Save changes.
+        autoBind: editor.pasteAvailable,
     });
 
     return {
@@ -271,12 +293,13 @@ export function useRecipeEditorSession(options: UseRecipeEditorSessionOptions): 
             open: previewing,
             show: () => setPreviewing(true),
             hide: () => setPreviewing(false),
-            // What will be sent, as the field shows it (`effectiveVisibility`).
+            // What will be sent, as the field shows it (`effectiveVisibility`). A draft holds no slot, so it is previewed
+            // under the refusals that apply to a draft (ADR-0073 section 12).
             recipe: previewRecipeOf({
                 values: {
                     ...editor.values,
                     visibility: effectiveVisibility(
-                        privateRefusal,
+                        recipeIsPublished(seed.recipe) ? privateRefusal : refusalWhileDrafting(privateRefusal),
                         heldVisibility(seed.recipe?.visibility ?? RecipeVisibility.PUBLIC, editor.values.visibility),
                         editor.values.visibility,
                     ),

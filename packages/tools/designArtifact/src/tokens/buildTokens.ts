@@ -8,12 +8,12 @@
  * @pattern Adapter — projects the `@commise/ui` token modules onto the artifact's `tokens.json` grammar
  */
 import { palette, role, roleDark } from '@commise/ui/colors';
-import { fontFamily, fontSize, fontWeight, lineHeightRatio, radius, spacing } from '@commise/ui/scale';
+import { fontFamily, fontSize, fontWeight, lineHeightPx, radius, spacing } from '@commise/ui/scale';
 import { barMaterial } from '@commise/ui/tokens/barMaterial';
 import { coverTint, coverTintDark } from '@commise/ui/tokens/covers';
 import { kebab } from '@commise/ui/tokens/emit';
 import { shadows } from '@commise/ui/tokens/shadows';
-import { proTone } from '@commise/ui/tokens/tones';
+import { proTone, proToneDark } from '@commise/ui/tokens/tones';
 import { typeRole, type TypeRole, type TypeRoleSpec } from '@commise/ui/tokens/typography';
 
 import { fontFaces } from '../fonts/fontFaces.js';
@@ -55,12 +55,12 @@ function colourTokens(): readonly ArtifactColorToken[] {
         { name: 'bar', value: { light: barMaterial.light, dark: barMaterial.dark }, usage: EXTRA_COLOR_USAGE.bar },
         {
             name: 'pro-fill',
-            value: { light: proTone.fill, dark: proTone.fill },
+            value: { light: proTone.fill, dark: proToneDark.fill },
             usage: EXTRA_COLOR_USAGE.proFill,
         },
         {
             name: 'pro-ink',
-            value: { light: proTone.text, dark: proTone.text },
+            value: { light: proTone.text, dark: proToneDark.text },
             usage: EXTRA_COLOR_USAGE.proInk,
         },
     ];
@@ -95,7 +95,7 @@ function typeStyle(name: TypeRole): { readonly style: ArtifactTypeStyle; readonl
         style: {
             name: kebab(name),
             fontSize: `${sizeOf(spec.size)}px`,
-            lineHeight: `${spec.lineHeight}`,
+            lineHeight: `${spec.lineHeight}px`,
             fontWeight: fontWeight[spec.weight],
             usage: TYPE_ROLE_DOC[name].usage,
         },
@@ -132,8 +132,8 @@ const SIZE_SCALE_STEP = /^(display|heading)/u;
 
 /**
  * The display ramp as a size scale. These steps are real (the mobile font ramp and several web headings use them),
- * but `@commise/ui` gives them no weight: each call site picks one. So they are published with their size and the
- * heading line height the mobile ramp pairs them with, and no weight is invented.
+ * but `@commise/ui` gives them no weight: each call site picks one. So they are published with their size and that
+ * size's px line height from `lineHeightPx`, and no weight is invented.
  */
 function sizeScaleGroup(): ArtifactTypeGroup {
     return {
@@ -144,7 +144,7 @@ function sizeScaleGroup(): ArtifactTypeGroup {
             .map(([step, size]) => ({
                 name: kebab(step),
                 fontSize: `${size}px`,
-                lineHeight: `${lineHeightRatio.heading}`,
+                lineHeight: `${lineHeightPx[size]}px`,
                 usage: "A display size step. The weight is the caller's; prefer a type role where one fits.",
             })),
     };

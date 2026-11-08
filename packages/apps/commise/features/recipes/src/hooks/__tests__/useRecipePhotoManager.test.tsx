@@ -36,8 +36,8 @@ import { useRecipePhotoManager } from '../useRecipePhotoManager.js';
 
 const OVER_CAP_FOR_TWO = 'That’s more photos than this recipe can hold — you can add 2 more.';
 const REPLACE_AT_CAP = 'Remove a photo first — replacing needs room for the new one.';
-const REMOVE_FAILED = 'We couldn’t remove this photo. Please try again.';
-const SET_COVER_FAILED = 'We couldn’t make that photo the cover. Please try again.';
+const REMOVE_FAILED = 'We couldn’t remove this photo. Try again.';
+const SET_COVER_FAILED = 'We couldn’t make that photo the cover. Try again.';
 
 const photosOf = (count: number): readonly RecipePhoto[] =>
     Array.from({ length: count }, (_unused, index) => ({
@@ -333,7 +333,7 @@ describe('useRecipePhotoManager — movePhoto (2026-10-17)', () => {
         const options = reorderMutate.mock.calls[0]?.[1] as { onError: () => void };
         act(() => options.onError());
 
-        expect(result.current.errorMessage).toBe('We couldn’t move that photo. Please try again.');
+        expect(result.current.errorMessage).toBe('We couldn’t move that photo. Try again.');
     });
 });
 

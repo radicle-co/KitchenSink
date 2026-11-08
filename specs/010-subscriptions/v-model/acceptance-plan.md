@@ -1,5 +1,10 @@
 # V-Model Acceptance Test Plan: Subscriptions & Monetization
 
+> **Out of date in part (2026-10-26).** This file models one premium tier at $6.99 a month or $59.99 a year.
+> The current plans, prices and AI credits are in [`spec.md`](../spec.md) `FR-041` and its
+> [plan register](../spec.md#plan-register). The subscription page is `FR-042a` to `FR-042k`.
+> Read "premium" here as Pro: the plans are Free, Pro and Pro with AI (owner, 2026-10-27).
+
 **Feature Branch**: `010-subscriptions`
 **Created**: 2026-05-09
 **Status**: Active — updated 2026-05-10 to reflect closed product decisions (REQ-026–REQ-031)

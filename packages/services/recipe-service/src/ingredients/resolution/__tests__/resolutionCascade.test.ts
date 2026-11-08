@@ -39,7 +39,7 @@ import {
 
 const KEY = normalizedIngredientKey('plain flour')!;
 const QUERY: ResolutionQuery = { key: KEY, phrase: 'plain flour' };
-const CONTEXT = { userId: '01JU10CASCADE0000000AUTHOR', caller: undefined } as const;
+const CONTEXT = { userId: '01JU10CASCADE0000000AUTHOR', caller: undefined, signal: undefined } as const;
 
 /** A tier that always resolves to `foodId`, recording that it was consulted. */
 function resolving(id: ResolutionTierId, foodId: string, consulted: ResolutionTierId[]): ResolutionTier {
@@ -240,8 +240,8 @@ describe('runResolutionCascade — a tier that FAILS is contained, and is not a 
  * that reason made checkable; `resolutionRegistry.test.ts` fires them at the real registry.
  *
  * ⚠️ Every assertion here is about WHO IS ASKED FIRST. None of it is about whether the answer may be
- * published — that is `pendingStateOf`'s question, and keeping the two apart is why these classes are named
- * after the evidence SOURCE rather than after a trust level.
+ * published — that is a question of which chain a tier sits in (ADR-0071), and keeping the two apart is why these
+ * classes are named after the evidence SOURCE rather than after a trust level.
  */
 describe('the consultation-precedence ladder', () => {
     it('asks a curated mapping before a remembered verification, and both before a catalog ranking', () => {

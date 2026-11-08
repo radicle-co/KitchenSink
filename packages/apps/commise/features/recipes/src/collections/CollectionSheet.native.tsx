@@ -18,7 +18,7 @@ import { FieldLabel, Input, TextArea } from '@commise/ui/input';
 import { nativeTokens } from '@commise/ui/native';
 import { Sheet } from '@commise/ui/sheet';
 import { useTheme } from '@commise/ui/theme';
-import { useId, type FC } from 'react';
+import { useId, useState, type FC } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { fillTemplate } from '../format/fillTemplate.js';
@@ -38,11 +38,20 @@ export const CollectionSheet: FC<CollectionSheetProps> = (props) => {
     const draft = useCollectionSheetDraft(props);
     const { renaming, name, description, nameError, confirming, close, requestClose } = draft;
     const submit = (): void => draft.submit();
+    // The sheet's window closes under the discard question and opens again on Keep editing. A field takes focus only once
+    // that window is shown: before it, the field is not attached to a window and the focus is lost with its request.
+    const [windowShown, setWindowShown] = useState(true);
+
+    if (confirming && windowShown) {
+        setWindowShown(false);
+    }
 
     return (
         <>
             <Sheet
-                open={open && !confirming}
+                open={open}
+                held={confirming}
+                onShown={() => setWindowShown(true)}
                 onOpenChange={(next) => {
                     if (!next) {
                         requestClose();
@@ -82,6 +91,9 @@ export const CollectionSheet: FC<CollectionSheetProps> = (props) => {
                             {...(nameError ? { error: sheet.nameRequired } : {})}
                             onChangeText={draft.typeName}
                             onSubmit={submit}
+                            onFocus={() => draft.rememberField('name')}
+                            focusRequested={windowShown && draft.refocus === 'name'}
+                            onFocusRequestHandled={draft.onRefocused}
                         />
                         <View style={styles.underField}>
                             {nameError ? (
@@ -111,6 +123,9 @@ export const CollectionSheet: FC<CollectionSheetProps> = (props) => {
                             maxRows={6}
                             autoCapitalize="sentences"
                             onChangeText={draft.typeDescription}
+                            onFocus={() => draft.rememberField('description')}
+                            focusRequested={windowShown && draft.refocus === 'description'}
+                            onFocusRequestHandled={draft.onRefocused}
                         />
                     </View>
                 </View>

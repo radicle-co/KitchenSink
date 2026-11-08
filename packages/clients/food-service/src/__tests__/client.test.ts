@@ -17,6 +17,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { resetContractSkewLatchForTests } from '../contractSkew.js';
 import {
+    AccountSuspendedError,
     BadRequestError,
     CandidateMismatchError,
     ConflictError,
@@ -31,6 +32,7 @@ import {
     SearchRateLimitedError,
     SourceBusyError,
     UnauthorizedError,
+    isAccountSuspendedError,
     isCandidateMismatchError,
     isConflictError,
     isFetchUnavailableError,
@@ -598,6 +600,37 @@ describe('FoodServiceClient.purgeOwnAuthoredFoods (ADR-0040, food half)', () => 
     });
 });
 
+describe('FoodServiceClient.deleteAuthoredFood (ADR-0029: the author withdraws their own food)', () => {
+    it('DELETEs the food by id and resolves on the 204, which carries no body', async () => {
+        const fetchMock = stubFetch(204);
+        const client = new FoodServiceClient({ baseUrl: BASE, token: 'tok', fetch: fetchMock });
+
+        await expect(client.deleteAuthoredFood('food_1')).resolves.toBeUndefined();
+
+        const [url, init] = apiCalls(fetchMock)[0]! as [string, { method: string; body?: unknown }];
+
+        expect(url).toBe(`${BASE}/api/v1/foods/food_1`);
+        expect(init.method).toBe('DELETE');
+        expect(init.body).toBeUndefined();
+    });
+
+    it('maps the 404 of a food that is missing, not yours, or already withdrawn to NotFoundError', async () => {
+        const client = new FoodServiceClient({
+            baseUrl: BASE,
+            token: 'tok',
+            fetch: stubFetch(404, { code: 'NOT_FOUND', message: 'No such food' }),
+        });
+
+        await expect(client.deleteAuthoredFood('food_1')).rejects.toBeInstanceOf(NotFoundError);
+    });
+
+    it('does not treat any other 2xx as the withdrawal', async () => {
+        const client = new FoodServiceClient({ baseUrl: BASE, token: 'tok', fetch: stubFetch(200, {}) });
+
+        await expect(client.deleteAuthoredFood('food_1')).rejects.toThrow();
+    });
+});
+
 describe('FoodServiceClient.listSources (plan R55)', () => {
     const SOURCES = {
         sources: [
@@ -1056,6 +1089,28 @@ describe('FoodServiceClient — a caller-supplied deadline signal', () => {
             expect(isFetchUnavailableError(await pending)).toBe(true);
         },
     );
+
+    // ADR-0071: the paste matcher's catalog searches (the blended `search`) end with the request's deadline.
+    it('aborts an in-flight search when the caller`s signal fires, long before timeoutMs', async () => {
+        const client = new FoodServiceClient({ baseUrl: BASE, fetch: signalOnlyFetch(), timeoutMs: 60_000 });
+        const deadline = new AbortController();
+
+        const pending = client.search('egg', true, { signal: deadline.signal }).catch((caught: unknown) => caught);
+        deadline.abort();
+
+        expect(isFetchUnavailableError(await pending)).toBe(true);
+    });
+
+    it('refuses to start a search whose deadline has already passed', async () => {
+        const fetchMock = signalOnlyFetch();
+        const client = new FoodServiceClient({ baseUrl: BASE, fetch: fetchMock, timeoutMs: 60_000 });
+
+        const error = await client
+            .search('egg', false, { signal: AbortSignal.abort() })
+            .catch((caught: unknown) => caught);
+
+        expect(isFetchUnavailableError(error)).toBe(true);
+    });
 
     it('refuses to start a request whose deadline has already passed', async () => {
         const fetchMock = signalOnlyFetch();
@@ -2108,5 +2163,36 @@ describe('the narrowed 429 errors keep their window', () => {
 
         expect(error.retryAfterSeconds).toBe(37);
         expect(Object.getOwnPropertyDescriptor(error, 'retryAfterSeconds')?.value).toBe(37);
+    });
+});
+
+describe('FoodServiceClient — a suspended account (ADR-0081)', () => {
+    // The service answers a suspended account's token with `403 ACCOUNT_SUSPENDED`. The client must read the PUBLISHED
+    // code into its own typed error, not fall back to the generic 403 mapping: a suspended cook is told something
+    // different from "you lack a scope", and a retry or a sign-in can never fix it.
+    it('maps 403 ACCOUNT_SUSPENDED to AccountSuspendedError, which is still a ForbiddenError', async () => {
+        const fetchMock = stubFetch(403, { code: 'ACCOUNT_SUSPENDED', message: 'Account is suspended' });
+        const client = new FoodServiceClient({ baseUrl: BASE, token: 't', fetch: fetchMock });
+
+        const error: unknown = await client.addByName('Broccoli').catch((thrown: unknown) => thrown);
+
+        expect(error).toBeInstanceOf(AccountSuspendedError);
+        expect(isAccountSuspendedError(error)).toBe(true);
+        expect(error).toBeInstanceOf(ForbiddenError);
+        expect((error as AccountSuspendedError).status).toBe(403);
+        expect((error as AccountSuspendedError).message).toBe('Account is suspended');
+    });
+
+    it('does not read an ordinary 403 FORBIDDEN as a suspension', async () => {
+        const client = new FoodServiceClient({
+            baseUrl: BASE,
+            token: 't',
+            fetch: stubFetch(403, { code: 'FORBIDDEN', message: 'no scope' }),
+        });
+
+        const error: unknown = await client.addByName('Broccoli').catch((thrown: unknown) => thrown);
+
+        expect(isAccountSuspendedError(error)).toBe(false);
+        expect(error).toBeInstanceOf(ForbiddenError);
     });
 });

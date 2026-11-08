@@ -27,7 +27,6 @@ import { ErasureJobsDal } from '../../../src/account/dal/erasureJobs.dal.js';
 import type { BoundArm } from '../../../src/database/schema/foodLookupArm.js';
 import { makeRootArm } from '../../../src/ingredients/__fixtures__/foodLookups.fixture.js';
 import { FoodLookupsDal } from '../../../src/ingredients/dal/foodLookups.dal.js';
-import { IngredientResolutionsDal } from '../../../src/ingredients/resolution/ingredientResolutions.dal.js';
 import { ResolutionMappingsDal } from '../../../src/ingredients/resolution/resolutionMappings.dal.js';
 import type { RecipeAggregate } from '../../../src/recipes/dal/recipes.dal.js';
 import {
@@ -132,8 +131,10 @@ beforeAll(async () => {
             { provide: RECIPES_DAL, useValue: { findById, readConflict, transaction } },
             { provide: RECIPE_PHOTOS_DAL, useValue: { findByRecipe: async () => [] } },
             { provide: RECIPE_RATINGS_DAL, useValue: { findStars: async () => undefined } },
-            { provide: RECIPE_LINE_VERIFICATIONS_DAL, useValue: { findBandsByKeys: async () => new Map() } },
-            { provide: IngredientResolutionsDal, useValue: { latestResolutionsByLookupIds: async () => new Map() } },
+            {
+                provide: RECIPE_LINE_VERIFICATIONS_DAL,
+                useValue: { findBandsByKeys: async () => new Map(), findExistingKeys: async () => new Set() },
+            },
             { provide: ResolutionMappingsDal, useValue: { runInTransaction } },
             {
                 provide: FoodLookupsDal,

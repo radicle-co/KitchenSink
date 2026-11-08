@@ -1,7 +1,9 @@
-import { act, cleanup, fireEvent, render } from '@testing-library/react';
+import { cleanup } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
+import { scrollViewSizes, stubBoundingRects } from '../../testing/boundingRects.js';
+import { fireScrollAndSettle, render, resolvedStyle } from '../../testing/tamaguiTesting.native.js';
 import { Chip } from '../Chip.native.js';
 import { role } from '../../tokens/colors.js';
 import { ChipRow } from '../ChipRow.native.js';
@@ -13,33 +15,28 @@ import type { ChipRowProps } from '../props.js';
  * colour and the chevron; its own suite owns their behaviour, and this one pins that the row is wired to it.
  *
  * ⚠️ REWRITTEN. This suite pinned a 24 dp fade built in the row, shown by `hasMoreAhead` and with no chevron. The fade
- * is now the scroller's: 40 dp with the chevron while the row rests at its start, 24 dp once it has been scrolled.
+ * is now the scroller's: a 16 dp ramp at the scroller's own edge, with the chevron in a 24 dp column beside it while the
+ * row rests at its start (`horizontalScrollHint.md` §3.6; it was a 40 dp band over the chips, which hid the last chip's
+ * characters).
  * The `hasMoreAhead` table moved to `horizontalScroller/__tests__/scrollHint.test.ts`.
  */
 
-afterEach(cleanup);
+let restoreRects: (() => void) | undefined;
+
+afterEach(() => {
+    cleanup();
+    restoreRects?.();
+    restoreRects = undefined;
+});
 
 const FADE = '[data-commise-stub="linear-gradient"]';
 
-/** Report a laid-out size to a view, the way react-native-web's ResizeObserver does. */
-function layOut(element: Element, width: number): void {
-    const handler = (element as Element & { __reactLayoutHandler?: (event: unknown) => void }).__reactLayoutHandler;
-
-    if (handler === undefined) {
-        throw new Error('the view has no layout handler');
+/** Render the row; `sizes` are the scroller's and the content's widths, stated before the mount that measures them. */
+function row(overflow: 'scroll' | 'wrap', surface?: 'canvas' | 'overlay', sizes?: readonly [number, number]) {
+    if (sizes !== undefined) {
+        restoreRects = stubBoundingRects(scrollViewSizes({ scroller: sizes[0], content: sizes[1] }));
     }
 
-    act(() => handler({ nativeEvent: { layout: { x: 0, y: 0, width, height: 36 } } }));
-}
-
-/** The views of a rendered scrolling row that report their size: the scroller, then the content inside it. */
-function measured(container: HTMLElement): readonly Element[] {
-    return [...container.querySelectorAll('*')].filter(
-        (node) => (node as Element & { __reactLayoutHandler?: unknown }).__reactLayoutHandler !== undefined,
-    );
-}
-
-function row(overflow: 'scroll' | 'wrap', surface?: 'canvas' | 'overlay') {
     return render(
         <ChipRow
             mode="filter"
@@ -60,37 +57,31 @@ describe('ChipRow (native) — the scroll hint of a scrolling row', () => {
         expect(container.querySelector(FADE)).toBeNull();
     });
 
-    it('draws a 40 dp band with the chevron at the start while the chips run past the box', () => {
-        const { container } = row('scroll');
-        const [scroller, content] = measured(container);
-
-        layOut(scroller as Element, 300);
-        layOut(content as Element, 640);
+    it('draws a 16 dp fade with the chevron beside it at the start while the chips run past the box', () => {
+        const { container } = row('scroll', undefined, [300, 640]);
 
         const fade = container.querySelector<HTMLElement>(FADE);
 
         expect(fade).not.toBeNull();
         const box = fade?.parentElement as HTMLElement;
 
-        expect(getComputedStyle(box).width).toBe('40px');
+        expect(resolvedStyle(box, 'width')).toBe('16px');
         // It decorates, and it must never take a touch meant for the chip under it.
         expect(box.getAttribute('aria-hidden')).toBe('true');
-        expect(getComputedStyle(box).pointerEvents).toBe('none');
+        expect(resolvedStyle(box, 'pointerEvents')).toBe('none');
         expect(container.querySelector('[data-icon-name="chevron-right"]')).not.toBeNull();
     });
 
-    it('narrows to the 24 dp fade, without the chevron, once the row has been scrolled', () => {
-        const { container } = row('scroll');
-        const [scroller, content] = measured(container);
+    it('keeps the 16 dp fade, without the chevron, once the row has been scrolled', () => {
+        const { container } = row('scroll', undefined, [300, 640]);
+        const scroller = container.querySelector<HTMLElement>('[style*="overflow-x"]') as HTMLElement;
 
-        layOut(scroller as Element, 300);
-        layOut(content as Element, 640);
-        (scroller as HTMLElement).scrollLeft = 120;
-        fireEvent.scroll(scroller as Element);
+        scroller.scrollLeft = 120;
+        fireScrollAndSettle(scroller);
 
         const box = container.querySelector<HTMLElement>(FADE)?.parentElement as HTMLElement;
 
-        expect(getComputedStyle(box).width).toBe('24px');
+        expect(resolvedStyle(box, 'width')).toBe('16px');
         expect(
             container.querySelector('[data-icon-name="chevron-right"]')?.closest<HTMLElement>('[style*="opacity"]')
                 ?.style.opacity,
@@ -99,14 +90,11 @@ describe('ChipRow (native) — the scroll hint of a scrolling row', () => {
 
     it('fades into the canvas by default, and into the sheet’s surface when the row sits on one', () => {
         const fadeColours = (surface?: 'canvas' | 'overlay'): string | undefined => {
-            const { container, unmount } = row('scroll', surface);
-            const [scroller, content] = measured(container);
-
-            layOut(scroller as Element, 300);
-            layOut(content as Element, 640);
+            const { container, unmount } = row('scroll', surface, [300, 640]);
 
             const colours = container.querySelector<HTMLElement>(FADE)?.dataset['colors'];
             unmount();
+            restoreRects?.();
 
             return colours;
         };
@@ -117,11 +105,7 @@ describe('ChipRow (native) — the scroll hint of a scrolling row', () => {
     });
 
     it('draws none when every chip fits', () => {
-        const { container } = row('scroll');
-        const [scroller, content] = measured(container);
-
-        layOut(scroller as Element, 400);
-        layOut(content as Element, 240);
+        const { container } = row('scroll', undefined, [400, 240]);
 
         expect(container.querySelector(FADE)).toBeNull();
     });

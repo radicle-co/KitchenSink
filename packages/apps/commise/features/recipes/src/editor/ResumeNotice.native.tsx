@@ -9,6 +9,7 @@ import { Button } from '@commise/ui/button';
 import { LiveRegion } from '@commise/ui/live-region';
 import { nativeTokens } from '@commise/ui/native';
 import { useTheme } from '@commise/ui/theme';
+import { Surface } from '@commise/ui/surface-tone';
 import type { FC } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
@@ -26,7 +27,7 @@ export const ResumeNotice: FC<ResumeNoticeProps> = ({
     const { colors } = useTheme();
 
     return (
-        <View style={[styles.card, { backgroundColor: colors.surfaceMuted }]}>
+        <Surface tone="muted" style={[styles.card]}>
             <Text style={[styles.body, { color: colors.ink }]}>{body}</Text>
             <View style={styles.actions}>
                 <Button size="sm" icon="check" onPress={onSave}>
@@ -37,17 +38,16 @@ export const ResumeNotice: FC<ResumeNoticeProps> = ({
                 </Button>
             </View>
             {discardUnavailable === undefined ? null : (
-                <LiveRegion politeness="polite" style={[styles.reason, { color: colors.inkMuted }]}>
+                <LiveRegion politeness="polite" typeRole="meta" tone="inkMuted">
                     {discardUnavailable}
                 </LiveRegion>
             )}
-        </View>
+        </Surface>
     );
 };
 
 const styles = StyleSheet.create({
-    card: { gap: nativeTokens.spacing[3], padding: nativeTokens.spacing[4], borderRadius: nativeTokens.radius.md },
+    card: { gap: nativeTokens.spacing[3], padding: nativeTokens.spacing[4], borderRadius: nativeTokens.radius.lg },
     body: { ...nativeTokens.type.meta },
     actions: { flexDirection: 'row', flexWrap: 'wrap', gap: nativeTokens.spacing[2] },
-    reason: { ...nativeTokens.type.meta },
 });

@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 
 import { signInWithTicket } from './utils/auth';
 import { route } from './utils/basePath';
-import { mockRecipeApi, readViewerAppId } from './utils/recipeApi';
+import { makeRecipeDetail, mockRecipeApi, readViewerAppId } from './utils/recipeApi';
 import { openNewRecipe } from './utils/recipeEditor';
 
 /**
@@ -93,8 +93,12 @@ test.describe('the editor session', () => {
         expect(focused!.y + focused!.height).toBeLessThanOrEqual((bar?.y ?? 844) + 1);
     });
 
-    /** E1 (build spec §6.4, §7.7 item 2): Private did nothing for a free-tier cook. It opens the Premium sheet. */
-    test('Private for a free-tier cook opens the Premium sheet, and Not now leaves the recipe public', async ({
+    /**
+     * E1 (build spec §6.4, §7.7 item 2), REWRITTEN for ADR-0073 and the owner ruling of 2026-10-26: Private used to open the
+     * Pro sheet for a free-tier cook. A free cook now keeps recipes private in slots, so choosing Private applies it and
+     * says it uses one.
+     */
+    test('Private for a free-tier cook applies on a new recipe, and says a private draft uses no slot', async ({
         page,
     }) => {
         const viewerId = await readViewerAppId(page);
@@ -103,15 +107,12 @@ test.describe('the editor session', () => {
         await openNewRecipe(page);
         await page.getByRole('radio', { name: /^Private/u }).click();
 
-        const sheet = page.getByRole('dialog', { name: 'Private recipes are part of Premium.' });
-        await expect(sheet).toBeVisible();
-        // Equal choices, nothing pre-selected (DSA Art. 25).
-        await expect(sheet.getByRole('button', { name: 'See Premium' })).toBeVisible();
-
-        await sheet.getByRole('button', { name: 'Not now' }).click();
-
-        await expect(sheet).toBeHidden();
-        await expect(page.getByRole('radio', { name: /^Public/u })).toBeChecked();
+        await expect(page.getByRole('radio', { name: /^Private/u })).toBeChecked();
+        // REWRITTEN for d6eaf18cd: a NEW recipe is a draft, and a private draft holds no slot, so the note says that
+        // instead of "uses 1 slot ... left". The slot is taken at Publish (`publishBlockedAsk.spec.ts`).
+        await expect(page.getByText('A private draft uses no slot. Publishing it uses one.')).toBeVisible();
+        await expect(page.getByRole('dialog', { name: 'Keep more recipes private' })).toHaveCount(0);
+        await expect(page.getByRole('dialog', { name: 'Private needs Pro for this recipe' })).toHaveCount(0);
     });
 
     /** Owner 2026-10-13: a description past 256 characters blocks Publish; a draft still saves. The field says so, and nothing is cut. */
@@ -195,4 +196,57 @@ test.describe('the editor session', () => {
 
         await expect(page.getByRole('button', { name: /^Fix \d+ things? to publish$/u })).toBeVisible();
     });
+});
+
+/**
+ * Owner rule: nothing may turn a private recipe public on its own. A stored draft the server holds as Public, marked
+ * Private by the cook, must have its visibility written BEFORE the publish update: the service skips the slot check for a
+ * recipe it holds as public, so the old order (publish, then visibility) published the recipe public first. The API is
+ * intercepted (`utils/recipeApi`), which models the service's own slot rule at publish.
+ */
+test.describe('mark Private, then publish', () => {
+    test.beforeEach(async ({ page }) => {
+        await signInWithTicket(page);
+    });
+
+    for (const paidFeatures of ['granted', 'upsell'] as const) {
+        test(`⛔ ${paidFeatures}: the visibility write reaches the service before the publish, and the recipe is never public published`, async ({
+            page,
+        }) => {
+            const viewerId = await readViewerAppId(page);
+            const id = 'ec000000-0000-4000-8000-0000000000a1';
+            const store = await mockRecipeApi(page, {
+                viewerId,
+                paidFeatures,
+                recipes: [
+                    makeRecipeDetail({
+                        id,
+                        ownerId: viewerId,
+                        title: 'Private Pie',
+                        cuisine: 'Italian',
+                        status: 'draft',
+                        visibility: 'public',
+                        currentVersion: 1,
+                    }),
+                ],
+            });
+            const writes: string[] = [];
+            page.on('request', (request) => {
+                const { pathname } = new URL(request.url());
+
+                if (request.method() === 'PATCH' && pathname.includes(`/api/v1/recipes/${id}`)) {
+                    writes.push(pathname.endsWith('/visibility') ? 'visibility' : 'update');
+                }
+            });
+
+            await page.goto(route(`/recipes/${id}/edit`));
+            await page.getByRole('radio', { name: /^Private/u }).check();
+            await page.getByRole('button', { name: 'Publish', exact: true }).click();
+
+            await expect.poll(() => store.get(id)?.status).toBe('published');
+            expect(store.get(id)?.visibility).toBe('private');
+            expect(writes.indexOf('visibility')).toBeGreaterThanOrEqual(0);
+            expect(writes.indexOf('visibility')).toBeLessThan(writes.lastIndexOf('update'));
+        });
+    }
 });

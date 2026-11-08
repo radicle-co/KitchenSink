@@ -10,11 +10,13 @@
 import type { FC } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { touchFloor } from '../layout/touchFloor.native.js';
 import { HorizontalScroller } from '../horizontalScroller/HorizontalScroller.native.js';
 import { useScrollHost } from '../scrollHost/scrollHostContext.js';
 import { useTheme } from '../theme/useTheme.native.js';
 import { nativeTokens } from '../tokens/native.js';
 import type { SectionSwitchProps } from './props.js';
+import { Surface } from '../surfaceTone/Surface.native.js';
 
 /** The native section switch. */
 export const SectionSwitch: FC<SectionSwitchProps> = ({ label, sections, currentId, trailing, onJump }) => {
@@ -22,7 +24,7 @@ export const SectionSwitch: FC<SectionSwitchProps> = ({ label, sections, current
     const { scrollToSection } = useScrollHost();
 
     return (
-        <View style={[styles.bar, { backgroundColor: colors.paper, borderBottomColor: colors.lineDivider }]}>
+        <Surface tone="paper" style={[styles.bar, { borderBottomColor: colors.lineDivider }]}>
             <View collapsable={false} role="navigation" aria-label={label} style={styles.links}>
                 <HorizontalScroller surface="bar">
                     <View style={styles.row}>
@@ -54,7 +56,7 @@ export const SectionSwitch: FC<SectionSwitchProps> = ({ label, sections, current
                 </HorizontalScroller>
             </View>
             {trailing}
-        </View>
+        </Surface>
     );
 };
 
@@ -69,7 +71,7 @@ const styles = StyleSheet.create({
     },
     links: { flex: 1, minWidth: 0 },
     row: { flexDirection: 'row', alignItems: 'center' },
-    link: { minHeight: 44, justifyContent: 'center', paddingHorizontal: nativeTokens.spacing[2] },
+    link: { minHeight: touchFloor(), justifyContent: 'center', paddingHorizontal: nativeTokens.spacing[2] },
     label: { ...nativeTokens.type.label },
     hereBar: {
         position: 'absolute',
@@ -77,6 +79,6 @@ const styles = StyleSheet.create({
         start: nativeTokens.spacing[2],
         end: nativeTokens.spacing[2],
         height: 3,
-        borderRadius: 2,
+        borderRadius: nativeTokens.radius.full,
     },
 });

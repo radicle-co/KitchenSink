@@ -54,13 +54,13 @@ appId: ${APP_ID}
 # The entry sits at the BOTTOM of the detail, below the rating, so the scroll is DOWN. Its sentence is part of the
 # button's NAME (WCAG 1.3.1/2.5.3): Android exposes the Pressable's label, iOS merges the children, so the pattern is the
 # sentence then anything then the badge text, and matches both.
-# Centred, not merely scrolled to: the page ends with the entry's card under the tab bar, which still counts it visible,
-# and a tap there can hit the bar (local Android run, 2026-10-19). The detail's bottom padding leaves room to centre it.
+# Scrolled to, NOT centred: the entry ends the page, so there is no room below it to centre it, and on iOS
+# `centerElement` never finds it (deployed run 42117856262, iOS shard 1: the notice sat at the end of the scroll, clear
+# of the tab bar). The scroll stops once the notice is visible, which is all the tap below needs.
 - scrollUntilVisible:
       element: '2 ingredients could match more than one food\. Review them to sharpen the nutrition\..*'
       direction: DOWN
       timeout: 20000
-      centerElement: true
 - tapOn: '.*Review ingredient matches'
 
 # One row per ambiguous line, named by its amount and its words ("1 cup <word>"); its shortlist is the food

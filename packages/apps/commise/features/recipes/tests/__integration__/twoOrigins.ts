@@ -35,6 +35,9 @@ export type Route = (request: RecordedRequest) => RouteAnswer | Promise<RouteAns
 export const json = (body: unknown, status = 200, headers: Record<string, string> = {}): Response =>
     new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json', ...headers } });
 
+/** The route the add-by-name field reads its "Suggested" options from. */
+export const NAME_PROPOSALS_PATH = '/api/v1/ingredients/by-name/proposals';
+
 const RECIPE_ORIGIN = 'https://recipes.test';
 const FOOD_ORIGIN = 'https://food.test';
 
@@ -73,6 +76,12 @@ export function twoOrigins(routes: { readonly recipe?: Route; readonly food?: Ro
             };
 
             requests.push(recorded);
+
+            // The add field's "Suggested" read (ADR-0071): recorded, so a test still sees it, and answered with nothing
+            // remembered. A route written for the admission would answer it with a line, which is not its shape.
+            if (origin === 'recipe' && url.pathname === NAME_PROPOSALS_PATH) {
+                return json({ phrase: url.searchParams.get('name') ?? '', proposals: [] });
+            }
 
             const answer =
                 route === undefined ? json({ code: 'NOT_FOUND', message: 'no route' }, 404) : await route(recorded);

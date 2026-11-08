@@ -285,21 +285,23 @@ test.describe('recipe/home responsive — 375px phone (U5)', () => {
         await expectNoHorizontalOverflow(page);
     });
 
-    test('the recipe detail fits the viewport and every ingredient row is a 48px tap target', async ({ page }) => {
+    test('the recipe detail fits the viewport and every ingredient row is a 44px tap target', async ({ page }) => {
         await seed(page);
         await page.goto(route(`/recipes/${RECIPE_ID}`));
         await expect(page.getByRole('heading', { level: 1, name: 'Weeknight Pasta with Garlic' })).toBeVisible();
 
         await expectNoHorizontalOverflow(page);
 
-        // The WHOLE row is the checkbox (build spec §6.3): at least 48 px tall, the drawn box inside it 24 px.
+        // The WHOLE row is the checkbox (build spec §6.3): at least 44 px tall, the drawn box inside it 18 px. REWRITTEN
+        // from 48 / 24 to the owner's decisions C5 and T1 (01c0c13ec): the row is the touch target at the 44 px floor,
+        // and `CheckBoxGlyph` keeps an 18 px visual box on the 20 px first line of the list role.
         const row = page.getByRole('checkbox', { name: /Olive oil/ });
         const box = await row.boundingBox();
         const drawn = await row.locator('[aria-hidden="true"]').first().boundingBox();
 
-        expect(box?.height ?? 0).toBeGreaterThanOrEqual(48);
-        expect(Math.round(drawn?.width ?? 0)).toBe(24);
-        expect(Math.round(drawn?.height ?? 0)).toBe(24);
+        expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
+        expect(Math.round(drawn?.width ?? 0)).toBe(18);
+        expect(Math.round(drawn?.height ?? 0)).toBe(18);
     });
 
     test('version-compare stacks the A/B columns into one', async ({ page }) => {
@@ -329,24 +331,26 @@ test.describe('recipe/home responsive — 1280px desktop is unchanged (U5)', () 
         expect(railHeight).toBeGreaterThan(400);
     });
 
-    test('the detail title is the large title and the drawn ingredient box stays 24px', async ({ page }) => {
+    test('the detail title is the large title and the drawn ingredient box stays 18px', async ({ page }) => {
         await seed(page);
         await page.goto(route(`/recipes/${RECIPE_ID}`));
         const heading = page.getByRole('heading', { level: 1, name: 'Weeknight Pasta with Garlic' });
         await expect(heading).toBeVisible();
 
-        // The title is the large-title role (build spec §1.5); its wide size is the role's own, read from the page.
+        // The title is the large-title role (build spec §1.5). REWRITTEN to the owner's type-scale rule (2026-10-25: 28 px
+        // is the largest size in the app, and `largeTitle` is 28 at every container class). It asserted a floor of 34 px,
+        // which the scale no longer allows; the exact value also fails on drift the other way. Read from the page.
         const fontSize = await heading.evaluate((el) => Number.parseFloat(getComputedStyle(el).fontSize));
-        expect(fontSize).toBeGreaterThanOrEqual(34);
+        expect(fontSize).toBe(28);
 
-        // The drawn ingredient box is 24 px at every width; the row around it is the target.
+        // The drawn ingredient box is 18 px at every width (C5, 01c0c13ec); the row around it is the target.
         const drawn = await page
             .getByRole('checkbox', { name: /Olive oil/ })
             .locator('[aria-hidden="true"]')
             .first()
             .boundingBox();
-        expect(Math.round(drawn?.width ?? 0)).toBe(24);
-        expect(Math.round(drawn?.height ?? 0)).toBe(24);
+        expect(Math.round(drawn?.width ?? 0)).toBe(18);
+        expect(Math.round(drawn?.height ?? 0)).toBe(18);
 
         // Future-drift guard: the static detail article stays visually stable at desktop width.
         // ⚠️ THIS BASELINE NOW COVERS THE OWNER CONTROLS. They used to be siblings of `RecipeDetailView`,
@@ -357,20 +361,18 @@ test.describe('recipe/home responsive — 1280px desktop is unchanged (U5)', () 
         // a UI that no longer ships, which is strictly worse than it failing.
         // Re-baselined for the UI overhaul's slice 1 (no box in a box, §1.6) and slice 6 (the recipe page's layout,
         // §6.1: meta line, stat strip, action row, two columns from a 720 px body). Re-baselined again for the UX
-        // evaluation fixes (`evaluateFinal.md` F7, F8, F10, F15): the title is Playfair `largeTitle`, the stat strip stays
+        // evaluation fixes (`evaluateFinal.md` F7, F8, F10, F15): the title is Manrope `largeTitle`, the stat strip stays
         // 2 x 2 below a 480 px strip, the no-photo hero is the 96 px monogram band at the end, the page gutter is the
         // layout's alone, and "Community rating" is an Inter H2. Re-baselined for the walk-through fixes and the owner's
         // decisions of 2026-10-13: with no photo the 96 px band takes the whole top row with the header under it (P1),
         // and the page shows no version number (decision 7).
         //
-        // The Screen on hint is a one-time line that appears once the page knows the browser can keep the screen awake
-        // and leaves at the first scroll (§6.3), and the screenshot's own scroll into view takes it away: the article is
-        // 29 px taller, then shorter, mid-capture. The picture is of the page after the cook has scrolled once: the hint
-        // is waited for first, so the scroll that takes it back is one the page is listening for.
-        const hint = page.getByText('Keeps the screen awake while you cook.');
-        await expect(hint.filter({ visible: true })).toHaveCount(1);
-        await page.mouse.wheel(0, 1);
-        await expect(hint).toHaveCount(0);
+        // Re-baselined for b2b1294bc (the detail page rebuilt to the Android 384 board: buildLists.md "Supersedes
+        // buildSpec §6.1 and §6.2": three fact tiles, no filled Edit recipe, no four-cell stat card), 996 px to 904 px
+        // tall. Re-taken after the Nutrition row became the collapsed full-width row before the columns (960 x 850), then again as a paper card at 56 high (960 x 858).
+        // THE DESIGNER MUST LOOK at `recipeDetailDesktop.png` before this baseline is trusted.
+        //
+        // Screen on has no caption (designer, iosBatch1), so no scroll is needed before the picture.
         await expect(page.getByRole('article', { name: 'Weeknight Pasta with Garlic' })).toHaveScreenshot(
             'recipeDetailDesktop.png',
             { maxDiffPixelRatio: 0.02 },

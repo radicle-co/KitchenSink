@@ -68,9 +68,9 @@ describe('lineCatalogOf', () => {
 });
 
 /**
- * Finding #7 (plan 002 V1): the editor withholds what the detail read withholds. recipe-service's `isWithheldLine`
- * keeps the catalog figures of a line the verification gate contradicted or has not judged yet; on the wire those
- * lines read `NEEDS_REVIEW` or `PENDING_VERIFICATION`, and the read still sends their `foodId`. Only the CATALOG
+ * Finding #7 (plan 002 V1): the editor withholds what the detail read withholds. recipe-service's `isWithheld`
+ * keeps back the catalog figures of a line the verification gate contradicted; on the wire it reads `NEEDS_REVIEW`
+ * (an older server also sent `PENDING_VERIFICATION`), and the read still sends its `foodId`. Only the CATALOG
  * contribution is withheld: figures the cook stated still count, as on the server.
  */
 describe('lineCatalogOf — withholds a line the verification gate has not cleared', () => {

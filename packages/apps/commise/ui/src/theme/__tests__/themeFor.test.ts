@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { role, roleDark, tint } from '../../tokens/colors.js';
+import { role, roleDark } from '../../tokens/colors.js';
 import { coverTint, coverTintDark } from '../../tokens/covers.js';
 import { gradient, heroDark } from '../../tokens/gradients.js';
-import { statusTone, statusToneDark } from '../../tokens/tones.js';
+import { proTone, proToneDark, statusTone, statusToneDark } from '../../tokens/tones.js';
+import { pressFillsOf } from '../../surfaceTone/surfaceTone.js';
 import { themeFor } from '../themeFor.js';
 
 /**
@@ -32,13 +33,27 @@ describe('themeFor', () => {
         expect(theme.status).toBe(statusToneDark);
     });
 
-    // `darkTheme.md` §1, "Pressed and hover": a wash of `ink` at 6%, the native twin of the web `bg-ink/6`.
-    it('derives the press wash from each scheme’s ink', () => {
-        expect(themeFor('light').wash).toBe(tint(role.ink, 0.06));
-        expect(themeFor('dark').wash).toBe(tint(roleDark.ink, 0.06));
+    // REWRITTEN (`componentFixes.md` §10a): the single `wash` is gone; each surface has its own derived press (below).
+    it('has no single wash any more: a press belongs to a surface', () => {
+        expect('wash' in themeFor('light')).toBe(false);
+        expect('wash' in themeFor('dark')).toBe(false);
+    });
+
+    // The native PRO badge reads its pair from the theme, so the dark scheme paints the dark pair (it used to read the
+    // light constant in both).
+    it('gives each scheme its own PRO pair', () => {
+        expect(themeFor('light').pro).toBe(proTone);
+        expect(themeFor('dark').pro).toBe(proToneDark);
     });
 
     it('returns the same object for the same scheme', () => {
         expect(themeFor('dark')).toBe(themeFor('dark'));
+    });
+});
+
+describe('themeFor — the press fills', () => {
+    it('carries each surface’s derived press, light and dark', () => {
+        expect(themeFor('light').press).toEqual(pressFillsOf(role, 'light'));
+        expect(themeFor('dark').press).toEqual(pressFillsOf(roleDark, 'dark'));
     });
 });

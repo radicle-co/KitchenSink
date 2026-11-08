@@ -18,8 +18,9 @@
 #
 # Two surfaces, one confirm: the recipe page's ⋯ and the editor's "Who can see it" (recipes), then a collection's ⋯.
 #
-# The confirm's body differs by reason (hidden: "won't be able to", upsell: "you'll need Premium"), and the stage's gate
-# is the owner's, so the body is matched by the sentence both share. ⚠️ The editor's radios are named by ALL their texts,
+# The confirm's body (ADR-0073, owner ruling 2026-10-26: public is never final) says it frees one of the cook's private slots
+# and that the recipe can be made private again while a slot is free; it never says it cannot be. The body is matched by
+# the sentence every version shares. ⚠️ The editor's radios are named by ALL their texts,
 # the cost note included (`visibility.yaml` says why), so the Public radio is matched by its leading words.
 appId: ${APP_ID}
 # The device is cleared after the run, pass or fail, so the next flow signs in as the shard's signer (`signinHome.yaml`
@@ -47,11 +48,13 @@ onFlowComplete:
           DIRECTION: DOWN
           TIMEOUT: 20000
 - tapOn: '${E2E_DOWNGRADED_RECIPE}'
+# The ⋯ is in the detail's TOP BAR and scrolls away with the header, so reach it the way a cook does: scroll back UP
+# (DOWN adds a nudge that would push a visible ⋯ off the top).
 - runFlow:
       file: common/scrollIntoTapView.yaml
       env:
           TARGET: 'More actions for .*'
-          DIRECTION: DOWN
+          DIRECTION: UP
           TIMEOUT: 20000
 - tapOn: 'More actions for .*'
 - tapOn: 'Make public'
@@ -59,7 +62,7 @@ onFlowComplete:
 - assertVisible: 'Anyone can see a public recipe and save a copy\..*'
 # Two verbs and nothing that sells.
 - assertVisible: 'Keep private'
-- assertNotVisible: 'See Premium'
+- assertNotVisible: 'See Pro'
 - tapOn: 'Keep private'
 - assertNotVisible: 'Make this recipe public?'
 - assertVisible: '^Private$'
@@ -87,8 +90,11 @@ onFlowComplete:
       when:
           platform: Android
       commands:
+          # ⚠️ The radio is named by ALL its texts, and since the private-slots work (ADR-0073) the cost note ends it
+          # with the count ("…, 49 of 50 private slots left"), which changes per run. Matched by the stable start, as
+          # the Public radio above is; a bare prefix without `.*` would not match the whole label.
           - assertVisible:
-                text: 'Private, Only you can see it'
+                text: 'Private, Only you can see it.*'
                 checked: true
 - runFlow:
       when:
@@ -121,7 +127,7 @@ onFlowComplete:
 - assertVisible: 'Make this collection public?'
 - assertVisible: 'Anyone can see a public collection and save a copy\..*'
 - assertVisible: 'Keep private'
-- assertNotVisible: 'See Premium'
+- assertNotVisible: 'See Pro'
 - tapOn: 'Keep private'
 - assertNotVisible: 'Make this collection public?'
 # Nothing was sent: it is still private, and no "now public" snackbar stands.

@@ -101,6 +101,9 @@ export function makeIngredientLineRow(overrides: Partial<IngredientRow> = {}): I
         /** Both `null` = "this line states no preparation and belongs to no section". */
         preparation: null,
         groupLabel: null,
+        /** Both `null` = "no recorded binding origin, and not bound from a bulk import" (migration 0060). */
+        boundBy: null,
+        importLineId: null,
         sortOrder: 0,
         userCalories: null,
         userProteinG: null,

@@ -14,9 +14,6 @@
 /** DI token for the recipe DAL — provided by `RecipesModule` via `useFactory` over the Drizzle client. */
 export const RECIPES_DAL = 'RECIPES_DAL';
 
-/** DI token for the shadow coin's RNG — injected so the band shadow sampling is testable. */
-export const RECIPES_SHADOW_RNG = 'RECIPES_SHADOW_RNG';
-
 /** DI token for the recipes vertical's own `PhotosDal` instance (embeds a recipe's photos in the detail). */
 export const RECIPE_PHOTOS_DAL = 'RECIPE_PHOTOS_DAL';
 

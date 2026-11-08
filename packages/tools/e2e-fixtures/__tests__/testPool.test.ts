@@ -13,7 +13,7 @@
  *     signed into by the tooling.
  */
 import { hasPaidFeatures } from '@kitchensink/clerk-verify';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
     assertPoolMember,
@@ -31,6 +31,7 @@ import {
     POOL_TIERS,
     poolSlotMetadata,
     DOWNGRADED_OWNER_LANE_ID,
+    isLocalNamespaceSlot,
     ROLE_LANE_IDS,
     rosterSlots,
     slotFor,
@@ -154,16 +155,35 @@ describe('k6VuSlots', () => {
         const slots = k6VuSlots(3);
 
         expect(slots.map((slot) => slot.id)).toEqual(['alfa', 'bravo', 'charlie']);
-        expect(k6VuSlots(20).some((slot) => slot.id === 'admin')).toBe(false);
+        expect(k6VuSlots(10).some((slot) => slot.id === 'admin')).toBe(false);
     });
 
     it('selects through k6VuLanes, so every VU the roster declares is a slot and nothing else is', () => {
-        expect(k6VuSlots(20).map((slot) => slot.id)).toEqual(k6VuLanes(POOL_ROSTER.k6).map((declared) => declared.id));
-        expect(k6VuLanes(POOL_ROSTER.k6)).toHaveLength(20);
+        expect(k6VuSlots(10).map((slot) => slot.id)).toEqual(k6VuLanes(POOL_ROSTER.k6).map((declared) => declared.id));
+        expect(k6VuLanes(POOL_ROSTER.k6)).toHaveLength(10);
+    });
+
+    it('declares no lane past juliett: kilo to tango never signed in and were deleted to free Clerk dev seats (2026-10-29)', () => {
+        const ids = POOL_ROSTER.k6.map((declared) => declared.id);
+
+        for (const removed of [
+            'kilo',
+            'lima',
+            'mike',
+            'november',
+            'oscar',
+            'papa',
+            'quebec',
+            'romeo',
+            'sierra',
+            'tango',
+        ]) {
+            expect(ids).not.toContain(removed);
+        }
     });
 
     it('refuses more VUs than the pool declares, and a non-positive count', () => {
-        expect(() => k6VuSlots(21)).toThrow(/declares only 20/u);
+        expect(() => k6VuSlots(11)).toThrow(/declares only 10/u);
         expect(() => k6VuSlots(0)).toThrow(/at least one/u);
     });
 });
@@ -613,5 +633,58 @@ describe('webPeer tier', () => {
 
     it('refuses a shard past the declared peers rather than wrapping onto another shard’s peer', () => {
         expect(() => slotForShard('webPeer', POOL_ROSTER.webPeer.length + 1)).toThrow(/declares only/u);
+    });
+});
+
+describe('reusing the shared role users in a local run', () => {
+    /**
+     * The Clerk development instance holds 100 users and the roster is large, so a local run does not make six more:
+     * `E2E_ROLE_USERS_NAMESPACE=shared` points the five read-only role lanes at the SHARED pool CI already has, which are
+     * signed into and never written. The downgraded owner stays LOCAL: its world is written by `ensure-downgraded`, which
+     * raises and settles the lane's roles, and doing that to a user CI shares would be a write to CI's world.
+     */
+    afterEach(() => {
+        vi.unstubAllEnvs();
+    });
+
+    const roleLane = (id: string) => slotFor('roles', id);
+
+    it('is off unless asked: a local run gets local role addresses, as before', () => {
+        vi.stubEnv('E2E_POOL_NAMESPACE', 'local');
+
+        expect(roleLane('roledefault').email).toContain('test-local-roledefault');
+    });
+
+    it('moves exactly the five role lanes to the shared pool, and only in a local run', () => {
+        vi.stubEnv('E2E_POOL_NAMESPACE', 'local');
+        vi.stubEnv('E2E_ROLE_USERS_NAMESPACE', 'shared');
+
+        for (const id of Object.values(ROLE_LANE_IDS)) {
+            expect(roleLane(id).email, id).toBe(`test-${id}+clerk_test@radcile.com`);
+        }
+
+        expect(roleLane(DOWNGRADED_OWNER_LANE_ID).email).toContain('test-local-');
+        expect(slotFor('maestro', 'signer').email).toContain('test-local-signer');
+    });
+
+    it('changes nothing for a shared run, whatever it is set to', () => {
+        vi.stubEnv('E2E_ROLE_USERS_NAMESPACE', 'shared');
+
+        expect(roleLane('roledefault').email).toBe('test-roledefault+clerk_test@radcile.com');
+    });
+
+    it('refuses any value but exactly shared', () => {
+        vi.stubEnv('E2E_POOL_NAMESPACE', 'local');
+        vi.stubEnv('E2E_ROLE_USERS_NAMESPACE', 'Shared');
+
+        expect(() => roleLane('roledefault')).toThrow(/E2E_ROLE_USERS_NAMESPACE/u);
+    });
+
+    it('tells a slot only a local run owns from one CI shares', () => {
+        vi.stubEnv('E2E_POOL_NAMESPACE', 'local');
+        vi.stubEnv('E2E_ROLE_USERS_NAMESPACE', 'shared');
+
+        expect(isLocalNamespaceSlot(roleLane('roledefault'))).toBe(false);
+        expect(isLocalNamespaceSlot(roleLane(DOWNGRADED_OWNER_LANE_ID))).toBe(true);
     });
 });

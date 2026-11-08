@@ -9,6 +9,13 @@
  * hardware-back / web-Escape path RN provides) is wired straight to `onCancel`, the same callback the
  * explicit "Keep current version" control uses — one exit path, not two.
  *
+ * The order, top to bottom, is the web leaf's: the title; the load state or load error, then the restore error; the
+ * "Changed from current" line, pinned above the scroller; the recipe body, the ONLY part that scrolls; the two actions,
+ * pinned under it through the design-system `DialogActions`, which stacks them full width on a phone.
+ *
+ * Past half the sheet (large text on a short phone) the pinned top and the actions would leave the body a sliver, so the
+ * actions become the last item of the scroller (`usePinnedFooter`); the title, errors and summary stay pinned.
+ *
  * A discriminated three-way state (mutually exclusive, matching {@link VersionPreviewModalProps}'s JSDoc):
  * (1) a `progressbar` affordance while `isLoading`; (2) an `alert` for a failed lookup — either an explicit
  * `error` or, per B21, nothing pending and still no `version` — deliberately NOT a dead end, "Keep current
@@ -21,9 +28,12 @@
  *     padding, rendering the same controlled contract as the web leaf.
  */
 import { useMessages } from '@commise/i18n/react';
+import { nativeTokens } from '@commise/ui/native';
 import { VariantPartsLine } from '@commise/ui/variant-parts-line';
 import { Button } from '@commise/ui/button';
+import { DialogActions } from '@commise/ui/dialog-actions';
 import { FullScreenSheet } from '@commise/ui/full-screen-sheet';
+import { usePinnedFooter } from '@commise/ui/layout';
 import { useTheme } from '@commise/ui/theme';
 import type { FC } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -38,7 +48,17 @@ import {
     formatChangedFromCurrent,
     toVersionPreviewIngredientLines,
     toVersionPreviewSteps,
+    versionLineAccessibilityLabel,
 } from './preview.js';
+
+/**
+ * The width of the action row from which Keep and Restore sit side by side: the longest label pair in the product
+ * ("Keep current version", "Restore this version") at +35% for a translation, measured at about 578 px (see
+ * `DialogActionsSideBySideFrom`). Every phone stacks them; a tablet sheet sits in a row. Two icon-and-label buttons are
+ * wider than a 360 dp phone's content box, and a row that cannot wrap overflows on its START side, so stacking is the
+ * re-layout, not a wrap.
+ */
+const SIDE_BY_SIDE_FROM = 600;
 
 export const VersionPreviewModal: FC<VersionPreviewModalProps> = ({
     open,
@@ -53,11 +73,14 @@ export const VersionPreviewModal: FC<VersionPreviewModalProps> = ({
     restoreError,
 }) => {
     const { preview, conflict, versionList } = useMessages(recipeVersionMessages);
-    const { ingredientLineName } = useMessages(recipeMessages);
+    const { ingredientLineName, amountWords } = useMessages(recipeMessages);
     const { colors } = useTheme();
     const ink = { color: colors.ink };
     const muted = { color: colors.inkMuted };
     const danger = { color: colors.dangerText };
+    // Past half the sheet, the pinned top and the actions leave the recipe a sliver (large text, a short phone), so the
+    // actions become the scroller's last item. The title, errors and summary stay pinned; Android Back still closes.
+    const pinning = usePinnedFooter();
 
     if (!open) {
         return null;
@@ -81,35 +104,67 @@ export const VersionPreviewModal: FC<VersionPreviewModalProps> = ({
             ? fillTemplate(preview.title, { version: version.versionNumber, title: version.snapshot.title })
             : preview.titleLoading;
 
+    const actions = (
+        <View style={styles.actions} onLayout={pinning.onFooterLayout}>
+            <DialogActions sideBySideFrom={SIDE_BY_SIDE_FROM}>
+                <Button variant="secondary" icon="x" width="fill" onPress={onCancel}>
+                    {preview.keepCurrent}
+                </Button>
+                {showContent && version !== undefined && (
+                    <Button
+                        icon="rotateCcw"
+                        busy={isRestoring}
+                        width="fill"
+                        onPress={() => onRestore(version.versionNumber)}
+                    >
+                        {isRestoring ? preview.restoringThis : preview.restoreThis}
+                    </Button>
+                )}
+            </DialogActions>
+        </View>
+    );
+    // Only a loaded body has a scroller to move into.
+    const actionsInBody = pinning.unpinned && showContent;
+
     return (
         <FullScreenSheet label={title} onRequestClose={onCancel}>
-            <>
-                <Text accessibilityRole="header" style={[styles.title, ink]}>
-                    {title}
-                </Text>
-
-                {showLoading && (
-                    <Text
-                        accessibilityRole="progressbar"
-                        accessibilityLabel={preview.loading}
-                        style={[styles.body, muted]}
-                    >
-                        {preview.loading}
+            <View style={styles.frame} onLayout={pinning.onFrameLayout}>
+                <View style={styles.top} onLayout={pinning.onTopLayout}>
+                    <Text accessibilityRole="header" style={[styles.title, ink]}>
+                        {title}
                     </Text>
-                )}
 
-                {showError && (
-                    <Text accessibilityRole="alert" style={[styles.error, danger]}>
-                        {preview.error}
-                    </Text>
-                )}
+                    {showLoading && (
+                        <Text
+                            accessibilityRole="progressbar"
+                            accessibilityLabel={preview.loading}
+                            style={[styles.body, muted]}
+                        >
+                            {preview.loading}
+                        </Text>
+                    )}
 
-                {/* A failed restore of THIS version, shown where the cook pressed Restore (the web leaf's §5 note). */}
-                {restoreErrorText !== undefined && (
-                    <Text accessibilityRole="alert" style={[styles.error, danger]}>
-                        {restoreErrorText}
-                    </Text>
-                )}
+                    {showError && (
+                        <Text accessibilityRole="alert" style={[styles.error, danger]}>
+                            {preview.error}
+                        </Text>
+                    )}
+
+                    {/* A failed restore of THIS version, shown where the cook pressed Restore (the web leaf's §5 note). */}
+                    {restoreErrorText !== undefined && (
+                        <Text accessibilityRole="alert" style={[styles.error, danger]}>
+                            {restoreErrorText}
+                        </Text>
+                    )}
+
+                    {/* Above the scroller, not last inside it: a recipe with a real ingredient list and steps is taller than
+                    the screen, and the line is what the cook came to read (Android Maestro run, `recipes/versions`). */}
+                    {showContent && diffFromCurrent !== undefined && (
+                        <Text style={[styles.changedNote, muted]}>
+                            {formatChangedFromCurrent(diffFromCurrent, preview, conflict, locale)}
+                        </Text>
+                    )}
+                </View>
 
                 {showContent && version !== undefined && (
                     <ScrollView
@@ -166,7 +221,10 @@ export const VersionPreviewModal: FC<VersionPreviewModalProps> = ({
                             ).map((line) => (
                                 <View key={line.key} style={styles.ingredientRow}>
                                     <View style={styles.ingredientLine}>
-                                        <Text style={[styles.body, muted, styles.ingredientText]}>
+                                        <Text
+                                            style={[styles.body, muted, styles.ingredientText]}
+                                            accessibilityLabel={versionLineAccessibilityLabel(line, amountWords)}
+                                        >
                                             {line.text}
                                             {/* Words, never colour alone: the refused restore named this line. On a
                                                 line with no details it is read with the line. */}
@@ -211,42 +269,31 @@ export const VersionPreviewModal: FC<VersionPreviewModalProps> = ({
                                 </View>
                             </>
                         )}
-
-                        {diffFromCurrent !== undefined && (
-                            <Text style={[styles.changedNote, muted]}>
-                                {formatChangedFromCurrent(diffFromCurrent, preview, conflict, locale)}
-                            </Text>
-                        )}
+                        {actionsInBody ? actions : null}
                     </ScrollView>
                 )}
 
-                <View style={styles.actions}>
-                    <Button variant="secondary" icon="x" onPress={onCancel}>
-                        {preview.keepCurrent}
-                    </Button>
-                    {showContent && version !== undefined && (
-                        <Button icon="rotateCcw" busy={isRestoring} onPress={() => onRestore(version.versionNumber)}>
-                            {isRestoring ? preview.restoringThis : preview.restoreThis}
-                        </Button>
-                    )}
-                </View>
-            </>
+                {actionsInBody ? null : actions}
+            </View>
         </FullScreenSheet>
     );
 };
 
 const styles = StyleSheet.create({
-    title: { fontSize: 20, fontWeight: '600' },
-    body: { fontSize: 15, lineHeight: 22 },
-    error: { fontSize: 15 },
+    // The sheet's own surface is a 16 dp gap column; the frame and the pinned top keep that rhythm.
+    frame: { flex: 1, gap: 16 },
+    top: { gap: 16 },
+    title: { ...nativeTokens.type.sectionTitle },
+    body: { ...nativeTokens.type.body },
+    error: { ...nativeTokens.type.body },
     cannotRestore: { fontWeight: '600' },
     scroll: { flex: 1 },
     scrollContent: { gap: 16 },
     fields: { gap: 6 },
     field: { flexDirection: 'row', gap: 8 },
-    fieldLabel: { fontSize: 14, fontWeight: '600', minWidth: 96 },
-    fieldValue: { fontSize: 14, flexShrink: 1 },
-    sectionHeading: { fontSize: 16, fontWeight: '600' },
+    fieldLabel: { ...nativeTokens.type.label, minWidth: 96 },
+    fieldValue: { ...nativeTokens.type.meta, flexShrink: 1 },
+    sectionHeading: { ...nativeTokens.type.cardTitle },
     ingredients: { gap: 4 },
     ingredientRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 8 },
     // RN defaults `flexShrink` to 0, so a long composed line (quantity + unit + a user-supplied ingredient
@@ -257,7 +304,7 @@ const styles = StyleSheet.create({
     stepText: { flexShrink: 1 },
     // The line and its dotted line stack, 4 dp apart (§S4a), and yield width to the calorie chip together.
     ingredientLine: { flexShrink: 1, gap: 4 },
-    calories: { flexShrink: 0, fontSize: 14 },
-    changedNote: { fontSize: 13, fontStyle: 'italic' },
-    actions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 12, marginTop: 'auto' },
+    calories: { ...nativeTokens.type.meta, flexShrink: 0 },
+    changedNote: { ...nativeTokens.type.meta, fontStyle: 'italic' },
+    actions: { marginTop: 'auto' },
 });

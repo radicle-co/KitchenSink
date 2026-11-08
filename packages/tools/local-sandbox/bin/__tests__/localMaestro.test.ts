@@ -82,7 +82,14 @@ function run(sandbox: Sandbox, body: string, env: Readonly<Record<string, string
 }
 
 describe('local_maestro_flows — which flows a command runs', () => {
-    it('`all` runs CI’s own plan, in CI’s order, with nothing added or dropped', () => {
+    /**
+     * REWRITTEN 2026-10-29. It used to assert "nothing added or dropped"; five flows (`MAESTRO_SANDBOX_ONLY_FLOWS`) need
+     * the deployed sandbox (four its food catalog and verification worker, `auth/loginFlow` its Clerk instance's Google
+     * sign-in), which the local stack cannot run. They are dropped from
+     * the LOCAL list ON PURPOSE and named on stderr, never run to fail and never counted as passed. The deployed plan is
+     * untouched (`maestroSandboxOnlyFlows.test.ts`), so this still asserts CI's order for everything else.
+     */
+    it('`all` runs CI’s own plan in CI’s order, minus the flows that need the sandbox, and NAMES those', () => {
         const sandbox = makeSandbox();
         const ours = run(sandbox, 'local_maestro_flows all');
         const ci = spawnSync('bash', [path.join(FLOWS_DIR, '../tests/e2e/runMaestroFlows.sh'), 'select'], {
@@ -92,10 +99,28 @@ describe('local_maestro_flows — which flows a command runs', () => {
             .split('\n')
             .filter((line) => line.startsWith('flow='))
             .map((line) => line.slice('flow='.length));
+        const sandboxOnly = [
+            'recipes/pasteListSettle',
+            'recipes/ingredientCandidates',
+            'recipes/ambiguityReview',
+            'auth/loginFlow',
+        ];
 
         expect(ours.status).toBe(0);
         expect(ciFlows.length).toBeGreaterThan(10);
-        expect(ours.stdout.trim().split('\n')).toEqual(ciFlows);
+        expect(ours.stdout.trim().split('\n')).toEqual(ciFlows.filter((flow) => !sandboxOnly.includes(flow)));
+
+        for (const flow of sandboxOnly) {
+            expect(ciFlows).toContain(flow);
+            expect(ours.stderr).toContain(`not run locally: needs sandbox - ${flow}`);
+        }
+    });
+
+    it('`flows` still runs a sandbox-only flow when it is NAMED - the developer asked for exactly that', () => {
+        const result = run(makeSandbox(), 'local_maestro_flows flows recipes/pasteListSettle');
+
+        expect(result.status).toBe(0);
+        expect(result.stdout.trim()).toBe('recipes/pasteListSettle');
     });
 
     it('`flows` runs exactly the named flows, in the order given', () => {
@@ -274,8 +299,15 @@ describe('local_maestro_check_bundle_env — the bundle names only local origins
         return file;
     };
 
+    // JSON is not safe to splice into generated code until the characters that can end a script or a line are escaped.
+    const asJsLiteral = (value: unknown): string =>
+        JSON.stringify(value).replace(
+            /[<>\u2028\u2029]/gu,
+            (character) => `\\u${character.charCodeAt(0).toString(16).padStart(4, '0')}`,
+        );
+
     const envModule = (name: string, entries: Record<string, string>): string =>
-        `__d(function(){var _default = ${JSON.stringify(entries)};},1,[],"${name}");\n`;
+        `__d(function(){var _default = ${asJsLiteral(entries)};},1,[],${asJsLiteral(name)});\n`;
 
     it('passes a bundle whose env modules name only loopback origins', () => {
         const sandbox = makeSandbox();
@@ -392,5 +424,227 @@ describe('the local run names its platform', () => {
         const result = run(sandbox, `local_maestro_seed_env '${sandbox.state}'; echo "$E2E_SEED_IDENTITY_URL"`);
 
         expect(result.stdout.trim().split('\n').at(-1)).toBe('http://localhost:3001');
+    });
+});
+
+/**
+ * ADDED 2026-10-27: a local run signs in users of its own (`E2E_POOL_NAMESPACE=local`). The shared pool's erasure
+ * subjects are CI's, and the local stack runs no identity webhook to write a user's `external_id`; see `testPool.ts`.
+ */
+describe('the local run uses its own pool users', () => {
+    const fakeNpx = (sandbox: Sandbox): void => {
+        writeFileSync(
+            path.join(sandbox.bin, 'npx'),
+            `#!/usr/bin/env bash\necho "npx $* ns=\${E2E_POOL_NAMESPACE:-unset}" >> "${sandbox.calls}"\nexit 0\n`,
+        );
+        chmodSync(path.join(sandbox.bin, 'npx'), 0o755);
+    };
+
+    it('⛔ selects the local namespace for every seed tool', () => {
+        const sandbox = makeSandbox();
+        const result = run(sandbox, `local_maestro_seed_env '${sandbox.state}'; echo "$E2E_POOL_NAMESPACE"`);
+
+        expect(result.stdout.trim().split('\n').at(-1)).toBe('local');
+    });
+
+    it('creates the lane’s users, recycling its erasure subjects, with the namespace in force', () => {
+        const sandbox = makeSandbox();
+        fakeNpx(sandbox);
+
+        expect(
+            run(sandbox, `local_maestro_seed_env '${sandbox.state}'; local_maestro_provision_lane_users`).status,
+        ).toBe(0);
+        expect(readFileSync(sandbox.calls, 'utf8')).toContain(
+            'poolAdmin.ts --apply --recycle --maestro-lane --platform android --shard 1 ns=local',
+        );
+    });
+
+    it('provisions the users after the Clerk keys are loaded and before the pool is reset', () => {
+        const body = run(makeSandbox(), 'declare -f local_maestro_main').stdout;
+        const at = (needle: string): number => body.indexOf(needle);
+
+        expect(at('local_maestro_provision_lane_users')).toBeGreaterThan(at('local_maestro_load_clerk_keys'));
+        // The reset that matters is the first one AFTER the provisioning (an earlier one belongs to the `reset` command).
+        const resetAfter = body.indexOf('local_maestro_reset_pool', at('local_maestro_provision_lane_users'));
+
+        expect(resetAfter).toBeGreaterThan(at('local_maestro_provision_lane_users'));
+        expect(resetAfter).toBeLessThan(at('local_maestro_align_identities'));
+    });
+});
+
+describe('a recipe host port something else holds', () => {
+    it('seeds against the moved host port, while the device keeps addressing :3000', () => {
+        const sandbox = makeSandbox();
+        const result = run(
+            sandbox,
+            `local_maestro_seed_env '${sandbox.state}'; echo "$E2E_SEED_RECIPE_URL $LOCAL_MAESTRO_RECIPE_ORIGIN"`,
+            { LOCAL_MAESTRO_RECIPE_HOST_PORT: '3050' },
+        );
+
+        expect(result.stdout.trim().split('\n').at(-1)).toBe('http://localhost:3050 http://localhost:3000');
+    });
+
+    it('defaults to the service’s own port', () => {
+        const sandbox = makeSandbox();
+        const result = run(sandbox, `local_maestro_seed_env '${sandbox.state}'; echo "$E2E_SEED_RECIPE_URL"`);
+
+        expect(result.stdout.trim().split('\n').at(-1)).toBe('http://localhost:3000');
+    });
+});
+
+describe('local_maestro_provision_lane_users — what it may do to Clerk', () => {
+    /** `npx` is faked so the test sees the command a real run would issue, and nothing is created or deleted. */
+    function provision(env: Readonly<Record<string, string>>): string {
+        const sandbox = makeSandbox();
+
+        writeFileSync(path.join(sandbox.bin, 'npx'), `#!/usr/bin/env bash\necho "npx $*" >> "${sandbox.calls}"\n`);
+        chmodSync(path.join(sandbox.bin, 'npx'), 0o755);
+
+        const result = run(sandbox, 'local_maestro_provision_lane_users', env);
+
+        expect(result.status).toBe(0);
+
+        return readFileSync(sandbox.calls, 'utf8');
+    }
+
+    it('by default recycles the lane users and creates NO role users', () => {
+        const calls = provision({});
+
+        expect(calls).toContain('--apply --recycle --maestro-lane --platform android --shard 1');
+        expect(calls).not.toContain('--local-roles');
+    });
+
+    it('⛔ LOCAL_MAESTRO_REUSE_USERS=1 issues no poolAdmin command at all - nothing is created or deleted in Clerk', () => {
+        expect(provision({ LOCAL_MAESTRO_REUSE_USERS: '1' })).not.toContain('poolAdmin');
+    });
+
+    it('LOCAL_MAESTRO_ROLE_USERS=1 adds the capacity-checked --local-roles step, never --recycle with it', () => {
+        const calls = provision({ LOCAL_MAESTRO_REUSE_USERS: '1', LOCAL_MAESTRO_ROLE_USERS: '1' });
+        const roles = calls.split('\n').filter((line) => line.includes('--local-roles'));
+
+        expect(roles).toHaveLength(1);
+        expect(roles[0]).not.toContain('--recycle');
+    });
+
+    it('LOCAL_MAESTRO_ROLE_USERS=1 points the five read-only role lanes at the shared pool, and only then', () => {
+        const sandbox = makeSandbox();
+        const on = run(sandbox, 'local_maestro_seed_env /tmp/x; echo "ns=${E2E_ROLE_USERS_NAMESPACE:-unset}"', {
+            LOCAL_MAESTRO_ROLE_USERS: '1',
+        });
+        const off = run(sandbox, 'local_maestro_seed_env /tmp/x; echo "ns=${E2E_ROLE_USERS_NAMESPACE:-unset}"');
+
+        expect(on.stdout).toContain('ns=shared');
+        expect(off.stdout).toContain('ns=unset');
+    });
+
+    it('anything but exactly 1 leaves both opt-ins off', () => {
+        const calls = provision({ LOCAL_MAESTRO_REUSE_USERS: 'true', LOCAL_MAESTRO_ROLE_USERS: 'yes' });
+
+        expect(calls).toContain('--recycle');
+        expect(calls).not.toContain('--local-roles');
+    });
+});
+
+describe('local_maestro_pin_cli — the Maestro on PATH is CI’s pin, not whichever one is installed', () => {
+    /** The pin CI installs: the one `MAESTRO_VERSION` in `_ci-heavy.yml`. */
+    const CI_PIN = /MAESTRO_VERSION:\s*'([0-9.]+)'/u.exec(
+        readFileSync(path.join(REPO_ROOT, '.github/workflows/_ci-heavy.yml'), 'utf8'),
+    )?.[1];
+
+    /**
+     * A fake Maestro distribution (`<dir>/bin/maestro`) that answers `--version` with `version`.
+     *
+     * @sideEffect Creates files under the OS temp directory.
+     */
+    function makeDist(root: string, name: string, version: string): string {
+        const dir = path.join(root, name);
+
+        mkdirSync(path.join(dir, 'bin'), { recursive: true });
+        writeFileSync(path.join(dir, 'bin', 'maestro'), `#!/usr/bin/env bash\necho "${version}"\n`);
+        chmodSync(path.join(dir, 'bin', 'maestro'), 0o755);
+
+        return dir;
+    }
+
+    it('reads the pin from CI’s workflow, so the version is stated once', () => {
+        expect(CI_PIN).toBeDefined();
+
+        const result = run(makeSandbox(), 'local_maestro_ci_pin');
+
+        expect(result.stdout.trim()).toBe(CI_PIN);
+    });
+
+    it('puts the pinned distribution first on PATH even when an older one is installed as ~/.maestro', () => {
+        const sandbox = makeSandbox();
+        const home = path.join(path.dirname(sandbox.bin), 'home');
+        const stale = makeDist(home, '.maestro', '2.6.1');
+        const pinned = makeDist(home, 'maestro2110', CI_PIN ?? '');
+        const result = run(sandbox, 'local_maestro_pin_cli && type -P maestro && maestro --version', {
+            HOME: home,
+        });
+
+        expect(result.status).toBe(0);
+        expect(result.stdout.split('\n')[0]).toBe(path.join(pinned, 'bin', 'maestro'));
+        expect(result.stdout).not.toContain(stale);
+        expect(result.stdout).toContain(CI_PIN);
+    });
+
+    it('honours LOCAL_MAESTRO_DIST, and refuses it when it is the wrong version', () => {
+        const sandbox = makeSandbox();
+        const home = path.join(path.dirname(sandbox.bin), 'home');
+        const wrong = makeDist(home, 'elsewhere', '2.6.1');
+        const result = run(sandbox, 'local_maestro_pin_cli', { HOME: home, LOCAL_MAESTRO_DIST: wrong });
+
+        expect(result.status).not.toBe(0);
+        expect(result.stderr).toContain(String(CI_PIN));
+    });
+
+    it('fails, naming the pin, when no installed distribution is that version', () => {
+        const sandbox = makeSandbox();
+        const home = path.join(path.dirname(sandbox.bin), 'home');
+
+        makeDist(home, '.maestro', '2.6.1');
+
+        const result = run(sandbox, 'local_maestro_pin_cli', { HOME: home });
+
+        expect(result.status).not.toBe(0);
+        expect(result.stderr).toContain(String(CI_PIN));
+        expect(result.stderr).toContain('2.6.1');
+    });
+});
+
+describe('local_maestro_export_build_env — the APK build carries the public Clerk key CI’s build carries', () => {
+    it('exports EXPO_PUBLIC_IDP_PUBLISHABLE_KEY from the loaded key, and prints nothing', () => {
+        const result = run(
+            makeSandbox(),
+            'local_maestro_export_build_env && [ "$EXPO_PUBLIC_IDP_PUBLISHABLE_KEY" = "$CLERK_PUBLISHABLE_KEY" ] && echo same',
+            { CLERK_PUBLISHABLE_KEY: FAKE_PUBLISHABLE },
+        );
+
+        expect(result.status).toBe(0);
+        expect(result.stdout.trim()).toBe('same');
+        expect(result.stderr).not.toContain(FAKE_PUBLISHABLE);
+    });
+
+    it('refuses to build with no key — the Google button would be missing', () => {
+        const result = run(makeSandbox(), 'local_maestro_export_build_env', { CLERK_PUBLISHABLE_KEY: '' });
+
+        expect(result.status).not.toBe(0);
+    });
+
+    it('refuses a key that is not a test publishable key, and never echoes it', () => {
+        const live = 'pk_live_SHOULDNEVERBEUSED';
+        const result = run(makeSandbox(), 'local_maestro_export_build_env', { CLERK_PUBLISHABLE_KEY: live });
+
+        expect(result.status).not.toBe(0);
+        expect(result.stdout + result.stderr).not.toContain(live);
+    });
+
+    it('is called by the APK build, ahead of expo prebuild', () => {
+        const script = readFileSync(SCRIPT, 'utf8');
+        const build = script.slice(script.indexOf('local_maestro_install_app()'));
+
+        expect(build.indexOf('local_maestro_export_build_env')).toBeGreaterThan(-1);
+        expect(build.indexOf('local_maestro_export_build_env')).toBeLessThan(build.indexOf('npx expo prebuild'));
     });
 });

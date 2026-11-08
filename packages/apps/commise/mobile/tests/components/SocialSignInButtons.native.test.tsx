@@ -12,7 +12,9 @@
  *   so the accessible name is the visible label (SC 2.5.3).
  * - BUSY locks both providers and says so politely; an error sits in the same slot as an alert.
  */
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, screen } from '@testing-library/react';
+// The text is the design system's Tamagui `Text`, so the tree renders in its provider.
+import { render } from '@commise/ui/testing/tamagui';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { dimmedOpacity } from '@commise/ui/scale';

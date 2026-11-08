@@ -11,7 +11,7 @@
 import { MIN_SEARCH_QUERY_LENGTH } from '@kitchensink/recipe-core/resolution/search-minimum';
 import { makeIngredient } from '@kitchensink/recipe-core/testing';
 import { MAX_SEARCH_FOOD_FILTERS } from '@kitchensink/schema-recipe';
-import { act, cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, screen, within } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -28,6 +28,8 @@ import {
     type RecipeFilterState,
     type RecipeIngredientSearchState,
 } from '../model.js';
+import { scrollViewSizes, stubBoundingRects } from '@commise/ui/testing/bounding-rects';
+import { render } from '@commise/ui/testing/tamagui';
 
 afterEach(cleanup);
 
@@ -206,18 +208,16 @@ describe('FilterGroups (native) — time', () => {
     });
 
     it('fades a scrolling facet row into the sheet’s surface, not the page’s (the filters live on a sheet)', () => {
-        renderGroupsWith('scroll', { facets });
-        const row = screen.getByRole('group', { name: 'Dietary' });
-        const handlers = [...row.querySelectorAll<HTMLElement>('*'), row]
-            .filter((node) => (node as HTMLElement & { __reactLayoutHandler?: unknown }).__reactLayoutHandler)
-            .sort((a, b) => (a.contains(b) ? -1 : 1));
+        // The box around the scroller and the scroller are as wide as the screen gives them; the content is wider.
+        const restoreRects = stubBoundingRects(scrollViewSizes({ scroller: 200, content: 900, box: 200 }));
 
-        for (const [index, node] of handlers.entries()) {
-            const handler = (node as HTMLElement & { __reactLayoutHandler: (event: unknown) => void })
-                .__reactLayoutHandler;
-
-            act(() => handler({ nativeEvent: { layout: { x: 0, y: 0, width: index === 0 ? 200 : 900, height: 36 } } }));
+        try {
+            renderGroupsWith('scroll', { facets });
+        } finally {
+            restoreRects();
         }
+
+        const row = screen.getByRole('group', { name: 'Dietary' });
 
         const fade = row.parentElement?.querySelector<HTMLElement>('[data-commise-stub="linear-gradient"]');
 

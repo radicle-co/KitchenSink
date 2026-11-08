@@ -2,7 +2,6 @@
  * @module @commise/ui/recipe-cover — the shared contract of the design-system `RecipeCover`
  * (`docs/design/uiOverhaul/buildSpec.md` §1.8): a recipe's photo, or its monogram when it has none.
  */
-
 /** The cover's shape: a 4:3 card, a 1:1 thumbnail, or the 96 px band across a phone's detail hero. */
 export type CoverAspect = '4:3' | '1:1' | 'band';
 
@@ -22,11 +21,11 @@ export interface RecipeCoverProps {
      * Whether the monogram may show its cuisine. A caller that lays a chip over the cover says `false`, because text
      * never sits under a chip (§1.8). Defaults to `true`.
      */
-    readonly overline?: boolean;
+    readonly showCuisine?: boolean;
 }
 
 /** The height from which a monogram shows its cuisine, in px or points (§1.8). */
-export const OVERLINE_FROM = 96;
+export const CUISINE_FROM = 96;
 
 /** The monogram letter's size, as a share of the cover's height (§1.8). */
 export const LETTER_SHARE = 0.4;

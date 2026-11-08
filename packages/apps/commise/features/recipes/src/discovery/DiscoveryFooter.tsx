@@ -12,8 +12,11 @@
  *
  * Presentational: it holds no state and sends nothing; the card lifts it above its link (`RecipeCard`'s `footer` slot).
  */
+import { initialsPxOf } from '@commise/ui/avatar-initials';
 import { useMessages } from '@commise/i18n/react';
 import { Icon } from '@commise/ui/icon';
+import { FOCUS_RING_CLASS } from '@commise/ui/focus-ring';
+import { PRESS_FILL_CLASS } from '@commise/ui/surface-tone';
 import type { FC } from 'react';
 
 import { recipeActionMessages } from '../actions/messages.js';
@@ -26,8 +29,8 @@ import type { DiscoveryFooterProps } from './model.js';
 
 /** The 44 px icon button. A busy or finished copy keeps the focus ring: the control is inert, not gone. */
 const BUTTON =
-    'inline-flex size-11 shrink-0 items-center justify-center rounded-full hover:bg-ink/6 focus-visible:outline-none ' +
-    'focus-visible:ring-2 focus-visible:ring-focus-ring';
+    `inline-flex size-11 shrink-0 items-center justify-center rounded-full ${PRESS_FILL_CLASS.pointer} focus-visible:outline-none ` +
+    FOCUS_RING_CLASS.offset;
 
 export const DiscoveryFooter: FC<DiscoveryFooterProps> = ({
     title,
@@ -63,7 +66,8 @@ export const DiscoveryFooter: FC<DiscoveryFooterProps> = ({
                 {initial === undefined ? null : (
                     <span
                         aria-hidden="true"
-                        className="inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-selected-fill text-overline text-action-text"
+                        className="inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-selected-fill font-semibold text-action-text"
+                        style={{ fontSize: initialsPxOf(20) }}
                     >
                         {initial}
                     </span>

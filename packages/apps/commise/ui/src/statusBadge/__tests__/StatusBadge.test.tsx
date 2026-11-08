@@ -33,7 +33,7 @@ const AA_TEXT = 4.5;
 const COLOURS: Readonly<Record<string, string>> = {
     ...palette,
     ...Object.fromEntries(Object.entries(role).map(([name, value]) => [kebab(name), value])),
-    // The PRO pair, fixed in both themes (`darkTheme.md` §2), emitted as `--color-pro-*`.
+    // The PRO pair (light), emitted as `--color-pro-*` and overridden in the dark block.
     'pro-fill': proTone.fill,
     'pro-ink': proTone.text,
 };
@@ -96,7 +96,9 @@ describe('StatusBadge (web)', () => {
         }
     });
 
-    it('paints the recipe statuses neutral — pearl and ink, never amber — told apart by their glyph', () => {
+    // REWRITTEN for componentFixes §7: neutral is paper under inkMuted (it was pearl under ink, and vanished on a pearl
+    // parent), told apart by the glyph, never amber.
+    it('paints the recipe statuses neutral — paper and inkMuted, never amber — told apart by their glyph', () => {
         const glyphs: Readonly<Record<'draft' | 'private' | 'public', string>> = {
             draft: 'lucide-pencil-line',
             private: 'lucide-lock',
@@ -107,23 +109,24 @@ describe('StatusBadge (web)', () => {
             const { unmount } = render(<StatusBadge status={status}>Word</StatusBadge>);
             const badge = badgeOf('Word');
 
-            expect(colourOf(badge.className, 'bg'), status).toBe(palette.pearl);
-            expect(colourOf(badge.className, 'text'), status).toBe(role.ink);
+            expect(colourOf(badge.className, 'bg'), status).toBe(role.paper);
+            expect(colourOf(badge.className, 'text'), status).toBe(role.inkMuted);
             expect(badge.querySelector(`svg.${glyph}`), status).not.toBeNull();
             expect(badge.querySelector('svg')?.getAttribute('aria-hidden'), status).toBe('true');
             unmount();
         }
     });
 
-    // PRO is premium under charcoal in BOTH themes (`darkTheme.md` §2): `ink` would turn light in the dark theme.
-    it('paints PRO on the premium fill with a charcoal label that does not re-theme', () => {
+    // REWRITTEN for the redesign: PRO is a neutral chip (`surfaceMuted` under `ink`), as every status is, and it
+    // re-themes (`--color-pro-fill` / `--color-pro-ink` have a dark value). It used to be a tan fill fixed in both themes.
+    it('paints PRO as a neutral chip that re-themes', () => {
         render(<StatusBadge status="pro">PRO</StatusBadge>);
 
-        expect(colourOf(badgeOf('PRO').className, 'bg')).toBe(palette.premium);
-        expect(colourOf(badgeOf('PRO').className, 'text')).toBe(palette.charcoal);
+        expect(colourOf(badgeOf('PRO').className, 'bg')).toBe(proTone.fill);
+        expect(colourOf(badgeOf('PRO').className, 'text')).toBe(proTone.text);
     });
 
-    it('takes the ink-on-tint fallback for attention, and inkMuted on pearl for a note', () => {
+    it('takes the ink-on-tint fallback for attention, and inkMuted on paper for a note', () => {
         render(
             <>
                 <StatusBadge status="attention">Needs review</StatusBadge>
@@ -134,6 +137,32 @@ describe('StatusBadge (web)', () => {
         expect(colourOf(badgeOf('Needs review').className, 'bg')).toBe(role.attentionTint);
         expect(colourOf(badgeOf('Needs review').className, 'text')).toBe(role.ink);
         expect(colourOf(badgeOf('Custom').className, 'text')).toBe(role.inkMuted);
+    });
+
+    // componentFixes §7: a neutral badge is paper with a 1 px lineDivider edge, so it reads on canvas, paper and
+    // surfaceMuted alike. Mutation lens: fill it surfaceMuted again, or drop the edge, and a row fails.
+    it.each(['draft', 'private', 'public', 'soon', 'note'] satisfies BadgeStatus[])(
+        '%s keeps its own paper fill and a lineDivider edge on a surfaceMuted parent',
+        (status) => {
+            render(
+                <div className="bg-surface-muted">
+                    <StatusBadge status={status}>Word</StatusBadge>
+                </div>,
+            );
+            const tokens = badgeOf('Word').className.split(/\s+/u);
+
+            expect(tokens).toContain('bg-paper');
+            expect(tokens).not.toContain('bg-surface-muted');
+            expect(tokens).toContain('border');
+            expect(tokens).toContain('border-line-divider');
+            expect(tokens).toContain('text-ink-muted');
+        },
+    );
+
+    it.each(['pro', 'attention'] satisfies BadgeStatus[])('%s draws no neutral edge: its fill is its own', (status) => {
+        render(<StatusBadge status={status}>Word</StatusBadge>);
+
+        expect(badgeOf('Word').className.split(/\s+/u)).not.toContain('border-line-divider');
     });
 
     it('draws no glyph for the statuses that are only words', () => {

@@ -4,10 +4,10 @@
  *
  * The React Native leaf of `RecipeConflictView` — same FULLY
  * controlled, presentational contract for FR-007c. Mirrors the web leaf's W7 rebuild of the DEFAULT (options)
- * view (Task 3): a per-side banner (X3, server ALWAYS first — X7), three A/B/C option cards (X2), and the
+ * view (Task 3): two per-side cards (theirs ALWAYS first — X7), three option cards (X2, T5: Compare, Keep mine, Use theirs), and the
  * changed-only diff panel (W7 Task 4 / X1) driven by the precomputed `ConflictDiff` (W7 Task 1) — one row
- * per changed-or-conflicting field/element, each with an accessible marker (text/role, never colour alone)
- * and Server-then-Yours values (X7), plus a legend.
+ * per changed-or-conflicting field/element, each with a word badge ("Changed" / "Both changed": text, never colour or a glyph alone)
+ * and Theirs-then-Yours values (X7).
  *
  * Merge mode (Option C, W7 Task 5) renders ONLY `diff.rows`, Server FIRST then Yours (X7), gated (X5) on at
  * least one EXPLICIT selection and — when the base is evicted or more than 10 versions behind (X6) — an
@@ -23,15 +23,17 @@
 import { useLocale, useMessages } from '@commise/i18n/react';
 import type { FC } from 'react';
 import { Button } from '@commise/ui/button';
+import { nativeTokens } from '@commise/ui/native';
 import { useTheme } from '@commise/ui/theme';
 import { VariantPartsLine, type VariantPartsLineProps } from '@commise/ui/variant-parts-line';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View, type TextStyle } from 'react-native';
 
 import { conflictSideParts } from './conflictDiff.js';
 import { recipeVersionMessages } from './messages.js';
+import { spokenAmountsLabel } from '../format/cookAmount.js';
 import { fillTemplate } from '../format/fillTemplate.js';
+import { recipeMessages, type AmountWordMessages } from '../messages.js';
 import {
-    LEGEND_MARKERS,
     type ConflictOptionCardProps,
     type DiscardAndCloseProps,
     type RecipeConflictViewProps,
@@ -40,14 +42,11 @@ import {
     type VersionSideCardProps,
     conflictCopyOf,
     formatMergeSummary,
-    formatServerBanner,
-    formatServerCardHeading,
-    formatVersionCardSavedLine,
-    formatYourCardHeading,
+    formatTheirsCardSavedLine,
+    formatYoursCardStatus,
 } from './conflictView.js';
 import {
-    conflictMarkerGlyph,
-    conflictMarkerLabel,
+    conflictMarkerBadge,
     conflictOptionLabel,
     conflictOptionName,
     conflictRowLabel,
@@ -107,15 +106,13 @@ const DiscardAndCloseButton: FC<DiscardAndCloseProps> = ({ label, onDiscardAndCl
  * an optional "Saved:" line and an optional "Device:" line, omitted (never fabricated) when the underlying
  * side carries no such data. Rendered ONLY in the default (options) view.
  */
-const VersionSideCard: FC<VersionSideCardProps> = ({ heading, savedLine }) => {
+const VersionSideCard: FC<VersionSideCardProps> = ({ heading, statusLine }) => {
     const { colors } = useTheme();
 
     return (
         <View style={[styles.versionCard, { backgroundColor: colors.paper, borderColor: colors.lineDivider }]}>
             <Text style={[styles.versionCardHeading, { color: colors.ink }]}>{heading}</Text>
-            {savedLine !== undefined && (
-                <Text style={[styles.versionCardLine, { color: colors.inkMuted }]}>{savedLine}</Text>
-            )}
+            <Text style={[styles.versionCardLine, { color: colors.inkMuted }]}>{statusLine}</Text>
         </View>
     );
 };
@@ -129,6 +126,13 @@ const SideValue: FC<SideValueProps> = ({ children, parts }) => (
         {children}
         {parts !== undefined && <VariantPartsLine parts={parts} tone="secondary" />}
     </View>
+);
+
+/** One side's value as text, its amounts said in words (WCAG option C: words for non-interactive text). */
+const ValueText: FC<{ text: string; words: AmountWordMessages; ink: TextStyle }> = ({ text, words, ink }) => (
+    <Text style={[styles.changedFieldValue, ink]} accessibilityLabel={spokenAmountsLabel(text, words)}>
+        {text}
+    </Text>
 );
 
 /**
@@ -219,15 +223,14 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
     neverPublished = false,
 }) => {
     const conflict = conflictCopyOf(useMessages(recipeVersionMessages).conflict, neverPublished);
+    // A fraction is said in words, never as its character (Q5).
+    const { amountWords } = useMessages(recipeMessages);
     const locale = useLocale();
     const view = useConflictView({ server, base, versionsBehind, neverPublished, selections, onSelectionsChange });
     const { colors } = useTheme();
     const ink = { color: colors.ink };
     const muted = { color: colors.inkMuted };
     const card = { backgroundColor: colors.paper, borderColor: colors.lineDivider };
-
-    // Reading the clock is THIS component's own side effect — see the web leaf's own note.
-    const now = new Date();
 
     const staleWarning = view.isStale ? (
         <StaleBaseWarning
@@ -312,50 +315,40 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
             </Text>
             <Text style={[styles.explanation, muted]}>{conflict.explanation}</Text>
 
-            {/* Per-side banner (X3) — server is ALWAYS first (X7). */}
-            <View style={[styles.banner, card]}>
-                <Text style={[styles.bannerLine, ink]}>{formatServerBanner(server, now, conflict, locale)}</Text>
-                <Text style={[styles.bannerLine, ink]}>{conflict.mineBanner}</Text>
-            </View>
-
-            {/* Two-column per-side summary cards (wireframe gap #2) — server ALWAYS first (X7). */}
+            {/* Two-column per-side summary cards (wireframe gap #2) — theirs ALWAYS first (X7). */}
             <View style={styles.versionCardRow}>
                 <VersionSideCard
-                    heading={formatServerCardHeading(server, conflict)}
-                    savedLine={formatVersionCardSavedLine(server, locale, conflict)}
+                    heading={conflict.theirsCardHeading}
+                    statusLine={formatTheirsCardSavedLine(server, locale, conflict)}
                 />
                 <VersionSideCard
-                    heading={formatYourCardHeading(base, conflict)}
-                    {...(base === undefined
-                        ? {}
-                        : {
-                              savedLine: formatVersionCardSavedLine(base, locale, conflict),
-                          })}
+                    heading={conflict.yoursCardHeading}
+                    statusLine={formatYoursCardStatus(base, locale, conflict)}
                 />
             </View>
 
-            {/* Stale-base warning (W7 Task 5 / X6) — gates Overwrite below. */}
+            {/* Stale-base warning (W7 Task 5 / X6) — gates Keep mine below. */}
             {staleWarning}
 
             {/* Three A/B/C option cards (X2). `isResolving` (concurrency/double-submit fix) disables ALL three
                 — combined with, not replacing, Overwrite's existing stale-base gate — while a resolve is in
                 flight, so a rapid double-tap cannot fire a second resolve before the first settles. */}
             <OptionCard
-                title={conflict.optionServerTitle}
-                description={conflict.optionServerDescription}
-                onChoose={onKeepServer}
+                title={conflict.optionCompareTitle}
+                description={conflict.optionCompareDescription}
+                onChoose={view.startMerge}
                 disabled={isResolving}
             />
             <OptionCard
-                title={conflict.optionOverwriteTitle}
-                description={conflict.optionOverwriteDescription}
+                title={conflict.optionKeepMineTitle}
+                description={conflict.optionKeepMineDescription}
                 onChoose={onOverwrite}
                 disabled={isResolving || view.overwriteBlocked}
             />
             <OptionCard
-                title={conflict.optionMergeTitle}
-                description={conflict.optionMergeDescription}
-                onChoose={view.startMerge}
+                title={conflict.optionUseTheirsTitle}
+                description={conflict.optionUseTheirsDescription}
+                onChoose={onKeepServer}
                 disabled={isResolving}
             />
 
@@ -368,44 +361,30 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
                     {diff.rows.map((row) => (
                         <View key={row.key} style={[styles.changedFieldRow, card]}>
                             <View style={styles.changedFieldRowHeader}>
-                                <View
-                                    accessible
-                                    accessibilityRole="image"
-                                    accessibilityLabel={conflictMarkerLabel(row.marker, conflict)}
-                                >
-                                    <Text style={[styles.marker, muted]}>
-                                        {conflictMarkerGlyph(row.marker, conflict)}
-                                    </Text>
-                                </View>
+                                <Text style={[styles.marker, muted]}>{conflictMarkerBadge(row.marker, conflict)}</Text>
                                 <Text style={[styles.fieldLabel, muted]}>{conflictRowLabel(row, conflict)}</Text>
                             </View>
                             {row.base !== undefined && (
                                 <SideValue parts={conflictSideParts(row, 'base')}>
-                                    <Text style={[styles.changedFieldValue, ink]}>
-                                        {fillTemplate(conflict.wasValueLabel, { value: row.base })}
-                                    </Text>
+                                    <ValueText
+                                        text={fillTemplate(conflict.wasValueLabel, { value: row.base })}
+                                        words={amountWords}
+                                        ink={ink}
+                                    />
                                 </SideValue>
                             )}
                             {/* Server value FIRST, then Yours (X7). */}
                             {(['theirs', 'mine'] as const).map((side) => (
                                 <SideValue key={side} parts={conflictSideParts(row, side)}>
-                                    <Text style={[styles.changedFieldValue, ink]}>
-                                        {conflictOptionLabel(row, side, conflict)}
-                                    </Text>
+                                    <ValueText
+                                        text={conflictOptionLabel(row, side, conflict)}
+                                        words={amountWords}
+                                        ink={ink}
+                                    />
                                 </SideValue>
                             ))}
                         </View>
                     ))}
-                    <View collapsable={false} accessibilityLabel={conflict.legendHeading} style={styles.legend}>
-                        {LEGEND_MARKERS.map((marker) => (
-                            <Text key={marker} style={[styles.legendEntry, muted]}>
-                                {fillTemplate(conflict.legendEntryTemplate, {
-                                    glyph: conflictMarkerGlyph(marker, conflict),
-                                    label: conflictMarkerLabel(marker, conflict),
-                                })}
-                            </Text>
-                        ))}
-                    </View>
                 </View>
             ) : (
                 // Defensive — Task 2 already fast-paths a genuinely phantom-empty diff away from this view,
@@ -418,68 +397,54 @@ export const RecipeConflictView: FC<RecipeConflictViewProps> = ({
 
 const styles = StyleSheet.create({
     container: { gap: 12, paddingHorizontal: 16, paddingVertical: 16 },
-    heading: { fontSize: 20, fontWeight: '600' },
-    explanation: { fontSize: 14 },
-    banner: {
-        borderRadius: 16,
-        borderWidth: 1,
-        padding: 16,
-        gap: 4,
-    },
-    bannerLine: { fontSize: 15 },
-    discardLabel: { fontSize: 14, fontWeight: '600' },
+    heading: { ...nativeTokens.type.sectionTitle },
+    explanation: { ...nativeTokens.type.meta },
+    discardLabel: { ...nativeTokens.type.label },
     versionCardRow: { flexDirection: 'row', gap: 12 },
     versionCard: {
         flex: 1,
-        borderRadius: 16,
+        borderRadius: nativeTokens.radius.lg,
         borderWidth: 1,
         padding: 16,
         gap: 4,
     },
-    versionCardHeading: {
-        fontSize: 11,
-        fontWeight: '600',
-        textTransform: 'uppercase',
-        letterSpacing: 0.5,
-    },
-    versionCardLine: { fontSize: 14 },
+    versionCardHeading: { ...nativeTokens.type.label },
+    versionCardLine: { ...nativeTokens.type.meta },
     staleWarning: {
-        borderRadius: 16,
+        borderRadius: nativeTokens.radius.lg,
         borderWidth: 1,
         padding: 16,
         gap: 8,
     },
-    staleWarningText: { fontSize: 14 },
+    staleWarningText: { ...nativeTokens.type.meta },
     optionCard: {
-        borderRadius: 16,
+        borderRadius: nativeTokens.radius.lg,
         borderWidth: 1,
         padding: 16,
         gap: 4,
     },
     optionCardDisabled: { opacity: 0.5 },
-    optionTitle: { fontSize: 17, fontWeight: '600' },
-    optionDescription: { fontSize: 13 },
+    optionTitle: { ...nativeTokens.type.cardTitle },
+    optionDescription: { ...nativeTokens.type.meta },
     group: {
-        borderRadius: 16,
+        borderRadius: nativeTokens.radius.lg,
         borderWidth: 1,
         padding: 16,
         gap: 8,
     },
-    fieldLabel: { fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5 },
-    summary: { fontSize: 14, fontWeight: '600' },
-    subheading: { fontSize: 15, fontWeight: '600' },
+    fieldLabel: { ...nativeTokens.type.label },
+    summary: { ...nativeTokens.type.label },
+    subheading: { ...nativeTokens.type.cardTitle },
     changedFields: { gap: 8 },
     changedFieldRow: {
-        borderRadius: 16,
+        borderRadius: nativeTokens.radius.lg,
         borderWidth: 1,
         padding: 12,
         gap: 8,
     },
     changedFieldRowHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-    marker: { fontSize: 13, fontVariant: ['tabular-nums'] },
-    changedFieldValue: { fontSize: 14 },
-    legend: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 4 },
-    legendEntry: { fontSize: 12 },
+    marker: { ...nativeTokens.type.meta, fontFamily: nativeTokens.fontFace.body.semibold },
+    changedFieldValue: { ...nativeTokens.type.meta },
     // `flex-start`: the dot sits on the first line when the value wraps or a dotted line follows it.
     option: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingVertical: 4 },
     // `flexShrink: 1`: React Native defaults it to 0, so beside the dot the text would not wrap inside the row.
@@ -487,9 +452,9 @@ const styles = StyleSheet.create({
     radioDot: {
         width: 18,
         height: 18,
-        borderRadius: 9,
+        borderRadius: nativeTokens.radius.full,
         borderWidth: 2,
     },
-    optionLabel: { fontSize: 15, flexShrink: 1 },
+    optionLabel: { ...nativeTokens.type.body, flexShrink: 1 },
     action: { alignSelf: 'flex-start', marginTop: 4 },
 });

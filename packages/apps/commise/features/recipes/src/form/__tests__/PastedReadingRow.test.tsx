@@ -78,6 +78,15 @@ describe('PastedReadingRow (web)', () => {
         expect(onRetryLookup).not.toHaveBeenCalled();
     });
 
+    // The owner's type-scale ruling (2026-10-25): the cook's line is 16 px in BOTH phases (this row, and
+    // `MatchLineText` once matching starts), and the words under it are 14 (`list`); the state line was 12 px caption.
+    it('sets the line in the 16 px body role and its state in the 14 px list role', () => {
+        renderRow('reading');
+
+        expect(screen.getByText(LINE).className.split(' ')).toContain('text-body');
+        expect(screen.getByText(pasteRowViewOf('reading', m).stateText).className.split(' ')).toContain('text-list');
+    });
+
     it('a failed lookup offers Try again, named for its line', async () => {
         const user = userEvent.setup();
         const { onRetryLookup, onAddAsWritten } = renderRow('lookupFailed');

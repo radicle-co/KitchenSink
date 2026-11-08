@@ -27,9 +27,11 @@ import type { SheetToolbar } from './props.js';
 import { useFocusWithin } from './useFocusWithin.js';
 import { Icon } from '../icon/Icon.js';
 import { usePinnedFooter } from '../layout/usePinnedFooter.js';
+import { FOCUS_RING_CLASS } from '../focusRing/focusRingClass.js';
+import { surfaceToneClass, PRESS_FILL_CLASS } from '../surfaceTone/surfaceToneClass.js';
 
 /** The footer's box: a hairline above it, and opaque, because pinned content scrolls beneath it. */
-const FOOTER = 'shrink-0 border-t border-line-divider bg-paper-overlay px-6 py-4';
+const FOOTER = `shrink-0 border-t border-line-divider ${surfaceToneClass('paperOverlay')} px-6 py-4`;
 
 export interface SheetPanelProps {
     readonly title: string;
@@ -66,7 +68,7 @@ export const SheetPanel: FC<SheetPanelProps> = ({
                     <Dialog.Title
                         id={titleId}
                         tabIndex={-1}
-                        className={collapsed ? 'sr-only' : 'truncate text-bar-title text-ink outline-none'}
+                        className={collapsed ? 'sr-only' : 'break-words text-bar-title text-ink outline-none'}
                     >
                         {title}
                     </Dialog.Title>
@@ -76,7 +78,7 @@ export const SheetPanel: FC<SheetPanelProps> = ({
                     type="button"
                     aria-label={closeLabel}
                     onClick={onClose}
-                    className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-ink-muted transition hover:bg-ink/6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                    className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-ink-muted transition ${PRESS_FILL_CLASS.pointer} ${FOCUS_RING_CLASS.offset}`}
                 >
                     <Icon name="x" size={20} />
                 </button>

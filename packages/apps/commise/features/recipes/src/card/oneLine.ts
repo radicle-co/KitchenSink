@@ -9,21 +9,14 @@
  *
  * Pure.
  */
-import { nativeTokens } from '@commise/ui/native';
-
-/** A badge's own floor, and the padding above and below its word (`DifficultyBadge`, `StatusBadge`). */
-const BADGE_MIN_HEIGHT = 24;
-const BADGE_VERTICAL_PADDING = 4;
+import { badgeHeightOf } from '@commise/ui/badge-box';
+import { lineHeightPx } from '@commise/ui/scale';
 
 /**
- * A type role's leading, in points. The roles all state one; a role that did not would fall back to its size.
- *
- * @param style - The native type role.
- * @returns The leading.
+ * The `meta` leading (14 pt text), in points. It is the scale's raw value, not `nativeTokens.type.meta.lineHeight`: on
+ * iOS that projection sits 0.001 above the pixel grid (react/react-native#58970) and `ceil` would add a whole point.
  */
-function leadingOf(style: { readonly lineHeight?: number; readonly fontSize?: number }): number {
-    return style.lineHeight ?? style.fontSize ?? 0;
-}
+const META_LEADING = lineHeightPx[14];
 
 /**
  * The height of a row of `meta` text and 16 pt icons, at an OS font scale.
@@ -32,17 +25,18 @@ function leadingOf(style: { readonly lineHeight?: number; readonly fontSize?: nu
  * @returns The height, in points, rounded up so the text is never clipped.
  */
 export function metaLineHeightOf(fontScale: number): number {
-    return Math.ceil(leadingOf(nativeTokens.type.meta) * fontScale);
+    return Math.ceil(META_LEADING * fontScale);
 }
 
 /**
- * The height of a row that holds a badge (difficulty, status) beside `meta` text (the rating, "No ratings yet").
+ * The height of a row that holds a badge (difficulty, status) beside `meta` text (the rating, "No ratings yet"). The
+ * badge's box is the design system's (`@commise/ui/badge-box`). The status badge's word stops growing at the 2× cap,
+ * but the difficulty badge's word is not on the capped `Text` yet and grows with the system scale, so it sets the row.
+ * When it ports, its term becomes `badgeHeightOf(Math.min(fontScale, FONT_SCALE_CAP))`.
  *
  * @param fontScale - The OS font scale.
- * @returns The height, in points: the larger of the badge floor, the badge's word with its padding, and the meta text.
+ * @returns The height, in points: the taller of the badge and the meta text.
  */
 export function badgeLineHeightOf(fontScale: number): number {
-    const word = Math.ceil(leadingOf(nativeTokens.type.caption) * fontScale) + BADGE_VERTICAL_PADDING;
-
-    return Math.max(BADGE_MIN_HEIGHT, word, metaLineHeightOf(fontScale));
+    return Math.max(badgeHeightOf(fontScale), metaLineHeightOf(fontScale));
 }

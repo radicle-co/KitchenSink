@@ -68,6 +68,30 @@ find_free_port() {
 PORT="$(find_free_port)"
 export PORT
 
+# ── Where the app under test sends its API calls: somewhere NO API answers ──────────────────────────
+# Every mocked spec stubs the APIs with `page.route`, which reaches only what the BROWSER sends. A page's
+# server-side prefetch runs in the Next server's own process, so those specs hold only when that prefetch
+# FAILS and the page falls back to a client read the stub can answer (tests/e2e/utils/specTier.ts,
+# tests/e2e/ssrPrefetch.spec.ts). CI's build points the recipe API at the web server's own origin, where
+# only Next answers. This lane used to bake the local stack's ports (recipe 3000, identity 3001, food 3002),
+# so with `npm run local:up` running a page's prefetch reached a real service, and a spec's fixtures could
+# lose to what that service held.
+#
+# So every origin defaults to THIS run's web server: the one address certain to be listening and certain
+# not to be an API, whatever else the machine runs. ⚠️ That matches CI exactly for recipe only: CI gives
+# identity and food ports nothing listens on, so there a call is REFUSED, while here Next answers 404 HTML.
+# Both fail the server's prefetch the same way; a spec that told a network error from an HTTP error
+# would not. Nothing in this suite needs the local stack: the unmocked specs need only Clerk, and the
+# one that reads a live service (paidFeatureRoles) targets a DEPLOYED identity and skips without one.
+# A caller's explicit value still wins (the `:-`).
+#
+# Set before the mode is decided, because `NEXT_PUBLIC_*` is inlined into the server bundle at build time
+# (`start`) and read from the environment by a dev server (`dev`, via tests/e2e/utils/serviceUrls.ts), and
+# both must see the same origins. Held by scripts/__tests__/e2eLocal.test.ts.
+export NEXT_PUBLIC_RECIPE_API_URL="${NEXT_PUBLIC_RECIPE_API_URL:-http://localhost:${PORT}}"
+export NEXT_PUBLIC_IDENTITY_API_URL="${NEXT_PUBLIC_IDENTITY_API_URL:-http://localhost:${PORT}}"
+export NEXT_PUBLIC_FOOD_API_URL="${NEXT_PUBLIC_FOOD_API_URL:-http://localhost:${PORT}}"
+
 # ── Which server the run drives ─────────────────────────────────────────────────────────────────────
 # `start` (a real production build) by default — the same mode CI drives, and for the same reliability
 # reasons (header bullet 4). An explicit `E2E_WEB_SERVER` from the caller wins, so the dev-server
@@ -79,19 +103,14 @@ export E2E_WEB_SERVER="${MODE}"
 if [[ "${MODE}" == 'start' ]]; then
     # `next start` SERVES a build; it does not make one (playwright.config.ts). Built through turbo — the
     # same task, inputs and outputs CI's build job runs — so the artifact is the one CI makes and an
-    # unchanged rerun is a cache hit rather than a rebuild.
+    # unchanged rerun is a cache hit rather than a rebuild. The API origins above are part of that
+    # artifact: `src/config/env.ts` validates them while collecting page data and throws without them.
     #
-    # The build ALSO needs the three backend origins inlined: `NEXT_PUBLIC_*` is frozen into the client
-    # bundle at build time (src/config/env.ts validates them while collecting page data and throws without
-    # them — a production build does not read `.env.development`). The defaults are the same ports the
-    # local compose sandbox publishes and the same ones `tests/e2e/utils/serviceUrls.ts` hands the
-    # server at runtime — recipe 3000, identity 3001, food 3002 — so the baked client and the server
-    # agree. A caller's explicit values win (the `:-` keeps any override), matching serviceUrls.ts
-    # precedence.
-    export NEXT_PUBLIC_RECIPE_API_URL="${NEXT_PUBLIC_RECIPE_API_URL:-http://localhost:3000}"
-    export NEXT_PUBLIC_IDENTITY_API_URL="${NEXT_PUBLIC_IDENTITY_API_URL:-http://localhost:3001}"
-    export NEXT_PUBLIC_FOOD_API_URL="${NEXT_PUBLIC_FOOD_API_URL:-http://localhost:3002}"
-    npx turbo run build --filter=@commise/web
+    # `COMMISE_PSEUDO_LOCALE=1` routes the `en-XA` pseudo-locale `controlLabels.spec.ts` lays the app out in,
+    # as CI's build sets it. It is set on THIS command only: turbo declares it as hashed `env` for the web
+    # build (turbo.json), so a pseudo build never shares a cache key with a plain one, and nothing else in
+    # the run reads it (`pseudoLocaleBuildGate.test.ts`). The output is a local `.next`, deployed nowhere.
+    COMMISE_PSEUDO_LOCALE=1 npx turbo run build --filter=@commise/web
 fi
 
 LOG="$(mktemp -t playwright-local-XXXXXX.log)"

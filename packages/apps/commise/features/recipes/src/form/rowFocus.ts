@@ -70,6 +70,8 @@ export const settledFocusOf = (
             return { when: 'now', focus };
         case 'authoredFood':
             return { when: 'afterAuthoredSheet', focus };
+        // The paste list moves focus itself (`pickFocusOf`), to the next open line.
+        case 'paste':
         case 'details':
             return undefined;
     }

@@ -9,7 +9,8 @@ import {
     POST_COMMIT_RESPONSE_HEADROOM_MS,
     READ_RESPONSE_HEADROOM_MS,
 } from '../config.types.js';
-import { ConfigValidationError, isConfigValidationError, loadConfig } from '../loadConfig.js';
+import { MAX_MATCH_SEARCH_TIMEOUT_MS } from '../matchBudget.js';
+import { ConfigValidationError, isConfigValidationError, loadConfig, loadConfigWithSsm } from '../loadConfig.js';
 
 // Mock the SSM client so the fallback path is exercised without any network / AWS credentials.
 const ssmSend = vi.fn();
@@ -114,6 +115,26 @@ describe('loadConfig', () => {
         expect(() => loadConfig(apiConfigSchema, env)).toThrow(/FOOD_SERVICE_URL/);
     });
 
+    it('⛔ refuses a FOOD_CATALOG_TYPEAHEAD_TIMEOUT_MS at which the paste matcher could never start a wave (ADR-0071)', () => {
+        // The matcher starts a wave only while two searches at this timeout still end before its tail. At 1 500 ms and
+        // above NO wave ever started, and the paste matched nothing, silently. The ceiling is derived, not chosen.
+        expect(
+            loadConfig(apiConfigSchema, {
+                ...validEnv(),
+                FOOD_CATALOG_TYPEAHEAD_TIMEOUT_MS: String(MAX_MATCH_SEARCH_TIMEOUT_MS),
+            }),
+        ).toMatchObject({ FOOD_CATALOG_TYPEAHEAD_TIMEOUT_MS: MAX_MATCH_SEARCH_TIMEOUT_MS });
+        expect(() =>
+            loadConfig(apiConfigSchema, {
+                ...validEnv(),
+                FOOD_CATALOG_TYPEAHEAD_TIMEOUT_MS: String(MAX_MATCH_SEARCH_TIMEOUT_MS + 1),
+            }),
+        ).toThrow(/FOOD_CATALOG_TYPEAHEAD_TIMEOUT_MS/);
+        expect(() => loadConfig(apiConfigSchema, { ...validEnv(), FOOD_CATALOG_TYPEAHEAD_TIMEOUT_MS: '5000' })).toThrow(
+            /FOOD_CATALOG_TYPEAHEAD_TIMEOUT_MS.*paste matcher/s,
+        );
+    });
+
     it('bounds FOOD_NUTRITION_POST_COMMIT_TIMEOUT_MS so twice the ceiling plus headroom fits the recipe client deadline', () => {
         // One single-recipe lookup is at most TWO requests (one chunk + the authored call), so the worst a
         // committed write can wait on food is 2x this value — and that has to land inside the web/mobile client's
@@ -165,6 +186,16 @@ describe('loadConfig', () => {
 
         expect(() => loadConfig(apiConfigSchema, env)).toThrow(/FOOD_SERVICE_URL/);
     });
+
+    it.each(['ssm', 'ssmFallback', 'environment'])(
+        'validates synchronously even when the environment holds a key named %s',
+        (key) => {
+            const config = loadConfig(apiConfigSchema, { ...validEnv(), [key]: 'anything' });
+
+            expect(config).not.toBeInstanceOf(Promise);
+            expect(config.PORT).toBe(3000);
+        },
+    );
 
     it('has NO FOOD_SERVICE_TOKEN concept — food is called with the caller’s own Clerk token', () => {
         // A static env bearer cannot satisfy food's Clerk verifier (session tokens live ~60s), so the variable
@@ -393,7 +424,7 @@ describe('loadConfig — SSM fallback', () => {
             ],
         });
 
-        const config = await loadConfig(apiConfigSchema, {
+        const config = await loadConfigWithSsm(apiConfigSchema, {
             ssmFallback: true,
             ssm: { prefix: '/commise', region: 'us-east-1', withDecryption: true, cacheTtlSeconds: 0 },
             environment: 'production',
@@ -410,7 +441,7 @@ describe('loadConfig — SSM fallback', () => {
     });
 
     it('does not touch SSM when the environment already validates', async () => {
-        const config = await loadConfig(apiConfigSchema, {
+        const config = await loadConfigWithSsm(apiConfigSchema, {
             ssmFallback: true,
             ssm: { prefix: '/commise', region: 'us-east-1', withDecryption: true, cacheTtlSeconds: 0 },
             environment: 'production',
@@ -427,7 +458,7 @@ describe('loadConfig — SSM fallback', () => {
         let caught: unknown;
 
         try {
-            await loadConfig(apiConfigSchema, {
+            await loadConfigWithSsm(apiConfigSchema, {
                 ssmFallback: true,
                 ssm: { prefix: '/commise', region: 'us-east-1', withDecryption: true, cacheTtlSeconds: 0 },
                 environment: 'production',

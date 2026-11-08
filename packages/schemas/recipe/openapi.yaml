@@ -92,8 +92,10 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "403":
-          description: "A signed test principal attempted a write this stage contains (ADR-0040) — `code:
-            TEST_PRINCIPAL_CONTAINED`."
+          description: "A free cook with no private slot left created a PUBLISHED `private` recipe (`code: PRIVATE_SLOTS_FULL`,
+            `details.used` and `details.limit`); a private draft takes no slot. Or: A signed test principal attempted a
+            write this stage contains (ADR-0040) — `code: TEST_PRINCIPAL_CONTAINED`. Or: The token is genuine but its
+            account is suspended: `code: ACCOUNT_SUSPENDED` (ADR-0081). Answered before the route runs."
           content:
             application/json:
               schema:
@@ -157,6 +159,13 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: "The token is genuine but its account is suspended: `code: ACCOUNT_SUSPENDED` (ADR-0081). Answered before
+            the route runs."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "423":
           description: "The caller has an in-flight account erasure, so writes are locked (HAZ-052). `code: ERASURE_IN_PROGRESS`."
           content:
@@ -212,6 +221,71 @@ paths:
               - updatedAt
               - createdAt
               - title
+  /api/v1/recipes/private-slots:
+    get:
+      operationId: getPrivateSlots
+      summary: The caller’s private-slot standing (ADR-0073).
+      security:
+        - clerkSessionToken: []
+      responses:
+        "200":
+          description: The caller’s private-slot standing.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PrivateSlotUsage"
+        "400":
+          description: "The request body, query or path was rejected. `code` says by what: `VALIDATION_FAILED` from the boundary
+            parser (with `details.fields` naming each offending field, including a rejected unknown key), or a domain
+            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: No, invalid, expired, or wrong-authorized-party bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: "The token is genuine but its account is suspended: `code: ACCOUNT_SUSPENDED` (ADR-0081). Answered before
+            the route runs."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "423":
+          description: "The caller has an in-flight account erasure, so writes are locked (HAZ-052). `code: ERASURE_IN_PROGRESS`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: "Per-user rate limit exceeded (`code: TOO_MANY_REQUESTS`). ⚠️ This body used to be a bare JSON STRING — the
+            throttler exception passed through the filter unchanged — and is now the envelope."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          headers:
+            Retry-After:
+              description: Seconds until the limit resets.
+              schema:
+                type: integer
+                minimum: 0
+                exclusiveMinimum: true
+        "500":
+          description: Unexpected server error. The body never carries internals.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      description: "A free cook holds up to a limit of private recipes (every private, PUBLISHED, undeleted recipe they own,
+        any label; a draft holds no slot); Premium has none. `limited` carries the live count and the limit the SERVER
+        states (`used` can exceed `limit` for a cook who lost Premium and keeps every private recipe); `unlimited`
+        carries neither. A DISPLAY read, counted without the per-user lock: it may be a moment stale, and a private
+        write is never withheld on it. Scoped entirely by the verified token."
   /api/v1/recipes/nutrition-batch:
     post:
       operationId: getRecipeNutritionBatch
@@ -235,6 +309,13 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "401":
           description: No, invalid, expired, or wrong-authorized-party bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: "The token is genuine but its account is suspended: `code: ACCOUNT_SUSPENDED` (ADR-0081). Answered before
+            the route runs."
           content:
             application/json:
               schema:
@@ -305,6 +386,13 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "401":
           description: No, invalid, expired, or wrong-authorized-party bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: "The token is genuine but its account is suspended: `code: ACCOUNT_SUSPENDED` (ADR-0081). Answered before
+            the route runs."
           content:
             application/json:
               schema:
@@ -383,7 +471,10 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "403":
-          description: The caller does not own the resource.
+          description: "The caller does not own the recipe; or a free cook with no private slot left PUBLISHED a private draft
+            (`code: PRIVATE_SLOTS_FULL`, `details.used` and `details.limit`; saving a private draft takes no slot). Or:
+            The token is genuine but its account is suspended: `code: ACCOUNT_SUSPENDED` (ADR-0081). Answered before the
+            route runs."
           content:
             application/json:
               schema:
@@ -465,7 +556,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "403":
-          description: The caller does not own the resource.
+          description: "The caller does not own the resource. Or: The token is genuine but its account is suspended: `code:
+            ACCOUNT_SUSPENDED` (ADR-0081). Answered before the route runs."
           content:
             application/json:
               schema:
@@ -539,8 +631,10 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "403":
-          description: "A signed test principal attempted a write this stage contains (ADR-0040) — `code:
-            TEST_PRINCIPAL_CONTAINED`."
+          description: "A contained test principal tried to clone a recipe it does not own (ADR-0040). A clone is always a DRAFT
+            and takes no private slot, so this route never answers `PRIVATE_SLOTS_FULL`: A signed test principal
+            attempted a write this stage contains (ADR-0040) — `code: TEST_PRINCIPAL_CONTAINED`. Or: The token is
+            genuine but its account is suspended: `code: ACCOUNT_SUSPENDED` (ADR-0081). Answered before the route runs."
           content:
             application/json:
               schema:
@@ -614,7 +708,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "403":
-          description: The caller does not own the resource.
+          description: "The caller does not own the resource. Or: The token is genuine but its account is suspended: `code:
+            ACCOUNT_SUSPENDED` (ADR-0081). Answered before the route runs."
           content:
             application/json:
               schema:
@@ -716,8 +811,11 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "403":
-          description: "The caller does not own the recipe, or: A signed test principal attempted a write this stage contains
-            (ADR-0040) — `code: TEST_PRINCIPAL_CONTAINED`."
+          description: "The caller does not own the recipe; or a free cook with no private slot left set a PUBLISHED recipe to
+            `private` (`code: PRIVATE_SLOTS_FULL`, `details.used` and `details.limit`; a draft takes no slot); or: A
+            signed test principal attempted a write this stage contains (ADR-0040) — `code: TEST_PRINCIPAL_CONTAINED`.
+            Or: The token is genuine but its account is suspended: `code: ACCOUNT_SUSPENDED` (ADR-0081). Answered before
+            the route runs."
           content:
             application/json:
               schema:
@@ -802,7 +900,8 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "403":
           description: "A caller may not rate their own recipe, or: A signed test principal attempted a write this stage contains
-            (ADR-0040) — `code: TEST_PRINCIPAL_CONTAINED`."
+            (ADR-0040) — `code: TEST_PRINCIPAL_CONTAINED`. Or: The token is genuine but its account is suspended: `code:
+            ACCOUNT_SUSPENDED` (ADR-0081). Answered before the route runs."
           content:
             application/json:
               schema:
@@ -879,6 +978,13 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: "The token is genuine but its account is suspended: `code: ACCOUNT_SUSPENDED` (ADR-0081). Answered before
+            the route runs."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: No such recipe, or it is not visible to the caller.
           content:
@@ -943,6 +1049,13 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "401":
           description: No, invalid, expired, or wrong-authorized-party bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: "The token is genuine but its account is suspended: `code: ACCOUNT_SUSPENDED` (ADR-0081). Answered before
+            the route runs."
           content:
             application/json:
               schema:
@@ -1016,7 +1129,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "403":
-          description: The caller does not own the resource.
+          description: "The caller does not own the resource. Or: The token is genuine but its account is suspended: `code:
+            ACCOUNT_SUSPENDED` (ADR-0081). Answered before the route runs."
           content:
             application/json:
               schema:
@@ -1111,7 +1225,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "403":
-          description: The caller does not own the resource.
+          description: "The caller does not own the resource. Or: The token is genuine but its account is suspended: `code:
+            ACCOUNT_SUSPENDED` (ADR-0081). Answered before the route runs."
           content:
             application/json:
               schema:
@@ -1210,7 +1325,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "403":
-          description: The caller does not own the resource.
+          description: "The caller does not own the resource. Or: The token is genuine but its account is suspended: `code:
+            ACCOUNT_SUSPENDED` (ADR-0081). Answered before the route runs."
           content:
             application/json:
               schema:
@@ -1287,7 +1403,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "403":
-          description: The caller does not own the resource.
+          description: "The caller does not own the resource. Or: The token is genuine but its account is suspended: `code:
+            ACCOUNT_SUSPENDED` (ADR-0081). Answered before the route runs."
           content:
             application/json:
               schema:
@@ -1368,6 +1485,13 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: "The token is genuine but its account is suspended: `code: ACCOUNT_SUSPENDED` (ADR-0081). Answered before
+            the route runs."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: No such recipe, or it is not visible to the caller.
           content:
@@ -1432,6 +1556,13 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "401":
           description: No, invalid, expired, or wrong-authorized-party bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: "The token is genuine but its account is suspended: `code: ACCOUNT_SUSPENDED` (ADR-0081). Answered before
+            the route runs."
           content:
             application/json:
               schema:
@@ -1513,7 +1644,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "403":
-          description: The caller does not own the resource.
+          description: "The caller does not own the resource. Or: The token is genuine but its account is suspended: `code:
+            ACCOUNT_SUSPENDED` (ADR-0081). Answered before the route runs."
           content:
             application/json:
               schema:
@@ -1608,6 +1740,13 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: "The token is genuine but its account is suspended: `code: ACCOUNT_SUSPENDED` (ADR-0081). Answered before
+            the route runs."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "423":
           description: "The caller has an in-flight account erasure, so writes are locked (HAZ-052). `code: ERASURE_IN_PROGRESS`."
           content:
@@ -1664,6 +1803,13 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "401":
           description: No, invalid, expired, or wrong-authorized-party bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: "The token is genuine but its account is suspended: `code: ACCOUNT_SUSPENDED` (ADR-0081). Answered before
+            the route runs."
           content:
             application/json:
               schema:
@@ -1736,6 +1882,13 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: "The token is genuine but its account is suspended: `code: ACCOUNT_SUSPENDED` (ADR-0081). Answered before
+            the route runs."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: No such job owned by the caller.
           content:
@@ -1783,6 +1936,90 @@ paths:
             type: string
             format: uuid
             pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+  /api/v1/recipe-parse-jobs/{id}/matches:
+    post:
+      operationId: proposeParseJobMatches
+      summary: Match the parsed lines’ foods to catalog foods, as proposals the cook confirms.
+      security:
+        - clerkSessionToken: []
+      responses:
+        "202":
+          description: The job, with any new proposals.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ParseJob"
+        "400":
+          description: "The request body, query or path was rejected. `code` says by what: `VALIDATION_FAILED` from the boundary
+            parser (with `details.fields` naming each offending field, including a rejected unknown key), or a domain
+            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: No, invalid, expired, or wrong-authorized-party bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: "The token is genuine but its account is suspended: `code: ACCOUNT_SUSPENDED` (ADR-0081). Answered before
+            the route runs."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: No such job owned by the caller.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: The job expired; create a new one.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "423":
+          description: "The caller has an in-flight account erasure, so writes are locked (HAZ-052). `code: ERASURE_IN_PROGRESS`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: "Per-user rate limit exceeded (`code: TOO_MANY_REQUESTS`). ⚠️ This body used to be a bare JSON STRING — the
+            throttler exception passed through the filter unchanged — and is now the envelope."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          headers:
+            Retry-After:
+              description: Seconds until the limit resets.
+              schema:
+                type: integer
+                minimum: 0
+                exclusiveMinimum: true
+        "500":
+          description: Unexpected server error. The body never carries internals.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      description: 'Idempotent: a line already matched for its current text is not matched or reviewed again. Runs the match
+        as the caller and asks the review gate about each proposal; the review continues asynchronously, so a proposal
+        reads "checking" until its verdict lands. A proposal binds nothing.'
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The job id.
+          schema:
+            type: string
+            format: uuid
+            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
   /api/v1/recipe-parse-jobs/{id}/withdraw-lines:
     post:
       operationId: withdrawParseJobLines
@@ -1806,6 +2043,13 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "401":
           description: No, invalid, expired, or wrong-authorized-party bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: "The token is genuine but its account is suspended: `code: ACCOUNT_SUSPENDED` (ADR-0081). Answered before
+            the route runs."
           content:
             application/json:
               schema:
@@ -1894,6 +2138,13 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: "The token is genuine but its account is suspended: `code: ACCOUNT_SUSPENDED` (ADR-0081). Answered before
+            the route runs."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: No such job or line owned by the caller.
           content:
@@ -1978,6 +2229,13 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "401":
           description: No, invalid, expired, or wrong-authorized-party bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: "The token is genuine but its account is suspended: `code: ACCOUNT_SUSPENDED` (ADR-0081). Answered before
+            the route runs."
           content:
             application/json:
               schema:
@@ -2138,6 +2396,13 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: "The token is genuine but its account is suspended: `code: ACCOUNT_SUSPENDED` (ADR-0081). Answered before
+            the route runs."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "423":
           description: "The caller has an in-flight account erasure, so writes are locked (HAZ-052). `code: ERASURE_IN_PROGRESS`."
           content:
@@ -2215,6 +2480,13 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: "The token is genuine but its account is suspended: `code: ACCOUNT_SUSPENDED` (ADR-0081). Answered before
+            the route runs."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "423":
           description: "The caller has an in-flight account erasure, so writes are locked (HAZ-052). `code: ERASURE_IN_PROGRESS`."
           content:
@@ -2271,6 +2543,13 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "401":
           description: No, invalid, expired, or wrong-authorized-party bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: "The token is genuine but its account is suspended: `code: ACCOUNT_SUSPENDED` (ADR-0081). Answered before
+            the route runs."
           content:
             application/json:
               schema:
@@ -2335,6 +2614,13 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: "The token is genuine but its account is suspended: `code: ACCOUNT_SUSPENDED` (ADR-0081). Answered before
+            the route runs."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "423":
           description: "The caller has an in-flight account erasure, so writes are locked (HAZ-052). `code: ERASURE_IN_PROGRESS`."
           content:
@@ -2376,6 +2662,81 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/CreateIngredientRequest"
+  /api/v1/ingredients/by-name/proposals:
+    get:
+      operationId: getIngredientNameProposals
+      summary: The foods the add-by-name field suggests for a typed name. Nothing is bound.
+      security:
+        - clerkSessionToken: []
+      responses:
+        "200":
+          description: The phrase and the proposals.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IngredientNameProposalsResponse"
+        "400":
+          description: "The request body, query or path was rejected. `code` says by what: `VALIDATION_FAILED` from the boundary
+            parser (with `details.fields` naming each offending field, including a rejected unknown key), or a domain
+            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: No, invalid, expired, or wrong-authorized-party bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: "The token is genuine but its account is suspended: `code: ACCOUNT_SUSPENDED` (ADR-0081). Answered before
+            the route runs."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "423":
+          description: "The caller has an in-flight account erasure, so writes are locked (HAZ-052). `code: ERASURE_IN_PROGRESS`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: "Per-user rate limit exceeded (`code: TOO_MANY_REQUESTS`). ⚠️ This body used to be a bare JSON STRING — the
+            throttler exception passed through the filter unchanged — and is now the envelope."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          headers:
+            Retry-After:
+              description: Seconds until the limit resets.
+              schema:
+                type: integer
+                minimum: 0
+                exclusiveMinimum: true
+        "500":
+          description: Unexpected server error. The body never carries internals.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      description: "What the settled sources remember for the phrase: the cook’s own earlier correction, a staff ruling, two
+        cooks agreeing, and a memo another cook’s save taught. Each is a PROPOSAL, strongest source first. The cook
+        binds one by picking it, through `by-food` or `by-food-variant`. Nothing is preselected. Always `200`: a food
+        food will not show to the caller, or a source that could not be read, is absent from the list and nothing says
+        why, so another cook’s private food is never revealed. `source` is an open key, so a new kind of source can ship
+        without breaking an installed client."
+      parameters:
+        - name: name
+          in: query
+          required: true
+          description: The name the cook typed. Trimmed; at most 120 characters.
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 120
   /api/v1/ingredients/by-food:
     post:
       operationId: addIngredientByFood
@@ -2399,6 +2760,13 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "401":
           description: No, invalid, expired, or wrong-authorized-party bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: "The token is genuine but its account is suspended: `code: ACCOUNT_SUSPENDED` (ADR-0081). Answered before
+            the route runs."
           content:
             application/json:
               schema:
@@ -2465,6 +2833,13 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "401":
           description: No, invalid, expired, or wrong-authorized-party bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: "The token is genuine but its account is suspended: `code: ACCOUNT_SUSPENDED` (ADR-0081). Answered before
+            the route runs."
           content:
             application/json:
               schema:
@@ -2538,6 +2913,13 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: "The token is genuine but its account is suspended: `code: ACCOUNT_SUSPENDED` (ADR-0081). Answered before
+            the route runs."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "423":
           description: "The caller has an in-flight account erasure, so writes are locked (HAZ-052). `code: ERASURE_IN_PROGRESS`."
           content:
@@ -2600,6 +2982,13 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "401":
           description: No, invalid, expired, or wrong-authorized-party bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: "The token is genuine but its account is suspended: `code: ACCOUNT_SUSPENDED` (ADR-0081). Answered before
+            the route runs."
           content:
             application/json:
               schema:
@@ -2680,7 +3069,8 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "403":
           description: "A signed test principal attempted a write this stage contains (ADR-0040) — `code:
-            TEST_PRINCIPAL_CONTAINED`."
+            TEST_PRINCIPAL_CONTAINED`. Or: The token is genuine but its account is suspended: `code: ACCOUNT_SUSPENDED`
+            (ADR-0081). Answered before the route runs."
           content:
             application/json:
               schema:
@@ -2754,6 +3144,13 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: "The token is genuine but its account is suspended: `code: ACCOUNT_SUSPENDED` (ADR-0081). Answered before
+            the route runs."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "423":
           description: "The caller has an in-flight account erasure, so writes are locked (HAZ-052). `code: ERASURE_IN_PROGRESS`."
           content:
@@ -2821,6 +3218,13 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "401":
           description: No, invalid, expired, or wrong-authorized-party bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: "The token is genuine but its account is suspended: `code: ACCOUNT_SUSPENDED` (ADR-0081). Answered before
+            the route runs."
           content:
             application/json:
               schema:
@@ -2897,7 +3301,8 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "403":
           description: "The caller does not own the collection, or: A signed test principal attempted a write this stage contains
-            (ADR-0040) — `code: TEST_PRINCIPAL_CONTAINED`."
+            (ADR-0040) — `code: TEST_PRINCIPAL_CONTAINED`. Or: The token is genuine but its account is suspended: `code:
+            ACCOUNT_SUSPENDED` (ADR-0081). Answered before the route runs."
           content:
             application/json:
               schema:
@@ -2976,7 +3381,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "403":
-          description: The caller does not own the resource.
+          description: "The caller does not own the resource. Or: The token is genuine but its account is suspended: `code:
+            ACCOUNT_SUSPENDED` (ADR-0081). Answered before the route runs."
           content:
             application/json:
               schema:
@@ -3050,7 +3456,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "403":
-          description: The caller does not own the resource.
+          description: "The caller does not own the resource. Or: The token is genuine but its account is suspended: `code:
+            ACCOUNT_SUSPENDED` (ADR-0081). Answered before the route runs."
           content:
             application/json:
               schema:
@@ -3130,7 +3537,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "403":
-          description: The caller does not own the resource.
+          description: "The caller does not own the resource. Or: The token is genuine but its account is suspended: `code:
+            ACCOUNT_SUSPENDED` (ADR-0081). Answered before the route runs."
           content:
             application/json:
               schema:
@@ -3213,7 +3621,8 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "403":
           description: "A signed test principal attempted a write this stage contains (ADR-0040) — `code:
-            TEST_PRINCIPAL_CONTAINED`."
+            TEST_PRINCIPAL_CONTAINED`. Or: The token is genuine but its account is suspended: `code: ACCOUNT_SUSPENDED`
+            (ADR-0081). Answered before the route runs."
           content:
             application/json:
               schema:
@@ -3304,7 +3713,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "403":
-          description: The caller does not own the resource.
+          description: "The caller does not own the resource. Or: The token is genuine but its account is suspended: `code:
+            ACCOUNT_SUSPENDED` (ADR-0081). Answered before the route runs."
           content:
             application/json:
               schema:
@@ -3381,7 +3791,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "403":
-          description: The caller does not own the resource.
+          description: "The caller does not own the resource. Or: The token is genuine but its account is suspended: `code:
+            ACCOUNT_SUSPENDED` (ADR-0081). Answered before the route runs."
           content:
             application/json:
               schema:
@@ -3470,6 +3881,13 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: "The token is genuine but its account is suspended: `code: ACCOUNT_SUSPENDED` (ADR-0081). Answered before
+            the route runs."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "423":
           description: "The caller has an in-flight account erasure, so writes are locked (HAZ-052). `code: ERASURE_IN_PROGRESS`."
           content:
@@ -3531,7 +3949,8 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "403":
           description: "A signed test principal attempted a write this stage contains (ADR-0040) — `code:
-            TEST_PRINCIPAL_CONTAINED`."
+            TEST_PRINCIPAL_CONTAINED`. Or: The token is genuine but its account is suspended: `code: ACCOUNT_SUSPENDED`
+            (ADR-0081). Answered before the route runs."
           content:
             application/json:
               schema:
@@ -3612,6 +4031,13 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: "The token is genuine but its account is suspended: `code: ACCOUNT_SUSPENDED` (ADR-0081). Answered before
+            the route runs."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: Not found (the caller is not a registered test principal).
           content:
@@ -3673,6 +4099,13 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "401":
           description: No, invalid, expired, or wrong-authorized-party bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: "The token is genuine but its account is suspended: `code: ACCOUNT_SUSPENDED` (ADR-0081). Answered before
+            the route runs."
           content:
             application/json:
               schema:
@@ -4355,6 +4788,101 @@ components:
             code:
               type: string
               enum:
+                - IMPORT_QUOTA_EXCEEDED
+            message:
+              type: string
+            details:
+              type: object
+              properties:
+                resetsAt:
+                  type: string
+                  format: date-time
+                  pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+              required:
+                - resetsAt
+              additionalProperties: {}
+          required:
+            - code
+            - message
+            - details
+          additionalProperties: {}
+        - type: object
+          properties:
+            code:
+              type: string
+              enum:
+                - IMPORT_CURSOR_MOVED
+            message:
+              type: string
+            details:
+              type: object
+              properties:
+                cursorOrdinal:
+                  nullable: true
+                  type: integer
+                  minimum: 0
+              required:
+                - cursorOrdinal
+              additionalProperties: {}
+          required:
+            - code
+            - message
+            - details
+          additionalProperties: {}
+        - type: object
+          properties:
+            code:
+              type: string
+              enum:
+                - IMPORT_ITEM_ALREADY_SAVED
+            message:
+              type: string
+            details:
+              type: object
+              properties:
+                ordinal:
+                  type: integer
+                  minimum: 0
+              required:
+                - ordinal
+              additionalProperties: {}
+          required:
+            - code
+            - message
+            - details
+          additionalProperties: {}
+        - type: object
+          properties:
+            code:
+              type: string
+              enum:
+                - PRIVATE_SLOTS_FULL
+            message:
+              type: string
+            details:
+              type: object
+              properties:
+                used:
+                  type: integer
+                  minimum: 0
+                limit:
+                  type: integer
+                  minimum: 0
+                  exclusiveMinimum: true
+              required:
+                - used
+                - limit
+              additionalProperties: {}
+          required:
+            - code
+            - message
+            - details
+          additionalProperties: {}
+        - type: object
+          properties:
+            code:
+              type: string
+              enum:
                 - VERSION_LINE_UNRESTORABLE
             message:
               type: string
@@ -4557,6 +5085,18 @@ components:
             code:
               type: string
               enum:
+                - IMPORT_NOT_FOUND
+            message:
+              type: string
+          required:
+            - code
+            - message
+          additionalProperties: {}
+        - type: object
+          properties:
+            code:
+              type: string
+              enum:
                 - UNAUTHORIZED
             message:
               type: string
@@ -4594,6 +5134,18 @@ components:
               type: string
               enum:
                 - TEST_PRINCIPAL_CONTAINED
+            message:
+              type: string
+          required:
+            - code
+            - message
+          additionalProperties: {}
+        - type: object
+          properties:
+            code:
+              type: string
+              enum:
+                - ACCOUNT_SUSPENDED
             message:
               type: string
           required:
@@ -5103,6 +5655,15 @@ components:
                   - RESOLVED_UNAVAILABLE
                   - FOOD_REMOVED
                   - FOOD_UNREACHABLE
+              boundBy:
+                type: string
+                enum:
+                  - exact
+                  - curated
+                  - review
+                  - default
+                  - autoBest
+                  - cook
             required:
               - ingredientId
               - quantity
@@ -5894,6 +6455,74 @@ components:
               prep:
                 nullable: true
                 type: string
+              match:
+                nullable: true
+                type: object
+                properties:
+                  state:
+                    type: string
+                    enum:
+                      - checking
+                      - confident
+                      - default
+                      - needsChoice
+                      - noMatch
+                  reason:
+                    type: string
+                    minLength: 1
+                  proposed:
+                    nullable: true
+                    type: object
+                    properties:
+                      kind:
+                        type: string
+                        enum:
+                          - root
+                          - variant
+                      id:
+                        type: string
+                        minLength: 1
+                      name:
+                        type: string
+                        minLength: 1
+                    required:
+                      - kind
+                      - id
+                      - name
+                  candidates:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        kind:
+                          type: string
+                          enum:
+                            - root
+                            - variant
+                        id:
+                          type: string
+                          minLength: 1
+                        name:
+                          type: string
+                          minLength: 1
+                        isDefault:
+                          type: boolean
+                      required:
+                        - kind
+                        - id
+                        - name
+                        - isDefault
+                  reviewNote:
+                    type: string
+                    minLength: 1
+                  reviewResetsAt:
+                    type: string
+                    minLength: 1
+                required:
+                  - state
+                  - reason
+                  - proposed
+                  - candidates
             required:
               - name
               - prep
@@ -5988,6 +6617,33 @@ components:
       required:
         - visibility
       additionalProperties: false
+    PrivateSlotUsage:
+      oneOf:
+        - type: object
+          properties:
+            kind:
+              type: string
+              enum:
+                - limited
+            used:
+              type: integer
+              minimum: 0
+            limit:
+              type: integer
+              minimum: 0
+              exclusiveMinimum: true
+          required:
+            - kind
+            - used
+            - limit
+        - type: object
+          properties:
+            kind:
+              type: string
+              enum:
+                - unlimited
+          required:
+            - kind
     RebindIngredientLineRequest:
       type: object
       properties:
@@ -6429,6 +7085,39 @@ components:
             $ref: "#/components/schemas/IngredientFoodNutritionEntry"
       required:
         - entries
+    IngredientNameProposalsResponse:
+      type: object
+      properties:
+        phrase:
+          type: string
+          minLength: 1
+        proposals:
+          type: array
+          items:
+            type: object
+            properties:
+              kind:
+                type: string
+                enum:
+                  - root
+                  - variant
+              id:
+                type: string
+                minLength: 1
+              name:
+                type: string
+                minLength: 1
+              source:
+                type: string
+                minLength: 1
+            required:
+              - kind
+              - id
+              - name
+              - source
+      required:
+        - phrase
+        - proposals
     RecipeVersion:
       type: object
       properties:

@@ -2,6 +2,7 @@
 
 - **Status:** Proposed
 - **Date:** 2026-09-30
+- **Amended by:** [ADR-0082](0082-recipes-are-an-open-library-of-facts-cooks-words-and-gated-public-domain.md): its citation of `016-FR-033` now reads the amended FR-033, which opens some recipe layers under CC licences. The food catalog rule here does not change.
 - **Owner ruling (2026-09-30):** "Amend R50. Use all data sources that we can legally use." The owner made two more
   rulings that day. If a source gives no by-difference carbohydrate, a food's total carbohydrate is its available
   carbohydrate plus its fibre. 016 FR-030's anti-extraction clause carves out values held under an attribution

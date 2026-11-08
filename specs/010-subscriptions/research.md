@@ -1,5 +1,10 @@
 # Research: Subscriptions & Monetization
 
+> **Out of date in part (2026-10-26).** This file models one premium tier at $6.99 a month or $59.99 a year.
+> The current plans, prices and AI credits are in [`spec.md`](spec.md) `FR-041` and its
+> [plan register](spec.md#plan-register). The subscription page is `FR-042a` to `FR-042k`.
+> Read "premium" here as Pro: the plans are Free, Pro and Pro with AI (owner, 2026-10-27).
+
 **Feature**: `010-subscriptions`
 **Date**: 2026-05-08
 **Status**: Complete
@@ -310,24 +315,24 @@ placeGroceryOrder(@Body() dto: PlaceOrderDto) { ... }
 
 ### 3.3 Feature Gating Map (FR-040 / FR-041)
 
-| Feature                      | Spec | FR                      | Free | Premium | Guard Location                                   |
-| ---------------------------- | ---- | ----------------------- | ---- | ------- | ------------------------------------------------ |
-| Recipe CRUD (public)         | 001  | 001-FR-001 … 001-FR-005 | ✅   | ✅      | None                                             |
-| Private recipe visibility    | 001  | 001-FR-003              | ❌   | ✅      | `PATCH /api/v1/recipes/:id/visibility`           |
-| Recipe sharing/cloning       | 001  | 001-FR-006              | ✅   | ✅      | None                                             |
-| Basic recipe importing (URL) | 004  | 004-FR-008              | ✅   | ✅      | None                                             |
-| Clone-to-private (imported)  | 004  | 004-FR-011              | ❌   | ✅      | `POST /api/v1/recipes/import` (visibility param) |
-| AI recipe generation         | 005  | 005-FR-016              | ❌   | ✅      | `POST /api/v1/ai/generate`                       |
-| AI instruction optimization  | 005  | 005-FR-019              | ❌   | ✅      | `POST /api/v1/ai/optimize-instructions`          |
-| Manual meal planning         | 006  | 006-FR-022 … 006-FR-024 | ✅   | ✅      | None                                             |
-| AI meal suggestions          | 006  | 006-FR-025              | ❌   | ✅      | `POST /api/v1/meal-plans/suggest`                |
-| Auto-generated meal plans    | 006  | 006-FR-026              | ❌   | ✅      | `POST /api/v1/meal-plans/generate`               |
-| Food waste optimization      | 006  | 006-FR-027              | ❌   | ✅      | `POST /api/v1/meal-plans/optimize-waste`         |
-| Grocery list generation      | 007  | 007-FR-028 … 007-FR-030 | ✅   | ✅      | None                                             |
-| Online grocery ordering      | 007  | 007-FR-031              | ❌   | ✅      | `POST /api/v1/grocery-lists/:id/order`           |
-| Cooking mode                 | 008  | 008-FR-032 … 008-FR-035 | ✅   | ✅      | None                                             |
-| Basic nutrition tracking     | 009  | 009-FR-038 (partial)    | ✅   | ✅      | None                                             |
-| Trainer nutrition planning   | 009  | 009-FR-038              | ❌   | ✅      | `POST /api/v1/nutrition/client-plans`            |
+| Feature                      | Spec | FR                      | Free | Premium | Guard Location                           |
+| ---------------------------- | ---- | ----------------------- | ---- | ------- | ---------------------------------------- |
+| Recipe CRUD (public)         | 001  | 001-FR-001 … 001-FR-005 | ✅   | ✅      | None                                     |
+| Private recipe visibility    | 001  | 001-FR-003              | ❌   | ✅      | `PATCH /api/v1/recipes/:id/visibility`   |
+| Recipe sharing/cloning       | 001  | 001-FR-006              | ✅   | ✅      | None                                     |
+| Basic recipe importing (URL) | 004  | 004-FR-008              | ✅   | ✅      | None                                     |
+| Clone-to-private (imported)  | 004  | 004-FR-011              | ❌   | ✅      | `POST /api/v1/import` (visibility param) |
+| AI recipe generation         | 005  | 005-FR-016              | ❌   | ✅      | `POST /api/v1/ai/generate`               |
+| AI instruction optimization  | 005  | 005-FR-019              | ❌   | ✅      | `POST /api/v1/ai/optimize-instructions`  |
+| Manual meal planning         | 006  | 006-FR-022 … 006-FR-024 | ✅   | ✅      | None                                     |
+| AI meal suggestions          | 006  | 006-FR-025              | ❌   | ✅      | `POST /api/v1/meal-plans/suggest`        |
+| Auto-generated meal plans    | 006  | 006-FR-026              | ❌   | ✅      | `POST /api/v1/meal-plans/generate`       |
+| Food waste optimization      | 006  | 006-FR-027              | ❌   | ✅      | `POST /api/v1/meal-plans/optimize-waste` |
+| Grocery list generation      | 007  | 007-FR-028 … 007-FR-030 | ✅   | ✅      | None                                     |
+| Online grocery ordering      | 007  | 007-FR-031              | ❌   | ✅      | `POST /api/v1/grocery-lists/:id/order`   |
+| Cooking mode                 | 008  | 008-FR-032 … 008-FR-035 | ✅   | ✅      | None                                     |
+| Basic nutrition tracking     | 009  | 009-FR-038 (partial)    | ✅   | ✅      | None                                     |
+| Trainer nutrition planning   | 009  | 009-FR-038              | ❌   | ✅      | `POST /api/v1/nutrition/client-plans`    |
 
 ### 3.4 Grace Period on Subscription Lapse
 

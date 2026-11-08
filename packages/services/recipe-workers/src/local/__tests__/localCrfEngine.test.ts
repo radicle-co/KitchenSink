@@ -47,7 +47,22 @@ const engineFor = (run: LocalCrfEngineRunner, version = 'ingredient-parser-nlp==
 
 describe('the local CRF transport', () => {
     it('hands the engine the SAME request body the deployed adapter sends', async () => {
-        const { run, requests } = runnerReturning({ engine: 'crf', engineVersion: '2.3.0', results: [] });
+        const { run, requests } = runnerReturning({
+            engine: 'crf',
+            engineVersion: '2.3.0',
+            // One row per line sent: `crfInvoke` refuses a response of any other length.
+            results: [
+                {
+                    status: 'parsed',
+                    sentence: '2 cups flour',
+                    measure: '2 cups',
+                    names: ['flour'],
+                    size: null,
+                    preparation: null,
+                    comment: null,
+                },
+            ],
+        });
 
         await engineFor(run).parse(['2 cups flour']);
 

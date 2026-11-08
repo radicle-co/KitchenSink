@@ -73,6 +73,7 @@ import type {
     StatusResponse,
 } from '@kitchensink/schema-food';
 
+import { AccountSuspendedError } from './accountSuspendedError.js';
 import { reportContractSkewOnce } from './contractSkew.js';
 import {
     BadRequestError,
@@ -410,6 +411,23 @@ export class FoodServiceClient {
     }
 
     /**
+     * `DELETE /api/v1/foods/{id}` — the author WITHDRAWS their own food (ADR-0029). A `204` and one status flip; the
+     * row is retained, and the name is free again for a new food by the same author.
+     *
+     * @param id - The authored food's id.
+     * @returns Nothing: the `204` has no body.
+     * @throws {NotFoundError} (`404`) when the food is missing, not the caller's, or already withdrawn.
+     * @sideEffect Performs an authenticated HTTP request that withdraws the food.
+     */
+    public async deleteAuthoredFood(id: string): Promise<void> {
+        const res = await this.send('DELETE', `/api/v1/foods/${encodeURIComponent(id)}`);
+
+        if (res.status !== 204) {
+            throw this.toError(res, id);
+        }
+    }
+
+    /**
      * `GET /api/v1/foods/{id}/status` — lifecycle poll (never enqueues).
      *
      * @param id - The internal food id.
@@ -443,11 +461,13 @@ export class FoodServiceClient {
      * @param query - The search query.
      * @param withNutrition - Opt-in per-100g macro enrichment (plan U4b). Leave unset on a typeahead path —
      *   the flag adds a nutrient-view scan the keystroke budget must not carry.
+     * @param options - `signal`: the caller's deadline, composed with this client's own timeout (see {@link RequestOptions}).
      * @returns Ranked results, or an empty set on no local match.
      * @throws {UnauthorizedError}/{@link ForbiddenError} on auth failure.
+     * @throws {FetchUnavailableError} when this request's timeout or the caller's signal aborts it.
      * @sideEffect Performs an authenticated HTTP request.
      */
-    public async search(query: string, withNutrition = false): Promise<SearchResponse> {
+    public async search(query: string, withNutrition = false, options: RequestOptions = {}): Promise<SearchResponse> {
         // The QUERY is validated too, against the same `searchFoodQuerySchema` the service parses it with, so a
         // term this client cannot legally send never costs a round trip.
         const { query: validated } = this.request('search', searchFoodQuerySchema, {
@@ -457,6 +477,8 @@ export class FoodServiceClient {
         const res = await this.send(
             'GET',
             `/api/v1/foods/search?query=${this.encodeTerm('search', validated)}${withNutrition ? '&withNutrition=true' : ''}`,
+            undefined,
+            options.signal,
         );
 
         return this.expect(res, 200, searchResponseSchema);
@@ -1291,6 +1313,9 @@ export class FoodServiceClient {
             case 'UNAUTHORIZED':
             case 'IDENTITY_SYNC_PENDING':
                 return new UnauthorizedError(body.message);
+            // ADR-0081: its own class, a ForbiddenError by inheritance. No retry or sign-in lifts a suspension.
+            case 'ACCOUNT_SUSPENDED':
+                return new AccountSuspendedError(body.message);
             case 'FORBIDDEN':
                 return new ForbiddenError(body.message);
             case 'FOOD_NOT_FOUND':

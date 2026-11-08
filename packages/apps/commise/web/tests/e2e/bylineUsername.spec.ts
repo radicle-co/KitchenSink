@@ -9,7 +9,8 @@ import { signInWithTicket } from './utils/auth';
 /**
  * The Clerk username is the public byline (owner ruling 2026-10-13; plan 2026-10-15-010 D11/D12), driven through the
  * real web UI with the recipe-service and identity contracts intercepted. Another cook's recipe reads "@username
- * (Display Name)" on its Discover card and "by @username (Display Name)" on its page; an erased author reads "Former
+ * (Display Name)" on its Discover card and "by Display Name" on its page (REWRITTEN IN SLICE 2: the recipe page shows the
+ * display name alone, `designAnswers.md` 2026-11-02); an erased author reads "Former
  * member", never the `user_<ULID>` pseudonym; the cook's own Profile shows their username read-only.
  *
  * Role/label selectors only. The byline wraps each piece of user text in invisible bidi isolates, so text is matched
@@ -56,12 +57,13 @@ test.describe('the byline is the username', () => {
         );
     });
 
-    test('the recipe page names the author “by @username (Display Name)”', async ({ page }) => {
+    test('the recipe page names the author “by Display Name”, with no handle', async ({ page }) => {
         await discoverWith(page, { authorUsername: 'braise', authorDisplayName: 'Eliza Moreno' });
         await page.goto(route(`/recipes/${E2E_RECIPE_IDS.paella}`));
 
         await expect(page.getByRole('heading', { level: 1, name: 'Seafood Paella' })).toBeVisible();
-        await expect(page.getByRole('main')).toContainText(/by\s.*@braise.*Eliza Moreno/u);
+        await expect(page.getByRole('main')).toContainText(new RegExp(`by ${ISOLATES}Eliza Moreno${ISOLATES}`, 'u'));
+        await expect(page.getByRole('main')).not.toContainText('@braise');
     });
 
     test('an author with no username is named without an “@”', async ({ page }) => {
@@ -99,9 +101,12 @@ test.describe('the byline is the username', () => {
         await page.goto(route('/profile'));
 
         await expect(page.getByRole('heading', { level: 1, name: 'Profile' })).toBeVisible();
-        // Header only (owner ruling 2026-10-16): the username shows once, with no Username row under Account.
+        // Owner ruling S2 (2026-10-27): the username shows once, as a read-only Username row under Account — not in
+        // the header.
         await expect(page.getByRole('main').getByText('@braise')).toHaveCount(1);
-        await expect(page.getByRole('region', { name: 'Account' })).not.toContainText('Username');
+        const account = page.getByRole('region', { name: 'Account' });
+        await expect(account.getByText('Username', { exact: true })).toBeVisible();
+        await expect(account.getByText('@braise', { exact: true })).toBeVisible();
         await expect(page.getByRole('button', { name: /Username/u })).toHaveCount(0);
     });
 });

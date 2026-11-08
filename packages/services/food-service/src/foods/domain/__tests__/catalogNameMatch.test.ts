@@ -12,7 +12,7 @@
  *   variant's part tokens: the variant rule search attaches by (`matchVariant`), tightened from "contains" to "equals".
  * - Two entries matching is no match: the worker never chooses between foods.
  */
-import { describe, expect, it } from 'vitest';
+import { describe, expect, expectTypeOf, it } from 'vitest';
 
 import { identicalCatalogEntryOf, type CatalogNameHit } from '../catalogNameMatch.js';
 import { identicalVariant, type VariantCandidate } from '../variantQueryMatch.js';
@@ -133,5 +133,13 @@ describe('identicalCatalogEntryOf', () => {
         expect(identicalCatalogEntryOf('   ', [{ id: 'R-blank', name: '', aliases: null }], variantsOf({}))).toBe(
             undefined,
         );
+    });
+});
+
+describe('what identity reads (ADR-0070 §4)', () => {
+    it('⛔ reads a hit’s id, name and synonyms, and nothing else: a default term is never identity', () => {
+        // A root's default terms list it first for a bare noun and never bind it. Adding them to this input would let
+        // add-by-name forward `milk` to whole milk with no cook involved; that change must fail here first.
+        expectTypeOf<keyof CatalogNameHit>().toEqualTypeOf<'id' | 'name' | 'aliases'>();
     });
 });

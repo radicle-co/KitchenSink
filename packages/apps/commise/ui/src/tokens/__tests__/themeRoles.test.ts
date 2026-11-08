@@ -8,7 +8,7 @@
 import { converter, formatHex, wcagContrast } from 'culori';
 import { describe, expect, it } from 'vitest';
 
-import { palette, role, roleDark, tint, type Role } from '../colors.js';
+import { palette, role, roleDark } from '../colors.js';
 
 const toRgb = converter('rgb');
 
@@ -35,72 +35,26 @@ function over(colour: string, surface: string): string {
     });
 }
 
-describe('D11 — the warm greys and the one value the dark spec changed in light', () => {
-    it('warms slate, pewter and mist, and turns pearl into linen', () => {
-        expect(palette.slate).toBe('#6B645C');
-        expect(palette.pewter).toBe('#8A847C');
-        expect(palette.mist).toBe('#C9C1B6');
-        expect(palette.pearl).toBe('#F3EEE6');
-    });
-
-    it('darkens the caution text to #8C5A00, which closes three light gaps', () => {
+// REWRITTEN for the redesign. The D11 warm greys, the light values of the added roles and the dark spec table were
+// pinned here as literals of the warm palette; every one of those values changed, and the new ones are pinned value by
+// value against the design sources in `redesignPin.test.ts` (which also owns the rename). What stays here is the one
+// value the redesign kept: the caution text.
+describe('the caution text', () => {
+    it('is #8C5A00, which closes three light gaps', () => {
         expect(palette['warning-dark']).toBe('#8C5A00');
         expect(role.attention).toBe('#8C5A00');
     });
 });
 
-describe('the new roles (darkTheme.md §1)', () => {
-    it('adds them in light at the spec values', () => {
-        expect(role).toMatchObject({
-            paperRaised: '#FFFFFF',
-            paperOverlay: '#FFFFFF',
-            surfaceMuted: '#F3EEE6',
-            inverse: '#2D3436',
-            inverseInk: '#FFFFFF',
-            inverseAction: '#5BA8A0',
-            onAction: '#FFFFFF',
-            actionPressed: '#2A6B65',
-            photoChip: tint(palette.white, 0.92),
-            scrim: tint(palette.charcoal, 0.4),
-        });
+describe('the dark roles', () => {
+    it('are the only dark-theme values that are not a palette entry, so the key sets stay equal', () => {
+        expect(Object.keys(roleDark).sort()).toEqual(Object.keys(role).sort());
     });
 });
 
 describe('roleDark (darkTheme.md §1)', () => {
     it('gives every role a dark value — the same key set as role', () => {
         expect(Object.keys(roleDark).sort()).toEqual(Object.keys(role).sort());
-    });
-
-    it('holds the spec value for every role', () => {
-        expect(roleDark).toEqual({
-            canvas: '#141210',
-            paper: '#1E1B18',
-            paperRaised: '#272320',
-            paperOverlay: '#302C28',
-            surfaceMuted: '#2B2825',
-            ink: '#EDE9E4',
-            inkMuted: '#B6B0A9',
-            lineControl: '#857F79',
-            lineDivider: '#3B3734',
-            action: '#31807A',
-            actionText: '#7DC7C0',
-            onAction: '#FFFFFF',
-            actionPressed: '#2A6B65',
-            selectedFill: '#243935',
-            selectedEdge: '#65B5AE',
-            hereBar: '#65B5AE',
-            focusRing: '#7DC7C0',
-            rating: '#EAA950',
-            attention: '#EFBA64',
-            attentionTint: 'rgba(245, 176, 65, 0.2)',
-            danger: '#C05238',
-            dangerText: '#EC8E76',
-            inverse: '#EDE9E4',
-            inverseInk: '#2D3436',
-            inverseAction: '#2A6B65',
-            photoChip: tint('#302C28', 0.92),
-            scrim: tint('#000000', 0.6),
-        } satisfies Record<Role, string>);
     });
 });
 
@@ -148,10 +102,11 @@ describe.each(THEMES)('the %s theme — fills and their labels (§3.2)', (_name,
         expect(wcagContrast(theme.onAction, theme.action)).toBeGreaterThanOrEqual(AA_TEXT);
     });
 
-    it('onAction on the pressed action fill (#2A6B65 in both themes, darkTheme.md §1)', () => {
+    it('onAction on the pressed action fill', () => {
         expect(wcagContrast(theme.onAction, theme.actionPressed)).toBeGreaterThanOrEqual(AA_TEXT);
     });
 
+    // The dark `danger` fill is a lighter #E07A60 (design session retune) so the near-black dark `onAction` clears 4.5:1.
     it('onAction on the danger fill', () => {
         expect(wcagContrast(theme.onAction, theme.danger)).toBeGreaterThanOrEqual(AA_TEXT);
     });

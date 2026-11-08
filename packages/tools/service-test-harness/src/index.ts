@@ -4,7 +4,12 @@ export {
     type BootedServiceApp,
     type ProviderDouble,
 } from './bootServiceApp.js';
-export { registerRankingConformance, type ConformanceRow, type RankedSurface } from './rankingConformance.js';
+export {
+    registerRankingConformance,
+    type ConformanceRow,
+    type ConformanceSeedRow,
+    type RankedSurface,
+} from './rankingConformance.js';
 export { BACKEND_TERMINATED, isBackendTermination, poolForDroppableDatabase } from './droppableDatabasePool.js';
 export {
     TEST_MASTER_ROLE,

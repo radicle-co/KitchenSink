@@ -11,14 +11,14 @@ const noop = (): void => undefined;
 
 const cardStyle = {
     background: 'var(--paper)',
-    border: '1px solid var(--line)',
+    border: '1px solid var(--line-divider)',
     borderRadius: 12,
     padding: 12,
 } as const;
 
 const screenStyle = {
     height: 480,
-    border: '1px solid var(--line)',
+    border: '1px solid var(--line-divider)',
     borderRadius: 16,
     overflow: 'hidden',
     display: 'flex',
@@ -47,7 +47,7 @@ export default defineCard({
                 {box(
                     <StateNotice
                         title="We could not load this recipe"
-                        body="Check your connection and try again."
+                        body="Check your connection."
                         primary={{ label: 'Try again', icon: 'refreshCw', onPress: noop }}
                         secondary={{ label: 'Back to Home', icon: 'house', onPress: noop, href: '#home' }}
                     />,

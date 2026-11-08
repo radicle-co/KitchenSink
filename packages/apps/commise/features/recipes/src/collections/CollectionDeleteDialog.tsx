@@ -41,7 +41,7 @@ export const CollectionDeleteDialog: FC<CollectionDeleteDialogProps> = ({
                 locale,
             )}
             confirm={{ label: dialogs.deleteConfirm, icon: 'trash' }}
-            keep={{ label: dialogs.deleteKeep, icon: 'x' }}
+            keep={{ label: dialogs.deleteKeep }}
             busy={busy}
             busyLabel={dialogs.deleting}
             {...(failed ? { error: dialogs.deleteFailed } : {})}

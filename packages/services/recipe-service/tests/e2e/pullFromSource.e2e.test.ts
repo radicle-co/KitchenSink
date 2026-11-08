@@ -47,11 +47,16 @@ describe('pull-from-source preview + drift (e2e, assembled app)', () => {
         return rows[0]!.id;
     }
 
-    async function insertCollection(owner: string, name: string, source: string | null): Promise<string> {
+    async function insertCollection(
+        owner: string,
+        name: string,
+        source: string | null,
+        visibility: 'public' | 'private',
+    ): Promise<string> {
         const { rows } = await pool.query<{ id: string }>(
             `INSERT INTO collections (owner_id, name, visibility, source_collection_id)
-             VALUES ($1, $2, 'private', $3) RETURNING id`,
-            [owner, name, source],
+             VALUES ($1, $2, $3, $4) RETURNING id`,
+            [owner, name, visibility, source],
         );
 
         return rows[0]!.id;
@@ -81,12 +86,13 @@ describe('pull-from-source preview + drift (e2e, assembled app)', () => {
         recA = await insertRecipe(SOURCE_OWNER, 'Pull E2E recipe A');
         recB = await insertRecipe(SOURCE_OWNER, 'Pull E2E recipe B');
 
-        // Source has {A, B}; the cloner's clone starts with {A} — so a pull will add B.
-        sourceId = await insertCollection(SOURCE_OWNER, 'E2E source', null);
+        // Source has {A, B}; the cloner's clone starts with {A} — so a pull will add B. The source is PUBLIC: a pull
+        // from another cook's private source is a 404 (the same rule as clone).
+        sourceId = await insertCollection(SOURCE_OWNER, 'E2E source', null, 'public');
         await addMembership(sourceId, recA, 'manual');
         await addMembership(sourceId, recB, 'manual');
 
-        cloneId = await insertCollection(CLONER, 'E2E clone', sourceId);
+        cloneId = await insertCollection(CLONER, 'E2E clone', sourceId, 'private');
         await addMembership(cloneId, recA, 'clone_seed');
     });
 

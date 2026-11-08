@@ -76,11 +76,7 @@ export const IngredientRowPanelBody: FC<IngredientRowPanelBodyProps> = ({ row, m
             // Rows 6 and 7: what the food search finds for the line's own words; one pick binds this line.
             return <ShortlistPanel {...row.shortlist(close)} />;
         case 'foodRemovedNameless':
-            return (
-                <Text style={text}>
-                    {fillTemplate(m.statusExplainFoodRemovedUnnamed, { changeFoodLabel: m.statusActionChangeFood })}
-                </Text>
-            );
+            return <Text style={text}>{m.statusExplainFoodRemovedUnnamed}</Text>;
     }
 };
 

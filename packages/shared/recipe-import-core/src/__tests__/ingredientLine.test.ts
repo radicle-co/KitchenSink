@@ -303,6 +303,56 @@ describe('parseIngredientLine', () => {
             expect(result.reviewReasons).toContain('quantity_out_of_storage_range');
         });
 
+        /**
+         * A hyphen with no spaces between a whole number and a smaller proper fraction is a MIXED number
+         * (`1-1/2` is `1 1/2`), not a range from 1 to 1/2. Audit finding 6.
+         */
+        it.each([
+            ['1-1/2 cups flour', 1.5, 'cup', 'flour'],
+            ['2-1/4 teaspoons salt', 2.25, 'teaspoon', 'salt'],
+        ])('reads the hyphenated mixed number in %j as %d', (raw, value, unit, name) => {
+            const result = parseIngredientLine(raw);
+
+            expect(result.quantity).toEqual(statedQuantity(value));
+            expect(result.unit).toBe(unit);
+            expect(result.name).toBe(name);
+            expect(result.needsReview).toBe(false);
+        });
+
+        /** The top of a range must survive the join: a mixed number is only the LOW bound here. */
+        it.each([
+            ['1-1/2 to 2 cups flour', 1.5, 2],
+            ['1-1/2-2 cups flour', 1.5, 2],
+        ])('keeps the upper bound when a hyphenated mixed number opens a range: %j', (raw, low, high) => {
+            const result = parseIngredientLine(raw);
+
+            expect(result.quantity).toEqual(statedQuantity(low, high));
+            expect(result.needsReview).toBe(false);
+        });
+
+        /** A hyphen that goes on into a word is a compound modifier ("2-3/4-ounce can"), not a mixed number. */
+        it.each([['2-3/4-ounce can tomatoes'], ['10-1/2-inch pan']])(
+            'does not join %j, so it stays flagged for review as before',
+            (raw) => {
+                const result = parseIngredientLine(raw);
+
+                expect(result.quantity).toEqual(ABSENT_QUANTITY);
+                expect(result.reviewReasons).toContain('quantity_bounds_inverted');
+            },
+        );
+
+        it('keeps 1/2-1 a range, because the fraction comes first', () => {
+            expect(parseIngredientLine('1/2-1 cup flour').quantity).toEqual(statedQuantity(0.5, 1));
+        });
+
+        /**
+         * A spaced "1 - 1/2" already reads as 1.5 today: the tokenizer treats the dash like the space in
+         * "1 1/2". The decision is to leave that as it is, so the spaced and unspaced forms agree.
+         */
+        it('reads a spaced "1 - 1/2" as 1.5, the same as "1 1/2"', () => {
+            expect(parseIngredientLine('1 - 1/2 cups flour').quantity).toEqual(statedQuantity(1.5));
+        });
+
         it('refuses an inverted range rather than persisting bounds that disagree', () => {
             const result = parseIngredientLine('3 to 2 cups flour');
 

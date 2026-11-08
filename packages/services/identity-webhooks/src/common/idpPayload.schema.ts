@@ -52,6 +52,8 @@ export const MAX_DISPLAY_NAME_LENGTH = 100;
 
 /** One Clerk email address entry. Tolerant of the many fields Clerk carries that we never read. */
 const emailAddressSchema = z.looseObject({
+    /** Clerk's id for this address; `primary_email_address_id` on the user names one of these. */
+    id: z.string().optional(),
     /** The address itself — bounded by `users.email`'s `varchar(320)`. */
     email_address: z.string().min(1).max(MAX_EMAIL_LENGTH),
 });
@@ -82,7 +84,7 @@ const identityUserDataSchema = z.looseObject({
     id: clerkIdSchema,
     /**
      * The user's email addresses. At least one is REQUIRED because `users.email` is `NOT NULL`, and the
-     * handler reads `email_addresses[0]`.
+     * handler reads the entry named by `primary_email_address_id`, else `email_addresses[0]`.
      *
      * ⚠️ KNOWN LIMITATION, pre-existing and unchanged: a phone-only Clerk signup has no email address and
      * cannot be provisioned. Previously that failed as a `NOT NULL` violation mid-insert (a 500, retried by
@@ -90,6 +92,8 @@ const identityUserDataSchema = z.looseObject({
      * is a product gap, not something this schema introduces.
      */
     email_addresses: z.array(emailAddressSchema).min(1),
+    /** The id of the primary entry in `email_addresses`; absent or null when Clerk does not say. */
+    primary_email_address_id: z.string().nullable().optional(),
     /** Given name, or `null` when unset. */
     first_name: nameComponentSchema,
     /** Family name, or `null` when unset. */

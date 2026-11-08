@@ -75,7 +75,7 @@ test.describe('a matched ingredient shows its nutrition in the editor (plan 002 
 
         await chooseRowAction(page, 'Arborio rice', 'Food details');
         const panel = page.getByRole('dialog', { name: 'Arborio rice' });
-        await expect(panel).toContainText('We couldn’t load the nutrition just now. Try again.');
+        await expect(panel).toContainText('We couldn’t load the nutrition just now.');
 
         const reread = page.waitForRequest(
             (request) => request.url().endsWith('/api/v1/ingredients/food-nutrition') && request.method() === 'POST',

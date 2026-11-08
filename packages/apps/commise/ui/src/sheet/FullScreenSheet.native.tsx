@@ -17,15 +17,18 @@
  * when the platform has said reduce motion is off, by the `Sheet`'s rule (`sheetAnimationType`, curated D10, WCAG
  * 2.3.3).
  *
- * @pattern Decorator over the design-system `Modal` — it adds the window insets and the reduce-motion rule, nothing
+ * @pattern Decorator over the design-system `OverlayHost` — it adds the window insets and the reduce-motion rule, nothing
  *     else
  */
 import type { FC, ReactNode } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Modal } from '../modal/Modal.native.js';
+import { OverlayHost } from '../overlay/OverlayHost.native.js';
+import { OverlayView } from '../overlay/OverlayView.native.js';
 import { useReduceMotion } from '../motion/useReduceMotion.native.js';
+import { surfaceFill } from '../surfaceTone/surfaceFill.js';
+import { ToneScope } from '../surfaceTone/ToneScope.native.js';
 import { useTheme } from '../theme/useTheme.native.js';
 import { sheetAnimationType } from './sheetPresentation.js';
 
@@ -65,34 +68,36 @@ export interface FullScreenSheetProps {
 export const FullScreenSheet: FC<FullScreenSheetProps> = ({ label, onRequestClose, onShow, children }) => {
     const insets = useSafeAreaInsets();
     const reduceMotion = useReduceMotion();
-    const { colors } = useTheme();
+    const theme = useTheme();
 
     return (
-        <Modal
+        <OverlayHost
             visible
-            onRequestClose={onRequestClose}
+            onDismissRequest={() => onRequestClose()}
             onShow={onShow}
             animationType={sheetAnimationType(reduceMotion)}
             presentationStyle="fullScreen"
         >
-            <View
-                collapsable={false}
-                accessibilityLabel={label}
-                style={[
-                    styles.surface,
-                    {
-                        backgroundColor: colors.paper,
-                        // Base pad PLUS the device inset on every edge — the whole point of this primitive.
-                        paddingTop: SHEET_PADDING + insets.top,
-                        paddingBottom: SHEET_PADDING + insets.bottom,
-                        paddingLeft: SHEET_PADDING + insets.left,
-                        paddingRight: SHEET_PADDING + insets.right,
-                    },
-                ]}
-            >
-                {children}
-            </View>
-        </Modal>
+            <ToneScope tone="paper">
+                <OverlayView
+                    collapsable={false}
+                    accessibilityLabel={label}
+                    style={[
+                        styles.surface,
+                        {
+                            backgroundColor: surfaceFill(theme, 'paper'),
+                            // Base pad PLUS the device inset on every edge — the whole point of this primitive.
+                            paddingTop: SHEET_PADDING + insets.top,
+                            paddingBottom: SHEET_PADDING + insets.bottom,
+                            paddingLeft: SHEET_PADDING + insets.left,
+                            paddingRight: SHEET_PADDING + insets.right,
+                        },
+                    ]}
+                >
+                    {children}
+                </OverlayView>
+            </ToneScope>
+        </OverlayHost>
     );
 };
 

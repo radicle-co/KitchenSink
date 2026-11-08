@@ -8,6 +8,7 @@
  * for every state (an inactive field says nothing; below the minimum nothing is offered) are stated again as properties.
  */
 import type { ProgressiveFrame } from '@kitchensink/food-service-client';
+import type { IngredientNameProposal } from '@kitchensink/schema-recipe';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -24,7 +25,7 @@ import {
 } from '../../__fixtures__/progressiveFrames.js';
 import { entrySearchViewOf, type EntrySearchView, type ProgressiveRead } from '../../hooks/foodSuggestions.model.js';
 import { recipeMessages } from '../../messages.js';
-import { entryComboboxOf, type EntryComboboxCopy, type EntryComboboxInput } from '../entryCombobox.js';
+import { defaultHintOf, entryComboboxOf, type EntryComboboxCopy, type EntryComboboxInput } from '../entryCombobox.js';
 import { recipeFormMessages } from '../messages.js';
 
 const form = recipeFormMessages.en;
@@ -66,6 +67,7 @@ const input = (over: Partial<EntryComboboxInput> = {}): EntryComboboxInput => ({
     databaseSaidEarly: false,
     pickFailure: undefined,
     offersCreateOwnFood: false,
+    suggestions: [],
     formatTime: () => '3:05 PM',
     formatList: (items) => items.join(' and '),
     sourceName: (source) => SOURCE_NAMES[source],
@@ -491,13 +493,35 @@ describe('entryComboboxOf — when the count is spoken (P7)', () => {
         );
     });
 
-    it('slow path, at the end, with nothing added and no failure: `No more foods found.`', () => {
-        const view = entryComboboxOf(
-            input({ view: viewOf([BOTH, sourceAnswered('usda'), COMPLETE_FRAME]), databaseSaidEarly: true }),
-            COPY,
-        );
+    /**
+     * REWRITTEN (dogfooding PR 132): this end said `No more foods found.` beside a list of foods, which reads as "no
+     * foods". It now says the search ended, the pair of `Still searching other food databases`, and it is true whether
+     * the list holds foods or not.
+     */
+    it.each<[string, readonly ProgressiveFrame[]]>([
+        ['beside foods', [BOTH, sourceAnswered('usda'), COMPLETE_FRAME]],
+        ['with no food', [databaseFrame(), sourceAnswered('usda'), COMPLETE_FRAME]],
+    ])('slow path, at the end, with nothing added and no failure, %s: that the search finished', (_case, frames) => {
+        const view = entryComboboxOf(input({ view: viewOf(frames), databaseSaidEarly: true }), COPY);
 
-        expect(view.countAnnouncement).toBe('No more foods found.');
+        expect(view.countAnnouncement).toBe('Finished searching other food databases.');
+    });
+
+    it('⛔ no announcement says "no foods" while the list shows a food (owner rule)', () => {
+        const frameSets: readonly (readonly ProgressiveFrame[])[] = [
+            [BOTH, COMPLETE_FRAME],
+            [BOTH, sourceAnswered('usda'), COMPLETE_FRAME],
+            [BOTH, sourceAnswered('usda'), sourceUnavailable('cnf'), COMPLETE_FRAME],
+            [BOTH, sourceAnswered('usda')],
+        ];
+
+        for (const frames of frameSets) {
+            for (const databaseSaidEarly of [false, true]) {
+                const view = entryComboboxOf(input({ view: viewOf(frames), databaseSaidEarly }), COPY);
+
+                expect(view.countAnnouncement).not.toMatch(/\bno (more )?foods?\b|nothing/i);
+            }
+        }
     });
 });
 
@@ -620,5 +644,248 @@ describe('entryComboboxOf — properties over every state', () => {
         expect(silent.trailingStatus).toEqual([]);
         expect(silent.countAnnouncement).toBe('');
         expect(silent.alertAnnouncement).toBe('');
+    });
+});
+
+// U16 (staff-ux): the picker draws `editor.foodSearch.defaultHint` under its list where the board shows it, but only
+// while the list shows a default. The search wire carries no `isDefault` yet, so the slot is built and nothing fills it.
+describe('defaultHintOf — the default hint under the picker’s list', () => {
+    const hint = form.foodSearch.defaultHint;
+
+    it('says the hint when an option carries the Default tag', () => {
+        expect(
+            defaultHintOf(
+                [
+                    {
+                        key: 'catalog',
+                        label: 'Food catalog',
+                        options: [
+                            { key: 'c:1', label: 'Whole milk', tag: 'Default', accessibleName: 'Whole milk, Default' },
+                        ],
+                    },
+                ],
+                hint,
+            ),
+        ).toEqual({ kind: 'note', text: hint });
+    });
+
+    it('says nothing when no option is tagged', () => {
+        expect(
+            defaultHintOf(
+                [{ key: 'catalog', label: 'Food catalog', options: [{ key: 'c:1', label: 'Skim milk' }] }],
+                hint,
+            ),
+        ).toBeUndefined();
+    });
+
+    it('the field never shows it while the wire tags no default', () => {
+        const field = entryComboboxOf(input(), COPY);
+
+        expect(field.trailingStatus.some((line) => line.kind === 'note' && line.text === hint)).toBe(false);
+    });
+});
+
+describe('entryComboboxOf — Suggested foods (owner ruling 2026-11-03; designer N2)', () => {
+    const ROOT: IngredientNameProposal = {
+        kind: 'root',
+        id: 'food_chick',
+        name: 'Chickpeas, dry',
+        source: 'ownCorrection',
+    };
+    const VARIANT: IngredientNameProposal = {
+        kind: 'variant',
+        id: 'var_canned',
+        name: 'Chickpeas, canned',
+        source: 'someSourceWeDoNotKnow',
+    };
+
+    it('puts one unnamed group first, one tagged option per proposal, ahead of every other group', () => {
+        const view = entryComboboxOf(input({ suggestions: [ROOT, VARIANT] }), COPY);
+
+        expect(view.groups.map((group) => group.key)).toEqual(['suggested', 'authored', 'catalog', 'more']);
+        expect(view.groups[0]?.label).toBeUndefined();
+        expect(view.groups[0]?.options).toEqual([
+            {
+                key: 'suggested:root:food_chick',
+                label: 'Chickpeas, dry',
+                tag: 'Suggested',
+                accessibleName: 'Chickpeas, dry, suggested',
+            },
+            {
+                key: 'suggested:variant:var_canned',
+                label: 'Chickpeas, canned',
+                tag: 'Suggested',
+                accessibleName: 'Chickpeas, canned, suggested',
+            },
+        ]);
+    });
+
+    it('decodes a Suggested key to its proposal, whatever its source key says', () => {
+        const view = entryComboboxOf(input({ suggestions: [ROOT, VARIANT] }), COPY);
+
+        expect(view.optionFor('suggested:root:food_chick')).toEqual({ kind: 'suggestedFood', proposal: ROOT });
+        expect(view.optionFor('suggested:variant:var_canned')).toEqual({ kind: 'suggestedFood', proposal: VARIANT });
+    });
+
+    it('adds no group when there is no proposal', () => {
+        const view = entryComboboxOf(input({ suggestions: [] }), COPY);
+
+        expect(view.groups.map((group) => group.key)).toEqual(['authored', 'catalog', 'more']);
+    });
+
+    it('an inactive field lists nothing, suggestions included', () => {
+        const view = entryComboboxOf(input({ active: false, suggestions: [ROOT] }), COPY);
+
+        expect(view.groups).toEqual([]);
+        expect(view.optionFor('suggested:root:food_chick')).toBeUndefined();
+    });
+
+    it('lists none while the list is not the served answer for the text (the debounce lags)', () => {
+        const lagging = entrySearchViewOf({
+            trimmed: 'chickpeas',
+            debouncedTrimmed: 'chickpea',
+            read: { kind: 'ended', answer: answerOf(BOTH, COMPLETE_FRAME), resumed: false },
+        });
+        const view = entryComboboxOf(input({ text: 'chickpeas', view: lagging, suggestions: [ROOT] }), COPY);
+
+        expect(view.groups).toEqual([]);
+    });
+
+    it('keeps every key unique: a repeated proposal shows once, and a root and a variant of one id both show', () => {
+        const sameIdVariant: IngredientNameProposal = { ...ROOT, kind: 'variant' };
+        const view = entryComboboxOf(input({ suggestions: [ROOT, ROOT, sameIdVariant] }), COPY);
+        const keys = view.groups.flatMap((group) => group.options.map((option) => option.key));
+
+        expect(new Set(keys).size).toBe(keys.length);
+        expect(view.groups[0]?.options.map((option) => option.key)).toEqual([
+            'suggested:root:food_chick',
+            'suggested:variant:food_chick',
+        ]);
+    });
+
+    it('the Default hint is about the Default tag only: a Suggested tag does not raise it', () => {
+        const view = entryComboboxOf(input({ suggestions: [ROOT] }), COPY);
+
+        expect(linesOf(view.trailingStatus)).not.toContain(form.foodSearch.defaultHint);
+    });
+
+    describe('a food that is both Suggested and in the catalog group (designer review)', () => {
+        const SAME_AS_ROOT = catalogResult('food_chick', 'Chickpeas, dry');
+        const OTHER = catalogResult('food_other', 'Chickpeas, flour');
+        const withCatalog = (...catalog: ReturnType<typeof catalogResult>[]) =>
+            input({ view: viewOf([databaseFrame({ catalog }), COMPLETE_FRAME]), suggestions: [ROOT] });
+        const idsOf = (view: ReturnType<typeof entryComboboxOf>, key: string) =>
+            view.groups.find((group) => group.key === key)?.options.map((option) => option.key);
+
+        it('drops the catalog row for the Suggested food, by id, and keeps the others', () => {
+            const view = entryComboboxOf(withCatalog(SAME_AS_ROOT, OTHER), COPY);
+
+            expect(idsOf(view, 'suggested')).toEqual(['suggested:root:food_chick']);
+            expect(idsOf(view, 'catalog')).toEqual(['catalog:food_other']);
+        });
+
+        it('leaves no catalog group when the Suggested food was its only row, and still says a food shows', () => {
+            const view = entryComboboxOf(withCatalog(SAME_AS_ROOT), COPY);
+
+            expect(view.groups.some((group) => group.key === 'catalog')).toBe(false);
+            expect(view.status).toBeUndefined();
+            expect(view.countAnnouncement).toBe('1 food found');
+            expect(linesOf(view.trailingStatus)).not.toContain(NO_MATCH);
+        });
+
+        it('compares by id, never by name: a different food with the same name stays', () => {
+            const SAME_NAME = catalogResult('food_twin', 'Chickpeas, dry');
+            const view = entryComboboxOf(withCatalog(SAME_NAME), COPY);
+
+            expect(idsOf(view, 'catalog')).toEqual(['catalog:food_twin']);
+            expect(view.countAnnouncement).toBe('2 foods found');
+        });
+
+        it('a root Suggested food does not hide a catalog row that is a variant of it', () => {
+            const variantRow = {
+                ...catalogResult('food_chick', 'Chickpeas, canned'),
+                variant: { id: 'var_x', parts: [{ attribute: 'cut' as const, text: 'canned' }] },
+            };
+            const view = entryComboboxOf(withCatalog(variantRow), COPY);
+
+            expect(idsOf(view, 'catalog')).toEqual(['catalog:food_chick']);
+        });
+
+        it('keeps the Suggested row and drops the catalog row when the names differ but the id is the same (QA wire shape)', () => {
+            const pepperProposal: IngredientNameProposal = {
+                kind: 'root',
+                id: 'food_pepper',
+                name: 'Pepper, black, ground',
+                source: 'ownCorrection',
+            };
+            const view = entryComboboxOf(
+                input({
+                    view: viewOf([
+                        databaseFrame({
+                            catalog: [
+                                catalogResult('food_salt', 'Salt'),
+                                catalogResult('food_pepper', 'Pepper black ground'),
+                            ],
+                        }),
+                        COMPLETE_FRAME,
+                    ]),
+                    suggestions: [pepperProposal],
+                }),
+                COPY,
+            );
+
+            expect(view.groups.find((group) => group.key === 'suggested')?.options.map((o) => o.label)).toEqual([
+                'Pepper, black, ground',
+            ]);
+            expect(view.groups.find((group) => group.key === 'catalog')?.options.map((o) => o.label)).toEqual(['Salt']);
+        });
+
+        it('counts the shared food once', () => {
+            const view = entryComboboxOf(withCatalog(SAME_AS_ROOT, OTHER), COPY);
+
+            expect(view.countAnnouncement).toBe('2 foods found');
+        });
+    });
+
+    // Designer ruling (designAnswers.md, commit 70a41c3b4): REVERSES the earlier "a Suggested food does not change the
+    // count" test. The polite count includes the Suggested options (every food option shown, never "Search for another
+    // food"), and "Nothing matches" speaks only when the list shows no food at all.
+    describe('the count and "Nothing matches" (designer ruling, same on web and mobile)', () => {
+        const NO_DATABASE_ROWS = (): EntryComboboxInput => input({ view: viewOf([databaseFrame(), COMPLETE_FRAME]) });
+
+        it('a suggestion with no database match: counts the suggestion and never says nothing matches', () => {
+            const view = entryComboboxOf({ ...NO_DATABASE_ROWS(), suggestions: [ROOT] }, COPY);
+
+            expect(view.countAnnouncement).toBe('1 food found');
+            expect(view.status).toBeUndefined();
+            expect(linesOf(view.trailingStatus)).not.toContain(NO_MATCH);
+            expect(view.countAnnouncement).not.toContain('Nothing in your foods');
+        });
+
+        it('a suggestion with database rows: the count is the suggestions plus the database foods', () => {
+            const view = entryComboboxOf(input({ suggestions: [ROOT, VARIANT] }), COPY);
+
+            expect(view.countAnnouncement).toBe('4 foods found');
+        });
+
+        it('a repeated proposal is counted once, as it is shown once', () => {
+            const view = entryComboboxOf({ ...NO_DATABASE_ROWS(), suggestions: [ROOT, ROOT] }, COPY);
+
+            expect(view.countAnnouncement).toBe('1 food found');
+        });
+
+        it('the plain no-match state is unchanged: nothing listed, so it still says nothing matches', () => {
+            const view = entryComboboxOf({ ...NO_DATABASE_ROWS(), suggestions: [] }, COPY);
+
+            expect(view.countAnnouncement).toBe(NO_MATCH);
+            expect(view.status).toEqual({ kind: 'note', text: NO_MATCH });
+        });
+
+        it('does not count "Search for another food", which is not a food', () => {
+            const view = entryComboboxOf({ ...NO_DATABASE_ROWS(), suggestions: [ROOT] }, COPY);
+
+            expect(view.groups.some((group) => group.key === 'more')).toBe(true);
+            expect(view.countAnnouncement).toBe('1 food found');
+        });
     });
 });

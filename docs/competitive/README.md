@@ -7,6 +7,17 @@
 | [`01RecimeTeardown.md`](./01RecimeTeardown.md)                 | Deep teardown: product, import mechanics, UI/UX, user sentiment, business model, company, funding, legal posture, confidence register                                                                |
 | [`02GapAnalysisAndStrategy.md`](./02GapAnalysisAndStrategy.md) | Our specs (PR #91 @ `70087eab`) vs ReciMe: feature gap matrix, the four structural problems, our real assets, category disruption vectors, 23 concrete spec deltas, sequencing, open owner decisions |
 
+## The wider market (2026-10-27)
+
+The two files above cover ReciMe. The rest of the market is in [`docs/research/business/`](../research/business/README.md):
+
+- [`mv2/compSubs.md`](../research/business/mv2/compSubs.md): competitor matrix for 11 subscription apps, Samsung Food among them.
+- [`mv2/compIndie.md`](../research/business/mv2/compIndie.md): competitor matrix for 10 indie and one-time-purchase apps.
+- [`marketAnalysisV2.md`](../research/business/marketAnalysisV2.md): market size, prices, free plans and unmet needs, built on those matrices.
+
+The positioning taken from them (Pro matches Samsung Food+) is in
+[`docs/business-plan.md`](../business-plan.md#current-decisions-2026-10-29).
+
 ---
 
 ## ⛔ Superseded and CORRUPTED — do not use

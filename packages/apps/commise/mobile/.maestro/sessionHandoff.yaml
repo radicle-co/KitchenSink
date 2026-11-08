@@ -47,11 +47,21 @@ onFlowComplete:
       visible: 'My recipes'
       timeout: 20000
 - runFlow: shell/goHome.yaml
-- extendedWaitUntil:
-      visible: 'Profile.*'
-      timeout: 20000
 
-# Cook A signs out from the Profile page. The auth gate puts the sign-in form back.
+# Cook A signs out from the Profile page. The auth gate puts the sign-in form back. Each tab keeps its scroll position, and
+# the sign-in step scrolled Home down to "See all recipes", so the profile button in Home's header (the scroller's first
+# child) is above the screen when the cook returns: swipe back up to the top, as a cook would.
+# ⛔ NOT `scrollIntoTapView` with `DIRECTION: UP`: it skips its scroll when the target "is visible", and XCUITest lists the
+# scrolled-away header button as visible, so on iOS nothing scrolled and the tap hit no control (full local iOS run
+# 2026-11-05: the screen stayed on Home, then "Sign out" was never found). Three swipes end at the top of Home; extra
+# ones at the top move nothing.
+- repeat:
+      times: 3
+      commands:
+          - swipe:
+                start: 50%, 25%
+                end: 50%, 85%
+                duration: 400
 - tapOn: 'Profile.*'
 - runFlow:
       file: recipes/common/scrollIntoTapView.yaml
@@ -60,7 +70,7 @@ onFlowComplete:
           DIRECTION: DOWN
 - tapOn: 'Sign out'
 - extendedWaitUntil:
-      visible: 'you@example.com'
+      visible: 'Sign in to Commise'
       timeout: 40000
 
 # Cook B signs in on the same process. `signinHome.yaml` finds the form and types B's address.

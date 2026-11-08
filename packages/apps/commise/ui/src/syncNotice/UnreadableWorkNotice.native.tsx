@@ -68,6 +68,6 @@ const styles = StyleSheet.create({
         rowGap: nativeTokens.spacing[1],
     },
     text: { flexGrow: 1, flexShrink: 1, flexBasis: 200, gap: nativeTokens.spacing[1] },
-    title: { fontSize: nativeTokens.fontSize.bodySm, fontWeight: '600' },
-    body: { fontSize: nativeTokens.fontSize.bodySm },
+    title: { ...nativeTokens.type.label },
+    body: { ...nativeTokens.type.meta },
 });

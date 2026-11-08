@@ -25,7 +25,7 @@ export const CollectionRecipePickerLoadError: FC<CollectionRecipePickerLoadError
             <LiveRegion politeness="assertive" style={[styles.title, { color: colors.ink }]}>
                 {picker.errorTitle}
             </LiveRegion>
-            <Button variant="secondary" icon="rotateCcw" onPress={onRetry}>
+            <Button variant="quiet" icon="refreshCw" onPress={onRetry}>
                 {picker.retry}
             </Button>
         </View>

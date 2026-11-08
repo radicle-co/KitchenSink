@@ -1,7 +1,14 @@
 /**
- * U3 — `ResolutionBandsDal` against a real Docker PostgreSQL (migration 0036).
+ * U3 — the shared band-authority store (`@kitchensink/recipe-core`'s `BandAuthorityStore`) against a real Docker
+ * PostgreSQL (migration 0036).
  *
- * ⛔ WHY THIS TIER IS MANDATORY: the DAL's claims are all claims about the DATABASE — that the transition
+ * ⚠️ Re-targeted (ADR-0071). It drove recipe-service's `ResolutionBandsDal`, a thin adapter binding the store to this
+ * service's pool, which was deleted with its last caller (the by-name path's band-epoch read). The store's SQL still
+ * runs, in recipe-workers' band feedback and the revocation drain, and this is its only real-database proof, so the
+ * suite now builds the store over the pool exactly as that adapter did. Migration 0036 belongs to this service, which
+ * is why the proof stays here.
+ *
+ * ⛔ WHY THIS TIER IS MANDATORY: the store's claims are all claims about the DATABASE — that the transition
  * upsert increments the epoch atomically, that `statsFor` aggregates in SQL, and that the drain reads
  * ONLY the skips of revoked bands, oldest first. A unit test mocks all of that into tautology.
  *
@@ -10,20 +17,30 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import pg from 'pg';
 
-import { ResolutionBandsDal, type BandKey } from '../../../src/ingredients/resolution/resolutionBands.dal.js';
+import { BandAuthorityStore, type BandKey } from '@kitchensink/recipe-core/resolution/band-authority-store';
+
 import { recipeDb } from '../../support/roleDb.js';
 
 const roleDb = recipeDb();
-const BAND: BandKey = { rung: 'head', marginBand: '0.15+', queryShape: 'single-token', rankerVersion: 'dal-test-v1' };
+const BAND: BandKey = {
+    rung: 'head',
+    marginBand: 'ge-0.9-rung',
+    queryShape: 'single-token',
+    rankerVersion: 'dal-test-v1',
+};
 const OTHER_BAND: BandKey = { ...BAND, queryShape: 'multi-word' };
 
-describe('ResolutionBandsDal (migration 0036)', () => {
+describe('BandAuthorityStore over the recipe database (migration 0036)', () => {
     let pool: pg.Pool;
-    let dal: ResolutionBandsDal;
+    let dal: BandAuthorityStore;
 
     beforeAll(() => {
         pool = new pg.Pool({ connectionString: roleDb.appUrl });
-        dal = new ResolutionBandsDal(pool);
+        dal = new BandAuthorityStore(async (text, params) => {
+            const result = await pool.query(text, [...params]);
+
+            return result.rows as readonly Record<string, unknown>[];
+        });
     });
 
     afterEach(async () => {

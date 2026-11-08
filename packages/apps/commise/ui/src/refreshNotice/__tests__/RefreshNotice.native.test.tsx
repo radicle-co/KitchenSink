@@ -1,9 +1,10 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, screen } from '@testing-library/react';
 import type { ReactElement } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { RefreshNoticeProps } from '../props.js';
 import { RefreshNotice } from '../RefreshNotice.native.js';
+import { render } from '../../testing/tamaguiTesting.native.js';
 
 afterEach(cleanup);
 

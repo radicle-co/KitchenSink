@@ -411,6 +411,31 @@ export const setRecipeVisibilityRequestSchema = z.strictObject({
 export type SetRecipeVisibilityRequest = z.infer<typeof setRecipeVisibilityRequestSchema>;
 
 /**
+ * Response of `GET /api/v1/recipes/private-slots` (ADR-0073): the caller's private-slot standing, for the editor and the
+ * visibility control to show "N of 50 private slots left".
+ *
+ * A discriminated union, so Premium cannot be mistaken for a free cook with a large number: `unlimited` carries no count and
+ * no limit, and a surface that wants to show one has nothing to show. `limit` is stated by the SERVER (the 50 lives in one
+ * pure module there and in no client), and `used` can exceed it for a cook who lost Premium with more than the limit.
+ *
+ * ⛔ A DISPLAY fact. It is counted without the per-user lock, so it may be a moment stale; a private write is never withheld
+ * on it, because the server decides every write under the lock.
+ */
+export const privateSlotUsageSchema = z.discriminatedUnion('kind', [
+    z.object({
+        kind: z.literal('limited'),
+        /** The cook's private, published, undeleted recipes (every label; a draft holds no slot, ADR-0073 section 12). */
+        used: z.number().int().nonnegative(),
+        /** How many the cook may hold. */
+        limit: z.number().int().positive(),
+    }),
+    z.object({ kind: z.literal('unlimited') }),
+]);
+
+/** The caller's private-slot standing. */
+export type PrivateSlotUsage = z.infer<typeof privateSlotUsageSchema>;
+
+/**
  * Body of `POST /api/v1/recipes/{id}/clone` — no client-controlled fields, so the BODY is optional.
  *
  * A clone deterministically copies the source's content and attribution and derives its visibility from the C-004

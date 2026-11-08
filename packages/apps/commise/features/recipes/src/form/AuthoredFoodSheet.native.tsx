@@ -19,6 +19,7 @@ import { useMessages } from '@commise/i18n/react';
 import { Button } from '@commise/ui/button';
 import { fieldPaint } from '@commise/ui/input';
 import { LiveRegion } from '@commise/ui/live-region';
+import { nativeTokens } from '@commise/ui/native';
 import { useScreenReaderFocusOnMount } from '@commise/ui/screen-reader-focus';
 import { Sheet } from '@commise/ui/sheet';
 import { TextInput } from '@commise/ui/text-input';
@@ -90,7 +91,7 @@ const FormBody: FC<{
             </View>
             {/* The one line telling the cook this is theirs alone until promotion (D9a/U11). */}
             <Text style={muted}>{copy.privateHint}</Text>
-            <LiveRegion politeness="polite" style={muted}>
+            <LiveRegion politeness="polite" typeRole="meta" tone="inkMuted">
                 {submitting ? copy.submitting : ''}
             </LiveRegion>
             <LiveRegion politeness="assertive" style={danger}>
@@ -169,8 +170,8 @@ const styles = StyleSheet.create({
     body: { gap: 12 },
     macros: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
     macro: { flexGrow: 1, minWidth: '45%' },
-    error: { fontSize: 13 },
-    muted: { fontSize: 13 },
-    notice: { fontSize: 14 },
+    error: { ...nativeTokens.type.meta },
+    muted: { ...nativeTokens.type.meta },
+    notice: { ...nativeTokens.type.meta },
     actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
 });

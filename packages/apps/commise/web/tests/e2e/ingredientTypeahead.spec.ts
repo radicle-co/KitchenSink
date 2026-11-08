@@ -3,6 +3,7 @@ import { expect, test } from '@playwright/test';
 import { mockRecipeApi, readViewerAppId } from './utils/recipeApi';
 import { signInWithTicket } from './utils/auth';
 import { mockFoodApi } from './utils/foodApi';
+import { openNutritionRow } from './utils/nutritionRow';
 import { addStep, fillTimes, openNewRecipe, setServings } from './utils/recipeEditor';
 
 /**
@@ -92,7 +93,8 @@ test.describe('ingredient typeahead trigger + partial-nutrition disclosure (REQ-
 
         await expect(page.getByRole('heading', { name: 'E2E Herb Blend' })).toBeVisible();
         // REQ-034 — the recipe now has a user-entered ingredient (the blend, as written), so the custom note shows (§S15).
-        await expect(page.getByRole('region', { name: 'Nutrition (per serving)' })).toContainText(
+        // The Nutrition row is collapsed until opened (`buildLists.md` item 12), so open it to read its notes.
+        await expect(await openNutritionRow(page)).toContainText(
             'Custom ingredients count only the nutrition you entered for them.',
         );
     });

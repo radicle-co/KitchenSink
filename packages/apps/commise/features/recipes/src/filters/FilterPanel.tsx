@@ -12,6 +12,7 @@
  */
 import { useMessages } from '@commise/i18n/react';
 import { Button } from '@commise/ui/button';
+import { surfaceToneClass } from '@commise/ui/surface-tone';
 import type { FC } from 'react';
 
 import { FilterGroups } from './FilterGroups.js';
@@ -24,7 +25,7 @@ export const FilterPanel: FC<FilterPanelProps> = ({ view, ingredientSearch, onFi
     return (
         <aside
             aria-label={m.panelLabel}
-            className="sticky top-4 flex max-h-[calc(100dvh-2rem)] w-64 shrink-0 flex-col gap-4 self-start overflow-y-auto rounded-md border border-line-divider bg-paper p-4"
+            className={`sticky top-4 flex max-h-[calc(100dvh-2rem)] w-64 shrink-0 flex-col gap-4 self-start overflow-y-auto rounded-md border border-line-divider ${surfaceToneClass('paper')} p-4`}
         >
             {view.hasActive ? (
                 <Button variant="ghost" size="sm" width="fill" onPress={() => onFilterAction({ kind: 'clearAll' })}>

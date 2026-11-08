@@ -13,27 +13,32 @@
 import type { FC } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
+import { surfaceFill } from '../surfaceTone/surfaceFill.js';
+import { ToneScope } from '../surfaceTone/ToneScope.native.js';
 import { useTheme } from '../theme/useTheme.native.js';
 import { nativeTokens } from '../tokens/native.js';
 import type { SyncNoticeProps } from './props.js';
 
 /** The app-wide connectivity + unsynced-work notice. */
 export const SyncNotice: FC<SyncNoticeProps> = ({ state, regionLabel }) => {
-    const { colors } = useTheme();
+    const theme = useTheme();
+    const { colors } = theme;
 
     if (state.kind === 'hidden') {
         return null;
     }
 
     return (
-        <View
-            collapsable={false}
-            accessibilityLabel={regionLabel}
-            style={[styles.card, { backgroundColor: colors.surfaceMuted }]}
-        >
-            <Text style={[styles.title, { color: colors.ink }]}>{state.title}</Text>
-            <Text style={[styles.body, { color: colors.inkMuted }]}>{state.body}</Text>
-        </View>
+        <ToneScope tone="muted">
+            <View
+                collapsable={false}
+                accessibilityLabel={regionLabel}
+                style={[styles.card, { backgroundColor: surfaceFill(theme, 'muted') }]}
+            >
+                <Text style={[styles.title, { color: colors.ink }]}>{state.title}</Text>
+                <Text style={[styles.body, { color: colors.inkMuted }]}>{state.body}</Text>
+            </View>
+        </ToneScope>
     );
 };
 
@@ -45,6 +50,6 @@ const styles = StyleSheet.create({
         paddingVertical: nativeTokens.spacing[3],
         gap: nativeTokens.spacing[1],
     },
-    title: { fontSize: nativeTokens.fontSize.bodySm, fontWeight: '600' },
-    body: { fontSize: nativeTokens.fontSize.bodySm },
+    title: { ...nativeTokens.type.label },
+    body: { ...nativeTokens.type.meta },
 });

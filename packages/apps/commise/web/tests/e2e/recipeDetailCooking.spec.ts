@@ -6,7 +6,6 @@ import { role, roleDark } from '@commise/ui/colors';
 import { route } from './utils/basePath';
 import { makeRecipeDetail, mockRecipeApi, readViewerAppId } from './utils/recipeApi';
 import { signInWithTicket } from './utils/auth';
-import { chevronOf, expectChevron, overflows, scrollTo, scrollerAround } from './utils/scrollHint';
 
 /**
  * The first slice of 008 FR-035 on the recipe page (`docs/design/uiOverhaul/buildSpec.md` §6.2, §6.3), in a real
@@ -16,7 +15,12 @@ import { chevronOf, expectChevron, overflows, scrollTo, scrollerAround } from '.
  *     the same tab (`sessionStorage`, blueprint A13).
  *  2. One current step — a second step moves the marker; a second press clears it.
  *  3. Screen on — a switch that asks `navigator.wakeLock` for the screen, and is not drawn at all without the API.
- *  4. The section switch (below a 720 px body) — a press moves focus to the section's heading.
+ *  4. No section switch at any width: the page is one scroll, and Screen on is a labelled row in it.
+ *
+ * REWRITTEN IN SLICE 1 (`docs/design/uiRefreshWorkshop5/nativeBoards/buildLists.md`): the section switch is gone from
+ * phones, so the tests that pressed it, measured its sticky bar, its 320 px fit and its scroll chevron are replaced by
+ * tests that it is absent and that Screen on is one switch in the action row. Screen on has no caption (designer, iosBatch1). The fact
+ * strip is three tiles with no Cook tile. The tap-to-check, current-step and Wake Lock tests are unchanged.
  *
  * The Wake Lock API is stubbed in the page before any script runs, so the test observes the request the page makes
  * rather than the browser's own policy. Selectors are role/label only; no `waitForTimeout`.
@@ -193,30 +197,13 @@ for (const [scheme, colors] of THEMES) {
 
             await expect(page.getByRole('switch', { name: 'Screen on' })).toHaveCount(0);
         });
-
-        test('on a phone, the section switch moves focus to the section’s heading', async ({ page }) => {
-            await page.setViewportSize({ width: 390, height: 844 });
-            await openRecipe(page);
-
-            await page
-                .getByRole('navigation', { name: 'Recipe sections' })
-                .getByRole('link', { name: 'Steps' })
-                .click();
-
-            await expect(page.getByRole('heading', { level: 2, name: 'Steps' })).toBeFocused();
-            expect(new URL(page.url()).hash).toBe('#steps');
-            // The page's scroll spy (ScrollHost) marks the section the reader is now in.
-            await expect(
-                page.getByRole('navigation', { name: 'Recipe sections' }).getByRole('link', { name: 'Steps' }),
-            ).toHaveAttribute('aria-current', 'location');
-        });
     });
 }
 
 /**
- * The page's two layouts (§6.1, §6.2), measured in the browser — the unit tiers run without CSS and cannot see them.
- * From a 720 px body: two columns, the ingredients sticky beside the steps, no section switch, and Screen on labelled
- * in the action row. Below it: one column under the section switch, which holds Screen on as its glyph.
+ * The page's two layouts (§6.1), measured in the browser — the unit tiers run without CSS and cannot see them. From a
+ * 720 px body: two columns, the ingredients sticky beside the steps. Below it: one column. At both widths there is no
+ * section switch, Screen on is a labelled switch, and the fact tiles are Total, Prep and Difficulty with no Cook tile.
  */
 test.describe('the recipe page’s layout', () => {
     test('from a 720 px body: ingredients sticky beside the steps, no switch, Screen on labelled', async ({ page }) => {
@@ -236,136 +223,59 @@ test.describe('the recipe page’s layout', () => {
                 .getByRole('region', { name: 'Ingredients' })
                 .evaluate((section) => getComputedStyle(section).position),
         ).toBe('sticky');
-        await expect(page.getByRole('navigation', { name: 'Recipe sections' })).toBeHidden();
+        // Sticky needs a ceiling to scroll inside: `100dvh - 6rem` (900 - 96 = 804). A malformed class string once dropped
+        // it, so the column never scrolled on its own.
+        expect(
+            await page
+                .getByRole('region', { name: 'Ingredients' })
+                .evaluate((section) => getComputedStyle(section).maxHeight),
+        ).toBe('804px');
+        await expect(page.getByRole('navigation', { name: 'Recipe sections' })).toHaveCount(0);
         await expect(page.getByRole('switch', { name: 'Screen on' })).toHaveText('Screen on');
-        // Rewritten for F7 (`evaluateFinal.md`): the strip is one row of cells from a 480 px strip, 2 × 2 below it. At 1280
-        // the title column is narrower than that, so four ~100 px cells wrapped "5 h 30 / min"; now it is 2 × 2.
-        const terms = page.getByRole('term').filter({ hasText: /^(Total|Prep|Cook|Difficulty)$/u });
-        const tops = await terms.evaluateAll((nodes) =>
-            nodes.map((term) => Math.round(term.getBoundingClientRect().top)),
-        );
-        const stripWidth = await terms
-            .first()
-            .evaluate((term) => term.closest('dl')?.getBoundingClientRect().width ?? 0);
-        expect(new Set(tops).size).toBe(stripWidth >= 480 ? 1 : 2);
     });
 
-    test('below a 720 px body: one column under the section switch, Screen on as its glyph', async ({ page }) => {
+    test('below a 720 px body: one column, no section switch, Screen on labelled', async ({ page }) => {
         await stubWakeLock(page);
         await page.setViewportSize({ width: 390, height: 844 });
         await openRecipe(page);
 
-        const nav = page.getByRole('navigation', { name: 'Recipe sections' });
-        await expect(nav).toBeVisible();
+        await expect(page.getByRole('navigation', { name: 'Recipe sections' })).toHaveCount(0);
         const toggle = page.getByRole('switch', { name: 'Screen on' });
         await expect(toggle).toHaveCount(1);
-        await expect(toggle).toHaveText('');
+        await expect(toggle).toHaveText('Screen on');
 
         const ingredients = await page.getByRole('region', { name: 'Ingredients' }).boundingBox();
         const steps = await page.getByRole('region', { name: 'Steps' }).boundingBox();
         expect((ingredients?.y ?? 0) + (ingredients?.height ?? 0)).toBeLessThanOrEqual((steps?.y ?? 0) + 1);
     });
+
+    test('draws the fact tiles Total, Prep and Difficulty, and no Cook tile', async ({ page }) => {
+        await page.setViewportSize({ width: 390, height: 844 });
+        await openRecipe(page);
+
+        const terms = page.getByRole('term').filter({ hasText: /^(Total|Prep|Cook|Difficulty)$/u });
+
+        await expect(terms.filter({ hasText: 'Cook' })).toHaveCount(0);
+        expect(await terms.allTextContents()).toEqual(expect.arrayContaining(['Total']));
+    });
 });
 
-/**
- * A-013 / D1 / D5 / D6: the section switch STAYS at the top while the page scrolls (it was a sticky bar inside a slot exactly
- * as tall as itself, so it scrolled away), its three labels fit a 320 px window, and the Screen on hint is said once. Real
- * layout only: jsdom has no scroll and no CSS.
- */
-test.describe('the section switch below a 720 px body', () => {
-    test('stays in view at the top of the window after scrolling past the Steps heading', async ({ page }) => {
-        await page.setViewportSize({ width: 390, height: 844 });
-        await openRecipe(page);
-
-        await page.getByRole('heading', { level: 2, name: 'Steps' }).scrollIntoViewIfNeeded();
-        await page.mouse.wheel(0, 400);
-
-        const nav = page.getByRole('navigation', { name: 'Recipe sections' });
-        await expect(nav).toBeInViewport();
-        // What sticks is the switch's 48 px BAR, with the nav centred in it (so the nav itself sits 1.5 px down): the
-        // nearest sticky box around the nav is the one whose top must hold the window's top edge.
-        const barTop = await nav.evaluate((element) => {
-            let node: Element | null = element;
-
-            while (node !== null && getComputedStyle(node).position !== 'sticky') {
-                node = node.parentElement;
-            }
-
-            return node?.getBoundingClientRect().top ?? Number.POSITIVE_INFINITY;
-        });
-        expect(Math.abs(barTop)).toBeLessThanOrEqual(1);
-    });
-
-    test('shows all three section links inside the bar at 320 px', async ({ page }) => {
-        await stubWakeLock(page);
-        await page.setViewportSize({ width: 320, height: 700 });
-        await openRecipe(page);
-
-        const nav = page.getByRole('navigation', { name: 'Recipe sections' });
-        const navBox = await nav.boundingBox();
-
-        for (const name of ['Ingredients', 'Steps', 'Nutrition']) {
-            const link = await nav.getByRole('link', { name }).boundingBox();
-
-            expect(link, name).not.toBeNull();
-            expect((link?.x ?? 0) + (link?.width ?? 0), `${name} ends inside the bar`).toBeLessThanOrEqual(
-                (navBox?.x ?? 0) + (navBox?.width ?? 0) + 0.5,
-            );
-        }
-    });
-
-    /**
-     * The scroll hint (`docs/design/uiOverhaul/horizontalScrollHint.md`): the links scroll inside the bar, and a chevron at
-     * its end shows only while they overflow and the bar rests at its start. Text at 200% forces the overflow.
-     */
-    test('hints at more links with a chevron that goes on the first scroll and returns at the start', async ({
-        page,
-    }) => {
-        await stubWakeLock(page);
-        await page.setViewportSize({ width: 320, height: 700 });
-        await openRecipe(page);
-        await page.addStyleTag({ content: 'html { font-size: 200%; }' });
-
-        const nav = page.getByRole('navigation', { name: 'Recipe sections' });
-        const scroller = scrollerAround(nav.getByRole('link', { name: 'Ingredients' }));
-        const chevron = chevronOf(scroller);
-
-        expect(await overflows(scroller)).toBe(true);
-        await expectChevron(chevron, 'shown');
-
-        await scrollTo(scroller, 30);
-        await expectChevron(chevron, 'hidden');
-
-        await scrollTo(scroller, 0);
-        await expectChevron(chevron, 'shown');
-    });
-
-    test('draws no chevron while the links fit the bar', async ({ page }) => {
+/** Designer, iosBatch1: Screen on is a quiet action in the action row, after the page's text action, with no caption under it. */
+test.describe('the Screen on action', () => {
+    test('sits in the action row after Edit recipe, as a switch, with no hint', async ({ page }) => {
         await stubWakeLock(page);
         await page.setViewportSize({ width: 390, height: 844 });
         await openRecipe(page);
 
-        const scroller = scrollerAround(
-            page.getByRole('navigation', { name: 'Recipe sections' }).getByRole('link', { name: 'Ingredients' }),
-        );
+        const edit = page.getByRole('link', { name: 'Edit recipe' });
+        const toggle = page.getByRole('switch', { name: 'Screen on' });
+        const [editBox, toggleBox] = [await edit.boundingBox(), await toggle.boundingBox()];
 
-        expect(await overflows(scroller)).toBe(false);
-        await expectChevron(chevronOf(scroller), 'hidden');
-    });
-
-    test('says what Screen on is once, and takes it back at the first scroll', async ({ page }) => {
-        await stubWakeLock(page);
-        await page.setViewportSize({ width: 390, height: 844 });
-        await openRecipe(page);
-
-        // The page holds the hint in two places, under the switch below a 720 px body and under the action-row toggle
-        // from it, each hidden by a container query at the other width. Said once means ONE of them shows.
-        const hint = page.getByText('Keeps the screen awake while you cook.');
-        await expect(hint.filter({ visible: true })).toHaveCount(1);
-
-        await page.mouse.wheel(0, 300);
-
-        // Taken back means both copies leave the page, not that the visible one is hidden.
-        await expect(hint).toHaveCount(0);
+        expect(editBox).not.toBeNull();
+        expect(toggleBox).not.toBeNull();
+        // The same row (their vertical spans overlap) and after Edit.
+        expect((toggleBox?.y ?? 0) < (editBox?.y ?? 0) + (editBox?.height ?? 0)).toBe(true);
+        expect((toggleBox?.x ?? 0) >= (editBox?.x ?? 0) + (editBox?.width ?? 0) - 1).toBe(true);
+        await expect(page.getByText('Keeps the screen awake while you cook.')).toHaveCount(0);
     });
 });

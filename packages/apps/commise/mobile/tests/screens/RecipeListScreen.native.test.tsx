@@ -64,6 +64,11 @@ function render(ui: ReactElement) {
 
 const noop = (): void => undefined;
 
+/** The one text input: the header's stand-in for a screen reader carries the same name, so the name alone is two nodes. */
+function searchInput(): HTMLInputElement {
+    return screen.getByLabelText('Search your recipes', { selector: 'input' });
+}
+
 afterEach(() => {
     cleanup();
     onlineManager.setOnline(true);
@@ -83,7 +88,7 @@ describe('RecipeListScreen — while the library loads', () => {
         render(<RecipeListScreen onSelectRecipe={noop} onCreateRecipe={noop} />);
 
         expect(screen.getByRole('heading', { name: 'Recipes' })).toBeTruthy();
-        expect(screen.getByLabelText('Search your recipes')).toBeTruthy();
+        expect(searchInput()).toBeTruthy();
         expect(screen.getByLabelText('Loading recipes')).toBeTruthy();
         expect(screen.queryByLabelText('Quick filters')).toBeNull();
     });
@@ -92,12 +97,50 @@ describe('RecipeListScreen — while the library loads', () => {
         render(<RecipeListScreen onSelectRecipe={noop} onCreateRecipe={noop} />);
 
         expect(screen.queryByRole('button', { name: 'New recipe' })).toBeNull();
-        expect(screen.queryByRole('button', { name: 'Add your first recipe' })).toBeNull();
+        expect(screen.queryByRole('button', { name: 'Add a recipe' })).toBeNull();
     });
 });
 
 // §3.4 (first fetch in flight: none; offline or load error: shown). The button is the FRAME's, outside the read boundary:
 // ⚠️ NEW, because it used to live inside the boundary, where a paused (offline) read never rendered it at all.
+// Designer, 2026-11-02: while Try again (or a pull from the failed state) retries, the SAME loading state shows, never the
+// stale failure and never a blank list. The Suspense version did this by unmounting the failure; a failed query keeps
+// its error status while it refetches, so the read says it.
+describe('RecipeListScreen — Try again shows the loading state while it retries', () => {
+    it('swaps the failure for the loading skeleton until the retry answers', async () => {
+        vi.spyOn(client, 'listRecipes')
+            .mockRejectedValueOnce(new Error('network down'))
+            .mockReturnValue(new Promise(() => {}));
+        render(<RecipeListScreen onSelectRecipe={noop} onCreateRecipe={noop} />);
+        await screen.findByRole('alert');
+
+        fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+
+        await waitFor(() => expect(screen.getByLabelText('Loading recipes')).toBeTruthy());
+        expect(screen.queryByRole('alert')).toBeNull();
+    });
+});
+
+// Plan `recipesScrollPlan.md`: the screen reads the library without suspending, so the search field is ONE node for the
+// whole life of the screen. The header will move into the list's scroller in a later step; this pins that the read
+// states never remount the field, because a remount drops the keyboard in the middle of a word.
+describe('RecipeListScreen — the search field survives every read state', () => {
+    it('is the same node while the library loads, settles and a retry fails', async () => {
+        vi.spyOn(client, 'listRecipes').mockRejectedValue(new Error('network down'));
+        render(<RecipeListScreen onSelectRecipe={noop} onCreateRecipe={noop} />);
+        const field = searchInput();
+
+        await screen.findByRole('alert');
+        expect(searchInput()).toBe(field);
+
+        act(() => {
+            seedLibrary([makeRecipe({ id: 'rec_1', title: 'Weeknight Pasta' })]);
+        });
+        await screen.findByText('Weeknight Pasta');
+        expect(searchInput()).toBe(field);
+    });
+});
+
 describe('RecipeListScreen — the floating create button, by the library`s state', () => {
     const create = () => screen.queryByRole('button', { name: 'New recipe' });
 
@@ -127,7 +170,7 @@ describe('RecipeListScreen — the floating create button, by the library`s stat
         render(<RecipeListScreen onSelectRecipe={noop} onCreateRecipe={noop} />);
 
         expect(create()).toBeNull();
-        expect(screen.getByRole('button', { name: 'Add your first recipe' })).toBeTruthy();
+        expect(screen.getByRole('button', { name: 'Add a recipe' })).toBeTruthy();
     });
 
     it('a focused floating button stays when the library turns empty, and goes once focus leaves it', async () => {
@@ -139,7 +182,7 @@ describe('RecipeListScreen — the floating create button, by the library`s stat
         act(() => {
             seedLibrary([]);
         });
-        await screen.findByRole('button', { name: 'Add your first recipe' });
+        await screen.findByRole('button', { name: 'Add a recipe' });
         expect(create()).toBeTruthy();
 
         act(() => button.blur());
@@ -205,14 +248,14 @@ describe('RecipeListScreen — a failed load', () => {
 
         render(<RecipeListScreen onSelectRecipe={noop} onCreateRecipe={noop} />);
         await screen.findByRole('alert');
-        fireEvent.change(screen.getByLabelText('Search your recipes'), { target: { value: 'taco' } });
+        fireEvent.change(searchInput(), { target: { value: 'taco' } });
 
         await act(async () => {
             fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
         });
 
         expect(await screen.findByRole('link', { name: 'Fish Tacos' })).toBeTruthy();
-        expect(screen.getByLabelText<HTMLInputElement>('Search your recipes').value).toBe('taco');
+        expect(searchInput().value).toBe('taco');
         expect(screen.queryByRole('link', { name: 'Weeknight Pasta' })).toBeNull();
     });
 });
@@ -280,7 +323,7 @@ describe('RecipeListScreen — an empty library', () => {
         render(<RecipeListScreen onSelectRecipe={noop} onCreateRecipe={onCreateRecipe} />);
 
         expect(screen.getByText('Your recipe box is empty')).toBeTruthy();
-        fireEvent.click(screen.getByRole('button', { name: 'Add your first recipe' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Add a recipe' }));
 
         expect(onCreateRecipe).toHaveBeenCalledTimes(1);
     });
@@ -313,7 +356,7 @@ describe('RecipeListScreen — a populated library', () => {
 
     it('filters the loaded recipes by title as the search value changes', () => {
         render(<RecipeListScreen onSelectRecipe={noop} onCreateRecipe={noop} />);
-        fireEvent.change(screen.getByLabelText('Search your recipes'), { target: { value: 'taco' } });
+        fireEvent.change(searchInput(), { target: { value: 'taco' } });
 
         expect(screen.getByRole('link', { name: 'Fish Tacos' })).toBeTruthy();
         expect(screen.queryByRole('link', { name: 'Weeknight Pasta' })).toBeNull();
@@ -322,10 +365,10 @@ describe('RecipeListScreen — a populated library', () => {
 
     it('says NO MATCH — not first-run copy — when the search filters every row out, and keeps the dial', () => {
         render(<RecipeListScreen onSelectRecipe={noop} onCreateRecipe={noop} />);
-        fireEvent.change(screen.getByLabelText('Search your recipes'), { target: { value: 'zzz' } });
+        fireEvent.change(searchInput(), { target: { value: 'zzz' } });
 
         expect(screen.getByText('No recipes match')).toBeTruthy();
-        expect(screen.queryByRole('button', { name: 'Add your first recipe' })).toBeNull();
+        expect(screen.queryByRole('button', { name: 'Add a recipe' })).toBeNull();
         expect(screen.getByRole('button', { name: 'New recipe' })).toBeTruthy();
     });
 });
@@ -357,7 +400,7 @@ describe('RecipeListScreen — quick-filter chips (L4)', () => {
         fireEvent.click(screen.getByText('Italian'));
 
         expect(screen.getByText('No recipes match')).toBeTruthy();
-        expect(screen.queryByRole('button', { name: 'Add your first recipe' })).toBeNull();
+        expect(screen.queryByRole('button', { name: 'Add a recipe' })).toBeNull();
     });
 
     it('surfaces an "Under 30 min" chip that filters to recipes under the 30-minute threshold (#4)', () => {

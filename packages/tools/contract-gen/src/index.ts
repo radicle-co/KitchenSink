@@ -67,13 +67,14 @@ export type {
     ViolationMessageContext,
 } from './schemaImports.js';
 
-export { buildOpenApiDocument } from './openapi.js';
+export { buildOpenApiDocument, withResponseOnOperations } from './openapi.js';
 export type {
     HttpMethod,
     OpenApiBuildResult,
     OpenApiCoverage,
     OpenApiOperation,
     OpenApiParameter,
+    OpenApiPaths,
     OpenApiResponse,
     OpenApiSpec,
     ParameterLocation,

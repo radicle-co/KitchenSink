@@ -3,7 +3,7 @@
  * service's order. The fixture order is deliberately not alphabetical, so a list that sorted would fail.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
 import { role, roleDark } from '@commise/ui/colors';
 import { rgb, systemScheme } from '@commise/ui/testing/system-color-scheme';
 
@@ -11,6 +11,7 @@ import { CIQUAL_SOURCE, SWISS_SOURCE, makeDataSource } from '../__fixtures__/mak
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { DataSourcesList } from '../DataSourcesList.native.js';
 import { dataSourcesMessages } from '../messages.js';
+import { render } from '@commise/ui/testing/tamagui';
 
 vi.mock('react-native', async (importOriginal) => {
     const { withSystemScheme } = await import('@commise/ui/testing/system-color-scheme');

@@ -225,6 +225,28 @@ describe('collection pull-from-source (FR-011 integration)', () => {
         expect(secondPulledAt).toBeGreaterThan(firstPulledAt);
     });
 
+    it('404s a pull and a preview once the SOURCE has gone private, and pulls nothing (audit finding 3)', async () => {
+        const [own] = await db
+            .insert(collections)
+            .values({ ownerId: SOURCE_OWNER, name: 'Soon Private', visibility: 'public' })
+            .returning({ id: collections.id });
+        const res = await fetch(`${baseUrl}/api/v1/collections/${own!.id}/clone`, { method: 'POST' });
+        expect(res.status).toBe(201);
+        const cloneId = ((await res.json()) as CollectionBody).id;
+
+        // The owner now hides the collection and adds a public recipe to it.
+        await db.update(collections).set({ visibility: 'private' }).where(eq(collections.id, own!.id));
+        const later = await insertRecipe(SOURCE_OWNER, 'Added After Hiding', 'public');
+        await db.insert(recipeCollections).values({ collectionId: own!.id, recipeId: later, addedVia: 'manual' });
+
+        expect((await pull(cloneId)).status).toBe(404);
+        const preview = await fetch(`${baseUrl}/api/v1/collections/${cloneId}/pull-from-source/preview`, {
+            method: 'POST',
+        });
+        expect(preview.status).toBe(404);
+        expect((await membershipsOf(cloneId)).map((m) => m.recipeId)).not.toContain(later);
+    });
+
     it('400s COLLECTION_NOT_CLONED on a collection that was never cloned', async () => {
         const created = await fetch(`${baseUrl}/api/v1/collections`, {
             method: 'POST',

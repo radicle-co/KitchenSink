@@ -10,6 +10,7 @@
  */
 import { Button } from '@commise/ui/button';
 import { Combobox } from '@commise/ui/combobox';
+import { useRevealedField } from '@commise/ui/field-reveal';
 import { FieldLabel, Input, fieldGeometry, fieldLabelId, fieldPaint } from '@commise/ui/input';
 import { nativeTokens } from '@commise/ui/native';
 import { TextInput } from '@commise/ui/text-input';
@@ -36,9 +37,12 @@ const AmountField: FC<{
     readonly accessibleName: string;
 }> = ({ id, value, invalid, note, onChange, accessibleName }) => {
     const theme = useTheme();
+    // Held in view while the cook types in it, so the keyboard cannot cover it.
+    const reveal = useRevealedField();
 
     return (
         <TextInput
+            {...reveal}
             nativeID={id}
             aria-labelledby={fieldLabelId(id)}
             accessibilityLabel={accessibleName}

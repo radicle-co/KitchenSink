@@ -43,6 +43,9 @@ import {
     shownCountOf,
     type ProgressSegment,
 } from './sectionIndexModel.js';
+import { FOCUS_RING_CLASS } from '../focusRing/focusRingClass.js';
+import { PRESS_FILL_CLASS } from '../surfaceTone/surfaceToneClass.js';
+import { surfaceToneClass } from '../surfaceTone/surfaceToneClass.js';
 
 /** The text-colour utility of each role a tone can take (literal, so Tailwind emits them). */
 const TEXT_CLASS: Readonly<Partial<Record<Role, string>>> = {
@@ -59,7 +62,7 @@ const SEGMENT_CLASS: Readonly<Record<ProgressSegment, string>> = {
     empty: 'bg-surface-muted',
 };
 
-const FOCUS = 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus-ring';
+const FOCUS = FOCUS_RING_CLASS.inset;
 
 /** A link's click: keep the browser from following the fragment, and jump through the host instead. */
 type Jump = (id: string) => void;
@@ -111,7 +114,7 @@ const ListRow: FC<ListRowProps> = ({ item, current, idPrefix, index, height, onC
                 aria-describedby={describedBy === '' ? undefined : describedBy}
                 aria-current={current ? 'location' : undefined}
                 onClick={onChoose}
-                className={`relative flex flex-col justify-center gap-0.5 rounded-md py-2 ps-4 pe-3 hover:bg-surface-muted ${FOCUS} ${
+                className={`relative flex flex-col justify-center gap-0.5 rounded-md py-2 ps-4 pe-3 ${PRESS_FILL_CLASS.pointer} ${FOCUS} ${
                     height === 'rail' ? 'min-h-12' : 'min-h-14'
                 }`}
             >
@@ -254,7 +257,7 @@ export const SectionIndex: FC<SectionIndexProps> = ({
                     <nav
                         {...(stickyId === undefined ? {} : { id: `${stickyId}-strip` })}
                         aria-label={label}
-                        className="sticky top-[var(--top-chrome,0px)] z-20 hidden h-12 border-b border-line-divider bg-paper-raised @regular/main:block @wide/main:hidden"
+                        className={`sticky top-[var(--top-chrome,0px)] z-20 hidden h-12 border-b border-line-divider ${surfaceToneClass('paperRaised')} @regular/main:block @wide/main:hidden`}
                     >
                         <ol className="flex h-full items-center gap-1 px-2">
                             {items.map((item, index) => (
@@ -270,7 +273,7 @@ export const SectionIndex: FC<SectionIndexProps> = ({
                     </nav>
                     <div
                         {...(stickyId === undefined ? {} : { id: `${stickyId}-bar` })}
-                        className="sticky top-[var(--top-chrome,0px)] z-20 bg-paper-raised @regular/main:hidden"
+                        className={`sticky top-[var(--top-chrome,0px)] z-20 ${surfaceToneClass('paperRaised')} @regular/main:hidden`}
                     >
                         <button
                             type="button"

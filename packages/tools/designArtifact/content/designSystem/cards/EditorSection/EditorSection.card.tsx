@@ -4,7 +4,12 @@
  */
 import { defineCard } from '../../../../src/cards/defineCard.js';
 
-const box = { background: 'var(--paper)', border: '1px solid var(--line)', borderRadius: 12, padding: 12 } as const;
+const box = {
+    background: 'var(--paper)',
+    border: '1px solid var(--line-divider)',
+    borderRadius: 12,
+    padding: 12,
+} as const;
 
 export default defineCard({
     group: 'Editor',

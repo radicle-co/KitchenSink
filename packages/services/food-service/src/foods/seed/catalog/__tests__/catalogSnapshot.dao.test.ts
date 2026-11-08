@@ -56,6 +56,7 @@ const LIVE_ROOT: SnapshotRows['roots'][number] = {
     seedKey: 'fdc:100',
     name: 'beef brisket',
     aliases: 'brisket; beef breast',
+    defaultTerms: ['brisket cut', 'beef chest'],
     retired: false,
     itemKey: 'fdc:100',
 };
@@ -66,6 +67,7 @@ const RETIRED_ROOT: SnapshotRows['roots'][number] = {
     seedKey: 'curated:old-thing',
     name: 'old thing',
     aliases: null,
+    defaultTerms: [],
     retired: true,
     itemKey: 'curated:old-thing',
 };
@@ -130,11 +132,12 @@ const ROWS: SnapshotRows = {
 describe('assembleSnapshot', () => {
     const snapshot = assembleSnapshot(ROWS);
 
-    it('names a live root by its seed key, with its synonyms in stored order and its nutrition sorted and canonical', () => {
+    it('names a live root by its seed key, with its synonyms and default terms in stored order and its nutrition sorted and canonical', () => {
         expect(snapshot.content.roots.get('fdc:100')).toEqual({
             seedKey: 'fdc:100',
             name: 'beef brisket',
             synonyms: ['brisket', 'beef breast'],
+            defaultFor: ['brisket cut', 'beef chest'],
             item: 'fdc:100',
             nutrition: {
                 citation: {
@@ -204,7 +207,11 @@ describe('assembleSnapshot', () => {
 
     it('puts a retired root and its item in `retired`, and no item of a live owner there', () => {
         expect([...snapshot.retired.roots.keys()]).toEqual(['curated:old-thing']);
-        expect(snapshot.retired.roots.get('curated:old-thing')).toMatchObject({ synonyms: [], nutrition: null });
+        expect(snapshot.retired.roots.get('curated:old-thing')).toMatchObject({
+            synonyms: [],
+            defaultFor: [],
+            nutrition: null,
+        });
         expect([...snapshot.retired.items.keys()]).toEqual(['curated:old-thing']);
         expect([...snapshot.content.roots.keys()]).toEqual(['fdc:100']);
         expect([...snapshot.content.items.keys()].sort()).toEqual(['fdc:100', 'fdc:101']);
@@ -383,11 +390,11 @@ describe('CatalogSnapshotDao.read maps each select’s positional rows', () => {
             ['i-old', 'curated:old-thing'],
             ['i-unkeyed', null],
         ],
-        // id, seed_key, name, aliases, retired_at, item natural_key
+        // id, seed_key, name, aliases, default_terms, retired_at, item natural_key
         food: [
-            ['r-salt', 'curated:salt-blend', 'salt blend', 'seasoned salt', null, 'curated:salt-blend'],
-            ['r-old', 'curated:old-thing', 'old thing', null, '2026-09-01 00:00:00+00', 'curated:old-thing'],
-            ['r-unseeded', null, 'never read', null, null, null],
+            ['r-salt', 'curated:salt-blend', 'salt blend', 'seasoned salt', ['salt mix'], null, 'curated:salt-blend'],
+            ['r-old', 'curated:old-thing', 'old thing', null, [], '2026-09-01 00:00:00+00', 'curated:old-thing'],
+            ['r-unseeded', null, 'never read', null, [], null, null],
         ],
         // item natural_key, label, gram_weight, source_id, citation_id
         food_portions: [
@@ -475,6 +482,7 @@ describe('CatalogSnapshotDao.read maps each select’s positional rows', () => {
             seedKey: 'curated:salt-blend',
             name: 'salt blend',
             synonyms: ['seasoned salt'],
+            defaultFor: ['salt mix'],
             item: 'curated:salt-blend',
             nutrition: { citation, values: [{ name: 'Energy', unit: 'kcal', amount: '0.5' }] },
         });

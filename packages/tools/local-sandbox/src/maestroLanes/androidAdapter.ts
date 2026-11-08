@@ -17,6 +17,7 @@ import type { Env } from '@kitchensink/e2e-plan/stampRun';
 import { createLocalAndroidHost, type AndroidHost } from './androidHost.js';
 import { ANDROID_LANE_SERIALS } from './androidSerials.js';
 import type { CommandPort, DeviceAdapter, LaneSpec, RunContext } from './laneTypes.js';
+import { MAC_DIR } from './macSession.js';
 
 const GIB = 1024 ** 3;
 
@@ -34,6 +35,10 @@ const BOOT_POLL_MS = 2_000;
 export interface AndroidAdapterOptions {
     readonly repoRoot: string;
     readonly avd: string;
+    /** The AVD's settings (`LOCAL_MAESTRO_AVD_CONFIG`), which this machine's host builds the AVD from. */
+    readonly avdConfig: readonly string[];
+    /** The system image for an ABI (`LOCAL_MAESTRO_AVD_IMAGE`). */
+    readonly avdImage: (abi: AndroidHost['abi']) => string;
     /** The origins and key the app is built with: the local services, on loopback. */
     readonly recipeOrigin: string;
     readonly identityOrigin: string;
@@ -59,7 +64,17 @@ export function createAndroidAdapter(options: AndroidAdapterOptions): DeviceAdap
     const manifest = path.join(mobileDir, 'dist-testApp/android/testApp.manifest');
     const script = path.join(mobileDir, 'scripts/buildTestApp.sh');
     const host =
-        options.host ?? createLocalAndroidHost({ commands, avd: options.avd, apk, laneCost: ANDROID_LANE_COST });
+        options.host ??
+        createLocalAndroidHost({
+            commands,
+            avd: options.avd,
+            avdConfig: options.avdConfig,
+            avdImage: options.avdImage,
+            avdScript: path.join(options.repoRoot, MAC_DIR, 'androidLaneHost.sh'),
+            environment: options.environment,
+            apk,
+            laneCost: ANDROID_LANE_COST,
+        });
     const buildEnv: Env = {
         ...options.environment,
         // The ABI the host's emulators run: the content key, the build and the verification all read it, so they agree.

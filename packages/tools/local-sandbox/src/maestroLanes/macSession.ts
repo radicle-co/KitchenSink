@@ -89,6 +89,10 @@ export class MacSession {
 
     /** The Mac's folders, absolute: valid once {@link MacSession.open} has read the Mac's HOME. */
     get paths(): MacPaths {
+        if (this.home === '') {
+            throw new Error('the Mac folders are asked for before the session was opened (open() reads the Mac HOME)');
+        }
+
         return macPathsOf(this.home);
     }
 

@@ -23,6 +23,8 @@ const SETTINGS = {
         'sdcard.size=512 MB',
         'vm.heapSize=228M',
     ],
+    // A name no real image has, so an image written in the host instead of read from the settings shows.
+    avdImage: (abi: string) => `image;from;settings;${abi}`,
     macRecipePort: 14000,
     recipeOrigin: 'http://localhost:3000',
     identityOrigin: 'http://localhost:3001',
@@ -124,7 +126,7 @@ describe('MacAndroidHost', () => {
             expect(ensure, setting).toContain(setting);
         }
 
-        expect(ensure).toContain('system-images;android-34;google_apis;arm64-v8a');
+        expect(ensure).toContain('image;from;settings;arm64-v8a');
     });
 
     it('copies the APK to the Mac under its content key', async () => {

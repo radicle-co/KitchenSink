@@ -15,7 +15,7 @@
 #   LocalStack). This script does NOT start them: `local:up` reads the stacks' Secrets Manager and SSM references
 #   from real AWS, and this script reads exactly one secret. A stack that is not up is refused with the command to run.
 # - The queue consumers `local:up` planned (`bin/queueConsumer.ts` — the account-erasure worker completes the purge
-#   `resetPool` waits on), the parse worker (`recipe-workers`' `dev`), the API 34 emulator `ci_pixel6` on serial
+#   `resetPool` waits on), the parse worker (`recipe-workers`' `dev`), the API 34 lane emulator (`LOCAL_MAESTRO_AVD`) on serial
 #   `emulator-5556`, and Metro are started here and stopped on exit. A consumer or worker this run did not start is
 #   REFUSED by pid, never reused: adopting another run's service is how a purge was left queued with nobody draining it.
 # - The app is the DEBUG APK, with its JavaScript from Metro, so an edit to app code needs no rebuild.
@@ -57,6 +57,8 @@ LOCAL_MAESTRO_SERIAL='emulator-5556'
 # fewer pixels, which is what the software-rendered emulator pays for, and two cores. The Mac builds the AVD from these values
 # (`androidLaneHost.sh ensure-avd`), so no config.ini is copied from anywhere. Comma-separated `key=value`, in config.ini's keys.
 LOCAL_MAESTRO_AVD='ks_lane_lean'
+# The system image, with a slot for the ABI of the host that boots it: arm64-v8a on the Mac, x86_64 on WSL.
+LOCAL_MAESTRO_AVD_IMAGE='system-images;android-34;google_apis;{abi}'
 LOCAL_MAESTRO_AVD_CONFIG='hw.lcd.width=720,hw.lcd.height=1600,hw.lcd.density=280,hw.cpu.ncore=2,hw.ramSize=1536M,disk.dataPartition.size=6442450944,disk.cachePartition.size=66MB,sdcard.size=512 MB,vm.heapSize=228M'
 LOCAL_MAESTRO_CLERK_SECRET_ID='kitchensink/sandbox/identity/keys'
 LOCAL_MAESTRO_METRO_PORT=8081
@@ -101,6 +103,7 @@ local_maestro_settings() {
     android_on="$(local_maestro_android_host)" || return 1
     printf '%s=%s\n' \
         LOCAL_MAESTRO_AVD "$LOCAL_MAESTRO_AVD" \
+        LOCAL_MAESTRO_AVD_IMAGE "$LOCAL_MAESTRO_AVD_IMAGE" \
         LOCAL_MAESTRO_AVD_CONFIG "$LOCAL_MAESTRO_AVD_CONFIG" \
         LOCAL_MAESTRO_ANDROID_ON "$android_on" \
         LOCAL_MAESTRO_MAC_RECIPE_PORT "$LOCAL_MAESTRO_MAC_RECIPE_PORT" \
@@ -455,6 +458,22 @@ local_maestro_android_host() {
     esac
 }
 
+# local_maestro_ensure_avd
+#
+# Make the lane AVD from the settings above, the way the Mac does (`androidLaneHost.sh ensure-avd`): created once from the
+# x86_64 image, its settings written over avdmanager's defaults every time. Nothing is copied from another machine's config.
+#
+# @sideEffect Runs `avdmanager` on the first call, and rewrites the AVD's config.ini.
+local_maestro_ensure_avd() {
+    local settings=() abi='x86_64'
+    IFS=',' read -r -a settings <<<"$LOCAL_MAESTRO_AVD_CONFIG"
+    ANDROID_AVD_HOME="${ANDROID_AVD_HOME:-${HOME}/.android/avd}" \
+        PATH="${ANDROID_HOME:+${ANDROID_HOME}/cmdline-tools/latest/bin:}${PATH}" \
+        bash "${LOCAL_MAESTRO_REPO_ROOT}/packages/tools/local-sandbox/bin/mac/androidLaneHost.sh" ensure-avd \
+        "$LOCAL_MAESTRO_AVD" "${LOCAL_MAESTRO_AVD_IMAGE//\{abi\}/${abi}}" "${settings[@]}" ||
+        local_maestro_fail "could not make the lane AVD ${LOCAL_MAESTRO_AVD} from the settings"
+}
+
 local_maestro_start_emulator() {
     local state="$1" host
     host="$(local_maestro_android_host)" || return 1
@@ -465,6 +484,7 @@ local_maestro_start_emulator() {
     if [ "$(command adb -s emulator-5556 get-state 2>/dev/null)" = 'device' ]; then
         echo "local:maestro: ${LOCAL_MAESTRO_SERIAL} is attached — reusing it" >&2
     else
+        local_maestro_ensure_avd || return 1
         local args=(-avd "$LOCAL_MAESTRO_AVD" -port 5556 -no-window -no-audio -no-boot-anim
             -gpu swiftshader_indirect -no-snapshot)
         # Another instance of the same AVD (on the serial that is not ours) locks it; a read-only boot does not.

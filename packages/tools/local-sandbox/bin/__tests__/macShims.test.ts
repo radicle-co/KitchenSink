@@ -15,6 +15,8 @@ import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
+import { macPathsOf } from '../../src/maestroLanes/macSession.js';
+
 const MAC_DIR = fileURLToPath(new URL('../mac/', import.meta.url));
 
 interface Sandbox {
@@ -237,6 +239,8 @@ describe('laneHost.sh', () => {
 describe('buildIosApp.sh check', () => {
     const KEY = 'abc123';
     const PUBLISHABLE = 'pk_test_FAKEPUBLISHABLE';
+    /** The folder TypeScript states (`macPathsOf().iosApp(key)`): the script builds none. */
+    const APP = macPathsOf().iosApp(KEY);
     const sha256 = (text: string): string => createHash('sha256').update(text).digest('hex');
 
     function manifestFor(overrides: Record<string, string> = {}): string {
@@ -277,7 +281,7 @@ describe('buildIosApp.sh check', () => {
     }
 
     const check = (sandbox: Sandbox) =>
-        run('buildIosApp.sh', ['check', KEY], sandbox, {
+        run('buildIosApp.sh', ['check', KEY, APP], sandbox, {
             CLERK_PUBLISHABLE_KEY: PUBLISHABLE,
             KS_REPO_ROOT: fileURLToPath(new URL('../../../../../', import.meta.url)),
             PATH: `${sandbox.bin}:/usr/bin:/bin:/usr/local/bin`,
@@ -318,10 +322,49 @@ describe('buildIosApp.sh check', () => {
         expect(result.stderr).toContain(`build ${KEY}`);
     });
 
+    it('reads the manifest from the folder it is given, not from a path of its own', () => {
+        const sandbox = makeSandbox();
+        withMacHolding(sandbox, manifestFor());
+        const seen = path.join(sandbox.root, 'ssh.seen');
+        const file = path.join(sandbox.bin, 'ssh');
+        writeFileSync(
+            file,
+            `#!/usr/bin/env bash\ncmd="\${@: -1}"\necho "$cmd" >> "${seen}"\ncase "$cmd" in\n` +
+                `  cat\\ elsewhere/*) cat "${path.join(sandbox.root, 'served.manifest')}" ;;\n` +
+                `  *xcodebuild*) printf 'Xcode 27.2\\nBuild version 27B52\\n' ;;\n  *) exit 9 ;;\nesac\n`,
+        );
+        chmodSync(file, 0o755);
+
+        const result = run('buildIosApp.sh', ['check', KEY, `elsewhere/${KEY}`], sandbox, {
+            CLERK_PUBLISHABLE_KEY: PUBLISHABLE,
+            KS_REPO_ROOT: fileURLToPath(new URL('../../../../../', import.meta.url)),
+            PATH: `${sandbox.bin}:/usr/bin:/bin:/usr/local/bin`,
+        });
+
+        expect(result.status, result.stderr).toBe(0);
+        expect(readFileSync(seen, 'utf8')).toContain(`cat elsewhere/${KEY}/testApp.manifest`);
+    });
+
+    it.each(['', 'a b', '../x', '/abs/path', "x';y", 'a/../b'])(
+        'refuses the app folder %j, which becomes part of a remote command',
+        (folder) => {
+            const sandbox = makeSandbox();
+            withMacHolding(sandbox, manifestFor());
+            const result = run('buildIosApp.sh', ['check', KEY, folder], sandbox, {
+                CLERK_PUBLISHABLE_KEY: PUBLISHABLE,
+            });
+
+            expect(result.status).not.toBe(0);
+            expect(result.stderr).toContain('app folder');
+        },
+    );
+
     it('refuses a key that is not lowercase hex, so it cannot reach a remote command', () => {
         const sandbox = makeSandbox();
         withMacHolding(sandbox, manifestFor());
-        const result = run('buildIosApp.sh', ['check', 'x; reboot'], sandbox, { CLERK_PUBLISHABLE_KEY: PUBLISHABLE });
+        const result = run('buildIosApp.sh', ['check', 'x; reboot', APP], sandbox, {
+            CLERK_PUBLISHABLE_KEY: PUBLISHABLE,
+        });
         expect(result.status).not.toBe(0);
     });
 
@@ -330,7 +373,7 @@ describe('buildIosApp.sh check', () => {
         withMacHolding(sandbox, manifestFor());
 
         for (const name of ['KS_MAC_DEVELOPER_DIR', 'KS_MAC_PATH']) {
-            const result = run('buildIosApp.sh', ['check', KEY], sandbox, {
+            const result = run('buildIosApp.sh', ['check', KEY, APP], sandbox, {
                 CLERK_PUBLISHABLE_KEY: PUBLISHABLE,
                 [name]: "/x'; touch pwned; '",
             });
@@ -341,14 +384,14 @@ describe('buildIosApp.sh check', () => {
 
     it('refuses a publishable key with a character that could leave its quotes', () => {
         const sandbox = makeSandbox();
-        const result = run('buildIosApp.sh', ['check', KEY], sandbox, { CLERK_PUBLISHABLE_KEY: "pk_test_a'b" });
+        const result = run('buildIosApp.sh', ['check', KEY, APP], sandbox, { CLERK_PUBLISHABLE_KEY: "pk_test_a'b" });
         expect(result.status).not.toBe(0);
         expect(result.stderr).toContain('CLERK_PUBLISHABLE_KEY');
     });
 
     it('refuses an ssh config path that rsync would split', () => {
         const sandbox = makeSandbox();
-        const result = run('buildIosApp.sh', ['check', KEY], sandbox, {
+        const result = run('buildIosApp.sh', ['check', KEY, APP], sandbox, {
             CLERK_PUBLISHABLE_KEY: PUBLISHABLE,
             KS_MAC_SSH_CONFIG: '/with space/ssh.conf',
         });
@@ -358,7 +401,7 @@ describe('buildIosApp.sh check', () => {
 
     it('refuses a live publishable key', () => {
         const sandbox = makeSandbox();
-        const result = run('buildIosApp.sh', ['check', KEY], sandbox, { CLERK_PUBLISHABLE_KEY: 'pk_live_x' });
+        const result = run('buildIosApp.sh', ['check', KEY, APP], sandbox, { CLERK_PUBLISHABLE_KEY: 'pk_live_x' });
         expect(result.status).not.toBe(0);
     });
 });

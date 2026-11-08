@@ -14,7 +14,9 @@
 set -euo pipefail
 
 ENV_FILE="${KS_ANDROID_ENV:-}"
-if [ -n "$ENV_FILE" ] && [ -f "$ENV_FILE" ]; then
+if [ -n "$ENV_FILE" ]; then
+    # Stated and missing is an error: the lane would otherwise run on whatever SDK the shell happens to have.
+    [ -f "$ENV_FILE" ] || { echo "androidLaneHost: KS_ANDROID_ENV is set to '$ENV_FILE', which does not exist" >&2; exit 1; }
     # shellcheck disable=SC1090
     . "$ENV_FILE"
 fi
@@ -31,7 +33,7 @@ need() {
 }
 
 PLAIN='^[A-Za-z0-9._-]+$'
-IMAGE_RE='^system-images;android-[0-9]+;[a-z_]+;[a-z0-9-]+$'
+IMAGE_RE='^system-images;android-[0-9]+;[a-z_]+;[a-z0-9_-]+$'
 SERIAL_RE='^emulator-[0-9]{4}$'
 APK_RE='^[A-Za-z0-9._/@%+=:,-]+\.apk$'
 SETTING_RE='^[A-Za-z0-9._]+=[A-Za-z0-9._ /-]*$'

@@ -73,7 +73,7 @@ function makeRig(options: { withImage?: boolean } = {}): Rig {
     return { home, bin, calls, avdHome, sdk };
 }
 
-function host(rig: Rig, args: readonly string[]) {
+function host(rig: Rig, args: readonly string[], env: Readonly<Record<string, string>> = {}) {
     return spawnSync('bash', [SCRIPT, ...args], {
         encoding: 'utf8',
         env: {
@@ -83,6 +83,7 @@ function host(rig: Rig, args: readonly string[]) {
             ANDROID_SDK_ROOT: rig.sdk,
             ANDROID_AVD_HOME: rig.avdHome,
             KS_ANDROID_ENV: path.join(rig.home, 'ksAndroid/env.sh'),
+            ...env,
         },
     });
 }
@@ -109,6 +110,26 @@ async function emulatorLine(rig: Rig): Promise<string> {
 const config = (rig: Rig, name: string): string =>
     readFileSync(path.join(rig.avdHome, `${name}.avd/config.ini`), 'utf8');
 
+describe('the Android environment file', () => {
+    it('is refused by name when it is stated and missing: a lane would run on whatever SDK the shell happens to have', () => {
+        const result = host(makeRig(), ['doctor', IMAGE], { KS_ANDROID_ENV: '/nonexistent/env.sh' });
+
+        expect(result.status).not.toBe(0);
+        expect(result.stderr).toContain('KS_ANDROID_ENV');
+        expect(result.stderr).toContain('/nonexistent/env.sh');
+    });
+
+    it("is optional: with none stated the script uses the caller's environment", () => {
+        const rig = makeRig();
+        const result = spawnSync('bash', [SCRIPT, 'doctor', IMAGE], {
+            encoding: 'utf8',
+            env: { PATH: `${rig.bin}:/usr/bin:/bin`, HOME: rig.home, ANDROID_HOME: rig.sdk },
+        });
+
+        expect(result.status, result.stderr).toBe(0);
+    });
+});
+
 describe('doctor', () => {
     it('passes when the SDK holds the tools and the system image', () => {
         expect(host(makeRig(), ['doctor', IMAGE]).status).toBe(0);
@@ -127,6 +148,19 @@ describe('doctor', () => {
 });
 
 describe('ensure-avd', () => {
+    it('accepts the x86_64 image too: WSL builds its AVD with the same script, and the ABI has an underscore', () => {
+        const rig = makeRig();
+        const result = host(rig, [
+            'ensure-avd',
+            'ks_lane_lean',
+            'system-images;android-34;google_apis;x86_64',
+            'hw.cpu.ncore=2',
+        ]);
+
+        expect(result.status, result.stderr).toBe(0);
+        expect(logged(rig)).toContain('-k system-images;android-34;google_apis;x86_64');
+    });
+
     it('creates the AVD, then writes the given settings over avdmanager defaults', () => {
         const rig = makeRig();
         const result = host(rig, ['ensure-avd', 'ks_lane_lean', IMAGE, 'hw.lcd.width=720', 'hw.cpu.ncore=2']);

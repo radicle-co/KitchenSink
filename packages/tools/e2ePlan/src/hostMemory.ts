@@ -14,10 +14,10 @@ import { freemem, totalmem } from 'node:os';
 /** The share of the kernel's free percentage the planner counts. */
 export const MEMORY_SAFETY_MARGIN = 0.8;
 
-/** Raised when macOS memory cannot be read, so no lane count can be planned. */
+/** Raised when the machine's free memory cannot be read, so no lane count can be planned. */
 export class MemoryReadError extends Error {
     public constructor(detail: string) {
-        super(`error: cannot read the free memory of this Mac from memory_pressure (${detail}); no lanes are planned`);
+        super(`error: cannot read the free memory of this machine (${detail}); no lanes are planned`);
         this.name = 'MemoryReadError';
         Object.setPrototypeOf(this, MemoryReadError.prototype);
     }
@@ -44,13 +44,13 @@ export function parseFreePercent(text: string): number {
     const found = /System-wide memory free percentage:\s*(\d+)%/u.exec(text)?.[1];
 
     if (found === undefined) {
-        throw new MemoryReadError('the output has no "System-wide memory free percentage" line');
+        throw new MemoryReadError('the memory_pressure output has no "System-wide memory free percentage" line');
     }
 
     const percent = Number(found);
 
     if (percent > 100) {
-        throw new MemoryReadError(`the free percentage is ${percent}%`);
+        throw new MemoryReadError(`the memory_pressure free percentage is ${percent}%`);
     }
 
     return percent;
@@ -90,7 +90,14 @@ const realSources = (): MemorySources => ({
  */
 export function availableMemoryBytes(sources: MemorySources = realSources()): number {
     if (sources.platform !== 'darwin') {
-        return sources.freemem();
+        const bytes = sources.freemem();
+
+        // libuv answers 0 when it cannot read the figure (`MemAvailable` on Linux), and 0 would plan no lane, silently.
+        if (bytes <= 0) {
+            throw new MemoryReadError('os.freemem() answered 0');
+        }
+
+        return bytes;
     }
 
     let output: string;
@@ -98,7 +105,7 @@ export function availableMemoryBytes(sources: MemorySources = realSources()): nu
     try {
         output = sources.memoryPressure();
     } catch (error) {
-        throw new MemoryReadError(error instanceof Error ? error.message : String(error));
+        throw new MemoryReadError(`memory_pressure failed: ${error instanceof Error ? error.message : String(error)}`);
     }
 
     return bytesFromFreePercent(sources.totalmem(), parseFreePercent(output));

@@ -64,6 +64,10 @@ describe('MacSession', () => {
         expect(() => make(recorder().shell, {})).toThrow(/LOCAL_MAESTRO_IOS_HOST/);
     });
 
+    it('refuses to state the Mac folders before open() has read the Mac HOME, rather than answering paths under /', () => {
+        expect(() => make(recorder().shell).paths).toThrow(/open/u);
+    });
+
     it('reads host facts over a plain one-off ssh, after putting the lane script on the Mac', async () => {
         const rec = recorder({
             'laneHost.sh facts': 'ncpu 14\nmemsize 100\nloadavg { 1 1 1 }\nSystem-wide memory free percentage: 50%\n',

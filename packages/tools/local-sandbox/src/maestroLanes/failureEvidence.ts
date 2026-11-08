@@ -11,10 +11,10 @@ import { readdirSync, rmSync } from 'node:fs';
 import path from 'node:path';
 
 /** The folder name under a lane's state folder that holds failure evidence, one subfolder per run. */
-export const FAILURE_FOLDER = 'failed';
+const FAILURE_FOLDER = 'failed';
 
 /** How many earlier runs' failure folders a lane keeps. A run that fails often is the one worth reading back. */
-export const FAILURE_RUNS_KEPT = 5;
+const FAILURE_RUNS_KEPT = 5;
 
 /** Where one run's failed flows are kept for a lane. Pure. */
 export const failureEvidenceDir = (laneStateDir: string, runStamp: string): string =>

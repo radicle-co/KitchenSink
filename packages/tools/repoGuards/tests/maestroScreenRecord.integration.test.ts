@@ -177,9 +177,11 @@ describe('maestro_screen_record_* on iOS', () => {
 describe('run mode with the recorder on', () => {
     const runMode = (maestroExit: string, earlierRecord?: string): { f: Fixture; status: number } => {
         const f = fixture();
+
         if (earlierRecord !== undefined) {
             writeFileSync(f.record, earlierRecord);
         }
+
         const manifest = join(f.dir, 'fixture.env');
         writeFileSync(manifest, 'E2E_SIGNIN_EMAIL=x@example.com\n');
         const run = spawnSync('bash', [SCRIPT], {

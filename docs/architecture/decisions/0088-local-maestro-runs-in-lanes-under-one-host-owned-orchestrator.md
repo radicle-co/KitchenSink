@@ -113,9 +113,10 @@ read the variable alike, and `localMaestro.sh`'s one-emulator mode refuses to bo
   because Docker holds the Mac's own 3000, and the runner's `adb reverse tcp:3000` goes to it
   (`MAESTRO_LOCAL_RECIPE_HOST_PORT`). Identity and food keep ports 3001 and 3002.
 - **The lane AVD.** `androidLaneHost.sh ensure-avd` builds `ks_lane_lean` on each host. The one definition is in
-  `local_maestro_settings`: the name (`LOCAL_MAESTRO_AVD`) and the screen, density, cores, RAM and disk
-  (`LOCAL_MAESTRO_AVD_CONFIG`). The Mac uses `system-images;android-34;google_apis;arm64-v8a`. The WSL opt-in path
-  (`LOCAL_MAESTRO_ANDROID_ON=wsl` and the one-emulator `flows` mode) uses `system-images;android-34;google_apis;x86_64`.
+  `local_maestro_settings`: the name (`LOCAL_MAESTRO_AVD`), the screen, density, cores, RAM and disk
+  (`LOCAL_MAESTRO_AVD_CONFIG`), and the system image (`LOCAL_MAESTRO_AVD_IMAGE`), whose `{abi}` slot each host fills with
+  its own ABI. The WSL opt-in path (`LOCAL_MAESTRO_ANDROID_ON=wsl` and the one-emulator `flows` mode) runs the same
+  `local_maestro_ensure_avd`; the Mac runs `ensure-avd` over ssh with the same settings.
   Nothing is copied from another host's config. Emulators boot cold, read-only and headless. The GPU mode is `host`: in a spike on the Mac, 25 Settings launches with swipes used 15.8 CPU
   seconds with `-gpu host` and 57.5 with `swiftshader_indirect`, and both booted in about 19 seconds.
 - **Before any boot, the run reaps.** An earlier run's emulator of the lane AVD is killed by its pid file, and only if its

@@ -326,6 +326,9 @@ describe('the lane TypeScript holds none of the facts', () => {
         // The state folder's rule lives in e2ePlan's stateRoot.
         'XDG_STATE_HOME',
         '.local/state',
+        // Where `avdmanager` and the AVDs live: `local_maestro_ensure_avd` owns both rules, on every host.
+        '.android/avd',
+        'cmdline-tools/latest/bin',
     ];
 
     it('guards every fact the settings print, so a new one is guarded the day it is added', () => {

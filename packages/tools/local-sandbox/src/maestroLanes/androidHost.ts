@@ -5,8 +5,7 @@
  *
  * @pattern Bridge — {@link AndroidHost} is the implementor behind the Android adapter's abstraction
  */
-import { cpus, homedir, loadavg } from 'node:os';
-import path from 'node:path';
+import { cpus, loadavg } from 'node:os';
 
 import type { LaneCost } from '@kitchensink/e2e-plan';
 import type { Env } from '@kitchensink/e2e-plan/stampRun';
@@ -38,12 +37,8 @@ export interface AndroidHost {
 export interface LocalAndroidHostOptions {
     readonly commands: CommandPort;
     readonly avd: string;
-    /** The AVD's `config.ini` settings (`LOCAL_MAESTRO_AVD_CONFIG`): the AVD is built from these, on every host. */
-    /** The system image for an ABI (`LOCAL_MAESTRO_AVD_IMAGE`). */
-    readonly avdImage: (abi: AndroidHost['abi']) => string;
-    readonly avdConfig: readonly string[];
-    /** `androidLaneHost.sh`, which makes the AVD the same way on the Mac. */
-    readonly avdScript: string;
+    /** `localMaestro.sh`, whose `local_maestro_ensure_avd` makes the AVD from the settings: the one place that does it here. */
+    readonly localMaestro: string;
     /** The run's environment, with the Android toolchain in it. */
     readonly environment: Env;
     readonly apk: string;
@@ -72,25 +67,10 @@ export function createLocalAndroidHost(options: LocalAndroidHostOptions): Androi
             memAvailable: availableMemoryBytes(),
         }),
         prepare: async () => {
-            const sdk = options.environment['ANDROID_HOME'];
             const made = await commands.run(
                 'bash',
-                [options.avdScript, 'ensure-avd', options.avd, options.avdImage(abi), ...options.avdConfig],
-                {
-                    env: {
-                        ...options.environment,
-                        // Where the emulator looks for AVDs, so the one made here is the one it boots.
-                        ANDROID_AVD_HOME:
-                            options.environment['ANDROID_AVD_HOME'] ?? path.join(homedir(), '.android', 'avd'),
-                        // `avdmanager` is in the command-line tools, which the lanes' toolchain does not put on PATH.
-                        PATH: [
-                            sdk === undefined ? undefined : `${sdk}/cmdline-tools/latest/bin`,
-                            options.environment['PATH'],
-                        ]
-                            .filter((part) => part !== undefined)
-                            .join(':'),
-                    },
-                },
+                ['-c', '. "$1" && local_maestro_ensure_avd', 'ensureAvd', options.localMaestro],
+                { env: options.environment },
             );
 
             if (made.code !== 0) {

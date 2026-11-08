@@ -84,8 +84,7 @@ function rig(abi: 'x86_64' | 'arm64-v8a', manifest = 'contentKey=k1\n'): Rig {
     const adapter = createAndroidAdapter({
         repoRoot: '/repo',
         avd: 'ks_lane_lean',
-        avdConfig: [],
-        avdImage: (abi: string) => abi,
+        localMaestro: '/repo/packages/tools/local-sandbox/bin/localMaestro.sh',
         recipeOrigin: 'http://localhost:3000',
         identityOrigin: 'http://localhost:3001',
         foodOrigin: 'http://localhost:3002',

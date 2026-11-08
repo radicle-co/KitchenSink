@@ -182,8 +182,7 @@ function adapterFor(platform: LanePlatform, env: Env, settings: LocalSettings): 
     return createAndroidAdapter({
         repoRoot: REPO_ROOT,
         avd: settings.avd,
-        avdConfig: settings.avdConfig,
-        avdImage: settings.avdImage,
+        localMaestro: LOCAL_MAESTRO,
         ...(host === undefined ? {} : { host }),
         recipeOrigin: settings.recipeOrigin,
         identityOrigin: settings.identityOrigin,

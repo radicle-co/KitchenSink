@@ -145,7 +145,9 @@ describe('leaseSession', () => {
 });
 
 describe('firstAvailableSlot', () => {
-    const erasure = consumableSlots('maestro');
+    // `firstAvailableSlot` is generic over any ordered list. The roster now holds only TWO consumables (trimmed
+    // 2026-11-06), so a third declared-order slot is added to keep the "skip the consumed ones" cases meaningful.
+    const erasure = [...consumableSlots('maestro'), slotFor('maestro', 'signer')];
 
     it('takes the first consumable slot, in declared order, whose user still exists', async () => {
         const port: LeasePort = {
@@ -204,7 +206,7 @@ describe('leaseErasureSubject', () => {
         mintTicket: vi.fn(),
     });
 
-    it('⛔ reaches the LAST of a platform’s subjects when every earlier one is consumed', async () => {
+    it('⛔ reaches the LAST (here the only) one of a platform’s subjects', async () => {
         const last = android.at(-1);
 
         await expect(
@@ -212,7 +214,7 @@ describe('leaseErasureSubject', () => {
         ).resolves.toMatchObject({ slot: last });
     });
 
-    it('⛔ draws iOS’s subject from erasure06-10 and Android’s from erasure01-05, never across', async () => {
+    it('⛔ draws iOS’s subject from erasure06 and Android’s from erasure01, never across', async () => {
         const everyone = portStanding(...consumableSlots('maestro').map((slot) => slot.email));
 
         await expect(leaseErasureSubject('android', MAESTRO_ERASURE_SHARD, everyone)).resolves.toMatchObject({
@@ -227,9 +229,9 @@ describe('leaseErasureSubject', () => {
         const otherPlatformOnly = portStanding(...android.map((slot) => slot.email));
 
         await expect(leaseErasureSubject('ios', MAESTRO_ERASURE_SHARD, otherPlatformOnly)).rejects.toThrow(
-            /all 5 .*consumed.*poolAdmin/u,
+            /all 1 .*consumed.*poolAdmin/u,
         );
-        expect(ios).toHaveLength(5);
+        expect(ios).toHaveLength(1);
     });
 
     it('⛔ leases NOTHING on any other shard, and does not even look', async () => {
@@ -242,7 +244,7 @@ describe('leaseErasureSubject', () => {
 
     it('still goes RED on the erasure shard when every subject is consumed', async () => {
         await expect(leaseErasureSubject('android', MAESTRO_ERASURE_SHARD, portWith([]))).rejects.toThrow(
-            /all 5 .*consumed.*poolAdmin/u,
+            /all 1 .*consumed.*poolAdmin/u,
         );
     });
 });

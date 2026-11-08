@@ -69,9 +69,9 @@ describe('the local Playwright lane’s API origins', () => {
     });
 
     it('sets them after the port is chosen and before either server mode is decided, so dev and start agree', () => {
-        const portChosen = lineOf(/^PORT="\$\(find_free_port\)"/u);
+        const portChosen = lineOf(/^PORT="\$\(choose_port\)"/u);
         const exports = linesOf(/^\s*export NEXT_PUBLIC_[A-Z_]+_API_URL=/u);
-        const modeBranch = lineOf(/^if \[\[ "\$\{MODE\}" == 'start' \]\]/u);
+        const modeBranch = lineOf(/^if \[\[ "\$\{MODE\}" == 'start'/u);
 
         expect(portChosen).toBeGreaterThanOrEqual(0);
         expect(modeBranch).toBeGreaterThanOrEqual(0);
@@ -82,5 +82,67 @@ describe('the local Playwright lane’s API origins', () => {
             expect(line).toBeGreaterThan(portChosen);
             expect(line).toBeLessThan(modeBranch);
         }
+    });
+});
+
+describe('the test:e2e entry (scripts/e2e.sh)', () => {
+    const ENTRY = readFileSync(fileURLToPath(new URL('../e2e.sh', import.meta.url)), 'utf8')
+        .split('\n')
+        .filter((line) => !line.trimStart().startsWith('#'))
+        .join('\n');
+
+    it('keeps CI and the deployed tier on the raw Playwright run, arguments straight through', () => {
+        expect(ENTRY).toMatch(/PLAYWRIGHT_BASE_URL[\s\S]*CI[\s\S]*exec npx playwright test "\$@"/u);
+    });
+
+    it('sends every local run through the lanes script, which falls back to one run itself', () => {
+        expect(ENTRY).toMatch(/^exec npx tsx scripts\/e2eLanes\.ts "\$@"$/mu);
+        expect(ENTRY).not.toMatch(/exec bash scripts\/e2eLocal\.sh/u);
+    });
+});
+
+describe('the local Playwright lane’s lane settings', () => {
+    it('takes a caller’s port only when it is free, and refuses it when it is taken', () => {
+        // The refusal must fail rather than fall back: a lane that quietly moved would collide with a peer.
+        expect(CODE).toMatch(/E2E_PORT[\s\S]{0,300}ss -ltn[\s\S]{0,300}return 1/u);
+    });
+
+    it('takes the shared server’s port as it is, because a peer lane started that server and the port is meant to be taken', () => {
+        const shared = lineOf(/E2E_SHARED_SERVER/u);
+        const refusal = lineOf(/is already in use/u);
+
+        expect(shared).toBeGreaterThanOrEqual(0);
+        expect(shared).toBeLessThan(refusal);
+    });
+
+    it('refuses a shared port that nothing listens on, rather than letting the config start a private server there', () => {
+        expect(CODE).toMatch(/E2E_SHARED_SERVER[\s\S]{0,400}ss -ltn[\s\S]{0,200}return 1/u);
+    });
+
+    it('skips the turbo build under E2E_SKIP_BUILD, and only the build', () => {
+        const build = lineOf(/turbo run build/u);
+        const guard = lineOf(/E2E_SKIP_BUILD/u);
+
+        expect(guard).toBeGreaterThanOrEqual(0);
+        expect(guard).toBeLessThan(build);
+    });
+
+    it('stops after the build under E2E_BUILD_ONLY, before any test runs', () => {
+        const stop = lineOf(/E2E_BUILD_ONLY/u);
+
+        expect(stop).toBeGreaterThan(lineOf(/turbo run build/u));
+        expect(stop).toBeLessThan(lineOf(/^npx playwright/u));
+    });
+
+    it('defaults the reporter to list and lets E2E_REPORTER replace it', () => {
+        expect(CODE).toMatch(/--reporter="\$\{E2E_REPORTER:-list\}"/u);
+    });
+});
+
+describe('the Playwright config’s web server', () => {
+    const CONFIG = readFileSync(fileURLToPath(new URL('../../playwright.config.ts', import.meta.url)), 'utf8');
+
+    it('reuses a server that is already listening when lanes share one, whatever CI says', () => {
+        expect(CONFIG).toMatch(/reuseExistingServer:[^\n]*E2E_SHARED_SERVER/u);
     });
 });

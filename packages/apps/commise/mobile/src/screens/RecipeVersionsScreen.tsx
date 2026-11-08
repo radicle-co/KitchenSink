@@ -23,6 +23,7 @@ import { QueryBoundary } from '@commise/query/boundary';
 import { PushedPageFrame } from '@commise/ui/pushed-page';
 import { useId, type JSX, type ReactNode } from 'react';
 import { ScrollView, StyleSheet } from 'react-native';
+import { useScreenTrace } from '../screenTrace/useScreenTrace.js';
 
 /** Props for {@link RecipeVersionsScreen}. */
 export interface RecipeVersionsScreenProps {
@@ -39,6 +40,7 @@ export interface RecipeVersionsScreenProps {
  * @returns The read boundary, each of whose branches — loading, failed and settled — sits in the pinned-page frame.
  */
 export function RecipeVersionsScreen({ recipeId, onBack }: RecipeVersionsScreenProps): JSX.Element {
+    useScreenTrace('RecipeVersionsScreen');
     const { versionList } = useMessages(recipeVersionMessages);
     const headingId = useId();
     // The same frame in every branch, so Back is at the same place in loading, failed and settled. Its parent says "Recipe"

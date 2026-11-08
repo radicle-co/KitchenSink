@@ -214,6 +214,15 @@ export function authoredFoodPurgeVia(
                     );
                 }
 
+                // Named by status: a `401` here follows a recipe-service purge the SAME session just passed, and the
+                // service's own message ("Valid Clerk session or M2M token required") is identical for every cause.
+                if (isFoodServiceClientError(error) && error.status !== undefined) {
+                    throw new Error(
+                        `food-service refused the authored-food purge (HTTP ${String(error.status)}): ${error.message}`,
+                        { cause: error },
+                    );
+                }
+
                 throw error;
             }
         },

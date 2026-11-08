@@ -1,0 +1,96 @@
+/**
+ * `npm run maestro:macUsage --workspace=@kitchensink/local-sandbox` — watches the Mac while iOS lanes run and, on
+ * SIGINT or SIGTERM, prints each lane's mean CPUs and peak memory. Start it next to `test:e2e:ios` (it needs the lane
+ * Simulators to exist, so start it once the first lane has booted). The numbers feed `IOS_LANE_COST` in
+ * `src/maestroLanes/iosAdapter.ts`.
+ *
+ * It reads and prints only. Every `ps` sample is also appended to `<state>/macLaneUsage.tsv`.
+ *
+ * @sideEffect Runs ssh on a timer and writes the tsv.
+ */
+import { execFileSync } from 'node:child_process';
+import { appendFileSync, mkdirSync } from 'node:fs';
+import path from 'node:path';
+
+import { stateRoot } from '@kitchensink/e2e-plan/stampRun';
+
+import { emptyUsage, recordSample, summarizeUsage, type Usage } from '../src/maestroLanes/laneUsage.js';
+import { ANDROID_LANE_SERIALS, consolePort } from '../src/maestroLanes/androidSerials.js';
+import { androidLaneProcesses, iosLaneProcesses, parseMacPs } from '../src/maestroLanes/macUsage.js';
+import { IOS_MAX_LANES, macHostFromEnv } from '../src/maestroLanes/iosLane.js';
+import { macPathsOf } from '../src/maestroLanes/macSession.js';
+
+const INTERVAL_MS = 15_000;
+// `--platform android` watches the Mac's Android lane emulators; the default is the iOS Simulators.
+const platform = process.argv.includes('android') ? 'android' : 'ios';
+const host = macHostFromEnv(process.env);
+const stateDir = stateRoot();
+const tsv = path.join(stateDir, 'macLaneUsage.tsv');
+const ssh = (command: string): string =>
+    execFileSync('ssh', ['-o', 'BatchMode=yes', '-o', 'ConnectTimeout=20', host, command], { encoding: 'utf8' });
+
+mkdirSync(stateDir, { recursive: true });
+
+const macHome = ssh('printenv HOME').trim();
+const usages = new Map<number, Usage>();
+const udids = new Map<number, string>();
+
+function sample(): void {
+    const at = Date.now();
+    const rows = parseMacPs(ssh('ps -axo pid=,pgid=,time=,rss=,args='));
+    let machine = 0;
+
+    for (let lane = 1; lane <= (platform === 'android' ? ANDROID_LANE_SERIALS.length : IOS_MAX_LANES); lane += 1) {
+        const laneHome = macPathsOf(macHome).laneHome(lane);
+        let mine;
+
+        if (platform === 'android') {
+            const port = consolePort(ANDROID_LANE_SERIALS[lane - 1] ?? '');
+            mine = androidLaneProcesses(rows, { consolePort: port, laneHome });
+
+            if (mine.length === 0) {
+                continue;
+            }
+
+            udids.set(lane, port);
+        } else {
+            const udid = udids.get(lane) ?? ssh(`bash ${macPathsOf().laneHostScript} udid ${String(lane)}`).trim();
+
+            if (udid === '') {
+                continue;
+            }
+
+            udids.set(lane, udid);
+            mine = iosLaneProcesses(rows, { udid, laneHome });
+        }
+
+        const usage = recordSample(usages.get(lane) ?? emptyUsage(), mine, at);
+        usages.set(lane, usage);
+        machine += mine.reduce((sum, row) => sum + row.rssKb, 0);
+        appendFileSync(tsv, `${at}\t${String(lane)}\t${usage.cpuSeconds}\t${mine.reduce((s, r) => s + r.rssKb, 0)}\n`);
+    }
+
+    process.stdout.write(
+        `macUsage ${new Date(at).toISOString()} lanes ${String(udids.size)} rss ${(machine / 1024 ** 2).toFixed(1)} GiB\n`,
+    );
+}
+
+function report(): void {
+    for (const [lane, usage] of usages) {
+        const { seconds, meanCpus, peakRssBytes } = summarizeUsage(usage);
+        process.stdout.write(
+            `lane ios-${String(lane)} usage: ${String(meanCpus)} CPUs mean, ${(peakRssBytes / 1024 ** 3).toFixed(2)} GiB peak, over ${String(Math.round(seconds))} s\n`,
+        );
+    }
+}
+
+const timer = setInterval(sample, INTERVAL_MS);
+sample();
+
+for (const signal of ['SIGINT', 'SIGTERM'] as const) {
+    process.on(signal, () => {
+        clearInterval(timer);
+        report();
+        process.exit(0);
+    });
+}

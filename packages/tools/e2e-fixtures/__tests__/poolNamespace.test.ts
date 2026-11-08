@@ -1,8 +1,8 @@
 /**
  * The pool's address NAMESPACE: how a local run gets users of its own.
  *
- * ⛔ WHY. The Maestro erasure flow really erases whoever it signs in as, and the local stack's deletion worker deletes
- * the user from Clerk. The shared sandbox pool's `erasure01-10` are CI's, on the one Clerk instance every run shares.
+ * ⛔ WHY. The Maestro erasure flow really erases whoever it signs in as, and the user is then deleted from Clerk (by
+ * the identity deletion worker when deployed; locally, which runs none, by `poolAdmin`). The shared sandbox pool's `erasure01` and `erasure06` are CI's, on the one Clerk instance every run shares.
  * A local run that leased them would destroy CI's subjects, and their `external_id` (written by the sandbox identity
  * webhook, which is down when the sandbox is) is not something a local run may rewrite. So a local run signs in users
  * that exist only for it, selected by one environment switch that every part of the toolchain reads from this module:
@@ -63,9 +63,9 @@ describe('the roster under each namespace', () => {
         );
         expect(new Set(local.map((slot) => slot.username)).size).toBe(local.length);
         expect(local.map((slot) => slot.username)).not.toEqual(shared.map((slot) => slot.username));
-        expect(maestroErasureSlots('ios', 1).map((slot) => slot.email)).toEqual(
-            ['06', '07', '08', '09', '10'].map((n) => `test-local-erasure${n}+clerk_test@radcile.com`),
-        );
+        expect(maestroErasureSlots('ios', 1).map((slot) => slot.email)).toEqual([
+            'test-local-erasure06+clerk_test@radcile.com',
+        ]);
         vi.unstubAllEnvs();
     });
 

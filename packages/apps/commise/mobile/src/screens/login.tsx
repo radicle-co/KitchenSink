@@ -38,6 +38,7 @@ import { AuthSwitchLink } from '../components/auth/AuthSwitchLink.js';
 import { SocialSignInButtons } from '../components/auth/SocialSignInButtons.js';
 import { useSocialSignIn, type PendingSignUp } from '../hooks/useSocialSignIn.js';
 import { mobileMessages } from '../i18n/messages.js';
+import { useScreenTrace } from '../screenTrace/useScreenTrace.js';
 
 export interface LoginScreenProps {
     onSignUp: () => void;
@@ -46,6 +47,7 @@ export interface LoginScreenProps {
 }
 
 export function LoginScreen({ onSignUp, onNeedsFields }: LoginScreenProps): JSX.Element {
+    useScreenTrace('login');
     const { auth: t } = useMessages(mobileMessages);
     const shared = useMessages(authSurfaceMessages);
     const { setActive } = useClerk();

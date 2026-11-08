@@ -123,8 +123,8 @@ on:
                     library and `resetPool` hard-deletes every row it owns — two shards on one signer delete
                     each other's fixtures mid-flow and answer `423 ERASURE_IN_PROGRESS` while a purge runs. So
                     raising this is a THREE-part act: append lanes to `POOL_ROSTER.maestro`, have the owner run
-                    `poolAdmin --apply` so those Clerk users exist, and raise `MAESTRO_MAX_SHARDS` in
-                    `runMaestroFlows.sh`. `runMaestroFlows.sh shard-matrix` CLAMPS whatever arrives here to what
+                    `poolAdmin --apply` so those Clerk users exist, and raise that platform's
+                    `MAESTRO_MAX_SHARDS_*` in `runMaestroFlows.sh`. `runMaestroFlows.sh shard-matrix` CLAMPS whatever arrives here to what
                     the roster can identify, so an over-large value costs nothing and never mis-leases.
 
                     ⛔ THE DEFAULT DIRECTION IS THE OPPOSITE OF `maestro_flow_selector`'s. An unreadable
@@ -138,18 +138,20 @@ on:
                     a value a human typed into a form.
                     ⛔ THE DEFAULT IS WHAT THE CLERK POOL CAN IDENTIFY, AND RAISING IT IS NOT A FREE DIAL.
                     `maestroShardCapacity(platform)` clamps to the DECLARED roster, but a declared lane is not a Clerk
-                    user: shard 8's `resetBefore` leases `signer08`/`coauthor08` (iOS: `iossigner08`/`ioscoauthor08`)
+                    user: shard 8's `resetBefore` leases `signer08`/`coauthor08` (iOS stops at `iossigner05`/`ioscoauthor05`)
                     FOR REAL, so a default the sandbox tenant cannot satisfy fails the job at its first pool lease,
-                    for a reason that has nothing to do with the flows. '8' is each platform's capacity
-                    (`testPool.ts`), and `maestroShardPartition.test.ts` is what refuses anything above it. The lanes
+                    for a reason that has nothing to do with the flows. '8' is Android's capacity and the
+                    widest platform's (`testPool.ts`; iOS's is five, below), and `maestroShardPartition.test.ts` is what
+                    refuses anything above it. The lanes
                     05 to 08 exist in the roster before their Clerk users do: the owner's `poolAdmin --apply` creates
                     them. The defaults moved to '8' only after it ran and reported healthy; before that they stayed at '4'.
                     If a lane is ever missing, set all three defaults back to '4' (a form field on the manual door can
                     say it without a commit).
 
                     ⛔ THE POOL IS NOT THE ONLY CEILING FOR iOS. A Simulator job needs a macOS runner and a Team plan
-                    runs at most FIVE at once, so `runMaestroFlows.sh shard-matrix` stops the iOS matrix at five
-                    (`MAESTRO_IOS_RUNNER_CEILING`) while Android, on Linux, takes all eight. More iOS shards would
+                    runs at most FIVE at once, so the iOS pool IS five (`iossigner01-05`; lanes 06-08 were trimmed
+                    2026-11-06 as idle Clerk users) and `runMaestroFlows.sh shard-matrix` stops the iOS matrix there
+                    (`max-shards ios`, the one place the five lives) while Android, on Linux, takes all eight. More iOS shards would
                     queue behind the first five and end when four did, after extra Simulator setups billed at the macOS
                     rate. Measured on run 39076738796: four iOS shards ran 40, 50, 59 and 60 minutes, Android 30, 31, 47
                     and 1.
@@ -176,7 +178,7 @@ on:
                     three-file commit on the PR path, and a form field only on the manual door.
 
                     ⛔ RAISING IT FURTHER HAS AN ORDER, and two of the steps share a commit: append the roster
-                    lanes AND raise `MAESTRO_MAX_SHARDS` TOGETHER (the guard asserts the two are equal, so a
+                    lanes AND raise that platform's `MAESTRO_MAX_SHARDS_*` TOGETHER (the guard asserts the two are equal, so a
                     lane added alone is already red), run `poolAdmin --apply` so those Clerk users exist, and
                     move this default — and the other two — LAST.
                 required: false
@@ -432,7 +434,7 @@ jobs:
                   # Unquoted on purpose: the selector is space-separated `<name>=true|false` pairs, and the
                   # script treats an absent, malformed or unattributed selector identically — it widens.
                   # shellcheck disable=SC2086
-                  shards=$(bash packages/apps/commise/mobile/tests/e2e/runMaestroFlows.sh \
+                  shards=$(npm run --silent e2e:maestro -- \
                       shard-matrix "${MAESTRO_SHARDS}" ${MAESTRO_FLOW_SELECTOR})
                   # Counted OUT OF the array, never recomputed from the input — see the `maestro_shard_count`
                   # output's note. `grep -c .` over the split array, so `[1]` is 1 and `[1,2]` is 2 without any
@@ -455,7 +457,7 @@ jobs:
               run: |
                   set -euf -o pipefail
                   # shellcheck disable=SC2086
-                  shards=$(bash packages/apps/commise/mobile/tests/e2e/runMaestroFlows.sh \
+                  shards=$(npm run --silent e2e:maestro -- \
                       shard-matrix "${MAESTRO_SHARDS}" ${MAESTRO_FLOW_SELECTOR})
                   count=$(printf '%s' "${shards}" | tr -d '[]' | tr ',' '\n' | grep -c .)
                   {
@@ -1333,7 +1335,7 @@ jobs:
                   # against the pinned action's own `action.yml`, so this class cannot recur silently.
                   # The emulator-runner executes each `script` LINE as its own `sh -c`, so the per-flow loop
                   # (reseed → run one flow, in isolation) lives in a committed script invoked in one line.
-                  script: bash packages/apps/commise/mobile/tests/e2e/runMaestroFlows.sh
+                  script: npm run --silent e2e:maestro
             # ⛔ RESET AFTER — `if: always()`, so it runs on failure and on cancellation too, which nothing inside the
             # emulator script can promise. It empties the recipe data the signer and co-author own on this stage and
             # deletes NO Clerk user: the slots are fixed, and an erasure subject the flow really erased is simply gone.
@@ -1403,9 +1405,9 @@ jobs:
     # This header used to say the opposite: the roster had one signer/co-author pair per SHARD, so iOS shard N signed
     # in as Android shard N's users and the two jobs shared a group, which serialised them (run 38322183404: iOS
     # waited 36 minutes behind Android). The three-part act on `maestro_shards` was taken instead — the roster now
-    # carries `iossigner01-04` and `ioscoauthor01-04`, `poolAdmin --apply` created them, and `MAESTRO_MAX_SHARDS` is 4
-    # — so the platforms run side by side. Each platform's shard 1 erases from ITS OWN five subjects (Android
-    # `erasure01-05`, iOS `erasure06-10`; `maestroErasureSlots`), and every seed, reset and refill step names its
+    # carries `iossigner01-04` and `ioscoauthor01-04`, `poolAdmin --apply` created them, and the shell's per-platform ceiling was 4
+    # — so the platforms run side by side. Each platform's shard 1 erases from ITS OWN subject (Android
+    # `erasure01`, iOS `erasure06`; `maestroErasureSlots`), and every seed, reset and refill step names its
     # platform. ⚠️ GitHub keeps ONE pending job per group, so a third arrival cancels a waiting shard (owner ruling
     # 2026-09-14: "Accept, re-run on red").
     #
@@ -1729,7 +1731,7 @@ jobs:
                   MAESTRO_PLATFORM: ios
               run: bash packages/tools/e2e-seed/runCli.sh packages/tools/e2e-seed/src/resetPool.ts --tier maestro --platform ios --shard "${SHARD_INDEX}"
             # ⛔ REFILL THE ERASURE SUBJECTS, then provision — the Android job's note says why. The two platforms refill
-            # DISJOINT sets (iOS: `erasure06-10`), so this refill and the Android one may now run at the same time.
+            # DISJOINT sets (iOS: `erasure06`), so this refill and the Android one may now run at the same time.
             - name: Refill the Maestro erasure subjects before provisioning (shard ${{ matrix.shard }}, poolAdmin)
               if: steps.secrets.outcome == 'success'
               env:
@@ -1812,7 +1814,7 @@ jobs:
                   # job's matrix was built from.
                   MAESTRO_SHARD_COUNT: ${{ needs.resolve-mobile-target.outputs.maestro_ios_shard_count }}
                   COMMISE_E2E_SHARD: ${{ matrix.shard }}
-              run: bash packages/apps/commise/mobile/tests/e2e/runMaestroFlows.sh
+              run: npm run --silent e2e:maestro
             # ⛔ RESET AFTER — `always()`, `continue-on-error`, and loud: the Android job's reset-after, for its reason.
             - name: Reset the leased Maestro pool slots after the run (shard ${{ matrix.shard }}, e2e-seed resetPool)
               if: always() && steps.secrets.outcome == 'success'
@@ -2246,8 +2248,19 @@ jobs:
               uses: ./.github/actions/load-secrets
               with:
                   stage: sandbox
-            # ⛔ LEASED, NOT CREATED. `provisionPool.ts` signs in as the fixed pool's k6 slots and refuses one
-            # `poolAdmin` has not provisioned; it creates no Clerk user and writes no metadata. It no longer runs
+            # ⛔ MADE FOR THIS RUN, DELETED AT ITS END (owner ruling 2026-11-06, which REVERSES the 2026-09-13 fixed-pool rule
+            # for the k6 tier ONLY). This job is dispatch-only (`deployedE2e.yml`, `ci-full.yml`), so the eleven k6 users
+            # (alfa..juliett and admin) exist only while a load test runs, instead of holding eleven of the Clerk
+            # development instance's 100 seats all month. `poolAdmin --k6-run` creates the missing ones, waits for their
+            # `external_id`, and refuses before its first write if the instance has no room. FATAL: a lease over users
+            # nobody made would fail late and read like an app defect. The Clerk key comes from the masked job
+            # environment `load-secrets` wrote; the matching delete is the `always()` step after the reset-after below.
+            - name: Make the k6 users for this run (poolAdmin)
+              id: k6users
+              if: ${{ steps.live.outputs.recipe == 'true' && steps.k6secrets.outcome == 'success' }}
+              run: npx tsx packages/tools/e2e-fixtures/src/poolAdmin.ts --apply --k6-run
+            # ⛔ LEASED, once made. `provisionPool.ts` signs in as the k6 slots and refuses one `poolAdmin` has not made; it
+            # creates no Clerk user and writes no metadata. It no longer runs
             # `e2e-seed provision` either: no k6 scenario read that world (grepped), and it leased the MAESTRO tier's
             # slots from outside the Maestro job's concurrency group.
             - name: Lease the k6 credential pool
@@ -2374,7 +2387,7 @@ jobs:
             # the reset on exactly the runs that left something behind. `!= 'skipped'` is true for success, failure
             # and cancellation, and false when the step's own gate (a live sandbox, the secrets) held it back.
             # `continue-on-error`, NOT silent: a failed slot is an `::error::` line, and the next run's reset-before
-            # refuses to start over whatever this one left. No Clerk user is deleted — the slots are fixed.
+            # refuses to start over whatever this one left. The users themselves go in the next step.
             - name: Reset the leased k6 pool slots after the run
               if: ${{ always() && steps.k6secrets.outcome == 'success' && steps.pool.outcome != 'skipped' }}
               continue-on-error: true
@@ -2387,6 +2400,14 @@ jobs:
                   E2E_SEED_WEB_ORIGIN: ${{ steps.target.outputs.web_origin }}
                   HANDLES: ${{ runner.temp }}/k6-pool/handles.json
               run: npx tsx packages/tools/e2e-seed/src/resetPool.ts --tier k6 --vus "${POOL_SIZE}" --handles "${HANDLES}"
+            # ⛔ DELETE THE USERS, `always()` — AFTER the purge above, gated on the create having STARTED (a half-made set is
+            # still removed) and NOT `continue-on-error`: a user left behind holds a Clerk seat on a 100-user instance, so a
+            # failed delete must redden the job. `poolAdmin --delete` can only reach the k6 tier's shared users; it refuses
+            # every other slot before its first lookup. A rerun's create is idempotent, so a red delete costs the next run
+            # nothing but the seats until then.
+            - name: Delete the k6 users made for this run (poolAdmin)
+              if: ${{ always() && steps.k6secrets.outcome == 'success' && steps.k6users.outcome != 'skipped' }}
+              run: npx tsx packages/tools/e2e-fixtures/src/poolAdmin.ts --apply --k6-run --delete
             - name: Publish the deployed-origin reports to the job summary
               if: ${{ always() && steps.live.outputs.recipe != '' }}
               working-directory: packages/tools/loadtest

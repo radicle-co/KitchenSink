@@ -1,0 +1,248 @@
+/**
+ * Builds the two tier models from the real repository: the web app's Playwright specs and the mobile app's Maestro
+ * flows, each with its import graph, its screens and its coverage registry.
+ *
+ * This is the one module that knows where things live. Everything it feeds is pure and tested on its own.
+ */
+import { execFileSync } from 'node:child_process';
+import { globSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
+import { changedRows } from './changedRows.js';
+import { checkCoverage, parseCoverage, type CoverageTable } from './coverageTable.js';
+import { buildImportGraph, type GraphProfile, type ImportGraph } from './dependencyGraph.js';
+import { flowCoverage } from './flowCoverage.js';
+import { flowFileOf, flowIdOf, MAESTRO_DIR, maestroFlowGraph } from './maestroFlows.js';
+import { mobileRegistry, type MobileRegistry } from './mobileScreens.js';
+import { plannedFlows } from './plannedFlows.js';
+import type { Models, TierModel } from './planChange.js';
+import { parseBindings, type ModuleBindings } from './moduleBindings.js';
+import { fileLevel, reach, type Reached } from './reachability.js';
+import { initialChange, symbolStep } from './symbolEdges.js';
+import { webRegistry } from './webRoutes.js';
+import { isTestSupportCandidate, testingDirs } from './testSupport.js';
+import { closureOf, readWorkspaces } from './workspaces.js';
+
+const WEB = 'packages/apps/commise/web';
+const MOBILE = 'packages/apps/commise/mobile';
+
+export const SPEC_TABLE = `${WEB}/tests/e2e/specScreens.tsv`;
+export const FLOW_TABLE = `${MOBILE}/tests/e2e/maestroFlowScreens.tsv`;
+
+/** Every Maestro flow starts on, and signs in through, Home. */
+export const MOBILE_PASS_THROUGH = ['HomeScreen'] as const;
+
+export const WEB_PROFILE: GraphProfile = {
+    name: 'web',
+    cruise: [`${WEB}/src`, `${WEB}/tests/e2e`],
+    tsConfig: `${WEB}/tsconfig.json`,
+    extensions: ['.ts', '.tsx', '.js', '.jsx', '.json', '.mjs'],
+};
+
+export const MOBILE_PROFILE: GraphProfile = {
+    name: 'mobile',
+    cruise: [`${MOBILE}/src`, `${MOBILE}/App.tsx`],
+    tsConfig: `${MOBILE}/tsconfig.json`,
+    extensions: ['.native.tsx', '.native.ts', '.native.js', '.tsx', '.ts', '.js', '.jsx', '.json', '.mjs'],
+};
+
+const merge = (parts: readonly Reached[]): Reached | undefined =>
+    parts.length === 0
+        ? undefined
+        : {
+              screens: new Set(parts.flatMap((part) => [...part.screens])),
+              tests: new Set(parts.flatMap((part) => [...part.tests])),
+              roots: [...new Set(parts.flatMap((part) => part.roots))].sort(),
+          };
+
+const read = (repo: string, path: string): string => readFileSync(join(repo, path), 'utf8');
+
+/** The table as it was at the merge base, or undefined when the file did not exist then. */
+function tableAt(repo: string, mergeBase: string | undefined, path: string): CoverageTable | undefined {
+    if (mergeBase === undefined) {
+        return undefined;
+    }
+
+    try {
+        const text = execFileSync('git', ['show', `${mergeBase}:${path}`], {
+            cwd: repo,
+            encoding: 'utf8',
+            stdio: ['ignore', 'pipe', 'ignore'],
+        });
+
+        return parseCoverage(text, `${path}@${mergeBase.slice(0, 7)}`);
+    } catch {
+        return undefined;
+    }
+}
+
+/** `Button.native.tsx`: a leaf only the native bundler picks. */
+const NATIVE_LEAF = /\.native\.([cm]?[jt]sx?)$/u;
+
+const noRoots: ReadonlySet<string> = new Set();
+
+/** The parse of a file, shared by both tiers: syntax does not depend on the platform. */
+type BindingsOf = (file: string) => ModuleBindings | undefined;
+
+function cachedBindings(repo: string): BindingsOf {
+    const cache = new Map<string, ModuleBindings | undefined>();
+
+    return (file) => {
+        if (!cache.has(file)) {
+            try {
+                cache.set(file, parseBindings(read(repo, file), file));
+            } catch {
+                cache.set(file, undefined);
+            }
+        }
+
+        return cache.get(file);
+    };
+}
+
+async function webModel(repo: string, mergeBase: string | undefined, bindingsOf: BindingsOf): Promise<TierModel> {
+    const graph = await buildImportGraph(repo, WEB_PROFILE);
+    const appFiles = globSync(`${WEB}/src/app/**/*`, { cwd: repo });
+    const topLevel = globSync(`${WEB}/src/*.{ts,tsx}`, { cwd: repo });
+    const registry = webRegistry({ appDir: `${WEB}/src/app`, extraRoots: topLevel, files: appFiles.sort() });
+    const specs = globSync(`${WEB}/tests/e2e/**/*.spec.ts`, { cwd: repo }).sort();
+    const specId = (file: string): string => file.slice(`${WEB}/tests/e2e/`.length);
+    const table = parseCoverage(read(repo, SPEC_TABLE), SPEC_TABLE);
+    const terminals = { ...registry.terminals, tests: new Map(specs.map((file) => [file, specId(file)] as const)) };
+    const edited = changedRows(tableAt(repo, mergeBase, SPEC_TABLE), table);
+
+    return {
+        name: 'web',
+        screens: registry.screens,
+        tests: specs.map(specId),
+        coverage: table,
+        shippingImportersOf: (file) =>
+            graph.importersOf(file).filter((importer) => !importer.startsWith(`${WEB}/tests/`)),
+        // Webpack and Turbopack never resolve a `.native` leaf (next.config adds no such extension), so one belongs to
+        // mobile whether or not it has a web twin.
+        belongsToOtherPlatform: (file) => file.startsWith(`${MOBILE}/`) || NATIVE_LEAF.test(file),
+        reachFile: (file) =>
+            file === SPEC_TABLE
+                ? { screens: new Set(), tests: new Set(edited), roots: [] }
+                : graph.has(file)
+                  ? reach(file, symbolStep({ ...graph, bindingsOf }), terminals, initialChange(bindingsOf(file)))
+                  : undefined,
+        problems: [
+            ...graph.problems,
+            ...checkCoverage({ tests: specs.map(specId), screens: registry.screens, table }).map(
+                (problem) => `${SPEC_TABLE}: ${problem}`,
+            ),
+        ],
+    };
+}
+
+/**
+ * The mobile screens and walk terminals of a mobile import graph: the modules of the screens folder that the navigator
+ * or the auth gate import.
+ *
+ * @param graph - The mobile app's import graph.
+ * @returns The registry.
+ */
+export function mobileRegistryOf(graph: ImportGraph): MobileRegistry {
+    return mobileRegistry({
+        screensDir: `${MOBILE}/src/screens`,
+        registrars: [`${MOBILE}/src/navigation/`, `${MOBILE}/src/components/AuthGate.tsx`],
+        roots: [`${MOBILE}/App.tsx`, `${MOBILE}/app.config.ts`],
+        files: graph.files.filter((file) => file.startsWith(`${MOBILE}/`)),
+        importersOf: graph.importersOf,
+    });
+}
+
+async function mobileModel(repo: string, mergeBase: string | undefined, bindingsOf: BindingsOf): Promise<TierModel> {
+    const graph = await buildImportGraph(repo, MOBILE_PROFILE);
+    const registry = mobileRegistryOf(graph);
+    const flowFiles = globSync(`${MAESTRO_DIR}/**/*`, { cwd: repo }).sort();
+    const flows = maestroFlowGraph({
+        dir: MAESTRO_DIR,
+        files: flowFiles,
+        read: (path) => read(repo, path),
+        topLevel: plannedFlows(repo),
+    });
+    const table = parseCoverage(read(repo, FLOW_TABLE), FLOW_TABLE);
+    const tests = [...flows.tests.values()];
+    // A sub-flow (the sign-in flows) may carry a row: its screens belong to every flow that runs it, through the flow
+    // graph, so no flow names a screen a sub-flow already stands for.
+    const subflows = flowFiles.filter((file) => /\.ya?ml$/u.test(file) && !flows.tests.has(file)).map(flowIdOf);
+    const flowTerminals = { screenEntries: new Map(), roots: noRoots, tests: flows.tests };
+    const edited = changedRows(tableAt(repo, mergeBase, FLOW_TABLE), table).flatMap((id) =>
+        tests.includes(id) ? [id] : [...reach(flowFileOf(id), fileLevel(flows.importersOf), flowTerminals).tests],
+    );
+    const coverage = flowCoverage({ flows, table, idOf: flowIdOf, passThrough: MOBILE_PASS_THROUGH });
+
+    return {
+        name: 'mobile',
+        screens: registry.screens,
+        tests,
+        coverage,
+        shippingImportersOf: graph.importersOf,
+        belongsToOtherPlatform: (file) =>
+            file.startsWith(`${WEB}/`) ||
+            (!NATIVE_LEAF.test(file) &&
+                /\.([cm]?[jt]sx?)$/u.test(file) &&
+                graph.has(file.replace(/\.([cm]?[jt]sx?)$/u, '.native.$1'))),
+        reachFile: (file) => {
+            if (file === FLOW_TABLE) {
+                return { screens: new Set(), tests: new Set(edited), roots: [] };
+            }
+
+            return merge([
+                ...(graph.has(file)
+                    ? [
+                          reach(
+                              file,
+                              symbolStep({ ...graph, bindingsOf }),
+                              { ...registry.terminals, tests: new Map() },
+                              initialChange(bindingsOf(file)),
+                          ),
+                      ]
+                    : []),
+                ...(flows.has(file) ? [reach(file, fileLevel(flows.importersOf), flowTerminals)] : []),
+            ]);
+        },
+        problems: [
+            ...graph.problems,
+            ...flows.problems,
+            ...checkCoverage({ tests, optional: subflows, screens: registry.screens, table }).map(
+                (problem) => `${FLOW_TABLE}: ${problem}`,
+            ),
+        ],
+    };
+}
+
+/**
+ * Builds both tier models.
+ *
+ * @sideEffect Reads the repository, runs dependency-cruiser, and runs the Maestro runner's pure `plan` subcommand.
+ * @param repo - The repository root.
+ * @param mergeBase - The commit changes are measured from; lets a registry edit select just the rows it changed.
+ * @returns The models.
+ * @throws When a registry is missing or malformed: the caller falls back to the full suite.
+ */
+export async function loadRepoModels(repo: string, mergeBase?: string): Promise<Models> {
+    const bindingsOf = cachedBindings(repo);
+    const [web, mobile] = await Promise.all([
+        webModel(repo, mergeBase, bindingsOf),
+        mobileModel(repo, mergeBase, bindingsOf),
+    ]);
+
+    const packages = readWorkspaces(repo);
+    const testing = testingDirs(packages);
+    const serviceDirs = [
+        ...closureOf(packages, ['packages/services/*', 'packages/tools/e2e-fixtures', 'packages/tools/e2e-seed']),
+    ].sort();
+
+    return {
+        web,
+        mobile,
+        serviceDirs,
+        isTestSupport: (file) =>
+            isTestSupportCandidate(file, testing) &&
+            web.shippingImportersOf(file).length === 0 &&
+            mobile.shippingImportersOf(file).length === 0,
+    };
+}

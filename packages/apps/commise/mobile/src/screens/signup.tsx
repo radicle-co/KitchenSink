@@ -48,6 +48,7 @@ import { SocialSignInButtons } from '../components/auth/SocialSignInButtons.js';
 import { useSocialSignIn, type PendingSignUp } from '../hooks/useSocialSignIn.js';
 import { SignUpFields, type SignUpValues } from '../components/auth/SignUpFields.js';
 import { mobileMessages } from '../i18n/messages.js';
+import { useScreenTrace } from '../screenTrace/useScreenTrace.js';
 
 /** Every field the form shows, in the order it asks — so the first in error is the one that takes focus. */
 const FORM_FIELDS: readonly SignUpErrorField[] = [...SIGN_UP_FIELDS.map((field) => field.name), 'password'];
@@ -61,6 +62,7 @@ export interface SignUpScreenProps {
 }
 
 export function SignUpScreen({ onBack, onNeedsFields }: SignUpScreenProps): JSX.Element {
+    useScreenTrace('signup');
     const { auth: t } = useMessages(mobileMessages);
     const shared = useMessages(authSurfaceMessages);
     const { setActive } = useClerk();

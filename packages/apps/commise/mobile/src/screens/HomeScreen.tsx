@@ -20,6 +20,7 @@ import { StyleSheet, View } from 'react-native';
 
 import { HomeWidgetSurface } from '../components/home/HomeWidgetSurface.js';
 import { ProfileAvatarEntry } from '../navigation/ProfileAvatarEntry.js';
+import { useScreenTrace } from '../screenTrace/useScreenTrace.js';
 
 /** Props for {@link HomeScreen}. */
 export interface HomeScreenProps {
@@ -54,6 +55,7 @@ export function HomeScreen({
     onPasteIngredients,
     onFindOnDiscover,
 }: HomeScreenProps): JSX.Element {
+    useScreenTrace('HomeScreen');
     // The library's state, from the cache: the floating button yields while the recent recipes load, and on the first run
     // whose own start buttons take its place (§3.4). Offline or on a load error it shows.
     const createEntryYields = useHomeCreateEntryYields();

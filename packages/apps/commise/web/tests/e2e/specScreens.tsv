@@ -1,0 +1,116 @@
+# Which screens each Playwright spec passes through. One row per spec: the spec path under tests/e2e, a TAB, then
+# a comma-separated list of screens (a route of src/app/[locale]/, without the locale). `*` means any screen.
+#
+# A row must name EVERY screen the spec reaches, the ones it only passes through included. A screen missing from a
+# row is a screen whose change does not run that spec. Running too many is only slow; running too few is the
+# failure the selector exists to avoid. When unsure, list more screens, or use `*`.
+#
+# The guard (tests/e2eScreenRegistry.integration.test.ts) fails when a spec has no row, a row names no spec, a row
+# names a screen that does not exist, or a spec visits a route its row leaves out. It reads the paths a spec and
+# its test helpers navigate to (page.goto, route(), toHaveURL, waitForURL). It cannot see a screen reached by
+# CLICKING a link, so that part of a row is yours to keep honest.
+#
+# `*` rows below are specs whose navigation the guard cannot read (a path held in a variable).
+accountDangerZone.spec.ts	/, /profile, /sign-in/[[...sign-in]]
+addIngredientLoop.spec.ts	/, /recipes/[id], /recipes/[id]/edit, /recipes/new, /sign-in/[[...sign-in]]
+ambiguityReview.spec.ts	/, /recipes/[id], /recipes/[id]/edit, /sign-in/[[...sign-in]]
+authPages.spec.ts	/sign-in/[[...sign-in]], /sign-up/[[...sign-up]]
+authoredFoodCreate.spec.ts	/, /recipes/[id], /recipes/[id]/edit, /recipes/new, /sign-in/[[...sign-in]]
+bylineUsername.spec.ts	/, /discover, /profile, /recipes/[id], /sign-in/[[...sign-in]]
+cardGridAlignment.spec.ts	*
+cloneVisibility.spec.ts	/, /recipes/[id], /recipes/[id]/edit, /sign-in/[[...sign-in]]
+collectionHeaderReflow.spec.ts	/, /collections/[id], /sign-in/[[...sign-in]]
+collectionPicker.spec.ts	/, /collections/[id], /sign-in/[[...sign-in]]
+collections.spec.ts	/, /collections, /collections/[id], /sign-in/[[...sign-in]]
+collectionsFirstRunZoom.spec.ts	/, /collections, /sign-in/[[...sign-in]]
+colorScheme.spec.ts	/, /recipes/[id], /recipes/[id]/edit, /sign-in/[[...sign-in]]
+controlLabels.spec.ts	/, /collections, /collections/[id], /recipes, /recipes/[id], /sign-in/[[...sign-in]]
+createEntry.spec.ts	/, /recipes, /recipes/new, /sign-in/[[...sign-in]]
+cuisineField.spec.ts	/, /recipes/[id], /recipes/[id]/edit, /recipes/new, /sign-in/[[...sign-in]]
+dataSources.spec.ts	/, /legal/sources, /profile, /sign-in/[[...sign-in]]
+discoverNoResults.spec.ts	/, /discover, /sign-in/[[...sign-in]]
+discoverReflow.spec.ts	/, /discover, /sign-in/[[...sign-in]]
+headingOutline.spec.ts	/, /collections, /discover, /recipes, /sign-in/[[...sign-in]]
+home.spec.ts	/, /recipes, /sign-in/[[...sign-in]]
+homeNavCutover.spec.ts	/, /sign-in/[[...sign-in]]
+homeRecentRecipes.spec.ts	/, /recipes/[id], /recipes/new, /sign-in/[[...sign-in]]
+homeSeeAllClearsCreate.spec.ts	/, /sign-in/[[...sign-in]]
+horizontalScrollHint.spec.ts	/, /discover, /sign-in/[[...sign-in]]
+ingredientAddDetails.spec.ts	/, /recipes/[id], /recipes/[id]/edit, /recipes/new, /sign-in/[[...sign-in]]
+ingredientArrival.spec.ts	/, /recipes/[id]/edit, /recipes/new, /sign-in/[[...sign-in]]
+ingredientCatalogPick.spec.ts	/, /recipes/[id], /recipes/[id]/edit, /recipes/new, /sign-in/[[...sign-in]]
+ingredientFindNutrition.spec.ts	/, /recipes, /recipes/[id]/edit, /recipes/new, /sign-in/[[...sign-in]]
+ingredientGroups.spec.ts	/, /recipes/[id], /recipes/[id]/edit, /recipes/new, /sign-in/[[...sign-in]]
+ingredientListGeometry.spec.ts	/, /recipes/[id]/edit, /recipes/new, /sign-in/[[...sign-in]]
+ingredientNutritionPanel.spec.ts	/, /recipes/[id]/edit, /recipes/new, /sign-in/[[...sign-in]]
+ingredientPasteList.spec.ts	/, /recipes/[id]/edit, /recipes/new, /sign-in/[[...sign-in]]
+ingredientRemoteFoods.spec.ts	/, /recipes/[id], /recipes/[id]/edit, /recipes/new, /sign-in/[[...sign-in]]
+ingredientRemove.spec.ts	/, /recipes/[id], /recipes/[id]/edit, /recipes/new, /sign-in/[[...sign-in]]
+ingredientRowEditor.spec.ts	/, /recipes/[id], /recipes/[id]/edit, /recipes/new, /sign-in/[[...sign-in]]
+ingredientRowVariant.spec.ts	/, /recipes/[id]/edit, /recipes/new, /sign-in/[[...sign-in]]
+ingredientSearchDegraded.spec.ts	/, /recipes/[id]/edit, /recipes/new, /sign-in/[[...sign-in]]
+ingredientShortlistRow.spec.ts	/, /recipes/[id]/edit, /recipes/new, /sign-in/[[...sign-in]]
+ingredientSuggested.spec.ts	/, /recipes/[id]/edit, /recipes/new, /sign-in/[[...sign-in]]
+ingredientTypeahead.spec.ts	/, /recipes/[id], /recipes/[id]/edit, /recipes/new, /sign-in/[[...sign-in]]
+ingredientUnmatched.spec.ts	/, /recipes/[id]/edit, /recipes/new, /sign-in/[[...sign-in]]
+ingredientVariantSearch.spec.ts	/, /recipes/[id]/edit, /recipes/new, /sign-in/[[...sign-in]]
+layoutContainers.spec.ts	/, /sign-in/[[...sign-in]]
+mockupFidelity.spec.ts	*
+namelessLines.spec.ts	/, /recipes/[id], /recipes/[id]/versions, /sign-in/[[...sign-in]]
+notFound.spec.ts	*
+overhaulLayout.spec.ts	/, /collections, /discover, /recipes, /recipes/[id], /recipes/[id]/edit, /sign-in/[[...sign-in]]
+paidFeatureGate.spec.ts	*
+paidFeatureRoles.spec.ts	/, /recipes/new, /sign-in/[[...sign-in]]
+pasteMatchChecking.spec.ts	/, /recipes/[id]/edit, /recipes/new, /sign-in/[[...sign-in]]
+pasteMatchChoose.spec.ts	/, /recipes/[id]/edit, /recipes/new, /sign-in/[[...sign-in]]
+pasteMatchConfident.spec.ts	/, /recipes/[id]/edit, /recipes/new, /sign-in/[[...sign-in]]
+pasteMatchPane.spec.ts	/, /recipes/[id]/edit, /recipes/new, /sign-in/[[...sign-in]]
+pastePublishOpenChoices.spec.ts	/, /recipes/[id], /recipes/[id]/edit, /recipes/new, /sign-in/[[...sign-in]]
+profile.spec.ts	/, /profile, /sign-in/[[...sign-in]]
+profileSettings.spec.ts	*
+publishBlockedAsk.spec.ts	/, /recipes/[id], /recipes/[id]/edit, /recipes/new, /sign-in/[[...sign-in]]
+recentSearches.spec.ts	/, /discover, /sign-in/[[...sign-in]]
+recentSearchesSignOut.spec.ts	/, /discover, /profile, /sign-in/[[...sign-in]]
+recipeCalories.spec.ts	/, /recipes, /sign-in/[[...sign-in]]
+recipeConflict.spec.ts	/, /recipes/[id], /recipes/[id]/edit, /recipes/new, /sign-in/[[...sign-in]]
+recipeCrud.spec.ts	/, /recipes, /recipes/[id], /recipes/[id]/edit, /recipes/new, /sign-in/[[...sign-in]]
+recipeDetailCooking.spec.ts	/, /recipes/[id], /sign-in/[[...sign-in]]
+recipeDetailHero.spec.ts	/, /recipes/[id], /sign-in/[[...sign-in]]
+recipeDetailLineAlignment.spec.ts	/, /recipes/[id], /sign-in/[[...sign-in]]
+recipeDetailNutrition.spec.ts	/, /recipes/[id], /sign-in/[[...sign-in]]
+recipeEditor.spec.ts	/, /recipes, /recipes/[id], /recipes/[id]/edit, /recipes/new, /sign-in/[[...sign-in]]
+recipeEditorSession.spec.ts	/, /recipes, /recipes/[id], /recipes/[id]/edit, /recipes/new, /sign-in/[[...sign-in]]
+recipeFilterSheet.spec.ts	/, /discover, /sign-in/[[...sign-in]]
+recipeHomeResponsive.spec.ts	*
+recipeIngredientDetail.spec.ts	/, /legal/sources, /recipes, /recipes/[id], /recipes/[id]/edit, /recipes/new, /sign-in/[[...sign-in]]
+recipeListChips.spec.ts	/, /recipes, /sign-in/[[...sign-in]]
+recipeListEmptyStates.spec.ts	/, /recipes, /recipes/new, /sign-in/[[...sign-in]]
+recipeListRefresh.spec.ts	/, /recipes, /sign-in/[[...sign-in]]
+recipeListSegments.spec.ts	/, /collections, /recipes, /sign-in/[[...sign-in]]
+recipeLive.spec.ts	/, /recipes, /sign-in/[[...sign-in]]
+recipeMealTypeAndReview.spec.ts	/, /recipes/[id], /recipes/[id]/edit, /recipes/new, /sign-in/[[...sign-in]]
+recipeOwnerActions.spec.ts	/, /recipes, /recipes/[id], /recipes/[id]/edit, /recipes/[id]/versions, /sign-in/[[...sign-in]]
+recipePhotos.spec.ts	/, /recipes/[id], /recipes/[id]/edit, /recipes/new, /sign-in/[[...sign-in]]
+recipeQuantityRange.spec.ts	/, /recipes, /recipes/[id], /recipes/[id]/edit, /recipes/new, /sign-in/[[...sign-in]]
+recipeRating.spec.ts	/, /recipes/[id], /sign-in/[[...sign-in]]
+recipeSourceAndScale.spec.ts	/, /recipes/[id], /sign-in/[[...sign-in]]
+recipeStepTimer.spec.ts	/, /recipes/[id], /recipes/[id]/edit, /recipes/new, /sign-in/[[...sign-in]]
+recipeUnsavedChangesGuard.spec.ts	/, /recipes/[id], /recipes/[id]/edit, /sign-in/[[...sign-in]]
+recipeViewSetting.spec.ts	*
+routeProtection.spec.ts	*
+saveACopy.spec.ts	/, /collections/[id], /discover, /recipes, /recipes/[id], /recipes/[id]/edit, /sign-in/[[...sign-in]]
+search.spec.ts	/, /discover, /recipes, /sign-in/[[...sign-in]]
+searchShortcut.spec.ts	*
+sessionHandoff.spec.ts	/, /profile, /recipes, /sign-in/[[...sign-in]]
+shellNavigation.spec.ts	/, /recipes, /sign-in/[[...sign-in]]
+shellOffline.spec.ts	/, /recipes, /sign-in/[[...sign-in]]
+signIn.spec.ts	/, /collections, /profile, /sign-in/[[...sign-in]]
+signOut.spec.ts	/, /profile, /sign-in/[[...sign-in]]
+signUp.spec.ts	/, /sign-in/[[...sign-in]], /sign-up/[[...sign-up]]
+ssrPrefetch.spec.ts	/, /collections, /discover, /recipes, /recipes/[id], /sign-in/[[...sign-in]]
+surfaceToneCascade.spec.ts	/, /recipes, /sign-in/[[...sign-in]]
+unreadableWorkNotice.spec.ts	/, /recipes/[id]/edit, /recipes/new, /sign-in/[[...sign-in]]
+variantDetailsDialogFooter.spec.ts	/, /recipes/[id]/edit, /recipes/new, /sign-in/[[...sign-in]]
+variantSurfaceReflow.spec.ts	/, /discover, /recipes/[id], /recipes/[id]/edit, /recipes/[id]/versions, /recipes/new, /sign-in/[[...sign-in]]
+versions.spec.ts	/, /recipes/[id], /recipes/[id]/versions, /sign-in/[[...sign-in]]
+visualRegression.spec.ts	*

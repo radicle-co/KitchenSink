@@ -10,6 +10,10 @@
  *   same shape as `LOCAL_SUPPORT`; an undecided consumer is refused, never skipped
  */
 
+import { existsSync, readFileSync } from 'node:fs';
+
+import { z } from 'zod';
+
 import { resolveImport } from './awsResources.js';
 import type { SsmParameterMap } from './runPlan.js';
 
@@ -303,19 +307,54 @@ export function consumerEnvironment(
     return { ...env };
 }
 
+/** Where `local:up` writes the consumer plan, relative to the checkout that runs the stack. */
+export const CONSUMER_PLAN_RELATIVE = '.local-sandbox/queueConsumers.json';
+
 /** One consumer as `local:up` persists it for `bin/queueConsumer.ts` — everything the driver needs, resolved. */
-export interface PersistedConsumer {
+const persistedConsumerSchema = z.object({
     /** The handler module's base name, e.g. `accountErasureWorker` — what the runner names it by. */
-    readonly name: string;
-    readonly handler: string;
+    name: z.string().min(1),
+    handler: z.string(),
     /** Absolute path of the copied asset. */
-    readonly bundleDir: string;
-    readonly module: string;
-    readonly exportName: string;
+    bundleDir: z.string(),
+    module: z.string(),
+    exportName: z.string(),
     /** The queue's HOST url (`http://localhost:4566/...`). */
-    readonly queueUrl: string;
-    readonly batchSize: number;
-    readonly reportsBatchItemFailures: boolean;
-    readonly timeoutSeconds: number;
-    readonly environment: Readonly<Record<string, string>>;
+    queueUrl: z.string().min(1),
+    batchSize: z.number(),
+    reportsBatchItemFailures: z.boolean(),
+    timeoutSeconds: z.number(),
+    environment: z.record(z.string(), z.string()),
+});
+
+export type PersistedConsumer = Readonly<z.infer<typeof persistedConsumerSchema>>;
+
+/**
+ * Reads the consumer plan `local:up` wrote, the one reader every consumer of the file uses.
+ *
+ * @sideEffect Reads the file.
+ * @param file - The plan's path.
+ * @returns The consumers.
+ * @throws When the file is missing, is not JSON, or holds a consumer of another shape: the error names the file.
+ */
+export function readConsumerPlan(file: string): readonly PersistedConsumer[] {
+    if (!existsSync(file)) {
+        throw new Error(`no queue-consumer plan at ${file} - run \`npm run local:up\` first`);
+    }
+
+    let json: unknown;
+
+    try {
+        json = JSON.parse(readFileSync(file, 'utf8'));
+    } catch {
+        throw new Error(`the queue-consumer plan ${file} is not JSON - run \`npm run local:up\` again`);
+    }
+
+    const parsed = z.array(persistedConsumerSchema).safeParse(json);
+
+    if (!parsed.success) {
+        throw new Error(`the queue-consumer plan ${file} is not a list of consumers: ${z.prettifyError(parsed.error)}`);
+    }
+
+    return parsed.data;
 }

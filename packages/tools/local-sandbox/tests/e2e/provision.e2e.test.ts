@@ -19,7 +19,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { ListQueuesCommand, SQSClient } from '@aws-sdk/client-sqs';
-import { beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 const REPO_ROOT = fileURLToPath(new URL('../../../../../', import.meta.url));
 const RECIPE_PORT = process.env['LOCAL_RECIPE_PORT'] ?? '3000';
@@ -45,6 +45,8 @@ function tsx(script: string, args: readonly string[], env: Readonly<Record<strin
 
 let lane: Record<string, string>;
 let stateDir: string;
+/** The run's record of the erasure subject it made; `afterAll` deletes that id and no other (owner ruling 2026-11-07). */
+let runUsers = '';
 
 beforeAll(async () => {
     required('CLERK_SECRET_KEY');
@@ -74,6 +76,25 @@ beforeAll(async () => {
         E2E_SEED_WEB_ORIGIN: 'http://localhost:3000',
         E2E_SEED_STATE_DIR: stateDir,
     };
+    runUsers = path.join(stateDir, 'runUsers.android.json');
+});
+
+afterAll(() => {
+    // `beforeAll` threw before the record was named, so the suite made no user.
+    if (runUsers === '') {
+        return;
+    }
+
+    const deleted = tsx(
+        'packages/tools/e2e-fixtures/src/runUsers.ts',
+        ['--delete-run-users', '--record', runUsers],
+        lane,
+    );
+
+    expect(
+        deleted.status,
+        `the run erasure subject was not deleted - its id stays in ${runUsers}\n${deleted.stderr}`,
+    ).toBe(0);
 });
 
 describe('the erasure plumbing local:up creates', () => {
@@ -90,7 +111,11 @@ describe('e2e-seed provision against the local stack', () => {
         const steps: readonly [string, readonly string[]][] = [
             [
                 'packages/tools/e2e-fixtures/src/poolAdmin.ts',
-                ['--apply', '--recycle', '--maestro-lane', '--platform', 'android', '--shard', '1'],
+                ['--apply', '--maestro-lane', '--platform', 'android', '--shard', '1'],
+            ],
+            [
+                'packages/tools/e2e-fixtures/src/runUsers.ts',
+                ['--create-run-erasure-subject', '--platform', 'android', '--record', runUsers],
             ],
             [
                 'packages/tools/e2e-seed/src/resetPool.ts',

@@ -272,7 +272,7 @@ describe.each(maestroJobs())('%s re-proves liveness inside its own job', (_, job
         // or redeploying service as "down" and turned a real defect into a skip. It now asks `stopped`, the stop's own
         // facts (`deployedSandboxLiveness.test.ts` holds the verdict table), so it needs no origins at all.
         const runStep = maestroJob()?.steps?.find((step) =>
-            /runMaestroFlows\.sh/u.test(step.run ?? step.with?.['script'] ?? ''),
+            /e2e:maestro/u.test(step.run ?? step.with?.['script'] ?? ''),
         );
         const env = runStep?.env ?? {};
 

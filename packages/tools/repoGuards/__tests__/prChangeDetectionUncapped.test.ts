@@ -56,10 +56,7 @@ const PULL_REQUEST_REACHABLE = new Set(['pull_request', 'pull_request_target', '
  * Filters that stay on the capped API by decision, keyed `<workflow file>#<job>`, each with the reason a missed match
  * is harmless there.
  */
-const CAPPED_BY_DECISION: Readonly<Record<string, string>> = {
-    '_ci.yml#detect-mobile-flows':
-        'a missed match attributes no vertical, and runMaestroFlows.sh then runs the whole suite — never less coverage',
-};
+const CAPPED_BY_DECISION: Readonly<Record<string, string>> = {};
 
 /**
  * The trigger names of a workflow's `on:` block, in any of its three YAML shapes.

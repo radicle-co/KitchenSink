@@ -19,7 +19,12 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { buildAppConfig, SOCIAL_AUTH_BY_CLERK_INSTANCE } from '../app.config.js';
+import {
+    buildAppConfig,
+    cleartextLoopbackHosts,
+    releaseNetworkSecurityXml,
+    SOCIAL_AUTH_BY_CLERK_INSTANCE,
+} from '../app.config.js';
 
 /** A publishable key for a Clerk frontend-API host, built the way Clerk encodes one (`pk_<type>_` + base64(host + '$')). */
 function publishableKey(type: 'test' | 'live', host: string): string {
@@ -217,5 +222,62 @@ describe('social sign-in config per Clerk instance', () => {
         'EXPO_PUBLIC_CLERK_GOOGLE_ANDROID_CLIENT_ID',
     ])('REFUSES %s in the environment: the plugin reads env first, the hook reads extra first', (name) => {
         expect(() => configFor(SANDBOX_KEY, { [name]: 'x.apps.googleusercontent.com' })).toThrow(name);
+    });
+});
+
+/**
+ * ⛔ A local lane's test app is a RELEASE build that talks to the local services over plain HTTP on loopback, through
+ * `adb reverse`, and Android blocks cleartext in a release build by default (targetSdk 28+). So a build whose baked-in
+ * origins are http on loopback, and ONLY such a build, permits cleartext for exactly those hosts in its release variant;
+ * an https build (every shipping and CI build) is unchanged, and http to anything but loopback is refused at prebuild.
+ */
+describe('cleartext for a loopback test app', () => {
+    const LOCAL = {
+        EXPO_PUBLIC_RECIPE_API_URL: 'http://localhost:3000',
+        EXPO_PUBLIC_IDENTITY_API_URL: 'http://localhost:3001',
+        EXPO_PUBLIC_FOOD_API_URL: 'http://localhost:3002',
+    };
+    const DEPLOYED = {
+        EXPO_PUBLIC_RECIPE_API_URL: 'https://recipe-pr-1.commise.app',
+        EXPO_PUBLIC_IDENTITY_API_URL: 'https://identity.sandbox.commise.app',
+        EXPO_PUBLIC_FOOD_API_URL: 'https://food-pr-1.commise.app',
+    };
+    /** The Android mods a config carries: only an applied plugin adds any (the `plugins` list runs at prebuild). */
+    const androidMods = (env: Record<string, string>) =>
+        Object.keys(configFor(SANDBOX_KEY, env).mods?.android ?? {}).sort();
+
+    it('names the loopback hosts of http origins, once each', () => {
+        expect(cleartextLoopbackHosts(LOCAL)).toEqual(['localhost']);
+        expect(cleartextLoopbackHosts({ ...LOCAL, EXPO_PUBLIC_FOOD_API_URL: 'http://127.0.0.1:3002' })).toEqual([
+            '127.0.0.1',
+            'localhost',
+        ]);
+    });
+
+    it('names none for https origins, or none at all', () => {
+        expect(cleartextLoopbackHosts(DEPLOYED)).toEqual([]);
+        expect(cleartextLoopbackHosts({})).toEqual([]);
+    });
+
+    it.each([['http://10.0.0.5:3000'], ['http://example.com'], ['http://localhost.evil.com']])(
+        'refuses cleartext to %s, which is not loopback',
+        (origin) => {
+            expect(() => cleartextLoopbackHosts({ ...LOCAL, EXPO_PUBLIC_RECIPE_API_URL: origin })).toThrow(/loopback/u);
+        },
+    );
+
+    it('applies the plugin to a loopback build, and to no https build', () => {
+        expect(androidMods(LOCAL)).toEqual(['dangerous', 'manifest']);
+        expect(androidMods(DEPLOYED)).toEqual([]);
+    });
+
+    it('permits cleartext in the release variant for exactly the named hosts, and nowhere else', () => {
+        const xml = releaseNetworkSecurityXml(['localhost']);
+
+        expect(xml).toMatch(/<base-config cleartextTrafficPermitted="false"/u);
+        expect(xml).toMatch(
+            /<domain-config cleartextTrafficPermitted="true">\s*<domain includeSubdomains="false">localhost<\/domain>\s*<\/domain-config>/u,
+        );
+        expect(xml.match(/<domain /gu)).toHaveLength(1);
     });
 });

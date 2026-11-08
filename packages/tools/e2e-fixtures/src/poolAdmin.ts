@@ -3,8 +3,9 @@
  *
  * ## ⛔ The only writer in test tooling
  *
- * This is the ONLY code in test tooling that creates a Clerk user or writes `public_metadata`
- * (`runtimeUserCreation.test.ts` and `metadataSingleWriter.test.ts` hold every other file to that). Outside test
+ * This is the ONLY code in test tooling that writes `public_metadata`, and with `runUsers.ts` (a local run's own erasure
+ * subject, through this module's port) the only code that creates a Clerk user (`runtimeUserCreation.test.ts` and
+ * `metadataSingleWriter.test.ts` hold every other file to that). Outside test
  * tooling exactly one other writer exists, by owner ruling 2026-10-13: the identity webhook merges `roles: ['default']`
  * into a NEW user that has no `roles` key. It never touches a user this command created, because every slot is
  * created with its `roles` in the same call (`poolSlotMetadata`). A test LEASES a
@@ -19,11 +20,11 @@
  * ⛔ AMENDED by owner ruling 2026-10-08: **the pool refills itself before each Maestro run.** The Maestro job (Android
  * and iOS, sandbox tenant only) runs this command right before it provisions, as
  * `poolAdmin.ts --apply --maestro-erasure --platform P --shard N`, which reconciles ONLY the erasure subjects that
- * platform's shard may lease (`maestroErasureSlots` — that platform's five for its erasure shard, none for any other). So a run now tops the pool up, but
+ * platform's shard may lease (`maestroErasureSlots` — that platform's one subject for its erasure shard, none for any other). So a run now tops the pool up, but
  * only through this module, the single writer; the tests themselves still never create a user, and every other slot
  * is still provisioned only by the owner's full run. The reason: each real erasure destroys its subject, the flow
  * runs on every Maestro run and both platforms, and a pool replenished only by hand ran dry
- * (`all 5 consumable slots are consumed`, both platforms, 2026-10-08). This paragraph is the one statement of the
+ * (`all 5 consumable slots are consumed`, both platforms, 2026-10-08; the pool has since been trimmed to one subject per platform, 2026-11-06). This paragraph is the one statement of the
  * amendment; everything else cites it.
  *
  * ## What it does
@@ -97,6 +98,7 @@ import { pathToFileURL } from 'node:url';
 
 import { ulid } from 'ulidx';
 import { createClerkClient } from '@clerk/backend';
+import { isClerkAPIResponseError } from '@clerk/backend/errors';
 
 import { withClerkBackendRetry } from './clerkSession.js';
 import { awaitExternalId, EXTERNAL_ID_DEADLINE_MS, EXTERNAL_ID_POLL_MS } from './externalId.js';
@@ -105,8 +107,10 @@ import {
     DEFAULT_POOL_PHASE,
     MAESTRO_PLATFORMS,
     isLocalNamespaceSlot,
+    isMaestroPlatform,
     knownPoolAddresses,
     maestroErasureSlots,
+    maestroShardCapacity,
     maestroSlotForShard,
     POOL_PASSWORD,
     poolNamespaceFrom,
@@ -155,7 +159,9 @@ export interface PoolAdminPort {
      * that cannot count is REFUSED for such a run rather than treated as having room.
      */
     readonly countUsers?: () => Promise<number>;
-    /** Delete a user. Used only to recycle a local-namespace run's consumable subjects (see {@link reconcilePool}). */
+    /** One user by id, or `undefined` when Clerk holds no user with that id. Read before a run deletes a user it recorded. */
+    readonly findUserById?: (userId: string) => Promise<ObservedPoolUser | undefined>;
+    /** Delete a user by id: a local run's recorded erasure subject (`runUsers.ts`), or a dispatched k6 run's users. */
     readonly deleteUser?: (userId: string) => Promise<void>;
     /** Re-state a user's username and names, which makes Clerk emit `user.updated`. Never touches metadata. */
     readonly reassertProfile: (userId: string, profile: PoolProfileReassert) => Promise<void>;
@@ -232,9 +238,9 @@ export type PoolScope =
      */
     | { readonly kind: 'maestroErasure'; readonly platform: MaestroPlatform; readonly shard: number }
     /**
-     * Everything one local Maestro lane signs in: its signer, its co-author and, on the platform's erasure shard, its
-     * FIRST erasure subject (see {@link poolScopeOptions}). Only for the local namespace (`main` refuses it otherwise): the shared pool's signers are the
-     * owner's, provisioned by the owner's whole-roster run.
+     * One local Maestro lane's standing users: its signer and its co-author. Never its erasure subject, which only the run
+     * that records its id makes (`runUsers.ts`). Only for the local namespace (`main` refuses it otherwise): the shared
+     * pool's signers are the owner's, provisioned by the owner's whole-roster run.
      */
     | { readonly kind: 'maestroLane'; readonly platform: MaestroPlatform; readonly shard: number }
     /**
@@ -243,7 +249,13 @@ export type PoolScope =
      * {@link PoolCapacity}). The downgraded owner is created premium, as in the whole-roster run; its world is built by
      * `e2e-seed`'s `ensure-downgraded`.
      */
-    | { readonly kind: 'localRoles' };
+    | { readonly kind: 'localRoles' }
+    /**
+     * The k6 tier's eleven users (alfa..juliett and admin), made at the start of a DISPATCHED load test and deleted at its
+     * end (owner ruling 2026-11-06, which reverses the 2026-09-13 fixed-pool rule for k6 only). The SHARED namespace: they
+     * are the tier's own users for the run's length, and `refuseUnsafeScope` refuses the local one.
+     */
+    | { readonly kind: 'k6Run' };
 
 /** Whether a reconciliation lists the whole instance to report drift. */
 export type DriftAudit = 'audit' | 'skip';
@@ -267,15 +279,17 @@ export function poolScopeOptions(scope: PoolScope): {
                 drift: 'skip',
                 profile: 'leave',
             };
+        case 'k6Run':
+            return {
+                slots: rosterSlots().filter((slot) => slot.tier === 'k6'),
+                drift: 'skip',
+                profile: 'leave',
+            };
         case 'maestroLane':
             return {
                 slots: [
                     maestroSlotForShard('signer', scope.platform, scope.shard),
                     maestroSlotForShard('coauthor', scope.platform, scope.shard),
-                    // ONE erasure subject, not the five: the lane recycles it, so the first one standing is always the
-                    // one just made and the lease takes it. Five would spend four of the Clerk development instance's
-                    // 100 users (a hard cap CI's pool already sits near) on subjects nothing leases.
-                    ...maestroErasureSlots(scope.platform, scope.shard).slice(0, 1),
                 ],
                 drift: 'skip',
                 profile: 'leave',
@@ -302,6 +316,20 @@ export function refuseUnsafeScope(scope: PoolScope, local: boolean): void {
         );
     }
 
+    // A local subject made here would be one no run recorded, so no run could ever delete it (owner ruling 2026-11-07).
+    if (scope.kind === 'maestroErasure' && local) {
+        throw new Error(
+            "poolAdmin: --maestro-erasure refills CI's shared erasure subjects - a local run makes its own through " +
+                '--create-run-erasure-subject, which records the id it must delete',
+        );
+    }
+
+    if (scope.kind === 'k6Run' && local) {
+        throw new Error(
+            "poolAdmin: --k6-run makes the shared pool's k6 users for a dispatched load test - unset E2E_POOL_NAMESPACE",
+        );
+    }
+
     if (scope.kind === 'localRoles' && !local) {
         throw new Error(
             "poolAdmin: --local-roles makes the local namespace's role users - set E2E_POOL_NAMESPACE=local",
@@ -315,8 +343,8 @@ export interface PoolAdminArgs {
     /** `settled` only with `--settle-downgraded`; see {@link planPool}. */
     readonly phase: PoolPhase;
     readonly scope: PoolScope;
-    /** `--recycle`: delete the scope's consumable users first, so a local run starts from subjects it has just made. */
-    readonly recycle?: true;
+    /** `--delete` (with `--k6-run`): DELETE the k6 run's users instead of making them; see {@link deleteK6RunUsers}. */
+    readonly deleteRun?: true;
 }
 
 /** Node's own strict argv parser: an unknown option or a stray positional throws. Pure. */
@@ -331,7 +359,8 @@ function readPoolAdminArgv(argv: readonly string[]) {
             'maestro-erasure': { type: 'boolean' },
             'maestro-lane': { type: 'boolean' },
             'local-roles': { type: 'boolean' },
-            recycle: { type: 'boolean' },
+            'k6-run': { type: 'boolean' },
+            delete: { type: 'boolean' },
             platform: { type: 'string' },
             shard: { type: 'string' },
             'settle-downgraded': { type: 'boolean' },
@@ -372,20 +401,39 @@ export function parsePoolAdminArgs(argv: readonly string[]): PoolAdminArgs {
     }
 
     const lane = parsed.values['maestro-lane'] === true;
-    const recycle = parsed.values.recycle === true;
+    const k6Run = parsed.values['k6-run'] === true;
+    const deleteRun = parsed.values.delete === true;
 
-    if (recycle && !erasure && !lane) {
+    if (deleteRun && !k6Run) {
         throw new Error(
-            'poolAdmin: --recycle applies to the consumable users of a --maestro-erasure or --maestro-lane run',
+            'poolAdmin: --delete applies only to a --k6-run (a local Maestro run deletes its own subject with --delete-run-users)',
         );
+    }
+
+    if (k6Run) {
+        if (
+            lane ||
+            erasure ||
+            phase === 'settled' ||
+            shard !== undefined ||
+            platform !== undefined ||
+            parsed.values['local-roles'] === true
+        ) {
+            throw new Error(
+                'poolAdmin: --k6-run stands alone - it takes no --maestro-lane, --maestro-erasure, ' +
+                    '--local-roles, --settle-downgraded, --platform or --shard',
+            );
+        }
+
+        return { apply, phase, scope: { kind: 'k6Run' }, ...(deleteRun ? { deleteRun: true as const } : {}) };
     }
 
     const localRoles = parsed.values['local-roles'] === true;
 
     if (localRoles) {
-        if (lane || erasure || recycle || phase === 'settled' || shard !== undefined || platform !== undefined) {
+        if (lane || erasure || phase === 'settled' || shard !== undefined || platform !== undefined) {
             throw new Error(
-                'poolAdmin: --local-roles stands alone - it takes no --maestro-lane, --maestro-erasure, --recycle, ' +
+                'poolAdmin: --local-roles stands alone - it takes no --maestro-lane, --maestro-erasure, ' +
                     '--settle-downgraded, --platform or --shard',
             );
         }
@@ -394,7 +442,7 @@ export function parsePoolAdminArgs(argv: readonly string[]): PoolAdminArgs {
     }
 
     if (lane && erasure) {
-        throw new Error('poolAdmin: --maestro-lane already includes the erasure subjects; give one of the two');
+        throw new Error('poolAdmin: --maestro-lane and --maestro-erasure are separate scopes; give one of the two');
     }
 
     if (!erasure && !lane) {
@@ -437,13 +485,100 @@ export function parsePoolAdminArgs(argv: readonly string[]): PoolAdminArgs {
     return {
         apply,
         phase,
-        ...(recycle ? { recycle: true as const } : {}),
         scope: { kind: lane ? 'maestroLane' : 'maestroErasure', platform, shard: Number(shard) },
     };
 }
 
-const isMaestroPlatform = (value: string): value is MaestroPlatform =>
-    MAESTRO_PLATFORMS.some((platform) => platform === value);
+/**
+ * Read `--list-local-lanes --platform <p>`, which takes nothing else. Pure.
+ *
+ * It is its own command line, not a scope of {@link parsePoolAdminArgs}: it reconciles nothing, so no flag that writes
+ * may ride along with it.
+ *
+ * @throws On any other argument, or a platform that is not `android` or `ios`.
+ */
+export function parseListLocalLanesArgs(argv: readonly string[]): { readonly platform: MaestroPlatform } {
+    let parsed;
+
+    try {
+        parsed = parseArgs({
+            args: [...argv],
+            strict: true,
+            allowPositionals: false,
+            options: { 'list-local-lanes': { type: 'boolean' }, platform: { type: 'string' } },
+        });
+    } catch (error) {
+        throw new Error(`poolAdmin: ${error instanceof Error ? error.message : String(error)}`, { cause: error });
+    }
+
+    const platform = parsed.values.platform;
+
+    if (parsed.values['list-local-lanes'] !== true || platform === undefined || !isMaestroPlatform(platform)) {
+        throw new Error(
+            `poolAdmin: --list-local-lanes needs --platform ${MAESTRO_PLATFORMS.join('|')} and nothing else`,
+        );
+    }
+
+    return { platform };
+}
+
+/** Which local Maestro lanes of one platform have their Clerk users. */
+export interface LocalLaneReport {
+    readonly lanes: readonly { readonly index: number; readonly signer: boolean; readonly coauthor: boolean }[];
+    /** Lanes counted from 1 while both users exist: lane `k` runs as shard `k`, so the first gap ends it. */
+    readonly present: number;
+    /** Whether the platform's erasure subject, which lane 1 leases, exists. */
+    readonly erasureSubject: boolean;
+}
+
+/**
+ * List a platform's LOCAL Maestro lanes. Reads Clerk and writes nothing: a lane run counts its lanes with this and never
+ * makes a lane user (adding a lane is the owner's `--apply --maestro-lane` run).
+ *
+ * @sideEffect Reads Clerk users through the port.
+ * @throws When the local namespace is not active, before any read.
+ */
+export async function listLocalLanes(
+    port: Pick<PoolAdminPort, 'findUsers'>,
+    platform: MaestroPlatform,
+): Promise<LocalLaneReport> {
+    if (poolNamespaceFrom(process.env) !== 'local') {
+        throw new Error('poolAdmin: --list-local-lanes lists the local lanes - set E2E_POOL_NAMESPACE=local');
+    }
+
+    const exists = async (email: string): Promise<boolean> => (await port.findUsers(email)).length > 0;
+    const lanes = [];
+
+    for (let index = 1; index <= maestroShardCapacity(platform); index += 1) {
+        lanes.push({
+            index,
+            signer: await exists(maestroSlotForShard('signer', platform, index).email),
+            coauthor: await exists(maestroSlotForShard('coauthor', platform, index).email),
+        });
+    }
+
+    const gap = lanes.findIndex((lane) => !lane.signer || !lane.coauthor);
+    const subject = maestroErasureSlots(platform, 1)[0];
+
+    return {
+        lanes,
+        present: gap === -1 ? lanes.length : gap,
+        erasureSubject: subject !== undefined && (await exists(subject.email)),
+    };
+}
+
+/** One line per lane, the erasure subject, then `lanes=<present>`. Pure. */
+export function describeLocalLanes(report: LocalLaneReport): readonly string[] {
+    const state = (present: boolean): string => (present ? 'present' : 'missing');
+
+    return [
+        ...report.lanes.map(
+            (lane) => `lane ${lane.index} signer=${state(lane.signer)} coauthor=${state(lane.coauthor)}`,
+        ),
+        `erasure-subject=${state(report.erasureSubject)}`,
+        `lanes=${report.present}`,
+    ];
+}
 
 const sameList = (actual: unknown, desired: readonly string[]): boolean =>
     Array.isArray(actual) &&
@@ -537,6 +672,15 @@ export function poolUserCreateInput(slot: PoolSlot, randomPassword: string): Poo
         // ⛔ ALWAYS the seeding roles: a downgraded owner created as `default` could never have its private world written.
         publicMetadata: poolSlotMetadata(slot, 'seeding'),
     };
+}
+
+/**
+ * A password nobody holds, for a slot that signs in only by ticket. It meets the instance's character classes.
+ *
+ * @sideEffect Reads the system's randomness.
+ */
+export function randomPoolPassword(): string {
+    return `Pp1!${randomBytes(24).toString('base64url')}`;
 }
 
 /**
@@ -666,13 +810,6 @@ export async function reconcilePool(
          */
         readonly externalId?: { readonly mint: () => string };
         /**
-         * `consumables`: before anything else, delete the users of every CONSUMABLE slot in scope (an erasure subject), so the
-         * run starts from subjects it makes itself. For the LOCAL namespace only: the deployed refill relies on the identity
-         * deletion worker having deleted an erased subject from Clerk, and the local stack runs none. Only the slots handed
-         * in are touched, and nothing is deleted on a dry run.
-         */
-        readonly recycle?: 'consumables';
-        /**
          * Refuse, before the first write, when creating every missing user would take the instance past `limit`. Needs a
          * port that can `countUsers`.
          */
@@ -683,11 +820,6 @@ export async function reconcilePool(
     },
 ): Promise<PoolReport> {
     const slots = options.slots ?? rosterSlots();
-
-    if (options.recycle === 'consumables' && options.apply) {
-        await deleteConsumableHolders(port, slots);
-    }
-
     const holders = await observeSlots(port, slots);
     const phase = options.phase ?? DEFAULT_POOL_PHASE;
     const plan = planPool(slots, holders, options.drift === 'audit' ? await port.listUsers() : [], phase);
@@ -761,21 +893,51 @@ export async function reconcilePool(
 }
 
 /**
- * Delete every user that holds the address of a consumable slot.
+ * Delete the users of the k6 tier at the end of a dispatched load test, and create nothing.
  *
- * @sideEffect One Backend API read per consumable slot and one delete per user found.
- * @throws When the port cannot delete.
+ * ⛔ As narrow as the creation door. Every slot is checked BEFORE the first lookup: it must belong to the `k6` tier and
+ * carry the SHARED address, so a signer, an erasure subject, a web or role user, or a local copy is refused. It admits
+ * shared users because the k6 tier's users are made for the run and are nobody else's.
+ *
+ * @param port - Must be able to `deleteUser`.
+ * @param slots - The slots whose holders to delete.
+ * @param apply - `false` only names who would go.
+ * @returns The ids deleted (or, on a dry run, that would be).
+ * @throws On a slot that is not a shared k6 slot, or a port that cannot delete.
+ * @sideEffect One Backend API read per slot and, with `apply`, one delete per user found.
  */
-async function deleteConsumableHolders(port: PoolAdminPort, slots: readonly PoolSlot[]): Promise<void> {
-    if (port.deleteUser === undefined) {
-        throw new Error('poolAdmin: recycling consumable users needs a port with deleteUser');
-    }
+export async function deleteK6RunUsers(
+    port: Pick<PoolAdminPort, 'findUsers' | 'deleteUser'>,
+    slots: readonly PoolSlot[],
+    apply: boolean,
+): Promise<readonly string[]> {
+    for (const slot of slots) {
+        if (slot.tier !== 'k6') {
+            throw new Error(`poolAdmin: ${slot.tier}/${slot.id} is not a k6 slot, so a k6 run does not delete it`);
+        }
 
-    for (const slot of slots.filter((candidate) => candidate.consumable)) {
-        for (const holder of await port.findUsers(slot.email)) {
-            await port.deleteUser(holder.id);
+        if (isLocalNamespaceSlot(slot)) {
+            throw new Error(`poolAdmin: k6/${slot.id} is a local-namespace copy, not the shared k6 user a run makes`);
         }
     }
+
+    if (port.deleteUser === undefined) {
+        throw new Error('poolAdmin: deleting the k6 run users needs a port with deleteUser');
+    }
+
+    const ids: string[] = [];
+
+    for (const slot of slots) {
+        for (const holder of await port.findUsers(slot.email)) {
+            if (apply) {
+                await port.deleteUser(holder.id);
+            }
+
+            ids.push(holder.id);
+        }
+    }
+
+    return ids;
 }
 
 /**
@@ -947,6 +1109,18 @@ export function clerkPoolAdminPort(
         writeExternalId: async (userId, externalId) => {
             await backend(() => clerk.users.updateUser(userId, { externalId }));
         },
+        findUserById: async (userId) => {
+            try {
+                return observe(await backend(() => clerk.users.getUser(userId)));
+            } catch (error) {
+                // Only Clerk's own "no such user" means absent; any other failure must not read as "already gone".
+                if (isClerkAPIResponseError(error) && error.status === 404) {
+                    return undefined;
+                }
+
+                throw error;
+            }
+        },
         deleteUser: async (userId) => {
             await backend(() => clerk.users.deleteUser(userId));
         },
@@ -980,7 +1154,10 @@ export function describeReport(report: PoolReport): readonly string[] {
  * @sideEffect Reads the environment, calls Clerk, writes to stdout/stderr, and sets the exit code.
  */
 async function main(): Promise<void> {
-    const args = parsePoolAdminArgs(process.argv.slice(2));
+    const argv = process.argv.slice(2);
+    const command = argv.includes('--list-local-lanes')
+        ? ({ kind: 'list', ...parseListLocalLanesArgs(argv) } as const)
+        : ({ kind: 'reconcile', args: parsePoolAdminArgs(argv) } as const);
     const secretKey = process.env['CLERK_SECRET_KEY'] ?? '';
 
     if (secretKey.trim() === '') {
@@ -990,14 +1167,18 @@ async function main(): Promise<void> {
     // Built FIRST, whatever the scope: it is what refuses a non-development key, and a refill that has nothing to
     // do must still refuse to hold a production one.
     const port = clerkPoolAdminPort(secretKey);
+
+    if (command.kind === 'list') {
+        for (const line of describeLocalLanes(await listLocalLanes(port, command.platform))) {
+            console.log(line);
+        }
+
+        return;
+    }
+
+    const { args } = command;
     const scoped = poolScopeOptions(args.scope);
     const local = poolNamespaceFrom(process.env) === 'local';
-
-    if (args.recycle && !local) {
-        throw new Error(
-            'poolAdmin: --recycle deletes users, which only the local namespace may — set E2E_POOL_NAMESPACE=local',
-        );
-    }
 
     if (args.scope.kind === 'maestroLane' && !local) {
         throw new Error(
@@ -1011,15 +1192,28 @@ async function main(): Promise<void> {
         console.log(`maestro shard ${args.scope.shard} leases no erasure subject — nothing to refill`);
     }
 
+    if (args.deleteRun === true) {
+        const ids = await deleteK6RunUsers(port, scoped.slots, args.apply);
+
+        for (const id of ids) {
+            console.log(`${args.apply ? 'deleted' : 'would delete'} k6 run user ${id}`);
+        }
+
+        console.log(`${args.apply ? 'applied' : 'dry run (pass --apply to delete)'} - ${ids.length} user(s)`);
+
+        return;
+    }
+
     const report = await reconcilePool(port, {
         apply: args.apply,
         phase: args.phase,
         ...scoped,
         // The local namespace's users have no sandbox webhook to write their id (see `testPool.ts`'s `PoolNamespace`).
         ...(local ? { externalId: { mint: ulid } } : {}),
-        ...(args.recycle ? { recycle: 'consumables' as const } : {}),
-        ...(args.scope.kind === 'localRoles' ? { capacity: { limit: CLERK_DEVELOPMENT_USER_LIMIT } } : {}),
-        randomPassword: () => `Pp1!${randomBytes(24).toString('base64url')}`,
+        ...(args.scope.kind === 'localRoles' || args.scope.kind === 'k6Run'
+            ? { capacity: { limit: CLERK_DEVELOPMENT_USER_LIMIT } }
+            : {}),
+        randomPassword: randomPoolPassword,
         now: Date.now,
         sleep: (ms) => delay(ms),
     });

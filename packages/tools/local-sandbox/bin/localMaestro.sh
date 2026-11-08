@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
-# `npm run local:maestro -- all | flows <flow…> | reset` — run the mobile Maestro flows on a LOCAL Android emulator,
+# `npm run local:maestro -- all | changed | flows <flow…> | reset` — run the mobile Maestro flows on a LOCAL Android emulator,
 # against the LOCAL sandbox (`npm run local:up`), on a developer's machine.
+#
+# `all` and `changed` hand over to `npm run maestro:lanes` (`bin/maestroLanes.ts`): several emulators at once, on the
+# embedded-bundle test app, one lane per pool lane whose Clerk users exist. What follows describes the one-emulator path
+# that `flows` (the edit-and-rerun loop, on the debug APK and Metro) and `reset` still take.
 #
 # ⛔ A LOCAL e2e run (docs/CODING_STANDARDS.md §7.1a). It proves the app and the flows against this tree's services;
 # it proves NOTHING about a deploy, and no workflow may run it.
@@ -11,9 +15,9 @@
 #   LocalStack). This script does NOT start them: `local:up` reads the stacks' Secrets Manager and SSM references
 #   from real AWS, and this script reads exactly one secret. A stack that is not up is refused with the command to run.
 # - The queue consumers `local:up` planned (`bin/queueConsumer.ts` — the account-erasure worker completes the purge
-#   `resetPool` waits on), the parse worker (`recipe-workers`' `dev`), the API 34 emulator `ci_pixel6` on serial
-#   `emulator-5556`, and Metro are started here when they are not already running, and stopped on exit — only what
-#   this run started.
+#   `resetPool` waits on), the parse worker (`recipe-workers`' `dev`), the API 34 lane emulator (`LOCAL_MAESTRO_AVD`) on serial
+#   `emulator-5556`, and Metro are started here and stopped on exit. A consumer or worker this run did not start is
+#   REFUSED by pid, never reused: adopting another run's service is how a purge was left queued with nobody draining it.
 # - The app is the DEBUG APK, with its JavaScript from Metro, so an edit to app code needs no rebuild.
 #
 # ## Whose per-flow lifecycle
@@ -24,9 +28,10 @@
 #
 # ## The device pin
 #
-# ⛔ Another emulator (`emulator-5554`) may be attached and is not ours. CI's functions call bare `adb` and `maestro`,
-# so both are shadowed below with functions that always name `emulator-5556`. Functions win over PATH, including
-# inside the sourced functions. The serial is a literal, not configuration.
+# ⛔ Another emulator (`emulator-5554`) may be attached and is not ours. `ANDROID_SERIAL` is set to `emulator-5556` when
+# this file is sourced: `adb` reads it natively, and CI's run loop hands `maestro` `--device "$ANDROID_SERIAL"` (the lane
+# contract in `runMaestroFlows.sh`). Nothing shadows `adb` or `maestro`, which would pass `--device` twice. The serial is a
+# literal, not configuration, and the caller's environment cannot move it.
 #
 # ## Secrets and AWS
 #
@@ -37,8 +42,9 @@
 #
 # ⚠️ The Clerk users are the run's OWN: `E2E_POOL_NAMESPACE=local` gives every slot a `test-local-*` address on the same
 # Clerk instance, so a local run never signs in, erases or refills a user CI leases, and can run beside a CI job. The run
-# makes them (`poolAdmin --maestro-lane`), mints their `external_id` itself (the sandbox webhook that writes it is down
-# when the sandbox is), and recycles the erasure subjects each time (nothing local deletes an erased user from Clerk).
+# makes the lane's users (`poolAdmin --maestro-lane`) and mints their `external_id` itself (the sandbox webhook that
+# writes it is down when the sandbox is). It makes its own erasure subject (`runUsers.ts`, nothing local deletes an erased
+# user from Clerk) and, when it ends, deletes the id it recorded and no other.
 
 set -uo pipefail
 
@@ -47,7 +53,13 @@ LOCAL_MAESTRO_MOBILE_DIR="${LOCAL_MAESTRO_REPO_ROOT}/packages/apps/commise/mobil
 LOCAL_MAESTRO_FLOWS_DIR="${LOCAL_MAESTRO_MOBILE_DIR}/.maestro"
 LOCAL_MAESTRO_DEBUG_APK="${LOCAL_MAESTRO_MOBILE_DIR}/android/app/build/outputs/apk/debug/app-debug.apk"
 LOCAL_MAESTRO_SERIAL='emulator-5556'
-LOCAL_MAESTRO_AVD='ci_pixel6'
+# The lane AVD, WSL and Mac alike. Its layout size in dp is the old 1080x2400 at density 420 (411 dp wide); the screen has 44%
+# fewer pixels, which is what the software-rendered emulator pays for, and two cores. The Mac builds the AVD from these values
+# (`androidLaneHost.sh ensure-avd`), so no config.ini is copied from anywhere. Comma-separated `key=value`, in config.ini's keys.
+LOCAL_MAESTRO_AVD='ks_lane_lean'
+# The system image, with a slot for the ABI of the host that boots it: arm64-v8a on the Mac, x86_64 on WSL.
+LOCAL_MAESTRO_AVD_IMAGE='system-images;android-34;google_apis;{abi}'
+LOCAL_MAESTRO_AVD_CONFIG='hw.lcd.width=720,hw.lcd.height=1600,hw.lcd.density=280,hw.cpu.ncore=2,hw.ramSize=1536M,disk.dataPartition.size=6442450944,disk.cachePartition.size=66MB,sdcard.size=512 MB,vm.heapSize=228M'
 LOCAL_MAESTRO_CLERK_SECRET_ID='kitchensink/sandbox/identity/keys'
 LOCAL_MAESTRO_METRO_PORT=8081
 # The local sandbox's ports — each service's own `PORT` default (see `localPortFor` in `adapters.ts`).
@@ -62,6 +74,13 @@ LOCAL_MAESTRO_FOOD_ORIGIN='http://localhost:3002'
 # `CLERK_AUTHORIZED_PARTIES` to this origin.
 LOCAL_MAESTRO_WEB_ORIGIN='http://localhost:3000'
 LOCAL_MAESTRO_LOCALSTACK='http://localhost:4566'
+# The Mac port the recipe service is tunnelled to for an Android or iOS lane there: Docker holds the Mac's own 3000, so the app
+# the Mac builds is baked with this one (`buildIosApp.sh`) and the runner's `adb reverse tcp:3000` goes to it.
+LOCAL_MAESTRO_MAC_RECIPE_PORT=13000
+# The shared services' command lines, as `pgrep -f` matches them: a run refuses one it did not start. Written in the part
+# of ERE a JS RegExp reads the same way, because `maestroLanes.ts` matches them too. `{name}` is a consumer's name.
+LOCAL_MAESTRO_WORKER_PATTERN='src/local/main\.ts'
+LOCAL_MAESTRO_CONSUMER_PATTERN='bin/queueConsumer\.ts {name}( |$)'
 
 # Processes this run started, as process-group ids (each is started under `setsid`), and whether it booted the emulator.
 LOCAL_MAESTRO_STARTED_GROUPS=()
@@ -70,18 +89,30 @@ LOCAL_MAESTRO_STARTED_EMULATOR=false
 # shellcheck source=../../../apps/commise/mobile/tests/e2e/runMaestroFlows.sh
 . "${LOCAL_MAESTRO_MOBILE_DIR}/tests/e2e/runMaestroFlows.sh"
 
-# Shadowed AFTER sourcing, so CI's functions resolve these rather than the binaries on PATH.
-adb() {
-    command adb -s emulator-5556 "$@"
-}
-
-maestro() {
-    command maestro --device emulator-5556 "$@"
-}
+export ANDROID_SERIAL="$LOCAL_MAESTRO_SERIAL"
 
 local_maestro_fail() {
     echo "local:maestro: $*" >&2
     return 1
+}
+
+# The facts above that `maestroLanes.ts` uses, as KEY=value lines (`localSettings.ts` parses them). This file is their one
+# home: the lane TypeScript reads them here and states none of them.
+local_maestro_settings() {
+    local android_on
+    android_on="$(local_maestro_android_host)" || return 1
+    printf '%s=%s\n' \
+        LOCAL_MAESTRO_AVD "$LOCAL_MAESTRO_AVD" \
+        LOCAL_MAESTRO_AVD_IMAGE "$LOCAL_MAESTRO_AVD_IMAGE" \
+        LOCAL_MAESTRO_AVD_CONFIG "$LOCAL_MAESTRO_AVD_CONFIG" \
+        LOCAL_MAESTRO_ANDROID_ON "$android_on" \
+        LOCAL_MAESTRO_MAC_RECIPE_PORT "$LOCAL_MAESTRO_MAC_RECIPE_PORT" \
+        LOCAL_MAESTRO_RECIPE_ORIGIN "$LOCAL_MAESTRO_RECIPE_ORIGIN" \
+        LOCAL_MAESTRO_IDENTITY_ORIGIN "$LOCAL_MAESTRO_IDENTITY_ORIGIN" \
+        LOCAL_MAESTRO_FOOD_ORIGIN "$LOCAL_MAESTRO_FOOD_ORIGIN" \
+        LOCAL_MAESTRO_LOCALSTACK "$LOCAL_MAESTRO_LOCALSTACK" \
+        LOCAL_MAESTRO_WORKER_PATTERN "$LOCAL_MAESTRO_WORKER_PATTERN" \
+        LOCAL_MAESTRO_CONSUMER_PATTERN "$LOCAL_MAESTRO_CONSUMER_PATTERN"
 }
 
 # The state directory: keys, the seeder's sessions and manifest, logs. Refused inside the repository, so nothing it
@@ -102,21 +133,9 @@ local_maestro_state_dir() {
     printf '%s\n' "$resolved"
 }
 
-# Print the flows a command runs, one per line, or refuse. Prints nothing unless every named flow is valid.
+# Print the flows `flows` names, one per line, or refuse. Prints nothing unless every named flow is valid.
 local_maestro_flows() {
     case "${1-}" in
-        all)
-            local verdict local_verdict
-            verdict="$(maestro_select_flows "$FLOW_PLAN")" || return 1
-            # ⛔ Flows that need the DEPLOYED sandbox are left out and NAMED, never run to fail and never counted as passed
-            # (`MAESTRO_SANDBOX_ONLY_FLOWS`). Only this local selection reads that table; the deployed run does not.
-            # shellcheck disable=SC2046 # one flow name per word, and flow names carry no whitespace
-            local_verdict="$(maestro_local_flows $(printf '%s\n' "$verdict" | sed -n 's/^flow=//p'))" || return 1
-            # stderr: this runs in a command substitution whose stdout is the flow list.
-            # shellcheck disable=SC2046
-            maestro_local_summary $(printf '%s\n' "$local_verdict" | sed -n 's/^needs-sandbox=\([^|]*\)|.*/\1/p') >&2
-            printf '%s\n' "$local_verdict" | sed -n 's/^flow=//p'
-            ;;
         flows)
             shift
             if [ "$#" -eq 0 ]; then
@@ -146,7 +165,7 @@ local_maestro_flows() {
             printf '%s\n' "${selected[@]}"
             ;;
         *)
-            local_maestro_fail 'usage: local:maestro -- all | flows <flow…> | reset'
+            local_maestro_fail 'usage: local:maestro -- all | changed | flows <flow…> | reset'
             return 2
             ;;
     esac
@@ -238,7 +257,6 @@ local_maestro_toolchain() {
     # ⚠️ Not `JAVA_HOME`: the default `java` here is 11, which neither Maestro 2 nor the Android build accepts.
     export JAVA_HOME="${LOCAL_MAESTRO_JAVA_HOME:-${HOME}/jdk17}"
     export PATH="${JAVA_HOME}/bin:${ANDROID_HOME}/platform-tools:${ANDROID_HOME}/emulator:${PATH}"
-    export ANDROID_SERIAL="$LOCAL_MAESTRO_SERIAL"
     export MAESTRO_DRIVER_STARTUP_TIMEOUT="${MAESTRO_DRIVER_STARTUP_TIMEOUT:-300000}"
     export MAESTRO_CLI_NO_ANALYTICS=1
 
@@ -329,6 +347,12 @@ local_maestro_cleanup() {
     local status=$?
     trap - EXIT INT TERM
 
+    # The run's erasure subject exists only during a run, so it goes whatever the outcome (failure and interrupt included).
+    if [ "${LOCAL_MAESTRO_RUN_USERS_MADE:-}" = 'true' ]; then
+        local_maestro_delete_run_users ||
+            echo 'local:maestro: ⚠️ the run erasure subject could not be deleted - its id stays in the record for the next run' >&2
+    fi
+
     command adb -s emulator-5556 reverse --remove-all >/dev/null 2>&1 || true
 
     if [ "$LOCAL_MAESTRO_STARTED_EMULATOR" = 'true' ]; then
@@ -365,9 +389,11 @@ local_maestro_require_services() {
 
 local_maestro_start_worker() {
     local state="$1"
-    if pgrep -f 'recipe-workers.*src/local/main.ts|src/local/main\.ts' >/dev/null 2>&1; then
-        echo 'local:maestro: a parse worker is already running — reusing it' >&2
-        return 0
+    local held
+    # ⛔ Refused, never reused: a run that adopts another run's worker loses it when that run exits.
+    if held="$(pgrep -f "$LOCAL_MAESTRO_WORKER_PATTERN" 2>/dev/null)"; then
+        local_maestro_fail "a parse worker this run did not start is running (pid ${held//$'\n'/ }) — stop it, or the run that owns it, first"
+        return 1
     fi
 
     echo 'local:maestro: starting the parse worker (recipe-workers dev)' >&2
@@ -390,11 +416,12 @@ local_maestro_start_consumers() {
         return 1
     fi
 
-    local name log waited
+    local name log waited held
     for name in $(jq -r '.[].name' "$plan"); do
-        if pgrep -f "bin/queueConsumer.ts ${name}( |$)" >/dev/null 2>&1; then
-            echo "local:maestro: the ${name} queue consumer is already running — reusing it" >&2
-            continue
+        # ⛔ Refused, never reused: an adopted consumer dies with the run that owns it and leaves this run's purge queued.
+        if held="$(pgrep -f "${LOCAL_MAESTRO_CONSUMER_PATTERN//'{name}'/$name}" 2>/dev/null)"; then
+            local_maestro_fail "the ${name} queue consumer is running as pid ${held//$'\n'/ }, and this run did not start it — stop it, or the run that owns it, first"
+            return 1
         fi
 
         echo "local:maestro: starting the ${name} queue consumer" >&2
@@ -417,11 +444,47 @@ local_maestro_start_consumers() {
     done
 }
 
+# local_maestro_android_host
+#
+# Where Android emulators run: `mac` (the default) or `wsl`. Nested emulators crashed Windows twice (a hypervisor bugcheck,
+# 2026-11-08), so WSL is an explicit opt-in: `LOCAL_MAESTRO_ANDROID_ON=wsl`. Anything else is refused.
+local_maestro_android_host() {
+    case "${LOCAL_MAESTRO_ANDROID_ON:-mac}" in
+        mac | wsl) printf '%s\n' "${LOCAL_MAESTRO_ANDROID_ON:-mac}" ;;
+        *)
+            local_maestro_fail "LOCAL_MAESTRO_ANDROID_ON='${LOCAL_MAESTRO_ANDROID_ON}' is not mac or wsl"
+            return 1
+            ;;
+    esac
+}
+
+# local_maestro_ensure_avd
+#
+# Make the lane AVD from the settings above, the way the Mac does (`androidLaneHost.sh ensure-avd`): created once from the
+# x86_64 image, its settings written over avdmanager's defaults every time. Nothing is copied from another machine's config.
+#
+# @sideEffect Runs `avdmanager` on the first call, and rewrites the AVD's config.ini.
+local_maestro_ensure_avd() {
+    local settings=() abi='x86_64'
+    IFS=',' read -r -a settings <<<"$LOCAL_MAESTRO_AVD_CONFIG"
+    ANDROID_AVD_HOME="${ANDROID_AVD_HOME:-${HOME}/.android/avd}" \
+        PATH="${ANDROID_HOME:+${ANDROID_HOME}/cmdline-tools/latest/bin:}${PATH}" \
+        bash "${LOCAL_MAESTRO_REPO_ROOT}/packages/tools/local-sandbox/bin/mac/androidLaneHost.sh" ensure-avd \
+        "$LOCAL_MAESTRO_AVD" "${LOCAL_MAESTRO_AVD_IMAGE//\{abi\}/${abi}}" "${settings[@]}" ||
+        local_maestro_fail "could not make the lane AVD ${LOCAL_MAESTRO_AVD} from the settings"
+}
+
 local_maestro_start_emulator() {
-    local state="$1"
+    local state="$1" host
+    host="$(local_maestro_android_host)" || return 1
+    if [ "$host" != 'wsl' ]; then
+        local_maestro_fail 'this mode boots an emulator on WSL, which crashed Windows twice (nested virtualisation). Android lanes run on the Mac: npm run test:e2e:android. To boot one on WSL anyway, set LOCAL_MAESTRO_ANDROID_ON=wsl'
+        return 1
+    fi
     if [ "$(command adb -s emulator-5556 get-state 2>/dev/null)" = 'device' ]; then
         echo "local:maestro: ${LOCAL_MAESTRO_SERIAL} is attached — reusing it" >&2
     else
+        local_maestro_ensure_avd || return 1
         local args=(-avd "$LOCAL_MAESTRO_AVD" -port 5556 -no-window -no-audio -no-boot-anim
             -gpu swiftshader_indirect -no-snapshot)
         # Another instance of the same AVD (on the serial that is not ours) locks it; a read-only boot does not.
@@ -519,15 +582,8 @@ local_maestro_install_app() {
         return 1
     }
 
-    local port
-    for port in "$LOCAL_MAESTRO_METRO_PORT" 3001 3002; do
-        adb reverse "tcp:${port}" "tcp:${port}" >/dev/null || return 1
-    done
-    # The device's :3000 is recipe, wherever the host publishes it.
-    adb reverse tcp:3000 "tcp:${LOCAL_MAESTRO_RECIPE_HOST_PORT}" >/dev/null || return 1
-    # The app's committed `.env.development` names identity at :4000 (the spec's local table); the local sandbox
-    # serves it at :3001 (its own `PORT` default).
-    adb reverse tcp:4000 tcp:3001 >/dev/null || return 1
+    # The runner's one map, which every lane uses too, plus Metro: only this debug app loads its bundle from Metro.
+    maestro_local_reverse "$LOCAL_MAESTRO_RECIPE_HOST_PORT" "$LOCAL_MAESTRO_METRO_PORT" || return 1
     # CI's own input settings, from the sourced runner. A copy here once kept an old `0`: on this AVD, which reports a
     # hardware keyboard, that held the soft keyboard down in every local run while CI's was up.
     maestro_android_input_settings
@@ -563,26 +619,47 @@ local_maestro_seed_env() {
     export MAESTRO_FIXTURE_ENV_FILE="${state}/e2e-seed/fixture.env"
 }
 
-# Make this lane's users, which exist only for a local run: signer, co-author and the erasure subjects. The subjects are
-# RECYCLED (deleted and made again) because the local stack runs no identity deletion worker, so an erased one would
-# otherwise still stand in Clerk. `external_id` is written here too, since the sandbox webhook that writes it for the
-# shared pool is down when the sandbox is. Only Clerk is touched, and only users named `test-local-*`.
+# The run's record of the Clerk users it made, shared with `maestro:lanes` (the same state directory), so either door
+# deletes what the other left after a crash.
+local_maestro_run_users_record() {
+    local state
+    state="$(local_maestro_state_dir)" || return 1
+    printf '%s/runUsers.android.json\n' "$state"
+}
+
+# Make the lane's standing users (signer and co-author, `test-local-*` only) if they are missing, then the run's own
+# erasure subject. The subject exists only during the run: the local stack runs no identity deletion worker, so an erased
+# one would otherwise still stand in Clerk. `runUsers.ts` records its id the moment Clerk returns it, and the exit trap
+# deletes that id and nothing else (owner ruling 2026-11-07). A subject no record names is refused, never deleted.
 #
-# ⛔ `LOCAL_MAESTRO_REUSE_USERS=1` SKIPS the step. `--recycle` DELETES the erasure subject in Clerk and makes it again, and a
-# run that must neither create nor delete a Clerk user (the development instance is full) reuses the ones standing.
+# `LOCAL_MAESTRO_REUSE_USERS=1` skips the standing users (a run that must not create them, the development instance being
+# nearly full); the subject is the run's own either way, made and deleted, so the instance ends where it began.
 # `LOCAL_MAESTRO_ROLE_USERS=1` serves the role users `recipes/paidFeaturesByRole` and `recipes/makePublicConfirm` sign in as:
 # the five read-only ones REUSE CI's shared users (nothing created), and only the downgraded owner is made locally, by
 # `poolAdmin --local-roles`, which refuses before its first write when the instance has no room. OFF by default.
 local_maestro_provision_lane_users() {
     if [ "${LOCAL_MAESTRO_REUSE_USERS:-}" = '1' ]; then
-        echo 'local:maestro: LOCAL_MAESTRO_REUSE_USERS=1 - reusing the standing Clerk users, creating and deleting none' >&2
+        echo 'local:maestro: LOCAL_MAESTRO_REUSE_USERS=1 - reusing the standing lane users, creating none' >&2
     else
-        npx tsx packages/tools/e2e-fixtures/src/poolAdmin.ts --apply --recycle --maestro-lane --platform android --shard 1 || return 1
+        npx tsx packages/tools/e2e-fixtures/src/poolAdmin.ts --apply --maestro-lane --platform android --shard 1 || return 1
     fi
 
     if [ "${LOCAL_MAESTRO_ROLE_USERS:-}" = '1' ]; then
         npx tsx packages/tools/e2e-fixtures/src/poolAdmin.ts --apply --local-roles || return 1
     fi
+
+    local record
+    record="$(local_maestro_run_users_record)" || return 1
+    # Set BEFORE the create, so a failure part-way still runs the delete in the exit trap.
+    LOCAL_MAESTRO_RUN_USERS_MADE=true
+    npx tsx packages/tools/e2e-fixtures/src/runUsers.ts --create-run-erasure-subject --platform android --record "$record" || return 1
+}
+
+# Delete the users this run recorded, by id, and create nothing (`runUsers.ts`). It never looks a user up by address.
+local_maestro_delete_run_users() {
+    local record
+    record="$(local_maestro_run_users_record)" || return 1
+    npx tsx packages/tools/e2e-fixtures/src/runUsers.ts --delete-run-users --record "$record"
 }
 
 local_maestro_reset_pool() {
@@ -602,7 +679,18 @@ local_maestro_main() {
     local flows=''
 
     case "$command" in
-        all | flows)
+        all | changed)
+            # The lanes: every lane whose Clerk users exist, on the embedded test app (`bin/maestroLanes.ts`). `all` is the
+            # whole suite; `changed` asks the impact selector unless the caller set FULL_SUITE=1.
+            cd "$LOCAL_MAESTRO_REPO_ROOT" || return 1
+            if [ "$command" = 'all' ]; then
+                FULL_SUITE=1 npm run maestro:lanes --workspace=@kitchensink/local-sandbox -- --platform android
+            else
+                npm run maestro:lanes --workspace=@kitchensink/local-sandbox -- --platform android
+            fi
+            return
+            ;;
+        flows)
             flows="$(local_maestro_flows "$@")" || return 1
             ;;
         reset) ;;
@@ -674,11 +762,6 @@ local_maestro_main() {
         echo "local:maestro: PASSED — $(printf '%s ' $flows)" >&2
     else
         echo "local:maestro: FAILED — see the FLOW FAILED lines above" >&2
-    fi
-    # Repeated in the summary: a green local run must not read as covering what it could not run.
-    if [ "$command" = 'all' ]; then
-        # shellcheck disable=SC2046
-        maestro_local_summary $(maestro_sandbox_only_flows | cut -d'|' -f1) >&2
     fi
     return "$rc"
 }

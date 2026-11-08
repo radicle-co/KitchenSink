@@ -98,7 +98,7 @@ const needsOf = (job: Job | undefined): readonly string[] =>
  * The flow loop's RUN mode: `runMaestroFlows.sh` with no subcommand. `resolve-mobile-target` also calls the script, for
  * `shard-matrix`, and is the producer, not a subject.
  */
-const RUNS_FLOWS = /runMaestroFlows\.sh[ \t]*$/mu;
+const RUNS_FLOWS = /e2e:maestro[ \t]*$/mu;
 
 /** The Maestro jobs: every job that runs the flow loop — discovered, never listed. */
 const maestroJobs = Object.entries(jobs).filter(([, job]) =>
@@ -143,7 +143,7 @@ describe.each(maestroJobs)('%s', (_id, job) => {
     );
     const verify = steps.findIndex((step) => commandsOf(step).includes(`${DOOR} verify`));
     const firstCli = steps.findIndex(
-        (step) => NAMES_CLI.test(commandsOf(step)) || /runMaestroFlows\.sh/u.test(commandsOf(step)),
+        (step) => NAMES_CLI.test(commandsOf(step)) || /e2e:maestro/u.test(commandsOf(step)),
     );
 
     describe('⛔ installs nothing', () => {

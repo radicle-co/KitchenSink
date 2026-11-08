@@ -62,6 +62,7 @@ import { View } from 'react-native';
 
 import { useSessionClaims } from '../hooks/useSessionClaims.js';
 import { useUserProfile } from '../hooks/useUserProfile.js';
+import { useScreenTrace } from '../screenTrace/useScreenTrace.js';
 
 /** Props for {@link RecipeDetailScreen}. */
 export interface RecipeDetailScreenProps {
@@ -100,6 +101,7 @@ export interface RecipeDetailScreenProps {
  * @returns The loading state, a not-found or retrying error, or the populated detail view with its actions.
  */
 export function RecipeDetailScreen(props: RecipeDetailScreenProps): JSX.Element {
+    useScreenTrace('RecipeDetailScreen');
     const { recipeId, onBack } = props;
     const loadCopy = useMessages(recipeLoadMessages);
     const backLabel = useBackLabel();

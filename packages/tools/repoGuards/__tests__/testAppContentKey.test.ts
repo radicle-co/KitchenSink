@@ -52,6 +52,9 @@ const BASE_ENV: Readonly<Record<string, string>> = {
     EXPO_PUBLIC_IDENTITY_API_URL: 'https://identity.example.test',
     EXPO_PUBLIC_IDP_PUBLISHABLE_KEY: 'pk_test_example',
     TEST_APP_CACHE_EPOCH: '1',
+    // `buildTestApp.sh` exports this itself (the screen recorder, which Metro reads at bundle time), so the key it prints
+    // hashes the value `1`; stating it here keeps the direct turbo plan comparable with the script's.
+    COMMISE_SCREEN_TRACE: '1',
     DEVELOPER_DIR: '/Applications/Xcode_26.5.app/Contents/Developer',
 };
 
@@ -138,17 +141,27 @@ describe.each(PLATFORMS)('the %s test app’s content key (turbo’s task hash)'
  * Derived per platform, from what each build actually reads.
  */
 describe.each([
-    ['android', ['EXPO_PUBLIC_RECIPE_API_URL', 'EXPO_PUBLIC_FOOD_API_URL', 'EXPO_PUBLIC_IDENTITY_API_URL']],
-    ['ios', ['EXPO_PUBLIC_RECIPE_API_URL', 'EXPO_PUBLIC_FOOD_API_URL', 'EXPO_PUBLIC_IDENTITY_API_URL']],
-] as const)('what is baked into the %s binary', (platform, origins) => {
+    [
+        'android',
+        ['EXPO_PUBLIC_RECIPE_API_URL', 'EXPO_PUBLIC_FOOD_API_URL', 'EXPO_PUBLIC_IDENTITY_API_URL'],
+        ['TEST_APP_ANDROID_ABIS'],
+    ],
+    ['ios', ['EXPO_PUBLIC_RECIPE_API_URL', 'EXPO_PUBLIC_FOOD_API_URL', 'EXPO_PUBLIC_IDENTITY_API_URL'], []],
+] as const)('what is baked into the %s binary', (platform, origins, extra) => {
     const baseline = plan(platform).hash;
-    const variables = [...origins, 'EXPO_PUBLIC_IDP_PUBLISHABLE_KEY', 'TEST_APP_CACHE_EPOCH'];
+    const variables = [
+        ...origins,
+        'EXPO_PUBLIC_IDP_PUBLISHABLE_KEY',
+        'TEST_APP_CACHE_EPOCH',
+        'COMMISE_SCREEN_TRACE',
+        ...extra,
+    ];
 
     it.each(variables)('changing %s changes the key', (name) => {
         expect(plan(platform, { [name]: 'a-different-value' }).hash).not.toBe(baseline);
     });
 
-    it('declares exactly those variables (plus the Xcode path on iOS) — no more, or an unrelated value would flush the key', () => {
+    it('declares exactly those variables (plus the Xcode path on iOS, and the ABI on Android) — no more, or an unrelated value would flush the key', () => {
         const declared = [...(plan(platform).environmentVariables?.specified?.env ?? [])].sort();
         const expected = platform === 'ios' ? [...variables, 'DEVELOPER_DIR'].sort() : [...variables].sort();
 
@@ -170,6 +183,38 @@ describe('the platforms keep separate keys', () => {
 
         expect(plan('ios', other).hash).not.toBe(plan('ios').hash);
         expect(plan('android', other).hash).toBe(plan('android').hash);
+    });
+});
+
+/**
+ * ⛔ THE ABI MOVES THE ANDROID KEY. An arm64-v8a APK (a Mac's emulator) and an x86_64 one (CI's) are different binaries built
+ * from the same source, so sharing a key would serve one to the other's emulator, and neither starts on the other. The default
+ * (x86_64) is left UNSET in the hash, so CI's keys are the ones they were before the ABI was a variable.
+ */
+describe('buildTestApp.sh content-key android — the ABI', () => {
+    const key = (abi?: string): string =>
+        execFileSync(
+            'bash',
+            [`${REPO_ROOT}packages/apps/commise/mobile/scripts/buildTestApp.sh`, 'content-key', 'android'],
+            {
+                cwd: REPO_ROOT,
+                encoding: 'utf8',
+                stdio: ['ignore', 'pipe', 'ignore'],
+                env: { ...process.env, ...BASE_ENV, ...(abi === undefined ? {} : { TEST_APP_ANDROID_ABIS: abi }) },
+            },
+        ).trim();
+
+    it('an arm64-v8a build has its own key', () => {
+        expect(key('arm64-v8a')).not.toBe(key());
+    });
+
+    it('stating the default is the same key as leaving it unset, so CI is unchanged', () => {
+        expect(key('x86_64')).toBe(key());
+    });
+
+    it('refuses an ABI that is not exactly one of the two', () => {
+        expect(() => key('armeabi-v7a')).toThrow();
+        expect(() => key('x86_64,arm64-v8a')).toThrow();
     });
 });
 
@@ -234,7 +279,12 @@ describe.each(PLATFORMS)('buildTestApp.sh content-key %s diagnostics', (platform
         expect(names.length).toBeGreaterThan(0);
 
         for (const name of names) {
-            expect(result.stderr, name).toContain(`env ${name} ${digest(BASE_ENV[name] ?? '')}`);
+            // A variable the environment does not set (the ABI, whose default is left unset) is reported as unset.
+            const value = BASE_ENV[name];
+
+            expect(result.stderr, name).toContain(
+                value === undefined ? `env ${name} (unset)` : `env ${name} ${digest(value)}`,
+            );
         }
     });
 

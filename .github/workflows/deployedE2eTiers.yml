@@ -100,6 +100,27 @@ on:
                 required: false
                 type: string
                 default: ''
+            web_shards:
+                description: >-
+                    The web Playwright matrix, as a JSON list of shard numbers. The pull-request pipeline passes what
+                    `select-e2e` sized from the plan (`[]` runs no web shard). The default is the whole web pool, one
+                    shard per lane of `POOL_ROSTER.web`, which is what the manual door wants: it runs the whole suite.
+                required: false
+                type: string
+                default: '[1,2,3,4,5,6,7,8]'
+            web_tests:
+                description: >-
+                    How many tests `select-e2e` counted for the web matrix. Each shard checks that Playwright lists
+                    that many before it runs. Empty (the manual door) skips the check.
+                required: false
+                type: string
+                default: ''
+            web_specs:
+                description: >-
+                    The Playwright file filters of the specs the selection chose, separated by spaces. Empty runs every spec.
+                required: false
+                type: string
+                default: ''
             maestro_shards:
                 description: >-
                     HOW MANY RUNNERS the Maestro tier splits its flows across, passed straight through to
@@ -904,6 +925,8 @@ jobs:
     # raised for the seconds a reseed takes — the residual `ensureDowngradedWorld.ts` records.
     downgraded-owner-world:
         name: Downgraded owner's world (the deployed sandbox fixture)
+        # NOT gated on the selection: Maestro reads this world too (`makePublicConfirm.yaml`), and a Maestro run on a change
+        # that touches no web spec must still find it. It is the web tier's production skip and nothing more.
         if: ${{ inputs.target_stage != 'prod' }}
         timeout-minutes: 10
         runs-on: ubuntu-latest
@@ -998,7 +1021,8 @@ jobs:
         # ⛔ NOT ON PRODUCTION. This tier writes into the Clerk tenant and the stage's data (see
         # `deployedE2eTiers.test.ts` §5); a prod target runs the non-destructive subset only. The first step
         # refuses a prod target too, so this `if:` is never the only thing in the way.
-        if: ${{ inputs.target_stage != 'prod' }}
+        # `web_shards` is `[]` when the change touches no web spec: a matrix cannot be empty, so the job does not start.
+        if: ${{ inputs.target_stage != 'prod' && inputs.web_shards != '[]' }}
         # ⛔ AFTER THE DOWNGRADED OWNER'S WORLD, which raises and settles the owner this tier's Q5 specs read (see that job).
         needs: [downgraded-owner-world]
         # 30 for the suite, with margin. This job never starts or waits on the sandbox (owner ruling 2026-10-12:
@@ -1046,7 +1070,7 @@ jobs:
                 # Past ~8 the toll dominates (16 shards would pay 16x35s to run 7 tests each), so raising
                 # this further buys nothing. `--shard` distributes whole FILES, and there are 34 of them,
                 # so 8 shards still have real work to split.
-                shard: [1, 2, 3, 4, 5, 6, 7, 8]
+                shard: ${{ fromJSON(inputs.web_shards) }}
         # `id-token: write` is what makes the Argos upload SECRETLESS (U10a): the CLI exchanges a short-lived
         # GitHub OIDC token for a build-scoped Argos credential, so no `ARGOS_TOKEN` secret exists to leak — and
         # a FORK pull request, which cannot read repository secrets at all, still uploads (Argos falls back to
@@ -1076,6 +1100,9 @@ jobs:
         env:
             E2E_TARGET: deployed
             PLAYWRIGHT_BASE_URL: ${{ inputs.web_origin }}
+            # The selection (ADR-0087). Both are empty on the manual door, which runs the whole suite unchecked.
+            E2E_SPECS: ${{ inputs.web_specs }}
+            E2E_EXPECTED_TESTS: ${{ inputs.web_tests }}
             # ⚠️ THE CLERK SAFETY INTERLOCK FOR SHARDING. Read before touching the matrix.
             #
             # Each shard is a SEPARATE Playwright process, so each runs `globalSetup` AND `globalTeardown`.

@@ -49,10 +49,29 @@ TEST_APP_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TEST_APP_MOBILE_DIR="$(cd "${TEST_APP_SCRIPT_DIR}/.." && pwd)"
 TEST_APP_REPO_ROOT="$(cd "${TEST_APP_MOBILE_DIR}/../../../.." && pwd)"
 
-# The ABIs the CI test APK contains. ONE, because the only consumer is the x86_64 emulator; building the other three cost
-# 9.9 of the 18.4 minutes of the measured Android build (run 38322183404). A phone cannot run this APK, and that is the
-# point: a shipping build is `eas.json`'s `production` profile.
-TEST_APP_ANDROID_ABIS='x86_64'
+# The ABI the test APK contains: EXACTLY ONE of the two below. x86_64 is the default because the CI emulator is x86_64, and
+# building the other three cost 9.9 of the 18.4 minutes of the measured Android build (run 38322183404). arm64-v8a is for
+# a Mac's emulator (ADR-0088 §5): `TEST_APP_ANDROID_ABIS=arm64-v8a`. The variable is a turbo `env` entry of `testApp:android`,
+# so the ABI is part of the content key; the default is left UNSET in the hash so CI's keys do not move.
+TEST_APP_DEFAULT_ANDROID_ABI='x86_64'
+TEST_APP_ANDROID_ABI_CHOICES='x86_64 arm64-v8a'
+
+# test_app_resolve_abis  Sets TEST_APP_ANDROID_ABIS to the ABI this run builds for. Anything but exactly one choice is refused:
+# a list, another ABI or a different spelling would build an APK no emulator here runs, and name it as if it did.
+test_app_resolve_abis() {
+    local abi="${TEST_APP_ANDROID_ABIS-$TEST_APP_DEFAULT_ANDROID_ABI}"
+    case " ${TEST_APP_ANDROID_ABI_CHOICES} " in
+        *" ${abi} "*) ;;
+        *) test_app_die "TEST_APP_ANDROID_ABIS='${abi}' is not exactly one of: ${TEST_APP_ANDROID_ABI_CHOICES}" ;;
+    esac
+    if [ "$abi" = "$TEST_APP_DEFAULT_ANDROID_ABI" ]; then
+        unset TEST_APP_ANDROID_ABIS
+        TEST_APP_ANDROID_ABI="$abi"
+    else
+        export TEST_APP_ANDROID_ABIS="$abi"
+        TEST_APP_ANDROID_ABI="$abi"
+    fi
+}
 
 # The secrets `load-secrets` puts in the job environment. NO SECRET REACHES A BUILD: Gradle and `xcodebuild` import the
 # environment (xcodebuild even echoes it as build settings ahead of every script phase), GitHub masks the console and
@@ -64,6 +83,13 @@ TEST_APP_SECRET_VARIABLES='CLERK_SECRET_KEY IDP_SECRET_KEY CLERK_WEBHOOK_SECRET 
 # build code can mint a GitHub OIDC token and assume the non-prod role, so they are unset with the secrets. A separate
 # list because `load-secrets` never sets them, and the list above is checked against what it does set.
 TEST_APP_RUNNER_TOKEN_VARIABLES='ACTIONS_ID_TOKEN_REQUEST_TOKEN ACTIONS_ID_TOKEN_REQUEST_URL'
+
+# ⛔ A TEST APP RECORDS THE SCREENS IT SHOWS (the Maestro screen recorder). Metro reads this at bundle time and swaps
+# `src/screenTrace/useScreenTrace.ts` (a Null Object) for `useScreenTrace.maestro.ts`, which logs `COMMISE_SCREEN <name>`.
+# It is exported HERE, at the top level, so the content key (`turbo.json` hashes the name by value) and the build see the
+# same value: an app cached from before the recorder existed carries a different key and is rebuilt. No production build
+# runs this script, so none carries the recorder.
+export COMMISE_SCREEN_TRACE=1
 
 # The manifest keys, in the order they are written.
 TEST_APP_COMMON_KEYS='platform contentKey recipeOrigin foodOrigin identityOrigin publishableKeySha256'
@@ -216,7 +242,7 @@ test_app_write_manifest() {
     built_in="${GITHUB_RUN_ID:-local}"
 
     if [ "$platform" = 'android' ]; then
-        distinguishing="abis=${TEST_APP_ANDROID_ABIS}"
+        distinguishing="abis=${TEST_APP_ANDROID_ABI}"
     else
         distinguishing="xcodeVersion=$(test_app_xcode_version)"
     fi
@@ -239,7 +265,7 @@ test_app_write_manifest() {
 #
 # PURE: reads the file and EXPECT_* from the environment, touches nothing else. Exit 0 only for an EXACT match.
 #   EXPECT_CONTENT_KEY EXPECT_RECIPE_ORIGIN EXPECT_FOOD_ORIGIN EXPECT_IDENTITY_ORIGIN EXPECT_PUBLISHABLE_KEY
-#   and, on iOS, EXPECT_XCODE_VERSION. (The Android ABI list is this file's own constant.)
+#   and, on iOS, EXPECT_XCODE_VERSION. (The Android ABI is TEST_APP_ANDROID_ABIS, default x86_64.)
 #
 # ⛔ Every refusal is a guard clause. An expectation that is not stated is refused rather than skipped — a workflow that
 # lost a variable would otherwise accept any binary — and a key this function does not know is refused, because a field
@@ -314,7 +340,7 @@ test_app_verify_manifest() {
     test_app_expect identityOrigin "$EXPECT_IDENTITY_ORIGIN"
     test_app_expect publishableKeySha256 "$(test_app_sha256 "$EXPECT_PUBLISHABLE_KEY")"
     if [ "$platform" = 'android' ]; then
-        test_app_expect abis "$TEST_APP_ANDROID_ABIS"
+        test_app_expect abis "$TEST_APP_ANDROID_ABI"
     else
         test_app_expect xcodeVersion "$EXPECT_XCODE_VERSION"
     fi
@@ -384,7 +410,7 @@ test_app_build_android() {
     # `-PreactNativeArchitectures` is the ABI list (a Gradle property React Native reads); proguard and resource shrinking
     # stay off so nothing the E2E needs is stripped.
     ./gradlew :app:assembleRelease --no-daemon \
-        "-PreactNativeArchitectures=${TEST_APP_ANDROID_ABIS}" \
+        "-PreactNativeArchitectures=${TEST_APP_ANDROID_ABI}" \
         -PenableProguardInReleaseBuilds=false -PenableShrinkResourcesInReleaseBuilds=false
 
     cd "$TEST_APP_MOBILE_DIR"
@@ -462,6 +488,8 @@ test_app_build_ios() {
 
 test_app_main() {
     local command="${1:-}"
+
+    test_app_resolve_abis
 
     case "$command" in
         android) test_app_build_android ;;

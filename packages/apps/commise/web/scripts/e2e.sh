@@ -15,7 +15,7 @@
 #     therefore REUSES whatever answers on 3000, which is the RECIPES CONTAINER, and drives the browser
 #     at the recipe API: every auth spec then dies waiting for a Clerk widget the JSON never renders
 #     (measured 2026-10-06: signIn.spec.ts waiting for the email textbox until the run was torn down).
-#     `e2eLocal.sh` owns the local flow — a free port in 3010-3060, the `.env.local` guards, the
+#     `e2eLanes.ts` splits the suite across parallel lanes (E2E_LANES=1 for one run); each lane is `e2eLocal.sh`, which owns the local flow — a free port in 3010-3060, the `.env.local` guards, the
 #     production-build lane, and exit-code hygiene — so this script hands over to it.
 #
 # Usage is `npm run test:e2e [-- <playwright args>]`; nothing else changes about either tier.
@@ -24,7 +24,16 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 if [[ -n "${PLAYWRIGHT_BASE_URL:-}" || -n "${CI:-}" ]]; then
-    exec npx playwright test "$@"
+    # CI selection (ADR-0087): `select-e2e` names the specs to run as Playwright file filters. The count check runs first,
+    # so a selection that no longer lists what it counted stops the run before it signs in as anyone.
+    selected=()
+    if [[ -n "${E2E_SPECS:-}" ]]; then
+        read -r -a selected <<<"$E2E_SPECS"
+    fi
+    if [[ -n "${E2E_EXPECTED_TESTS:-}" ]]; then
+        npx tsx scripts/e2eCountCheck.ts "$E2E_EXPECTED_TESTS" ${selected[@]+"${selected[@]}"} || exit 1
+    fi
+    exec npx playwright test "$@" ${selected[@]+"${selected[@]}"}
 fi
 
-exec bash scripts/e2eLocal.sh "$@"
+exec npx tsx scripts/e2eLanes.ts "$@"

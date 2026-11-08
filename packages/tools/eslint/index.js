@@ -322,6 +322,24 @@ const PACKAGE_INTERNALS_PATTERN = {
         // the package barrel, which is an `export *` barrel this rule's own house style forbids extending.
         '!@kitchensink/*/testPool',
         '!@kitchensink/*/lease',
+        // `e2e-plan`'s selector entry points the local web door calls: `runPlan` asks which specs a change affects and
+        // `recordedRoutes` compares the routes a run recorded with the registry. The package barrel stays the lane planner.
+        '!@kitchensink/*/runPlan',
+        '!@kitchensink/*/recordedRoutes',
+        '!@kitchensink/*/recordedScreens',
+        // `packLanes` splits the listed tests across the lanes by recorded duration (the web door's `e2eLanes.ts`).
+        '!@kitchensink/*/packLanes',
+        // `ciMatrix` sizes the CI web matrix from the selection (`e2eSelectCi.ts`); the pool's size comes from `testPool`.
+        '!@kitchensink/*/ciMatrix',
+        // `stampRun` moves the last-green stamp after a local run (ADR-0086); the web door and the Maestro lanes call it.
+        '!@kitchensink/*/stampRun',
+        // `hostMemory` is the one reader of the machine's free memory, for the lane planners (the web door and local-sandbox).
+        '!@kitchensink/*/hostMemory',
+        // `registeredMobileScreens` gives the screen recorder's guard (mobile `screenTrace.integration.test.ts`) the selector's own
+        // list of registered screens.
+        '!@kitchensink/*/registeredMobileScreens',
+        // `hostLock` is the one-orchestrator-per-machine lock; the web door takes its own file with it (ADR-0088).
+        '!@kitchensink/*/hostLock',
         // `poolAdmin` (2026-10-18): the only writer of a pool user's `public_metadata`, which the CI job that rebuilds the
         // downgraded owner's world drives through `setLanePhase` rather than writing metadata of its own.
         '!@kitchensink/*/poolAdmin',

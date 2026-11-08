@@ -311,7 +311,9 @@ describe('maestro iOS run mode — install, filter, and say what did not run', (
     beforeAll(() => {
         recorded = runWithStubs([], {
             ...IOS,
-            MAESTRO_FLOW_SELECTOR: 'discovery=true',
+            // One flow iOS excludes and one it keeps (REWRITTEN 2026-11-07: this was the retired `discovery=true` area
+            // key, which now widens to every flow).
+            MAESTRO_FLOW_SELECTOR: 'flow:recipes/discoverBrowse=true flow:recipes/discoverDetailSaveCopy=true',
             MAESTRO_SHARD_INDEX: '1',
             MAESTRO_SHARD_COUNT: '1',
         });

@@ -1,0 +1,54 @@
+{
+    "name": "@kitchensink/e2e-plan",
+    "version": "0.0.0",
+    "private": true,
+    "type": "module",
+    "description": "Pure planning for the end-to-end suites: how many parallel lanes the machine and the test pool can carry, and which Playwright specs and Maestro flows a change affects",
+    "main": "./src/lanePlan.ts",
+    "types": "./src/lanePlan.ts",
+    "exports": {
+        ".": "./src/lanePlan.ts",
+        "./runPlan": "./src/runPlan.ts",
+        "./recordedRoutes": "./src/recordedRoutes.ts",
+        "./recordedScreens": "./src/recordedScreens.ts",
+        "./stampRun": "./src/stampRun.ts",
+        "./packLanes": "./src/packLanes.ts",
+        "./ciMatrix": "./src/ciMatrix.ts",
+        "./registeredMobileScreens": "./src/registeredMobileScreens.ts",
+        "./hostMemory": "./src/hostMemory.ts"
+    },
+    "scripts": {
+        "test": "vitest run",
+        "lint": "eslint .",
+        "typecheck": "tsc --noEmit",
+        "format": "prettier --write .",
+        "format:check": "prettier --check .",
+        "test:integration": "vitest run --config vitest.integration.config.ts",
+        "plan": "tsx bin/plan.ts",
+        "ci:mobile": "tsx bin/ciMatrix.ts"
+    },
+    "devDependencies": {
+        "@kitchensink/eslint": "*",
+        "@kitchensink/prettier": "*",
+        "@kitchensink/typescript": "*",
+        "@kitchensink/vitest": "*",
+        "@types/node": "^24.13.3",
+        "@types/picomatch": "^4.0.0",
+        "@types/write-file-atomic": "^4.0.3",
+        "eslint": "^10.0.3",
+        "prettier": "^3.0.0",
+        "tsx": "^4.23.12",
+        "vitest": "^4.1.12"
+    },
+    "engines": {
+        "node": "24.x"
+    },
+    "dependencies": {
+        "dependency-cruiser": "18.7.0",
+        "picomatch": "^4.0.4",
+        "typescript": "^6.0.3",
+        "write-file-atomic": "^8.0.0",
+        "yaml": "^2.8.1",
+        "zod": "^4.6.7"
+    }
+}

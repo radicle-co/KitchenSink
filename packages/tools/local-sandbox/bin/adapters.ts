@@ -15,6 +15,7 @@ import { LOCAL_DB } from '../src/composePlan.js';
 import { appsMissingCdkLib, installFailureHint } from '../src/infraInstall.js';
 import type { CdkApp, PackageManifest } from '../src/discoverApps.js';
 import { pruneStepFor } from '../src/localImages.js';
+import { CONSUMER_PLAN_RELATIVE } from '../src/queueConsumers.js';
 import { generateStandInKeys, type StandInKeys } from '../src/remoteSearchStandIn.js';
 import { readSeedBundleModule } from '../src/seedBundleModule.js';
 import { inferSynthEnv } from '../src/synthEnv.js';
@@ -24,7 +25,7 @@ import type { SynthRequest, SynthResult } from '../src/synthesize.js';
 export const REPO_ROOT = path.resolve(import.meta.dirname, '../../../..');
 
 /** Where `local:up` persists the queue consumers it planned, for `bin/queueConsumer.ts` (gitignored). */
-export const CONSUMER_PLAN = path.join(REPO_ROOT, '.local-sandbox', 'queueConsumers.json');
+export const CONSUMER_PLAN = path.join(REPO_ROOT, CONSUMER_PLAN_RELATIVE);
 
 /**
  * Every workspace manifest.

@@ -16,7 +16,9 @@
         "router:bundle": "esbuild router/src/router.cff.js --bundle --format=esm --target=es2020 --external:cloudfront --tree-shaking=false --outfile=router/dist/router.cff.js",
         "format": "prettier --write .",
         "format:check": "prettier --check .",
-        "test:e2e:local": "scripts/e2eLocal.sh"
+        "test:e2e:local": "scripts/e2eLocal.sh",
+        "e2e:durations": "tsx scripts/e2eDurations.ts",
+        "e2e:select": "tsx scripts/e2eSelectCi.ts"
     },
     "dependencies": {
         "@aws-sdk/client-cloudfront-keyvaluestore": "^3.1152.0",
@@ -58,7 +60,9 @@
         "@argos-ci/cli": "^6.9.1",
         "@commise/test-utils": "*",
         "@kitchensink/e2e-fixtures": "*",
+        "@kitchensink/e2e-plan": "*",
         "@kitchensink/eslint": "*",
+        "@kitchensink/local-sandbox": "*",
         "@kitchensink/prettier": "*",
         "@kitchensink/recipe-core": "*",
         "@kitchensink/repo-guards": "*",

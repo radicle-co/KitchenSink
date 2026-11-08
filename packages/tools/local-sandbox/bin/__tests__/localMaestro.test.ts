@@ -7,7 +7,7 @@
  * `maestro` and `aws` binaries first on `PATH`. Nothing here touches a device, a network or AWS.
  */
 import { spawnSync } from 'node:child_process';
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -16,7 +16,6 @@ import { describe, expect, it } from 'vitest';
 
 const REPO_ROOT = fileURLToPath(new URL('../../../../../', import.meta.url));
 const SCRIPT = path.join(REPO_ROOT, 'packages/tools/local-sandbox/bin/localMaestro.sh');
-const FLOWS_DIR = path.join(REPO_ROOT, 'packages/apps/commise/mobile/.maestro');
 
 /** The values the fake `aws` hands back. Distinctive, so a leak into any output is unmistakable. */
 const FAKE_PUBLISHABLE = 'pk_test_FAKEPUBLISHABLEaaaa';
@@ -41,7 +40,7 @@ function makeSandbox(): Sandbox {
     mkdirSync(bin);
     writeFileSync(calls, '');
 
-    for (const tool of ['adb', 'maestro']) {
+    for (const tool of ['adb', 'maestro', 'emulator']) {
         writeFileSync(path.join(bin, tool), `#!/usr/bin/env bash\necho "${tool} $*" >> "${calls}"\n`);
         chmodSync(path.join(bin, tool), 0o755);
     }
@@ -89,33 +88,6 @@ describe('local_maestro_flows — which flows a command runs', () => {
      * the LOCAL list ON PURPOSE and named on stderr, never run to fail and never counted as passed. The deployed plan is
      * untouched (`maestroSandboxOnlyFlows.test.ts`), so this still asserts CI's order for everything else.
      */
-    it('`all` runs CI’s own plan in CI’s order, minus the flows that need the sandbox, and NAMES those', () => {
-        const sandbox = makeSandbox();
-        const ours = run(sandbox, 'local_maestro_flows all');
-        const ci = spawnSync('bash', [path.join(FLOWS_DIR, '../tests/e2e/runMaestroFlows.sh'), 'select'], {
-            encoding: 'utf8',
-        });
-        const ciFlows = ci.stdout
-            .split('\n')
-            .filter((line) => line.startsWith('flow='))
-            .map((line) => line.slice('flow='.length));
-        const sandboxOnly = [
-            'recipes/pasteListSettle',
-            'recipes/ingredientCandidates',
-            'recipes/ambiguityReview',
-            'auth/loginFlow',
-        ];
-
-        expect(ours.status).toBe(0);
-        expect(ciFlows.length).toBeGreaterThan(10);
-        expect(ours.stdout.trim().split('\n')).toEqual(ciFlows.filter((flow) => !sandboxOnly.includes(flow)));
-
-        for (const flow of sandboxOnly) {
-            expect(ciFlows).toContain(flow);
-            expect(ours.stderr).toContain(`not run locally: needs sandbox - ${flow}`);
-        }
-    });
-
     it('`flows` still runs a sandbox-only flow when it is NAMED - the developer asked for exactly that', () => {
         const result = run(makeSandbox(), 'local_maestro_flows flows recipes/pasteListSettle');
 
@@ -159,40 +131,78 @@ describe('local_maestro_flows — which flows a command runs', () => {
     });
 });
 
-describe('the device pin — every adb and maestro call targets emulator-5556', () => {
-    it('pins a bare `adb` call', () => {
+/**
+ * REWRITTEN 2026-11-07 (the Maestro lanes): `all` and `changed` no longer run one emulator here. They hand over to
+ * `maestro:lanes`, which selects (impact selector, or FULL_SUITE), filters for the local stack and packs the flows across
+ * the lanes whose Clerk users exist. The selection those commands used to make is now the runner's (`flow:` keys,
+ * `maestroFlowSelection.test.ts`, `maestroLaneEnv.integration.test.ts`) and the orchestrator's (`laneRun.test.ts`).
+ */
+describe('`all` and `changed` hand over to maestro:lanes', () => {
+    const fakeNpm = (sandbox: Sandbox): void => {
+        writeFileSync(
+            path.join(sandbox.bin, 'npm'),
+            `#!/usr/bin/env bash\necho "npm $* full=\${FULL_SUITE:-unset}" >> "${sandbox.calls}"\nexit 7\n`,
+        );
+        chmodSync(path.join(sandbox.bin, 'npm'), 0o755);
+    };
+
+    it.each([
+        ['all', '1'],
+        ['changed', 'unset'],
+    ])('`%s` runs the Android lanes through the npm door (FULL_SUITE=%s), and returns their exit', (command, full) => {
+        const sandbox = makeSandbox();
+        fakeNpm(sandbox);
+
+        const result = run(sandbox, `local_maestro_main ${command}`);
+
+        expect(result.status).toBe(7);
+        expect(readFileSync(sandbox.calls, 'utf8').trim()).toBe(
+            `npm run maestro:lanes --workspace=@kitchensink/local-sandbox -- --platform android full=${full}`,
+        );
+    });
+
+    it('`changed` keeps the caller’s FULL_SUITE=1', () => {
+        const sandbox = makeSandbox();
+        fakeNpm(sandbox);
+
+        run(sandbox, 'local_maestro_main changed', { FULL_SUITE: '1' });
+
+        expect(readFileSync(sandbox.calls, 'utf8')).toContain('full=1');
+    });
+});
+
+/**
+ * REWRITTEN 2026-11-07 (the Maestro lanes). The pin used to be two shell functions that shadowed `adb` and `maestro`.
+ * The runner now names the device itself from `ANDROID_SERIAL` (`adb` reads it natively, and run mode hands `maestro`
+ * `--device "$ANDROID_SERIAL"`), so a `maestro` shadow would pass `--device` twice. The pin is now the variable: set when
+ * the script is sourced, to the literal serial, whatever the caller's environment says.
+ */
+describe('the device pin — ANDROID_SERIAL names emulator-5556, and nothing shadows adb or maestro', () => {
+    it('reaches a bare `adb` call through the environment adb reads', () => {
         const sandbox = makeSandbox();
 
+        writeFileSync(
+            path.join(sandbox.bin, 'adb'),
+            `#!/usr/bin/env bash\necho "adb serial=$ANDROID_SERIAL $*" >> "${sandbox.calls}"\n`,
+        );
         run(sandbox, 'adb devices');
 
-        expect(readFileSync(sandbox.calls, 'utf8').trim()).toBe('adb -s emulator-5556 devices');
+        expect(readFileSync(sandbox.calls, 'utf8').trim()).toBe('adb serial=emulator-5556 devices');
     });
 
-    it('pins the calls CI’s own sourced per-flow functions make', () => {
-        const sandbox = makeSandbox();
+    it('leaves `adb` and `maestro` as the binaries, so the runner adds the only --device', () => {
+        const result = run(makeSandbox(), 'type -t adb; type -t maestro');
 
-        run(sandbox, 'maestro_reset_driver');
-
-        const calls = readFileSync(sandbox.calls, 'utf8').trim().split('\n');
-
-        expect(calls.length).toBeGreaterThan(0);
-        expect(calls.every((call) => call.startsWith('adb -s emulator-5556 '))).toBe(true);
-    });
-
-    it('pins `maestro`, as a global option ahead of the subcommand', () => {
-        const sandbox = makeSandbox();
-
-        run(sandbox, 'maestro test flow.yaml');
-
-        expect(readFileSync(sandbox.calls, 'utf8').trim()).toBe('maestro --device emulator-5556 test flow.yaml');
+        expect(result.stdout.trim().split('\n')).toEqual(['file', 'file']);
     });
 
     it('is not overridable from the environment', () => {
-        const sandbox = makeSandbox();
+        const result = run(makeSandbox(), 'printf "%s" "$ANDROID_SERIAL"', {
+            ANDROID_SERIAL: 'emulator-5554',
+            LOCAL_MAESTRO_SERIAL: 'emulator-5554',
+        });
 
-        run(sandbox, 'adb devices', { ANDROID_SERIAL: 'emulator-5554', LOCAL_MAESTRO_SERIAL: 'emulator-5554' });
-
-        expect(readFileSync(sandbox.calls, 'utf8').trim()).toBe('adb -s emulator-5556 devices');
+        expect(result.stdout).toBe('emulator-5556');
     });
 });
 
@@ -447,16 +457,22 @@ describe('the local run uses its own pool users', () => {
         expect(result.stdout.trim().split('\n').at(-1)).toBe('local');
     });
 
-    it('creates the lane’s users, recycling its erasure subjects, with the namespace in force', () => {
+    /**
+     * REWRITTEN 2026-11-07 (owner ruling: delete only the id the run recorded). The lane's standing users come from
+     * `poolAdmin --maestro-lane`, which no longer touches the erasure subject; the run makes its own subject through
+     * `runUsers.ts`, which records the id in the state directory.
+     */
+    it('makes the lane’s standing users and the run’s own erasure subject, with the namespace in force', () => {
         const sandbox = makeSandbox();
         fakeNpx(sandbox);
 
         expect(
             run(sandbox, `local_maestro_seed_env '${sandbox.state}'; local_maestro_provision_lane_users`).status,
         ).toBe(0);
-        expect(readFileSync(sandbox.calls, 'utf8')).toContain(
-            'poolAdmin.ts --apply --recycle --maestro-lane --platform android --shard 1 ns=local',
-        );
+        expect(readFileSync(sandbox.calls, 'utf8').split('\n').filter(Boolean)).toEqual([
+            'npx tsx packages/tools/e2e-fixtures/src/poolAdmin.ts --apply --maestro-lane --platform android --shard 1 ns=local',
+            `npx tsx packages/tools/e2e-fixtures/src/runUsers.ts --create-run-erasure-subject --platform android --record ${sandbox.state}/runUsers.android.json ns=local`,
+        ]);
     });
 
     it('provisions the users after the Clerk keys are loaded and before the pool is reset', () => {
@@ -507,23 +523,25 @@ describe('local_maestro_provision_lane_users — what it may do to Clerk', () =>
         return readFileSync(sandbox.calls, 'utf8');
     }
 
-    it('by default recycles the lane users and creates NO role users', () => {
+    it('by default makes the lane users and the run’s erasure subject, and NO role users', () => {
         const calls = provision({});
 
-        expect(calls).toContain('--apply --recycle --maestro-lane --platform android --shard 1');
+        expect(calls).toContain('poolAdmin.ts --apply --maestro-lane --platform android --shard 1');
+        expect(calls).toContain('runUsers.ts --create-run-erasure-subject --platform android --record ');
         expect(calls).not.toContain('--local-roles');
     });
 
-    it('⛔ LOCAL_MAESTRO_REUSE_USERS=1 issues no poolAdmin command at all - nothing is created or deleted in Clerk', () => {
-        expect(provision({ LOCAL_MAESTRO_REUSE_USERS: '1' })).not.toContain('poolAdmin');
+    it('⛔ LOCAL_MAESTRO_REUSE_USERS=1 makes no lane user; the run still makes, and later deletes, its own subject', () => {
+        const calls = provision({ LOCAL_MAESTRO_REUSE_USERS: '1' });
+
+        expect(calls).not.toContain('poolAdmin');
+        expect(calls).toContain('--create-run-erasure-subject');
     });
 
-    it('LOCAL_MAESTRO_ROLE_USERS=1 adds the capacity-checked --local-roles step, never --recycle with it', () => {
+    it('LOCAL_MAESTRO_ROLE_USERS=1 adds the capacity-checked --local-roles step once', () => {
         const calls = provision({ LOCAL_MAESTRO_REUSE_USERS: '1', LOCAL_MAESTRO_ROLE_USERS: '1' });
-        const roles = calls.split('\n').filter((line) => line.includes('--local-roles'));
 
-        expect(roles).toHaveLength(1);
-        expect(roles[0]).not.toContain('--recycle');
+        expect(calls.split('\n').filter((line) => line.includes('--local-roles'))).toHaveLength(1);
     });
 
     it('LOCAL_MAESTRO_ROLE_USERS=1 points the five read-only role lanes at the shared pool, and only then', () => {
@@ -540,8 +558,77 @@ describe('local_maestro_provision_lane_users — what it may do to Clerk', () =>
     it('anything but exactly 1 leaves both opt-ins off', () => {
         const calls = provision({ LOCAL_MAESTRO_REUSE_USERS: 'true', LOCAL_MAESTRO_ROLE_USERS: 'yes' });
 
-        expect(calls).toContain('--recycle');
+        expect(calls).toContain('--maestro-lane');
         expect(calls).not.toContain('--local-roles');
+    });
+});
+
+/**
+ * The run's erasure subject exists only DURING a run (owner ruling 2026-11-06). REWRITTEN 2026-11-07 (owner ruling: "Record
+ * the exact user id the run created, and at the end delete that id only, if it still exists. Never delete by pattern or by
+ * email"): the cleanup trap deletes through `runUsers.ts --delete-run-users`, which reads the ids from the run's record, so
+ * a failed run, an interrupt and a green run all delete exactly the user they made.
+ */
+describe('a local run deletes its erasure subject when it ends', () => {
+    function withFakeNpx(): Sandbox {
+        const sandbox = makeSandbox();
+
+        writeFileSync(
+            path.join(sandbox.bin, 'npx'),
+            `#!/usr/bin/env bash\necho "npx $* ns=\${E2E_POOL_NAMESPACE:-unset}" >> "${sandbox.calls}"\nexit 0\n`,
+        );
+        chmodSync(path.join(sandbox.bin, 'npx'), 0o755);
+
+        return sandbox;
+    }
+
+    it('deletes by the run’s record, with the local namespace in force', () => {
+        const sandbox = withFakeNpx();
+
+        expect(run(sandbox, `local_maestro_seed_env '${sandbox.state}'; local_maestro_delete_run_users`).status).toBe(
+            0,
+        );
+        expect(readFileSync(sandbox.calls, 'utf8')).toContain(
+            `runUsers.ts --delete-run-users --record ${sandbox.state}/runUsers.android.json ns=local`,
+        );
+    });
+
+    it('⛔ never deletes by address: no poolAdmin command at the end of a run', () => {
+        const sandbox = withFakeNpx();
+
+        run(sandbox, `local_maestro_seed_env '${sandbox.state}'; local_maestro_delete_run_users`, {
+            LOCAL_MAESTRO_REUSE_USERS: '1',
+        });
+
+        expect(readFileSync(sandbox.calls, 'utf8')).not.toContain('poolAdmin');
+    });
+
+    it('runs from the exit trap once the subject was asked for, and keeps the run’s own exit status', () => {
+        const sandbox = withFakeNpx();
+        const result = run(
+            sandbox,
+            `local_maestro_seed_env '${sandbox.state}'; LOCAL_MAESTRO_RUN_USERS_MADE=true; (exit 7); local_maestro_cleanup`,
+        );
+
+        expect(result.status).toBe(7);
+        expect(readFileSync(sandbox.calls, 'utf8')).toContain('--delete-run-users');
+    });
+
+    it('does not touch Clerk when the run ended before it asked for the subject', () => {
+        const sandbox = withFakeNpx();
+
+        run(sandbox, `local_maestro_seed_env '${sandbox.state}'; (exit 3); local_maestro_cleanup`);
+
+        expect(existsSync(sandbox.calls) ? readFileSync(sandbox.calls, 'utf8') : '').not.toContain('runUsers');
+    });
+
+    it('marks the subject as asked for BEFORE it creates it, so a failure part-way is still cleaned', () => {
+        const body = run(makeSandbox(), 'declare -f local_maestro_provision_lane_users').stdout;
+
+        expect(body.indexOf('LOCAL_MAESTRO_RUN_USERS_MADE=true')).toBeGreaterThanOrEqual(0);
+        expect(body.indexOf('LOCAL_MAESTRO_RUN_USERS_MADE=true')).toBeLessThan(
+            body.indexOf('--create-run-erasure-subject'),
+        );
     });
 });
 
@@ -646,5 +733,141 @@ describe('local_maestro_export_build_env — the APK build carries the public Cl
 
         expect(build.indexOf('local_maestro_export_build_env')).toBeGreaterThan(-1);
         expect(build.indexOf('local_maestro_export_build_env')).toBeLessThan(build.indexOf('npx expo prebuild'));
+    });
+});
+
+/**
+ * ADDED 2026-11-07: a run never ADOPTS a shared service it did not start. Reusing another run's parse worker or queue
+ * consumer is how one run's exit killed another's consumer and left a purge queued (the lane orchestrator's
+ * `sharedServices.ts` refuses the same way).
+ */
+describe('the one-emulator path never adopts a service', () => {
+    it('refuses a parse worker it did not start, names its pid, and starts nothing', () => {
+        const sandbox = makeSandbox();
+        writeFileSync(path.join(sandbox.bin, 'pgrep'), '#!/usr/bin/env bash\necho 4242\nexit 0\n');
+        chmodSync(path.join(sandbox.bin, 'pgrep'), 0o755);
+        writeFileSync(path.join(sandbox.bin, 'npm'), `#!/usr/bin/env bash\necho "npm $*" >> "${sandbox.calls}"\n`);
+        chmodSync(path.join(sandbox.bin, 'npm'), 0o755);
+        mkdirSync(sandbox.state, { recursive: true });
+
+        const result = run(sandbox, `local_maestro_start_worker '${sandbox.state}'`);
+
+        expect(result.status).not.toBe(0);
+        expect(result.stderr).toMatch(/4242/u);
+        expect(readFileSync(sandbox.calls, 'utf8')).toBe('');
+    });
+});
+
+/**
+ * ⛔ NO EMULATOR BOOTS ON WSL BY DEFAULT. Nested Android emulators crashed Windows twice (a hypervisor bugcheck, 2026-11-08), so
+ * Android lanes run on the Mac and `LOCAL_MAESTRO_ANDROID_ON=wsl` is the explicit opt-in. The one-emulator `flows` mode boots
+ * the lane AVD (`LOCAL_MAESTRO_AVD`) on WSL itself, so it asks first.
+ */
+describe('local_maestro_start_emulator — where an emulator may boot', () => {
+    const spawned = (sandbox: Sandbox): boolean => /^emulator /mu.test(readFileSync(sandbox.calls, 'utf8'));
+
+    it('refuses to boot on WSL when LOCAL_MAESTRO_ANDROID_ON is not set, and starts nothing', () => {
+        const sandbox = makeSandbox();
+        const result = run(sandbox, `local_maestro_start_emulator "${sandbox.state}"`);
+
+        expect(result.status).not.toBe(0);
+        expect(result.stderr).toContain('LOCAL_MAESTRO_ANDROID_ON');
+        expect(spawned(sandbox)).toBe(false);
+    });
+
+    it('refuses when it is set to the Mac, because that host boots its own emulators over ssh', () => {
+        const sandbox = makeSandbox();
+        const result = run(sandbox, `local_maestro_start_emulator "${sandbox.state}"`, {
+            LOCAL_MAESTRO_ANDROID_ON: 'mac',
+        });
+
+        expect(result.status).not.toBe(0);
+        expect(spawned(sandbox)).toBe(false);
+    });
+
+    it('refuses a value that is neither mac nor wsl', () => {
+        const result = run(makeSandbox(), 'local_maestro_android_host', { LOCAL_MAESTRO_ANDROID_ON: 'both' });
+
+        expect(result.status).not.toBe(0);
+        expect(result.stderr).toContain('LOCAL_MAESTRO_ANDROID_ON');
+    });
+
+    it('answers mac by default and wsl when it is asked for', () => {
+        expect(run(makeSandbox(), 'local_maestro_android_host').stdout.trim()).toBe('mac');
+        expect(
+            run(makeSandbox(), 'local_maestro_android_host', { LOCAL_MAESTRO_ANDROID_ON: 'wsl' }).stdout.trim(),
+        ).toBe('wsl');
+    });
+});
+
+/**
+ * The one-emulator path builds the lane AVD from the SAME settings the lanes use (ADR-0088 §5), through the same
+ * `androidLaneHost.sh ensure-avd`, before it boots: a machine that has never had the AVD gets it from the settings, and one
+ * that has gets the settings written over it again. Nothing here boots an emulator.
+ */
+describe('local_maestro_ensure_avd — the lane AVD comes from the settings', () => {
+    /** Fake `avdmanager` that makes the AVD folder the way the real one does, in a temp AVD home. */
+    function withAvdTools(sandbox: Sandbox) {
+        const avdHome = path.join(path.dirname(sandbox.bin), 'avd');
+        mkdirSync(avdHome, { recursive: true });
+        writeFileSync(
+            path.join(sandbox.bin, 'avdmanager'),
+            `#!/usr/bin/env bash\necho "avdmanager $*" >> "${sandbox.calls}"\nname=""; while [ $# -gt 0 ]; do [ "$1" = -n ] && name="$2"; shift; done\n` +
+                `mkdir -p "${avdHome}/$name.avd"; printf 'hw.lcd.width=1080\\n' > "${avdHome}/$name.avd/config.ini"\n`,
+        );
+        chmodSync(path.join(sandbox.bin, 'avdmanager'), 0o755);
+
+        return avdHome;
+    }
+
+    it('creates the AVD from the x86_64 image and writes every setting over the defaults', () => {
+        const sandbox = makeSandbox();
+        const avdHome = withAvdTools(sandbox);
+        const result = run(sandbox, 'local_maestro_ensure_avd', { ANDROID_AVD_HOME: avdHome });
+        const config = readFileSync(path.join(avdHome, 'ks_lane_lean.avd/config.ini'), 'utf8');
+
+        expect(result.status, result.stderr).toBe(0);
+        expect(readFileSync(sandbox.calls, 'utf8')).toContain(
+            'avdmanager create avd -n ks_lane_lean -k system-images;android-34;google_apis;x86_64',
+        );
+        expect(config).toContain('hw.lcd.width=720');
+        expect(config).toContain('hw.cpu.ncore=2');
+        expect(config).not.toContain('hw.lcd.width=1080');
+    });
+
+    it('does not create it twice, and still writes the settings', () => {
+        const sandbox = makeSandbox();
+        const avdHome = withAvdTools(sandbox);
+        run(sandbox, 'local_maestro_ensure_avd', { ANDROID_AVD_HOME: avdHome });
+        writeFileSync(path.join(avdHome, 'ks_lane_lean.avd/config.ini'), 'hw.lcd.width=1\n');
+        run(sandbox, 'local_maestro_ensure_avd', { ANDROID_AVD_HOME: avdHome });
+
+        expect(readFileSync(sandbox.calls, 'utf8').match(/avdmanager create/gu)).toHaveLength(1);
+        expect(readFileSync(path.join(avdHome, 'ks_lane_lean.avd/config.ini'), 'utf8')).toContain('hw.lcd.width=720');
+    });
+
+    it('is run before the emulator boots, and a failure stops the boot', () => {
+        const sandbox = makeSandbox();
+        mkdirSync(sandbox.state, { recursive: true });
+        const body =
+            'local_maestro_ensure_avd() { echo ENSURE >> "$CALLS"; return "${ENSURE_RC:-0}"; }\n' +
+            'sleep() { :; }\n' +
+            `local_maestro_start_emulator "${sandbox.state}"`;
+        const first = run(sandbox, body, { LOCAL_MAESTRO_ANDROID_ON: 'wsl', CALLS: sandbox.calls });
+        const lines = readFileSync(sandbox.calls, 'utf8').split('\n');
+
+        expect(first.status).not.toBe(0);
+        expect(lines.indexOf('ENSURE')).toBeGreaterThanOrEqual(0);
+        expect(lines.findIndex((line) => line.startsWith('emulator '))).toBeGreaterThan(lines.indexOf('ENSURE'));
+
+        const failing = makeSandbox();
+        mkdirSync(failing.state, { recursive: true });
+        run(failing, body.replace(`"${sandbox.state}"`, `"${failing.state}"`), {
+            LOCAL_MAESTRO_ANDROID_ON: 'wsl',
+            CALLS: failing.calls,
+            ENSURE_RC: '1',
+        });
+
+        expect(readFileSync(failing.calls, 'utf8')).not.toMatch(/^emulator /mu);
     });
 });

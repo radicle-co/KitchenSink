@@ -17,8 +17,9 @@
  * @pattern Adapter over the DOM focus and scroll APIs — `.focus()` and the document's scroll lock have no declarative form.
  */
 import { Icon } from '@commise/ui/icon';
+import { useFocusOnSignal } from '@commise/ui/dialog-focus';
 import { enterTransitionClassName } from '@commise/ui/motion';
-import { useEffect, useRef, type FC, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type FC, type ReactNode } from 'react';
 
 import type { PinnedBarFacts } from './pinnedBarFacts.js';
 
@@ -47,30 +48,46 @@ export const PinnedIngredientsBar: FC<PinnedIngredientsBarProps> = ({
     scrimLabel,
     children,
 }) => {
-    const bar = useRef<HTMLButtonElement>(null);
     const panel = useRef<HTMLDivElement>(null);
-    const wasOpen = useRef(false);
+    // The list's close takes focus back to the bar, which stays mounted: a counter of closes is the signal. The edge latch
+    // is state adjusted during render, as `useReturnFocusOnClose` does it.
+    const [wasOpen, setWasOpen] = useState(open);
+    const [closes, setCloses] = useState(0);
+    const bar = useFocusOnSignal<HTMLButtonElement>(closes);
 
-    // @sideEffect Focus goes into the list on open and back to the bar on close.
+    if (wasOpen !== open) {
+        setWasOpen(open);
+
+        if (!open) {
+            setCloses((count) => count + 1);
+        }
+    }
+
+    // @sideEffect Focus goes into the list on open.
     useEffect(() => {
         if (open) {
             panel.current?.querySelector<HTMLElement>(TABBABLE)?.focus();
-        } else if (wasOpen.current) {
-            bar.current?.focus();
         }
-
-        wasOpen.current = open;
     }, [open]);
 
-    // @sideEffect While the list is open: the page behind the scrim does not scroll, Escape closes, and Tab wraps between
-    // the bar and the list's controls, so focus never leaves them, and a window grown to a 720 px body closes it.
+    // @sideEffect While the list is open: the page behind the scrim does not scroll, is inert (nothing outside the bar and
+    // the list can be reached or read), Escape closes, and Tab wraps between the bar and the list's controls.
     useEffect(() => {
-        if (!open) {
+        if (!open || bar.current === null) {
             return undefined;
         }
 
         const { documentElement } = document;
         const before = documentElement.style.overflow;
+        const barButton = bar.current;
+        // Everything that is not on the path from the document down to the bar and its list: the siblings along the way.
+        const aside: Element[] = [];
+
+        for (let node: Element | null = barButton.parentElement; node?.parentElement; node = node.parentElement) {
+            const path = node;
+
+            aside.push(...Array.from(path.parentElement?.children ?? []).filter((sibling) => sibling !== path));
+        }
 
         const onKeyDown = (event: KeyboardEvent): void => {
             if (event.key === 'Escape') {
@@ -79,36 +96,39 @@ export const PinnedIngredientsBar: FC<PinnedIngredientsBarProps> = ({
                 return;
             }
 
-            if (event.key !== 'Tab' || bar.current === null) {
+            if (event.key !== 'Tab') {
                 return;
             }
 
-            const stops = [bar.current, ...Array.from(panel.current?.querySelectorAll<HTMLElement>(TABBABLE) ?? [])];
+            const stops = [barButton, ...Array.from(panel.current?.querySelectorAll<HTMLElement>(TABBABLE) ?? [])];
             const at = stops.findIndex((stop) => stop === document.activeElement);
-            const next = stops[(at + (event.shiftKey ? -1 : 1) + stops.length) % stops.length];
+            // A focus outside the stops (a row that was removed) enters the ring at its near end.
+            const next =
+                at === -1
+                    ? stops[event.shiftKey ? stops.length - 1 : 0]
+                    : stops[(at + (event.shiftKey ? -1 : 1) + stops.length) % stops.length];
 
             event.preventDefault();
             next?.focus();
         };
 
-        // The window can grow to a 720 px body (a tablet, a rotation, a resize) while the list is open. The article's
-        // container query then hides the whole thing, and nothing visible is left to close it or to lift the scroll lock.
-        const onResize = (): void => {
-            if (bar.current?.getClientRects().length === 0) {
-                onOpenChange(false);
-            }
-        };
-
         documentElement.style.overflow = 'hidden';
+
+        for (const sibling of aside) {
+            sibling.setAttribute('inert', '');
+        }
+
         document.addEventListener('keydown', onKeyDown);
-        window.addEventListener('resize', onResize);
 
         return () => {
             documentElement.style.overflow = before;
             document.removeEventListener('keydown', onKeyDown);
-            window.removeEventListener('resize', onResize);
+
+            for (const sibling of aside) {
+                sibling.removeAttribute('inert');
+            }
         };
-    }, [open, onOpenChange]);
+    }, [open, onOpenChange, bar]);
 
     return (
         // `hidden` from a 720 px body: the sticky card does this job there (R2), and the bar never draws.

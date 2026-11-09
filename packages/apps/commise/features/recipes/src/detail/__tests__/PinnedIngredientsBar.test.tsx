@@ -145,6 +145,7 @@ const view = (over: { readonly lines?: typeof ingredients } = {}): ReactElement 
 
 const barName = (tail: string): RegExp => new RegExp(`^Ingredients for 4, [^.]*\\. ${tail} list\\.$`, 'u');
 const showBar = (): HTMLElement => screen.getByRole('button', { name: barName('Show') });
+const showBarOrHide = (tail: 'Show' | 'Hide'): HTMLElement => screen.getByRole('button', { name: barName(tail) });
 
 describe('the pinned ingredients bar (web)', () => {
     it('asks the browser to watch a marker at the END of the ingredients card, with a root that reaches up past the window', () => {
@@ -305,6 +306,29 @@ describe('the pinned ingredients bar (web)', () => {
             fireEvent.keyDown(last, { key: 'Tab' });
 
             expect(document.activeElement).toBe(screen.getByRole('button', { name: barName('Hide') }));
+        });
+
+        it('makes the rest of the page inert while the list is open, and gives it back on close', () => {
+            const panel = open();
+            const card = screen.getByRole('region', { name: detail.ingredientsHeading });
+
+            expect(card.closest('[inert]')).not.toBeNull();
+            expect(panel.closest('[inert]')).toBeNull();
+            expect(showBarOrHide('Hide').closest('[inert]')).toBeNull();
+
+            fireEvent.click(screen.getByRole('button', { name: barName('Hide') }));
+
+            expect(document.querySelector('[inert]')).toBeNull();
+        });
+
+        it('sends Shift+Tab from a focus outside the list to the last control, not the one before it', () => {
+            const panel = open();
+            const boxes = within(panel).getAllByRole('checkbox');
+
+            (document.activeElement as HTMLElement).blur();
+            fireEvent.keyDown(document.body, { key: 'Tab', shiftKey: true });
+
+            expect(document.activeElement).toBe(boxes[boxes.length - 1]);
         });
 
         it('shares the servings with the card: a step in the list scales both', () => {

@@ -9,9 +9,10 @@
  * content-relative: the editor's section index does the same), and the scroll view's `onScroll` gives the offset. The
  * answer is a boolean in state, set on every scroll event but re-rendering only when it flips.
  *
- * shortcut: the answer is recomputed on a scroll event, not on a re-layout, so a card that changes height while the page
- * is still stays as it was until the next scroll. The only way the card changes height is a servings step, and the
- * stepper is on the card or in the open list, where the page does not scroll. Recompute on layout if that ever changes.
+ * shortcut: the answer is recomputed on a scroll event, not on a re-layout, so a card whose height changes while the page is
+ * still (a rotation, a text-size change, a refresh that changes the ingredients, a notice above it) keeps its old answer
+ * until the next scroll event. A scroll event follows any touch of the page, so the bar is wrong only until the cook next
+ * moves it. Recompute on layout too, with the last offset as a latch (as `ScrollHost` keeps one), if a device finding asks.
  */
 import { useCallback, useState } from 'react';
 

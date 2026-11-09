@@ -43,6 +43,11 @@ describe('pinnedBarFactsOf', () => {
         expect(facts({ ticked: lines(13).map((line) => line.ingredientId) }).meta).toBe('13 items · 13 ticked');
     });
 
+    it('formats the servings for the locale, like the counts', () => {
+        expect(facts({ servings: 1200 }).forServings).toBe('for 1,200');
+        expect(facts({ servings: 1200 }).dialogName).toBe('Ingredients for 1,200');
+    });
+
     it('uses the singular for one item', () => {
         expect(facts({ count: 1 }).meta).toBe('1 item');
     });

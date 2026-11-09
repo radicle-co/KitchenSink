@@ -355,9 +355,9 @@ export const RecipeDetailBody: FC<RecipeDetailBodyWebProps> = ({
                             onToggle={marks.toggleLine}
                         />
                     )}
-                    {/* The marker the pinned bar watches (owner ruling R1): zero tall, at the card's end. */}
+                    {/* The marker the pinned bar watches (owner ruling R1): zero tall, at the card's end, and gone from a 720 px body, where the sticky card does this job. */}
                     {recipe.ingredients.length > 0 && (
-                        <div ref={ingredientsEndRef} aria-hidden="true" className="h-0" />
+                        <div ref={ingredientsEndRef} aria-hidden="true" className="h-0 @min-[45rem]/detail:hidden" />
                     )}
                 </section>
 

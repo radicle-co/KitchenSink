@@ -76,7 +76,9 @@ export const pinnedBarFactsOf = ({
         },
     );
     const tickedText = fillTemplate(copy.pinnedTicked, { count: format.format(ticked) });
-    const forServings = fillTemplate(copy.ingredientsFor, { count: servings });
+    // The servings are formatted for the locale like the counts are (digits, grouping).
+    const servingsText = format.format(servings);
+    const forServings = fillTemplate(copy.ingredientsFor, { count: servingsText });
     const summary = ticked === 0 ? items : fillTemplate(copy.pinnedSummaryTicked, { items, ticked: tickedText });
 
     return {
@@ -84,7 +86,7 @@ export const pinnedBarFactsOf = ({
         forServings,
         meta: ticked === 0 ? items : fillTemplate(copy.pinnedMeta, { items, ticked: tickedText }),
         cue: open ? copy.pinnedHide : copy.pinnedShow,
-        name: fillTemplate(open ? copy.pinnedNameHide : copy.pinnedNameShow, { count: servings, summary }),
-        dialogName: fillTemplate(copy.pinnedDialogName, { count: servings }),
+        name: fillTemplate(open ? copy.pinnedNameHide : copy.pinnedNameShow, { count: servingsText, summary }),
+        dialogName: fillTemplate(copy.pinnedDialogName, { count: servingsText }),
     };
 };

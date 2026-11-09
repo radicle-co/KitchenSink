@@ -182,7 +182,7 @@ const REF_SITES: Readonly<Record<string, RefSite>> = {
     },
     'featuresRecipes/detail/PinnedIngredientsBar': {
         verdict: 'sanctioned',
-        why: 'Two node handles, the bar button and the list panel, for `.focus()`: focus moves into the list on open and back to the bar on close (WCAG 2.4.3), and Tab wraps between the two. `.focus()` has no declarative form, and a non-modal dialog is kept by hand because the bar must stay pressable above its own panel (a Radix modal would make it inert). `wasOpen` is a previous-value latch read and advanced ONLY inside the effect, so a discarded render cannot consume the close. The document scroll lock and the keydown listener are effect-scoped and restored on cleanup.',
+        why: 'One node handle, the list panel, to find its first control for `.focus()` on open (WCAG 2.4.3) and to wrap Tab between the bar and the list; the bar button is the `useFocusOnSignal` handle, which the shared hook already sanctions, and the edge latch behind it is state adjusted during render. `.focus()` has no declarative form, and the list is a non-modal dialog kept by hand because the bar must stay pressable above its own panel (a Radix modal would make it inert). The document scroll lock, the inert marks on the rest of the page and the keydown listener are effect-scoped and restored on cleanup.',
     },
     'featuresRecipes/form/IngredientRow': {
         verdict: 'sanctioned',

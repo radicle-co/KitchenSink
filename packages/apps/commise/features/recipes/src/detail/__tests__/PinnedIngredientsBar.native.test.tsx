@@ -285,6 +285,27 @@ describe('the pinned ingredients bar (native)', () => {
     });
 });
 
+describe('the bar text grows with the system text size, up to the chrome cap of 1.5x', () => {
+    // The sizes come from the tokens (label and meta are both 14 px), so a type-scale change moves the test with it.
+    it.each([1.25, 2])(
+        'at a system scale of %s the label and the meta line draw at 14 px times the scale, capped at 1.5',
+        (scale) => {
+            render(<Page />, scale);
+
+            const barText = within(bar('Show'));
+            const grown = (size: number): string => `${String(size * Math.min(scale, 1.5))}px`;
+
+            expect(resolvedStyle(barText.getByText('Ingredients'), 'fontSize')).toBe(
+                grown(nativeTokens.type.label.fontSize),
+            );
+            expect(resolvedStyle(barText.getByText('13 items'), 'fontSize')).toBe(
+                grown(nativeTokens.type.meta.fontSize),
+            );
+            expect(resolvedStyle(barText.getByText('Show'), 'fontSize')).toBe(grown(nativeTokens.type.label.fontSize));
+        },
+    );
+});
+
 /** A scroll and a layout event, with only the fields the hook reads. */
 const layoutOf = (y: number, height: number) => ({ nativeEvent: { layout: { y, height } } });
 const scrollTo = (y: number) => ({ nativeEvent: { contentOffset: { y } } });

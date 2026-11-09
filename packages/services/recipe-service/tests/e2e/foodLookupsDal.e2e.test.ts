@@ -196,12 +196,25 @@ describe('FoodLookupsDal (real Postgres)', () => {
             expect(first).toMatchObject({ kind: 'root', foodId: `${SCOPE}-f1`, foodOwnerId: null });
         });
 
-        it('⛔ never updates a lookup it finds (R13) — a later bind cannot change a shared row', async () => {
+        it('⛔ a later bind cannot make a shared row private (R13): the only update is PUBLIC-ing a promoted food', async () => {
             const shared = await dal.findOrCreateBound(admission(`${SCOPE}-f2`));
             const again = await dal.findOrCreateBound(admission(`${SCOPE}-f2`, OWNER_A));
 
             expect(again.lookupId).toBe(shared.lookupId);
             expect(again).toMatchObject({ foodOwnerId: null });
+        });
+
+        it('⛔ a food PROMOTED since it was first bound is handed back public: the stale captured owner is cleared', async () => {
+            const whenPrivate = await dal.findOrCreateBound(admission(`${SCOPE}-promoted`, OWNER_A));
+            const afterPromotion = await dal.findOrCreateBound(admission(`${SCOPE}-promoted`));
+            const stored = await pool.query<{ food_owner_id: string | null }>(
+                `SELECT food_owner_id FROM food_lookups WHERE id = $1`,
+                [whenPrivate.lookupId],
+            );
+
+            expect(whenPrivate).toMatchObject({ foodOwnerId: OWNER_A });
+            expect(afterPromotion).toMatchObject({ lookupId: whenPrivate.lookupId, foodOwnerId: null });
+            expect(stored.rows[0]).toEqual({ food_owner_id: null });
         });
 
         it('⛔ AE19 — concurrent binds of one food converge on ONE lookup', async () => {

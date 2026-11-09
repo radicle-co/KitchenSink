@@ -3,9 +3,10 @@
  * (`unresolved_foods`) — migration 0051, plan 002 U3.
  *
  * It owns every statement that writes a binding, and each promise it makes is a property of the SQL:
- * - **One lookup per food, found or created, never updated** (R12, R13). A second bind of the same root or variant
- *   lands on the existing row through that arm's partial unique index, and a found row is returned exactly as it
- *   stands, so no later bind can change what another cook's line reads. Concurrent binds converge on one row (AE19).
+ * - **One lookup per food, found or created** (R12, R13). A second bind of the same root or variant lands on the
+ *   existing row through that arm's partial unique index, and a found row is returned as it stands, so no later bind
+ *   can change what another cook's line reads. The one write is a PUBLIC root admission clearing a stale private
+ *   owner (a promotion is one-way; ADR-0045). Concurrent binds converge on one row (AE19).
  * - **Failures converge; declarations never do** (R11). A non-declared failure converges on its normalized key
  *   through the partial unique index; the attempt is merged by `mergeAttempt`'s rule (R2) with a
  *   compare-and-swap, so a lost race re-reads instead of overwriting.
@@ -235,7 +236,11 @@ export class FoodLookupsDal {
 
     /**
      * Find or create the ONE binding for an admitted food: a root, or a variant (curated U9), each on its own arm's
-     * partial unique index. A found row is returned as it stands and never updated (R13).
+     * partial unique index. A found row is returned as it stands (R13), with ONE exception: a PUBLIC root admission
+     * (`ownerId === null`) clears a stale captured owner. Food answered that the food is public NOW, and a promotion is
+     * one-way (private to promoted, never back), so a row still marked private is stale. Leaving it would hand a
+     * promoted food back as private to the next cook who adds it, hide it from every cook but its author (R20), and make
+     * a settle onto it throw. The write is conditional on the stale value, so a hot public food costs no row lock.
      *
      * @param admission - Proof that the food may be bound; it names the live end food answered.
      * @param writer - An enlisting transaction, or the client.
@@ -253,11 +258,22 @@ export class FoodLookupsDal {
             .onConflictDoNothing({ target: column, where: isNotNull(column) })
             .returning();
 
-        const lookup = created ?? (await writer.select().from(foodLookups).where(eq(column, ref.id)).limit(1))[0];
+        const found = created ?? (await writer.select().from(foodLookups).where(eq(column, ref.id)).limit(1))[0];
 
-        if (lookup === undefined) {
+        if (found === undefined) {
             throw new Error(`food_lookups has no row for ${ref.kind} ${ref.id} after a conflicting insert`);
         }
+
+        const lookup =
+            ref.kind === 'root' && admission.ownerId === null && found.foodOwnerId !== null
+                ? ((
+                      await writer
+                          .update(foodLookups)
+                          .set({ foodOwnerId: null })
+                          .where(and(eq(foodLookups.id, found.id), isNotNull(foodLookups.foodOwnerId)))
+                          .returning()
+                  )[0] ?? { ...found, foodOwnerId: null })
+                : found;
 
         return asBound(foodLookupArmOf({ lookup, failure: null }));
     }

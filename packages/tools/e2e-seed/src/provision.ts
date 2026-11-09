@@ -153,7 +153,7 @@ console.error(`e2e-seed provision: sessions established for the signer and co-au
 const coAuthorClient = clientFor(env.recipeOrigin, coAuthorSession);
 
 // The co-author's public recipe bound to the co-author's PRIVATE food: the signer reads its line with no name
-// (`recipes/privateFoodStandIn`). The food and the recipe are one fixture, checked together — never by title alone.
+// (the private-food Maestro flows). The food and the recipe are one fixture, checked together — never by title alone.
 // ⚠️ Published BEFORE the risotto below, so the risotto stays newer and keeps its place at the front of the "New"
 // rail, where `recipes/accessibility` waits for it (see `PRIVATE_FOOD_RECIPE`).
 const privateFood = await ensurePrivateFoodRecipe(

@@ -222,7 +222,7 @@ describe('deriveFixtureManifest', () => {
 });
 
 /**
- * `recipes/privateFoodStandIn.yaml` opens this recipe as the SIGNER and asserts the line reads "2 tbsp Private
+ * the private-food Maestro flows open this recipe as the SIGNER and assert the line reads "2 tbsp Private
  * ingredient" (plan 002 R9). Each rule below is one way that flow could pass or fail for a reason that is not the
  * one it tests.
  */

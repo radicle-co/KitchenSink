@@ -74,7 +74,8 @@ android	recipes/pastePublishOpenChoices	108	0
 android	recipes/photos	76	5
 android	recipes/pinnedActionBar	259	4
 android	recipes/preparationGroups	200	5
-android	recipes/privateFoodStandIn	79	5
+android	recipes/publishRefusedForPrivateFood	79	5
+android	recipes/askToMakeFoodPublic	79	5
 android	recipes/publishFeedback	168	5
 android	recipes/quantityRange	281	4
 android	recipes/rating	86	4
@@ -147,7 +148,8 @@ ios	recipes/pasteMatchChoose	161	0
 ios	recipes/pastePublishOpenChoices	161	0
 ios	recipes/photos	116	4
 ios	recipes/pinnedActionBar	346	2
-ios	recipes/privateFoodStandIn	161	0
+ios	recipes/publishRefusedForPrivateFood	161	0
+ios	recipes/askToMakeFoodPublic	161	0
 ios	recipes/preparationGroups	310	1
 ios	recipes/publishFeedback	174	3
 ios	recipes/quantityRange	310	1

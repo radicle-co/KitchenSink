@@ -153,10 +153,10 @@ APK="${MAESTRO_ANDROID_APK:-packages/apps/commise/mobile/android/app/build/outpu
 #     by-name line and a remote pick from its glyph's list; it saves one draft, which the next flow's reset deletes.
 #   - `recipes/ingredientRemoteFoods` (plan 002 S7.8, which replaced `ingredientUsdaSearch`) follows them: remote
 #     foods flowing into the add row's list and Change food's, two remote picks, and a publish the next reset deletes.
-#   - `recipes/privateFoodStandIn` sits right after `discoverDetailSaveCopy`: it reaches the co-author's recipe the same
-#     way and saves a copy, so it leaves one copy in the signer's library, which the next flow's reset deletes. It is
-#     labelled `recipes`, not `discovery`, because what it tests — the nameless line and the copy banner — lives
-#     in `features/recipes/src/detail/**`, which the `recipes` path filter owns.
+#   - `recipes/publishRefusedForPrivateFood` and `recipes/askToMakeFoodPublic` sit right after `discoverDetailSaveCopy`
+#     (they replaced `privateFoodStandIn`, whose public recipe holding another cook's private food can no longer exist).
+#     They open the SIGNER's own draft and leave nothing behind but a pending ask on the signer's own food. They are
+#     labelled `recipes` because what they test lives in `features/recipes/src/{editor,foodPage}/**`.
 #   - `recipes/quantityRange` sits with the other CREATE-editor flows and immediately after `create`: it
 #     publishes (twice), so it mutates the library, and it shares `create`'s "as written" prelude.
 #   - `recipes/preparationGroups` (U26/U27) sits immediately after `quantityRange`, for the same three
@@ -246,7 +246,8 @@ discovery:recipes/discoverRecentSearches
 discovery:recipes/discoverIngredientCap
 discovery:recipes/discoverSaveCopy
 discovery:recipes/discoverDetailSaveCopy
-recipes:recipes/privateFoodStandIn
+recipes:recipes/publishRefusedForPrivateFood
+recipes:recipes/askToMakeFoodPublic
 recipes:recipes/conflictMerge
 collections:recipes/collections
 collections:recipes/collectionAddRemoveUndo

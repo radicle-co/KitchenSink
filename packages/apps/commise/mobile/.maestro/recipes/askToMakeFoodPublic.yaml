@@ -1,0 +1,37 @@
+appId: ${APP_ID}
+---
+# From a recipe line's ⋯ menu to the food page, then Ask to make public: the page moves to "Waiting for review"
+# (private foods spec section 5.8). Staff do not decide here: the staff door is API only.
+#
+# ⚠️ NOT RUN where it was written. Same fixture as `publishRefusedForPrivateFood`: a signer-owned recipe whose line uses
+# the signer's own private food `${E2E_PRIVATE_FOOD_NAME}`, which `e2e-seed provision` still owes.
+# The row's menu item "Open food" is not wired in the editor yet (the row view carries no food visibility), so this
+# flow opens the food from the refusal sheet's Open food, the one entry that exists.
+- runFlow: ../auth/signin.yaml
+
+- assertVisible: 'My recipes'
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: '^${E2E_RECIPE_PRIVATE_FOOD}$'
+          DIRECTION: DOWN
+          TIMEOUT: 30000
+- tapOn:
+      text: '^${E2E_RECIPE_PRIVATE_FOOD}$'
+- tapOn: 'Edit recipe'
+- extendedWaitUntil:
+      visible: 'Close editor'
+      timeout: 40000
+- tapOn: 'Publish'
+- extendedWaitUntil:
+      visible: 'Open food'
+      timeout: 20000
+- tapOn: 'Open food'
+- extendedWaitUntil:
+      visible: 'Ask to make public'
+      timeout: 20000
+- tapOn: 'Ask to make public'
+- extendedWaitUntil:
+      visible: 'Waiting for review'
+      timeout: 20000
+- assertNotVisible: 'Ask to make public'

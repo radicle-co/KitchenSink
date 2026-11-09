@@ -77,6 +77,27 @@ export interface FoodPageMessages {
         readonly bodyAsked: string;
         readonly bodyPublic: string;
     };
+    readonly edit: {
+        readonly title: string;
+        readonly save: string;
+        readonly saving: string;
+        readonly send: string;
+        readonly sending: string;
+        readonly noChangeSave: string;
+        readonly noChangeSend: string;
+        readonly saved: string;
+        readonly askResent: string;
+        readonly sent: string;
+        readonly failed: string;
+        readonly duplicate: string;
+        readonly cancel: string;
+        readonly close: string;
+        readonly notice: {
+            readonly review: string;
+            readonly replacesWaiting: string;
+            readonly askReplaced: string;
+        };
+    };
     readonly yourFoods: {
         readonly title: string;
         readonly profileRow: string;
@@ -168,6 +189,27 @@ export const foodPageMessages: LocalizedMessages<FoodPageMessages> = {
                 'Your ask to make it public is cancelled. Your recipes that use it will show it as removed and stop counting its nutrition. You can’t undo this.',
             bodyPublic:
                 'No one will be able to find it. Every recipe that uses it, yours and other cooks’, will show it as removed and stop counting its nutrition. Any edit waiting for review is cancelled. You can’t undo this.',
+        },
+        edit: {
+            title: 'Edit {name}',
+            save: 'Save',
+            saving: 'Saving…',
+            send: 'Send for review',
+            sending: 'Sending…',
+            noChangeSave: 'Change something to save it.',
+            noChangeSend: 'Change something to send it for review.',
+            saved: 'Food saved.',
+            askResent: 'Food saved and sent for review.',
+            sent: 'Edit sent for review.',
+            failed: 'We couldn’t save your changes.',
+            duplicate: 'You already have a food with that name.',
+            cancel: 'Cancel',
+            close: 'Close food editor',
+            notice: {
+                review: 'Staff review every change to a public food. Until they approve, everyone, including your recipes, keeps the current version.',
+                replacesWaiting: 'This replaces the edit waiting for review.',
+                askReplaced: 'You asked to make this food public. Saving sends this version for review instead.',
+            },
         },
         yourFoods: {
             title: 'Your foods',

@@ -10,7 +10,7 @@
  *
  * @pattern Facade — one route over the shared food page session and view
  */
-import { FoodPageView, foodPageMessages, useFoodPage } from '@commise/features-recipes/food-page';
+import { FoodEditSheet, FoodPageView, foodPageMessages, useFoodPage } from '@commise/features-recipes/food-page';
 import { useMessages } from '@commise/i18n/react';
 import { PushedPageFrame } from '@commise/ui/pushed-page';
 import type { Route } from 'next';
@@ -31,10 +31,7 @@ export const FoodPageContainer: FC<FoodPageContainerProps> = ({ foodId, locale }
     const router = useRouter();
     const headingId = useId();
     const recipesPath = `/${locale}/recipes`;
-    const session = useFoodPage(foodId, {
-        // The edit sheet is the same AuthoredFoodSheet the editor opens; its edit mode is a follow-up (see the report).
-        onEdit: () => undefined,
-    });
+    const session = useFoodPage(foodId);
     const title = 'food' in session.state ? (session.state.food.name ?? m.titleFallback) : m.titleFallback;
     const back = {
         label: m.back.label,
@@ -51,6 +48,7 @@ export const FoodPageContainer: FC<FoodPageContainerProps> = ({ foodId, locale }
                         {title}
                     </h1>
                     <FoodPageView {...session} onLeave={() => router.push(recipesPath as Route)} />
+                    <FoodEditSheet session={session.edit} />
                 </div>
             )}
         </PushedPageFrame>

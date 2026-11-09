@@ -1,5 +1,6 @@
 import type { FoodResponse, PublicationRequestDetail, PublicationStateValue } from '@kitchensink/schema-food';
 
+import type { EditableState } from '../foodEditForm.js';
 import type { FoodPageState } from '../foodPageState.js';
 import type { FoodPageViewProps } from '../foodPageViewProps.js';
 
@@ -50,13 +51,13 @@ export function makeRequest(overrides: Partial<PublicationRequestDetail['request
 export function makeOwnState(
     kind: PublicationStateValue,
     overrides: { readonly request?: PublicationRequestDetail | undefined; readonly actionsDisabled?: boolean } = {},
-): FoodPageState {
+): EditableState {
     return {
         kind,
         food: makeFood({ publicationState: kind }),
         request: 'request' in overrides ? overrides.request : makeRequest(),
         actionsDisabled: overrides.actionsDisabled ?? false,
-    } as FoodPageState;
+    } as EditableState;
 }
 
 /** The view’s props with every handler a spy-able no-op. */

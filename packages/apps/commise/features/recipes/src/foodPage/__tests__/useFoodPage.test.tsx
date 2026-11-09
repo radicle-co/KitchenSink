@@ -23,7 +23,7 @@ afterEach(() => {
     show.mockReset();
 });
 
-function setup(client: Partial<FoodServiceClient>, onEdit = vi.fn()) {
+function setup(client: Partial<FoodServiceClient>) {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     const wrapper = ({ children }: { readonly children: ReactNode }) =>
         createElement(
@@ -32,7 +32,7 @@ function setup(client: Partial<FoodServiceClient>, onEdit = vi.fn()) {
             createElement(FoodServiceProvider, { client: client as FoodServiceClient, subject: 'user_a', children }),
         );
 
-    return { ...renderHook(() => useFoodPage('food_1', { onEdit }), { wrapper }), onEdit };
+    return { ...renderHook(() => useFoodPage('food_1'), { wrapper }) };
 }
 
 const resolved = (word: 'private' | 'asked' | 'public' | 'notApproved') => ({
@@ -145,12 +145,14 @@ describe('useFoodPage', () => {
         expect(result.current.withdraw.open).toBe(true);
     });
 
-    it('Edit hands off to the host', async () => {
-        const { result, onEdit } = setup({ getById: vi.fn().mockResolvedValue(resolved('private')) });
+    it('Edit opens the edit form, and there is nothing to edit before the food is read', async () => {
+        const { result } = setup({ getById: vi.fn().mockResolvedValue(resolved('private')) });
 
+        act(() => result.current.onEdit());
+        expect(result.current.edit.open).toBe(false);
         await waitFor(() => expect(result.current.state.kind).toBe('private'));
-        result.current.onEdit();
-        expect(onEdit).toHaveBeenCalledOnce();
+        act(() => result.current.onEdit());
+        expect(result.current.edit.open).toBe(true);
     });
 
     it('Retry reads the food again', async () => {

@@ -147,7 +147,6 @@ function FoodDetailRoute({ navigation, route }: TaskProps<'FoodDetail'>): JSX.El
             back={{ label: back.label, parent: back.parent, onPress: goBack }}
             leaveLabel={back.label}
             onLeave={goBack}
-            onEdit={() => undefined}
         />
     );
 }

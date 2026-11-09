@@ -18,10 +18,11 @@ import { ScrollView, YStack } from 'tamagui';
 
 import { FoodPageView } from './FoodPageView.native.js';
 import { foodPageMessages } from './messages.js';
-import { useFoodPage, type FoodPageHost } from './useFoodPage.js';
+import { FoodEditSheet } from './FoodEditSheet.native.js';
+import { useFoodPage } from './useFoodPage.js';
 
 /** Props for {@link FoodDetailScreen}. */
-export interface FoodDetailScreenProps extends FoodPageHost {
+export interface FoodDetailScreenProps {
     readonly foodId: string;
     /** The way back, named for where it goes ("Back to Edit recipe"). */
     readonly back: HeaderBack;
@@ -32,10 +33,10 @@ export interface FoodDetailScreenProps extends FoodPageHost {
 }
 
 /** The food page screen. */
-export const FoodDetailScreen: FC<FoodDetailScreenProps> = ({ foodId, back, onEdit, onLeave, leaveLabel }) => {
+export const FoodDetailScreen: FC<FoodDetailScreenProps> = ({ foodId, back, onLeave, leaveLabel }) => {
     const m = useMessages(foodPageMessages);
     const headingId = useId();
-    const session = useFoodPage(foodId, { onEdit });
+    const session = useFoodPage(foodId);
     const title = 'food' in session.state ? (session.state.food.name ?? m.titleFallback) : m.titleFallback;
 
     return (
@@ -48,6 +49,7 @@ export const FoodDetailScreen: FC<FoodDetailScreenProps> = ({ foodId, back, onEd
                             <FoodPageView {...session} onLeave={onLeave} leaveLabel={leaveLabel} />
                         </YStack>
                     </YStack>
+                    <FoodEditSheet session={session.edit} />
                 </ScrollView>
             )}
         </PushedPageFrame>

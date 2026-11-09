@@ -1,8 +1,8 @@
 /**
  * @module @commise/features-recipes/foodPage — `useFoodPage`: the author's food page orchestration (private foods spec
  * section 5). It reads the food and, for a state that shows staff's answer, its newest publication request; turns them into
- * one {@link FoodPageState}; and owns the cook's intents: Ask, Withdraw (with its confirmation) and Retry. Edit is the
- * host's (web opens the edit sheet, native the same sheet), so it is handed through.
+ * one {@link FoodPageState}; and owns the cook's intents: Ask, Withdraw (with its confirmation) and Retry. Edit opens
+ * the edit form (`useFoodEdit`).
  *
  * Remote state stays in TanStack Query: the page state is DERIVED from the queries each render, never copied into local
  * state. The ask and withdraw are mutations that refresh the food, its request and the list (the food client's hooks).
@@ -23,18 +23,15 @@ import { useCallback, useState, useSyncExternalStore } from 'react';
 import { foodPageStateOf, type FoodPageState, type FoodRead } from './foodPageState.js';
 import type { AskStatus, WithdrawDialogState } from './foodPageViewProps.js';
 import { foodPageMessages } from './messages.js';
-
-/** What the page asks of its host. */
-export interface FoodPageHost {
-    /** Open the edit sheet, prefilled by the state (the waiting edit, the declined version, or the food). */
-    readonly onEdit: () => void;
-}
+import { useFoodEdit, type FoodEditSession } from './useFoodEdit.js';
 
 /** What the page returns: the state and every handler `FoodPageView` takes. */
 export interface FoodPageSession {
     readonly state: FoodPageState;
     readonly ask: AskStatus;
     readonly withdraw: WithdrawDialogState;
+    /** The edit form (states 13 and 14); Edit opens it. */
+    readonly edit: FoodEditSession;
     readonly onEdit: () => void;
     readonly onAsk: () => void;
     readonly onWithdraw: () => void;
@@ -62,7 +59,7 @@ function useOnline(): boolean {
  * @returns The page state and the cook’s intents.
  * @sideEffect Reads food-service; Ask and Withdraw write to it; a snackbar says each success.
  */
-export function useFoodPage(foodId: string, host: FoodPageHost): FoodPageSession {
+export function useFoodPage(foodId: string): FoodPageSession {
     const m = useMessages(foodPageMessages);
     const { show } = useSnackbar();
     const online = useOnline();
@@ -81,6 +78,7 @@ export function useFoodPage(foodId: string, host: FoodPageHost): FoodPageSession
               ? { phase: 'error', error: food.error }
               : { phase: 'pending' };
     const state = foodPageStateOf({ read, request: request.data, online });
+    const edit = useFoodEdit(state);
 
     const ask: AskStatus = requestPublication.isPending ? 'busy' : requestPublication.isError ? 'failed' : 'idle';
 
@@ -101,7 +99,8 @@ export function useFoodPage(foodId: string, host: FoodPageHost): FoodPageSession
         state,
         ask,
         withdraw: { open: confirming, busy: withdrawFood.isPending, failed: withdrawFood.isError },
-        onEdit: host.onEdit,
+        edit,
+        onEdit: edit.onOpen,
         onAsk,
         onWithdraw: () => {
             withdrawFood.reset();

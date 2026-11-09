@@ -8,3 +8,4 @@ export { YourFoodsScreen } from './YourFoodsScreen.native.js';
 export type { YourFoodsScreenProps } from './YourFoodsScreen.native.js';
 export { YourFoodsRow } from './YourFoodsRow.native.js';
 export { PrivateFoodsRefusalSheet } from '../editor/PrivateFoodsRefusalSheet.native.js';
+export { FoodEditSheet } from './FoodEditSheet.native.js';

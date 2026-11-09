@@ -16,6 +16,7 @@
  */
 import { profileMessages } from '@commise/features-account/profile';
 import { DataSourcesPushedScreen } from '@commise/features-recipes/data-sources/mobile';
+import { YourFoodsScreen } from '@commise/features-recipes/food-page/mobile';
 import { useMessages } from '@commise/i18n/react';
 import { createNativeStackNavigator, type NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useBottomTabBarHeight, type BottomTabScreenProps } from '@react-navigation/bottom-tabs';
@@ -107,7 +108,11 @@ function CollectionDetailRoute({ navigation, route }: TabScreenProps<'Collection
 /** Profile, pushed from the avatar onto the current tab. */
 function ProfileRoute({ navigation }: TabScreenProps<'Profile'>): JSX.Element {
     return (
-        <ProfileScreen onBack={() => navigation.goBack()} onOpenDataSources={() => navigation.push('DataSources')} />
+        <ProfileScreen
+            onBack={() => navigation.goBack()}
+            onOpenDataSources={() => navigation.push('DataSources')}
+            onOpenYourFoods={() => navigation.push('YourFoods')}
+        />
     );
 }
 
@@ -118,6 +123,18 @@ function DataSourcesRoute({ navigation }: TabScreenProps<'DataSources'>): JSX.El
     return (
         <DataSourcesPushedScreen
             back={{ label: t.backToProfile, parent: t.title, onPress: () => navigation.goBack() }}
+        />
+    );
+}
+
+/** The cook's own foods, pushed from Profile; a food opens its page above the tabs (ADR-0056 item 2). */
+function YourFoodsRoute({ navigation }: TabScreenProps<'YourFoods'>): JSX.Element {
+    const t = useMessages(profileMessages);
+
+    return (
+        <YourFoodsScreen
+            back={{ label: t.backToProfile, parent: t.title, onPress: () => navigation.goBack() }}
+            onOpenFood={(foodId) => navigation.getParent()?.navigate('FoodDetail', { foodId, from: 'yourFoods' })}
         />
     );
 }
@@ -280,6 +297,7 @@ export function TabStack({ tab }: TabStackProps): JSX.Element {
             <TabStackNavigator.Screen name="CollectionDetail" component={CollectionDetailRoute} />
             <TabStackNavigator.Screen name="Profile" component={ProfileRoute} />
             <TabStackNavigator.Screen name="DataSources" component={DataSourcesRoute} />
+            <TabStackNavigator.Screen name="YourFoods" component={YourFoodsRoute} />
         </TabStackNavigator.Navigator>
     );
 }

@@ -58,6 +58,12 @@ vi.mock('@commise/features-account/danger', async (importOriginal) => ({
     ...(await importOriginal<typeof import('@commise/features-account/danger')>()),
     useEraseAccount: vi.fn(),
 }));
+/** The decisions the cook has not opened, as food-service's own-food list answers it. */
+const ownFoods = vi.hoisted(() => ({ unseen: 0 }));
+
+vi.mock('@kitchensink/food-service-client/hooks', () => ({
+    useOwnFoods: () => ({ data: { pages: [{ items: [], unseenDecisions: ownFoods.unseen }] } }),
+}));
 vi.mock('../../src/hooks/useProfileServiceClient.js', () => ({ useProfileServiceClient: () => ({}) }));
 vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
     useRecipeServiceClient: () => ({ emitAnalyticsEvents: async () => undefined }),
@@ -147,10 +153,10 @@ const loading = { data: undefined, isError: false, refetch } as unknown as Profi
 const failed = { data: undefined, isError: true, refetch } as unknown as ProfileQuery;
 
 /** Render the page where the app does: under the snackbar host. */
-function renderProfile(onBack = vi.fn(), onOpenDataSources = vi.fn()) {
+function renderProfile(onBack = vi.fn(), onOpenDataSources = vi.fn(), onOpenYourFoods = vi.fn()) {
     render(
         <SnackbarHost>
-            <ProfileScreen onBack={onBack} onOpenDataSources={onOpenDataSources} />
+            <ProfileScreen onBack={onBack} onOpenDataSources={onOpenDataSources} onOpenYourFoods={onOpenYourFoods} />
         </SnackbarHost>,
     );
 
@@ -592,7 +598,7 @@ describe('ProfileScreen — the photo failure’s type and colour', () => {
         setMutation({ isError: true });
         renderWithTamagui(
             <SnackbarHost>
-                <ProfileScreen onBack={vi.fn()} onOpenDataSources={vi.fn()} />
+                <ProfileScreen onBack={vi.fn()} onOpenDataSources={vi.fn()} onOpenYourFoods={vi.fn()} />
             </SnackbarHost>,
             scheme,
         );
@@ -611,5 +617,29 @@ describe('ProfileScreen — the photo failure’s type and colour', () => {
 
     it.each(['light', 'dark'] as const)('paints the failure in dangerText in the %s scheme', (scheme) => {
         expect(resolvedColour(renderFailedPhoto(scheme), 'color')).toBe(rgb(rolesFor(scheme).dangerText));
+    });
+});
+
+describe('ProfileScreen — Your foods (private foods spec F19 and revision 4)', () => {
+    beforeEach(() => {
+        ownFoods.unseen = 0;
+        useUserProfileMock.mockReturnValue(ready());
+        setMutation();
+    });
+
+    it('has a Your foods row of its own, which opens the cook’s foods', () => {
+        const onOpenYourFoods = vi.fn();
+        renderProfile(vi.fn(), vi.fn(), onOpenYourFoods);
+
+        fireEvent.click(screen.getByRole('button', { name: 'Your foods' }));
+        expect(onOpenYourFoods).toHaveBeenCalledOnce();
+    });
+
+    it('⛔ names the row for the new decisions: "Your foods, 1 new decision"', () => {
+        ownFoods.unseen = 1;
+        renderProfile();
+
+        expect(screen.getByRole('button', { name: 'Your foods, 1 new decision' })).toBeTruthy();
+        expect(screen.queryByRole('button', { name: 'Your foods' })).toBeNull();
     });
 });

@@ -4,16 +4,16 @@
     "packageName": "@commise/features-recipes",
     "layer": "feature",
     "coverage": {
-        "components": 193,
-        "implementations": 327,
-        "props": 2282,
-        "documentedComponents": 193,
-        "implementationsWithModuleDoc": 327,
-        "implementationsWithComponentDoc": 216,
-        "documentedProps": 1762,
-        "classifiedComponents": 171,
-        "componentsWithPatternTag": 92,
-        "crossPlatformComponents": 134
+        "components": 198,
+        "implementations": 335,
+        "props": 2345,
+        "documentedComponents": 198,
+        "implementationsWithModuleDoc": 335,
+        "implementationsWithComponentDoc": 224,
+        "documentedProps": 1787,
+        "classifiedComponents": 176,
+        "componentsWithPatternTag": 95,
+        "crossPlatformComponents": 137
     },
     "components": [
         {
@@ -178,11 +178,8 @@
                         },
                         {
                             "name": "consequence",
-                            "type": "enum",
-                            "typeDetail": [
-                                "\"frees\"",
-                                "\"premium\""
-                            ],
+                            "type": "\"frees\"",
+                            "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
                             "description": "Why going public costs the cook something: the body's words (`recipeMakePublicConsequence`, never `none` here).",
@@ -307,7 +304,7 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "Which fact the sheet states: every slot used (the server's limit), or an imported public-web recipe.",
+                            "description": "Which fact the sheet states: every slot used (the server's limit).",
                             "declaredIn": "packages/apps/commise/features/recipes/src/actions/model.ts"
                         }
                     ],
@@ -372,7 +369,7 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "Which fact the sheet states: every slot used (the server's limit), or an imported public-web recipe.",
+                            "description": "Which fact the sheet states: every slot used (the server's limit).",
                             "declaredIn": "packages/apps/commise/features/recipes/src/actions/model.ts"
                         }
                     ],
@@ -2690,9 +2687,9 @@
                             "name": "consequence",
                             "type": "enum",
                             "typeDetail": [
-                                "\"premium\"",
                                 "\"unknown\"",
-                                "\"final\""
+                                "\"final\"",
+                                "\"premium\""
                             ],
                             "required": true,
                             "defaultValue": null,
@@ -2787,7 +2784,7 @@
                         },
                         {
                             "name": "member",
-                            "type": "Readonly<{ id: string; ownerId: string; title: string; description: string; prepTimeMinutes: number; cookTimeMinutes: number; totalTimeMinutes: number; servings: number; visibility: \"public\" | \"private\"; ... 22 more ...; deletedAt?: string | undefined; }>",
+                            "type": "Readonly<{ id: string; ownerId: string; title: string; description: string; prepTimeMinutes: number; cookTimeMinutes: number; totalTimeMinutes: number; servings: number; visibility: \"public\" | \"private\"; ... 23 more ...; deletedAt?: string | undefined; }>",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
@@ -2874,7 +2871,7 @@
                         },
                         {
                             "name": "member",
-                            "type": "Readonly<{ id: string; ownerId: string; title: string; description: string; prepTimeMinutes: number; cookTimeMinutes: number; totalTimeMinutes: number; servings: number; visibility: \"public\" | \"private\"; ... 22 more ...; deletedAt?: string | undefined; }>",
+                            "type": "Readonly<{ id: string; ownerId: string; title: string; description: string; prepTimeMinutes: number; cookTimeMinutes: number; totalTimeMinutes: number; servings: number; visibility: \"public\" | \"private\"; ... 23 more ...; deletedAt?: string | undefined; }>",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
@@ -2985,7 +2982,7 @@
                         },
                         {
                             "name": "members",
-                            "type": "readonly Readonly<{ id: string; ownerId: string; title: string; description: string; prepTimeMinutes: number; cookTimeMinutes: number; totalTimeMinutes: number; servings: number; visibility: \"public\" | \"private\"; ... 22 more ...; deletedAt?: string | undefined; }>[]",
+                            "type": "readonly Readonly<{ id: string; ownerId: string; title: string; description: string; prepTimeMinutes: number; cookTimeMinutes: number; totalTimeMinutes: number; servings: number; visibility: \"public\" | \"private\"; ... 23 more ...; deletedAt?: string | undefined; }>[]",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
@@ -3116,7 +3113,7 @@
                         },
                         {
                             "name": "members",
-                            "type": "readonly Readonly<{ id: string; ownerId: string; title: string; description: string; prepTimeMinutes: number; cookTimeMinutes: number; totalTimeMinutes: number; servings: number; visibility: \"public\" | \"private\"; ... 22 more ...; deletedAt?: string | undefined; }>[]",
+                            "type": "readonly Readonly<{ id: string; ownerId: string; title: string; description: string; prepTimeMinutes: number; cookTimeMinutes: number; totalTimeMinutes: number; servings: number; visibility: \"public\" | \"private\"; ... 23 more ...; deletedAt?: string | undefined; }>[]",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
@@ -11002,7 +10999,7 @@
                         },
                         {
                             "name": "read",
-                            "type": "OmitKeyof<UseInfiniteQueryOptions<Readonly<{ results: readonly { recipe: { id: string; ownerId: string; title: string; description: string; prepTimeMinutes: number; cookTimeMinutes: number; totalTimeMinutes: number; servings: number; visibility: \"public\" | \"private\"; ... 21 more ...; deletedAt?: string | undefined; ...",
+                            "type": "OmitKeyof<UseInfiniteQueryOptions<Readonly<{ results: readonly { recipe: { id: string; ownerId: string; title: string; description: string; prepTimeMinutes: number; cookTimeMinutes: number; totalTimeMinutes: number; servings: number; visibility: \"public\" | \"private\"; ... 22 more ...; deletedAt?: string | undefined; ...",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
@@ -11180,7 +11177,7 @@
                         },
                         {
                             "name": "read",
-                            "type": "OmitKeyof<UseInfiniteQueryOptions<Readonly<{ results: readonly { recipe: { id: string; ownerId: string; title: string; description: string; prepTimeMinutes: number; cookTimeMinutes: number; totalTimeMinutes: number; servings: number; visibility: \"public\" | \"private\"; ... 21 more ...; deletedAt?: string | undefined; ...",
+                            "type": "OmitKeyof<UseInfiniteQueryOptions<Readonly<{ results: readonly { recipe: { id: string; ownerId: string; title: string; description: string; prepTimeMinutes: number; cookTimeMinutes: number; totalTimeMinutes: number; servings: number; visibility: \"public\" | \"private\"; ... 22 more ...; deletedAt?: string | undefined; ...",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
@@ -15115,6 +15112,239 @@
             ]
         },
         {
+            "id": "featuresRecipes/editor/PrivateFoodsRefusalSheet",
+            "name": "PrivateFoodsRefusalSheet",
+            "group": "featuresRecipes",
+            "packageName": "@commise/features-recipes",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/recipes/src/editor",
+            "kind": "presentational",
+            "patterns": [
+                "Adapter over the design-system `Sheet` — a refusal's words and its one dismiss path on the house sheet"
+            ],
+            "platforms": [
+                "web",
+                "native"
+            ],
+            "crossPlatform": true,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "PrivateFoodsRefusalSheet",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/editor/PrivateFoodsRefusalSheet.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/editor",
+                    "moduleDoc": "@commise/features-recipes/editor — `PrivateFoodsRefusalSheet` (web): what Publish, Save changes, Make public or\nRestore says when the server refuses a public recipe because a line uses a food only the cook can see (ADR-0029\nsection 4; private foods spec section 7). A hard stop the server decided, so it is its own sheet and never the\nopen-choices sheet with a \"Publish anyway\".\n\nIt lists the lines, each with an \"Open food\" button below its text (opens a new tab so the recipe stays here), then\nthe ways forward this cook has (`refusalPlanOf`). A cook who cannot go private sees the ways that work and one line\nthat their private recipes are full, never an upsell. Every close route means \"back to the editor\".\n\nPresentational: props in, markup out.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes/editor — `PrivateFoodsRefusalSheet` (web): what Publish, Save changes, Make public or"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Adapter over the design-system `Sheet` — a refusal's words and its one dismiss path on the house sheet"
+                        }
+                    ],
+                    "description": "The refusal sheet.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "canGoPrivate",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The existing privateGate outcome for a change to Private is `apply`: Pro, or a free private slot.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/editor/privateFoodsRefusalSheetProps.ts"
+                        },
+                        {
+                            "name": "door",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"publish\"",
+                                "\"save\"",
+                                "\"makePublic\"",
+                                "\"restore\""
+                            ],
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/editor/privateFoodsRefusalSheetProps.ts"
+                        },
+                        {
+                            "name": "lines",
+                            "type": "readonly RefusedLineView[]",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "At least one: with none, the host does not open the sheet.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/editor/privateFoodsRefusalSheetProps.ts"
+                        },
+                        {
+                            "name": "onClose",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Every close route: Back to editor, Close, Escape, the scrim, a swipe, Android Back.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/editor/privateFoodsRefusalSheetProps.ts"
+                        },
+                        {
+                            "name": "onDismissed",
+                            "type": "(() => void)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Called once the sheet is off screen after any close, so the host can scroll to the first named row.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/editor/privateFoodsRefusalSheetProps.ts"
+                        },
+                        {
+                            "name": "onOpenFood",
+                            "type": "(foodId: string) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Open the food’s page. Web opens a new tab and the sheet stays; native closes the sheet and pushes the page.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/editor/privateFoodsRefusalSheetProps.ts"
+                        },
+                        {
+                            "name": "onSendAsPrivate",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Switch the recipe to Private and send again in one step.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/editor/privateFoodsRefusalSheetProps.ts"
+                        },
+                        {
+                            "name": "open",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/editor/privateFoodsRefusalSheetProps.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                },
+                {
+                    "name": "PrivateFoodsRefusalSheet",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/editor/PrivateFoodsRefusalSheet.native.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/editor",
+                    "moduleDoc": "@commise/features-recipes/editor — `PrivateFoodsRefusalSheet` (native): the React Native leaf of\n`./PrivateFoodsRefusalSheet.tsx`, on the same props and words. What Publish, Save changes, Make public or\nRestore says when the server refuses a public recipe because a line uses a food only the cook can see (ADR-0029\nsection 4; private foods spec section 7). A hard stop the server decided, so it is its own sheet and never the\nopen-choices sheet with a \"Publish anyway\".\n\nA bottom sheet with the footer pinned in the thumb zone. Each line has an \"Open food\" button below its text; the host\ncloses the sheet and pushes the food page above the editor. Then\nthe ways forward this cook has (`refusalPlanOf`). A cook who cannot go private sees the ways that work and one line\nthat their private recipes are full, never an upsell. Every close route means \"back to the editor\".\n\nPresentational: props in, markup out.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes/editor — `PrivateFoodsRefusalSheet` (native): the React Native leaf of"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Adapter over the design-system `Sheet` — a refusal's words and its one dismiss path on the house sheet"
+                        }
+                    ],
+                    "description": "The refusal sheet.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "canGoPrivate",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The existing privateGate outcome for a change to Private is `apply`: Pro, or a free private slot.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/editor/privateFoodsRefusalSheetProps.ts"
+                        },
+                        {
+                            "name": "door",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"publish\"",
+                                "\"save\"",
+                                "\"makePublic\"",
+                                "\"restore\""
+                            ],
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/editor/privateFoodsRefusalSheetProps.ts"
+                        },
+                        {
+                            "name": "lines",
+                            "type": "readonly RefusedLineView[]",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "At least one: with none, the host does not open the sheet.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/editor/privateFoodsRefusalSheetProps.ts"
+                        },
+                        {
+                            "name": "onClose",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Every close route: Back to editor, Close, Escape, the scrim, a swipe, Android Back.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/editor/privateFoodsRefusalSheetProps.ts"
+                        },
+                        {
+                            "name": "onDismissed",
+                            "type": "(() => void)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Called once the sheet is off screen after any close, so the host can scroll to the first named row.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/editor/privateFoodsRefusalSheetProps.ts"
+                        },
+                        {
+                            "name": "onOpenFood",
+                            "type": "(foodId: string) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Open the food’s page. Web opens a new tab and the sheet stays; native closes the sheet and pushes the page.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/editor/privateFoodsRefusalSheetProps.ts"
+                        },
+                        {
+                            "name": "onSendAsPrivate",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Switch the recipe to Private and send again in one step.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/editor/privateFoodsRefusalSheetProps.ts"
+                        },
+                        {
+                            "name": "open",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/editor/privateFoodsRefusalSheetProps.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
             "id": "featuresRecipes/editor/PublishBlockedSheet",
             "name": "PublishBlockedSheet",
             "group": "featuresRecipes",
@@ -15155,15 +15385,6 @@
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
                     "props": [
-                        {
-                            "name": "ask",
-                            "type": "PublishBlocked",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "Which case blocked the Publish, which decides the words (`publishBlockedCopyOf`).",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/editor/publishBlockedSheetProps.ts"
-                        },
                         {
                             "name": "onKeepDraft",
                             "type": "() => void",
@@ -15229,15 +15450,6 @@
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
                     "props": [
-                        {
-                            "name": "ask",
-                            "type": "PublishBlocked",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "Which case blocked the Publish, which decides the words (`publishBlockedCopyOf`).",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/editor/publishBlockedSheetProps.ts"
-                        },
                         {
                             "name": "onKeepDraft",
                             "type": "() => void",
@@ -15671,7 +15883,6 @@
                             "name": "privateRule",
                             "type": "enum",
                             "typeDetail": [
-                                "\"premium\"",
                                 "\"slots\"",
                                 "\"privateOnly\""
                             ],
@@ -17221,6 +17432,796 @@
                     "docSignals": {
                         "presentational": true,
                         "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "featuresRecipes/foodPage/FoodDetailScreen",
+            "name": "FoodDetailScreen",
+            "group": "featuresRecipes",
+            "packageName": "@commise/features-recipes",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/recipes/src/foodPage",
+            "kind": "orchestration",
+            "patterns": [
+                "Facade — one screen over the shared food page session and view"
+            ],
+            "platforms": [
+                "native"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "FoodDetailScreen",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/foodPage/FoodDetailScreen.native.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/foodPage",
+                    "moduleDoc": "@commise/features-recipes/foodPage — `FoodDetailScreen` (native): the author's food page as the root stack pushes\nit (`FoodDetail`, ADR-0056 item 2; private foods spec section 5.1). Opened from the editor's refusal sheet or a row's ⋯ menu\nit sits ABOVE the editor, so Back returns to the editor exactly as it was: pushing this screen is not a leave, and the\neditor's draft, checkpoint and discard guards do not fire.\n\nThe orchestration component: the page session is `useFoodPage`, the body is `FoodPageView`; this adds the pinned Back and the\nlarge title (the food’s name, wrapping between words). The host owns the route and what Back and Edit do. Styled with\nTamagui only.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes/foodPage — `FoodDetailScreen` (native): the author's food page as the root stack pushes"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Facade — one screen over the shared food page session and view"
+                        }
+                    ],
+                    "description": "The food page screen.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "back",
+                            "type": "HeaderBack",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The way back, named for where it goes (\"Back to Edit recipe\").",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/foodPage/FoodDetailScreen.native.tsx"
+                        },
+                        {
+                            "name": "foodId",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/foodPage/FoodDetailScreen.native.tsx"
+                        },
+                        {
+                            "name": "leaveLabel",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The label of that way out.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/foodPage/FoodDetailScreen.native.tsx"
+                        },
+                        {
+                            "name": "onEdit",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Open the edit sheet, prefilled by the state (the waiting edit, the declined version, or the food).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/foodPage/useFoodPage.ts"
+                        },
+                        {
+                            "name": "onLeave",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The way out of \"Food not found\": the same place Back goes.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/foodPage/FoodDetailScreen.native.tsx"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": true
+                    }
+                }
+            ]
+        },
+        {
+            "id": "featuresRecipes/foodPage/FoodPageView",
+            "name": "FoodPageView",
+            "group": "featuresRecipes",
+            "packageName": "@commise/features-recipes",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/recipes/src/foodPage",
+            "kind": "presentational",
+            "patterns": [
+                "Visitor — an exhaustive switch over the `FoodPageState` union"
+            ],
+            "platforms": [
+                "web",
+                "native"
+            ],
+            "crossPlatform": true,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "FoodPageView",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/foodPage/FoodPageView.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/foodPage",
+                    "moduleDoc": "@commise/features-recipes/foodPage — `FoodPageView` (web): the author's food page body, under the frame's\ntitle (private foods spec section 5). One of twelve states: loading, not found, error, offline, the seven author\nstates, and another cook's public food. The state's words, badges and actions come from `foodPageCopyOf`, so this leaf\nonly draws them.\n\nPresentational: `props → JSX`. The actions are one group in the DOM: at the end of the content on a phone (where the\nthumb is) and right under the status panel from 600 px (reading order), moved by CSS `order`, never duplicated.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes/foodPage — `FoodPageView` (web): the author's food page body, under the frame's"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Visitor — an exhaustive switch over the `FoodPageState` union"
+                        }
+                    ],
+                    "description": "The food page body.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "ask",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"failed\"",
+                                "\"idle\"",
+                                "\"busy\""
+                            ],
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/foodPage/foodPageViewProps.ts"
+                        },
+                        {
+                            "name": "leaveLabel",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The label of that way out; defaults to \"Go to My recipes\".",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/foodPage/foodPageViewProps.ts"
+                        },
+                        {
+                            "name": "onAsk",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/foodPage/foodPageViewProps.ts"
+                        },
+                        {
+                            "name": "onEdit",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/foodPage/foodPageViewProps.ts"
+                        },
+                        {
+                            "name": "onLeave",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The way out of \"Food not found\": My recipes, or back to the editor.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/foodPage/foodPageViewProps.ts"
+                        },
+                        {
+                            "name": "onRetry",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/foodPage/foodPageViewProps.ts"
+                        },
+                        {
+                            "name": "onWithdraw",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Open the Withdraw confirmation.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/foodPage/foodPageViewProps.ts"
+                        },
+                        {
+                            "name": "onWithdrawConfirm",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/foodPage/foodPageViewProps.ts"
+                        },
+                        {
+                            "name": "onWithdrawKeep",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/foodPage/foodPageViewProps.ts"
+                        },
+                        {
+                            "name": "state",
+                            "type": "FoodPageState",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/foodPage/foodPageViewProps.ts"
+                        },
+                        {
+                            "name": "withdraw",
+                            "type": "WithdrawDialogState",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/foodPage/foodPageViewProps.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                },
+                {
+                    "name": "FoodPageView",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/foodPage/FoodPageView.native.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/foodPage",
+                    "moduleDoc": "@commise/features-recipes/foodPage — `FoodPageView` (native): the React Native leaf of `./FoodPageView.tsx`, on\nthe same props and the same `foodPageCopyOf` words. Styled with Tamagui only.\n\nTranslation, not a port (private foods spec section 9): on a phone the actions stack full width at the end of the\ncontent, before Withdraw, where the thumb is; from 600 dp they sit under the status panel in a row. Nothing depends on\nhover. The frame (back, title) is the screen's, so this is the body.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes/foodPage — `FoodPageView` (native): the React Native leaf of `./FoodPageView.tsx`, on"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Visitor — an exhaustive switch over the `FoodPageState` union"
+                        }
+                    ],
+                    "description": "The food page body.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "ask",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"failed\"",
+                                "\"idle\"",
+                                "\"busy\""
+                            ],
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/foodPage/foodPageViewProps.ts"
+                        },
+                        {
+                            "name": "leaveLabel",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The label of that way out; defaults to \"Go to My recipes\".",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/foodPage/foodPageViewProps.ts"
+                        },
+                        {
+                            "name": "onAsk",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/foodPage/foodPageViewProps.ts"
+                        },
+                        {
+                            "name": "onEdit",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/foodPage/foodPageViewProps.ts"
+                        },
+                        {
+                            "name": "onLeave",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The way out of \"Food not found\": My recipes, or back to the editor.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/foodPage/foodPageViewProps.ts"
+                        },
+                        {
+                            "name": "onRetry",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/foodPage/foodPageViewProps.ts"
+                        },
+                        {
+                            "name": "onWithdraw",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Open the Withdraw confirmation.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/foodPage/foodPageViewProps.ts"
+                        },
+                        {
+                            "name": "onWithdrawConfirm",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/foodPage/foodPageViewProps.ts"
+                        },
+                        {
+                            "name": "onWithdrawKeep",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/foodPage/foodPageViewProps.ts"
+                        },
+                        {
+                            "name": "state",
+                            "type": "FoodPageState",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/foodPage/foodPageViewProps.ts"
+                        },
+                        {
+                            "name": "withdraw",
+                            "type": "WithdrawDialogState",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/foodPage/foodPageViewProps.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "featuresRecipes/foodPage/YourFoodsList",
+            "name": "YourFoodsList",
+            "group": "featuresRecipes",
+            "packageName": "@commise/features-recipes",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/recipes/src/foodPage",
+            "kind": "presentational",
+            "patterns": [],
+            "platforms": [
+                "web",
+                "native"
+            ],
+            "crossPlatform": true,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "YourFoodsList",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/foodPage/YourFoodsList.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/foodPage",
+                    "moduleDoc": "@commise/features-recipes/foodPage — `YourFoodsList` (web): the cook's own foods, each row a name with its status\nbadges (the ones the food page shows, from `badgesOf`) and a link to the food page. A plain list in the Collections\nlist's rows style. Loading, empty and failed are states of it, not other screens.\n\nPresentational: `props → JSX`.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes/foodPage — `YourFoodsList` (web): the cook's own foods, each row a name with its status"
+                        }
+                    ],
+                    "description": "The list.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "hasMore",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/foodPage/yourFoodsViewProps.ts"
+                        },
+                        {
+                            "name": "hrefOf",
+                            "type": "((foodId: string) => string)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The href of a food's page, so a row is a real link on web. Native ignores it.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/foodPage/yourFoodsViewProps.ts"
+                        },
+                        {
+                            "name": "items",
+                            "type": "readonly { id: string; name: string; publicationState: \"public\" | \"private\" | \"asked\" | \"notApproved\" | \"editWaiting\" | \"editNotApproved\" | \"withdrawn\"; updatedAt: string; }[]",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/foodPage/yourFoodsViewProps.ts"
+                        },
+                        {
+                            "name": "loadingMore",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/foodPage/yourFoodsViewProps.ts"
+                        },
+                        {
+                            "name": "onLoadMore",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/foodPage/yourFoodsViewProps.ts"
+                        },
+                        {
+                            "name": "onOpen",
+                            "type": "(foodId: string) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/foodPage/yourFoodsViewProps.ts"
+                        },
+                        {
+                            "name": "onRetry",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/foodPage/yourFoodsViewProps.ts"
+                        },
+                        {
+                            "name": "phase",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"error\"",
+                                "\"loading\"",
+                                "\"ready\""
+                            ],
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/foodPage/yourFoodsViewProps.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                },
+                {
+                    "name": "YourFoodsList",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/foodPage/YourFoodsList.native.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/foodPage",
+                    "moduleDoc": "@commise/features-recipes/foodPage — `YourFoodsList` (native): the React Native leaf of `./YourFoodsList.tsx`,\non the same props and words. Each row is a button naming the food and its status; the screen's one scroller is the\nframe's. Styled with Tamagui only.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes/foodPage — `YourFoodsList` (native): the React Native leaf of `./YourFoodsList.tsx`,"
+                        }
+                    ],
+                    "description": "The list.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "hasMore",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/foodPage/yourFoodsViewProps.ts"
+                        },
+                        {
+                            "name": "hrefOf",
+                            "type": "((foodId: string) => string)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The href of a food's page, so a row is a real link on web. Native ignores it.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/foodPage/yourFoodsViewProps.ts"
+                        },
+                        {
+                            "name": "items",
+                            "type": "readonly { id: string; name: string; publicationState: \"public\" | \"private\" | \"asked\" | \"notApproved\" | \"editWaiting\" | \"editNotApproved\" | \"withdrawn\"; updatedAt: string; }[]",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/foodPage/yourFoodsViewProps.ts"
+                        },
+                        {
+                            "name": "loadingMore",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/foodPage/yourFoodsViewProps.ts"
+                        },
+                        {
+                            "name": "onLoadMore",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/foodPage/yourFoodsViewProps.ts"
+                        },
+                        {
+                            "name": "onOpen",
+                            "type": "(foodId: string) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/foodPage/yourFoodsViewProps.ts"
+                        },
+                        {
+                            "name": "onRetry",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/foodPage/yourFoodsViewProps.ts"
+                        },
+                        {
+                            "name": "phase",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"error\"",
+                                "\"loading\"",
+                                "\"ready\""
+                            ],
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/foodPage/yourFoodsViewProps.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "featuresRecipes/foodPage/YourFoodsRow",
+            "name": "YourFoodsRow",
+            "group": "featuresRecipes",
+            "packageName": "@commise/features-recipes",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/recipes/src/foodPage",
+            "kind": "presentational",
+            "patterns": [],
+            "platforms": [
+                "web",
+                "native"
+            ],
+            "crossPlatform": true,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "YourFoodsRow",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/foodPage/YourFoodsRow.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/foodPage",
+                    "moduleDoc": "@commise/features-recipes/foodPage — `YourFoodsRow` (web): the Profile entry to the cook's own foods, in its own\ngroup after the others. A 56 px row like every Profile row, with an 8 px steel dot when a staff decision is waiting,\nand a name that says so: \"Your foods, 1 new decision\". The dot is not announced on its own; the name carries it.\n\nPresentational: `props → JSX`.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes/foodPage — `YourFoodsRow` (web): the Profile entry to the cook's own foods, in its own"
+                        }
+                    ],
+                    "description": "The Profile row.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "href",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Web only: where the row goes, so a modified click still works.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/foodPage/yourFoodsViewProps.ts"
+                        },
+                        {
+                            "name": "onPress",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/foodPage/yourFoodsViewProps.ts"
+                        },
+                        {
+                            "name": "unseenDecisions",
+                            "type": "number",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Decisions the cook has not opened yet; the dot shows when above 0.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/foodPage/yourFoodsViewProps.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                },
+                {
+                    "name": "YourFoodsRow",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/foodPage/YourFoodsRow.native.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/foodPage",
+                    "moduleDoc": "@commise/features-recipes/foodPage — `YourFoodsRow` (native): the React Native leaf of `./YourFoodsRow.tsx`. The\nsame 56 pt row with an 8 pt steel dot when a staff decision is waiting; the row's accessible name is \"Your foods, 1 new\ndecision\". Styled with Tamagui only.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes/foodPage — `YourFoodsRow` (native): the React Native leaf of `./YourFoodsRow.tsx`. The"
+                        }
+                    ],
+                    "description": "The Profile row.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "href",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Web only: where the row goes, so a modified click still works.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/foodPage/yourFoodsViewProps.ts"
+                        },
+                        {
+                            "name": "onPress",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/foodPage/yourFoodsViewProps.ts"
+                        },
+                        {
+                            "name": "unseenDecisions",
+                            "type": "number",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Decisions the cook has not opened yet; the dot shows when above 0.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/foodPage/yourFoodsViewProps.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "featuresRecipes/foodPage/YourFoodsScreen",
+            "name": "YourFoodsScreen",
+            "group": "featuresRecipes",
+            "packageName": "@commise/features-recipes",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/recipes/src/foodPage",
+            "kind": "orchestration",
+            "patterns": [
+                "Facade — one screen over the own-foods read and the shared list view"
+            ],
+            "platforms": [
+                "native"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "YourFoodsScreen",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/foodPage/YourFoodsScreen.native.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/foodPage",
+                    "moduleDoc": "@commise/features-recipes/foodPage — `YourFoodsScreen` (native): the cook's own foods as a stack pushes it from\nProfile (private foods spec F19). The orchestration component: the read is `useOwnFoods`, the body is `YourFoodsList`;\nthis adds the pinned Back and the large title. The host owns the route. Styled with Tamagui only.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes/foodPage — `YourFoodsScreen` (native): the cook's own foods as a stack pushes it from"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Facade — one screen over the own-foods read and the shared list view"
+                        }
+                    ],
+                    "description": "The Your foods screen.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "back",
+                            "type": "HeaderBack",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The way back, named for where it goes (\"Back to Profile\").",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/foodPage/YourFoodsScreen.native.tsx"
+                        },
+                        {
+                            "name": "onOpenFood",
+                            "type": "(foodId: string) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/foodPage/YourFoodsScreen.native.tsx"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": true
                     }
                 }
             ]
@@ -20823,7 +21824,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/recipes/src/form/RecipeVisibilityField.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/form",
-                    "moduleDoc": "@commise/features-recipes/form — `RecipeVisibilityField` (web): \"Who can see it\"\n(`docs/design/uiOverhaul/buildSpec.md` §7.7 item 2), a radio group of two cards, Public and Private.\n\nThe host renders it only when Private is offered (`recipeOffersPrivate`); otherwise `RecipeVisibilityStatement`. Private\nworks within the cook's private slots (ADR-0073): the card says how many are left, and with none left it is refused\nwith three ways forward (`slotsFull`). Under the premium rule's `upsell` (an imported public-web recipe), Private carries\nthe Premium badge and choosing it calls `onPremiumRequired` instead of changing the value: the upsell decides, and\nnothing is pre-selected for it (`visibilityChoice`). A recipe that is already private stays private and shows so.\nChoosing Public on it calls `onConfirmPublic` where that costs something worth saying (it frees a slot) — the confirm\ndecides — and the Public card says beforehand what it costs (`visibilityFieldOf`; plan 2026-10-14-009 D14, Q5).\n\nPresentational and controlled. The native leaf is `./RecipeVisibilityField.native.tsx`.",
+                    "moduleDoc": "@commise/features-recipes/form — `RecipeVisibilityField` (web): \"Who can see it\"\n(`docs/design/uiOverhaul/buildSpec.md` §7.7 item 2), a radio group of two cards, Public and Private.\n\nEvery recipe offers Private (ADR-0073). Private\nworks within the cook's private slots (ADR-0073): the card says how many are left, and with none left it is refused\nwith three ways forward (`slotsFull`). Under the premium rule's `upsell` (an imported public-web recipe), Private carries\nthe Premium badge and choosing it calls `onPremiumRequired` instead of changing the value: the upsell decides, and\nnothing is pre-selected for it (`visibilityChoice`). A recipe that is already private stays private and shows so.\nChoosing Public on it calls `onConfirmPublic` where that costs something worth saying (it frees a slot) — the confirm\ndecides — and the Public card says beforehand what it costs (`visibilityFieldOf`; plan 2026-10-14-009 D14, Q5).\n\nPresentational and controlled. The native leaf is `./RecipeVisibilityField.native.tsx`.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -20845,7 +21846,7 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "What Private is decided from (`recipePrivateGate`): the recipe's rule, the cook's slot standing and their\npaid-feature state. Under the premium rule's `upsell`, Private carries the Premium badge.",
+                            "description": "What Private is decided from (`recipePrivateGate`): the recipe's rule, the cook's slot standing and their\npaid-feature state.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/form/props.ts"
                         },
                         {
@@ -20893,7 +21894,7 @@
                             "typeDetail": null,
                             "required": false,
                             "defaultValue": null,
-                            "description": "Choosing Private under `upsell`, and the full refusal's \"Get Premium\": open the upsell. The value never changes for it.",
+                            "description": "The full refusal's \"Get Premium\": open the upsell. The value never changes for it.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/form/props.ts"
                         },
                         {
@@ -20901,8 +21902,8 @@
                             "type": "enum",
                             "typeDetail": [
                                 "undefined",
-                                "\"premium\"",
                                 "\"final\"",
+                                "\"premium\"",
                                 "\"slots\""
                             ],
                             "required": true,
@@ -20932,7 +21933,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/recipes/src/form/RecipeVisibilityField.native.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/form",
-                    "moduleDoc": "@commise/features-recipes/form — `RecipeVisibilityField` (native): \"Who can see it\"\n(`docs/design/uiOverhaul/buildSpec.md` §7.7 item 2), the React Native leaf of `./RecipeVisibilityField.tsx`, on the\nsame props and the same rule (`visibilityChoice`): a radio group of two 56 pt cards; under `upsell` Private asks for\nthe upsell instead of changing the value, and for a downgraded owner Public on a private recipe asks to confirm\n(`onConfirmPublic`), its card saying beforehand what it costs (`visibilityFieldOf`; plan 2026-10-14-009 D14, Q5). The\nhost renders `RecipeVisibilityStatement` instead when Private is not offered.\n\nA card is named by its whole text, so the Premium badge is read with it (an `aria-label` would replace it).\n\nColours come from the theme at render, so both colour schemes paint (owner D15).",
+                    "moduleDoc": "@commise/features-recipes/form — `RecipeVisibilityField` (native): \"Who can see it\"\n(`docs/design/uiOverhaul/buildSpec.md` §7.7 item 2), the React Native leaf of `./RecipeVisibilityField.tsx`, on the\nsame props and the same rule (`visibilityChoice`): a radio group of two 56 pt cards; under `upsell` Private asks for\nthe upsell instead of changing the value, and for a downgraded owner Public on a private recipe asks to confirm\n(`onConfirmPublic`), its card saying beforehand what it costs (`visibilityFieldOf`; plan 2026-10-14-009 D14, Q5).\n\nColours come from the theme at render, so both colour schemes paint (owner D15).",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -20954,7 +21955,7 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "What Private is decided from (`recipePrivateGate`): the recipe's rule, the cook's slot standing and their\npaid-feature state. Under the premium rule's `upsell`, Private carries the Premium badge.",
+                            "description": "What Private is decided from (`recipePrivateGate`): the recipe's rule, the cook's slot standing and their\npaid-feature state.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/form/props.ts"
                         },
                         {
@@ -21002,7 +22003,7 @@
                             "typeDetail": null,
                             "required": false,
                             "defaultValue": null,
-                            "description": "Choosing Private under `upsell`, and the full refusal's \"Get Premium\": open the upsell. The value never changes for it.",
+                            "description": "The full refusal's \"Get Premium\": open the upsell. The value never changes for it.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/form/props.ts"
                         },
                         {
@@ -21010,8 +22011,8 @@
                             "type": "enum",
                             "typeDetail": [
                                 "undefined",
-                                "\"premium\"",
                                 "\"final\"",
+                                "\"premium\"",
                                 "\"slots\""
                             ],
                             "required": true,
@@ -21026,104 +22027,6 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "The full editable form state — sections read only the slice they render.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/form/props.ts"
-                        }
-                    ],
-                    "usesRefApi": [],
-                    "booleanPropsSelectingSubtree": [],
-                    "docSignals": {
-                        "presentational": false,
-                        "orchestration": false
-                    }
-                }
-            ]
-        },
-        {
-            "id": "featuresRecipes/form/RecipeVisibilityStatement",
-            "name": "RecipeVisibilityStatement",
-            "group": "featuresRecipes",
-            "packageName": "@commise/features-recipes",
-            "layer": "feature",
-            "dir": "packages/apps/commise/features/recipes/src/form",
-            "kind": "presentational",
-            "patterns": [
-                "Adapter over `@commise/ui/screen-reader-focus` — its mount-time ref is attached only when the statement\n    replaces the field, because the accessibility event takes a host node and has no declarative form",
-                "Adapter over the DOM focus API — a callback ref that hands the statement to `focusIfLost` as it attaches;\n    `.focus()` has no declarative form, and `autoFocus` does not apply to a non-control element"
-            ],
-            "platforms": [
-                "web",
-                "native"
-            ],
-            "crossPlatform": true,
-            "propsDiverge": false,
-            "documented": true,
-            "implementations": [
-                {
-                    "name": "RecipeVisibilityStatement",
-                    "platform": "web",
-                    "sourcePath": "packages/apps/commise/features/recipes/src/form/RecipeVisibilityStatement.tsx",
-                    "dir": "packages/apps/commise/features/recipes/src/form",
-                    "moduleDoc": "@commise/features-recipes/form — `RecipeVisibilityStatement` (web): \"Who can see it: Public\", what the editor\nshows in place of `RecipeVisibilityField` when Private is not offered (`offersPrivate` false: the paid features are\nhidden for this cook, or their state is still loading). Plan 2026-10-14-009 D14; owner ruling 2026-10-13.\n\nA statement, not a one-card radio group: a group with one option is not a choice, and a disabled Private card would\nitself be an upsell. Whether a recipe is public is still a fact the cook needs before publishing, so it is said.\n\nWhen it replaces the field the\ncook just used to confirm Public (`focusOnMount`, UX SPECIFY 2026-10-15), it takes the focus the unmounted radio had,\nso the keyboard is not dropped to the top of the page (WCAG 2.4.3) — only when focus is lost (`focusIfLost`).\n\nPresentational. The native leaf is `./RecipeVisibilityStatement.native.tsx`.",
-                    "moduleTags": [
-                        {
-                            "name": "module",
-                            "text": "@commise/features-recipes/form — `RecipeVisibilityStatement` (web): \"Who can see it: Public\", what the editor"
-                        },
-                        {
-                            "name": "pattern",
-                            "text": "Adapter over the DOM focus API — a callback ref that hands the statement to `focusIfLost` as it attaches;\n    `.focus()` has no declarative form, and `autoFocus` does not apply to a non-control element"
-                        }
-                    ],
-                    "description": "\"Who can see it: Public\".",
-                    "tags": [],
-                    "detectedBy": "react-docgen-typescript",
-                    "exportKind": "named",
-                    "props": [
-                        {
-                            "name": "focusOnMount",
-                            "type": "boolean",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "It replaces the field the cook just used: take the focus that field had (web: only if focus is lost).",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/form/props.ts"
-                        }
-                    ],
-                    "usesRefApi": [],
-                    "booleanPropsSelectingSubtree": [],
-                    "docSignals": {
-                        "presentational": true,
-                        "orchestration": false
-                    }
-                },
-                {
-                    "name": "RecipeVisibilityStatement",
-                    "platform": "native",
-                    "sourcePath": "packages/apps/commise/features/recipes/src/form/RecipeVisibilityStatement.native.tsx",
-                    "dir": "packages/apps/commise/features/recipes/src/form",
-                    "moduleDoc": "@commise/features-recipes/form — `RecipeVisibilityStatement` (native), the React Native leaf of\n`./RecipeVisibilityStatement.tsx`: \"Who can see it: Public\", shown in place of the visibility field when Private is\nnot offered (plan 2026-10-14-009 D14).\n\nONE accessible element, named by the whole sentence, so a screen reader reads it once rather than three fragments —\nthe note for a kept draft's refused Private included. When it replaces the field the cook just used to confirm Public\n(`focusOnMount`, UX SPECIFY 2026-10-15), the screen-reader cursor moves onto it, where the unmounted radio was.\nColours come from the theme at render, so both colour schemes paint (owner D15).",
-                    "moduleTags": [
-                        {
-                            "name": "module",
-                            "text": "@commise/features-recipes/form — `RecipeVisibilityStatement` (native), the React Native leaf of"
-                        },
-                        {
-                            "name": "pattern",
-                            "text": "Adapter over `@commise/ui/screen-reader-focus` — its mount-time ref is attached only when the statement\n    replaces the field, because the accessibility event takes a host node and has no declarative form"
-                        }
-                    ],
-                    "description": "\"Who can see it: Public\".",
-                    "tags": [],
-                    "detectedBy": "react-docgen-typescript",
-                    "exportKind": "named",
-                    "props": [
-                        {
-                            "name": "focusOnMount",
-                            "type": "boolean",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "It replaces the field the cook just used: take the focus that field had (web: only if focus is lost).",
                             "declaredIn": "packages/apps/commise/features/recipes/src/form/props.ts"
                         }
                     ],

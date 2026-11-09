@@ -6,7 +6,7 @@
     "coverage": {
         "components": 55,
         "implementations": 55,
-        "props": 155,
+        "props": 156,
         "documentedComponents": 54,
         "implementationsWithModuleDoc": 53,
         "implementationsWithComponentDoc": 40,
@@ -3689,6 +3689,15 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "Open Food data sources: the navigator pushes it as a page, so this screen mounts nothing for it (A-026).",
+                            "declaredIn": "packages/apps/commise/mobile/src/screens/profile.tsx"
+                        },
+                        {
+                            "name": "onOpenYourFoods",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
                             "declaredIn": "packages/apps/commise/mobile/src/screens/profile.tsx"
                         }
                     ],

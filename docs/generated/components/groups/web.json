@@ -4,15 +4,15 @@
     "packageName": "@commise/web",
     "layer": "app",
     "coverage": {
-        "components": 82,
-        "implementations": 82,
-        "props": 99,
-        "documentedComponents": 79,
-        "implementationsWithModuleDoc": 63,
-        "implementationsWithComponentDoc": 58,
+        "components": 86,
+        "implementations": 86,
+        "props": 104,
+        "documentedComponents": 83,
+        "implementationsWithModuleDoc": 65,
+        "implementationsWithComponentDoc": 62,
         "documentedProps": 66,
-        "classifiedComponents": 35,
-        "componentsWithPatternTag": 30,
+        "classifiedComponents": 37,
+        "componentsWithPatternTag": 32,
         "crossPlatformComponents": 0
     },
     "components": [
@@ -336,6 +336,100 @@
                         {
                             "name": "searchParams",
                             "type": "Promise<RawSearchParams>",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": null
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "web/app/[locale]/foods/[foodId]/FoodPage",
+            "name": "FoodPage",
+            "group": "web",
+            "packageName": "@commise/web",
+            "layer": "app",
+            "dir": "packages/apps/commise/web/src/app/[locale]/foods/[foodId]",
+            "kind": "unclassified",
+            "patterns": [],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "FoodPage",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/web/src/app/[locale]/foods/[foodId]/page.tsx",
+                    "dir": "packages/apps/commise/web/src/app/[locale]/foods/[foodId]",
+                    "moduleDoc": "",
+                    "moduleTags": [],
+                    "description": "The author's food page (`/[locale]/foods/[foodId]`). A thin server page: it enforces sign-in and hands the id and\nlocale to the client container, which reads the food and draws one of the page's twelve states. The food is not\nprefetched: its read is the cook's own and is hydration-gated on the client.\n\n⚠️ ONE-WAY DOOR: this address is linked from a refused publish and bookmarked.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "default",
+                    "props": [
+                        {
+                            "name": "params",
+                            "type": "Promise<{ locale: string; foodId: string; }>",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": null
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "web/app/[locale]/foods/YourFoodsPage",
+            "name": "YourFoodsPage",
+            "group": "web",
+            "packageName": "@commise/web",
+            "layer": "app",
+            "dir": "packages/apps/commise/web/src/app/[locale]/foods",
+            "kind": "unclassified",
+            "patterns": [],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "YourFoodsPage",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/web/src/app/[locale]/foods/page.tsx",
+                    "dir": "packages/apps/commise/web/src/app/[locale]/foods",
+                    "moduleDoc": "",
+                    "moduleTags": [],
+                    "description": "The cook’s own foods (`/[locale]/foods`), reached from Profile's \"Your foods\" row.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "default",
+                    "props": [
+                        {
+                            "name": "params",
+                            "type": "Promise<{ locale: string; }>",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
@@ -1471,6 +1565,8 @@
                                 "\"collectionDetail\"",
                                 "\"profile\"",
                                 "\"dataSources\"",
+                                "\"food\"",
+                                "\"yourFoods\"",
                                 "\"notFound\""
                             ],
                             "required": false,
@@ -2345,6 +2441,123 @@
                     "docSignals": {
                         "presentational": false,
                         "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "web/components/foods/FoodPageContainer",
+            "name": "FoodPageContainer",
+            "group": "web",
+            "packageName": "@commise/web",
+            "layer": "app",
+            "dir": "packages/apps/commise/web/src/components/foods",
+            "kind": "orchestration",
+            "patterns": [
+                "Facade — one route over the shared food page session and view"
+            ],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "FoodPageContainer",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/web/src/components/foods/FoodPageContainer.tsx",
+                    "dir": "packages/apps/commise/web/src/components/foods",
+                    "moduleDoc": "The author's food page (`/[locale]/foods/[foodId]`; private foods spec section 5). Orchestration: it mounts the shared\nfood page session (`useFoodPage`) in the design system's `PushedPageFrame` and hands Edit to the app’s edit sheet.\nOpened from the editor it is a NEW TAB (the editor’s draft stays where the cook left it), so Back goes to My recipes;\nthe title is the food’s name, wrapping between words.\n\n⚠️ The address is a one-way door: it is linked and bookmarked, so renaming it later costs redirects.",
+                    "moduleTags": [
+                        {
+                            "name": "pattern",
+                            "text": "Facade — one route over the shared food page session and view"
+                        }
+                    ],
+                    "description": "The food page.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "foodId",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/web/src/components/foods/FoodPageContainer.tsx"
+                        },
+                        {
+                            "name": "locale",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/web/src/components/foods/FoodPageContainer.tsx"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": true
+                    }
+                }
+            ]
+        },
+        {
+            "id": "web/components/foods/YourFoodsContainer",
+            "name": "YourFoodsContainer",
+            "group": "web",
+            "packageName": "@commise/web",
+            "layer": "app",
+            "dir": "packages/apps/commise/web/src/components/foods",
+            "kind": "orchestration",
+            "patterns": [
+                "Facade — one route over the shared list view and the own-foods read"
+            ],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "YourFoodsContainer",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/web/src/components/foods/YourFoodsContainer.tsx",
+                    "dir": "packages/apps/commise/web/src/components/foods",
+                    "moduleDoc": "The \"Your foods\" list (`/[locale]/foods`; private foods spec F19): the cook's own foods with their status, each opening its\npage. Reached from Profile. Orchestration only: the list is `YourFoodsList`, the read is `useOwnFoods`.",
+                    "moduleTags": [
+                        {
+                            "name": "pattern",
+                            "text": "Facade — one route over the shared list view and the own-foods read"
+                        }
+                    ],
+                    "description": "The list route’s content.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "locale",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": null
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": true
                     }
                 }
             ]

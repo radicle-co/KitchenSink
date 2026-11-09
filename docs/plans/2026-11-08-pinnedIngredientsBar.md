@@ -41,9 +41,9 @@ The owner reported both defects from an iPhone 14 Pro Max in Chrome, on the reci
   way the editor's section index tracks sections.
 - Placement: pinned under the page's sticky top chrome, 12 px from each side, 64 px tall at 1x, `paper` with the
   `line-divider` inner edge and `shadow-md`, `radius-lg` (board `.pinBtn`). It never covers the tab bar.
-- Content, start to end: line 1 "Ingredients" in `label` 600 plus " for {n}" in `meta` `inkMuted`. Line 2
+- Content, start to end: line 1 "Ingredients" in the 16 px body role at 600 plus " for {n}" in the 14 px `meta` role at 400, `inkMuted`. Line 2
   "{items} items · {ticked} ticked" in `meta` `inkMuted`, tabular figures. If none are
-  ticked, leave out " · {ticked} ticked". Then the cue "Show" (`label` 600, `actionText`). Then a 36 px `action` circle with `chevron-down`.
+  ticked, leave out " · {ticked} ticked". Then the cue "Show" (the 16 px body role at 600, `actionText`). All of it grows with the system text size up to 1.5x (`chromeCap`). Then a 36 px `action` circle with `chevron-down`.
 - The whole bar is ONE button: `aria-expanded`, `aria-haspopup="dialog"`. Its name is "Ingredients for 4, 13 items,
   1 ticked. Show list." While the list is open, it ends "Hide list." The visible parts are `aria-hidden`. The name contains the
   visible words (WCAG 2.5.3).

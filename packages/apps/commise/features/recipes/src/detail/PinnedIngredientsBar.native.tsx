@@ -159,7 +159,7 @@ export const PinnedIngredientsBar: FC<
                 >
                     <BarFrame>
                         <YStack flex={1} flexShrink={1} aria-hidden>
-                            <Text typeRole="label" chromeCap="1.5" color="$ink" fontWeight="600">
+                            <Text typeRole="body" chromeCap="1.5" color="$ink" fontWeight="600">
                                 {facts.heading}{' '}
                                 <Text typeRole="meta" chromeCap="1.5" color="$inkMuted">
                                     {facts.forServings}
@@ -169,7 +169,7 @@ export const PinnedIngredientsBar: FC<
                                 {facts.meta}
                             </Text>
                         </YStack>
-                        <Text typeRole="label" chromeCap="1.5" color="$actionText" fontWeight="600" aria-hidden>
+                        <Text typeRole="body" chromeCap="1.5" color="$actionText" fontWeight="600" aria-hidden>
                             {facts.cue}
                         </Text>
                         <Well aria-hidden>

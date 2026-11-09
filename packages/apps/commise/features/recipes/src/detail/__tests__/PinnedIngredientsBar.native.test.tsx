@@ -279,31 +279,27 @@ describe('the pinned ingredients bar (native)', () => {
         const cap = (size: number): string => `${String(size * 1.5)}px`;
         const barText = within(bar('Show'));
 
-        expect(resolvedStyle(barText.getByText('Ingredients'), 'fontSize')).toBe(cap(nativeTokens.type.label.fontSize));
+        expect(resolvedStyle(barText.getByText('Ingredients'), 'fontSize')).toBe(cap(nativeTokens.type.body.fontSize));
         expect(resolvedStyle(barText.getByText('13 items'), 'fontSize')).toBe(cap(nativeTokens.type.meta.fontSize));
-        expect(resolvedStyle(barText.getByText('Show'), 'fontSize')).toBe(cap(nativeTokens.type.label.fontSize));
+        expect(resolvedStyle(barText.getByText('Show'), 'fontSize')).toBe(cap(nativeTokens.type.body.fontSize));
     });
 });
 
 describe('the bar text grows with the system text size, up to the chrome cap of 1.5x', () => {
-    // The sizes come from the tokens (label and meta are both 14 px), so a type-scale change moves the test with it.
-    it.each([1.25, 2])(
-        'at a system scale of %s the label and the meta line draw at 14 px times the scale, capped at 1.5',
-        (scale) => {
-            render(<Page />, scale);
+    // The board's roles: "Ingredients" and the cue are body (16 px, 600); "for 4" and the meta line are 14 px.
+    it.each([
+        [1.25, '20px', '17.5px'],
+        [2, '24px', '21px'],
+    ])('at a system scale of %s the body lines draw at %s and the 14 px lines at %s', (scale, body, small) => {
+        render(<Page />, scale);
 
-            const barText = within(bar('Show'));
-            const grown = (size: number): string => `${String(size * Math.min(scale, 1.5))}px`;
+        const barText = within(bar('Show'));
 
-            expect(resolvedStyle(barText.getByText('Ingredients'), 'fontSize')).toBe(
-                grown(nativeTokens.type.label.fontSize),
-            );
-            expect(resolvedStyle(barText.getByText('13 items'), 'fontSize')).toBe(
-                grown(nativeTokens.type.meta.fontSize),
-            );
-            expect(resolvedStyle(barText.getByText('Show'), 'fontSize')).toBe(grown(nativeTokens.type.label.fontSize));
-        },
-    );
+        expect(resolvedStyle(barText.getByText('Ingredients'), 'fontSize')).toBe(body);
+        expect(resolvedStyle(barText.getByText('Show'), 'fontSize')).toBe(body);
+        expect(resolvedStyle(barText.getByText('for 4'), 'fontSize')).toBe(small);
+        expect(resolvedStyle(barText.getByText('13 items'), 'fontSize')).toBe(small);
+    });
 });
 
 /** A scroll and a layout event, with only the fields the hook reads. */

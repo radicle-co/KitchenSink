@@ -211,6 +211,23 @@ describe('the pinned ingredients bar (web)', () => {
         expect(within(bar).getByText('Show')).toBeTruthy();
     });
 
+    it('sets the first line and the cue in the body role (16 px, 600) and "for 4" and the meta line in the 14 px role', () => {
+        render(view());
+        moveCard('above');
+
+        const bar = showBar();
+
+        for (const text of ['Ingredients', 'Show']) {
+            expect(within(bar).getByText(text).className).toMatch(/\btext-body\b/u);
+            expect(within(bar).getByText(text).className).toMatch(/\bfont-semibold\b/u);
+        }
+
+        for (const text of ['for 4', '13 items']) {
+            expect(within(bar).getByText(text).className).toMatch(/\btext-meta\b/u);
+            expect(within(bar).getByText(text).className).not.toMatch(/\bfont-semibold\b/u);
+        }
+    });
+
     it('carries no servings stepper: a mistap must never change the servings', () => {
         render(view());
         moveCard('above');

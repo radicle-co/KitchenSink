@@ -47,12 +47,12 @@ const BAR_PLACE = 'fixed inset-x-3 top-[calc(env(safe-area-inset-top,0px)+0.5rem
 const BarContent: FC<{ readonly facts: PinnedBarFacts; readonly open: boolean }> = ({ facts, open }) => (
     <>
         <span aria-hidden="true" className="flex min-w-0 flex-1 flex-col">
-            <span className="text-label font-semibold">
-                {facts.heading} <span className="font-normal text-ink-muted">{facts.forServings}</span>
+            <span className="text-body font-semibold">
+                {facts.heading} <span className="text-meta font-normal text-ink-muted">{facts.forServings}</span>
             </span>
             <span className="text-meta tabular-nums text-ink-muted">{facts.meta}</span>
         </span>
-        <span aria-hidden="true" className="text-label font-semibold text-action-text">
+        <span aria-hidden="true" className="text-body font-semibold text-action-text">
             {facts.cue}
         </span>
         <span

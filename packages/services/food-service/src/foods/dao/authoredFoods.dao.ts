@@ -113,26 +113,20 @@ interface OwnFoodRow extends Record<string, unknown> {
     request_version: number | null;
 }
 
-/** The cursor is the last row's (updated_at, id), base64url. Pure. */
+/** The cursor is the last row's `updated_at` and id joined by a space, base64url. Pure. */
 function encodeCursor(updatedAt: string, id: string): string {
-    return Buffer.from(JSON.stringify([updatedAt, id])).toString('base64url');
+    return Buffer.from(`${updatedAt} ${id}`).toString('base64url');
 }
+
+/** An ISO instant, a space, a food id. Anything else reads as the first page. */
+const CURSOR_SHAPE = /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z) ([A-Za-z0-9_-]+)$/;
 
 /** Decode a cursor; a malformed one reads as the first page rather than an error. Pure. */
 function decodeCursor(cursor: string | undefined): { updatedAt: string; id: string } | undefined {
-    if (cursor === undefined) {
-        return undefined;
-    }
+    const match = cursor === undefined ? null : CURSOR_SHAPE.exec(Buffer.from(cursor, 'base64url').toString('utf8'));
+    const [, updatedAt, id] = match ?? [];
 
-    try {
-        const parsed: unknown = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8'));
-
-        return Array.isArray(parsed) && typeof parsed[0] === 'string' && typeof parsed[1] === 'string'
-            ? { updatedAt: parsed[0], id: parsed[1] }
-            : undefined;
-    } catch {
-        return undefined;
-    }
+    return updatedAt === undefined || id === undefined ? undefined : { updatedAt, id };
 }
 
 /** The four macro rows, in a stable order, resolved to the canonical dictionary identities. */

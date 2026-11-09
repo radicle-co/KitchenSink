@@ -17,7 +17,7 @@ import { requireUserUlid } from '../auth/requireCaller.js';
 import type { AuthenticatedRequest } from '../auth/authenticatedPrincipal.js';
 import { apiError } from '../common/apiError.js';
 import { isFoodId } from '../db/ulid.js';
-import { OwnFoodListQueryDto } from './dto/publication.dto.js';
+import { OwnFoodListQueryDto } from './dto/ownFoodListQuery.dto.js';
 import type { OwnFoodList, PublicationRequestDetail } from './publication.schema.js';
 import { FoodPublicationService } from './publication.service.js';
 

@@ -19,7 +19,8 @@ import { FOOD_ADMIN_SCOPE, hasScope, type AuthenticatedRequest } from '../../aut
 import { apiError } from '../../common/apiError.js';
 import { isFoodId } from '../../db/ulid.js';
 import { FoodPublicationService } from '../publication.service.js';
-import { PublicationDecisionBodyDto, PublicationRequestsQueryDto } from '../dto/publication.dto.js';
+import { PublicationDecisionBodyDto } from '../dto/publicationDecision.dto.js';
+import { PublicationRequestsQueryDto } from '../dto/publicationRequestsQuery.dto.js';
 import type { AdminPublicationRequestList, PublicationRequest } from '../publication.schema.js';
 import { AdminMetricsService, type OperationalMetrics } from './adminMetrics.service.js';
 import { FoodRecoveryService, type RequeueResponse } from './foodRecovery.service.js';

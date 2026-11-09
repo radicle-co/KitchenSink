@@ -16,6 +16,9 @@
 -- ── food_promotions is dropped ───────────────────────────────────────────────────────────────────
 --   The corroboration queue (0015) never had a reader: no code selects from it. Its replacement is this table.
 
+-- ⚠️ Bounded wait: the new table's foreign keys take a lock on food and food_versions, and the drop takes one on the old queue.
+SET LOCAL lock_timeout = '5s';
+
 CREATE TABLE "food_publication_requests" (
     "id"                  uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
     "food_id"             text NOT NULL,

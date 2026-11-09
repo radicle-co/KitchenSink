@@ -7953,7 +7953,7 @@
             "dir": "packages/apps/commise/features/recipes/src/detail",
             "kind": "orchestration",
             "patterns": [
-                "Adapter over the DOM focus and scroll APIs — `.focus()` and the document's scroll lock have no declarative form."
+                "Adapter over @radix-ui/react-dialog — the bar is the trigger and, open, the close button of the same dialog."
             ],
             "platforms": [
                 "web",
@@ -7968,7 +7968,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/recipes/src/detail/PinnedIngredientsBar.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/detail",
-                    "moduleDoc": "@commise/features-recipes — the web pinned ingredients bar and the list it opens (owner ruling R1,\n`docs/plans/2026-11-08-pinnedIngredientsBar.md`; boards `RecipeDetailScrolledMobile` and\n`RecipeDetailIngredientsOpenMobile`).\n\nBelow a 720 px body, once the ingredients card has scrolled above the top of the window, ONE button pins at the top:\n\"Ingredients for 4 / 13 items · 1 ticked / Show\". It opens the list as a panel directly under it, over a scrim, with the\npage behind it held still. The bar has no stepper (a mistap must never rescale a recipe mid-cook); the stepper is the\nfirst row of the list. From 720 the sticky card does this job, so the whole thing is `hidden` by the article's\ncontainer query and the bar never draws.\n\nA non-modal dialog, kept by hand because the bar must stay pressable above its own panel: focus moves into the list on\nopen and back to the bar on close, Tab wraps between the bar and the list, Escape and the scrim close it.",
+                    "moduleDoc": "@commise/features-recipes — the web pinned ingredients bar and the list it opens (owner ruling R1,\n`docs/plans/2026-11-08-pinnedIngredientsBar.md`; boards `RecipeDetailScrolledMobile` and\n`RecipeDetailIngredientsOpenMobile`).\n\nBelow a 720 px body, once the ingredients card has scrolled above the top of the window, ONE button pins at the top:\n\"Ingredients for 4 / 13 items · 1 ticked / Show\". It opens the list as a panel directly under it, over a scrim, with the\npage behind it held still. The bar has no stepper (a mistap must never rescale a recipe mid-cook); the stepper is the\nfirst row of the list. From 720 the sticky card does this job, so the whole thing is `hidden` by the article's\ncontainer query and the bar never draws.\n\nA MODAL dialog on Radix. The bar in the page is the trigger; while the list is open the dialog's content draws a second\ncopy of the bar, at the same fixed position above the scrim, as the close button, so the bar stays pressable above its\nown panel. Radix owns Escape, the scroll lock, hiding the page behind, the Tab loop and the focus return to the trigger.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -7976,10 +7976,10 @@
                         },
                         {
                             "name": "pattern",
-                            "text": "Adapter over the DOM focus and scroll APIs — `.focus()` and the document's scroll lock have no declarative form."
+                            "text": "Adapter over @radix-ui/react-dialog — the bar is the trigger and, open, the close button of the same dialog."
                         }
                     ],
-                    "description": "The pinned bar, its scrim and its list. Orchestration of its own focus, key and scroll behaviour: whether the list is\nopen is the shell's, handed in as props.",
+                    "description": "The pinned bar, its scrim and its list. Whether the list is open is the shell's, handed in as props.",
                     "tags": [],
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
@@ -8030,13 +8030,11 @@
                             "declaredIn": "packages/apps/commise/features/recipes/src/detail/PinnedIngredientsBar.tsx"
                         }
                     ],
-                    "usesRefApi": [
-                        "useRef"
-                    ],
+                    "usesRefApi": [],
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
                         "presentational": false,
-                        "orchestration": true
+                        "orchestration": false
                     }
                 },
                 {

@@ -7,7 +7,7 @@
         "missing-component-doc": 166,
         "missing-module-doc": 21,
         "platform-singleton": 95,
-        "ref-api": 20,
+        "ref-api": 19,
         "unclassified-layer": 93,
         "undocumented-prop": 198
     },
@@ -2402,16 +2402,6 @@
             "evidence": [
                 "web: children facts onOpenChange open scrimLabel",
                 "native: facts onOpenChange open scrimLabel"
-            ]
-        },
-        {
-            "rule": "ref-api",
-            "severity": "violation",
-            "component": "featuresRecipes/detail/PinnedIngredientsBar",
-            "sourcePath": "packages/apps/commise/features/recipes/src/detail/PinnedIngredientsBar.tsx",
-            "message": "refs are near-forbidden; permitted only to wrap an external non-declarative system",
-            "evidence": [
-                "useRef"
             ]
         },
         {

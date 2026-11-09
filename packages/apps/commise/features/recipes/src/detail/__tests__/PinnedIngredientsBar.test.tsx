@@ -11,7 +11,7 @@ import { FoodServiceClient } from '@kitchensink/food-service-client';
 import { FoodServiceProvider } from '@kitchensink/food-service-client/hooks';
 import { renderWithRecipeClient } from '@commise/test-utils';
 import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-client/testing';
-import { act, cleanup, fireEvent, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import type { ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -145,7 +145,6 @@ const view = (over: { readonly lines?: typeof ingredients } = {}): ReactElement 
 
 const barName = (tail: string): RegExp => new RegExp(`^Ingredients for 4, [^.]*\\. ${tail} list\\.$`, 'u');
 const showBar = (): HTMLElement => screen.getByRole('button', { name: barName('Show') });
-const showBarOrHide = (tail: 'Show' | 'Hide'): HTMLElement => screen.getByRole('button', { name: barName(tail) });
 
 describe('the pinned ingredients bar (web)', () => {
     it('asks the browser to watch a marker at the END of the ingredients card, with a root that reaches up past the window', () => {
@@ -261,7 +260,7 @@ describe('the pinned ingredients bar (web)', () => {
             expect(within(panel).getByRole('heading', { name: 'Vegetables' })).toBeTruthy();
         });
 
-        it('moves focus into the list on open, and back to the bar on close', () => {
+        it('moves focus into the list on open, and back to the bar on close', async () => {
             const panel = open();
 
             expect(panel.contains(document.activeElement)).toBe(true);
@@ -269,20 +268,21 @@ describe('the pinned ingredients bar (web)', () => {
             fireEvent.click(screen.getByRole('button', { name: barName('Hide') }));
 
             expect(screen.queryByRole('dialog')).toBeNull();
-            expect(document.activeElement).toBe(showBar());
+            // Radix hands focus back a tick after the content unmounts.
+            await waitFor(() => expect(document.activeElement).toBe(showBar()));
         });
 
-        it('closes on Escape, with focus back on the bar', () => {
+        it('closes on Escape, with focus back on the bar', async () => {
             open();
             fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' });
 
             expect(screen.queryByRole('dialog')).toBeNull();
-            expect(document.activeElement).toBe(showBar());
+            await waitFor(() => expect(document.activeElement).toBe(showBar()));
         });
 
         it('closes when the scrim is pressed', () => {
             open();
-            fireEvent.click(screen.getByRole('button', { name: detail.pinnedScrimClose, hidden: true }));
+            fireEvent.click(screen.getByLabelText(detail.pinnedScrimClose));
 
             expect(screen.queryByRole('dialog')).toBeNull();
         });
@@ -290,11 +290,31 @@ describe('the pinned ingredients bar (web)', () => {
         it('blocks the page behind the scrim from scrolling while it is open, and frees it on close', () => {
             open();
 
-            expect(document.documentElement.style.overflow).toBe('hidden');
+            // Radix's scroll lock marks the body (the real scroll is Playwright's, `recipeDetailPinnedIngredients.spec.ts`).
+            expect(document.body.hasAttribute('data-scroll-locked')).toBe(true);
 
             fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' });
 
-            expect(document.documentElement.style.overflow).toBe('');
+            expect(document.body.hasAttribute('data-scroll-locked')).toBe(false);
+        });
+
+        it('keeps the bar visible and pressable ABOVE the scrim while the list is open', () => {
+            const panel = open();
+            const hide = screen.getByRole('button', { name: barName('Hide') });
+            const scrim = screen.getByLabelText(detail.pinnedScrimClose);
+            const layer = (element: Element): number =>
+                Number(/(?:^|\s)z-(\d+)(?:\s|$)/u.exec(element.closest('[class*="z-"]')?.className ?? '')?.[1]);
+
+            // The bar the cook can press is in the dialog's content (not hidden from the accessibility tree), on a layer above the scrim.
+            expect(panel.contains(hide)).toBe(true);
+            expect(layer(hide)).toBeGreaterThan(layer(scrim));
+            expect(hide.closest('[aria-hidden="true"]')).toBeNull();
+            expect(hide.closest('[inert]')).toBeNull();
+
+            // Pressing it is the way to close.
+            fireEvent.click(hide);
+
+            expect(screen.queryByRole('dialog')).toBeNull();
         });
 
         it('keeps the cook in the list: Tab from the last control wraps to the bar and on to the first', () => {
@@ -308,25 +328,23 @@ describe('the pinned ingredients bar (web)', () => {
             expect(document.activeElement).toBe(screen.getByRole('button', { name: barName('Hide') }));
         });
 
-        it('makes the rest of the page inert while the list is open, and gives it back on close', () => {
-            const panel = open();
-            const card = screen.getByRole('region', { name: detail.ingredientsHeading });
+        it('hides the rest of the page while the list is open, and gives it back on close', () => {
+            open();
 
-            expect(card.closest('[inert]')).not.toBeNull();
-            expect(panel.closest('[inert]')).toBeNull();
-            expect(showBarOrHide('Hide').closest('[inert]')).toBeNull();
+            expect(screen.queryByRole('region', { name: detail.ingredientsHeading })).toBeNull();
 
             fireEvent.click(screen.getByRole('button', { name: barName('Hide') }));
 
-            expect(document.querySelector('[inert]')).toBeNull();
+            expect(screen.getByRole('region', { name: detail.ingredientsHeading })).toBeTruthy();
         });
 
-        it('sends Shift+Tab from a focus outside the list to the last control, not the one before it', () => {
+        it('sends Shift+Tab from the bar, the first stop, to the last control', () => {
             const panel = open();
             const boxes = within(panel).getAllByRole('checkbox');
+            const hide = screen.getByRole('button', { name: barName('Hide') });
 
-            (document.activeElement as HTMLElement).blur();
-            fireEvent.keyDown(document.body, { key: 'Tab', shiftKey: true });
+            hide.focus();
+            fireEvent.keyDown(hide, { key: 'Tab', shiftKey: true });
 
             expect(document.activeElement).toBe(boxes[boxes.length - 1]);
         });
@@ -336,7 +354,7 @@ describe('the pinned ingredients bar (web)', () => {
 
             fireEvent.click(within(panel).getByRole('button', { name: detail.servingsIncrease }));
 
-            const card = screen.getByRole('region', { name: detail.ingredientsHeading });
+            const card = screen.getByRole('region', { name: detail.ingredientsHeading, hidden: true });
 
             expect(within(card).getByText('for 5')).toBeTruthy();
             expect(screen.getByRole('dialog', { name: 'Ingredients for 5' })).toBeTruthy();
@@ -347,8 +365,8 @@ describe('the pinned ingredients bar (web)', () => {
 
             fireEvent.click(within(panel).getByRole('checkbox', { name: /ingredient 2/u }));
 
-            const card = screen.getByRole('region', { name: detail.ingredientsHeading });
-            const row = within(card).getByRole('checkbox', { name: /ingredient 2/u });
+            const card = screen.getByRole('region', { name: detail.ingredientsHeading, hidden: true });
+            const row = within(card).getByRole('checkbox', { name: /ingredient 2/u, hidden: true });
 
             expect(row.getAttribute('aria-checked')).toBe('true');
             expect(screen.getByRole('button', { name: barName('Hide') }).getAttribute('aria-label')).toContain(

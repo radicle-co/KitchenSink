@@ -180,10 +180,6 @@ const REF_SITES: Readonly<Record<string, RefSite>> = {
         verdict: 'sanctioned',
         why: 'One node handle, the field, for a host focus request (the step the editor has just added): `.focus()` on web and `TextInput.focus()` on native, neither of which has a declarative form. The same level-triggered request, acknowledged once taken, that Input, Button and Combobox take. On native the same node is also the one the field reveal host measures to hold the field in view, and the one the screen-reader cursor moves to when the screen names the field.',
     },
-    'featuresRecipes/detail/PinnedIngredientsBar': {
-        verdict: 'sanctioned',
-        why: 'One node handle, the list panel, to find its first control for `.focus()` on open (WCAG 2.4.3) and to wrap Tab between the bar and the list; the bar button is the `useFocusOnSignal` handle, which the shared hook already sanctions, and the edge latch behind it is state adjusted during render. `.focus()` has no declarative form, and the list is a non-modal dialog kept by hand because the bar must stay pressable above its own panel (a Radix modal would make it inert). The document scroll lock, the inert marks on the rest of the page and the keydown listener are effect-scoped and restored on cleanup.',
-    },
     'featuresRecipes/form/IngredientRow': {
         verdict: 'sanctioned',
         why: "One node handle, the read row's open control (\"Edit {amount} {food}\"), for a host focus request: after a Remove the next row's open control takes focus, and after Done or a cancelled food search the row's own does (build spec §7.5.1, §7.5.2). `.focus()` on web and `moveScreenReaderFocus` on native have no declarative form; the request is a level the row view clears on acknowledgement.",

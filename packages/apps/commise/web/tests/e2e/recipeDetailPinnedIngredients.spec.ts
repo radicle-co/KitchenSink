@@ -219,8 +219,15 @@ for (const width of [430, 375]) {
             await page.setViewportSize({ width: 1280, height: 800 });
 
             // The observer reports the hidden marker one frame later, and the list closes then: poll, do not read once.
-            await expect.poll(() => page.evaluate(() => document.documentElement.style.overflow)).toBe('');
-            await expect(page.locator('[inert]')).toHaveCount(0);
+            await expect(page.getByRole('dialog', { name: 'Ingredients for 4' })).toBeHidden();
+
+            // The page scrolls again: a fixed scroll up from the foot moves the window.
+            const before = await page.evaluate(() => window.scrollY);
+
+            await page.evaluate(() => {
+                window.scrollBy(0, -200);
+            });
+            await expect.poll(() => page.evaluate(() => window.scrollY)).toBeLessThan(before);
         });
 
         test('the bar is gone when the ingredients card is back in view', async ({ page }) => {

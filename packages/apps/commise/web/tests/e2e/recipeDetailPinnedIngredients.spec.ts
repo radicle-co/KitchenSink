@@ -44,6 +44,37 @@ const STEPS = Array.from({ length: 14 }, (_, index) => ({
             : `Step ${String(index + 1)}: keep stirring the pot gently until the sauce has thickened and shines.`,
 }));
 
+const BAR_GUTTER = 12;
+
+/** Every pinned-bar button's gap to each window edge, and whether the page runs sideways. */
+async function barGutters(page: Page): Promise<{
+    sideways: boolean;
+    bars: { label: string | null; left: number; right: number }[];
+}> {
+    return page.evaluate(() => {
+        const client = document.documentElement.clientWidth;
+
+        return {
+            sideways: document.documentElement.scrollWidth !== client,
+            bars: Array.from(document.querySelectorAll('button[aria-label$="list."]'))
+                .filter((node) => node.getBoundingClientRect().width > 0)
+                .map((node) => {
+                    const box = node.getBoundingClientRect();
+
+                    return { label: node.getAttribute('aria-label'), left: box.left, right: client - box.right };
+                }),
+        };
+    });
+}
+
+function expectBarInGutters(gutters: Awaited<ReturnType<typeof barGutters>>): void {
+    expect(gutters.sideways).toBe(false);
+    expect(gutters.bars.length).toBeGreaterThan(0);
+    expect(
+        gutters.bars.filter((bar) => Math.abs(bar.left - BAR_GUTTER) > 0.5 || Math.abs(bar.right - BAR_GUTTER) > 0.5),
+    ).toEqual([]);
+}
+
 async function openRecipe(page: Page): Promise<void> {
     await page.route(`${PHOTO_ORIGIN}/**`, (photo) => photo.fulfill({ contentType: 'image/png', body: PNG }));
     await signInWithTicket(page);
@@ -157,6 +188,8 @@ for (const width of [430, 375]) {
             await expect(bar).toBeHidden();
             await scrollIntoSteps(page);
             await expect(bar).toBeVisible();
+            // The bar sits 12 px from both window edges, and the page does not run sideways.
+            expectBarInGutters(await barGutters(page));
             await expect(bar).toHaveAttribute('aria-expanded', 'false');
             await expect(bar).toHaveAttribute('aria-haspopup', 'dialog');
 
@@ -165,6 +198,8 @@ for (const width of [430, 375]) {
             const panel = page.getByRole('dialog', { name: 'Ingredients for 4' });
 
             await expect(panel).toBeVisible();
+            // Open: the trigger under the scrim and the close bar over it both keep the 12 px gutters.
+            expectBarInGutters(await barGutters(page));
             // Inside the dialog the bar face is a plain close button: no expanded state, no popup claim.
             const hideBar = page.getByRole('button', { name: /Hide list\.$/u });
 
@@ -233,6 +268,74 @@ for (const width of [430, 375]) {
             await expect(panel).toBeHidden();
             await expect(page.getByRole('button', { name: /Show list\.$/u })).toBeFocused();
         });
+
+        for (const scheme of ['light', 'dark'] as const) {
+            test(`the open list paints on top of the scrim and the page, ${scheme}`, async ({ page }) => {
+                await page.emulateMedia({ colorScheme: scheme });
+                await openRecipe(page);
+                await scrollIntoSteps(page);
+                await page.getByRole('button', { name: /Show list\.$/u }).click();
+
+                const panel = page.getByRole('dialog', { name: 'Ingredients for 4' });
+
+                await expect(panel).toBeVisible();
+                // Past the enter animation: the panel is drawn at full opacity before anything is measured.
+                await panel.evaluate((node) =>
+                    Promise.all(node.getAnimations({ subtree: true }).map((a) => a.finished)),
+                );
+
+                const seen = await page.evaluate(() => {
+                    const dialog = document.querySelector('[role="dialog"]') as HTMLElement;
+                    const list = dialog.lastElementChild as HTMLElement;
+                    const box = list.getBoundingClientRect();
+                    const at = (x: number, y: number): Element | null => document.elementFromPoint(x, y);
+                    const probe = document.createElement('div');
+
+                    probe.className = 'bg-paper';
+                    document.body.append(probe);
+                    const paper = getComputedStyle(probe).backgroundColor;
+
+                    probe.remove();
+
+                    return {
+                        opacity: getComputedStyle(list).opacity,
+                        centreInPanel: list.contains(at(box.left + box.width / 2, box.top + 40)),
+                        stripIsScrim: at(5, 400)?.classList.contains('bg-scrim') === true,
+                        rightStripIsScrim: at(window.innerWidth - 5, 300)?.classList.contains('bg-scrim') === true,
+                        paper,
+                        patch: { x: box.left + 30, y: box.top + 3 },
+                    };
+                });
+
+                expect(seen).toMatchObject({
+                    opacity: '1',
+                    centreInPanel: true,
+                    stripIsScrim: true,
+                    rightStripIsScrim: true,
+                });
+
+                // The pixels say it too: a patch of blank panel is the paper surface, not the scrim over the page.
+                const shot = await page.screenshot({ clip: { x: seen.patch.x, y: seen.patch.y, width: 4, height: 4 } });
+                const pixel = await page.evaluate(async (base64) => {
+                    const image = new Image();
+
+                    image.src = `data:image/png;base64,${base64}`;
+                    await image.decode();
+                    const canvas = document.createElement('canvas');
+
+                    canvas.width = 1;
+                    canvas.height = 1;
+                    const context = canvas.getContext('2d');
+
+                    context?.drawImage(image, 0, 0, 1, 1, 0, 0, 1, 1);
+                    const [red, green, blue] = context?.getImageData(0, 0, 1, 1).data ?? [];
+
+                    return `rgb(${String(red)}, ${String(green)}, ${String(blue)})`;
+                }, shot.toString('base64'));
+
+                expect(pixel).toBe(seen.paper.replace(/^rgba?\((\d+), (\d+), (\d+).*$/u, 'rgb($1, $2, $3)'));
+            });
+        }
 
         test('a list left open is closed when the window grows to a 720 px body, and the page scrolls again', async ({
             page,

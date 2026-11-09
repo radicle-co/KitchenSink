@@ -33,9 +33,12 @@ export interface PinnedIngredientsBarProps {
     readonly children: ReactNode;
 }
 
-/** The bar's face, shared by the trigger in the page and the close button over the scrim. */
+/**
+ * The bar's face, shared by the trigger in the page and the close button over the scrim. It sets NO width: the trigger is
+ * `fixed` with an inset on each side, and a width on top of those would push its right edge past the window.
+ */
 const BAR_FACE =
-    'flex min-h-16 w-full items-center gap-2.5 rounded-lg bg-paper py-2 pe-3 ps-4 text-start text-ink shadow-[inset_0_0_0_1px_var(--color-line-divider),var(--shadow-lg)]';
+    'flex min-h-16 items-center gap-2.5 rounded-lg bg-paper py-2 pe-3 ps-4 text-start text-ink shadow-[inset_0_0_0_1px_var(--color-line-divider),var(--shadow-lg)]';
 
 /** Where the bar sits: pinned under the top chrome. */
 const BAR_PLACE = 'fixed inset-x-3 top-[calc(env(safe-area-inset-top,0px)+0.5rem)]';
@@ -89,7 +92,7 @@ export const PinnedIngredientsBar: FC<PinnedIngredientsBarProps> = ({ facts, ope
                     }}
                     className={`${BAR_PLACE} z-40`}
                 >
-                    <Dialog.Close aria-label={facts.name} className={BAR_FACE}>
+                    <Dialog.Close aria-label={facts.name} className={`w-full ${BAR_FACE}`}>
                         <BarContent facts={facts} open />
                     </Dialog.Close>
                     <div

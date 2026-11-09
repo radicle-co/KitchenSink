@@ -71,6 +71,7 @@ function RecipeDetailRoute({ navigation, route }: TabScreenProps<'RecipeDetail'>
             onBack={() => navigation.goBack()}
             onEdit={(recipeId) => navigation.navigate('RecipeEdit', { recipeId })}
             onViewVersions={(recipeId) => navigation.push('RecipeVersions', { recipeId })}
+            onOpenFood={(foodId) => navigation.getParent()?.navigate('FoodDetail', { foodId, from: 'recipe' })}
             onDeleted={() => navigation.popToTop()}
             onCloned={(copyId) => {
                 // FR-005b: a copy is published only after a substantive edit, so it opens in the editor, with its own

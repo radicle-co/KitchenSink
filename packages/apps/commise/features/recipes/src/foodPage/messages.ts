@@ -18,6 +18,8 @@ export interface FoodPageMessages {
     readonly titleFallback: string;
     /** The pinned Back: a food opens in a new tab with no history, so it goes to My recipes. */
     readonly back: { readonly label: string; readonly parent: string };
+    /** Back from a food opened from a recipe page's refusal. */
+    readonly backToRecipe: { readonly label: string; readonly parent: string };
     /** Back from a food opened above the editor (native): the chevron alone on a phone. */
     readonly backToEditor: { readonly label: string; readonly parent: string };
     readonly loading: string;
@@ -91,6 +93,7 @@ export const foodPageMessages: LocalizedMessages<FoodPageMessages> = {
         titleFallback: 'Food',
         back: { label: 'Back to My recipes', parent: 'My recipes' },
         backToEditor: { label: 'Back to Edit recipe', parent: 'Edit recipe' },
+        backToRecipe: { label: 'Back to recipe', parent: 'Recipe' },
         loading: 'Loading food',
         notFound: {
             title: 'Food not found',

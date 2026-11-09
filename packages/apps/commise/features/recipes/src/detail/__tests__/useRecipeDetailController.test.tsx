@@ -7,7 +7,7 @@
  * The viewer is the session claim's `external_id`, else the profile's `user.id` (owner ruling 2026-10-16).
  */
 import { RecipeSourceType, RecipeVisibility, type RecipeDetail } from '@kitchensink/recipe-core';
-import { PrivateSlotsFullError } from '@kitchensink/recipe-service-client';
+import { PrivateFoodsOnPublicRecipeError, PrivateSlotsFullError } from '@kitchensink/recipe-service-client';
 import { RecipeServiceProvider } from '@kitchensink/recipe-service-client/hooks';
 import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-client/testing';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -77,7 +77,7 @@ function mount(
     const queryClient = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
     const backend = memoryCookMarksBackend();
     const marks: { current: CookMarksBinding | undefined } = { current: undefined };
-    const nav = { onVersions: vi.fn(), onCloned: vi.fn(), onDeleted: vi.fn() };
+    const nav = { onVersions: vi.fn(), onCloned: vi.fn(), onDeleted: vi.fn(), onOpenFood: vi.fn() };
     const rendered: { current: ReturnType<typeof useRecipeDetailController> | undefined } = { current: undefined };
     const wrapper = ({ children }: { readonly children: ReactNode }) => (
         <QueryClientProvider client={queryClient}>
@@ -549,5 +549,79 @@ describe('useRecipeDetailController — the refusal claim seen once the body can
         mount({ sessionClaims: { external_id: OWNER }, onFinishRefusalSeen });
 
         expect(onFinishRefusalSeen).not.toHaveBeenCalled();
+    });
+});
+
+describe('useRecipeDetailController — Make public refused for a private food (private foods spec F3, section 7)', () => {
+    const LINES = [{ sortOrder: 1, foodId: 'food_spice' }];
+    const privateRecipe = {
+        visibility: RecipeVisibility.PRIVATE,
+        ingredients: [
+            {
+                ingredientId: 'i0',
+                name: 'Salt',
+                quantity: { kind: 'exact', value: 1 },
+                isUserEntered: false,
+                foodId: 'food_salt',
+            },
+            {
+                ingredientId: 'i1',
+                name: 'My spice mix',
+                quantity: { kind: 'exact', value: 2 },
+                unit: 'tbsp',
+                isUserEntered: false,
+                foodId: 'food_spice',
+            },
+        ],
+    } as unknown as Partial<RecipeDetail>;
+
+    async function refused() {
+        const mounted = mount({
+            recipe: privateRecipe,
+            sessionClaims: { external_id: OWNER },
+            profile: settledProfile(OWNER, 'upsell'),
+        });
+        vi.spyOn(mounted.client, 'setRecipeVisibility').mockRejectedValue(new PrivateFoodsOnPublicRecipeError(LINES));
+
+        act(() => mounted.result.current.menu?.items.find((item) => item.id === 'makePublic')?.onSelect());
+        await act(async () => {
+            mounted.result.current.dialogs.makePublic.onConfirm();
+        });
+
+        return mounted;
+    }
+
+    it('⛔ names the refused lines, matched to the recipe’s own lines by food', async () => {
+        const { result } = await refused();
+
+        await waitFor(() =>
+            expect(result.current.dialogs.privateFoods?.lines).toEqual([
+                { rowId: 'i1', foodId: 'food_spice', text: '2 tbsp My spice mix' },
+            ]),
+        );
+    });
+
+    it('is not the generic failure: the make-public confirm shows no "try again" for it', async () => {
+        const { result } = await refused();
+
+        await waitFor(() => expect(result.current.dialogs.privateFoods).toBeDefined());
+        expect(result.current.dialogs.makePublic.error).toBe(false);
+        expect(result.current.visibilityNotice).toBeUndefined();
+    });
+
+    it('opens a food through the app, and closing forgets the refusal', async () => {
+        const { result, nav } = await refused();
+
+        await waitFor(() => expect(result.current.dialogs.privateFoods).toBeDefined());
+        result.current.dialogs.privateFoods?.onOpenFood('food_spice');
+        expect(nav.onOpenFood).toHaveBeenCalledWith('food_spice');
+        act(() => result.current.dialogs.privateFoods?.onClose());
+        await waitFor(() => expect(result.current.dialogs.privateFoods).toBeUndefined());
+    });
+
+    it('has no refusal when nothing was refused', () => {
+        const { result } = mount({ sessionClaims: { external_id: OWNER }, profile: settledProfile(OWNER) });
+
+        expect(result.current.dialogs.privateFoods).toBeUndefined();
     });
 });

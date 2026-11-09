@@ -12,6 +12,8 @@ import { RecipeDeleteDialog } from '../actions/RecipeDeleteDialog.js';
 import { RecipeMakePublicDialog } from '../actions/RecipeMakePublicDialog.js';
 import type { RecipeDeleteDialogProps, RecipeMakePublicDialogProps, RecipeUpsellSheetProps } from '../actions/model.js';
 import { RecipeUpsellSheet } from '../actions/RecipeUpsellSheet.js';
+import { PrivateFoodsRefusalSheet } from '../editor/PrivateFoodsRefusalSheet.js';
+import type { PrivateFoodsRefusalSheetProps } from '../editor/privateFoodsRefusalSheetProps.js';
 
 /** Props for {@link RecipeDetailDialogs}: what `useRecipeDetailController` decided. */
 export interface RecipeDetailDialogsProps {
@@ -21,6 +23,11 @@ export interface RecipeDetailDialogsProps {
     readonly upsell: RecipeUpsellSheetProps;
     readonly makePublic: RecipeMakePublicDialogProps;
     readonly delete: Omit<RecipeDeleteDialogProps, 'recipeTitle'>;
+    /**
+     * A Make public the server refused because a line uses a food only the cook can see (private foods spec F3): the lines
+     * named, with the only ways that work (change them, or ask to make each food public). Absent when nothing was refused.
+     */
+    readonly privateFoods?: Pick<PrivateFoodsRefusalSheetProps, 'lines' | 'onOpenFood' | 'onClose'>;
 }
 
 /** The owner-only dialogs of the recipe page: presentational, props → JSX. */
@@ -30,6 +37,7 @@ export const RecipeDetailDialogs: FC<RecipeDetailDialogsProps> = ({
     upsell,
     makePublic,
     delete: deleteDialog,
+    privateFoods,
 }) => {
     if (!viewerIsOwner) {
         return null;
@@ -40,6 +48,15 @@ export const RecipeDetailDialogs: FC<RecipeDetailDialogsProps> = ({
             <RecipeUpsellSheet {...upsell} />
             <RecipeMakePublicDialog {...makePublic} />
             <RecipeDeleteDialog recipeTitle={recipeTitle} {...deleteDialog} />
+            {privateFoods === undefined ? null : (
+                <PrivateFoodsRefusalSheet
+                    open
+                    door="makePublic"
+                    canGoPrivate={false}
+                    onSendAsPrivate={() => undefined}
+                    {...privateFoods}
+                />
+            )}
         </>
     );
 };

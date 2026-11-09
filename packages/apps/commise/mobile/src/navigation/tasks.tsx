@@ -134,7 +134,11 @@ function RecipeEditRoute({ navigation, route }: TaskProps<'RecipeEdit'>): JSX.El
 function FoodDetailRoute({ navigation, route }: TaskProps<'FoodDetail'>): JSX.Element {
     const m = useMessages(foodPageMessages);
     const back =
-        route.params.from === 'editor' ? m.backToEditor : { label: m.yourFoods.title, parent: m.yourFoods.title };
+        route.params.from === 'editor'
+            ? m.backToEditor
+            : route.params.from === 'recipe'
+              ? m.backToRecipe
+              : { label: m.yourFoods.title, parent: m.yourFoods.title };
     const goBack = (): void => navigation.goBack();
 
     return (

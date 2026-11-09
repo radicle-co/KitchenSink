@@ -67,7 +67,7 @@ export type RootStackParamList = {
      * The author's food page (ADR-0056 item 2). It opens ABOVE the editor from a refused publish or a row's menu, so Back
      * returns to the editor exactly as it was; from Your foods Back returns there. `from` names where Back goes.
      */
-    FoodDetail: { readonly foodId: string; readonly from: 'editor' | 'yourFoods' };
+    FoodDetail: { readonly foodId: string; readonly from: 'editor' | 'yourFoods' | 'recipe' };
 };
 
 /**

@@ -14,7 +14,11 @@
  *
  * @implements FR-047
  */
-import type { TerminalFoodStatus } from '@kitchensink/schema-food';
+import type {
+    PublicationNotApprovableReason,
+    PublicationNotRequestableReason,
+    TerminalFoodStatus,
+} from '@kitchensink/schema-food';
 
 /** Base class for all food-service client errors. Carries the originating HTTP status. */
 export class FoodServiceClientError extends Error {
@@ -352,9 +356,9 @@ export class PublicationNotRequestableError extends FoodServiceClientError {
     /** The food id. */
     public readonly id: string;
     /** Why the ask is refused. */
-    public readonly reason: 'withdrawn' | 'notPrivate' | 'declined';
+    public readonly reason: PublicationNotRequestableReason;
 
-    public constructor(id: string, reason: 'withdrawn' | 'notPrivate' | 'declined', message?: string) {
+    public constructor(id: string, reason: PublicationNotRequestableReason, message?: string) {
         super(message ?? `Food '${id}' cannot be asked for publication (${reason})`, 409);
         this.name = 'PublicationNotRequestableError';
         this.id = id;
@@ -394,9 +398,9 @@ export class PublicationNotApprovableError extends FoodServiceClientError {
     /** The food id. */
     public readonly id: string;
     /** Why the decision is refused. */
-    public readonly reason: 'closed' | 'withdrawn' | 'notNewest';
+    public readonly reason: PublicationNotApprovableReason;
 
-    public constructor(id: string, reason: 'closed' | 'withdrawn' | 'notNewest', message?: string) {
+    public constructor(id: string, reason: PublicationNotApprovableReason, message?: string) {
         super(message ?? `Food '${id}' publication cannot be approved (${reason})`, 409);
         this.name = 'PublicationNotApprovableError';
         this.id = id;

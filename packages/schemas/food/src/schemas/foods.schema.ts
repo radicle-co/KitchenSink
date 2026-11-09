@@ -44,6 +44,14 @@ import { z } from 'zod';
  */
 export const MAX_FOOD_NAME_LENGTH = 200;
 
+/** Why an author's publication request is refused (`409 PUBLICATION_NOT_REQUESTABLE`). The one statement of the set. */
+export const publicationNotRequestableReasonSchema = z.enum(['withdrawn', 'notPrivate', 'declined']);
+export type PublicationNotRequestableReason = z.infer<typeof publicationNotRequestableReasonSchema>;
+
+/** Why staff cannot approve a request (`409 PUBLICATION_NOT_APPROVABLE`). The one statement of the set. */
+export const publicationNotApprovableReasonSchema = z.enum(['closed', 'withdrawn', 'notNewest']);
+export type PublicationNotApprovableReason = z.infer<typeof publicationNotApprovableReasonSchema>;
+
 /**
  * Food lifecycle status — the service's canonical set (FR-002/FR-003/FR-004).
  *
@@ -1262,7 +1270,7 @@ export const foodErrorSchema = z.discriminatedUnion('code', [
         .object({
             code: z.literal('PUBLICATION_NOT_REQUESTABLE'),
             message: z.string(),
-            details: z.object({ id: z.string(), reason: z.enum(['withdrawn', 'notPrivate', 'declined']) }).loose(),
+            details: z.object({ id: z.string(), reason: publicationNotRequestableReasonSchema }).loose(),
         })
         .loose(),
     z
@@ -1276,7 +1284,7 @@ export const foodErrorSchema = z.discriminatedUnion('code', [
         .object({
             code: z.literal('PUBLICATION_NOT_APPROVABLE'),
             message: z.string(),
-            details: z.object({ id: z.string(), reason: z.enum(['closed', 'withdrawn', 'notNewest']) }).loose(),
+            details: z.object({ id: z.string(), reason: publicationNotApprovableReasonSchema }).loose(),
         })
         .loose(),
     z

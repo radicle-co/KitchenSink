@@ -301,6 +301,32 @@
                 color: var(--ink);
                 font-weight: 600;
             }
+            .idx {
+                width: 200px;
+                flex: none;
+                padding: 20px 16px;
+                display: flex;
+                flex-direction: column;
+                gap: 4px;
+                font-size: 14px;
+                line-height: 20px;
+                color: var(--ink-muted);
+            }
+            .idx a {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                min-height: 40px;
+                padding-left: 10px;
+            }
+            .idx a.on {
+                color: var(--ink);
+                font-weight: 600;
+                box-shadow: inset 3px 0 0 var(--here-bar);
+            }
+            .idx a.att {
+                color: var(--attention);
+            }
             .wrap {
                 display: flex;
                 flex: 1;
@@ -699,9 +725,7 @@
                 gap: 12px;
                 padding: 10px 0;
             }
-            .irow .amt {
-                width: 64px;
-                flex: none;
+            .irow .run b {
                 font-weight: 600;
             }
             .irow.has .top {
@@ -6088,14 +6112,21 @@
                             <circle cx="18" cy="12" r="1.3" fill="currentColor" /></svg
                     ></a>
                 </div>
-                <div class="sbar"><span class="w600">Ingredients</span><span class="soft">· 3 of 3 done</span></div>
+                <div class="sbar" aria-label="Sections. Current: Ingredients. 1 needs attention.">
+                    <span class="w600">Ingredients</span><span class="grow"></span
+                    ><span class="att w600" style="display: inline-flex; gap: 4px; align-items: center"
+                        ><svg class="ic sm" viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M12 4 3.5 19h17z" />
+                            <path d="M12 10v4M12 16.5v.01" /></svg
+                        >1</span
+                    >
+                </div>
                 <div class="body" style="">
                     <div class="card">
                         <h2>Ingredients</h2>
                         <div class="irow">
                             <div class="top">
-                                <span class="amt">2 lb</span>
-                                <div class="grow"><p>Chicken thighs</p></div>
+                                <p class="grow run"><b>2&nbsp;lb</b> Chicken thighs</p>
                                 <a
                                     class="iconBtn"
                                     href="#"
@@ -6110,8 +6141,7 @@
                         </div>
                         <div class="irow has">
                             <div class="top">
-                                <span class="amt">1 tsp</span>
-                                <div class="grow"><p>Grandma's spice mix</p></div>
+                                <p class="grow run"><b>1&nbsp;tsp</b> Grandma's spice mix</p>
                                 <a
                                     class="iconBtn"
                                     href="#"
@@ -6132,8 +6162,7 @@
                         </div>
                         <div class="irow">
                             <div class="top">
-                                <span class="amt">1 tbsp</span>
-                                <div class="grow"><p>Olive oil</p></div>
+                                <p class="grow run"><b>1&nbsp;tbsp</b> Olive oil</p>
                                 <a
                                     class="iconBtn"
                                     href="#"
@@ -6228,14 +6257,21 @@
                             <circle cx="18" cy="12" r="1.3" fill="currentColor" /></svg
                     ></a>
                 </div>
-                <div class="sbar"><span class="w600">Ingredients</span><span class="soft">· 3 of 3 done</span></div>
+                <div class="sbar" aria-label="Sections. Current: Ingredients. 1 needs attention.">
+                    <span class="w600">Ingredients</span><span class="grow"></span
+                    ><span class="att w600" style="display: inline-flex; gap: 4px; align-items: center"
+                        ><svg class="ic sm" viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M12 4 3.5 19h17z" />
+                            <path d="M12 10v4M12 16.5v.01" /></svg
+                        >1</span
+                    >
+                </div>
                 <div class="body" style="">
                     <div class="card">
                         <h2>Ingredients</h2>
                         <div class="irow">
                             <div class="top">
-                                <span class="amt">2 lb</span>
-                                <div class="grow"><p>Chicken thighs</p></div>
+                                <p class="grow run"><b>2&nbsp;lb</b> Chicken thighs</p>
                                 <a
                                     class="iconBtn"
                                     href="#"
@@ -6250,8 +6286,7 @@
                         </div>
                         <div class="irow has">
                             <div class="top">
-                                <span class="amt">1 tsp</span>
-                                <div class="grow"><p>Grandma's spice mix</p></div>
+                                <p class="grow run"><b>1&nbsp;tsp</b> Grandma's spice mix</p>
                                 <a
                                     class="iconBtn"
                                     href="#"
@@ -6272,8 +6307,7 @@
                         </div>
                         <div class="irow">
                             <div class="top">
-                                <span class="amt">1 tbsp</span>
-                                <div class="grow"><p>Olive oil</p></div>
+                                <p class="grow run"><b>1&nbsp;tbsp</b> Olive oil</p>
                                 <a
                                     class="iconBtn"
                                     href="#"
@@ -6368,14 +6402,21 @@
                             <circle cx="18" cy="12" r="1.3" fill="currentColor" /></svg
                     ></a>
                 </div>
-                <div class="sbar"><span class="w600">Ingredients</span><span class="soft">· 3 of 3 done</span></div>
+                <div class="sbar" aria-label="Sections. Current: Ingredients. 1 needs attention.">
+                    <span class="w600">Ingredients</span><span class="grow"></span
+                    ><span class="att w600" style="display: inline-flex; gap: 4px; align-items: center"
+                        ><svg class="ic sm" viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M12 4 3.5 19h17z" />
+                            <path d="M12 10v4M12 16.5v.01" /></svg
+                        >1</span
+                    >
+                </div>
                 <div class="body" style="">
                     <div class="card">
                         <h2>Ingredients</h2>
                         <div class="irow">
                             <div class="top">
-                                <span class="amt">2 lb</span>
-                                <div class="grow"><p>Chicken thighs</p></div>
+                                <p class="grow run"><b>2&nbsp;lb</b> Chicken thighs</p>
                                 <a
                                     class="iconBtn"
                                     href="#"
@@ -6390,8 +6431,7 @@
                         </div>
                         <div class="irow has">
                             <div class="top">
-                                <span class="amt">1 tsp</span>
-                                <div class="grow"><p>Grandma's spice mix</p></div>
+                                <p class="grow run"><b>1&nbsp;tsp</b> Grandma's spice mix</p>
                                 <a
                                     class="iconBtn"
                                     href="#"
@@ -6412,8 +6452,7 @@
                         </div>
                         <div class="irow">
                             <div class="top">
-                                <span class="amt">1 tbsp</span>
-                                <div class="grow"><p>Olive oil</p></div>
+                                <p class="grow run"><b>1&nbsp;tbsp</b> Olive oil</p>
                                 <a
                                     class="iconBtn"
                                     href="#"
@@ -6508,14 +6547,21 @@
                             <circle cx="18" cy="12" r="1.3" fill="currentColor" /></svg
                     ></a>
                 </div>
-                <div class="sbar"><span class="w600">Ingredients</span><span class="soft">· 3 of 3 done</span></div>
+                <div class="sbar" aria-label="Sections. Current: Ingredients. 1 needs attention.">
+                    <span class="w600">Ingredients</span><span class="grow"></span
+                    ><span class="att w600" style="display: inline-flex; gap: 4px; align-items: center"
+                        ><svg class="ic sm" viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M12 4 3.5 19h17z" />
+                            <path d="M12 10v4M12 16.5v.01" /></svg
+                        >1</span
+                    >
+                </div>
                 <div class="body" style="">
                     <div class="card">
                         <h2>Ingredients</h2>
                         <div class="irow">
                             <div class="top">
-                                <span class="amt">2 lb</span>
-                                <div class="grow"><p>Chicken thighs</p></div>
+                                <p class="grow run"><b>2&nbsp;lb</b> Chicken thighs</p>
                                 <a
                                     class="iconBtn"
                                     href="#"
@@ -6530,8 +6576,7 @@
                         </div>
                         <div class="irow has">
                             <div class="top">
-                                <span class="amt">1 tsp</span>
-                                <div class="grow"><p>Grandma's spice mix</p></div>
+                                <p class="grow run"><b>1&nbsp;tsp</b> Grandma's spice mix</p>
                                 <a
                                     class="iconBtn"
                                     href="#"
@@ -6552,8 +6597,7 @@
                         </div>
                         <div class="irow">
                             <div class="top">
-                                <span class="amt">1 tbsp</span>
-                                <div class="grow"><p>Olive oil</p></div>
+                                <p class="grow run"><b>1&nbsp;tbsp</b> Olive oil</p>
                                 <a
                                     class="iconBtn"
                                     href="#"
@@ -6648,14 +6692,21 @@
                             <circle cx="18" cy="12" r="1.3" fill="currentColor" /></svg
                     ></a>
                 </div>
-                <div class="sbar"><span class="w600">Ingredients</span><span class="soft">· 3 of 3 done</span></div>
+                <div class="sbar" aria-label="Sections. Current: Ingredients. 1 needs attention.">
+                    <span class="w600">Ingredients</span><span class="grow"></span
+                    ><span class="att w600" style="display: inline-flex; gap: 4px; align-items: center"
+                        ><svg class="ic sm" viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M12 4 3.5 19h17z" />
+                            <path d="M12 10v4M12 16.5v.01" /></svg
+                        >1</span
+                    >
+                </div>
                 <div class="body" style="">
                     <div class="card">
                         <h2>Ingredients</h2>
                         <div class="irow">
                             <div class="top">
-                                <span class="amt">2 lb</span>
-                                <div class="grow"><p>Chicken thighs</p></div>
+                                <p class="grow run"><b>2&nbsp;lb</b> Chicken thighs</p>
                                 <a
                                     class="iconBtn"
                                     href="#"
@@ -6670,8 +6721,7 @@
                         </div>
                         <div class="irow has">
                             <div class="top">
-                                <span class="amt">1 tsp</span>
-                                <div class="grow"><p>Grandma's spice mix</p></div>
+                                <p class="grow run"><b>1&nbsp;tsp</b> Grandma's spice mix</p>
                                 <a
                                     class="iconBtn"
                                     href="#"
@@ -6692,8 +6742,7 @@
                         </div>
                         <div class="irow">
                             <div class="top">
-                                <span class="amt">1 tbsp</span>
-                                <div class="grow"><p>Olive oil</p></div>
+                                <p class="grow run"><b>1&nbsp;tbsp</b> Olive oil</p>
                                 <a
                                     class="iconBtn"
                                     href="#"
@@ -6787,14 +6836,21 @@
                             <circle cx="18" cy="12" r="1.3" fill="currentColor" /></svg
                     ></a>
                 </div>
-                <div class="sbar"><span class="w600">Ingredients</span><span class="soft">· 3 of 3 done</span></div>
+                <div class="sbar" aria-label="Sections. Current: Ingredients. 1 needs attention.">
+                    <span class="w600">Ingredients</span><span class="grow"></span
+                    ><span class="att w600" style="display: inline-flex; gap: 4px; align-items: center"
+                        ><svg class="ic sm" viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M12 4 3.5 19h17z" />
+                            <path d="M12 10v4M12 16.5v.01" /></svg
+                        >1</span
+                    >
+                </div>
                 <div class="body" style="">
                     <div class="card">
                         <h2>Ingredients</h2>
                         <div class="irow">
                             <div class="top">
-                                <span class="amt">2 lb</span>
-                                <div class="grow"><p>Chicken thighs</p></div>
+                                <p class="grow run"><b>2&nbsp;lb</b> Chicken thighs</p>
                                 <a
                                     class="iconBtn"
                                     href="#"
@@ -6809,8 +6865,7 @@
                         </div>
                         <div class="irow has">
                             <div class="top">
-                                <span class="amt">1 tsp</span>
-                                <div class="grow"><p>Grandma's spice mix</p></div>
+                                <p class="grow run"><b>1&nbsp;tsp</b> Grandma's spice mix</p>
                                 <a
                                     class="iconBtn"
                                     href="#"
@@ -6831,8 +6886,7 @@
                         </div>
                         <div class="irow">
                             <div class="top">
-                                <span class="amt">1 tbsp</span>
-                                <div class="grow"><p>Olive oil</p></div>
+                                <p class="grow run"><b>1&nbsp;tbsp</b> Olive oil</p>
                                 <a
                                     class="iconBtn"
                                     href="#"
@@ -6955,75 +7009,91 @@
                                     <circle cx="18" cy="12" r="1.3" fill="currentColor" /></svg
                             ></a>
                         </div>
-                        <div class="body" style="padding: 20px 24px; max-width: 720px">
-                            <div class="card">
-                                <h2>Ingredients</h2>
-                                <div class="irow">
-                                    <div class="top">
-                                        <span class="amt">2 lb</span>
-                                        <div class="grow"><p>Chicken thighs</p></div>
-                                        <a
-                                            class="iconBtn"
-                                            href="#"
-                                            aria-label="More for Chicken thighs"
-                                            style="margin: -10px -8px -10px 0"
-                                            ><svg class="ic" viewBox="0 0 24 24" aria-hidden="true">
-                                                <circle cx="6" cy="12" r="1.3" fill="currentColor" />
-                                                <circle cx="12" cy="12" r="1.3" fill="currentColor" />
-                                                <circle cx="18" cy="12" r="1.3" fill="currentColor" /></svg
-                                        ></a>
+                        <div class="wrap">
+                            <nav class="idx" aria-label="Recipe sections">
+                                <a href="#" class=""
+                                    ><svg class="ic sm" viewBox="0 0 24 24" aria-hidden="true">
+                                        <path d="m6 12.5 4 4 8-9" /></svg
+                                    ><span>Details</span></a
+                                ><a href="#" class="on att"
+                                    ><svg class="ic sm" viewBox="0 0 24 24" aria-hidden="true">
+                                        <path d="M12 4 3.5 19h17z" />
+                                        <path d="M12 10v4M12 16.5v.01" /></svg
+                                    ><span>Ingredients</span></a
+                                ><a href="#" class=""
+                                    ><svg class="ic sm" viewBox="0 0 24 24" aria-hidden="true">
+                                        <path d="m6 12.5 4 4 8-9" /></svg
+                                    ><span>Steps</span></a
+                                ><a href="#" class=""><span>Photos and publish</span></a>
+                            </nav>
+                            <div class="body" style="padding: 20px 24px; max-width: 720px; flex: 1">
+                                <div class="card">
+                                    <h2>Ingredients</h2>
+                                    <div class="irow">
+                                        <div class="top">
+                                            <p class="grow run"><b>2&nbsp;lb</b> Chicken thighs</p>
+                                            <a
+                                                class="iconBtn"
+                                                href="#"
+                                                aria-label="More for Chicken thighs"
+                                                style="margin: -10px -8px -10px 0"
+                                                ><svg class="ic" viewBox="0 0 24 24" aria-hidden="true">
+                                                    <circle cx="6" cy="12" r="1.3" fill="currentColor" />
+                                                    <circle cx="12" cy="12" r="1.3" fill="currentColor" />
+                                                    <circle cx="18" cy="12" r="1.3" fill="currentColor" /></svg
+                                            ></a>
+                                        </div>
+                                    </div>
+                                    <div class="irow has">
+                                        <div class="top">
+                                            <p class="grow run"><b>1&nbsp;tsp</b> Grandma's spice mix</p>
+                                            <a
+                                                class="iconBtn"
+                                                href="#"
+                                                aria-label="More for Grandma's spice mix"
+                                                style="margin: -10px -8px -10px 0"
+                                                ><svg class="ic" viewBox="0 0 24 24" aria-hidden="true">
+                                                    <circle cx="6" cy="12" r="1.3" fill="currentColor" />
+                                                    <circle cx="12" cy="12" r="1.3" fill="currentColor" />
+                                                    <circle cx="18" cy="12" r="1.3" fill="currentColor" /></svg
+                                            ></a>
+                                        </div>
+                                        <p class="sub att">
+                                            <svg class="ic" viewBox="0 0 24 24" aria-hidden="true">
+                                                <rect x="5" y="10.5" width="14" height="9.5" rx="2" />
+                                                <path d="M8 10.5V8a4 4 0 0 1 8 0v2.5" /></svg
+                                            ><span>Private food. A public recipe can't use it.</span>
+                                        </p>
+                                    </div>
+                                    <div class="irow">
+                                        <div class="top">
+                                            <p class="grow run"><b>1&nbsp;tbsp</b> Olive oil</p>
+                                            <a
+                                                class="iconBtn"
+                                                href="#"
+                                                aria-label="More for Olive oil"
+                                                style="margin: -10px -8px -10px 0"
+                                                ><svg class="ic" viewBox="0 0 24 24" aria-hidden="true">
+                                                    <circle cx="6" cy="12" r="1.3" fill="currentColor" />
+                                                    <circle cx="12" cy="12" r="1.3" fill="currentColor" />
+                                                    <circle cx="18" cy="12" r="1.3" fill="currentColor" /></svg
+                                            ></a>
+                                        </div>
                                     </div>
                                 </div>
-                                <div class="irow has">
-                                    <div class="top">
-                                        <span class="amt">1 tsp</span>
-                                        <div class="grow"><p>Grandma's spice mix</p></div>
-                                        <a
-                                            class="iconBtn"
-                                            href="#"
-                                            aria-label="More for Grandma's spice mix"
-                                            style="margin: -10px -8px -10px 0"
-                                            ><svg class="ic" viewBox="0 0 24 24" aria-hidden="true">
-                                                <circle cx="6" cy="12" r="1.3" fill="currentColor" />
-                                                <circle cx="12" cy="12" r="1.3" fill="currentColor" />
-                                                <circle cx="18" cy="12" r="1.3" fill="currentColor" /></svg
-                                        ></a>
-                                    </div>
-                                    <p class="sub att">
-                                        <svg class="ic" viewBox="0 0 24 24" aria-hidden="true">
+                                <div class="card">
+                                    <h2>Photos and publish</h2>
+                                    <div class="vis"><span>Who can see it</span><span class="w600">Public</span></div>
+                                    <a class="linkBtn" href="#" style="align-items: flex-start; padding: 8px 0"
+                                        ><svg class="ic sm" viewBox="0 0 24 24" aria-hidden="true">
                                             <rect x="5" y="10.5" width="14" height="9.5" rx="2" />
                                             <path d="M8 10.5V8a4 4 0 0 1 8 0v2.5" /></svg
-                                        ><span>Private food. A public recipe can't use it.</span>
-                                    </p>
+                                        ><span
+                                            >1 ingredient uses your private food, so this recipe can't be public
+                                            yet.</span
+                                        ></a
+                                    >
                                 </div>
-                                <div class="irow">
-                                    <div class="top">
-                                        <span class="amt">1 tbsp</span>
-                                        <div class="grow"><p>Olive oil</p></div>
-                                        <a
-                                            class="iconBtn"
-                                            href="#"
-                                            aria-label="More for Olive oil"
-                                            style="margin: -10px -8px -10px 0"
-                                            ><svg class="ic" viewBox="0 0 24 24" aria-hidden="true">
-                                                <circle cx="6" cy="12" r="1.3" fill="currentColor" />
-                                                <circle cx="12" cy="12" r="1.3" fill="currentColor" />
-                                                <circle cx="18" cy="12" r="1.3" fill="currentColor" /></svg
-                                        ></a>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="card">
-                                <h2>Photos and publish</h2>
-                                <div class="vis"><span>Who can see it</span><span class="w600">Public</span></div>
-                                <a class="linkBtn" href="#" style="align-items: flex-start; padding: 8px 0"
-                                    ><svg class="ic sm" viewBox="0 0 24 24" aria-hidden="true">
-                                        <rect x="5" y="10.5" width="14" height="9.5" rx="2" />
-                                        <path d="M8 10.5V8a4 4 0 0 1 8 0v2.5" /></svg
-                                    ><span
-                                        >1 ingredient uses your private food, so this recipe can't be public yet.</span
-                                    ></a
-                                >
                             </div>
                         </div>
                         <div class="foot wideF">
@@ -7130,75 +7200,91 @@
                                     <circle cx="18" cy="12" r="1.3" fill="currentColor" /></svg
                             ></a>
                         </div>
-                        <div class="body" style="padding: 20px 24px; max-width: 720px">
-                            <div class="card">
-                                <h2>Ingredients</h2>
-                                <div class="irow">
-                                    <div class="top">
-                                        <span class="amt">2 lb</span>
-                                        <div class="grow"><p>Chicken thighs</p></div>
-                                        <a
-                                            class="iconBtn"
-                                            href="#"
-                                            aria-label="More for Chicken thighs"
-                                            style="margin: -10px -8px -10px 0"
-                                            ><svg class="ic" viewBox="0 0 24 24" aria-hidden="true">
-                                                <circle cx="6" cy="12" r="1.3" fill="currentColor" />
-                                                <circle cx="12" cy="12" r="1.3" fill="currentColor" />
-                                                <circle cx="18" cy="12" r="1.3" fill="currentColor" /></svg
-                                        ></a>
+                        <div class="wrap">
+                            <nav class="idx" aria-label="Recipe sections">
+                                <a href="#" class=""
+                                    ><svg class="ic sm" viewBox="0 0 24 24" aria-hidden="true">
+                                        <path d="m6 12.5 4 4 8-9" /></svg
+                                    ><span>Details</span></a
+                                ><a href="#" class="on att"
+                                    ><svg class="ic sm" viewBox="0 0 24 24" aria-hidden="true">
+                                        <path d="M12 4 3.5 19h17z" />
+                                        <path d="M12 10v4M12 16.5v.01" /></svg
+                                    ><span>Ingredients</span></a
+                                ><a href="#" class=""
+                                    ><svg class="ic sm" viewBox="0 0 24 24" aria-hidden="true">
+                                        <path d="m6 12.5 4 4 8-9" /></svg
+                                    ><span>Steps</span></a
+                                ><a href="#" class=""><span>Photos and publish</span></a>
+                            </nav>
+                            <div class="body" style="padding: 20px 24px; max-width: 720px; flex: 1">
+                                <div class="card">
+                                    <h2>Ingredients</h2>
+                                    <div class="irow">
+                                        <div class="top">
+                                            <p class="grow run"><b>2&nbsp;lb</b> Chicken thighs</p>
+                                            <a
+                                                class="iconBtn"
+                                                href="#"
+                                                aria-label="More for Chicken thighs"
+                                                style="margin: -10px -8px -10px 0"
+                                                ><svg class="ic" viewBox="0 0 24 24" aria-hidden="true">
+                                                    <circle cx="6" cy="12" r="1.3" fill="currentColor" />
+                                                    <circle cx="12" cy="12" r="1.3" fill="currentColor" />
+                                                    <circle cx="18" cy="12" r="1.3" fill="currentColor" /></svg
+                                            ></a>
+                                        </div>
+                                    </div>
+                                    <div class="irow has">
+                                        <div class="top">
+                                            <p class="grow run"><b>1&nbsp;tsp</b> Grandma's spice mix</p>
+                                            <a
+                                                class="iconBtn"
+                                                href="#"
+                                                aria-label="More for Grandma's spice mix"
+                                                style="margin: -10px -8px -10px 0"
+                                                ><svg class="ic" viewBox="0 0 24 24" aria-hidden="true">
+                                                    <circle cx="6" cy="12" r="1.3" fill="currentColor" />
+                                                    <circle cx="12" cy="12" r="1.3" fill="currentColor" />
+                                                    <circle cx="18" cy="12" r="1.3" fill="currentColor" /></svg
+                                            ></a>
+                                        </div>
+                                        <p class="sub att">
+                                            <svg class="ic" viewBox="0 0 24 24" aria-hidden="true">
+                                                <rect x="5" y="10.5" width="14" height="9.5" rx="2" />
+                                                <path d="M8 10.5V8a4 4 0 0 1 8 0v2.5" /></svg
+                                            ><span>Private food. A public recipe can't use it.</span>
+                                        </p>
+                                    </div>
+                                    <div class="irow">
+                                        <div class="top">
+                                            <p class="grow run"><b>1&nbsp;tbsp</b> Olive oil</p>
+                                            <a
+                                                class="iconBtn"
+                                                href="#"
+                                                aria-label="More for Olive oil"
+                                                style="margin: -10px -8px -10px 0"
+                                                ><svg class="ic" viewBox="0 0 24 24" aria-hidden="true">
+                                                    <circle cx="6" cy="12" r="1.3" fill="currentColor" />
+                                                    <circle cx="12" cy="12" r="1.3" fill="currentColor" />
+                                                    <circle cx="18" cy="12" r="1.3" fill="currentColor" /></svg
+                                            ></a>
+                                        </div>
                                     </div>
                                 </div>
-                                <div class="irow has">
-                                    <div class="top">
-                                        <span class="amt">1 tsp</span>
-                                        <div class="grow"><p>Grandma's spice mix</p></div>
-                                        <a
-                                            class="iconBtn"
-                                            href="#"
-                                            aria-label="More for Grandma's spice mix"
-                                            style="margin: -10px -8px -10px 0"
-                                            ><svg class="ic" viewBox="0 0 24 24" aria-hidden="true">
-                                                <circle cx="6" cy="12" r="1.3" fill="currentColor" />
-                                                <circle cx="12" cy="12" r="1.3" fill="currentColor" />
-                                                <circle cx="18" cy="12" r="1.3" fill="currentColor" /></svg
-                                        ></a>
-                                    </div>
-                                    <p class="sub att">
-                                        <svg class="ic" viewBox="0 0 24 24" aria-hidden="true">
+                                <div class="card">
+                                    <h2>Photos and publish</h2>
+                                    <div class="vis"><span>Who can see it</span><span class="w600">Public</span></div>
+                                    <a class="linkBtn" href="#" style="align-items: flex-start; padding: 8px 0"
+                                        ><svg class="ic sm" viewBox="0 0 24 24" aria-hidden="true">
                                             <rect x="5" y="10.5" width="14" height="9.5" rx="2" />
                                             <path d="M8 10.5V8a4 4 0 0 1 8 0v2.5" /></svg
-                                        ><span>Private food. A public recipe can't use it.</span>
-                                    </p>
+                                        ><span
+                                            >1 ingredient uses your private food, so this recipe can't be public
+                                            yet.</span
+                                        ></a
+                                    >
                                 </div>
-                                <div class="irow">
-                                    <div class="top">
-                                        <span class="amt">1 tbsp</span>
-                                        <div class="grow"><p>Olive oil</p></div>
-                                        <a
-                                            class="iconBtn"
-                                            href="#"
-                                            aria-label="More for Olive oil"
-                                            style="margin: -10px -8px -10px 0"
-                                            ><svg class="ic" viewBox="0 0 24 24" aria-hidden="true">
-                                                <circle cx="6" cy="12" r="1.3" fill="currentColor" />
-                                                <circle cx="12" cy="12" r="1.3" fill="currentColor" />
-                                                <circle cx="18" cy="12" r="1.3" fill="currentColor" /></svg
-                                        ></a>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="card">
-                                <h2>Photos and publish</h2>
-                                <div class="vis"><span>Who can see it</span><span class="w600">Public</span></div>
-                                <a class="linkBtn" href="#" style="align-items: flex-start; padding: 8px 0"
-                                    ><svg class="ic sm" viewBox="0 0 24 24" aria-hidden="true">
-                                        <rect x="5" y="10.5" width="14" height="9.5" rx="2" />
-                                        <path d="M8 10.5V8a4 4 0 0 1 8 0v2.5" /></svg
-                                    ><span
-                                        >1 ingredient uses your private food, so this recipe can't be public yet.</span
-                                    ></a
-                                >
                             </div>
                         </div>
                         <div class="foot wideF">
@@ -7276,14 +7362,21 @@
                             <circle cx="18" cy="12" r="1.3" fill="currentColor" /></svg
                     ></a>
                 </div>
-                <div class="sbar"><span class="w600">Ingredients</span><span class="soft">· 3 of 3 done</span></div>
+                <div class="sbar" aria-label="Sections. Current: Ingredients. 1 needs attention.">
+                    <span class="w600">Ingredients</span><span class="grow"></span
+                    ><span class="att w600" style="display: inline-flex; gap: 4px; align-items: center"
+                        ><svg class="ic sm" viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M12 4 3.5 19h17z" />
+                            <path d="M12 10v4M12 16.5v.01" /></svg
+                        >1</span
+                    >
+                </div>
                 <div class="body" style="">
                     <div class="card">
                         <h2>Ingredients</h2>
                         <div class="irow">
                             <div class="top">
-                                <span class="amt">2 lb</span>
-                                <div class="grow"><p>Chicken thighs</p></div>
+                                <p class="grow run"><b>2&nbsp;lb</b> Chicken thighs</p>
                                 <a
                                     class="iconBtn"
                                     href="#"
@@ -7298,8 +7391,7 @@
                         </div>
                         <div class="irow has">
                             <div class="top">
-                                <span class="amt">1 tsp</span>
-                                <div class="grow"><p>Grandma's spice mix</p></div>
+                                <p class="grow run"><b>1&nbsp;tsp</b> Grandma's spice mix</p>
                                 <a
                                     class="iconBtn"
                                     href="#"
@@ -7320,8 +7412,7 @@
                         </div>
                         <div class="irow">
                             <div class="top">
-                                <span class="amt">1 tbsp</span>
-                                <div class="grow"><p>Olive oil</p></div>
+                                <p class="grow run"><b>1&nbsp;tbsp</b> Olive oil</p>
                                 <a
                                     class="iconBtn"
                                     href="#"
@@ -7414,14 +7505,21 @@
                             <circle cx="18" cy="12" r="1.3" fill="currentColor" /></svg
                     ></a>
                 </div>
-                <div class="sbar"><span class="w600">Ingredients</span><span class="soft">· 3 of 3 done</span></div>
+                <div class="sbar" aria-label="Sections. Current: Ingredients. 1 needs attention.">
+                    <span class="w600">Ingredients</span><span class="grow"></span
+                    ><span class="att w600" style="display: inline-flex; gap: 4px; align-items: center"
+                        ><svg class="ic sm" viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M12 4 3.5 19h17z" />
+                            <path d="M12 10v4M12 16.5v.01" /></svg
+                        >1</span
+                    >
+                </div>
                 <div class="body" style="">
                     <div class="card">
                         <h2>Ingredients</h2>
                         <div class="irow">
                             <div class="top">
-                                <span class="amt">2 lb</span>
-                                <div class="grow"><p>Chicken thighs</p></div>
+                                <p class="grow run"><b>2&nbsp;lb</b> Chicken thighs</p>
                                 <a
                                     class="iconBtn"
                                     href="#"
@@ -7436,8 +7534,7 @@
                         </div>
                         <div class="irow has">
                             <div class="top">
-                                <span class="amt">1 tsp</span>
-                                <div class="grow"><p>Grandma's spice mix</p></div>
+                                <p class="grow run"><b>1&nbsp;tsp</b> Grandma's spice mix</p>
                                 <a
                                     class="iconBtn"
                                     href="#"
@@ -7458,8 +7555,7 @@
                         </div>
                         <div class="irow">
                             <div class="top">
-                                <span class="amt">1 tbsp</span>
-                                <div class="grow"><p>Olive oil</p></div>
+                                <p class="grow run"><b>1&nbsp;tbsp</b> Olive oil</p>
                                 <a
                                     class="iconBtn"
                                     href="#"
@@ -7552,14 +7648,21 @@
                             <circle cx="18" cy="12" r="1.3" fill="currentColor" /></svg
                     ></a>
                 </div>
-                <div class="sbar"><span class="w600">Ingredients</span><span class="soft">· 3 of 3 done</span></div>
+                <div class="sbar" aria-label="Sections. Current: Ingredients. 1 needs attention.">
+                    <span class="w600">Ingredients</span><span class="grow"></span
+                    ><span class="att w600" style="display: inline-flex; gap: 4px; align-items: center"
+                        ><svg class="ic sm" viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M12 4 3.5 19h17z" />
+                            <path d="M12 10v4M12 16.5v.01" /></svg
+                        >1</span
+                    >
+                </div>
                 <div class="body" style="">
                     <div class="card">
                         <h2>Ingredients</h2>
                         <div class="irow">
                             <div class="top">
-                                <span class="amt">2 lb</span>
-                                <div class="grow"><p>Chicken thighs</p></div>
+                                <p class="grow run"><b>2&nbsp;lb</b> Chicken thighs</p>
                                 <a
                                     class="iconBtn"
                                     href="#"
@@ -7574,8 +7677,7 @@
                         </div>
                         <div class="irow has">
                             <div class="top">
-                                <span class="amt">1 tsp</span>
-                                <div class="grow"><p>Grandma's spice mix</p></div>
+                                <p class="grow run"><b>1&nbsp;tsp</b> Grandma's spice mix</p>
                                 <a
                                     class="iconBtn"
                                     href="#"
@@ -7596,8 +7698,7 @@
                         </div>
                         <div class="irow">
                             <div class="top">
-                                <span class="amt">1 tbsp</span>
-                                <div class="grow"><p>Olive oil</p></div>
+                                <p class="grow run"><b>1&nbsp;tbsp</b> Olive oil</p>
                                 <a
                                     class="iconBtn"
                                     href="#"
@@ -7690,14 +7791,21 @@
                             <circle cx="18" cy="12" r="1.3" fill="currentColor" /></svg
                     ></a>
                 </div>
-                <div class="sbar"><span class="w600">Ingredients</span><span class="soft">· 3 of 3 done</span></div>
+                <div class="sbar" aria-label="Sections. Current: Ingredients. 1 needs attention.">
+                    <span class="w600">Ingredients</span><span class="grow"></span
+                    ><span class="att w600" style="display: inline-flex; gap: 4px; align-items: center"
+                        ><svg class="ic sm" viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M12 4 3.5 19h17z" />
+                            <path d="M12 10v4M12 16.5v.01" /></svg
+                        >1</span
+                    >
+                </div>
                 <div class="body" style="">
                     <div class="card">
                         <h2>Ingredients</h2>
                         <div class="irow">
                             <div class="top">
-                                <span class="amt">2 lb</span>
-                                <div class="grow"><p>Chicken thighs</p></div>
+                                <p class="grow run"><b>2&nbsp;lb</b> Chicken thighs</p>
                                 <a
                                     class="iconBtn"
                                     href="#"
@@ -7712,8 +7820,7 @@
                         </div>
                         <div class="irow has">
                             <div class="top">
-                                <span class="amt">1 tsp</span>
-                                <div class="grow"><p>Grandma's spice mix</p></div>
+                                <p class="grow run"><b>1&nbsp;tsp</b> Grandma's spice mix</p>
                                 <a
                                     class="iconBtn"
                                     href="#"
@@ -7734,8 +7841,7 @@
                         </div>
                         <div class="irow">
                             <div class="top">
-                                <span class="amt">1 tbsp</span>
-                                <div class="grow"><p>Olive oil</p></div>
+                                <p class="grow run"><b>1&nbsp;tbsp</b> Olive oil</p>
                                 <a
                                     class="iconBtn"
                                     href="#"
@@ -7828,14 +7934,21 @@
                             <circle cx="18" cy="12" r="1.3" fill="currentColor" /></svg
                     ></a>
                 </div>
-                <div class="sbar"><span class="w600">Ingredients</span><span class="soft">· 3 of 3 done</span></div>
+                <div class="sbar" aria-label="Sections. Current: Ingredients. 1 needs attention.">
+                    <span class="w600">Ingredients</span><span class="grow"></span
+                    ><span class="att w600" style="display: inline-flex; gap: 4px; align-items: center"
+                        ><svg class="ic sm" viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M12 4 3.5 19h17z" />
+                            <path d="M12 10v4M12 16.5v.01" /></svg
+                        >1</span
+                    >
+                </div>
                 <div class="body" style="">
                     <div class="card">
                         <h2>Ingredients</h2>
                         <div class="irow">
                             <div class="top">
-                                <span class="amt">2 lb</span>
-                                <div class="grow"><p>Chicken thighs</p></div>
+                                <p class="grow run"><b>2&nbsp;lb</b> Chicken thighs</p>
                                 <a
                                     class="iconBtn"
                                     href="#"
@@ -7850,8 +7963,7 @@
                         </div>
                         <div class="irow has">
                             <div class="top">
-                                <span class="amt">1 tsp</span>
-                                <div class="grow"><p>Grandma's spice mix</p></div>
+                                <p class="grow run"><b>1&nbsp;tsp</b> Grandma's spice mix</p>
                                 <a
                                     class="iconBtn"
                                     href="#"
@@ -7872,8 +7984,7 @@
                         </div>
                         <div class="irow">
                             <div class="top">
-                                <span class="amt">1 tbsp</span>
-                                <div class="grow"><p>Olive oil</p></div>
+                                <p class="grow run"><b>1&nbsp;tbsp</b> Olive oil</p>
                                 <a
                                     class="iconBtn"
                                     href="#"
@@ -7965,14 +8076,21 @@
                             <circle cx="18" cy="12" r="1.3" fill="currentColor" /></svg
                     ></a>
                 </div>
-                <div class="sbar"><span class="w600">Ingredients</span><span class="soft">· 3 of 3 done</span></div>
+                <div class="sbar" aria-label="Sections. Current: Ingredients. 1 needs attention.">
+                    <span class="w600">Ingredients</span><span class="grow"></span
+                    ><span class="att w600" style="display: inline-flex; gap: 4px; align-items: center"
+                        ><svg class="ic sm" viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M12 4 3.5 19h17z" />
+                            <path d="M12 10v4M12 16.5v.01" /></svg
+                        >1</span
+                    >
+                </div>
                 <div class="body" style="">
                     <div class="card">
                         <h2>Ingredients</h2>
                         <div class="irow">
                             <div class="top">
-                                <span class="amt">2 lb</span>
-                                <div class="grow"><p>Chicken thighs</p></div>
+                                <p class="grow run"><b>2&nbsp;lb</b> Chicken thighs</p>
                                 <a
                                     class="iconBtn"
                                     href="#"
@@ -7987,8 +8105,7 @@
                         </div>
                         <div class="irow has">
                             <div class="top">
-                                <span class="amt">1 tsp</span>
-                                <div class="grow"><p>Grandma's spice mix</p></div>
+                                <p class="grow run"><b>1&nbsp;tsp</b> Grandma's spice mix</p>
                                 <a
                                     class="iconBtn"
                                     href="#"
@@ -8009,8 +8126,7 @@
                         </div>
                         <div class="irow">
                             <div class="top">
-                                <span class="amt">1 tbsp</span>
-                                <div class="grow"><p>Olive oil</p></div>
+                                <p class="grow run"><b>1&nbsp;tbsp</b> Olive oil</p>
                                 <a
                                     class="iconBtn"
                                     href="#"
@@ -8131,75 +8247,91 @@
                                     <circle cx="18" cy="12" r="1.3" fill="currentColor" /></svg
                             ></a>
                         </div>
-                        <div class="body" style="padding: 20px 24px; max-width: 720px">
-                            <div class="card">
-                                <h2>Ingredients</h2>
-                                <div class="irow">
-                                    <div class="top">
-                                        <span class="amt">2 lb</span>
-                                        <div class="grow"><p>Chicken thighs</p></div>
-                                        <a
-                                            class="iconBtn"
-                                            href="#"
-                                            aria-label="More for Chicken thighs"
-                                            style="margin: -10px -8px -10px 0"
-                                            ><svg class="ic" viewBox="0 0 24 24" aria-hidden="true">
-                                                <circle cx="6" cy="12" r="1.3" fill="currentColor" />
-                                                <circle cx="12" cy="12" r="1.3" fill="currentColor" />
-                                                <circle cx="18" cy="12" r="1.3" fill="currentColor" /></svg
-                                        ></a>
+                        <div class="wrap">
+                            <nav class="idx" aria-label="Recipe sections">
+                                <a href="#" class=""
+                                    ><svg class="ic sm" viewBox="0 0 24 24" aria-hidden="true">
+                                        <path d="m6 12.5 4 4 8-9" /></svg
+                                    ><span>Details</span></a
+                                ><a href="#" class="on att"
+                                    ><svg class="ic sm" viewBox="0 0 24 24" aria-hidden="true">
+                                        <path d="M12 4 3.5 19h17z" />
+                                        <path d="M12 10v4M12 16.5v.01" /></svg
+                                    ><span>Ingredients</span></a
+                                ><a href="#" class=""
+                                    ><svg class="ic sm" viewBox="0 0 24 24" aria-hidden="true">
+                                        <path d="m6 12.5 4 4 8-9" /></svg
+                                    ><span>Steps</span></a
+                                ><a href="#" class=""><span>Photos and publish</span></a>
+                            </nav>
+                            <div class="body" style="padding: 20px 24px; max-width: 720px; flex: 1">
+                                <div class="card">
+                                    <h2>Ingredients</h2>
+                                    <div class="irow">
+                                        <div class="top">
+                                            <p class="grow run"><b>2&nbsp;lb</b> Chicken thighs</p>
+                                            <a
+                                                class="iconBtn"
+                                                href="#"
+                                                aria-label="More for Chicken thighs"
+                                                style="margin: -10px -8px -10px 0"
+                                                ><svg class="ic" viewBox="0 0 24 24" aria-hidden="true">
+                                                    <circle cx="6" cy="12" r="1.3" fill="currentColor" />
+                                                    <circle cx="12" cy="12" r="1.3" fill="currentColor" />
+                                                    <circle cx="18" cy="12" r="1.3" fill="currentColor" /></svg
+                                            ></a>
+                                        </div>
+                                    </div>
+                                    <div class="irow has">
+                                        <div class="top">
+                                            <p class="grow run"><b>1&nbsp;tsp</b> Grandma's spice mix</p>
+                                            <a
+                                                class="iconBtn"
+                                                href="#"
+                                                aria-label="More for Grandma's spice mix"
+                                                style="margin: -10px -8px -10px 0"
+                                                ><svg class="ic" viewBox="0 0 24 24" aria-hidden="true">
+                                                    <circle cx="6" cy="12" r="1.3" fill="currentColor" />
+                                                    <circle cx="12" cy="12" r="1.3" fill="currentColor" />
+                                                    <circle cx="18" cy="12" r="1.3" fill="currentColor" /></svg
+                                            ></a>
+                                        </div>
+                                        <p class="sub att">
+                                            <svg class="ic" viewBox="0 0 24 24" aria-hidden="true">
+                                                <rect x="5" y="10.5" width="14" height="9.5" rx="2" />
+                                                <path d="M8 10.5V8a4 4 0 0 1 8 0v2.5" /></svg
+                                            ><span>Private food. A public recipe can't use it.</span>
+                                        </p>
+                                    </div>
+                                    <div class="irow">
+                                        <div class="top">
+                                            <p class="grow run"><b>1&nbsp;tbsp</b> Olive oil</p>
+                                            <a
+                                                class="iconBtn"
+                                                href="#"
+                                                aria-label="More for Olive oil"
+                                                style="margin: -10px -8px -10px 0"
+                                                ><svg class="ic" viewBox="0 0 24 24" aria-hidden="true">
+                                                    <circle cx="6" cy="12" r="1.3" fill="currentColor" />
+                                                    <circle cx="12" cy="12" r="1.3" fill="currentColor" />
+                                                    <circle cx="18" cy="12" r="1.3" fill="currentColor" /></svg
+                                            ></a>
+                                        </div>
                                     </div>
                                 </div>
-                                <div class="irow has">
-                                    <div class="top">
-                                        <span class="amt">1 tsp</span>
-                                        <div class="grow"><p>Grandma's spice mix</p></div>
-                                        <a
-                                            class="iconBtn"
-                                            href="#"
-                                            aria-label="More for Grandma's spice mix"
-                                            style="margin: -10px -8px -10px 0"
-                                            ><svg class="ic" viewBox="0 0 24 24" aria-hidden="true">
-                                                <circle cx="6" cy="12" r="1.3" fill="currentColor" />
-                                                <circle cx="12" cy="12" r="1.3" fill="currentColor" />
-                                                <circle cx="18" cy="12" r="1.3" fill="currentColor" /></svg
-                                        ></a>
-                                    </div>
-                                    <p class="sub att">
-                                        <svg class="ic" viewBox="0 0 24 24" aria-hidden="true">
+                                <div class="card">
+                                    <h2>Photos and publish</h2>
+                                    <div class="vis"><span>Who can see it</span><span class="w600">Public</span></div>
+                                    <a class="linkBtn" href="#" style="align-items: flex-start; padding: 8px 0"
+                                        ><svg class="ic sm" viewBox="0 0 24 24" aria-hidden="true">
                                             <rect x="5" y="10.5" width="14" height="9.5" rx="2" />
                                             <path d="M8 10.5V8a4 4 0 0 1 8 0v2.5" /></svg
-                                        ><span>Private food. A public recipe can't use it.</span>
-                                    </p>
+                                        ><span
+                                            >1 ingredient uses your private food, so this recipe can't be public
+                                            yet.</span
+                                        ></a
+                                    >
                                 </div>
-                                <div class="irow">
-                                    <div class="top">
-                                        <span class="amt">1 tbsp</span>
-                                        <div class="grow"><p>Olive oil</p></div>
-                                        <a
-                                            class="iconBtn"
-                                            href="#"
-                                            aria-label="More for Olive oil"
-                                            style="margin: -10px -8px -10px 0"
-                                            ><svg class="ic" viewBox="0 0 24 24" aria-hidden="true">
-                                                <circle cx="6" cy="12" r="1.3" fill="currentColor" />
-                                                <circle cx="12" cy="12" r="1.3" fill="currentColor" />
-                                                <circle cx="18" cy="12" r="1.3" fill="currentColor" /></svg
-                                        ></a>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="card">
-                                <h2>Photos and publish</h2>
-                                <div class="vis"><span>Who can see it</span><span class="w600">Public</span></div>
-                                <a class="linkBtn" href="#" style="align-items: flex-start; padding: 8px 0"
-                                    ><svg class="ic sm" viewBox="0 0 24 24" aria-hidden="true">
-                                        <rect x="5" y="10.5" width="14" height="9.5" rx="2" />
-                                        <path d="M8 10.5V8a4 4 0 0 1 8 0v2.5" /></svg
-                                    ><span
-                                        >1 ingredient uses your private food, so this recipe can't be public yet.</span
-                                    ></a
-                                >
                             </div>
                         </div>
                         <div class="foot wideF">
@@ -8304,75 +8436,91 @@
                                     <circle cx="18" cy="12" r="1.3" fill="currentColor" /></svg
                             ></a>
                         </div>
-                        <div class="body" style="padding: 20px 24px; max-width: 720px">
-                            <div class="card">
-                                <h2>Ingredients</h2>
-                                <div class="irow">
-                                    <div class="top">
-                                        <span class="amt">2 lb</span>
-                                        <div class="grow"><p>Chicken thighs</p></div>
-                                        <a
-                                            class="iconBtn"
-                                            href="#"
-                                            aria-label="More for Chicken thighs"
-                                            style="margin: -10px -8px -10px 0"
-                                            ><svg class="ic" viewBox="0 0 24 24" aria-hidden="true">
-                                                <circle cx="6" cy="12" r="1.3" fill="currentColor" />
-                                                <circle cx="12" cy="12" r="1.3" fill="currentColor" />
-                                                <circle cx="18" cy="12" r="1.3" fill="currentColor" /></svg
-                                        ></a>
+                        <div class="wrap">
+                            <nav class="idx" aria-label="Recipe sections">
+                                <a href="#" class=""
+                                    ><svg class="ic sm" viewBox="0 0 24 24" aria-hidden="true">
+                                        <path d="m6 12.5 4 4 8-9" /></svg
+                                    ><span>Details</span></a
+                                ><a href="#" class="on att"
+                                    ><svg class="ic sm" viewBox="0 0 24 24" aria-hidden="true">
+                                        <path d="M12 4 3.5 19h17z" />
+                                        <path d="M12 10v4M12 16.5v.01" /></svg
+                                    ><span>Ingredients</span></a
+                                ><a href="#" class=""
+                                    ><svg class="ic sm" viewBox="0 0 24 24" aria-hidden="true">
+                                        <path d="m6 12.5 4 4 8-9" /></svg
+                                    ><span>Steps</span></a
+                                ><a href="#" class=""><span>Photos and publish</span></a>
+                            </nav>
+                            <div class="body" style="padding: 20px 24px; max-width: 720px; flex: 1">
+                                <div class="card">
+                                    <h2>Ingredients</h2>
+                                    <div class="irow">
+                                        <div class="top">
+                                            <p class="grow run"><b>2&nbsp;lb</b> Chicken thighs</p>
+                                            <a
+                                                class="iconBtn"
+                                                href="#"
+                                                aria-label="More for Chicken thighs"
+                                                style="margin: -10px -8px -10px 0"
+                                                ><svg class="ic" viewBox="0 0 24 24" aria-hidden="true">
+                                                    <circle cx="6" cy="12" r="1.3" fill="currentColor" />
+                                                    <circle cx="12" cy="12" r="1.3" fill="currentColor" />
+                                                    <circle cx="18" cy="12" r="1.3" fill="currentColor" /></svg
+                                            ></a>
+                                        </div>
+                                    </div>
+                                    <div class="irow has">
+                                        <div class="top">
+                                            <p class="grow run"><b>1&nbsp;tsp</b> Grandma's spice mix</p>
+                                            <a
+                                                class="iconBtn"
+                                                href="#"
+                                                aria-label="More for Grandma's spice mix"
+                                                style="margin: -10px -8px -10px 0"
+                                                ><svg class="ic" viewBox="0 0 24 24" aria-hidden="true">
+                                                    <circle cx="6" cy="12" r="1.3" fill="currentColor" />
+                                                    <circle cx="12" cy="12" r="1.3" fill="currentColor" />
+                                                    <circle cx="18" cy="12" r="1.3" fill="currentColor" /></svg
+                                            ></a>
+                                        </div>
+                                        <p class="sub att">
+                                            <svg class="ic" viewBox="0 0 24 24" aria-hidden="true">
+                                                <rect x="5" y="10.5" width="14" height="9.5" rx="2" />
+                                                <path d="M8 10.5V8a4 4 0 0 1 8 0v2.5" /></svg
+                                            ><span>Private food. A public recipe can't use it.</span>
+                                        </p>
+                                    </div>
+                                    <div class="irow">
+                                        <div class="top">
+                                            <p class="grow run"><b>1&nbsp;tbsp</b> Olive oil</p>
+                                            <a
+                                                class="iconBtn"
+                                                href="#"
+                                                aria-label="More for Olive oil"
+                                                style="margin: -10px -8px -10px 0"
+                                                ><svg class="ic" viewBox="0 0 24 24" aria-hidden="true">
+                                                    <circle cx="6" cy="12" r="1.3" fill="currentColor" />
+                                                    <circle cx="12" cy="12" r="1.3" fill="currentColor" />
+                                                    <circle cx="18" cy="12" r="1.3" fill="currentColor" /></svg
+                                            ></a>
+                                        </div>
                                     </div>
                                 </div>
-                                <div class="irow has">
-                                    <div class="top">
-                                        <span class="amt">1 tsp</span>
-                                        <div class="grow"><p>Grandma's spice mix</p></div>
-                                        <a
-                                            class="iconBtn"
-                                            href="#"
-                                            aria-label="More for Grandma's spice mix"
-                                            style="margin: -10px -8px -10px 0"
-                                            ><svg class="ic" viewBox="0 0 24 24" aria-hidden="true">
-                                                <circle cx="6" cy="12" r="1.3" fill="currentColor" />
-                                                <circle cx="12" cy="12" r="1.3" fill="currentColor" />
-                                                <circle cx="18" cy="12" r="1.3" fill="currentColor" /></svg
-                                        ></a>
-                                    </div>
-                                    <p class="sub att">
-                                        <svg class="ic" viewBox="0 0 24 24" aria-hidden="true">
+                                <div class="card">
+                                    <h2>Photos and publish</h2>
+                                    <div class="vis"><span>Who can see it</span><span class="w600">Public</span></div>
+                                    <a class="linkBtn" href="#" style="align-items: flex-start; padding: 8px 0"
+                                        ><svg class="ic sm" viewBox="0 0 24 24" aria-hidden="true">
                                             <rect x="5" y="10.5" width="14" height="9.5" rx="2" />
                                             <path d="M8 10.5V8a4 4 0 0 1 8 0v2.5" /></svg
-                                        ><span>Private food. A public recipe can't use it.</span>
-                                    </p>
+                                        ><span
+                                            >1 ingredient uses your private food, so this recipe can't be public
+                                            yet.</span
+                                        ></a
+                                    >
                                 </div>
-                                <div class="irow">
-                                    <div class="top">
-                                        <span class="amt">1 tbsp</span>
-                                        <div class="grow"><p>Olive oil</p></div>
-                                        <a
-                                            class="iconBtn"
-                                            href="#"
-                                            aria-label="More for Olive oil"
-                                            style="margin: -10px -8px -10px 0"
-                                            ><svg class="ic" viewBox="0 0 24 24" aria-hidden="true">
-                                                <circle cx="6" cy="12" r="1.3" fill="currentColor" />
-                                                <circle cx="12" cy="12" r="1.3" fill="currentColor" />
-                                                <circle cx="18" cy="12" r="1.3" fill="currentColor" /></svg
-                                        ></a>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="card">
-                                <h2>Photos and publish</h2>
-                                <div class="vis"><span>Who can see it</span><span class="w600">Public</span></div>
-                                <a class="linkBtn" href="#" style="align-items: flex-start; padding: 8px 0"
-                                    ><svg class="ic sm" viewBox="0 0 24 24" aria-hidden="true">
-                                        <rect x="5" y="10.5" width="14" height="9.5" rx="2" />
-                                        <path d="M8 10.5V8a4 4 0 0 1 8 0v2.5" /></svg
-                                    ><span
-                                        >1 ingredient uses your private food, so this recipe can't be public yet.</span
-                                    ></a
-                                >
                             </div>
                         </div>
                         <div class="foot wideF">
@@ -8448,14 +8596,21 @@
                             <circle cx="18" cy="12" r="1.3" fill="currentColor" /></svg
                     ></a>
                 </div>
-                <div class="sbar"><span class="w600">Ingredients</span><span class="soft">· 3 of 3 done</span></div>
+                <div class="sbar" aria-label="Sections. Current: Ingredients. 1 needs attention.">
+                    <span class="w600">Ingredients</span><span class="grow"></span
+                    ><span class="att w600" style="display: inline-flex; gap: 4px; align-items: center"
+                        ><svg class="ic sm" viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M12 4 3.5 19h17z" />
+                            <path d="M12 10v4M12 16.5v.01" /></svg
+                        >1</span
+                    >
+                </div>
                 <div class="body" style="">
                     <div class="card">
                         <h2>Ingredients</h2>
                         <div class="irow">
                             <div class="top">
-                                <span class="amt">2 lb</span>
-                                <div class="grow"><p>Chicken thighs</p></div>
+                                <p class="grow run"><b>2&nbsp;lb</b> Chicken thighs</p>
                                 <a
                                     class="iconBtn"
                                     href="#"
@@ -8470,8 +8625,7 @@
                         </div>
                         <div class="irow has">
                             <div class="top">
-                                <span class="amt">1 tsp</span>
-                                <div class="grow"><p>Grandma's spice mix</p></div>
+                                <p class="grow run"><b>1&nbsp;tsp</b> Grandma's spice mix</p>
                                 <a
                                     class="iconBtn"
                                     href="#"
@@ -8492,8 +8646,7 @@
                         </div>
                         <div class="irow">
                             <div class="top">
-                                <span class="amt">1 tbsp</span>
-                                <div class="grow"><p>Olive oil</p></div>
+                                <p class="grow run"><b>1&nbsp;tbsp</b> Olive oil</p>
                                 <a
                                     class="iconBtn"
                                     href="#"
@@ -8551,14 +8704,21 @@
                             <circle cx="18" cy="12" r="1.3" fill="currentColor" /></svg
                     ></a>
                 </div>
-                <div class="sbar"><span class="w600">Ingredients</span><span class="soft">· 3 of 3 done</span></div>
+                <div class="sbar" aria-label="Sections. Current: Ingredients. 1 needs attention.">
+                    <span class="w600">Ingredients</span><span class="grow"></span
+                    ><span class="att w600" style="display: inline-flex; gap: 4px; align-items: center"
+                        ><svg class="ic sm" viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M12 4 3.5 19h17z" />
+                            <path d="M12 10v4M12 16.5v.01" /></svg
+                        >1</span
+                    >
+                </div>
                 <div class="body" style="">
                     <div class="card">
                         <h2>Ingredients</h2>
                         <div class="irow">
                             <div class="top">
-                                <span class="amt">2 lb</span>
-                                <div class="grow"><p>Chicken thighs</p></div>
+                                <p class="grow run"><b>2&nbsp;lb</b> Chicken thighs</p>
                                 <a
                                     class="iconBtn"
                                     href="#"
@@ -8573,8 +8733,7 @@
                         </div>
                         <div class="irow has">
                             <div class="top">
-                                <span class="amt">1 tsp</span>
-                                <div class="grow"><p>Grandma's spice mix</p></div>
+                                <p class="grow run"><b>1&nbsp;tsp</b> Grandma's spice mix</p>
                                 <a
                                     class="iconBtn"
                                     href="#"
@@ -8595,8 +8754,7 @@
                         </div>
                         <div class="irow">
                             <div class="top">
-                                <span class="amt">1 tbsp</span>
-                                <div class="grow"><p>Olive oil</p></div>
+                                <p class="grow run"><b>1&nbsp;tbsp</b> Olive oil</p>
                                 <a
                                     class="iconBtn"
                                     href="#"
@@ -8654,14 +8812,21 @@
                             <circle cx="18" cy="12" r="1.3" fill="currentColor" /></svg
                     ></a>
                 </div>
-                <div class="sbar"><span class="w600">Ingredients</span><span class="soft">· 3 of 3 done</span></div>
+                <div class="sbar" aria-label="Sections. Current: Ingredients. 1 needs attention.">
+                    <span class="w600">Ingredients</span><span class="grow"></span
+                    ><span class="att w600" style="display: inline-flex; gap: 4px; align-items: center"
+                        ><svg class="ic sm" viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M12 4 3.5 19h17z" />
+                            <path d="M12 10v4M12 16.5v.01" /></svg
+                        >1</span
+                    >
+                </div>
                 <div class="body" style="">
                     <div class="card">
                         <h2>Ingredients</h2>
                         <div class="irow">
                             <div class="top">
-                                <span class="amt">2 lb</span>
-                                <div class="grow"><p>Chicken thighs</p></div>
+                                <p class="grow run"><b>2&nbsp;lb</b> Chicken thighs</p>
                                 <a
                                     class="iconBtn"
                                     href="#"
@@ -8676,8 +8841,7 @@
                         </div>
                         <div class="irow has">
                             <div class="top">
-                                <span class="amt">1 tsp</span>
-                                <div class="grow"><p>Grandma's spice mix</p></div>
+                                <p class="grow run"><b>1&nbsp;tsp</b> Grandma's spice mix</p>
                                 <a
                                     class="iconBtn"
                                     href="#"
@@ -8698,8 +8862,7 @@
                         </div>
                         <div class="irow">
                             <div class="top">
-                                <span class="amt">1 tbsp</span>
-                                <div class="grow"><p>Olive oil</p></div>
+                                <p class="grow run"><b>1&nbsp;tbsp</b> Olive oil</p>
                                 <a
                                     class="iconBtn"
                                     href="#"
@@ -8757,14 +8920,21 @@
                             <circle cx="18" cy="12" r="1.3" fill="currentColor" /></svg
                     ></a>
                 </div>
-                <div class="sbar"><span class="w600">Ingredients</span><span class="soft">· 3 of 3 done</span></div>
+                <div class="sbar" aria-label="Sections. Current: Ingredients. 1 needs attention.">
+                    <span class="w600">Ingredients</span><span class="grow"></span
+                    ><span class="att w600" style="display: inline-flex; gap: 4px; align-items: center"
+                        ><svg class="ic sm" viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M12 4 3.5 19h17z" />
+                            <path d="M12 10v4M12 16.5v.01" /></svg
+                        >1</span
+                    >
+                </div>
                 <div class="body" style="">
                     <div class="card">
                         <h2>Ingredients</h2>
                         <div class="irow">
                             <div class="top">
-                                <span class="amt">2 lb</span>
-                                <div class="grow"><p>Chicken thighs</p></div>
+                                <p class="grow run"><b>2&nbsp;lb</b> Chicken thighs</p>
                                 <a
                                     class="iconBtn"
                                     href="#"
@@ -8779,8 +8949,7 @@
                         </div>
                         <div class="irow has">
                             <div class="top">
-                                <span class="amt">1 tsp</span>
-                                <div class="grow"><p>Grandma's spice mix</p></div>
+                                <p class="grow run"><b>1&nbsp;tsp</b> Grandma's spice mix</p>
                                 <a
                                     class="iconBtn"
                                     href="#"
@@ -8801,8 +8970,7 @@
                         </div>
                         <div class="irow">
                             <div class="top">
-                                <span class="amt">1 tbsp</span>
-                                <div class="grow"><p>Olive oil</p></div>
+                                <p class="grow run"><b>1&nbsp;tbsp</b> Olive oil</p>
                                 <a
                                     class="iconBtn"
                                     href="#"
@@ -8860,14 +9028,21 @@
                             <circle cx="18" cy="12" r="1.3" fill="currentColor" /></svg
                     ></a>
                 </div>
-                <div class="sbar"><span class="w600">Ingredients</span><span class="soft">· 3 of 3 done</span></div>
+                <div class="sbar" aria-label="Sections. Current: Ingredients. 1 needs attention.">
+                    <span class="w600">Ingredients</span><span class="grow"></span
+                    ><span class="att w600" style="display: inline-flex; gap: 4px; align-items: center"
+                        ><svg class="ic sm" viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M12 4 3.5 19h17z" />
+                            <path d="M12 10v4M12 16.5v.01" /></svg
+                        >1</span
+                    >
+                </div>
                 <div class="body" style="">
                     <div class="card">
                         <h2>Ingredients</h2>
                         <div class="irow">
                             <div class="top">
-                                <span class="amt">2 lb</span>
-                                <div class="grow"><p>Chicken thighs</p></div>
+                                <p class="grow run"><b>2&nbsp;lb</b> Chicken thighs</p>
                                 <a
                                     class="iconBtn"
                                     href="#"
@@ -8882,8 +9057,7 @@
                         </div>
                         <div class="irow has">
                             <div class="top">
-                                <span class="amt">1 tsp</span>
-                                <div class="grow"><p>Grandma's spice mix</p></div>
+                                <p class="grow run"><b>1&nbsp;tsp</b> Grandma's spice mix</p>
                                 <a
                                     class="iconBtn"
                                     href="#"
@@ -8904,8 +9078,7 @@
                         </div>
                         <div class="irow">
                             <div class="top">
-                                <span class="amt">1 tbsp</span>
-                                <div class="grow"><p>Olive oil</p></div>
+                                <p class="grow run"><b>1&nbsp;tbsp</b> Olive oil</p>
                                 <a
                                     class="iconBtn"
                                     href="#"
@@ -8963,14 +9136,21 @@
                             <circle cx="18" cy="12" r="1.3" fill="currentColor" /></svg
                     ></a>
                 </div>
-                <div class="sbar"><span class="w600">Ingredients</span><span class="soft">· 3 of 3 done</span></div>
+                <div class="sbar" aria-label="Sections. Current: Ingredients. 1 needs attention.">
+                    <span class="w600">Ingredients</span><span class="grow"></span
+                    ><span class="att w600" style="display: inline-flex; gap: 4px; align-items: center"
+                        ><svg class="ic sm" viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M12 4 3.5 19h17z" />
+                            <path d="M12 10v4M12 16.5v.01" /></svg
+                        >1</span
+                    >
+                </div>
                 <div class="body" style="">
                     <div class="card">
                         <h2>Ingredients</h2>
                         <div class="irow">
                             <div class="top">
-                                <span class="amt">2 lb</span>
-                                <div class="grow"><p>Chicken thighs</p></div>
+                                <p class="grow run"><b>2&nbsp;lb</b> Chicken thighs</p>
                                 <a
                                     class="iconBtn"
                                     href="#"
@@ -8985,8 +9165,7 @@
                         </div>
                         <div class="irow has">
                             <div class="top">
-                                <span class="amt">1 tsp</span>
-                                <div class="grow"><p>Grandma's spice mix</p></div>
+                                <p class="grow run"><b>1&nbsp;tsp</b> Grandma's spice mix</p>
                                 <a
                                     class="iconBtn"
                                     href="#"
@@ -9007,8 +9186,7 @@
                         </div>
                         <div class="irow">
                             <div class="top">
-                                <span class="amt">1 tbsp</span>
-                                <div class="grow"><p>Olive oil</p></div>
+                                <p class="grow run"><b>1&nbsp;tbsp</b> Olive oil</p>
                                 <a
                                     class="iconBtn"
                                     href="#"
@@ -9095,75 +9273,91 @@
                                     <circle cx="18" cy="12" r="1.3" fill="currentColor" /></svg
                             ></a>
                         </div>
-                        <div class="body" style="padding: 20px 24px; max-width: 720px">
-                            <div class="card">
-                                <h2>Ingredients</h2>
-                                <div class="irow">
-                                    <div class="top">
-                                        <span class="amt">2 lb</span>
-                                        <div class="grow"><p>Chicken thighs</p></div>
-                                        <a
-                                            class="iconBtn"
-                                            href="#"
-                                            aria-label="More for Chicken thighs"
-                                            style="margin: -10px -8px -10px 0"
-                                            ><svg class="ic" viewBox="0 0 24 24" aria-hidden="true">
-                                                <circle cx="6" cy="12" r="1.3" fill="currentColor" />
-                                                <circle cx="12" cy="12" r="1.3" fill="currentColor" />
-                                                <circle cx="18" cy="12" r="1.3" fill="currentColor" /></svg
-                                        ></a>
+                        <div class="wrap">
+                            <nav class="idx" aria-label="Recipe sections">
+                                <a href="#" class=""
+                                    ><svg class="ic sm" viewBox="0 0 24 24" aria-hidden="true">
+                                        <path d="m6 12.5 4 4 8-9" /></svg
+                                    ><span>Details</span></a
+                                ><a href="#" class="on att"
+                                    ><svg class="ic sm" viewBox="0 0 24 24" aria-hidden="true">
+                                        <path d="M12 4 3.5 19h17z" />
+                                        <path d="M12 10v4M12 16.5v.01" /></svg
+                                    ><span>Ingredients</span></a
+                                ><a href="#" class=""
+                                    ><svg class="ic sm" viewBox="0 0 24 24" aria-hidden="true">
+                                        <path d="m6 12.5 4 4 8-9" /></svg
+                                    ><span>Steps</span></a
+                                ><a href="#" class=""><span>Photos and publish</span></a>
+                            </nav>
+                            <div class="body" style="padding: 20px 24px; max-width: 720px; flex: 1">
+                                <div class="card">
+                                    <h2>Ingredients</h2>
+                                    <div class="irow">
+                                        <div class="top">
+                                            <p class="grow run"><b>2&nbsp;lb</b> Chicken thighs</p>
+                                            <a
+                                                class="iconBtn"
+                                                href="#"
+                                                aria-label="More for Chicken thighs"
+                                                style="margin: -10px -8px -10px 0"
+                                                ><svg class="ic" viewBox="0 0 24 24" aria-hidden="true">
+                                                    <circle cx="6" cy="12" r="1.3" fill="currentColor" />
+                                                    <circle cx="12" cy="12" r="1.3" fill="currentColor" />
+                                                    <circle cx="18" cy="12" r="1.3" fill="currentColor" /></svg
+                                            ></a>
+                                        </div>
+                                    </div>
+                                    <div class="irow has">
+                                        <div class="top">
+                                            <p class="grow run"><b>1&nbsp;tsp</b> Grandma's spice mix</p>
+                                            <a
+                                                class="iconBtn"
+                                                href="#"
+                                                aria-label="More for Grandma's spice mix"
+                                                style="margin: -10px -8px -10px 0"
+                                                ><svg class="ic" viewBox="0 0 24 24" aria-hidden="true">
+                                                    <circle cx="6" cy="12" r="1.3" fill="currentColor" />
+                                                    <circle cx="12" cy="12" r="1.3" fill="currentColor" />
+                                                    <circle cx="18" cy="12" r="1.3" fill="currentColor" /></svg
+                                            ></a>
+                                        </div>
+                                        <p class="sub att">
+                                            <svg class="ic" viewBox="0 0 24 24" aria-hidden="true">
+                                                <rect x="5" y="10.5" width="14" height="9.5" rx="2" />
+                                                <path d="M8 10.5V8a4 4 0 0 1 8 0v2.5" /></svg
+                                            ><span>Private food. A public recipe can't use it.</span>
+                                        </p>
+                                    </div>
+                                    <div class="irow">
+                                        <div class="top">
+                                            <p class="grow run"><b>1&nbsp;tbsp</b> Olive oil</p>
+                                            <a
+                                                class="iconBtn"
+                                                href="#"
+                                                aria-label="More for Olive oil"
+                                                style="margin: -10px -8px -10px 0"
+                                                ><svg class="ic" viewBox="0 0 24 24" aria-hidden="true">
+                                                    <circle cx="6" cy="12" r="1.3" fill="currentColor" />
+                                                    <circle cx="12" cy="12" r="1.3" fill="currentColor" />
+                                                    <circle cx="18" cy="12" r="1.3" fill="currentColor" /></svg
+                                            ></a>
+                                        </div>
                                     </div>
                                 </div>
-                                <div class="irow has">
-                                    <div class="top">
-                                        <span class="amt">1 tsp</span>
-                                        <div class="grow"><p>Grandma's spice mix</p></div>
-                                        <a
-                                            class="iconBtn"
-                                            href="#"
-                                            aria-label="More for Grandma's spice mix"
-                                            style="margin: -10px -8px -10px 0"
-                                            ><svg class="ic" viewBox="0 0 24 24" aria-hidden="true">
-                                                <circle cx="6" cy="12" r="1.3" fill="currentColor" />
-                                                <circle cx="12" cy="12" r="1.3" fill="currentColor" />
-                                                <circle cx="18" cy="12" r="1.3" fill="currentColor" /></svg
-                                        ></a>
-                                    </div>
-                                    <p class="sub att">
-                                        <svg class="ic" viewBox="0 0 24 24" aria-hidden="true">
+                                <div class="card">
+                                    <h2>Photos and publish</h2>
+                                    <div class="vis"><span>Who can see it</span><span class="w600">Public</span></div>
+                                    <a class="linkBtn" href="#" style="align-items: flex-start; padding: 8px 0"
+                                        ><svg class="ic sm" viewBox="0 0 24 24" aria-hidden="true">
                                             <rect x="5" y="10.5" width="14" height="9.5" rx="2" />
                                             <path d="M8 10.5V8a4 4 0 0 1 8 0v2.5" /></svg
-                                        ><span>Private food. A public recipe can't use it.</span>
-                                    </p>
+                                        ><span
+                                            >1 ingredient uses your private food, so this recipe can't be public
+                                            yet.</span
+                                        ></a
+                                    >
                                 </div>
-                                <div class="irow">
-                                    <div class="top">
-                                        <span class="amt">1 tbsp</span>
-                                        <div class="grow"><p>Olive oil</p></div>
-                                        <a
-                                            class="iconBtn"
-                                            href="#"
-                                            aria-label="More for Olive oil"
-                                            style="margin: -10px -8px -10px 0"
-                                            ><svg class="ic" viewBox="0 0 24 24" aria-hidden="true">
-                                                <circle cx="6" cy="12" r="1.3" fill="currentColor" />
-                                                <circle cx="12" cy="12" r="1.3" fill="currentColor" />
-                                                <circle cx="18" cy="12" r="1.3" fill="currentColor" /></svg
-                                        ></a>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="card">
-                                <h2>Photos and publish</h2>
-                                <div class="vis"><span>Who can see it</span><span class="w600">Public</span></div>
-                                <a class="linkBtn" href="#" style="align-items: flex-start; padding: 8px 0"
-                                    ><svg class="ic sm" viewBox="0 0 24 24" aria-hidden="true">
-                                        <rect x="5" y="10.5" width="14" height="9.5" rx="2" />
-                                        <path d="M8 10.5V8a4 4 0 0 1 8 0v2.5" /></svg
-                                    ><span
-                                        >1 ingredient uses your private food, so this recipe can't be public yet.</span
-                                    ></a
-                                >
                             </div>
                         </div>
                         <div class="foot wideF">
@@ -9231,75 +9425,91 @@
                                     <circle cx="18" cy="12" r="1.3" fill="currentColor" /></svg
                             ></a>
                         </div>
-                        <div class="body" style="padding: 20px 24px; max-width: 720px">
-                            <div class="card">
-                                <h2>Ingredients</h2>
-                                <div class="irow">
-                                    <div class="top">
-                                        <span class="amt">2 lb</span>
-                                        <div class="grow"><p>Chicken thighs</p></div>
-                                        <a
-                                            class="iconBtn"
-                                            href="#"
-                                            aria-label="More for Chicken thighs"
-                                            style="margin: -10px -8px -10px 0"
-                                            ><svg class="ic" viewBox="0 0 24 24" aria-hidden="true">
-                                                <circle cx="6" cy="12" r="1.3" fill="currentColor" />
-                                                <circle cx="12" cy="12" r="1.3" fill="currentColor" />
-                                                <circle cx="18" cy="12" r="1.3" fill="currentColor" /></svg
-                                        ></a>
+                        <div class="wrap">
+                            <nav class="idx" aria-label="Recipe sections">
+                                <a href="#" class=""
+                                    ><svg class="ic sm" viewBox="0 0 24 24" aria-hidden="true">
+                                        <path d="m6 12.5 4 4 8-9" /></svg
+                                    ><span>Details</span></a
+                                ><a href="#" class="on att"
+                                    ><svg class="ic sm" viewBox="0 0 24 24" aria-hidden="true">
+                                        <path d="M12 4 3.5 19h17z" />
+                                        <path d="M12 10v4M12 16.5v.01" /></svg
+                                    ><span>Ingredients</span></a
+                                ><a href="#" class=""
+                                    ><svg class="ic sm" viewBox="0 0 24 24" aria-hidden="true">
+                                        <path d="m6 12.5 4 4 8-9" /></svg
+                                    ><span>Steps</span></a
+                                ><a href="#" class=""><span>Photos and publish</span></a>
+                            </nav>
+                            <div class="body" style="padding: 20px 24px; max-width: 720px; flex: 1">
+                                <div class="card">
+                                    <h2>Ingredients</h2>
+                                    <div class="irow">
+                                        <div class="top">
+                                            <p class="grow run"><b>2&nbsp;lb</b> Chicken thighs</p>
+                                            <a
+                                                class="iconBtn"
+                                                href="#"
+                                                aria-label="More for Chicken thighs"
+                                                style="margin: -10px -8px -10px 0"
+                                                ><svg class="ic" viewBox="0 0 24 24" aria-hidden="true">
+                                                    <circle cx="6" cy="12" r="1.3" fill="currentColor" />
+                                                    <circle cx="12" cy="12" r="1.3" fill="currentColor" />
+                                                    <circle cx="18" cy="12" r="1.3" fill="currentColor" /></svg
+                                            ></a>
+                                        </div>
+                                    </div>
+                                    <div class="irow has">
+                                        <div class="top">
+                                            <p class="grow run"><b>1&nbsp;tsp</b> Grandma's spice mix</p>
+                                            <a
+                                                class="iconBtn"
+                                                href="#"
+                                                aria-label="More for Grandma's spice mix"
+                                                style="margin: -10px -8px -10px 0"
+                                                ><svg class="ic" viewBox="0 0 24 24" aria-hidden="true">
+                                                    <circle cx="6" cy="12" r="1.3" fill="currentColor" />
+                                                    <circle cx="12" cy="12" r="1.3" fill="currentColor" />
+                                                    <circle cx="18" cy="12" r="1.3" fill="currentColor" /></svg
+                                            ></a>
+                                        </div>
+                                        <p class="sub att">
+                                            <svg class="ic" viewBox="0 0 24 24" aria-hidden="true">
+                                                <rect x="5" y="10.5" width="14" height="9.5" rx="2" />
+                                                <path d="M8 10.5V8a4 4 0 0 1 8 0v2.5" /></svg
+                                            ><span>Private food. A public recipe can't use it.</span>
+                                        </p>
+                                    </div>
+                                    <div class="irow">
+                                        <div class="top">
+                                            <p class="grow run"><b>1&nbsp;tbsp</b> Olive oil</p>
+                                            <a
+                                                class="iconBtn"
+                                                href="#"
+                                                aria-label="More for Olive oil"
+                                                style="margin: -10px -8px -10px 0"
+                                                ><svg class="ic" viewBox="0 0 24 24" aria-hidden="true">
+                                                    <circle cx="6" cy="12" r="1.3" fill="currentColor" />
+                                                    <circle cx="12" cy="12" r="1.3" fill="currentColor" />
+                                                    <circle cx="18" cy="12" r="1.3" fill="currentColor" /></svg
+                                            ></a>
+                                        </div>
                                     </div>
                                 </div>
-                                <div class="irow has">
-                                    <div class="top">
-                                        <span class="amt">1 tsp</span>
-                                        <div class="grow"><p>Grandma's spice mix</p></div>
-                                        <a
-                                            class="iconBtn"
-                                            href="#"
-                                            aria-label="More for Grandma's spice mix"
-                                            style="margin: -10px -8px -10px 0"
-                                            ><svg class="ic" viewBox="0 0 24 24" aria-hidden="true">
-                                                <circle cx="6" cy="12" r="1.3" fill="currentColor" />
-                                                <circle cx="12" cy="12" r="1.3" fill="currentColor" />
-                                                <circle cx="18" cy="12" r="1.3" fill="currentColor" /></svg
-                                        ></a>
-                                    </div>
-                                    <p class="sub att">
-                                        <svg class="ic" viewBox="0 0 24 24" aria-hidden="true">
+                                <div class="card">
+                                    <h2>Photos and publish</h2>
+                                    <div class="vis"><span>Who can see it</span><span class="w600">Public</span></div>
+                                    <a class="linkBtn" href="#" style="align-items: flex-start; padding: 8px 0"
+                                        ><svg class="ic sm" viewBox="0 0 24 24" aria-hidden="true">
                                             <rect x="5" y="10.5" width="14" height="9.5" rx="2" />
                                             <path d="M8 10.5V8a4 4 0 0 1 8 0v2.5" /></svg
-                                        ><span>Private food. A public recipe can't use it.</span>
-                                    </p>
+                                        ><span
+                                            >1 ingredient uses your private food, so this recipe can't be public
+                                            yet.</span
+                                        ></a
+                                    >
                                 </div>
-                                <div class="irow">
-                                    <div class="top">
-                                        <span class="amt">1 tbsp</span>
-                                        <div class="grow"><p>Olive oil</p></div>
-                                        <a
-                                            class="iconBtn"
-                                            href="#"
-                                            aria-label="More for Olive oil"
-                                            style="margin: -10px -8px -10px 0"
-                                            ><svg class="ic" viewBox="0 0 24 24" aria-hidden="true">
-                                                <circle cx="6" cy="12" r="1.3" fill="currentColor" />
-                                                <circle cx="12" cy="12" r="1.3" fill="currentColor" />
-                                                <circle cx="18" cy="12" r="1.3" fill="currentColor" /></svg
-                                        ></a>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="card">
-                                <h2>Photos and publish</h2>
-                                <div class="vis"><span>Who can see it</span><span class="w600">Public</span></div>
-                                <a class="linkBtn" href="#" style="align-items: flex-start; padding: 8px 0"
-                                    ><svg class="ic sm" viewBox="0 0 24 24" aria-hidden="true">
-                                        <rect x="5" y="10.5" width="14" height="9.5" rx="2" />
-                                        <path d="M8 10.5V8a4 4 0 0 1 8 0v2.5" /></svg
-                                    ><span
-                                        >1 ingredient uses your private food, so this recipe can't be public yet.</span
-                                    ></a
-                                >
                             </div>
                         </div>
                         <div class="foot wideF">
@@ -9344,8 +9554,7 @@
                         <h2>Ingredients</h2>
                         <div class="irow">
                             <div class="top">
-                                <span class="amt">2 lb</span>
-                                <div class="grow"><p>Chicken thighs</p></div>
+                                <p class="grow run"><b>2&nbsp;lb</b> Chicken thighs</p>
                                 <a
                                     class="iconBtn"
                                     href="#"
@@ -9360,8 +9569,7 @@
                         </div>
                         <div class="irow has">
                             <div class="top">
-                                <span class="amt">1 tsp</span>
-                                <div class="grow"><p>Grandma's spice mix</p></div>
+                                <p class="grow run"><b>1&nbsp;tsp</b> Grandma's spice mix</p>
                                 <a
                                     class="iconBtn"
                                     href="#"
@@ -9384,8 +9592,7 @@
                         </div>
                         <div class="irow has">
                             <div class="top">
-                                <span class="amt">1 tbsp</span>
-                                <div class="grow"><p>my spice blend</p></div>
+                                <p class="grow run"><b>1&nbsp;tbsp</b> my spice blend</p>
                                 <a
                                     class="iconBtn"
                                     href="#"
@@ -9452,8 +9659,7 @@
                         <h2>Ingredients</h2>
                         <div class="irow">
                             <div class="top">
-                                <span class="amt">2 lb</span>
-                                <div class="grow"><p>Chicken thighs</p></div>
+                                <p class="grow run"><b>2&nbsp;lb</b> Chicken thighs</p>
                                 <a
                                     class="iconBtn"
                                     href="#"
@@ -9468,8 +9674,7 @@
                         </div>
                         <div class="irow has">
                             <div class="top">
-                                <span class="amt">1 tsp</span>
-                                <div class="grow"><p>Grandma's spice mix</p></div>
+                                <p class="grow run"><b>1&nbsp;tsp</b> Grandma's spice mix</p>
                                 <a
                                     class="iconBtn"
                                     href="#"
@@ -9492,8 +9697,7 @@
                         </div>
                         <div class="irow has">
                             <div class="top">
-                                <span class="amt">1 tbsp</span>
-                                <div class="grow"><p>my spice blend</p></div>
+                                <p class="grow run"><b>1&nbsp;tbsp</b> my spice blend</p>
                                 <a
                                     class="iconBtn"
                                     href="#"
@@ -9560,8 +9764,7 @@
                         <h2>Ingredients</h2>
                         <div class="irow">
                             <div class="top">
-                                <span class="amt">2 lb</span>
-                                <div class="grow"><p>Chicken thighs</p></div>
+                                <p class="grow run"><b>2&nbsp;lb</b> Chicken thighs</p>
                                 <a
                                     class="iconBtn"
                                     href="#"
@@ -9576,8 +9779,7 @@
                         </div>
                         <div class="irow has">
                             <div class="top">
-                                <span class="amt">1 tsp</span>
-                                <div class="grow"><p>Grandma's spice mix</p></div>
+                                <p class="grow run"><b>1&nbsp;tsp</b> Grandma's spice mix</p>
                                 <a
                                     class="iconBtn"
                                     href="#"
@@ -9600,8 +9802,7 @@
                         </div>
                         <div class="irow has">
                             <div class="top">
-                                <span class="amt">1 tbsp</span>
-                                <div class="grow"><p>my spice blend</p></div>
+                                <p class="grow run"><b>1&nbsp;tbsp</b> my spice blend</p>
                                 <a
                                     class="iconBtn"
                                     href="#"
@@ -9668,8 +9869,7 @@
                         <h2>Ingredients</h2>
                         <div class="irow">
                             <div class="top">
-                                <span class="amt">2 lb</span>
-                                <div class="grow"><p>Chicken thighs</p></div>
+                                <p class="grow run"><b>2&nbsp;lb</b> Chicken thighs</p>
                                 <a
                                     class="iconBtn"
                                     href="#"
@@ -9684,8 +9884,7 @@
                         </div>
                         <div class="irow has">
                             <div class="top">
-                                <span class="amt">1 tsp</span>
-                                <div class="grow"><p>Grandma's spice mix</p></div>
+                                <p class="grow run"><b>1&nbsp;tsp</b> Grandma's spice mix</p>
                                 <a
                                     class="iconBtn"
                                     href="#"
@@ -9708,8 +9907,7 @@
                         </div>
                         <div class="irow has">
                             <div class="top">
-                                <span class="amt">1 tbsp</span>
-                                <div class="grow"><p>my spice blend</p></div>
+                                <p class="grow run"><b>1&nbsp;tbsp</b> my spice blend</p>
                                 <a
                                     class="iconBtn"
                                     href="#"
@@ -9776,8 +9974,7 @@
                         <h2>Ingredients</h2>
                         <div class="irow">
                             <div class="top">
-                                <span class="amt">2 lb</span>
-                                <div class="grow"><p>Chicken thighs</p></div>
+                                <p class="grow run"><b>2&nbsp;lb</b> Chicken thighs</p>
                                 <a
                                     class="iconBtn"
                                     href="#"
@@ -9792,8 +9989,7 @@
                         </div>
                         <div class="irow has">
                             <div class="top">
-                                <span class="amt">1 tsp</span>
-                                <div class="grow"><p>Grandma's spice mix</p></div>
+                                <p class="grow run"><b>1&nbsp;tsp</b> Grandma's spice mix</p>
                                 <a
                                     class="iconBtn"
                                     href="#"
@@ -9816,8 +10012,7 @@
                         </div>
                         <div class="irow has">
                             <div class="top">
-                                <span class="amt">1 tbsp</span>
-                                <div class="grow"><p>my spice blend</p></div>
+                                <p class="grow run"><b>1&nbsp;tbsp</b> my spice blend</p>
                                 <a
                                     class="iconBtn"
                                     href="#"
@@ -9884,8 +10079,7 @@
                         <h2>Ingredients</h2>
                         <div class="irow">
                             <div class="top">
-                                <span class="amt">2 lb</span>
-                                <div class="grow"><p>Chicken thighs</p></div>
+                                <p class="grow run"><b>2&nbsp;lb</b> Chicken thighs</p>
                                 <a
                                     class="iconBtn"
                                     href="#"
@@ -9900,8 +10094,7 @@
                         </div>
                         <div class="irow has">
                             <div class="top">
-                                <span class="amt">1 tsp</span>
-                                <div class="grow"><p>Grandma's spice mix</p></div>
+                                <p class="grow run"><b>1&nbsp;tsp</b> Grandma's spice mix</p>
                                 <a
                                     class="iconBtn"
                                     href="#"
@@ -9924,8 +10117,7 @@
                         </div>
                         <div class="irow has">
                             <div class="top">
-                                <span class="amt">1 tbsp</span>
-                                <div class="grow"><p>my spice blend</p></div>
+                                <p class="grow run"><b>1&nbsp;tbsp</b> my spice blend</p>
                                 <a
                                     class="iconBtn"
                                     href="#"
@@ -10015,78 +10207,92 @@
                                     <circle cx="18" cy="12" r="1.3" fill="currentColor" /></svg
                             ></a>
                         </div>
-                        <div class="body" style="padding: 20px 24px; max-width: 720px">
-                            <div class="card">
-                                <h2>Ingredients</h2>
-                                <div class="irow">
-                                    <div class="top">
-                                        <span class="amt">2 lb</span>
-                                        <div class="grow"><p>Chicken thighs</p></div>
-                                        <a
-                                            class="iconBtn"
-                                            href="#"
-                                            aria-label="More for Chicken thighs"
-                                            style="margin: -10px -8px -10px 0"
-                                            ><svg class="ic" viewBox="0 0 24 24" aria-hidden="true">
-                                                <circle cx="6" cy="12" r="1.3" fill="currentColor" />
-                                                <circle cx="12" cy="12" r="1.3" fill="currentColor" />
-                                                <circle cx="18" cy="12" r="1.3" fill="currentColor" /></svg
-                                        ></a>
+                        <div class="wrap">
+                            <nav class="idx" aria-label="Recipe sections">
+                                <a href="#" class=""
+                                    ><svg class="ic sm" viewBox="0 0 24 24" aria-hidden="true">
+                                        <path d="m6 12.5 4 4 8-9" /></svg
+                                    ><span>Details</span></a
+                                ><a href="#" class="on"
+                                    ><svg class="ic sm" viewBox="0 0 24 24" aria-hidden="true">
+                                        <path d="m6 12.5 4 4 8-9" /></svg
+                                    ><span>Ingredients</span></a
+                                ><a href="#" class=""
+                                    ><svg class="ic sm" viewBox="0 0 24 24" aria-hidden="true">
+                                        <path d="m6 12.5 4 4 8-9" /></svg
+                                    ><span>Steps</span></a
+                                ><a href="#" class=""><span>Photos and publish</span></a>
+                            </nav>
+                            <div class="body" style="padding: 20px 24px; max-width: 720px; flex: 1">
+                                <div class="card">
+                                    <h2>Ingredients</h2>
+                                    <div class="irow">
+                                        <div class="top">
+                                            <p class="grow run"><b>2&nbsp;lb</b> Chicken thighs</p>
+                                            <a
+                                                class="iconBtn"
+                                                href="#"
+                                                aria-label="More for Chicken thighs"
+                                                style="margin: -10px -8px -10px 0"
+                                                ><svg class="ic" viewBox="0 0 24 24" aria-hidden="true">
+                                                    <circle cx="6" cy="12" r="1.3" fill="currentColor" />
+                                                    <circle cx="12" cy="12" r="1.3" fill="currentColor" />
+                                                    <circle cx="18" cy="12" r="1.3" fill="currentColor" /></svg
+                                            ></a>
+                                        </div>
+                                    </div>
+                                    <div class="irow has">
+                                        <div class="top">
+                                            <p class="grow run"><b>1&nbsp;tsp</b> Grandma's spice mix</p>
+                                            <a
+                                                class="iconBtn"
+                                                href="#"
+                                                aria-label="More for Grandma's spice mix"
+                                                style="margin: -10px -8px -10px 0"
+                                                ><svg class="ic" viewBox="0 0 24 24" aria-hidden="true">
+                                                    <circle cx="6" cy="12" r="1.3" fill="currentColor" />
+                                                    <circle cx="12" cy="12" r="1.3" fill="currentColor" />
+                                                    <circle cx="18" cy="12" r="1.3" fill="currentColor" /></svg
+                                            ></a>
+                                        </div>
+                                        <p class="sub">
+                                            <span class="b private"
+                                                ><svg class="ic" viewBox="0 0 24 24" aria-hidden="true">
+                                                    <rect x="5" y="10.5" width="14" height="9.5" rx="2" />
+                                                    <path d="M8 10.5V8a4 4 0 0 1 8 0v2.5" /></svg
+                                                >Private food</span
+                                            >
+                                        </p>
+                                    </div>
+                                    <div class="irow has">
+                                        <div class="top">
+                                            <p class="grow run"><b>1&nbsp;tbsp</b> my spice blend</p>
+                                            <a
+                                                class="iconBtn"
+                                                href="#"
+                                                aria-label="More for my spice blend"
+                                                style="margin: -10px -8px -10px 0"
+                                                ><svg class="ic" viewBox="0 0 24 24" aria-hidden="true">
+                                                    <circle cx="6" cy="12" r="1.3" fill="currentColor" />
+                                                    <circle cx="12" cy="12" r="1.3" fill="currentColor" />
+                                                    <circle cx="18" cy="12" r="1.3" fill="currentColor" /></svg
+                                            ></a>
+                                        </div>
+                                        <p class="sub">
+                                            Counted as Grandma's spice mix
+                                            <span class="b private inline"
+                                                ><svg class="ic" viewBox="0 0 24 24" aria-hidden="true">
+                                                    <rect x="5" y="10.5" width="14" height="9.5" rx="2" />
+                                                    <path d="M8 10.5V8a4 4 0 0 1 8 0v2.5" /></svg
+                                                >Private food</span
+                                            >
+                                        </p>
                                     </div>
                                 </div>
-                                <div class="irow has">
-                                    <div class="top">
-                                        <span class="amt">1 tsp</span>
-                                        <div class="grow"><p>Grandma's spice mix</p></div>
-                                        <a
-                                            class="iconBtn"
-                                            href="#"
-                                            aria-label="More for Grandma's spice mix"
-                                            style="margin: -10px -8px -10px 0"
-                                            ><svg class="ic" viewBox="0 0 24 24" aria-hidden="true">
-                                                <circle cx="6" cy="12" r="1.3" fill="currentColor" />
-                                                <circle cx="12" cy="12" r="1.3" fill="currentColor" />
-                                                <circle cx="18" cy="12" r="1.3" fill="currentColor" /></svg
-                                        ></a>
-                                    </div>
-                                    <p class="sub">
-                                        <span class="b private"
-                                            ><svg class="ic" viewBox="0 0 24 24" aria-hidden="true">
-                                                <rect x="5" y="10.5" width="14" height="9.5" rx="2" />
-                                                <path d="M8 10.5V8a4 4 0 0 1 8 0v2.5" /></svg
-                                            >Private food</span
-                                        >
-                                    </p>
+                                <div class="card">
+                                    <h2>Photos and publish</h2>
+                                    <div class="vis"><span>Who can see it</span><span class="w600">Private</span></div>
                                 </div>
-                                <div class="irow has">
-                                    <div class="top">
-                                        <span class="amt">1 tbsp</span>
-                                        <div class="grow"><p>my spice blend</p></div>
-                                        <a
-                                            class="iconBtn"
-                                            href="#"
-                                            aria-label="More for my spice blend"
-                                            style="margin: -10px -8px -10px 0"
-                                            ><svg class="ic" viewBox="0 0 24 24" aria-hidden="true">
-                                                <circle cx="6" cy="12" r="1.3" fill="currentColor" />
-                                                <circle cx="12" cy="12" r="1.3" fill="currentColor" />
-                                                <circle cx="18" cy="12" r="1.3" fill="currentColor" /></svg
-                                        ></a>
-                                    </div>
-                                    <p class="sub">
-                                        Counted as Grandma's spice mix
-                                        <span class="b private inline"
-                                            ><svg class="ic" viewBox="0 0 24 24" aria-hidden="true">
-                                                <rect x="5" y="10.5" width="14" height="9.5" rx="2" />
-                                                <path d="M8 10.5V8a4 4 0 0 1 8 0v2.5" /></svg
-                                            >Private food</span
-                                        >
-                                    </p>
-                                </div>
-                            </div>
-                            <div class="card">
-                                <h2>Photos and publish</h2>
-                                <div class="vis"><span>Who can see it</span><span class="w600">Private</span></div>
                             </div>
                         </div>
                         <div class="foot wideF">
@@ -10154,78 +10360,92 @@
                                     <circle cx="18" cy="12" r="1.3" fill="currentColor" /></svg
                             ></a>
                         </div>
-                        <div class="body" style="padding: 20px 24px; max-width: 720px">
-                            <div class="card">
-                                <h2>Ingredients</h2>
-                                <div class="irow">
-                                    <div class="top">
-                                        <span class="amt">2 lb</span>
-                                        <div class="grow"><p>Chicken thighs</p></div>
-                                        <a
-                                            class="iconBtn"
-                                            href="#"
-                                            aria-label="More for Chicken thighs"
-                                            style="margin: -10px -8px -10px 0"
-                                            ><svg class="ic" viewBox="0 0 24 24" aria-hidden="true">
-                                                <circle cx="6" cy="12" r="1.3" fill="currentColor" />
-                                                <circle cx="12" cy="12" r="1.3" fill="currentColor" />
-                                                <circle cx="18" cy="12" r="1.3" fill="currentColor" /></svg
-                                        ></a>
+                        <div class="wrap">
+                            <nav class="idx" aria-label="Recipe sections">
+                                <a href="#" class=""
+                                    ><svg class="ic sm" viewBox="0 0 24 24" aria-hidden="true">
+                                        <path d="m6 12.5 4 4 8-9" /></svg
+                                    ><span>Details</span></a
+                                ><a href="#" class="on"
+                                    ><svg class="ic sm" viewBox="0 0 24 24" aria-hidden="true">
+                                        <path d="m6 12.5 4 4 8-9" /></svg
+                                    ><span>Ingredients</span></a
+                                ><a href="#" class=""
+                                    ><svg class="ic sm" viewBox="0 0 24 24" aria-hidden="true">
+                                        <path d="m6 12.5 4 4 8-9" /></svg
+                                    ><span>Steps</span></a
+                                ><a href="#" class=""><span>Photos and publish</span></a>
+                            </nav>
+                            <div class="body" style="padding: 20px 24px; max-width: 720px; flex: 1">
+                                <div class="card">
+                                    <h2>Ingredients</h2>
+                                    <div class="irow">
+                                        <div class="top">
+                                            <p class="grow run"><b>2&nbsp;lb</b> Chicken thighs</p>
+                                            <a
+                                                class="iconBtn"
+                                                href="#"
+                                                aria-label="More for Chicken thighs"
+                                                style="margin: -10px -8px -10px 0"
+                                                ><svg class="ic" viewBox="0 0 24 24" aria-hidden="true">
+                                                    <circle cx="6" cy="12" r="1.3" fill="currentColor" />
+                                                    <circle cx="12" cy="12" r="1.3" fill="currentColor" />
+                                                    <circle cx="18" cy="12" r="1.3" fill="currentColor" /></svg
+                                            ></a>
+                                        </div>
+                                    </div>
+                                    <div class="irow has">
+                                        <div class="top">
+                                            <p class="grow run"><b>1&nbsp;tsp</b> Grandma's spice mix</p>
+                                            <a
+                                                class="iconBtn"
+                                                href="#"
+                                                aria-label="More for Grandma's spice mix"
+                                                style="margin: -10px -8px -10px 0"
+                                                ><svg class="ic" viewBox="0 0 24 24" aria-hidden="true">
+                                                    <circle cx="6" cy="12" r="1.3" fill="currentColor" />
+                                                    <circle cx="12" cy="12" r="1.3" fill="currentColor" />
+                                                    <circle cx="18" cy="12" r="1.3" fill="currentColor" /></svg
+                                            ></a>
+                                        </div>
+                                        <p class="sub">
+                                            <span class="b private"
+                                                ><svg class="ic" viewBox="0 0 24 24" aria-hidden="true">
+                                                    <rect x="5" y="10.5" width="14" height="9.5" rx="2" />
+                                                    <path d="M8 10.5V8a4 4 0 0 1 8 0v2.5" /></svg
+                                                >Private food</span
+                                            >
+                                        </p>
+                                    </div>
+                                    <div class="irow has">
+                                        <div class="top">
+                                            <p class="grow run"><b>1&nbsp;tbsp</b> my spice blend</p>
+                                            <a
+                                                class="iconBtn"
+                                                href="#"
+                                                aria-label="More for my spice blend"
+                                                style="margin: -10px -8px -10px 0"
+                                                ><svg class="ic" viewBox="0 0 24 24" aria-hidden="true">
+                                                    <circle cx="6" cy="12" r="1.3" fill="currentColor" />
+                                                    <circle cx="12" cy="12" r="1.3" fill="currentColor" />
+                                                    <circle cx="18" cy="12" r="1.3" fill="currentColor" /></svg
+                                            ></a>
+                                        </div>
+                                        <p class="sub">
+                                            Counted as Grandma's spice mix
+                                            <span class="b private inline"
+                                                ><svg class="ic" viewBox="0 0 24 24" aria-hidden="true">
+                                                    <rect x="5" y="10.5" width="14" height="9.5" rx="2" />
+                                                    <path d="M8 10.5V8a4 4 0 0 1 8 0v2.5" /></svg
+                                                >Private food</span
+                                            >
+                                        </p>
                                     </div>
                                 </div>
-                                <div class="irow has">
-                                    <div class="top">
-                                        <span class="amt">1 tsp</span>
-                                        <div class="grow"><p>Grandma's spice mix</p></div>
-                                        <a
-                                            class="iconBtn"
-                                            href="#"
-                                            aria-label="More for Grandma's spice mix"
-                                            style="margin: -10px -8px -10px 0"
-                                            ><svg class="ic" viewBox="0 0 24 24" aria-hidden="true">
-                                                <circle cx="6" cy="12" r="1.3" fill="currentColor" />
-                                                <circle cx="12" cy="12" r="1.3" fill="currentColor" />
-                                                <circle cx="18" cy="12" r="1.3" fill="currentColor" /></svg
-                                        ></a>
-                                    </div>
-                                    <p class="sub">
-                                        <span class="b private"
-                                            ><svg class="ic" viewBox="0 0 24 24" aria-hidden="true">
-                                                <rect x="5" y="10.5" width="14" height="9.5" rx="2" />
-                                                <path d="M8 10.5V8a4 4 0 0 1 8 0v2.5" /></svg
-                                            >Private food</span
-                                        >
-                                    </p>
+                                <div class="card">
+                                    <h2>Photos and publish</h2>
+                                    <div class="vis"><span>Who can see it</span><span class="w600">Private</span></div>
                                 </div>
-                                <div class="irow has">
-                                    <div class="top">
-                                        <span class="amt">1 tbsp</span>
-                                        <div class="grow"><p>my spice blend</p></div>
-                                        <a
-                                            class="iconBtn"
-                                            href="#"
-                                            aria-label="More for my spice blend"
-                                            style="margin: -10px -8px -10px 0"
-                                            ><svg class="ic" viewBox="0 0 24 24" aria-hidden="true">
-                                                <circle cx="6" cy="12" r="1.3" fill="currentColor" />
-                                                <circle cx="12" cy="12" r="1.3" fill="currentColor" />
-                                                <circle cx="18" cy="12" r="1.3" fill="currentColor" /></svg
-                                        ></a>
-                                    </div>
-                                    <p class="sub">
-                                        Counted as Grandma's spice mix
-                                        <span class="b private inline"
-                                            ><svg class="ic" viewBox="0 0 24 24" aria-hidden="true">
-                                                <rect x="5" y="10.5" width="14" height="9.5" rx="2" />
-                                                <path d="M8 10.5V8a4 4 0 0 1 8 0v2.5" /></svg
-                                            >Private food</span
-                                        >
-                                    </p>
-                                </div>
-                            </div>
-                            <div class="card">
-                                <h2>Photos and publish</h2>
-                                <div class="vis"><span>Who can see it</span><span class="w600">Private</span></div>
                             </div>
                         </div>
                         <div class="foot wideF">

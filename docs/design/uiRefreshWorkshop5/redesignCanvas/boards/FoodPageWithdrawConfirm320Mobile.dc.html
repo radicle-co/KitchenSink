@@ -306,6 +306,32 @@
                         color: var(--ink);
                         font-weight: 600;
                     }
+                    .idx {
+                        width: 200px;
+                        flex: none;
+                        padding: 20px 16px;
+                        display: flex;
+                        flex-direction: column;
+                        gap: 4px;
+                        font-size: 14px;
+                        line-height: 20px;
+                        color: var(--ink-muted);
+                    }
+                    .idx a {
+                        display: flex;
+                        align-items: center;
+                        gap: 8px;
+                        min-height: 40px;
+                        padding-left: 10px;
+                    }
+                    .idx a.on {
+                        color: var(--ink);
+                        font-weight: 600;
+                        box-shadow: inset 3px 0 0 var(--here-bar);
+                    }
+                    .idx a.att {
+                        color: var(--attention);
+                    }
                     .wrap {
                         display: flex;
                         flex: 1;
@@ -704,9 +730,7 @@
                         gap: 12px;
                         padding: 10px 0;
                     }
-                    .irow .amt {
-                        width: 64px;
-                        flex: none;
+                    .irow .run b {
                         font-weight: 600;
                     }
                     .irow.has .top {

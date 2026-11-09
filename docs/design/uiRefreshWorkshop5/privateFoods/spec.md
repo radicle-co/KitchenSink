@@ -699,6 +699,7 @@ without withdrawing. Notifications when staff decide. The cook learns on the pag
         - Edit approved: "Your change to {food} is live".
         - Edit not approved: "Your change to {food} wasn't approved". Body: "Open it to see why."
     - No decline reason in the notice itself, because a lock screen is not private.
+- A private food in a public recipe is an attention item, never "done": the Ingredients section shows the attention state (the same rank as "Needs a match"), and the sections bar shows its "⚠ 1" count.
 
 ## 17. After the architect's Revision 4 (2026-11-09)
 

@@ -3,10 +3,9 @@ appId: ${APP_ID}
 # From a recipe line's ⋯ menu to the food page, then Ask to make public: the page moves to "Waiting for review"
 # (private foods spec section 5.8). Staff do not decide here: the staff door is API only.
 #
-# ⚠️ NOT RUN where it was written. Same fixture as `publishRefusedForPrivateFood`: a signer-owned recipe whose line uses
-# the signer's own private food `${E2E_PRIVATE_FOOD_NAME}`, which `e2e-seed provision` still owes.
-# The row's menu item "Open food" is not wired in the editor yet (the row view carries no food visibility), so this
-# flow opens the food from the refusal sheet's Open food, the one entry that exists.
+# Same fixture as `publishRefusedForPrivateFood`: the signer's public draft whose line uses the signer's own private food.
+# ⚠️ Not run where it was written. The row's menu item "Open food" is offered once the editor passes `onOpenFood`; this flow
+# still opens the food from the refusal sheet's Open food, which both entries share.
 - runFlow: ../auth/signin.yaml
 
 - assertVisible: 'My recipes'

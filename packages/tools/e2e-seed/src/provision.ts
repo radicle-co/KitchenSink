@@ -152,17 +152,12 @@ console.error(`e2e-seed provision: sessions established for the signer and co-au
 
 const coAuthorClient = clientFor(env.recipeOrigin, coAuthorSession);
 
-// The co-author's public recipe bound to the co-author's PRIVATE food: the signer reads its line with no name
-// (the private-food Maestro flows). The food and the recipe are one fixture, checked together — never by title alone.
-// ⚠️ Published BEFORE the risotto below, so the risotto stays newer and keeps its place at the front of the "New"
-// rail, where `recipes/accessibility` waits for it (see `PRIVATE_FOOD_RECIPE`).
-const privateFood = await ensurePrivateFoodRecipe(
-    { food: foodClientFor(foodOrigin, coAuthorSession), recipe: coAuthorClient },
-    manifest.privateFoodRecipe,
-    manifest.privateFoodName,
-);
+// The SIGNER's public DRAFT bound to the signer's own PRIVATE food: `recipes/publishRefusedForPrivateFood` opens it, presses
+// Publish and meets the refusal (a private food cannot be in a published public recipe). The food and the recipe are one
+// fixture, checked together, never by title alone; the per-flow reset spares it and re-makes it (`reset.ts`).
+const privateFood = await ensurePrivateFoodRecipe(signerFoods, manifest.privateFoodRecipe, manifest.privateFoodName);
 console.error(
-    `e2e-seed provision: co-author's private-food recipe "${manifest.privateFoodRecipe.title}" is ` +
+    `e2e-seed provision: signer's private-food draft "${manifest.privateFoodRecipe.title}" is ` +
         `${privateFood.recipeId} (${privateFood.plan.action}, ${privateFood.plan.deleteRecipeIds.length} stale rows deleted)`,
 );
 

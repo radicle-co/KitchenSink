@@ -104,6 +104,8 @@ export interface FixtureRecipeDefinition {
     readonly cuisine: string;
     readonly description: string;
     readonly visibility: 'public' | 'private';
+    /** `draft` for a recipe that must not be published (a public draft holding a private food); absent publishes. */
+    readonly status?: 'draft';
     readonly servings: number;
     readonly prepTimeMinutes: number;
     readonly cookTimeMinutes: number;
@@ -279,26 +281,24 @@ export const SEED_WORLD: readonly FixtureRecipeDefinition[] = [
 export const PRIVATE_FOOD_NAME = 'Smoked Chili Oil';
 
 /**
- * The co-author's PRIVATE recipe whose one line — 2 tbsp — is bound to {@link PRIVATE_FOOD_NAME}. A private food lives
- * only in a private recipe (ADR-0029 section 4): the recipe database refuses a published public recipe that holds one, so
- * this recipe cannot be public. The signer cannot read it, and the flows that need it public to show a stand-in are gone.
+ * The SIGNER's public DRAFT whose one line — 2 tbsp — is bound to {@link PRIVATE_FOOD_NAME}, the signer's own private food. A
+ * private food cannot be in a PUBLISHED public recipe (ADR-0029 section 4: the recipe database refuses it), but a draft may
+ * hold one, which is exactly the state `publishRefusedForPrivateFood` needs: open it, press Publish, meet the refusal.
  *
- * ⛔ NOT IN {@link SEED_WORLD}. Everything there is either reconciled by the signer's per-flow reset or created by
- * `provision`'s DECLARED-name loop. A declared name has no food, so that loop would publish a line every viewer can
- * read — the opposite of what this recipe exists to show. `ensurePrivateFoodRecipe` creates it instead, together
- * with its food, and the line's `name` here is the FOOD's name, which is how `toCreateRequest` finds its binding.
+ * ⛔ NOT IN {@link SEED_WORLD}. `provision`'s declared-name loop would publish a line with no food; `ensurePrivateFoodRecipe`
+ * creates this one with its food, and the line's `name` is the FOOD's name, which is how `toCreateRequest` finds its binding.
+ * The per-flow reset SPARES it (`planWorldReset`) and re-makes it (`reset.ts`), so it survives every flow.
  *
- * ⚠️ Its times are longer than the risotto's on purpose. `recipes/accessibility.yaml` waits for the risotto in the
- * Discover rails with no search, so this recipe must sort behind it in every rail: behind it in "Quick" by total
- * time, and in "New" (and "Trending" on a tie) because `provision` publishes this recipe first.
+ * A draft is in no Discover rail, so it cannot displace the risotto `recipes/accessibility.yaml` waits for.
  */
 export const PRIVATE_FOOD_RECIPE: FixtureRecipeDefinition = {
     key: 'privateFood',
-    owner: 'coAuthor',
+    owner: 'signer',
     baseTitle: 'Secret Recipe Crostini',
     cuisine: 'Italian',
     description: 'Toasted bread with a drizzle.',
-    visibility: 'private',
+    visibility: 'public',
+    status: 'draft',
     servings: 2,
     prepTimeMinutes: 10,
     cookTimeMinutes: 30,

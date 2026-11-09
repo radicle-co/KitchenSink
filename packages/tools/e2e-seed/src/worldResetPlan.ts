@@ -63,7 +63,15 @@ export function planWorldReset(actual: WorldSnapshot, manifest: FixtureManifest,
         return reconcile(actual, []);
     }
 
-    return reconcile(actual, mode === 'library' ? [...signerRecipes, ...manifest.libraryFillers] : signerRecipes);
+    // The private-food draft is SPARED when it stands at its visibility, and never created here: its line is bound to a food
+    // the applier cannot name, so `reset.ts` makes it through `ensurePrivateFoodRecipe` after the reconcile.
+    const spared = manifest.privateFoodRecipe;
+    const plan = reconcile(actual, [
+        ...(mode === 'library' ? [...signerRecipes, ...manifest.libraryFillers] : signerRecipes),
+        spared,
+    ]);
+
+    return { ...plan, create: plan.create.filter((recipe) => recipe.title !== spared.title) };
 }
 
 /** The difference between a library and the recipes it should hold. Pure. */

@@ -385,6 +385,7 @@ export function toCreateRequest(
         title: recipe.title,
         description: recipe.description,
         visibility: recipe.visibility,
+        ...(recipe.status === undefined ? {} : { status: recipe.status }),
         servings: recipe.servings,
         prepTimeMinutes: recipe.prepTimeMinutes,
         cookTimeMinutes: recipe.cookTimeMinutes,

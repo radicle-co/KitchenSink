@@ -8,9 +8,9 @@ appId: ${APP_ID}
 # Replaces `privateFoodStandIn`: that flow saved a copy of a public recipe holding ANOTHER cook's private food, and
 # such a recipe can no longer exist.
 #
-# ⚠️ NOT RUN where it was written (no Maestro runs there). Its fixture is owed: `e2e-seed provision` must give the SIGNER a
-# public draft named `${E2E_RECIPE_PRIVATE_FOOD}` bound to the signer's own private food `${E2E_PRIVATE_FOOD_NAME}`.
-# Today `ensurePrivateFoodRecipe` makes the CO-AUTHOR's private recipe, which the signer cannot open.
+# Fixture: `e2e-seed` makes the signer's public DRAFT `${E2E_RECIPE_PRIVATE_FOOD}` bound to the signer's own private food
+# `${E2E_PRIVATE_FOOD_NAME}` (`ensurePrivateFoodRecipe`), and the per-flow reset spares it. ⚠️ Not run where it was written
+# (no Maestro runs there): the steps are written from the screens and may need their selectors adjusted on a first run.
 - runFlow: ../auth/signin.yaml
 
 - assertVisible: 'My recipes'

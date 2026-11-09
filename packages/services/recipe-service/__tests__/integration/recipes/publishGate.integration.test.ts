@@ -129,6 +129,8 @@ beforeAll(async () => {
                     create,
                     update,
                     findById: async (id: string) => (id === RECIPE_ID ? aggregateOf(stored) : undefined),
+                    // ADR-0029 section 4: the database holds no private food in these suites.
+                    privateFoodLines: async () => [],
                     transaction: async (work: (tx: unknown) => Promise<unknown>) => work({ __tx: true }),
                 },
             },

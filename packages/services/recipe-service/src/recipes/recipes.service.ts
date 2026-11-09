@@ -757,9 +757,11 @@ export class RecipesService {
 
             // The author's byline (plan 2026-10-15-010 D8): the read model first, read INSIDE this transaction.
             const byline = await this.bylineIn(tx, principal);
+
             if (nowPublicFoods.length > 0) {
                 await this.dal.clearPublicFoodOwners(tx, nowPublicFoods);
             }
+
             const created = await this.dal.create(
                 {
                     ownerId: principal.userId,
@@ -1557,6 +1559,7 @@ export class RecipesService {
             }
 
             assertVisibilityAllowed(visibilityAsk, standing);
+
             if (nowPublicFoods.length > 0) {
                 await this.dal.clearPublicFoodOwners(tx, nowPublicFoods);
             }

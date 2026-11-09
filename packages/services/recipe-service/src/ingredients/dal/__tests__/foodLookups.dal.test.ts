@@ -125,6 +125,7 @@ describe('FoodLookupsDal.findOrCreateBound - a promoted food is handed back publ
 
         return decision;
     };
+
     const row = (foodOwnerId: string | null) => ({
         id: 'l1',
         foodId: 'food-1',

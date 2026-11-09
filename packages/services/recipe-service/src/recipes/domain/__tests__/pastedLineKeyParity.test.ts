@@ -26,8 +26,11 @@ import { buildVerificationRequests } from '../verificationRequests.js';
 const FOOD_ID = '01JPARITYFOOD0000000000001';
 
 /** The key the save path's producer reads and the worker writes for the row the editor saves. */
-function savePathKey(sourceLine: string, parse: PastedLineParse, foodIndex: number, phrase: string): string {
-    const row = pastedLineRowOf(parse, foodIndex, phrase);
+/** What a parse says about the measure; the source line and the display are supplied by the cases. */
+type MeasureParse = Omit<PastedLineParse, 'sourceLine' | 'display'>;
+
+function savePathKey(sourceLine: string, parse: MeasureParse, foodIndex: number, phrase: string): string {
+    const row = pastedLineRowOf({ ...parse, sourceLine, display: null }, foodIndex, phrase);
     const plan = buildVerificationRequests({
         recipeId: '3f2504e0-4f89-11d3-9a0c-0305e82c3301',
         lines: [
@@ -56,7 +59,7 @@ function savePathKey(sourceLine: string, parse: PastedLineParse, foodIndex: numb
 }
 
 /** The key the matcher stores on the proposal's row. */
-function matcherKey(sourceLine: string, parse: PastedLineParse, foodIndex: number, phrase: string): string {
+function matcherKey(sourceLine: string, parse: MeasureParse, foodIndex: number, phrase: string): string {
     const judgement = matchJudgementOf({ sourceLine, ...parse }, foodIndex, phrase, FOOD_ID);
 
     if (judgement === undefined) {
@@ -82,6 +85,17 @@ describe('the matcher keys a proposal exactly as the save path keys the row the 
         ['a handful of parsley', 'parsley', { quantity: { kind: 'absent' }, unit: null, statedMeasure: 'a handful' }],
         ['3 eggs', 'eggs', { quantity: exact(3), unit: null, statedMeasure: null }],
         ['3 large eggs', 'large eggs', { quantity: exact(3), unit: null, statedMeasure: '3' }],
+        // Owner ruling 2026-11-08: a dimension is a note, a package size stays the unit; both keys agree on that.
+        [
+            '1 (9 inch) double-crust pie pastry',
+            '9 inch double-crust pie pastry',
+            { quantity: exact(1), unit: null, statedMeasure: '1 (9 inch)' },
+        ],
+        [
+            '1 (28 ounce) can crushed tomatoes',
+            'can crushed tomatoes',
+            { quantity: exact(1), unit: 'ounce', statedMeasure: '1 (28 ounce) can' },
+        ],
     ] as const)('for %j', (sourceLine, phrase, parse) => {
         expect(matcherKey(sourceLine, parse, 0, phrase)).toBe(savePathKey(sourceLine, parse, 0, phrase));
     });

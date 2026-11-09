@@ -216,3 +216,58 @@ describe('⛔ a restated line carries what the source PRINTED', () => {
         expect(() => createRecipeIngredientInputSchema.parse(line)).not.toThrow();
     });
 });
+
+/**
+ * Owner ruling 2026-11-08 (ruling 2): a dimension in parentheses is a note on the food and never the unit; a package
+ * size stays part of the unit, word for word. The importer applies the same rule as a paste, from the source's own words
+ * (`pastedLineRowOf`), so a book line and a pasted line cannot disagree.
+ */
+describe('toImportedIngredientLine: parentheticals (owner ruling 2026-11-08)', () => {
+    it('a dimension the parser read as the unit is not the unit', () => {
+        const line = toImportedIngredientLine(
+            {
+                raw: '1 (9 inch) double-crust pie pastry',
+                name: 'double-crust pie pastry',
+                quantity: { kind: 'exact', value: 1 },
+                unit: 'inch',
+            },
+            ingredient,
+        );
+
+        expect(line).not.toHaveProperty('unit');
+    });
+
+    it('a package size stays the unit, as the source printed it', () => {
+        const line = toImportedIngredientLine(
+            {
+                raw: '1 (28 ounce) can crushed tomatoes',
+                name: 'crushed tomatoes',
+                quantity: { kind: 'exact', value: 1 },
+                unit: 'ounce',
+            },
+            ingredient,
+        );
+
+        expect(line.unit).toBe('(28 ounce) can');
+    });
+
+    it('leaves a line with no parenthetical exactly as it was', () => {
+        expect(toImportedIngredientLine(parsed, ingredient).unit).toBe('cup');
+    });
+
+    it('reads the SOURCE words, not the normalized clause, when the scanner kept both', () => {
+        const line = toImportedIngredientLine(
+            {
+                raw: '1 (28 ounce) can crushed tomatoes',
+                sourceText: 'one (28 ounce) can crushed tomatoes',
+                name: 'crushed tomatoes',
+                quantity: { kind: 'exact', value: 1 },
+                unit: 'ounce',
+            },
+            ingredient,
+        );
+
+        // "one" is not a digit amount, so the printed source states no parenthetical this rule reads.
+        expect(line.unit).toBe('ounce');
+    });
+});

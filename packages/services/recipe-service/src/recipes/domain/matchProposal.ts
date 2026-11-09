@@ -85,7 +85,8 @@ export function matchJudgementOf(
     phrase: string,
     foodRefId: string,
 ): VerifiedLineIdentity | undefined {
-    const saved = pastedLineRowOf(line, foodIndex, phrase);
+    // `display` only decides `displayText`; the key covers the quantity and unit, which it never changes.
+    const saved = pastedLineRowOf({ ...line, display: null }, foodIndex, phrase);
 
     return verifiedLineIdentity(
         {
@@ -139,7 +140,7 @@ export function matchJudgementDigestOf(
     },
     digest: HexDigest,
 ): string {
-    const measure = pastedLineRowOf(slot.line, slot.foodIndex, slot.phrase);
+    const measure = pastedLineRowOf({ ...slot.line, display: null }, slot.foodIndex, slot.phrase);
     const [low, high] = boundsOf(measure.quantity);
 
     return `${MATCH_JUDGEMENT_VERSION}:${digest(

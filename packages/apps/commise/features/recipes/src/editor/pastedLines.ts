@@ -92,9 +92,10 @@ export interface PastedLinesInput {
  * cook's own words, an amount on the first food only, a leading size word as the unit), the rule recipe-service's paste matcher keys
  * its verdict with (ADR-0071). The phrase the parse lifted out stays whole, as the memo's key grain. Pure.
  */
-function proposedRowsOf(proposal: ParseProposal): readonly PastedRow[] {
+function proposedRowsOf(proposal: ParseProposal, sourceLine: string): readonly PastedRow[] {
     return proposal.foods.map((food, index) => {
-        const { name, quantity, unit } = pastedLineRowOf(proposal, index, food.name);
+        // The parse answer carries no display choice yet (ADR-0026 §11), so every row shows the food's own name.
+        const { name, quantity, unit } = pastedLineRowOf({ ...proposal, sourceLine, display: null }, index, food.name);
 
         return {
             name,
@@ -138,7 +139,9 @@ function pastedLineOf(line: ParseJobLineView, stopped: boolean, typedByCook: boo
 
     switch (line.status) {
         case 'parsed':
-            return line.proposal === null ? settled(readerRowsOf(sourceLine)) : settled(proposedRowsOf(line.proposal));
+            return line.proposal === null
+                ? settled(readerRowsOf(sourceLine))
+                : settled(proposedRowsOf(line.proposal, sourceLine));
         // `withdrawn` on the server: the cook kept it as written, so no engine will answer — settle it the same way
         // even if this client no longer remembers the choice.
         case 'unparseable':

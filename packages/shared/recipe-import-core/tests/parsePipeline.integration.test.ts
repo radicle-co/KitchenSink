@@ -1304,7 +1304,8 @@ describe('the cook`s own measure words reach the pasted row, whichever engine wi
         expect(
             parsed === undefined || parsed === null
                 ? undefined
-                : pastedLineRowOf(parsed, 0, parsed.foods[0]?.name ?? '').unit,
+                : pastedLineRowOf({ ...parsed, sourceLine: parsed.raw, display: null }, 0, parsed.foods[0]?.name ?? '')
+                      .unit,
         ).toBe('cups');
     });
 

@@ -457,6 +457,31 @@ export const SIZE_WORDS: ReadonlySet<string> = new Set([
 ]);
 
 /**
+ * The length units a cook writes for a DIMENSION in parentheses ("1 (9 inch) pie pastry"), as written and lower case.
+ *
+ * ⛔ Deliberately NOT part of {@link UNIT_VOCABULARY}: a length is never the unit of an ingredient line (it has no gram
+ * weight and nothing counts in inches), it is a NOTE on the food (owner ruling 2026-11-08). It lives beside the other
+ * unit vocabularies so "which words name a unit" has one home; weight and volume reuse {@link classifyUnit}.
+ */
+export const LENGTH_UNIT_VOCABULARY: readonly string[] = [
+    'in',
+    'in.',
+    'inch',
+    'inches',
+    '"',
+    'cm',
+    'mm',
+    'centimetre',
+    'centimetres',
+    'centimeter',
+    'centimeters',
+    'millimetre',
+    'millimetres',
+    'millimeter',
+    'millimeters',
+];
+
+/**
  * Whether `token` is a size word ({@link SIZE_WORDS}), ignoring case and surrounding space. Pure.
  *
  * @param token - One word, or the two words of "extra large".

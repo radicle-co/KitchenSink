@@ -106,7 +106,7 @@ async function parsedOf(line: string, ports: ParseEnginePorts): Promise<ParsedLi
 /** The rows the editor saves for a parse: each food's name, unit and preparation. Pure. */
 function savedRowsOf(parsed: ParsedLine): readonly (readonly [string, string, string | null])[] {
     return parsed.foods.map((food, index) => {
-        const row = pastedLineRowOf(parsed, index, food.name);
+        const row = pastedLineRowOf({ ...parsed, sourceLine: parsed.raw, display: null }, index, food.name);
 
         return [row.name, row.unit, food.prep] as const;
     });
@@ -210,6 +210,8 @@ describe('a line with no amount says it of every food it names', () => {
             ['butter', 'tablespoons', null],
             ['flour', '', null],
         ]);
-        expect(pastedLineRowOf(parsed, 1, 'flour').quantity).toEqual({ kind: 'absent' });
+        expect(pastedLineRowOf({ ...parsed, sourceLine: parsed.raw, display: null }, 1, 'flour').quantity).toEqual({
+            kind: 'absent',
+        });
     });
 });

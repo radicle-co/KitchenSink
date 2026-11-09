@@ -5,7 +5,8 @@
  * could not be asked. Every surface asks these functions for the text to show, so a missing name renders the same
  * stand-in everywhere and never the word "undefined".
  *
- * ⛔ The stand-in states the STATUS, never a guess at the food: nothing here reads the line's notes or preparation.
+ * ⛔ The stand-in states the STATUS, never a guess at the food: nothing here reads the line's note or preparation. The
+ * cook's own words (`displayText`) come first when the line has them.
  */
 import { describe, expect, it } from 'vitest';
 import {
@@ -58,15 +59,43 @@ describe('lineDisplayName', () => {
         expect(standIns.every((standIn) => /\S/.test(standIn))).toBe(true);
     });
 
-    it('⛔ never makes a name up from the line’s notes or preparation (R9: there is no fallback)', () => {
+    it('⛔ never makes a name up from the line’s preparation or note (R9: there is no fallback)', () => {
         const line = makeIngredientView({
             name: undefined,
-            displayText: 'the good one from the market',
+            displayText: undefined,
+            note: '9 inch',
             preparation: 'finely chopped',
             resolutionStatus: FoodResolutionStatus.FOOD_UNREACHABLE,
         });
 
         expect(lineDisplayName(line, labels)).toBe(labels.notLoaded);
+    });
+
+    it('shows the cook’s own words first (displayText), then the food’s name', () => {
+        expect(lineDisplayName({ name: 'Pork sausage', displayText: 'sweet Italian sausage' }, labels)).toBe(
+            'sweet Italian sausage',
+        );
+        expect(lineDisplayName({ name: 'Pork sausage', displayText: undefined }, labels)).toBe('Pork sausage');
+        expect(lineDisplayName({ name: 'Pork sausage', displayText: '' }, labels)).toBe('Pork sausage');
+    });
+
+    it('the cook’s words stand when the food is gone or could not be asked: they are the cook’s own text', () => {
+        for (const status of [FoodResolutionStatus.FOOD_REMOVED, FoodResolutionStatus.FOOD_UNREACHABLE]) {
+            const line = { displayText: 'sweet Italian sausage', resolutionStatus: status };
+
+            expect(lineDisplayName(line, labels)).toBe('sweet Italian sausage');
+            expect(isStandInName(line)).toBe(false);
+        }
+    });
+
+    it('⛔ a food the viewer may not see keeps the stand-in whatever displayText holds (separate plan, Q2)', () => {
+        const line = {
+            displayText: 'my secret blend',
+            resolutionStatus: FoodResolutionStatus.RESOLVED_UNAVAILABLE,
+        };
+
+        expect(lineDisplayName(line, labels)).toBe(labels.privateFood);
+        expect(isStandInName(line)).toBe(true);
     });
 
     it('⛔ never says "removed" or "private" for an outage (R2)', () => {
@@ -100,6 +129,15 @@ describe('isStandInName', () => {
 });
 
 describe('snapshotLineName', () => {
+    it('shows the version’s displayText before the frozen name', () => {
+        expect(
+            snapshotLineName(
+                makeIngredient({ ingredientName: 'Pork sausage', displayText: 'sweet Italian sausage' }),
+                labels,
+            ),
+        ).toBe('sweet Italian sausage');
+    });
+
     it('returns the name the version froze', () => {
         expect(snapshotLineName(makeIngredient({ ingredientName: 'Pasta' }), labels)).toBe('Pasta');
     });

@@ -508,14 +508,51 @@ describe('the singular name for a count of one (D21)', () => {
 });
 
 describe('lineTailOf', () => {
-    // The muted words after a name: the preparation, then the notes override (the board's order). Empty ones are dropped.
+    // The muted words after a name: the note first, then the preparation (design answers 2026-11-08 item 2). Empty ones are dropped.
     it.each([
-        ['both, preparation first', { preparation: 'melted', displayText: 'or clarified' }, ['melted', 'or clarified']],
+        ['both, note first', { preparation: 'unbaked', note: '9 inch' }, ['9\u00A0inch', 'unbaked']],
         ['only the preparation', { preparation: 'melted' }, ['melted']],
-        ['only the notes', { displayText: 'or clarified' }, ['or clarified']],
-        ['empty words dropped', { preparation: '', displayText: '' }, []],
+        ['only the note', { note: '9 inch' }, ['9\u00A0inch']],
+        ['empty words dropped', { preparation: '', note: '' }, []],
         ['neither', {}, []],
+        ['displayText is the NAME, never a tail word', { displayText: 'sweet Italian sausage' }, []],
     ] as const)('reads %s', (_name, ingredient, expected) => {
         expect(lineTailOf(makeIngredientView(ingredient))).toEqual(expected);
+    });
+
+    it('puts a no-break space between a number and its unit word, and leaves the cook’s other words alone', () => {
+        expect(lineTailOf(makeIngredientView({ note: '9 x 13 inch pan' }))).toEqual(['9\u00A0x 13\u00A0inch pan']);
+        expect(lineTailOf(makeIngredientView({ note: 'the good one' }))).toEqual(['the good one']);
+    });
+});
+
+describe('formatIngredientLine - the cook’s words and the note', () => {
+    const names = recipeMessages.en.ingredientLineName;
+    const exact = (value: number) => ({ kind: 'exact', value }) as const;
+
+    it('⛔ shows displayText as the name, with no parentheses, then the note and the preparation', () => {
+        const line = makeIngredient({
+            ingredientName: 'Pie crust',
+            displayText: 'double-crust pie pastry',
+            note: '9 inch',
+            preparation: 'unbaked',
+            quantity: exact(1),
+            unit: '',
+        });
+        const text = formatIngredientLine(line, 'en', names);
+
+        expect(text).toBe('1 double-crust pie pastry, 9\u00A0inch, unbaked');
+        expect(text).not.toContain('(');
+    });
+
+    it('a package size stays in the amount as the cook wrote it', () => {
+        const line = makeIngredient({
+            ingredientName: 'Tomatoes',
+            quantity: exact(1),
+            unit: '(28 ounce) can',
+            displayText: undefined,
+        });
+
+        expect(formatIngredientLine(line, 'en', names)).toContain('(28 ounce) can');
     });
 });

@@ -195,11 +195,9 @@ export const ingredientCheckLabel = (
  * added to one and forgotten in the other would have rendered a version's history and its conflict merge
  * differently for the same line. Both now call this.
  *
- * ⛔ `displayText` is PARENTHESISED beside the name and `preparation` is a trailing CLAUSE, and the two are
- * not interchangeable. `displayText` is an author-chosen DISPLAY override — parenthesising it beside the
- * name is exactly what it is for — while U26's rule is that a preparation is NEVER concatenated into the
- * food's name, because a name carrying one matches no catalog row. The name variable below is built from
- * the frozen name alone plus that override; the preparation is appended after it.
+ * ⛔ `displayText` IS the name the line shows (the cook's own words), with no parentheses; the `note` and the
+ * `preparation` are trailing CLAUSES, note first. U26's rule stands: a preparation is NEVER concatenated into
+ * the food's name, because a name carrying one matches no catalog row.
  *
  * ⚠️ Rendering the preparation at all is a CORRECTNESS requirement rather than polish. `diffSnapshots`
  * counts a preparation-only edit as `modified`, so a formatter that omitted it would show two IDENTICAL
@@ -222,8 +220,7 @@ export const formatIngredientLine = (
     labels: IngredientLineNameMessages,
 ): string => {
     const frozenName = snapshotLineAmountName(ingredient, labels);
-    const name = ingredient.displayText !== undefined ? `${frozenName} (${ingredient.displayText})` : frozenName;
-    const described = ingredient.preparation === undefined ? name : `${name}, ${ingredient.preparation}`;
+    const described = [frozenName, ...lineTailOf(ingredient)].join(', ');
     // `.trim()`: an ABSENT quantity with no unit formats to `''` (R40), which would otherwise leave the line
     // starting with a space.
     const line = `${formatQuantity(ingredient.quantity, locale, ingredient.unit)} ${described}`.trim();
@@ -1115,15 +1112,21 @@ export function stepTimerLabel(
     return said === undefined ? undefined : fillTemplate(template, { duration: said });
 }
 
+/** A no-break space between a number and the word after it ("9 inch"), so the dimension never splits across lines. Pure. */
+const bindNumberToUnit = (words: string): string => words.replace(/(\d)[ \t]+(?=\p{L})/gu, '$1\u00A0');
+
 /**
- * The muted words after a line's name: the preparation, then the notes override (the board's order), with the empty
- * ones dropped. Both detail leaves draw them, the first joined to the name by `PREP_JOINER`. Pure.
+ * The muted words after a line's name: the note, then the preparation (design answers 2026-11-08 item 2), with the
+ * empty ones dropped. Both detail leaves draw them, the first joined to the name by `PREP_JOINER`. Pure.
  *
  * @param ingredient - The line.
  * @returns The words, in the order they are drawn.
  */
-export function lineTailOf(ingredient: Pick<RecipeIngredientView, 'preparation' | 'displayText'>): readonly string[] {
-    return [ingredient.preparation, ingredient.displayText].filter(
-        (words): words is string => words !== undefined && words.length > 0,
-    );
+export function lineTailOf(
+    ingredient: Pick<RecipeIngredientView, 'preparation' | 'note'> | Pick<RecipeIngredient, 'preparation' | 'note'>,
+): readonly string[] {
+    return [
+        ingredient.note === undefined ? undefined : bindNumberToUnit(ingredient.note),
+        ingredient.preparation,
+    ].filter((words): words is string => words !== undefined && words.length > 0);
 }

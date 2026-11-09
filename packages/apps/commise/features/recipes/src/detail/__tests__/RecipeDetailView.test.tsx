@@ -525,7 +525,7 @@ describe('RecipeDetailView (web) — ingredients', () => {
             <RecipeDetailView
                 dataSourcesHref="/en/legal/sources"
                 unreachableRetry={idleUnreachableRetry}
-                recipe={makeRecipeDetail({ ingredients: [makeIngredientView({ displayText: 'butterflied' })] })}
+                recipe={makeRecipeDetail({ ingredients: [makeIngredientView({ note: 'butterflied' })] })}
             />,
         );
 
@@ -1282,7 +1282,7 @@ describe('RecipeDetailView (web) — a long ingredient line cannot push the row 
             ingredients: [
                 makeIngredientView({
                     name: 'Slow-roasted San Marzano tomatoes from the co-op down the road',
-                    displayText: 'peeled, deseeded, and crushed by hand just before serving',
+                    note: 'peeled, deseeded, and crushed by hand just before serving',
                     isUserEntered: true,
                 }),
             ],
@@ -1784,7 +1784,7 @@ describe('RecipeDetailView — ingredient preparation (U26)', () => {
                         makeIngredientView({
                             name: 'Flour',
                             preparation: 'sifted',
-                            displayText: '2 cups all-purpose flour, sifted',
+                            note: '2 cups all-purpose flour, sifted',
                         }),
                     ],
                 })}

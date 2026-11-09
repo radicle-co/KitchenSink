@@ -72,7 +72,7 @@ const recipe = makeRecipeDetail({
             name: 'waxy potatoes',
             quantity: { kind: 'exact', value: 800 },
             unit: 'g',
-            displayText: 'quartered',
+            note: 'quartered',
             groupLabel: 'Vegetables',
         }),
     ],

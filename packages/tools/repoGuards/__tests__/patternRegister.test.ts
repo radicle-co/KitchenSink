@@ -290,7 +290,7 @@ const REF_MODULES: Readonly<Record<string, RefSite>> = {
     },
     'packages/apps/commise/features/recipes/src/detail/useIngredientsCardScrollWatch.native.ts': {
         verdict: 'sanctioned-adjacent',
-        why: "ONE `useRef` holding the last card bottom and the last page offset, so the answer \"the card is above the top\" is recomputed when EITHER event arrives: a card that changes height while the page is still (rotation, text size, refresh) is re-read at once instead of showing the bar over it. It is a previous-value latch written ONLY inside the two event handlers, never during render, so a discarded render can neither consume nor advance it; the answer itself is plain state. Both events are external, non-declarative sources (layout and scroll), and holding either in state would re-render the whole page at scroll frequency.",
+        why: 'ONE `useRef` holding the last card bottom and the last page offset, so the answer "the card is above the top" is recomputed when EITHER event arrives: a card that changes height while the page is still (rotation, text size, refresh) is re-read at once instead of showing the bar over it. It is a previous-value latch written ONLY inside the two event handlers, never during render, so a discarded render can neither consume nor advance it; the answer itself is plain state. Both events are external, non-declarative sources (layout and scroll), and holding either in state would re-render the whole page at scroll frequency.',
     },
     'packages/apps/commise/features/recipes/src/hooks/useIngredientEntry.ts': {
         verdict: 'sanctioned-adjacent',

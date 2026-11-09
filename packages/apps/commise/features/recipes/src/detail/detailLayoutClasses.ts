@@ -11,8 +11,14 @@
 /**
  * The page's frame: its own container, the detail width, no gutter (`<main>` owns it) and no centring (§1.3). The end gets
  * 48 below it, more than the 32 between sections, so the page reads as finished (`nativeBoards/designAnswers.md`).
+ *
+ * `[overflow-wrap:anywhere]` is the gutter's guard (inherited by every user-authored text on the page): a recipe's words
+ * are unbounded user text, and a word with no break opportunity (a pasted address, say) sized the description to its own
+ * width. `break-word` would not help, since it leaves the word's min-content width alone; `anywhere` lowers it, so the
+ * block stays inside `<main>`'s 16 px gutter instead of widening the document.
  */
-export const DETAIL_ARTICLE = '@container/detail flex w-full max-w-detail flex-col gap-6 pb-12';
+export const DETAIL_ARTICLE =
+    '@container/detail flex w-full max-w-detail flex-col gap-6 pb-12 [overflow-wrap:anywhere]';
 
 /** The top block: the hero and the header, side by side from a 960 px body. */
 export const DETAIL_TOP_GRID =

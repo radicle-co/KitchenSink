@@ -21,6 +21,10 @@ describe('detailLayoutClasses', () => {
         }
     });
 
+    it('lets any user-authored word break at the article, so one long word cannot widen the page past its gutter', () => {
+        expect(layoutClasses.DETAIL_ARTICLE.split(/\s+/u)).toContain('[overflow-wrap:anywhere]');
+    });
+
     it('keeps the ingredients column’s max height, so a sticky column scrolls inside itself', () => {
         expect(layoutClasses.INGREDIENTS_COLUMN.split(/\s+/u)).toContain(
             '@min-[45rem]/detail:max-h-[calc(100dvh-6rem)]',

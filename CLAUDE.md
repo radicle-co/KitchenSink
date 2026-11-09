@@ -543,6 +543,19 @@ Full matrix + enforcement: **`docs/CODING_STANDARDS.md §7.1`**.
 
 ## Active Spec Kit features
 
+**003A Signed-out Reading** — plan: [`specs/003A-signed-out-reading/plan.md`](specs/003A-signed-out-reading/plan.md)
+
+The first delivery slice of 021: one public recipe, read signed out, on web and native. Planned, not built. Three rules
+that are easy to get wrong:
+
+- **It ships dark on purpose.** Every input of the open-to-web rule is a required reading, and the ones 016 and 020
+  own read `unknown`, which is closed. Do not "light" it with a switch or a test-only door. Lighting it early is an
+  owner ruling (spec Q1) and a change to the Specification.
+- **The web page is the only cache.** Classic ISR with `expireTime: 300`, and the API is always `no-store`. Do not turn
+  on `cacheComponents` for it: its default `expire` is a year.
+- **A public read holds no catalog root** (ADR-0040's `publicReader` audience). The food and identity calls use a
+  recipe-signed token on `/api/v1/internal/*`, never a credential on the web tier.
+
 **020 Content Source Check** — plan: [`specs/020-content-source-check/plan.md`](specs/020-content-source-check/plan.md)
 
 Before a recipe becomes publicly visible, an automated check reads its text, its uploaded photos and its cited source,

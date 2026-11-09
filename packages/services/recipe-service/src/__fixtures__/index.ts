@@ -91,6 +91,8 @@ export function makeIngredientLineRow(overrides: Partial<IngredientRow> = {}): I
         quantityHigh: null,
         unit: 'unit',
         displayText: null,
+        /** `null` = "no note" (migration 0063). */
+        note: null,
         /** `null` = "this line was AUTHORED, not transcribed". */
         sourceLine: null,
         sourcePhrase: null,

@@ -224,6 +224,7 @@ describe('recipe-service schema — table contracts (T011–T014, T118, T119, T1
             quantity_high: { type: 'numeric(10,3)', notNull: false },
             unit: { type: 'text', notNull: true },
             display_text: { type: 'text', notNull: false },
+            note: { type: 'text', notNull: false },
             // U11/U14 — the RAW line the cook's source stated. NULLABLE, and the null is a STATEMENT rather
             // than missing data: it means the line was AUTHORED, not transcribed, which `decideVerification`
             // reads as `skip: 'no-source-text'`.

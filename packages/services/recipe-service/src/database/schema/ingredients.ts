@@ -47,8 +47,20 @@ export const ingredients = pgTable(
         /** The upper bound when the source stated a RANGE (`2 to 3 cups`); `NULL` for a single value (R36). */
         quantityHigh: numeric('quantity_high', { precision: 10, scale: 3 }),
         unit: text('unit').notNull(),
-        /** A display OVERRIDE the author chose — not the raw line, and not our rendering of the food's name. */
+        /**
+         * The food text this line SHOWS: the cook's own words ("lean ground beef"), chosen once when the line was written.
+         * `NULL` shows the bound food's name, read live. Never a food name, never shared, never a matching input.
+         *
+         * ⛔ NOT `ingredient_name` coming back. That column held a food's NAME and was a second statement of a fact the
+         * binding owns; this holds the COOK's words for the food, which no binding can supply, and nothing resolves
+         * against it (ADR-0045).
+         */
         displayText: text('display_text'),
+        /**
+         * A dimension the cook wrote in parentheses after the amount ("9 inch"), shown beside the food. `NULL`: none.
+         * Never the unit, never a food name, never a matching input (migration 0063).
+         */
+        note: text('note'),
         /**
          * The WHOLE raw line the cook's SOURCE stated, verbatim (`2 cups all-purpose flour, sifted`).
          *
@@ -138,6 +150,11 @@ export const ingredients = pgTable(
             sql`${table.preparation} IS NULL OR btrim(${table.preparation}) <> ''`,
         ),
         check('ingredients_group_label_present', sql`${table.groupLabel} IS NULL OR btrim(${table.groupLabel}) <> ''`),
+        check('ingredients_note_present', sql`${table.note} IS NULL OR btrim(${table.note}) <> ''`),
+        check(
+            'ingredients_display_text_present',
+            sql`${table.displayText} IS NULL OR btrim(${table.displayText}) <> ''`,
+        ),
         index('idx_ingredients_recipe_id').on(table.recipeId),
         index('idx_ingredients_food_lookup_id').on(table.foodLookupId),
         check(

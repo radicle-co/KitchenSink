@@ -74,6 +74,8 @@ describe('an ingredient row shows the cook’s words (web)', () => {
         expect(text).not.toContain('(');
         expect(text.indexOf(`9${NBSP}inch`)).toBeGreaterThan(text.indexOf('pie crust'));
         expect(text.indexOf('unbaked')).toBeGreaterThan(text.indexOf(`9${NBSP}inch`));
+        // Each tail word is joined by a no-break space and a middle dot: "pie crust · 9 inch · unbaked".
+        expect(text).toMatch(/· ,?\s*9\u00A0inch.*· ,?\s*unbaked/u);
         expect(text).toContain('·');
         // Spoken "pie crust, 9 inch, unbaked".
         expect(row.getAttribute('aria-label')).toMatch(/pie crust, 9\s+inch, unbaked$/u);

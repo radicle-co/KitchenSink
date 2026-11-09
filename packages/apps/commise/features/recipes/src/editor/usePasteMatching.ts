@@ -152,7 +152,12 @@ function draftLineOf(
     sourceLine: string,
     keepsSource: boolean,
 ): ResolvedRecipeFormIngredient {
-    const line = withLineMeasure(admitted, row.measure);
+    const measured = withLineMeasure(admitted, row.measure);
+    const line = {
+        ...measured,
+        ...(row.displayText === undefined ? {} : { displayText: row.displayText }),
+        ...(row.note === undefined ? {} : { note: row.note }),
+    };
 
     if (!keepsSource) {
         return line;

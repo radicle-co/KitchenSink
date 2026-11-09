@@ -41,6 +41,10 @@ export interface PastedRow {
     readonly measure: LineMeasure;
     /** The phrase the parse lifted out of the line, for the create (its `sourcePhrase`); absent for a reader row. */
     readonly sourcePhrase?: string;
+    /** The cook's own words for the food, when the parse chose to keep them; the draft line shows them (`displayText`). */
+    readonly displayText?: string;
+    /** A dimension the cook wrote in parentheses ("9 inch"), shown beside the food (`note`). */
+    readonly note?: string;
     /**
      * Which food of the line's proposal this row is, so the host can find its match (`${lineIndex}:${foodIndex}`). Absent
      * for a reader row: it has no proposal food, so no match, and it joins as written.
@@ -94,9 +98,8 @@ export interface PastedLinesInput {
  */
 function proposedRowsOf(proposal: ParseProposal, sourceLine: string): readonly PastedRow[] {
     return proposal.foods.map((food, index) => {
-        // `display` is the model's answer for THIS food (ADR-0026 §11); absent reads as no answer. The row's `displayText` and
-        // `note` are not drawn or saved here yet: that is the editor's own change.
-        const { name, quantity, unit } = pastedLineRowOf(
+        // `display` is the model's answer for THIS food (ADR-0026 §11); absent reads as no answer.
+        const { name, quantity, unit, displayText, note } = pastedLineRowOf(
             { ...proposal, sourceLine, display: food.display ?? null },
             index,
             food.name,
@@ -107,6 +110,8 @@ function proposedRowsOf(proposal: ParseProposal, sourceLine: string): readonly P
             measure: { quantity, unit, preparation: food.prep ?? '' },
             sourcePhrase: food.name,
             foodIndex: index,
+            ...(displayText === undefined ? {} : { displayText }),
+            ...(note === undefined ? {} : { note }),
         };
     });
 }

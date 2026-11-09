@@ -65,7 +65,7 @@ const isNamelessStatus = (status: FoodResolutionStatus | undefined): status is N
  * holds: that rule is a separate plan's to change (owner question Q2), so it is left exactly as it was. Pure.
  */
 const writtenWordsOf = (line: NameableLine): string | undefined =>
-    line.resolutionStatus === FoodResolutionStatus.RESOLVED_UNAVAILABLE || (line.displayText ?? '') === ''
+    line.resolutionStatus === FoodResolutionStatus.RESOLVED_UNAVAILABLE || (line.displayText ?? '').trim() === ''
         ? undefined
         : line.displayText;
 

@@ -44,7 +44,7 @@ export const describedByOf = (...ids: readonly (string | undefined)[]): string |
 };
 
 /** The row editor's fields (build spec §7.5.2). */
-export type IngredientEditorField = 'amount' | 'amountHigh' | 'unit' | 'prep';
+export type IngredientEditorField = 'amount' | 'amountHigh' | 'unit' | 'displayText' | 'note' | 'prep';
 
 /**
  * One row editor field's id, by its line's key, so two rows never share a label target. Pure.

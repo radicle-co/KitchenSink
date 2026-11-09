@@ -100,6 +100,7 @@ const OpenControl: FC<{
             ref={node}
             accessibilityRole="button"
             accessibilityLabel={row.openLabel}
+            {...(row.countedAs === undefined ? {} : { accessibilityHint: row.countedAs })}
             {...(expanded === undefined ? {} : { 'aria-expanded': expanded })}
             onPress={row.onOpen}
             style={({ pressed }) => [styles.open, pressed && { backgroundColor: wash }]}
@@ -125,6 +126,9 @@ const OpenControl: FC<{
                         {amount}
                         {amount !== null && ' '}
                         {row.displayName}
+                        {row.noteText !== undefined && (
+                            <Text typeRole="body" color="$inkMuted">{`${PREP_JOINER}${row.noteText}`}</Text>
+                        )}
                         {row.prepText !== undefined && (
                             <Text typeRole="body" color="$inkMuted">{`${PREP_JOINER}${row.prepText}`}</Text>
                         )}
@@ -242,6 +246,12 @@ export const IngredientRow: FC<IngredientRowProps> = ({
                             {secondLine.text}
                         </Text>
                     </Pressable>
+                )}
+                {row.countedAs !== undefined && (
+                    // The matched food, for the editor only: the open control's hint (design answers 2026-11-08).
+                    <Text typeRole="caption" color="$inkMuted">
+                        {row.countedAs}
+                    </Text>
                 )}
                 {row.amountInvalidNote !== undefined && (
                     <Text typeRole="caption" color="$dangerText">

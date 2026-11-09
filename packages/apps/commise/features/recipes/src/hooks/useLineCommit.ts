@@ -44,6 +44,7 @@ import {
     rebindRequestOf,
     toIngredientLine,
     withLineMeasure,
+    withTypedWords,
     type BoundPick,
     type IngredientPick,
     type LineCommandOutcome,
@@ -157,7 +158,7 @@ export function useLineCommit<Origin>(surface: LineCommitSurface, sourceLimit: S
             surface.dispatch({
                 kind: 'appendResolvedIngredient',
                 key,
-                line: withLineMeasure(line, target.measure),
+                line: withTypedWords(withLineMeasure(line, target.measure), pick),
                 ...(target.placement === undefined ? {} : { placement: target.placement }),
             });
 

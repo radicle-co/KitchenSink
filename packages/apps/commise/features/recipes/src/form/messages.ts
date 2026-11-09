@@ -266,6 +266,16 @@ export interface RecipeFormMessages {
     readonly rowUnitListLabel: string;
     /** `row.prepLabel`. */
     readonly rowPrepLabel: string;
+    /** The row editor's "Name on the recipe" (the line's `displayText`): empty shows the matched food's name. */
+    readonly rowDisplayTextLabel: string;
+    /** The row editor's "Note" (the line's `note`). */
+    readonly rowNoteLabel: string;
+    /** The Note field's placeholder: an example of a dimension. */
+    readonly rowNotePlaceholder: string;
+    /** The row editor's label for the matched food, above the food line and Change. */
+    readonly rowCountedAsLabel: string;
+    /** A row's quiet second line when it shows the cook's own words. Holds `{food}`. */
+    readonly rowCountedAs: string;
     /** `row.change`: the row editor's Change, beside the food. */
     readonly rowChange: string;
     /** `row.foodDetails`, in the `⋯` and in the row editor. */
@@ -745,6 +755,11 @@ export const recipeFormMessages: LocalizedMessages<RecipeFormMessages> = {
         rowUnitLabel: 'Unit',
         rowUnitListLabel: 'Units',
         rowPrepLabel: 'Preparation',
+        rowDisplayTextLabel: 'Name on the recipe',
+        rowNoteLabel: 'Note',
+        rowNotePlaceholder: 'For example, 9 inch',
+        rowCountedAsLabel: 'Counted as',
+        rowCountedAs: 'Counted as {food}',
         rowChange: 'Change',
         rowFoodDetails: 'Food details',
         rowFoodCalories: '{food} · {cal} cal per 100 g',

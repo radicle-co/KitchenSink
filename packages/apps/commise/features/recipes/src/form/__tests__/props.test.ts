@@ -930,14 +930,17 @@ describe('applyDraftAction — one entry point, every draft transition', () => {
     });
 
     /**
-     * `docs/design/ingredientStatusExplanation.md` §4a: the patch reaches only quantity, unit, preparation and section.
+     * `docs/design/ingredientStatusExplanation.md` §4a: the patch reaches only the fields the cook edits on a row: quantity, unit, the cook's own words, the note,
+     * preparation and section (the words and the note joined 2026-11-08).
      * A patch that could set `ingredientId: null` is exactly the row U28 exists to prevent, so the binding is not a
      * key of the patch at all; re-pointing a line is `rebindIngredient`.
      */
     it('⛔ the field patch cannot name the binding (§4a)', () => {
         type Patch = Extract<DraftAction, { kind: 'updateIngredientAt' }>['patch'];
 
-        expectTypeOf<keyof Patch>().toEqualTypeOf<'quantity' | 'unit' | 'preparation' | 'groupLabel'>();
+        expectTypeOf<keyof Patch>().toEqualTypeOf<
+            'quantity' | 'unit' | 'displayText' | 'note' | 'preparation' | 'groupLabel'
+        >();
     });
 
     it('patches one step at an index', () => {

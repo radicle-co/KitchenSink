@@ -280,6 +280,39 @@ describe('usePasteMatching — joining in paste order', () => {
         ]);
     });
 
+    it('the draft line carries the cook’s words (displayText) and the note the parse kept, and the food it is bound to', async () => {
+        const job = jobOf(
+            makeParseJobLine({
+                lineIndex: 0,
+                sourceLine: '1 (9 inch) double-crust pie pastry',
+                status: 'parsed',
+                proposal: makeParseProposal({
+                    raw: '1 (9 inch) double-crust pie pastry',
+                    statedMeasure: null,
+                    quantity: { kind: 'exact', value: 1 },
+                    unit: null,
+                    foods: [
+                        makeParseProposalFood({
+                            name: 'double-crust pie pastry',
+                            display: 'written',
+                            match: makeParseMatch({ candidates: [OAT] }),
+                        }),
+                    ],
+                }),
+            }),
+        );
+        const { dispatch } = setup(job);
+        await settle();
+
+        const [line] = appended(dispatch);
+
+        expect(line?.line).toMatchObject({
+            ingredientId: 'whole',
+            displayText: 'double-crust pie pastry',
+            note: '9 inch',
+        });
+    });
+
     it('a proposed VARIANT binds through the variant admission', async () => {
         setup(
             jobOf(

@@ -1,7 +1,7 @@
 /**
  * @module @commise/features-recipes/form — `IngredientLineEditor` (native): the row editor's fields (build spec §7.5.2),
  * drawn inside either frame, the phone sheet or the tablet's inline panel. The React Native leaf of
- * `./IngredientLineEditor.tsx`: the food with Change, Amount (with "+ Add a range"), Unit and Preparation, then Food
+ * `./IngredientLineEditor.tsx`: "Counted as" and the food with Change, the cook's own words and the note, Amount (with "+ Add a range"), Unit and Preparation, then Food
  * details. The fields wrap by width: in the sheet Amount and Unit share line 1 and Preparation takes line 2.
  *
  * Presentational: `props → JSX` over the row editor's view (`RowLineEditorView`); every edit is the view's.
@@ -64,13 +64,38 @@ export const IngredientLineEditor: FC<IngredientLineEditorProps> = ({ view, inde
 
     return (
         <View style={styles.stack}>
-            <View style={styles.foodLine}>
-                <Text style={[styles.food, { color: colors.ink }]}>{view.food}</Text>
-                {view.onChangeFood !== undefined && (
-                    <Button variant="ghost" onPress={view.onChangeFood}>
-                        {m.rowChange}
-                    </Button>
-                )}
+            <View style={styles.cell}>
+                <Text style={[styles.caption, { color: colors.inkMuted }]}>{m.rowCountedAsLabel}</Text>
+                <View style={styles.foodLine}>
+                    <Text style={[styles.food, { color: colors.ink }]}>{view.food}</Text>
+                    {view.onChangeFood !== undefined && (
+                        <Button variant="ghost" onPress={view.onChangeFood}>
+                            {m.rowChange}
+                        </Button>
+                    )}
+                </View>
+            </View>
+            <View style={styles.fields}>
+                <View style={[styles.cell, styles.prep]}>
+                    <FieldLabel forId={view.ids.displayText} label={m.rowDisplayTextLabel} />
+                    <Input
+                        id={view.ids.displayText}
+                        label={m.rowDisplayTextLabel}
+                        value={view.displayText}
+                        placeholder={view.displayTextPlaceholder}
+                        onChangeText={view.onDisplayText}
+                    />
+                </View>
+                <View style={[styles.cell, styles.prep]}>
+                    <FieldLabel forId={view.ids.note} label={m.rowNoteLabel} />
+                    <Input
+                        id={view.ids.note}
+                        label={m.rowNoteLabel}
+                        value={view.note}
+                        placeholder={m.rowNotePlaceholder}
+                        onChangeText={view.onNote}
+                    />
+                </View>
             </View>
             <View style={styles.fields}>
                 <View style={styles.cell}>

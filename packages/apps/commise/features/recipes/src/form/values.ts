@@ -78,12 +78,9 @@ export interface RecipeFormIngredient {
     readonly quantityHigh?: number;
     readonly unit?: string;
     /**
-     * The free-form DISPLAY OVERRIDE (wire: `notes`, column `display_text`).
-     *
-     * ⛔ NOT the preparation, and no editor writes it — see {@link preparation}. It is carried here only so
-     * that opening an IMPORTED recipe and saving it does not destroy the clause the importer stored.
+     * The food text the line SHOWS (the cook's own words); absent shows the bound food's name (wire: `displayText`).
+     * ⛔ NOT the preparation (see {@link preparation}), and never a food name: the row editor's "Name on the recipe".
      */
-    /** The food text the line shows (the cook's own words); absent shows the bound food's name (wire: `displayText`). */
     readonly displayText?: string;
     /** A dimension the cook wrote in parentheses after the amount ("9 inch"), shown beside the food (wire: `note`). */
     readonly note?: string;

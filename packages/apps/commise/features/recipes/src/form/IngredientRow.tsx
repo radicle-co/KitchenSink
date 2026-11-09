@@ -3,7 +3,7 @@
 /**
  * @module @commise/features-recipes/form — `IngredientRow` (web): one ingredient row (build spec §7.5.1). At rest it
  * READS as one text run (#144): the amount in the strong weight, an ordinary space, then the name in `ink` and " · "
- * the preparation in `inkMuted`, wrapping only between words, then its `⋯`. The amount and name together are the row's open
+ * the note and the preparation in `inkMuted`, wrapping only between words, then its `⋯`. The amount and name together are the row's open
  * control, "Edit {amount} {food}". A healthy row is quiet; a row that needs the cook adds a second line in `attention`,
  * which opens the row's panel (or, for a line with no food, its food search). While its food search is open (Change
  * food, Find a food, a line with no food), the name is the entry combobox instead. Its inline editor (from 600) sits
@@ -74,6 +74,7 @@ const OpenControl: FC<{ readonly row: IngredientRowView; readonly expanded: bool
             ref={node}
             type="button"
             aria-label={row.openLabel}
+            aria-describedby={row.countedAs === undefined ? undefined : row.countedAsId}
             aria-expanded={expanded}
             onClick={row.onOpen}
             className={`flex min-h-12 min-w-0 flex-1 items-start rounded-md py-3 text-left transition ${PRESS_FILL_CLASS.pointer} ${FOCUS_RING_CLASS.offset}`}
@@ -102,6 +103,7 @@ const OpenControl: FC<{ readonly row: IngredientRowView; readonly expanded: bool
                             </>
                         )}
                         {row.displayName}
+                        {row.noteText !== undefined && <PrepJoin>{row.noteText}</PrepJoin>}
                         {row.prepText !== undefined && <PrepJoin>{row.prepText}</PrepJoin>}
                     </span>
                 )}
@@ -209,6 +211,12 @@ export const IngredientRow: FC<IngredientRowProps> = ({
                         </span>
                         {secondLine.text}
                     </button>
+                )}
+                {row.countedAs !== undefined && (
+                    // The matched food, for the editor only: the open control's description (design answers 2026-11-08).
+                    <span id={row.countedAsId} className="text-caption text-ink-muted">
+                        {row.countedAs}
+                    </span>
                 )}
                 {row.amountInvalidNote !== undefined && <span className={errorText}>{row.amountInvalidNote}</span>}
                 {row.busyText !== undefined && <span className="text-caption text-ink-muted">{row.busyText}</span>}

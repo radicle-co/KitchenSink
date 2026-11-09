@@ -1353,6 +1353,9 @@ SPECIFY at plan time, with its copy and localization key.
   producer supplies with the envelope. The service fills them in through the localization path (`016-FR-049`). It
   never reads meaning out of `payload` (FR-023). This is the one addition to the envelope, and it is optional, so
   an in-app-only producer is unchanged. `staff-architect` fixes its shape at plan time.
+    - _(Amended 2026-11-09.)_ The same addition also carries the **link a tap opens**, such as
+      `commise://foods/{foodId}` (FR-058). This service cannot build it from `payload` (FR-023), so the producer
+      supplies it with the key and its parameters.
 
 ### Consent and opt-out
 
@@ -1476,7 +1479,7 @@ SPECIFY at plan time, with its copy and localization key.
 The owner ruled that a cook gets a push when staff decide on a food the cook asked about (Clarifications, Session
 2026-11-09). A cook asks staff to make a private food public, or edits a food that is already public, and staff approve
 or decline (ADR-0029 §5 and §7). This amendment adds the category those replies use, makes the food service a producer,
-and states what the app does before the push channel exists. It changes FR-047, FR-049, FR-050, FR-051 and FR-052,
+and states what the app does before the push channel exists. It changes FR-047, FR-048, FR-049, FR-050, FR-051 and FR-052,
 adds US-014, and adds FR-057 to FR-059 with SC-020 and SC-021.
 
 - **FR-057** _(added 2026-11-09)_: **The `requestUpdate` category.** A `requestUpdate` is a reply to something the cook

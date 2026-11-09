@@ -1080,10 +1080,12 @@ and the settings read at send time are owed there, and T-091 depends on them by 
   requests the inline send is still handling. A race is harmless, because both sends carry the same key.
 - **The sweep's age bound.** `<bound>` MUST be shorter than this service's FR-018 claim window, less one sweep
   interval. The claim starts no earlier than `decided_at`, so a resend inside the bound always lands inside the window.
-  A resend outside it would be a second push. A request older than the bound and still unsent is stamped as given up
-  (counted, not sent) and alarmed through the relay (ADR-0062). The claim window is configured, so the bound is
-  derived from the same configuration value and never restated as a number.
-- **Counters.** Sent inline, sent by the sweep, publish failed, given up. Dimensioned on `Stage` (ADR-0062) and never
+  A resend outside it would be a second push. A request older than the bound and still unsent is never sent. Each
+  sweep emits a gauge of such requests, and a value above zero alarms through the relay (ADR-0062). The food service
+  cannot read this service's runtime configuration, so the claim window is an exported constant in
+  `@kitchensink/schema-notifications`, which food already reads for the envelope. This service configures its claim
+  from that constant, and the sweep derives its bound from it. Neither restates the number.
+- **Counters.** Sent inline, sent by the sweep, publish failed, and the past-the-bound gauge. Dimensioned on `Stage` (ADR-0062) and never
   on a food or request id (`spec.md` C-7).
 - **Why the food service publishes, when 003's notification comes from recipe-service (T-044).** There the recipients
   live in `fetch_requesters`, which the completing transaction deletes. Here the recipient is `food.user_id`, which the

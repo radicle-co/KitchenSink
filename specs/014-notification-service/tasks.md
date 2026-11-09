@@ -108,7 +108,7 @@ CHANNEL ◄── (owed: the 2026-10-28 channel tasks — push fan-out FR-046, t
 T-085                                    (identity settings columns; no upstream, lands early)
 T-087 ──► T-088 ──► T-089 ──► T-090      (payload zod + builder ► notified_at column ► inline send ► sweep)
 T-086 ◄── T-063 + T-046 + T-087          (food registered as a producer, payload documented)
-T-089 ◄── T-034 + T-035 + T-086
+T-089 ◄── CHANNEL + T-034 + T-035 + T-086   (FR-059: food publishes nothing before the channel is live)
 T-091 ◄── CHANNEL + T-085 + T-086        (this service routes the requestUpdate category)
 T-092 ◄── CHANNEL                        (native permission ask; FR-059 until CHANNEL ships)
 T-093 ◄── T-091 + T-047                  (push tap + deep link to FoodDetail, feed item on both platforms)
@@ -794,15 +794,15 @@ needed to actually ship it. A notification service with a synthetic producer and
     - **Tests**: **LOCAL e2e** on a real database (the CHECK refuses `closed` and `pending` with a stamp; the index exists with its predicate) and the schema conformance and storage-capacity suites updated for the column. A unit test cannot observe a migration that did not apply.
 
 - [ ] **T-089** [P] [US-014] Publish after the decision commits, then stamp. A failed publish is logged and left for the sweep, and never fails the staff member's committed decision. — `packages/services/food-service/src/foods/publication.service.ts` + a publisher beside the existing EventBridge emitter
-    - **Depends on**: T-034, T-035, T-086, T-088
+    - **Depends on**: CHANNEL (owed — no task yet; FR-059), T-034, T-035, T-086, T-088
     - **Implements**: FR-058, FR-059
     - **Acceptance**: an `approved` or `declined` decision publishes one envelope with `idempotencyKey = requestId`; a `closed` request and a refused decision publish nothing; `notified_at` is set only after a success, with `WHERE notified_at IS NULL`; nothing is published inside the transaction.
     - **Tests**: **unit** (ordering: commit, publish, stamp; a publish error leaves the stamp NULL and the decision answered) **AND** **integration** (the decide route with the database and the EventBridge client mocked, covering approve, decline, close and refuse). **DEPLOYED e2e** once the notification bus exists: a staff decision on a sandbox food yields exactly one envelope. No new HTTP route, so no new k6 scenario.
 
-- [ ] **T-090** [P] [US-014] The sweep in the food worker's loop: publish every `approved`/`declined` request with `notified_at IS NULL`, inside the age bound derived from the FR-018 claim window, and give up (count, stamp, alarm) past it. — `packages/services/food-service/src/worker/`
+- [ ] **T-090** [P] [US-014] The sweep in the food worker's loop: publish every `approved`/`declined` request with `notified_at IS NULL`, inside the age bound derived from the FR-018 claim window, and never send past it: a gauge of unsent requests past the bound alarms instead. — `packages/services/food-service/src/worker/`
     - **Depends on**: T-089
     - **Implements**: FR-058, SC-020; ADR-0062
-    - **Acceptance**: a decision whose inline send failed is published once by the next sweep; a request already stamped is never re-sent; a `closed` request with a `decided_at` is never selected; a request past the bound is counted and alarmed, never sent; the bound is read from the claim-window configuration, not restated.
+    - **Acceptance**: a decision whose inline send failed is published once by the next sweep; a request already stamped is never re-sent; a `closed` request with a `decided_at` is never selected; a request past the bound is never sent, and a gauge of decided, unsent requests older than the bound alarms when it is above zero; the bound is derived from the claim window exported by `@kitchensink/schema-notifications`, never restated as a number.
     - **Tests**: **unit** (the predicate and the bound; ⚠️ mutation lens: a predicate of `decided_at IS NOT NULL` alone MUST turn a test red, because it would push for every closed request) **AND** **integration** (a stop between commit and publish, then a sweep, gives one publish; inline and sweep racing give two publishes with ONE key). Counters dimension on `Stage` only.
 
 - [ ] **T-091** [P] [US-014] Route the `requestUpdate` category in this service: read the cook's three settings at send time, keep quiet hours, apply no `reminder` cap, and send push on native devices only. — `packages/services/notification-service/src/channels/`

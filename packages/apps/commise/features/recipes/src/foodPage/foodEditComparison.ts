@@ -37,21 +37,23 @@ const NUTRIENT_OF: Readonly<Record<keyof AuthoredMacros, RegExp>> = {
  * kJ. A figure the food does not carry is absent. Pure.
  */
 export function macrosOfFood(food: FoodResponse): Partial<AuthoredMacros> {
-    const figures: Partial<AuthoredMacros> = {};
-
-    for (const field of Object.keys(NUTRIENT_OF) as (keyof AuthoredMacros)[]) {
-        const row = food.nutrients.find(
+    const figureOf = (field: keyof AuthoredMacros): number | undefined =>
+        food.nutrients.find(
             (candidate) =>
                 NUTRIENT_OF[field].test(candidate.nutrient) &&
                 (field !== 'calories' || candidate.unit.toLowerCase() === 'kcal'),
-        );
+        )?.amount;
+    const calories = figureOf('calories');
+    const proteinG = figureOf('proteinG');
+    const carbsG = figureOf('carbsG');
+    const fatG = figureOf('fatG');
 
-        if (row !== undefined) {
-            figures[field] = row.amount;
-        }
-    }
-
-    return figures;
+    return {
+        ...(calories === undefined ? {} : { calories }),
+        ...(proteinG === undefined ? {} : { proteinG }),
+        ...(carbsG === undefined ? {} : { carbsG }),
+        ...(fatG === undefined ? {} : { fatG }),
+    };
 }
 
 /** A figure as the cook reads it: its decimals only when it has some. Pure. */

@@ -4,7 +4,12 @@ import { YourFoodsContainer } from '@/components/foods/YourFoodsContainer';
 
 export const dynamic = 'force-dynamic';
 
-/** The cook’s own foods (`/[locale]/foods`), reached from Profile's "Your foods" row. */
+/**
+ * The cook’s own foods (`/[locale]/foods`), reached from Profile's "Your foods" row. An orchestration page: it enforces
+ * sign-in and hands the locale to the client container.
+ *
+ * @pattern Facade — one route over the auth gate and the client container
+ */
 export default async function YourFoodsPage({
     params,
 }: {

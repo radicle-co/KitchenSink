@@ -93,7 +93,6 @@
         "packages/apps/commise/features/recipes/src/form/RecipeIngredientsFields.native.tsx": 23,
         "packages/apps/commise/features/recipes/src/form/RecipeInstructionsFields.native.tsx": 21,
         "packages/apps/commise/features/recipes/src/form/RecipeVisibilityField.native.tsx": 29,
-        "packages/apps/commise/features/recipes/src/form/RecipeVisibilityStatement.native.tsx": 8,
         "packages/apps/commise/features/recipes/src/form/formSectionStyles.native.ts": 9,
         "packages/apps/commise/features/recipes/src/import/ImportFlaggedList.native.tsx": 20,
         "packages/apps/commise/features/recipes/src/import/ImportLineList.native.tsx": 4,

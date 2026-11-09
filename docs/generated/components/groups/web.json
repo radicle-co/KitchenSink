@@ -11,8 +11,8 @@
         "implementationsWithModuleDoc": 65,
         "implementationsWithComponentDoc": 62,
         "documentedProps": 66,
-        "classifiedComponents": 37,
-        "componentsWithPatternTag": 32,
+        "classifiedComponents": 39,
+        "componentsWithPatternTag": 34,
         "crossPlatformComponents": 0
     },
     "components": [
@@ -359,8 +359,10 @@
             "packageName": "@commise/web",
             "layer": "app",
             "dir": "packages/apps/commise/web/src/app/[locale]/foods/[foodId]",
-            "kind": "unclassified",
-            "patterns": [],
+            "kind": "orchestration",
+            "patterns": [
+                "Facade — one route over the auth gate and the client container"
+            ],
             "platforms": [
                 "web"
             ],
@@ -375,8 +377,13 @@
                     "dir": "packages/apps/commise/web/src/app/[locale]/foods/[foodId]",
                     "moduleDoc": "",
                     "moduleTags": [],
-                    "description": "The author's food page (`/[locale]/foods/[foodId]`). A thin server page: it enforces sign-in and hands the id and\nlocale to the client container, which reads the food and draws one of the page's twelve states. The food is not\nprefetched: its read is the cook's own and is hydration-gated on the client.\n\n⚠️ ONE-WAY DOOR: this address is linked from a refused publish and bookmarked.",
-                    "tags": [],
+                    "description": "The author's food page (`/[locale]/foods/[foodId]`). An orchestration page, a thin server page: it enforces sign-in and hands the id and\nlocale to the client container, which reads the food and draws one of the page's twelve states. The food is not\nprefetched: its read is the cook's own and is hydration-gated on the client.\n\n⚠️ ONE-WAY DOOR: this address is linked from a refused publish and bookmarked.",
+                    "tags": [
+                        {
+                            "name": "pattern",
+                            "text": "Facade — one route over the auth gate and the client container"
+                        }
+                    ],
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "default",
                     "props": [
@@ -394,7 +401,7 @@
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
                         "presentational": false,
-                        "orchestration": false
+                        "orchestration": true
                     }
                 }
             ]
@@ -406,8 +413,10 @@
             "packageName": "@commise/web",
             "layer": "app",
             "dir": "packages/apps/commise/web/src/app/[locale]/foods",
-            "kind": "unclassified",
-            "patterns": [],
+            "kind": "orchestration",
+            "patterns": [
+                "Facade — one route over the auth gate and the client container"
+            ],
             "platforms": [
                 "web"
             ],
@@ -422,8 +431,13 @@
                     "dir": "packages/apps/commise/web/src/app/[locale]/foods",
                     "moduleDoc": "",
                     "moduleTags": [],
-                    "description": "The cook’s own foods (`/[locale]/foods`), reached from Profile's \"Your foods\" row.",
-                    "tags": [],
+                    "description": "The cook’s own foods (`/[locale]/foods`), reached from Profile's \"Your foods\" row. An orchestration page: it enforces\nsign-in and hands the locale to the client container.",
+                    "tags": [
+                        {
+                            "name": "pattern",
+                            "text": "Facade — one route over the auth gate and the client container"
+                        }
+                    ],
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "default",
                     "props": [
@@ -441,7 +455,7 @@
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
                         "presentational": false,
-                        "orchestration": false
+                        "orchestration": true
                     }
                 }
             ]

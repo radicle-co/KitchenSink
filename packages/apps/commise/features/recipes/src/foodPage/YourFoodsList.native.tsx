@@ -2,6 +2,8 @@
  * @module @commise/features-recipes/foodPage — `YourFoodsList` (native): the React Native leaf of `./YourFoodsList.tsx`,
  * on the same props and words. Each row is a button naming the food and its status; the screen's one scroller is the
  * frame's. Styled with Tamagui only.
+ *
+ * Presentational: `props → JSX`.
  */
 import { useMessages } from '@commise/i18n/react';
 import { Button } from '@commise/ui/button';
@@ -52,7 +54,7 @@ export const YourFoodsList: FC<YourFoodsListProps> = ({
 
     return (
         <YStack gap="$4">
-            <YStack borderRadius="$4" backgroundColor="$paper" overflow="hidden">
+            <YStack borderRadius="$xl" backgroundColor="$paper" overflow="hidden">
                 {items.map((item) => (
                     <PressScale key={item.id} accessibilityRole="button" width="fill" onPress={() => onOpen(item.id)}>
                         <YStack minHeight={56} gap="$1" paddingHorizontal="$4" paddingVertical="$3">

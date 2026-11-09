@@ -2,6 +2,8 @@
  * @module @commise/features-recipes/foodPage — `YourFoodsRow` (native): the React Native leaf of `./YourFoodsRow.tsx`. The
  * same 56 pt row with an 8 pt steel dot when a staff decision is waiting; the row's accessible name is "Your foods, 1 new
  * decision". Styled with Tamagui only.
+ *
+ * Presentational: `props → JSX`.
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { Icon } from '@commise/ui/icon';
@@ -27,7 +29,7 @@ export const YourFoodsRow: FC<YourFoodsRowProps> = ({ unseenDecisions, onPress }
                     {m.profileRow}
                 </DesignText>
                 {unseenDecisions > 0 ? (
-                    <YStack aria-hidden width={8} height={8} borderRadius={4} backgroundColor="$action" />
+                    <YStack aria-hidden width={8} height={8} borderRadius="$full" backgroundColor="$action" />
                 ) : null}
                 <Icon name="chevronRight" size={20} tone="inkMuted" />
             </XStack>

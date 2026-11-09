@@ -8,7 +8,7 @@
         "missing-module-doc": 23,
         "platform-singleton": 98,
         "ref-api": 19,
-        "unclassified-layer": 95,
+        "unclassified-layer": 93,
         "undocumented-prop": 210
     },
     "findings": [
@@ -5214,14 +5214,6 @@
             "evidence": []
         },
         {
-            "rule": "unclassified-layer",
-            "severity": "gap",
-            "component": "web/app/[locale]/foods/[foodId]/FoodPage",
-            "sourcePath": "packages/apps/commise/web/src/app/[locale]/foods/[foodId]/page.tsx",
-            "message": "no docblock says whether this is a presentational or an orchestration component",
-            "evidence": []
-        },
-        {
             "rule": "undocumented-prop",
             "severity": "gap",
             "component": "web/app/[locale]/foods/[foodId]/FoodPage",
@@ -5237,14 +5229,6 @@
             "component": "web/app/[locale]/foods/YourFoodsPage",
             "sourcePath": "packages/apps/commise/web/src/app/[locale]/foods/page.tsx",
             "message": "the file has no module docblock",
-            "evidence": []
-        },
-        {
-            "rule": "unclassified-layer",
-            "severity": "gap",
-            "component": "web/app/[locale]/foods/YourFoodsPage",
-            "sourcePath": "packages/apps/commise/web/src/app/[locale]/foods/page.tsx",
-            "message": "no docblock says whether this is a presentational or an orchestration component",
             "evidence": []
         },
         {

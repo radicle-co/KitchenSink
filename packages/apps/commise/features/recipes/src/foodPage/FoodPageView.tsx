@@ -61,7 +61,7 @@ export const FoodPageView: FC<FoodPageViewProps> = (props) => {
     }
 };
 
-/** A state that has a food to show. */
+/** A state that has a food to show. Presentational: `props → JSX`. */
 const FoodShown: FC<FoodPageViewProps & { readonly state: FoodShownState }> = ({
     state,
     ask,

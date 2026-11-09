@@ -17686,7 +17686,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/recipes/src/foodPage/FoodPageView.native.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/foodPage",
-                    "moduleDoc": "@commise/features-recipes/foodPage — `FoodPageView` (native): the React Native leaf of `./FoodPageView.tsx`, on\nthe same props and the same `foodPageCopyOf` words. Styled with Tamagui only.\n\nTranslation, not a port (private foods spec section 9): on a phone the actions stack full width at the end of the\ncontent, before Withdraw, where the thumb is; from 600 dp they sit under the status panel in a row. Nothing depends on\nhover. The frame (back, title) is the screen's, so this is the body.",
+                    "moduleDoc": "@commise/features-recipes/foodPage — `FoodPageView` (native): the React Native leaf of `./FoodPageView.tsx`, on\nthe same props and the same `foodPageCopyOf` words. Styled with Tamagui only.\n\nTranslation, not a port (private foods spec section 9): on a phone the actions stack full width at the end of the\ncontent, before Withdraw, where the thumb is; from 600 dp they sit under the status panel in a row. Nothing depends on\nhover. The frame (back, title) is the screen's, so this is the body.\n\nPresentational: `props → JSX`; every read, mutation and navigation is the session's (`useFoodPage`).",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -17809,7 +17809,7 @@
                     "usesRefApi": [],
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
-                        "presentational": false,
+                        "presentational": true,
                         "orchestration": false
                     }
                 }
@@ -17938,7 +17938,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/recipes/src/foodPage/YourFoodsList.native.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/foodPage",
-                    "moduleDoc": "@commise/features-recipes/foodPage — `YourFoodsList` (native): the React Native leaf of `./YourFoodsList.tsx`,\non the same props and words. Each row is a button naming the food and its status; the screen's one scroller is the\nframe's. Styled with Tamagui only.",
+                    "moduleDoc": "@commise/features-recipes/foodPage — `YourFoodsList` (native): the React Native leaf of `./YourFoodsList.tsx`,\non the same props and words. Each row is a button naming the food and its status; the screen's one scroller is the\nframe's. Styled with Tamagui only.\n\nPresentational: `props → JSX`.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -18030,7 +18030,7 @@
                     "usesRefApi": [],
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
-                        "presentational": false,
+                        "presentational": true,
                         "orchestration": false
                     }
                 }
@@ -18110,7 +18110,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/recipes/src/foodPage/YourFoodsRow.native.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/foodPage",
-                    "moduleDoc": "@commise/features-recipes/foodPage — `YourFoodsRow` (native): the React Native leaf of `./YourFoodsRow.tsx`. The\nsame 56 pt row with an 8 pt steel dot when a staff decision is waiting; the row's accessible name is \"Your foods, 1 new\ndecision\". Styled with Tamagui only.",
+                    "moduleDoc": "@commise/features-recipes/foodPage — `YourFoodsRow` (native): the React Native leaf of `./YourFoodsRow.tsx`. The\nsame 56 pt row with an 8 pt steel dot when a staff decision is waiting; the row's accessible name is \"Your foods, 1 new\ndecision\". Styled with Tamagui only.\n\nPresentational: `props → JSX`.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -18153,7 +18153,7 @@
                     "usesRefApi": [],
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
-                        "presentational": false,
+                        "presentational": true,
                         "orchestration": false
                     }
                 }

@@ -12,6 +12,7 @@ import { Button } from '@commise/ui/button';
 import { LoadingNotice } from '@commise/ui/loading-notice';
 import { StateNotice } from '@commise/ui/state-notice';
 import { StatusBadge } from '@commise/ui/status-badge';
+import { surfaceToneClass } from '@commise/ui/surface-tone';
 import type { FC } from 'react';
 
 import { badgesOf } from './foodPageCopy.js';
@@ -50,7 +51,10 @@ export const YourFoodsList: FC<YourFoodsListProps> = ({
 
     return (
         <div className="flex flex-col gap-4">
-            <ul className="flex flex-col divide-y divide-line-divider overflow-hidden rounded-xl bg-paper">
+            <ul
+                className={`flex flex-col divide-y divide-line-divider overflow-hidden rounded-xl ${surfaceToneClass('paper')}`}
+                role="list"
+            >
                 {items.map((item) => (
                     <li key={item.id}>
                         <a

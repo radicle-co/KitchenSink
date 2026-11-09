@@ -6,6 +6,8 @@
  * content, before Withdraw, where the thumb is; from 600 dp they sit under the status panel in a row. Nothing depends on
  * hover. The frame (back, title) is the screen's, so this is the body.
  *
+ * Presentational: `props → JSX`; every read, mutation and navigation is the session's (`useFoodPage`).
+ *
  * @pattern Visitor — an exhaustive switch over the `FoodPageState` union
  */
 import { offlineNoticeMessages } from '@commise/features-core/offline';
@@ -64,7 +66,7 @@ export const FoodPageView: FC<FoodPageViewProps> = (props) => {
     }
 };
 
-/** A state that has a food to show. */
+/** A state that has a food to show. Presentational: `props → JSX`. */
 const FoodShown: FC<FoodPageViewProps & { readonly state: FoodShownState }> = ({
     state,
     ask,
@@ -133,7 +135,7 @@ const FoodShown: FC<FoodPageViewProps & { readonly state: FoodShownState }> = ({
             </XStack>
 
             {copy.statement === undefined ? null : (
-                <YStack gap="$1" borderRadius="$3" backgroundColor="$paper" padding="$4">
+                <YStack gap="$1" borderRadius="$lg" backgroundColor="$paper" padding="$4">
                     <DesignText typeRole="cardTitle" color="$ink">
                         {copy.statement}
                     </DesignText>
@@ -223,7 +225,7 @@ const FoodShown: FC<FoodPageViewProps & { readonly state: FoodShownState }> = ({
     );
 };
 
-/** One action of the panel: the primary is the one filled control. */
+/** One action of the panel: the primary is the one filled control. Presentational: `props → JSX`. */
 const ActionButton: FC<{
     readonly action: FoodAction;
     readonly label: string;

@@ -248,13 +248,6 @@ const KNOWN_UNRUN_FLOWS: readonly string[] = [
     // Maestro tier is watched, once an emulator run has passed them.
     'auth/keyboardReveal',
     'recipes/refusedPublishField',
-    // The pinned ingredients bar (owner ruling R1, `docs/plans/2026-11-08-pinnedIngredientsBar.md`): the bar shows only once the
-    // ingredients card has scrolled ABOVE the top of the screen, and every seeded recipe is too short for that (three or four
-    // short steps: on the 1080x2400 emulator the lamb's card still ends 230 px below the top at the end of the page). The flow's
-    // open, tick, close and "the card shows the tick" half PASSED on Android with the bar forced on (2026-11-08, hand run); its
-    // scroll-driven appearance cannot be proved on seeded data. Promote it to FLOW_PLAN once the seeded world holds a recipe
-    // with ten or more steps (a change that touches every flow asserting the recipe count, so it is not made here).
-    'recipes/pinnedIngredients',
     // A paste the server reads as stalled (plan 2026-10-15-011): only a stage whose parse worker is STOPPED says so,
     // after 360 s of nothing moving, and every planned run drives a deployed stage whose worker answers first. Hand-run on
     // a local stage without `recipe-workers`; there is no planned stage it could pass on.

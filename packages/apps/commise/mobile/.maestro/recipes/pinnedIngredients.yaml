@@ -3,38 +3,38 @@ appId: ${APP_ID}
 # The pinned ingredients bar on the recipe page (owner ruling R1, `docs/plans/2026-11-08-pinnedIngredientsBar.md`; web mirror
 # `recipeDetailPinnedIngredients.spec.ts`), on a device:
 #
-#   1. In the steps, with the ingredients card scrolled away, ONE button is pinned at the top: "Ingredients for {n}, {count}
-#      items. Show list." It is not drawn while the card is on screen.
+#   1. On the card the bar is absent; scrolled into the steps, with the ingredients card above the top of the screen, ONE button
+#      is pinned at the top: "Ingredients for {n}, {count} items. Show list."
 #   2. Tapping it opens the list under it, the servings stepper first ("Servings"), then the rows; the bar now reads Hide.
 #   3. A tick in the list is the card's tick: close the list, scroll back to the card, and the row is checked.
 #
-# The seeded lamb's lines and steps are fixed by the recipe-service seed (`detailCooking.yaml` reads the same ones).
-#
-# ⛔ NOT IN FLOW_PLAN YET (recorded in `maestroFlowSelection.test.ts`, KNOWN_UNRUN_FLOWS). The bar shows only once the card has
-# scrolled above the top of the screen, and every seeded recipe is too short for that: the lamb's card still ends 230 px below
-# the top at the end of the page. Steps 3-6 below (open, tick, close, the card's tick) PASSED on an Android emulator on
-# 2026-11-08 with the bar forced on; steps 1-2 (it is absent on the card, present in the steps) have never run. Promote the
-# flow once the seeded world holds a recipe with ten or more steps.
+# ⚠️ THE RECIPE. The bar draws only once the card has scrolled off the top, and every recipe in the seeded world is too short for
+# that, so this flow opens the signer's TALL recipe (twelve long steps), which `reset --mode library` adds alongside the filler
+# recipes (`LONG_LIBRARY_FLOWS` in runMaestroFlows.sh, `TALL_LIBRARY_RECIPE_BASE_TITLE` in e2e-seed). Its title is the base plus
+# the run key, which the manifest already supplies.
 - runFlow: ../auth/signin.yaml
 
 - assertVisible: 'My recipes'
 - runFlow:
       file: common/scrollIntoTapView.yaml
       env:
-          TARGET: '${E2E_RECIPE_LAMB}'
+          TARGET: 'Tall Library Recipe ${E2E_RUN_KEY}'
           DIRECTION: DOWN
-          TIMEOUT: 20000
-- tapOn: '${E2E_RECIPE_LAMB}'
+          TIMEOUT: 30000
+- tapOn: 'Tall Library Recipe ${E2E_RUN_KEY}'
 
 # ── THE CARD IN VIEW ── no bar yet: the cook has not scrolled past the ingredients.
-- assertNotVisible: 'Ingredients for .*Show list.*'
-
-# ── IN THE STEPS ── the bar is pinned. Centred, so the step is clear of the tab bar.
 - scrollUntilVisible:
-      element: 'Mark step 2 as current'
+      element: '3 tbsp Tomato paste.*'
       direction: DOWN
       timeout: 20000
-      centerElement: true
+- assertNotVisible: 'Ingredients for .*Show list.*'
+
+# ── IN THE STEPS ── the bar is pinned.
+- scrollUntilVisible:
+      element: 'Mark step 8 as current'
+      direction: DOWN
+      timeout: 30000
 - extendedWaitUntil:
       visible: 'Ingredients for .*Show list.*'
       timeout: 10000
@@ -46,10 +46,10 @@ appId: ${APP_ID}
       timeout: 10000
 - assertVisible: 'Servings'
 
-# ── TICK ── in the list.
-# The card's rows stay in the tree under the bar and the scrim, so the list's row is the one BELOW its Servings label.
+# ── TICK ── in the list. The card's rows stay in the tree under the bar and the scrim, so the list's row is the one BELOW its
+# Servings label.
 - tapOn:
-      text: '3 tbsp Olive oil.*'
+      text: '3 tbsp Tomato paste.*'
       below: 'Servings'
 - assertVisible: 'Ingredients for .*, 1 ticked. Hide list.*'
 
@@ -60,18 +60,18 @@ appId: ${APP_ID}
       timeout: 10000
 - assertNotVisible: 'Ingredients for .*Hide list.*'
 
-# ── THE CARD'S TICK ── back at the card, the row is checked, and the bar is gone.
+# ── THE CARD'S TICK ── back at the card, the row is checked, and the bar is gone again.
 - scrollUntilVisible:
-      element: '3 tbsp Olive oil.*'
+      element: '3 tbsp Tomato paste.*'
       direction: UP
-      timeout: 20000
+      timeout: 30000
       centerElement: true
 - runFlow:
       when:
           platform: Android
       commands:
           - assertVisible:
-                text: '3 tbsp Olive oil.*'
+                text: '3 tbsp Tomato paste.*'
                 checked: true
 - runFlow:
       when:
@@ -79,9 +79,8 @@ appId: ${APP_ID}
       commands:
           - assertVisible:
                 text: 'checkbox, checked'
-                below: '8 Lamb loin chops.*'
-                above: '3 cloves Garlic.*'
+                below: '1 cup Red wine.*'
 - assertNotVisible: 'Ingredients for .*Show list.*'
 
-# ── LEAVE THE TICK AS FOUND ── the seed is shared with other flows.
-- tapOn: '3 tbsp Olive oil.*'
+# ── LEAVE THE TICK AS FOUND ──
+- tapOn: '3 tbsp Tomato paste.*'

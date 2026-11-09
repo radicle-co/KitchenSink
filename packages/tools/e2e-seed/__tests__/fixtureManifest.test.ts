@@ -17,6 +17,7 @@ import { createRecipeRequestSchema, MAX_SEARCH_FOOD_FILTERS } from '@kitchensink
 import { describe, expect, it } from 'vitest';
 
 import {
+    TALL_LIBRARY_RECIPE_BASE_TITLE,
     CAP_FOOD_BASE_NAME,
     deriveAmbiguityProbe,
     deriveFixtureManifest,
@@ -659,5 +660,26 @@ describe('the ambiguity probe', () => {
     it('is frozen, lines and all, like the rest of the manifest', () => {
         expect(Object.isFrozen(probe)).toBe(true);
         expect(Object.isFrozen(probe.ingredients)).toBe(true);
+    });
+});
+
+describe('the tall library recipe (the pinned ingredients bar needs a card that can scroll off the screen)', () => {
+    const manifest = deriveFixtureManifest('pr-91-android-1', 'android', 1);
+    const tall = manifest.libraryFillers.find((recipe) => recipe.baseTitle === TALL_LIBRARY_RECIPE_BASE_TITLE);
+
+    it('is in the library set, so only the long-library flows hold it and every other flow still counts three recipes', () => {
+        expect(tall).toBeDefined();
+        expect(manifest.recipes.map((recipe) => recipe.baseTitle)).not.toContain(TALL_LIBRARY_RECIPE_BASE_TITLE);
+    });
+
+    it("is the signer's, private, and run-scoped, so a lane never reads another run's", () => {
+        expect(tall?.owner).toBe('signer');
+        expect(tall?.visibility).toBe('private');
+        expect(tall?.title).toBe(`${TALL_LIBRARY_RECIPE_BASE_TITLE} pr-91-android-1`);
+    });
+
+    it('is tall: ten or more long steps, so the ingredients card can scroll off a 2400 px screen', () => {
+        expect(tall?.steps.length).toBeGreaterThanOrEqual(10);
+        expect(tall?.steps.every((step) => step.instruction.length >= 120)).toBe(true);
     });
 });

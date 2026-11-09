@@ -242,6 +242,10 @@ describe('the private-food recipe', () => {
     // signer cannot read could not serve either flow.
     it('is the signer’s public DRAFT, so the refusal flow can open it and press Publish', () => {
         expect(manifest.privateFoodRecipe).toMatchObject({ owner: 'signer', visibility: 'public', status: 'draft' });
+        // The Maestro list flows wait for `^4 recipes$` on the signer's library: the three seeded and this public draft.
+        expect(
+            [...manifest.recipes, manifest.privateFoodRecipe].filter((recipe) => recipe.owner === 'signer'),
+        ).toHaveLength(4);
     });
 
     it('has exactly one line — 2 tbsp of the private food — which is the label the flow asserts', () => {

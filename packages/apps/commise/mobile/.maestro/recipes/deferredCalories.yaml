@@ -43,7 +43,7 @@ appId: ${APP_ID}
 # one label that distinguishes a loaded list from a hung one (see `listDetail.yaml`'s note).
 - extendedWaitUntil:
       visible:
-          text: '^3 recipes$'
+          text: '^4 recipes$'
       timeout: 40000
 
 # ⛔ THE ASSERTION. The calorie placeholder must be GONE within a bound. The client puts a hard 12s deadline

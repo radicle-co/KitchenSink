@@ -533,10 +533,10 @@ MAESTRO_DRIVER_PACKAGE="dev.mobile.maestro"
 
 EMPTY_LIBRARY_FLOWS=" recipes/emptyLibrary "
 # The flows whose reset also seeds the gate-AMBIGUOUS probe recipe (`reset.ts --mode ambiguity`). Only these hold it, so
-# every other flow's `^3 recipes$` count stays true (plan 013 C3, owner decision 2026-10-19).
+# every other flow's `^4 recipes$` count stays true (plan 013 C3, owner decision 2026-10-19).
 AMBIGUITY_FLOWS=" recipes/ambiguityReview "
 # The flows whose reset adds the signer's filler recipes (`reset.ts --mode library`): the one flow that needs a Recipes list
-# longer than a screen. Only these hold them, so every other flow's `^3 recipes$` count stays true.
+# longer than a screen. Only these hold them, so every other flow's `^4 recipes$` count stays true.
 LONG_LIBRARY_FLOWS=" recipes/headerScrollsAway "
 
 # Where `e2e-seed provision` writes this run's fixture MANIFEST, and how it reaches the flows.

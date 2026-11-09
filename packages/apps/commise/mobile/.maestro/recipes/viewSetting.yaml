@@ -20,7 +20,7 @@ appId: ${APP_ID}
 
 - extendedWaitUntil:
       visible:
-          text: '^3 recipes$'
+          text: '^4 recipes$'
       timeout: 40000
 
 # Chosen: the switch shows the choice at once, and no failure is reported.
@@ -37,7 +37,7 @@ appId: ${APP_ID}
 - runFlow: ../auth/signin.yaml
 - extendedWaitUntil:
       visible:
-          text: '^3 recipes$'
+          text: '^4 recipes$'
       timeout: 40000
 - runFlow:
       file: common/assertViewChecked.yaml

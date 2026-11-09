@@ -45,10 +45,12 @@ appId: ${APP_ID}
       visible: 'This recipe can’t be public yet'
       timeout: 20000
 - assertVisible: '.*1 ingredient uses a food only you can see.*'
-- assertVisible: 'Open food'
+# The button's accessible name starts with its visible words: "Open food: {line}" (spec 7.2). A full-text selector on the
+# bare words no longer matches it on iOS, where the label replaces the text, so the name is matched as a pattern.
+- assertVisible: 'Open food: .*'
 
 # Open food pushes the food page above the editor.
-- tapOn: 'Open food'
+- tapOn: 'Open food: .*'
 - extendedWaitUntil:
       visible: '${E2E_PRIVATE_FOOD_NAME}'
       timeout: 20000
@@ -60,3 +62,11 @@ appId: ${APP_ID}
       visible: 'Close editor'
       timeout: 20000
 - assertNotVisible: 'Discard'
+
+# ⛔ LEAVE THE EDITOR, so the next flow does not start on this one's open editor. The flows launch the app WITHOUT clearing
+# its state (`signinHome.yaml`), so whatever this flow leaves open or unsaved is what `askToMakeFoodPublic` meets. Closing
+# the editor checkpoints the exit and returns to the recipe; the draft stays on the device, as it does for any cook.
+- tapOn: 'Close editor'
+- extendedWaitUntil:
+      notVisible: 'Close editor'
+      timeout: 20000

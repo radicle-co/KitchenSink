@@ -125,7 +125,7 @@ export type FixtureRecipeKey =
  * `discoverDetailSaveCopy` saves a copy of it and then lands in the COPY's editor, which only its owner can open, and
  * `rating`'s docblock says it uses a recipe the signer does not own "so the own-recipe gate, Sc8, is NOT
  * engaged". No amount of seeding under one identity produces "a recipe you do not own". The other three are
- * the signer's, which is what makes `searchNavigation`'s "3 recipes" true.
+ * the signer's, which, with the signer's public draft (`PRIVATE_FOOD_RECIPE`), is what makes `searchNavigation`'s "4 recipes" true.
  */
 export const SEED_WORLD: readonly FixtureRecipeDefinition[] = [
     {
@@ -365,7 +365,7 @@ export const AMBIGUITY_GATE_MEASUREMENT = Object.freeze({
  * lists are held off those words by `remoteProbeWords.test.ts`. ⛔ Nor may a line name what a candidate is MADE of:
  * `2 tbsp olive oil` read RESOLVED against `tzatziki`. Every pair is one {@link AMBIGUITY_GATE_MEASUREMENT} measured.
  *
- * ⛔ NOT IN {@link SEED_WORLD}, and not in `manifest.recipes`. Every other flow asserts `^3 recipes$` on the signer's
+ * ⛔ NOT IN {@link SEED_WORLD}, and not in `manifest.recipes`. Every other flow asserts `^4 recipes$` on the signer's
  * library. `planWorldReset` therefore treats the probe as residue in every mode, BY ITS TITLE, which is why the title is
  * the manifest's and never carries the word. `reset --mode ambiguity` creates it AFTER the reconcile, for the one flow
  * that opens it. The pick is a real write (a new version with the line re-pointed), so the probe cannot be kept between
@@ -417,7 +417,7 @@ const LIBRARY_FILLER_BASE_TITLE = 'Long Library Filler';
 /**
  * The signer's filler recipes, for `reset --mode library` and `recipes/headerScrollsAway` alone.
  *
- * ⛔ NOT IN {@link SEED_WORLD}, and not in `manifest.recipes`. Every other flow asserts `^3 recipes$` on the signer's
+ * ⛔ NOT IN {@link SEED_WORLD}, and not in `manifest.recipes`. Every other flow asserts `^4 recipes$` on the signer's
  * library, so `planWorldReset` treats the fillers as residue in every mode but `library`, BY THEIR TITLES.
  *
  * Private, so none shows in a Discover rail, and one line each over a food the lamb already authors.

@@ -457,3 +457,6 @@ wrong, because Try again sends the same publish and gets the same refusal.
 2. The problem stays visible in the places the spec already gives it: the sections bar "⚠ 1" and the row's attention
    line "Private food. A public recipe can't use it." Nothing new is added.
 3. Publish and Save changes stay enabled. Pressing either again opens the refusal sheet again.
+4. A refused write that waits in the outbox is never offered again with Try again. When the cook changes the draft
+   (for example, removes the private line), the next Publish or Save changes sends the current draft, and the refused
+   write is dropped. A refusal never leads to the general save-failure notice, in any order of steps.

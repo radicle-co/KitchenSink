@@ -17,6 +17,7 @@ import { RecipeServiceProvider } from '@kitchensink/recipe-service-client/hooks'
 import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-client/testing';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, cleanup, fireEvent, renderHook, screen, within } from '@testing-library/react';
+import { AccessibilityInfo } from 'react-native';
 import { useState, type FC, type ReactElement, type ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -198,6 +199,52 @@ describe('the pinned ingredients bar (native)', () => {
         expect(
             screen.getAllByRole('checkbox', { name: /ingredient 2/u }).map((row) => row.getAttribute('aria-checked')),
         ).toEqual(['true', 'true']);
+    });
+
+    it('moves the screen-reader cursor into the list on open, and back to the bar on close', () => {
+        render(<Page />);
+
+        const send = vi.mocked(AccessibilityInfo.sendAccessibilityEvent);
+
+        send.mockClear();
+        fireEvent.click(bar('Show'));
+
+        const panel = screen.getByRole('dialog', { name: 'Ingredients for 4' });
+
+        expect(send).toHaveBeenCalledTimes(1);
+        expect(send).toHaveBeenLastCalledWith(expect.anything(), 'focus');
+        // The first thing in the list, "Servings", takes the cursor.
+        const target: unknown = send.mock.calls[0]?.[0];
+
+        expect(target instanceof Node && panel.contains(target)).toBe(true);
+
+        send.mockClear();
+        fireEvent.click(bar('Hide'));
+
+        expect(send).toHaveBeenCalledTimes(1);
+        expect(send.mock.calls[0]?.[0]).toBe(bar('Show'));
+    });
+
+    it('holds a screen reader inside the list while it is open (a modal overlay), and not before', () => {
+        render(<Page />);
+
+        expect(document.querySelectorAll('[aria-modal="true"]')).toHaveLength(0);
+
+        fireEvent.click(bar('Show'));
+
+        expect(document.querySelectorAll('[aria-modal="true"]').length).toBeGreaterThan(0);
+
+        fireEvent.click(bar('Hide'));
+
+        expect(document.querySelectorAll('[aria-modal="true"]')).toHaveLength(0);
+    });
+
+    it('lets the list enter with the shared enter transition (instant under reduced motion)', () => {
+        render(<Page startOpen />);
+
+        const panel = screen.getByRole('dialog', { name: 'Ingredients for 4' });
+
+        expect(panel.querySelector('[style*="opacity"]')).not.toBeNull();
     });
 
     it('caps the bar text at 1.5x at a system text scale of 3.1: chrome never draws larger than the page title', () => {

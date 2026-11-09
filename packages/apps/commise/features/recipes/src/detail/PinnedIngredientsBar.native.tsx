@@ -20,10 +20,12 @@
 import { useBackIntercept } from '@commise/ui/back-intercept';
 import { Icon } from '@commise/ui/icon';
 import { useBottomEdge } from '@commise/ui/layout';
+import { EnterTransition } from '@commise/ui/motion';
 import { PressScale } from '@commise/ui/press-scale';
+import { useScreenReaderFocusOnSignal } from '@commise/ui/screen-reader-focus';
 import { Text } from '@commise/ui/text';
-import type { FC, ReactNode } from 'react';
-import { ScrollView } from 'react-native';
+import { useState, type FC, type ReactNode } from 'react';
+import { ScrollView, type View as NativeView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { styled, View, XStack, YStack } from 'tamagui';
 
@@ -107,6 +109,15 @@ const CloseOnBack: FC<{ readonly onBack: () => void }> = ({ onBack }) => {
     return null;
 };
 
+/** The opened list: a dialog, its contents entering as a section does. The list's own first element takes the cursor. */
+const OpenList: FC<{ readonly name: string; readonly children: ReactNode }> = ({ name, children }) => (
+    <Panel role="dialog" aria-label={name}>
+        <ScrollView keyboardShouldPersistTaps="handled">
+            <EnterTransition>{children}</EnterTransition>
+        </ScrollView>
+    </Panel>
+);
+
 /**
  * The pinned bar, its scrim and its list. Orchestration of its own back-press seam: whether the list is open is the
  * shell's, handed in as props.
@@ -116,12 +127,25 @@ export const PinnedIngredientsBar: FC<
 > = ({ facts, open, onOpenChange, scrimLabel, children }) => {
     const { top } = useSafeAreaInsets();
     const bottomEdge = useBottomEdge();
+    // The list's close takes the cursor back to the bar, which stays mounted: a counter of closes is the signal.
+    const [wasOpen, setWasOpen] = useState(open);
+    const [closes, setCloses] = useState(0);
+    const barNode = useScreenReaderFocusOnSignal<NativeView>(closes);
+
+    if (wasOpen !== open) {
+        setWasOpen(open);
+
+        if (!open) {
+            setCloses((count) => count + 1);
+        }
+    }
 
     return (
-        <Overlay bottom={bottomEdge}>
+        <Overlay bottom={bottomEdge} aria-modal={open}>
             {open && <Scrim role="button" aria-label={scrimLabel} onPress={() => onOpenChange(false)} />}
             <Column paddingTop={top + 8}>
                 <PressScale
+                    ref={barNode}
                     onPress={() => onOpenChange(!open)}
                     accessibilityRole="button"
                     accessibilityLabel={facts.name}
@@ -148,11 +172,7 @@ export const PinnedIngredientsBar: FC<
                         </Well>
                     </BarFrame>
                 </PressScale>
-                {open && (
-                    <Panel role="dialog" aria-label={facts.dialogName}>
-                        <ScrollView keyboardShouldPersistTaps="handled">{children}</ScrollView>
-                    </Panel>
-                )}
+                {open && <OpenList name={facts.dialogName}>{children}</OpenList>}
             </Column>
             {open && <CloseOnBack onBack={() => onOpenChange(false)} />}
         </Overlay>

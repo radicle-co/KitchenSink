@@ -26,7 +26,7 @@ import { useLocale, useMessages } from '@commise/i18n/react';
 import { KeepAwakeToggle } from '@commise/ui/keep-awake';
 import { LiveRegion } from '@commise/ui/live-region';
 import { RefreshNotice } from '@commise/ui/refresh-notice';
-import { useScreenReaderFocusOnSignal } from '@commise/ui/screen-reader-focus';
+import { useScreenReaderFocusOnMount, useScreenReaderFocusOnSignal } from '@commise/ui/screen-reader-focus';
 import { scaleRecipeForServings } from '@kitchensink/recipe-core/scaling';
 import type { FC, ReactElement } from 'react';
 import { ScrollView, View } from 'react-native';
@@ -52,6 +52,19 @@ import { PinnedIngredientsBar } from './PinnedIngredientsBar.native.js';
 import { RecipeHero } from './RecipeHero.native.js';
 import { RecipeSourceLine } from './RecipeSourceLine.native.js';
 import { ServingScaleControl } from './ServingScaleControl.js';
+
+/** "Servings", the first thing in the opened list: it takes the screen-reader cursor when the list opens. */
+const PinnedServingsLabel: FC<{ readonly text: string }> = ({ text }) => {
+    const label = useScreenReaderFocusOnMount<View>();
+
+    return (
+        <View ref={label} accessible accessibilityRole="header">
+            <Text typeRole="meta" color="$inkMuted">
+                {text}
+            </Text>
+        </View>
+    );
+};
 
 /**
  * The pure `props → JSX` detail render. Everything it shows for a chosen serving count comes from
@@ -262,6 +275,8 @@ export const RecipeDetailBody: FC<RecipeDetailBodyNativeProps> = ({
                 keyboardShouldPersistTaps="handled"
                 onScroll={onScroll}
                 scrollEventThrottle={16}
+                // Android: while the list is open the page behind it is not for a screen reader (iOS: the overlay is modal).
+                importantForAccessibility={pinnedIngredients.open ? 'no-hide-descendants' : 'auto'}
             >
                 {children}
             </ScrollView>
@@ -281,9 +296,7 @@ export const RecipeDetailBody: FC<RecipeDetailBodyNativeProps> = ({
                     scrimLabel={detail.pinnedScrimClose}
                 >
                     <PinnedServingsRow>
-                        <Text typeRole="meta" color="$inkMuted">
-                            {detail.servingsAdjustLabel}
-                        </Text>
+                        <PinnedServingsLabel text={detail.servingsAdjustLabel} />
                         <ServingScaleControl
                             servings={servings}
                             baseServings={recipe.servings}

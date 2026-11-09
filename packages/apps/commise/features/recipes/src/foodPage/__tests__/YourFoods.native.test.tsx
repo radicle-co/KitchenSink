@@ -46,6 +46,23 @@ describe('YourFoodsRow (native)', () => {
         expect(screen.getByRole('button', { name: 'Your foods, 1 new decision' })).toBeTruthy();
     });
 
+    /** The dot is the only 8 by 8 box in the row; it is hidden from assistive tech (the name carries the count). */
+    const dotsIn = (container: HTMLElement) =>
+        [...container.querySelectorAll<HTMLElement>('[aria-hidden="true"]')].filter((node) => {
+            const style = getComputedStyle(node);
+
+            return style.width === '8px' && style.height === '8px';
+        });
+
+    it('draws exactly one 8 px dot with a decision waiting, and none without', () => {
+        const waiting = render(<YourFoodsRow unseenDecisions={1} onPress={vi.fn()} />);
+        expect(dotsIn(waiting.container)).toHaveLength(1);
+        cleanup();
+
+        const quiet = render(<YourFoodsRow unseenDecisions={0} onPress={vi.fn()} />);
+        expect(dotsIn(quiet.container)).toHaveLength(0);
+    });
+
     it('pluralises: 3 new decisions', () => {
         render(<YourFoodsRow unseenDecisions={3} onPress={vi.fn()} />);
 

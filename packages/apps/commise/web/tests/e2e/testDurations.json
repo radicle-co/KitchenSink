@@ -98,6 +98,7 @@
     "chromium › foodPage.spec.ts › the author’s food page › a food that is not the cook’s reads \"Food not found\" and says nothing about why": 2500,
     "chromium › foodPage.spec.ts › the author’s food page › asks to make a private food public and shows it waiting for review": 3000,
     "chromium › foodPage.spec.ts › the author’s food page › withdraws the food after confirming, and the page says so": 3000,
+    "chromium › publishRefusedPrivateFood.spec.ts › publish refused for a private food › the refusal opens the food in a new tab and Back to editor leaves the draft in place": 4000,
     "chromium › headingOutline.spec.ts › heading outline of the card lists (W-09) › Collections: the collection cards are H2 under the page’s H1": 3169,
     "chromium › headingOutline.spec.ts › heading outline of the card lists (W-09) › Discover: the results are H2 under the H1, and a rail’s cards are H3 under the rail’s H2": 3772,
     "chromium › headingOutline.spec.ts › heading outline of the card lists (W-09) › Home: the recent recipes are H3 under the widget’s H2": 2931,

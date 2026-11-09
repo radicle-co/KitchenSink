@@ -454,6 +454,10 @@ settled there is asked again.
 - **FR-026**: A public photo MUST be a derived image with its metadata stripped (`021-FR-071`). Until a stripped
   full-size image exists, the public forms carry the thumbnail only, and a photo with no thumbnail is left out. The
   original upload MUST never be served, because it can carry GPS data.
+- **FR-027**: A signed-out visitor at the in-app recipe address MUST be sent to the public address only when the public
+  read answers that the recipe is open. Otherwise today's sign-in redirect, with its return path, MUST stay. _Sequencing
+  note on `021-FR-018`:_ while the feature ships dark, every public read is not available, so an unconditional redirect
+  would cut off the path a signed-out visitor uses today to sign in and read a public recipe.
 
 ### Non-Functional Requirements _(constitution-derived)_
 
@@ -545,7 +549,9 @@ Each has a default the plan builds, so none blocks the build.
   reader's browser language, or the recipe's?
 - **Q4. A rate-limit exemption from the web server to the API.** Vercel's server fetches come from shared addresses. The
   default sends a header that lifts only the API's per-address limit and grants no read. Is that within your FR-106
-  rule against a machine credential on the web tier, or must the web server live with the limit?
+  rule against a machine credential on the web tier, or must the web server live with the limit? What "no" costs: the
+  page renders then share the WAF's per-address buckets, so the API limit must be set high enough for all of Vercel's
+  renders together. That limit then also applies to each phone, which makes the native limit much weaker.
 - **Q5. What "Save" means.** In 003A there is no plain "Save", only "Save a copy" (a draft the reader owns) and "Rate".
   The UX recommendation for later is a private bookmark: always private, uses no slot, shows "No longer available" if
   the cook removes the recipe. It is a new entity and a one-way door, so it needs your ruling.

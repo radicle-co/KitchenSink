@@ -20,12 +20,16 @@ https://commise.app/recipe/{id}/{slug}
 - One parser, `parsePublicRecipePath`, is the authority. The web route, the middleware exclusion, the native gate, the
   native linking config and the association files' path list all use it or its exported prefix.
 
-The in-app address `/{locale}/recipes/{id}` is unchanged. A signed-out visitor there is sent to `/recipe/{id}`, which
-then answers `308` or `404` as above (`021-FR-018`).
+The in-app address `/{locale}/recipes/{id}` is unchanged. For a signed-out visitor there, the recipe detail page asks
+the public read. On `200` it redirects to the canonical `/recipe/{id}/{slug}` (`021-FR-018`). On anything else it keeps
+today's sign-in redirect with its return path (spec FR-027), so the dark build never cuts off today's path to a public
+recipe.
 
 ## The page shell
 
-`app/recipe/layout.tsx` is a second root layout with no `ClerkProvider`, so nothing on a public page can start a Clerk
+The web app has no `app/layout.tsx`. `[locale]/layout.tsx` is a root layout and mounts `ClerkProvider` through
+`appDocument.tsx`. So `app/recipe/layout.tsx` can be a second root layout with no `ClerkProvider`, and no route group is
+needed. It renders a variant of the document shell without Clerk, so nothing on a public page can start a Clerk
 session or set a Clerk cookie. Signed-in extras load through `React.lazy` only when a Clerk cookie already exists.
 
 ## The sign-up return

@@ -165,7 +165,11 @@ for (const width of [430, 375]) {
             const panel = page.getByRole('dialog', { name: 'Ingredients for 4' });
 
             await expect(panel).toBeVisible();
-            await expect(page.getByRole('button', { name: /Hide list\.$/u })).toHaveAttribute('aria-expanded', 'true');
+            // Inside the dialog the bar face is a plain close button: no expanded state, no popup claim.
+            const hideBar = page.getByRole('button', { name: /Hide list\.$/u });
+
+            await expect(hideBar).not.toHaveAttribute('aria-expanded');
+            await expect(hideBar).not.toHaveAttribute('aria-haspopup');
             // The servings stepper is the first control in the panel, never in the bar.
             await expect(panel.getByRole('group', { name: 'Servings' })).toBeVisible();
 
@@ -215,8 +219,12 @@ for (const width of [430, 375]) {
             // The scrim closes it: pressed in the 12 px beside the panel, clear of the bar and the tab bar.
             await page.getByRole('button', { name: /Show list\.$/u }).click();
             await expect(panel).toBeVisible();
-            await page.mouse.click(5, 400);
-            await expect(panel).toBeHidden();
+            // Radix arms its outside-press listener a tick after the content mounts, and a scripted click can beat it on a
+            // cold page: press again until the list closes, rather than assume the listener is ready.
+            await expect(async () => {
+                await page.mouse.click(5, 400);
+                await expect(panel).toBeHidden({ timeout: 1000 });
+            }).toPass({ timeout: 8000 });
 
             // Escape closes it, and focus goes back to the bar.
             await page.getByRole('button', { name: /Show list\.$/u }).click();

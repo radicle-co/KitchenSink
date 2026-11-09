@@ -16,6 +16,8 @@ export interface FoodStatePanelCopy {
 /** The food page's copy. */
 export interface FoodPageMessages {
     readonly titleFallback: string;
+    /** The pinned Back: a food opens in a new tab with no history, so it goes to My recipes. */
+    readonly back: { readonly label: string; readonly parent: string };
     readonly loading: string;
     readonly notFound: { readonly title: string; readonly body: string; readonly toRecipes: string };
     readonly error: { readonly title: string; readonly retry: string };
@@ -85,6 +87,7 @@ export interface FoodPageMessages {
 export const foodPageMessages: LocalizedMessages<FoodPageMessages> = {
     en: {
         titleFallback: 'Food',
+        back: { label: 'Back to My recipes', parent: 'My recipes' },
         loading: 'Loading food',
         notFound: {
             title: 'Food not found',

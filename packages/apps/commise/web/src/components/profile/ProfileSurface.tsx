@@ -33,12 +33,14 @@ import {
     profileMessages,
     useProfileScreen,
 } from '@commise/features-account/profile';
+import { YourFoodsRow, foodPageMessages } from '@commise/features-recipes/food-page';
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { LargeTitleHeader, type HeaderBack } from '@commise/ui/large-title-header';
 import { PushedPageFrame } from '@commise/ui/pushed-page';
 import type { Route } from 'next';
 import { useRouter } from 'next/navigation';
 import { useMutation } from '@tanstack/react-query';
+import { useOwnFoods } from '@kitchensink/food-service-client/hooks';
 import { SETTINGS_DEFAULTS } from '@kitchensink/schema-identity';
 import { useId, type FC } from 'react';
 
@@ -54,6 +56,8 @@ import { withBasePath } from '@/lib/basePath';
 /** The Profile page. */
 export const ProfileSurface: FC = () => {
     const t = useMessages(profileMessages);
+    const foodsT = useMessages(foodPageMessages);
+    const ownFoods = useOwnFoods();
     const locale = useLocale();
     const router = useRouter();
     const headingId = useId();
@@ -67,6 +71,7 @@ export const ProfileSurface: FC = () => {
     const settings = useUserSettings();
     const patchSettings = useMutation(profileMutations(client).patchSettings());
     const sourcesPath = `/${locale}/legal/sources`;
+    const foodsPath = `/${locale}/foods`;
     const homePath = `/${locale}`;
     const back: HeaderBack = {
         label: t.backToHome,
@@ -105,6 +110,13 @@ export const ProfileSurface: FC = () => {
                             checked={settings.data?.searchShortcut ?? SETTINGS_DEFAULTS.searchShortcut}
                             // Not awaited: the cache is already updated and a paused (offline) save resumes by itself.
                             onChange={(searchShortcut) => patchSettings.mutate({ searchShortcut })}
+                        />
+                    </ProfileGroup>
+                    <ProfileGroup label={foodsT.yourFoods.title}>
+                        <YourFoodsRow
+                            unseenDecisions={ownFoods.data?.pages[0]?.unseenDecisions ?? 0}
+                            href={withBasePath(foodsPath)}
+                            onPress={() => router.push(foodsPath as Route)}
                         />
                     </ProfileGroup>
                     {patchSettings.isError ? (

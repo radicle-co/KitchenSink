@@ -294,47 +294,8 @@ describe('RecipeEditorScreen (native)', () => {
         await waitFor(() => expect(setVisibility).toHaveBeenCalledWith('rec_1', RecipeVisibility.PRIVATE));
     });
 
-    /**
-     * The same stale read for a cook whose paid features are hidden: the Private would be refused after the editor had
-     * gone, so it is not sent, and the hand-off says the recipe stayed public (the stuck-save defect).
-     */
-    // REWRITTEN for ADR-0073: a free cook's own recipe is no longer refused Private for want of Pro, so the Pro
-    // refusal is exercised on an imported public-web recipe (where it is still the rule). The slots refusal follows.
-    it('⛔ under hidden, sends no Private the server would refuse, and the hand-off says so', async () => {
-        profile.paidFeatures = 'hidden';
-        const client = createFakeRecipeServiceClient();
-        const draft = makeRecipeDetail({
-            id: 'rec_stale',
-            title: 'Ready Stew',
-            cuisine: 'Irish',
-            status: RecipeStatus.DRAFT,
-            visibility: RecipeVisibility.PRIVATE,
-            sourceType: 'imported_public',
-            currentVersion: 2,
-        });
-        vi.spyOn(client, 'getRecipeById').mockResolvedValue(draft);
-        vi.spyOn(client, 'updateRecipe').mockResolvedValue({
-            ...draft,
-            status: RecipeStatus.PUBLISHED,
-            visibility: RecipeVisibility.PUBLIC,
-            currentVersion: 3,
-        } as RecipeDetail);
-        const setVisibility = vi.spyOn(client, 'setRecipeVisibility');
-        const handlers = renderScreen(client, { recipeId: 'rec_stale' });
-
-        await screen.findByRole('heading', { name: 'Edit recipe' });
-        await act(async () => {
-            fireEvent.click(screen.getByRole('button', { name: 'Publish' }));
-        });
-
-        await waitFor(() =>
-            expect(handlers.onFinished).toHaveBeenCalledWith('rec_stale', {
-                outcome: 'firstPublish',
-                privateRefused: 'final',
-            }),
-        );
-        expect(setVisibility).not.toHaveBeenCalled();
-    });
+    // DELETED with ADR-0077 section 6: the Pro-refusal version of the stale-Private hand-off (an imported public-web recipe,
+    // paid features hidden) tested a rule that is gone. The refusal that remains (every slot used) is the case that follows.
 
     // ADR-0073, REWRITTEN for the owner ruling of 2026-10-26 (section 12): a draft holds no slot, and PUBLISHING a private
     // one takes it. With every slot KNOWN used, Publish is refused before anything is sent - the old hand-off published the
@@ -701,122 +662,62 @@ describe('RecipeEditorScreen (native) — Private (E1, private slots and Pro)', 
         });
     });
 
-    describe('an imported public-web recipe: Pro is still the rule', () => {
-        it('⛔ under upsell, the Pro sheet opens for Private, and Public stays chosen', async () => {
-            profile.paidFeatures = 'upsell';
-            await openRecipe(createFakeRecipeServiceClient(), 'rec_web_up', RecipeVisibility.PUBLIC, 'imported_public');
+    // REWRITTEN for ADR-0077 section 6: an imported public-web recipe goes private on a free slot like any other. This block
+    // proved the removed Pro rule (a Pro sheet, Private refused under hidden, a Private-less statement); each case now proves
+    // the slots behaviour instead.
+    describe('an imported public-web recipe: a slot like any other (ADR-0077 section 6)', () => {
+        it.each(['upsell', 'hidden', 'granted'] as const)(
+            '⛔ with a free slot, a cook whose paid features are %s chooses Private: no Pro sheet',
+            async (state) => {
+                profile.paidFeatures = state;
+                await openRecipe(
+                    clientWithSlots({ used: 3, limit: 50 }),
+                    `rec_web_${state}`,
+                    RecipeVisibility.PUBLIC,
+                    'imported_public',
+                );
 
-            choosePrivate();
+                choosePrivate();
 
-            expect(await screen.findByRole('heading', { name: 'Private needs Pro for this recipe' })).toBeTruthy();
-            expect(screen.getByRole('radio', { name: /^Public/u, hidden: true }).getAttribute('aria-checked')).toBe(
-                'true',
-            );
-        });
+                expect(screen.getByRole('radio', { name: /^Private/u }).getAttribute('aria-checked')).toBe('true');
+                expect(screen.queryByRole('heading', { name: /Pro/u })).toBeNull();
+            },
+        );
 
-        it('Not now closes the sheet and leaves the recipe public', async () => {
-            profile.paidFeatures = 'upsell';
+        it('⛔ with every slot used and paid features hidden, Private is refused for want of a slot, with no Pro way', async () => {
+            profile.paidFeatures = 'hidden';
             await openRecipe(
-                createFakeRecipeServiceClient(),
-                'rec_web_not_now',
-                RecipeVisibility.PUBLIC,
-                'imported_public',
-            );
-            choosePrivate();
-
-            fireEvent.click(await screen.findByRole('button', { name: 'Not now' }));
-
-            await waitFor(() => expect(screen.queryByRole('heading', { name: /Pro/u })).toBeNull());
-            expect(screen.getByRole('radio', { name: /^Public/u }).getAttribute('aria-checked')).toBe('true');
-        });
-
-        it('lets a granted cook choose Private, with no sheet', async () => {
-            profile.paidFeatures = 'granted';
-            await openRecipe(
-                createFakeRecipeServiceClient(),
-                'rec_web_granted',
+                clientWithSlots({ used: 50, limit: 50 }),
+                'rec_web_full',
                 RecipeVisibility.PUBLIC,
                 'imported_public',
             );
 
-            choosePrivate();
-
-            expect(screen.getByRole('radio', { name: /^Private/u }).getAttribute('aria-checked')).toBe('true');
-            expect(screen.queryByRole('heading', { name: /Pro/u })).toBeNull();
+            expect(await screen.findByText('Not available. All 50 of your private slots are in use.')).toBeTruthy();
+            expect(screen.queryByRole('button', { name: /Get Pro/u })).toBeNull();
+            expect(screen.queryByText('Not available. A recipe from a public web page can only be public.')).toBeNull();
         });
 
-        it('⛔ under upsell, Public asks first with the Pro words; confirmed, going back asks for Pro', async () => {
+        it('⛔ going Public from Private says it frees a slot, in the slots words and not the Pro words', async () => {
             profile.paidFeatures = 'upsell';
             await openRecipe(
-                createFakeRecipeServiceClient(),
+                clientWithSlots({ used: 20, limit: 50 }),
                 'rec_web_private',
                 RecipeVisibility.PRIVATE,
                 'imported_public',
             );
-
-            fireEvent.click(screen.getByRole('radio', { name: /^Public/u }));
-            expect(
-                within(confirmDialog()).getByText(
-                    "Anyone can see a public recipe and save a copy. To make this one private again, you'll need Pro.",
-                ),
-            ).toBeTruthy();
-            fireEvent.click(within(confirmDialog()).getByRole('button', { name: 'Make public' }));
-            choosePrivate();
-
-            expect(await screen.findByRole('heading', { name: 'Private needs Pro for this recipe' })).toBeTruthy();
-            expect(screen.getByRole('radio', { name: /^Public/u, hidden: true }).getAttribute('aria-checked')).toBe(
-                'true',
-            );
-        });
-
-        // Public is never final, so under hidden there is nothing to confirm: Public is at once, and the recipe then shows
-        // the plain statement because the paid features offer no way back (the stuck-save defect stays closed).
-        // REWRITTEN for the owner ruling of 2026-10-26: under hidden the editor keeps the Private card, REFUSED with its reason.
-        it('⛔ under hidden, Public is at once with no claim that it is final; then Private stays, refused', async () => {
-            profile.paidFeatures = 'hidden';
-            await openRecipe(
-                createFakeRecipeServiceClient(),
-                'rec_web_hidden',
-                RecipeVisibility.PRIVATE,
-                'imported_public',
-            );
+            await screen.findByText('30 of 50 private slots left');
 
             fireEvent.click(screen.getByRole('radio', { name: /^Public/u }));
 
-            // react-native-web does not expose the refused state as an attribute (the field's own test reads what a device is
-            // handed); here the reason drawn inside the Private card is what shows.
-            await waitFor(() =>
-                expect(
-                    within(screen.getByRole('radio', { name: /^Private/u })).getByText(
-                        'Not available. A recipe from a public web page can only be public.',
-                    ),
-                ).toBeTruthy(),
-            );
-            expect(screen.queryByRole('heading', { name: 'Make this recipe public?' })).toBeNull();
-            expect(screen.queryByText(/won.t be able|may not be able/u)).toBeNull();
-        });
-
-        it('⛔ under hidden, shows Private refused with the reason, and no Pro', async () => {
-            profile.paidFeatures = 'hidden';
-            await openRecipe(
-                createFakeRecipeServiceClient(),
-                'rec_web_hidden_public',
-                RecipeVisibility.PUBLIC,
-                'imported_public',
-            );
-
-            const card = await screen.findByRole('radio', { name: /^Private/u });
-
-            expect(
-                within(card).getByText('Not available. A recipe from a public web page can only be public.'),
-            ).toBeTruthy();
-            expect(screen.queryByText('Pro')).toBeNull();
+            expect(within(confirmDialog()).queryByText(/you'll need Pro/u)).toBeNull();
+            expect(within(confirmDialog()).getByText(/It frees one of your private slots/u)).toBeTruthy();
         });
 
         it.each([
             ['a failed profile read', 'failed'],
             ['a profile still loading', undefined],
-        ] as const)('⛔ under %s, says "Who can see it: Public" and offers no Private', async (_label, state) => {
+        ] as const)('⛔ under %s, still shows the field with both choices and no Pro', async (_label, state) => {
             profile.paidFeatures = state;
             await openRecipe(
                 createFakeRecipeServiceClient(),
@@ -825,8 +726,8 @@ describe('RecipeEditorScreen (native) — Private (E1, private slots and Pro)', 
                 'imported_public',
             );
 
-            expect(screen.getByLabelText('Who can see it: Public. Anyone can find it in Discover.')).toBeTruthy();
-            expect(screen.queryByRole('radio', { name: /^Private/u })).toBeNull();
+            expect(screen.getByRole('radio', { name: /^Private/u })).toBeTruthy();
+            expect(screen.getByRole('radio', { name: /^Public/u })).toBeTruthy();
             expect(screen.queryByText('Pro')).toBeNull();
         });
     });

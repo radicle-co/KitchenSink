@@ -37,6 +37,7 @@ import { ingredientCommitFailureId, ingredientNoFoodNoteId, ingredientStandInId 
 import { rowBadgeStatus } from './ingredientRowPolicy.js';
 import type { IngredientRowView } from './ingredientRowView.js';
 import type { RecipeFormMessages } from './messages.js';
+import { PrivateFoodNote } from './PrivateFoodNote.native.js';
 import { rowEntryFieldOf, type RowEntryFieldCopy } from './rowEntryField.js';
 import { usePressFill } from '@commise/ui/surface-tone';
 
@@ -253,6 +254,7 @@ export const IngredientRow: FC<IngredientRowProps> = ({
                         {row.countedAs}
                     </Text>
                 )}
+                {row.privateFood !== undefined && <PrivateFoodNote view={row.privateFood} />}
                 {row.amountInvalidNote !== undefined && (
                     <Text typeRole="caption" color="$dangerText">
                         {row.amountInvalidNote}

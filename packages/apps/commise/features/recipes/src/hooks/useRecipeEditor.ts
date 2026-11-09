@@ -315,7 +315,9 @@ export interface UseRecipeEditorResult {
     readonly recipeId: string | undefined;
     readonly saveStatus: SaveStatus;
     /** The parked write the cook has to decide on, with its class; `undefined` while nothing is parked. */
-    readonly parked: { readonly failure: FailureClass; readonly kind: 'create' | 'update' } | undefined;
+    readonly parked:
+        | { readonly failure: FailureClass; readonly kind: 'create' | 'update'; readonly status?: number | undefined }
+        | undefined;
     /** Whether the draft differs from what the server holds: a published recipe's Save changes needs it. */
     readonly hasUnsavedChanges: boolean;
     /** The resume notice, while a published recipe's device changes from an earlier visit stand. */

@@ -58,6 +58,7 @@ import { draftQuantity, draftQuantityVerdict } from './quantity.js';
 import { removalFocusTarget } from './removalFocusTarget.js';
 import { rowBusyText, rowPendingSentence, type RowCommitCopy } from './rowCommitMessage.js';
 import type { RowEntryFieldInput } from './rowEntryField.js';
+import { privateFoodRowIndexes } from './privateFoodLines.js';
 import { rowMenuOf, type RowMenuAction } from './rowMenu.js';
 import { rowSecondLineOf } from './rowSecondLine.js';
 import { shortlistSettledAt, type ShortlistPanelProps } from './shortlistPanel.model.js';
@@ -111,6 +112,8 @@ export interface IngredientRowContext {
     readonly openMoveToGroup: (key: IngredientLineKey) => void;
     /** How many named groups the list has: its lines' and the cook's new, empty ones. */
     readonly groupCount: number;
+    /** Open a food's page (`⋯` Open food); absent when the host offers none. */
+    readonly openFood?: (foodId: string) => void;
 }
 
 /**
@@ -166,6 +169,10 @@ export interface IngredientRowEdits {
 }
 
 /** A read row's second line, worded (`rowSecondLineOf`). */
+/** What the row says of a private food. */
+export type RowPrivateFoodView =
+    { readonly kind: 'attention'; readonly text: string } | { readonly kind: 'badge'; readonly text: string };
+
 export type RowSecondLineView =
     | { readonly kind: 'none' }
     | { readonly kind: 'working'; readonly text: string }
@@ -261,6 +268,11 @@ export interface IngredientRowView {
     readonly openLabel: string;
     /** The second line: none for a healthy row (§7.5.1). */
     readonly secondLine: RowSecondLineView;
+    /**
+     * A private food: in a PUBLIC recipe an attention line ("Private food. A public recipe can't use it."), in a private one a
+     * quiet badge. It is not the second line, which is a control: this one is read and opens nothing (private foods spec D3).
+     */
+    readonly privateFood: RowPrivateFoodView | undefined;
     /** U9: the submit refused this row's amounts; the list's error says the rule. */
     readonly amountInvalidNote: string | undefined;
     /** The row's food search is open: the name is the entry field (Change food, Find a food, no food). */
@@ -442,6 +454,16 @@ const actionItemOf = (action: RowMenuAction, row: RowActionTarget, ctx: Ingredie
             return { id: action, label: m.rowEdit, onSelect: () => ctx.lineEditor.open(line.key) };
         case 'foodDetails':
             return { id: action, label: m.rowFoodDetails, onSelect: () => ctx.openFoodDetails(line.key) };
+        case 'openFood':
+            return {
+                id: action,
+                label: m.rowOpenFood,
+                onSelect: () => {
+                    if (line.foodId !== undefined) {
+                        ctx.openFood?.(line.foodId);
+                    }
+                },
+            };
         case 'moveToGroup':
             return { id: action, label: m.rowMoveToGroup, onSelect: () => ctx.openMoveToGroup(line.key) };
         case 'moveUp':
@@ -498,6 +520,7 @@ const rowMenuActionsOf = (
 
     return rowMenuOf(slot2.kind === 'menu' ? slot2.actions : [slot2.action], {
         foodDetails,
+        openFood: line.foodVisibility === 'private' && line.foodId !== undefined && ctx.openFood !== undefined,
         canMoveUp: canMoveIngredient(ctx.values, line.key, 'up'),
         canMoveDown: canMoveIngredient(ctx.values, line.key, 'down'),
         canMoveToGroup: ctx.groupCount > 0 || groupLabelOf(line) !== undefined,
@@ -627,6 +650,21 @@ const lineEditorOf = (input: LineEditorInput, ctx: IngredientRowContext): RowLin
             focus.request(line.key, 'open');
         },
     };
+};
+
+/** What the row says of a private food: attention in a public recipe, a badge in a private one. Pure. */
+const privateFoodViewOf = (
+    line: RecipeFormIngredient,
+    index: number,
+    ctx: IngredientRowContext,
+): RowPrivateFoodView | undefined => {
+    if (line.foodVisibility !== 'private') {
+        return undefined;
+    }
+
+    return privateFoodRowIndexes(ctx.values).includes(index)
+        ? { kind: 'attention', text: ctx.m.rowPrivateFoodInPublic }
+        : { kind: 'badge', text: ctx.m.rowPrivateFoodBadge };
 };
 
 /** The second line, worded. Pure. */
@@ -827,6 +865,7 @@ export const ingredientRowViewOf = (
                   ),
               ),
         secondLine,
+        privateFood: privateFoodViewOf(line, index, ctx),
         amountInvalidNote: marks.quantityInvalid ? m.rowAmountInvalid : undefined,
         inEntry: changing,
         editorOpen: ctx.lineEditor.openKey === line.key,

@@ -13,7 +13,7 @@
 import { LocaleProvider } from '@commise/i18n/react';
 import { makeQuietFoodClient } from '@commise/test-utils';
 import { FoodServiceProvider } from '@kitchensink/food-service-client/hooks';
-import { RecipeStatus } from '@kitchensink/recipe-core';
+import { RecipeStatus, RecipeVisibility } from '@kitchensink/recipe-core';
 import { RecipeServiceProvider } from '@kitchensink/recipe-service-client/hooks';
 import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-client/testing';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -25,9 +25,14 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { PaidFeatureState } from '@commise/features-account';
 
 import { makeFakeEditorWritePort } from '../../__fixtures__/editorWritePort.js';
-import { makeIngredientView, makeRecipeDetail } from '../../__fixtures__/index.js';
+import {
+    makeFilledRecipeFormValues,
+    makeIngredientView,
+    makeRecipeDetail,
+    withLineKeys,
+} from '../../__fixtures__/index.js';
 import { recipeFormMessages } from '../../form/messages.js';
-import type { EditorSeed, PublishBlocked } from '../../hooks/useRecipeEditor.js';
+import type { EditorSeed, PublishBlocked, UseRecipeEditorResult } from '../../hooks/useRecipeEditor.js';
 import type { DraftStore } from '../draftStore.js';
 import type { IngredientsPaste } from '../useIngredientsPaste.js';
 import { RecipeEditorSurface } from '../RecipeEditorSurface.js';
@@ -59,6 +64,10 @@ interface HarnessProps {
         readonly keepAsDraft: () => void;
         readonly publishAsPublic: () => void;
     };
+    /** Fields of the editor result the session would otherwise compute (a parked write, the draft). */
+    readonly editorOver?: Partial<UseRecipeEditorResult>;
+    /** The app's way to open a food's page (private foods spec D6). */
+    readonly onOpenFood?: (foodId: string) => void;
 }
 
 /** The surface over a real session, as an app's container mounts it. */
@@ -85,6 +94,7 @@ function Harness(props: HarnessProps): ReactElement {
                 ...(props.openChoices === undefined
                     ? {}
                     : { paste: { ...session.paste, openChoices: props.openChoices } }),
+                ...(props.editorOver === undefined ? {} : { editor: { ...session.editor, ...props.editorOver } }),
                 ...(props.publishBlocked === undefined
                     ? {}
                     : {
@@ -106,6 +116,7 @@ function Harness(props: HarnessProps): ReactElement {
             renderPhotos={renderPhotos}
             onClose={onClose}
             onOpenMyRecipes={onOpenMyRecipes}
+            {...(props.onOpenFood === undefined ? {} : { onOpenFood: props.onOpenFood })}
         />
     );
 }
@@ -436,5 +447,80 @@ describe('RecipeEditorSurface — the blocked-publish dialog', () => {
         mount();
 
         expect(screen.queryByRole('dialog', { name: /private slots are full|can.t be private yet/u })).toBeNull();
+    });
+});
+
+describe('RecipeEditorSurface — the refusal of a private food in a public recipe (F6, revision 4)', () => {
+    const LINE = {
+        isUserEntered: false,
+        ingredientId: '00000000-0000-4000-8000-000000000001',
+        foodId: 'food_spice',
+        name: 'My spice mix',
+        quantity: 2,
+        unit: 'tbsp',
+        foodVisibility: 'private' as const,
+    };
+    const publicDraft = (visibility: RecipeVisibility = RecipeVisibility.PUBLIC) =>
+        makeFilledRecipeFormValues({ visibility, ingredients: withLineKeys([LINE]) });
+    const refused = { failure: 'terminal', kind: 'update', status: 400 } as const;
+
+    const open = (over: Partial<HarnessProps> = {}) => {
+        const setValues = vi.fn();
+        const retry = vi.fn();
+        const onOpenFood = vi.fn();
+        const view = mount({
+            editorOver: { values: publicDraft(), parked: refused, setValues, retry },
+            onOpenFood,
+            ...over,
+        });
+
+        return { ...view, setValues, retry, onOpenFood };
+    };
+
+    it('⛔ a parked 400 on a public draft with a private-food line opens the refusal, naming the line', () => {
+        open();
+        const dialog = screen.getByRole('dialog', { name: 'This recipe can’t be public yet' });
+
+        expect(within(dialog).getByText(/1 ingredient uses a food only you can see/u)).toBeTruthy();
+        expect(within(dialog).getByText(/2 tbsp.*My spice mix/u)).toBeTruthy();
+    });
+
+    it('Open food opens that food through the app, and the sheet stays', async () => {
+        const { onOpenFood } = open();
+
+        await userEvent.click(screen.getByRole('button', { name: /^Open .*My spice mix.* in a new tab$/u }));
+
+        expect(onOpenFood).toHaveBeenCalledExactlyOnceWith('food_spice');
+        expect(screen.getByRole('dialog', { name: 'This recipe can’t be public yet' })).toBeTruthy();
+    });
+
+    it('Publish as private moves the draft to Private and sends it again, in one step', async () => {
+        const { setValues, retry } = open();
+
+        await userEvent.click(screen.getByRole('button', { name: 'Publish as private' }));
+
+        expect(setValues).toHaveBeenCalledWith(expect.objectContaining({ visibility: RecipeVisibility.PRIVATE }));
+        expect(retry).toHaveBeenCalledOnce();
+    });
+
+    it('Back to editor closes the sheet and sends nothing', async () => {
+        const { setValues, retry } = open();
+
+        await userEvent.click(screen.getByRole('button', { name: 'Back to editor' }));
+
+        await waitFor(() =>
+            expect(screen.queryByRole('dialog', { name: 'This recipe can’t be public yet' })).toBeNull(),
+        );
+        expect(setValues).not.toHaveBeenCalled();
+        expect(retry).not.toHaveBeenCalled();
+    });
+
+    it.each([
+        ['a 409', { failure: 'conflict', kind: 'update', status: 409 } as const, RecipeVisibility.PUBLIC],
+        ['a private draft', refused, RecipeVisibility.PRIVATE],
+    ])('opens nothing for %s', (_label, parked, visibility) => {
+        mount({ editorOver: { values: publicDraft(visibility), parked } });
+
+        expect(screen.queryByRole('dialog', { name: 'This recipe can’t be public yet' })).toBeNull();
     });
 });

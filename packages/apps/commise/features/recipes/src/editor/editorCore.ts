@@ -200,11 +200,32 @@ function serverValuesFor(recipe: RecipeDetail, memento: DraftMemento | undefined
  */
 export function seedEditorCore(seed: EditorCoreSeed): SeededEditor {
     const { recipe, memento } = seed;
-    const remembered = memento === undefined ? undefined : { ...memento.values, photos: [] };
     const serverValues = recipe === undefined ? undefined : serverValuesFor(recipe, memento);
+    // A device draft does not keep `foodVisibility` (food's LIVE answer, stale once staff approve a food), so each line takes
+    // the one the server's read just gave the line with the same key; a line the read does not hold has none.
+    const liveVisibility = new Map(serverValues?.ingredients.map((line) => [line.key, line.foodVisibility]));
+    const remembered =
+        memento === undefined
+            ? undefined
+            : {
+                  ...memento.values,
+                  photos: [],
+                  ingredients: memento.values.ingredients.map((line) => {
+                      const foodVisibility = liveVisibility.get(line.key);
+
+                      return foodVisibility === undefined ? line : { ...line, foodVisibility };
+                  }),
+              };
     const draft = remembered ?? serverValues ?? defaultRecipeFormValues();
+    // Compared WITHOUT the live visibility on both sides: a draft never kept it, so it is no change the cook made.
+    const withoutLive = (values: RecipeFormValues): RecipeFormValues => ({
+        ...values,
+        ingredients: values.ingredients.map(({ foodVisibility: _live, ...line }) => line),
+    });
     const deviceChanges =
-        remembered !== undefined && serverValues !== undefined && !recipeFormValuesEqual(draft, serverValues);
+        memento !== undefined &&
+        serverValues !== undefined &&
+        !recipeFormValuesEqual({ ...memento.values, photos: [] }, withoutLive(serverValues));
     const server: ServerFacts =
         recipe === undefined || serverValues === undefined
             ? { kind: 'unsaved', ref: memento?.recipeRef, baseVersion: memento?.baseVersion ?? null }

@@ -1,5 +1,5 @@
 /**
- * @module @commise/features-recipes/form — the read row's `⋯` (build spec §7.5.1): Edit · Food details · the state's
+ * @module @commise/features-recipes/form — the read row's `⋯` (build spec §7.5.1): Edit · Food details · Open food · the state's
  * remedies · Move to group… · Move up · Move down · divider · Remove. Remove is never a row button.
  *
  * The remedies a state offers are the ONE row policy's (`rowPresentationOf`); this composes them with the items every
@@ -13,12 +13,15 @@
 import type { IngredientRowAction } from './ingredientRowPolicy.js';
 
 /** Every item a read row's `⋯` can hold. */
-export type RowMenuAction = 'edit' | 'foodDetails' | 'moveToGroup' | 'moveUp' | 'moveDown' | IngredientRowAction;
+export type RowMenuAction =
+    'edit' | 'foodDetails' | 'openFood' | 'moveToGroup' | 'moveUp' | 'moveDown' | IngredientRowAction;
 
 /** What the row's position and state allow beyond the policy. Every field is required, so a caller states each. */
 export interface RowMenuFacts {
     /** The row is quiet and has a panel worth opening: its food's figures or its explanation. */
     readonly foodDetails: boolean;
+    /** The line uses a food only the cook can see and the host can open a food's page (private foods spec D6). */
+    readonly openFood: boolean;
     readonly canMoveUp: boolean;
     readonly canMoveDown: boolean;
     /** There is another group to move to (a named group exists, or the line is in one). */
@@ -38,6 +41,7 @@ export const rowMenuOf = (
 ): readonly RowMenuAction[] => [
     'edit',
     ...(facts.foodDetails ? (['foodDetails'] as const) : []),
+    ...(facts.openFood ? (['openFood'] as const) : []),
     ...stateActions.filter((action) => action !== 'remove'),
     ...(facts.canMoveToGroup ? (['moveToGroup'] as const) : []),
     ...(facts.canMoveUp ? (['moveUp'] as const) : []),

@@ -102,6 +102,12 @@ export interface RecipeFormIngredient {
     readonly groupLabel?: string;
     readonly resolutionStatus?: FoodResolutionStatus;
     /**
+     * Whether the line's food is private to its author or public, from food's LIVE answer (ADR-0029 section 4). Seeded by
+     * `toRecipeFormValues` and set on a pick or a created food; read only by `privateFoodRowIndexes`. Never sent: the
+     * server derives it. Absent when food could not be asked, and on a declared line.
+     */
+    readonly foodVisibility?: 'private' | 'public';
+    /**
      * Why an unresolved line did not resolve, as the detail read reported it (plan 002 R1, R6). Seeded by
      * `toRecipeFormValues` and read only by `rowPresentationOf` (`./ingredientRowPolicy.ts`); never sent, because the
      * server derives it from the binding.

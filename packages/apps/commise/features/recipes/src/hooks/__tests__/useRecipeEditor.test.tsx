@@ -2256,7 +2256,7 @@ describe('characterization: a write parked in an earlier session', () => {
     it('stands in the lane: it shows as parked, and a checkpoint writes the device draft but sends nothing', async () => {
         const { result, port, drafts } = withEarlierParked(503);
 
-        expect(result.current.parked).toEqual({ failure: 'transient', kind: 'update' });
+        expect(result.current.parked).toEqual({ failure: 'transient', kind: 'update', status: 503 });
 
         act(() => {
             result.current.setField('description', 'Mine.');
@@ -2394,7 +2394,7 @@ describe('characterization: the device draft', () => {
         });
         await settle();
 
-        expect(result.current.parked).toEqual({ failure: 'terminal', kind: 'update' });
+        expect(result.current.parked).toEqual({ failure: 'terminal', kind: 'update', status: 400 });
         expect(result.current.state.status).toBe('editing');
         expect(port.submitted).toHaveLength(1);
     });
@@ -2700,7 +2700,7 @@ describe('discard while the create is parked', () => {
         );
         view.rerender({ seed: { memento } });
 
-        expect(view.result.current.parked).toEqual({ failure: 'transient', kind: 'create' });
+        expect(view.result.current.parked).toEqual({ failure: 'transient', kind: 'create', status: 503 });
 
         act(() => {
             view.result.current.discard();

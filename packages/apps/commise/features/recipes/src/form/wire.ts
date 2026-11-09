@@ -207,6 +207,7 @@ export const toRecipeFormValues = (detail: RecipeDetail): RecipeFormValues => ({
         // parts. Never figures: nutrition does not enter the draft, and `foodRefOf` derives what the read asks for.
         ...(line.foodId === undefined ? {} : { foodId: line.foodId }),
         ...(line.variant === undefined ? {} : { variant: line.variant }),
+        ...(line.foodVisibility === undefined ? {} : { foodVisibility: line.foodVisibility }),
         // Plan 002 R6 — the reason the row policy reads to choose the row's remedies. Omitted when the read reports none.
         ...(line.unresolvedReason === undefined ? {} : { unresolvedReason: line.unresolvedReason }),
         ...(line.unit === undefined ? {} : { unit: line.unit }),

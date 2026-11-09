@@ -5,7 +5,9 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { matchRefusedLines, refusalPlanOf, type RefusalRow } from '../privateFoodsRefusal.js';
+import { RecipeVisibility } from '@kitchensink/recipe-core';
+
+import { matchRefusedLines, parkedRefusalRows, refusalPlanOf, type RefusalRow } from '../privateFoodsRefusal.js';
 
 const ROWS: readonly RefusalRow[] = [
     { rowId: 'a', foodId: 'f1', sortOrder: 0 },
@@ -96,5 +98,35 @@ describe('refusalPlanOf', () => {
         expect(refusalPlanOf({ door: 'publish', canGoPrivate: false }).slotsFull).toBe(true);
         expect(refusalPlanOf({ door: 'publish', canGoPrivate: true }).slotsFull).toBe(false);
         expect(refusalPlanOf({ door: 'restore', canGoPrivate: false }).slotsFull).toBe(false);
+    });
+});
+
+describe('parkedRefusalRows (a parked write the server refused with 400, derived from the draft’s own lines — F6)', () => {
+    const values = {
+        visibility: RecipeVisibility.PUBLIC,
+        ingredients: [{ foodVisibility: 'private' as const }, {}, { foodVisibility: 'private' as const }],
+    };
+
+    it('names the private-food lines when the parked write is a terminal 400', () => {
+        expect(parkedRefusalRows({ failure: 'terminal', status: 400 }, values)).toEqual([0, 2]);
+    });
+
+    it('names nothing for any other status or class: a 409 is a conflict and a 500 is not this refusal', () => {
+        for (const status of [409, 500, 502, undefined]) {
+            expect(parkedRefusalRows({ failure: 'terminal', status }, values)).toEqual([]);
+        }
+    });
+
+    it('names nothing when the draft holds no private food (the generic alert stands: this 400 is another refusal)', () => {
+        expect(
+            parkedRefusalRows(
+                { failure: 'terminal', status: 400 },
+                { ...values, visibility: RecipeVisibility.PRIVATE },
+            ),
+        ).toEqual([]);
+    });
+
+    it('names nothing when nothing is parked', () => {
+        expect(parkedRefusalRows(undefined, values)).toEqual([]);
     });
 });

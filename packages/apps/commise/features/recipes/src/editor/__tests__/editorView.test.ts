@@ -77,10 +77,11 @@ describe('outstandingOf, parkedOf and outboxSlotOf', () => {
         expect(outstandingOf({ outstanding: write() }, record(), draft)).toEqual(write());
     });
 
-    it('a parked write reads its class from the outbox, unknown when the outbox no longer lists it', () => {
+    it('a parked write reads its class and status from the outbox, unknown when the outbox no longer lists it', () => {
         expect(parkedOf(write({ parked: true, seq: 41 }), [record()], false)).toEqual({
             failure: 'transient',
             kind: 'update',
+            status: 503,
         });
         expect(parkedOf(write({ parked: true }), [], false)).toEqual({ failure: 'unknown', kind: 'update' });
     });

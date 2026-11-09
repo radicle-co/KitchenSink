@@ -13,6 +13,7 @@ import { rowMenuOf, type RowMenuFacts } from '../rowMenu.js';
 
 const facts = (over: Partial<RowMenuFacts> = {}): RowMenuFacts => ({
     foodDetails: false,
+    openFood: false,
     canMoveUp: false,
     canMoveDown: false,
     canMoveToGroup: false,
@@ -55,5 +56,18 @@ describe('rowMenuOf', () => {
         );
 
         expect(new Set(menu).size).toBe(menu.length);
+    });
+});
+
+describe('Open food', () => {
+    it('sits after Food details and before the state remedies, only when offered', () => {
+        expect(rowMenuOf(['changeFood', 'remove'], facts({ foodDetails: true, openFood: true }))).toEqual([
+            'edit',
+            'foodDetails',
+            'openFood',
+            'changeFood',
+            'remove',
+        ]);
+        expect(rowMenuOf(['remove'], facts())).not.toContain('openFood');
     });
 });

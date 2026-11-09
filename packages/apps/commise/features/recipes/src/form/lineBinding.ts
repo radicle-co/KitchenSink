@@ -12,7 +12,7 @@ import type { RecipeFormIngredient } from './values.js';
 /** The binding half of a line. It always names a food, so a re-point to nothing is not expressible (§4a). */
 export type LineBinding = Pick<
     RecipeFormIngredient,
-    'name' | 'isUserEntered' | 'resolutionStatus' | 'unresolvedReason' | 'foodId' | 'variant'
+    'name' | 'isUserEntered' | 'resolutionStatus' | 'unresolvedReason' | 'foodId' | 'variant' | 'foodVisibility'
 > & { readonly ingredientId: string };
 
 /**
@@ -32,6 +32,7 @@ export const withLineBinding = (line: RecipeFormIngredient, binding: LineBinding
         unresolvedReason: _unresolvedReason,
         foodId: _foodId,
         variant: _variant,
+        foodVisibility: _foodVisibility,
         ...written
     } = line;
 

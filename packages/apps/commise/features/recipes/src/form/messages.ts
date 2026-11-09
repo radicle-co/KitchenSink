@@ -280,6 +280,12 @@ export interface RecipeFormMessages {
     readonly rowChange: string;
     /** `row.foodDetails`, in the `⋯` and in the row editor. */
     readonly rowFoodDetails: string;
+    /** `⋯` Open food: the page of a food only the cook can see (private foods spec D6). */
+    readonly rowOpenFood: string;
+    /** The quiet badge of a private food in a private recipe. */
+    readonly rowPrivateFoodBadge: string;
+    /** The attention line of a private food in a PUBLIC recipe. */
+    readonly rowPrivateFoodInPublic: string;
     /** The food line in the row editor when food publishes calories. Holds `{food}` and `{cal}`. */
     readonly rowFoodCalories: string;
     /** The Food details sheet's close control. Holds `{food}`. */
@@ -762,6 +768,9 @@ export const recipeFormMessages: LocalizedMessages<RecipeFormMessages> = {
         rowNotCounted: 'Not counted',
         rowChange: 'Change',
         rowFoodDetails: 'Food details',
+        rowOpenFood: 'Open food',
+        rowPrivateFoodBadge: 'Private food',
+        rowPrivateFoodInPublic: 'Private food. A public recipe can’t use it.',
         rowFoodCalories: '{food} · {cal} cal per 100 g',
         rowFoodDetailsClose: 'Close food details for {food}',
         rowMoveToGroup: 'Move to group…',

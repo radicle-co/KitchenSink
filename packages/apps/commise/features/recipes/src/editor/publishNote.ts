@@ -17,6 +17,7 @@
 import { validateRecipeForm } from '../form/validate.js';
 import type { RecipeFormValues } from '../form/values.js';
 import { pluralOf } from '../format/plural.js';
+import { privateFoodRowIndexes } from '../form/privateFoodLines.js';
 import type { EditorMessages } from './messages.js';
 import { EDITOR_SECTIONS, firstSectionWithErrors, type EditorSectionId } from './sections.js';
 import { lineNeedsAttention, sectionStatusesOf } from './sectionStatus.js';
@@ -79,7 +80,12 @@ export function readyLineOf(input: PublishNoteInput, messages: EditorMessages, l
     const section = firstSectionWithErrors(validateRecipeForm(input.values, input.pendingEntryText));
 
     if (section === undefined) {
-        return { kind: 'ready', text: messages.ready };
+        const privateFoods = privateFoodRowIndexes(input.values).length;
+
+        // Publish stays enabled (the server re-checks), but "Ready to publish" would be false: the link jumps to Ingredients.
+        return privateFoods > 0
+            ? { kind: 'fix', text: pluralOf(messages.readyPrivateFood, privateFoods, locale), section: 'ingredients' }
+            : { kind: 'ready', text: messages.ready };
     }
 
     const statuses = sectionStatusesOf({

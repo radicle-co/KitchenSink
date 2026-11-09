@@ -70,6 +70,8 @@ export interface RecipeEditorScreenProps {
      * the editor has handed off.
      */
     readonly subscribeToLeave?: (listener: () => void) => () => void;
+    /** Open a food's page above the editor (the refusal's Open food and a row's `⋯ Open food`). */
+    readonly onOpenFood?: (foodId: string) => void;
 }
 
 /** The signed-in cook and their draft store, or `undefined` while nobody is signed in. */
@@ -173,6 +175,7 @@ function RecipeEditorSession({
     onClose,
     onDiscarded,
     subscribeToLeave,
+    onOpenFood,
     mode,
     drafts,
     seed,
@@ -223,6 +226,8 @@ function RecipeEditorSession({
             {...(section === undefined ? {} : { initialSection: section })}
             onClose={onClose}
             onOpenMyRecipes={onDiscarded}
+            foodOpensOverEditor
+            {...(onOpenFood === undefined ? {} : { onOpenFood })}
         />
     );
 }

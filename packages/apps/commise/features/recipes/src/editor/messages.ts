@@ -37,6 +37,8 @@ export interface EditorMessages {
      * allowed, and those lines count as zero toward nutrition.
      */
     readonly readyUnmatched: PluralText;
+    /** The ready line while a public draft holds private foods (private foods spec D2). */
+    readonly readyPrivateFood: PluralText;
     readonly published: string;
     readonly addToCollection: string;
     readonly changesSaved: string;
@@ -60,10 +62,18 @@ export interface EditorMessages {
         };
         /** Needs attention (counted) and in-progress reasons, by the reason the status names. */
         readonly reason: Readonly<
-            Record<Exclude<AttentionReason, 'ingredientsUnresolved' | 'ingredientsQuantityInvalid'>, string>
+            Record<
+                Exclude<
+                    AttentionReason,
+                    'ingredientsUnresolved' | 'ingredientsQuantityInvalid' | 'ingredientsPrivateFood'
+                >,
+                string
+            >
         > & {
             readonly ingredientsUnresolved: PluralText;
             readonly ingredientsQuantityInvalid: PluralText;
+            /** A private food in a public recipe. */
+            readonly ingredientsPrivateFood: PluralText;
         } & Readonly<Record<InProgressReason, string>>;
         /** The phone bar's accessible name: "Sections. Current: {current}." */
         readonly barName: string;
@@ -320,6 +330,10 @@ export const editorMessages: LocalizedMessages<EditorMessages> = {
         saveChanges: 'Save changes',
         fixCount: { one: 'Fix {count} thing to publish', other: 'Fix {count} things to publish' },
         ready: 'Ready to publish.',
+        readyPrivateFood: {
+            one: '{count} ingredient uses your private food, so this recipe can’t be public yet.',
+            other: '{count} ingredients use your private foods, so this recipe can’t be public yet.',
+        },
         readyUnmatched: {
             one: 'Ready to publish. {count} ingredient has no match, so its nutrition is left out.',
             other: 'Ready to publish. {count} ingredients have no match, so their nutrition is left out.',
@@ -360,6 +374,7 @@ export const editorMessages: LocalizedMessages<EditorMessages> = {
                 ingredientsNeedYou: 'Needs you',
                 ingredientsUnresolved: { one: '{count} needs a match', other: '{count} need a match' },
                 ingredientsQuantityInvalid: { one: '{count} amount to fix', other: '{count} amounts to fix' },
+                ingredientsPrivateFood: { one: '{count} uses a private food', other: '{count} use private foods' },
                 stepBlank: 'Fill in or remove the empty step',
                 servingsPositive: 'Servings must be more than 0',
                 timesNonNegative: "Times can't be negative",

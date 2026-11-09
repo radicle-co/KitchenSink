@@ -64,8 +64,19 @@ export function draftQuarantineKeyFor(subject: string): string {
     return `editor.draft.quarantine.${subject}`;
 }
 
-/** The form's values as the draft keeps them: everything but the photo picks, whose bytes are not in the form. */
-export type DraftValues = Omit<RecipeFormValues, 'photos'>;
+/**
+ * The form's values as the draft keeps them: everything but the photo picks, whose bytes are not in the form, and each
+ * line's `foodVisibility`, which is food's LIVE answer and goes stale the moment staff approve a food. A draft that kept it
+ * would go on calling an approved food private.
+ */
+export type DraftValues = Flat<
+    Omit<RecipeFormValues, 'photos' | 'ingredients'> & {
+        readonly ingredients: readonly Flat<Omit<RecipeFormValues['ingredients'][number], 'foodVisibility'>>[];
+    }
+>;
+
+/** An intersection written out as one object type, so the compile-time identity with the schema's output holds. */
+type Flat<T> = { [K in keyof T]: T[K] };
 
 /** One recipe's device draft. */
 export interface DraftMemento {
@@ -171,7 +182,9 @@ type Drafts = Readonly<Record<string, DraftMemento>>;
 export function toDraftValues(values: RecipeFormValues): DraftValues {
     const { photos: _photos, ...kept } = values;
 
-    return kept;
+    // `kept` still holds `ingredients`, so overriding it leaves its key where it was: the discard guard compares by
+    // `JSON.stringify`, which reads key order.
+    return { ...kept, ingredients: kept.ingredients.map(({ foodVisibility: _live, ...line }) => line) };
 }
 
 /** What a server write answered, as the draft records it. */

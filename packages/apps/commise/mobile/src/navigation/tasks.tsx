@@ -88,6 +88,7 @@ function RecipeCreateRoute({ navigation, route }: TaskProps<'RecipeCreate'>): JS
             onClose={() => navigation.goBack()}
             onDiscarded={toRecipes}
             subscribeToLeave={subscribeToLeave}
+            onOpenFood={(foodId) => navigation.push('FoodDetail', { foodId, from: 'editor' })}
         />
     );
 }
@@ -120,6 +121,7 @@ function RecipeEditRoute({ navigation, route }: TaskProps<'RecipeEdit'>): JSX.El
                 navigation.popTo('Tabs', { screen: 'recipes', params: { screen: 'RecipesRoot', pop: true } })
             }
             subscribeToLeave={subscribeToLeave}
+            onOpenFood={(foodId) => navigation.push('FoodDetail', { foodId, from: 'editor' })}
         />
     );
 }

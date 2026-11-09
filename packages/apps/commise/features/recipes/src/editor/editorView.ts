@@ -28,6 +28,8 @@ export type ParkedRecord = SyncFailure & { readonly seq: number };
 export interface ParkedView {
     readonly failure: FailureClass;
     readonly kind: 'create' | 'update';
+    /** The HTTP status of the parked write's answer, when it came back (`400` is a refusal the editor may be able to name). */
+    readonly status?: number | undefined;
 }
 
 /**
@@ -121,7 +123,11 @@ export function parkedOf(
     if (outstanding?.parked === true) {
         const record = failures.find((failure) => failure.seq === outstanding.seq);
 
-        return { failure: record === undefined ? 'unknown' : classifyFailure(record), kind: outstanding.kind };
+        return {
+            failure: record === undefined ? 'unknown' : classifyFailure(record),
+            kind: outstanding.kind,
+            ...(record?.status === undefined ? {} : { status: record.status }),
+        };
     }
 
     return drainFailed ? { failure: 'transient', kind: 'update' } : undefined;

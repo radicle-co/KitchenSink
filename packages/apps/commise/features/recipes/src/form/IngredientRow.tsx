@@ -36,6 +36,7 @@ import {
 import { PrepJoin } from '../format/PrepJoin.js';
 import { ingredientRowId } from './fieldIds.js';
 import { rowBadgeStatus } from './ingredientRowPolicy.js';
+import { PrivateFoodNote } from './PrivateFoodNote.js';
 import type { IngredientRowView } from './ingredientRowView.js';
 import { errorText } from './formSectionStyles.js';
 import { withRefusalFocus } from './refusalFocus.js';
@@ -218,6 +219,7 @@ export const IngredientRow: FC<IngredientRowProps> = ({
                         {row.countedAs}
                     </span>
                 )}
+                {row.privateFood !== undefined && <PrivateFoodNote view={row.privateFood} />}
                 {row.amountInvalidNote !== undefined && <span className={errorText}>{row.amountInvalidNote}</span>}
                 {row.busyText !== undefined && <span className="text-caption text-ink-muted">{row.busyText}</span>}
                 {row.pendingText !== undefined && (

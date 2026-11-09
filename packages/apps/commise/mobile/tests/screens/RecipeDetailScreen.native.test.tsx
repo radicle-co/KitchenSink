@@ -247,33 +247,16 @@ describe('RecipeDetailScreen — the viewer id: the session claim first, the pro
         expect(screen.getByRole('button', { name: 'Edit recipe' })).toBeTruthy();
     });
 
-    // REWRITTEN for ADR-0073: this is the PREMIUM rule's case (an imported public-web recipe), where the paid features are
-    // still the profile's alone. A recipe the cook wrote is offered Make private at once, as the next case pins.
-    it('offers Make private on an imported public-web recipe only once the profile lands: the paid features are the profile’s alone', () => {
+    // REWRITTEN for ADR-0077 section 6: this was the Premium rule's case (Make private on an imported public-web recipe only once
+    // the profile landed). It is a slot like any other now, so Make private is offered whatever the profile says.
+    it('offers Make private on an imported public-web recipe while the profile is still loading: it is a slot, not Pro', () => {
         seedRecipe(
             makeRecipeDetail({ ownerId: 'usr_1', visibility: RecipeVisibility.PUBLIC, sourceType: 'imported_public' }),
         );
         useSessionClaimsMock.mockReturnValue({ external_id: 'usr_1' });
         useUserProfileMock.mockReturnValue(profileInFlight);
 
-        const { rerender } = render(<RecipeDetailScreen recipeId="rec_1" />);
-        fireEvent.click(screen.getByRole('button', { name: /^More actions for /u }));
-
-        expect(screen.queryByRole('menuitem', { name: 'Make private' })).toBeNull();
-        // An open menu keeps the list it opened with, so the cook closes it and opens it again once the profile lands.
-        fireEvent.click(screen.getByRole('button', { name: 'Close more actions' }));
-
-        useUserProfileMock.mockReturnValue(profile('usr_1', 'granted'));
-        rerender(
-            withFoodClient(
-                <SnackbarHost>
-                    <CookMarksProvider subject="user_test">
-                        <RecipeDetailScreen recipeId="rec_1" />
-                    </CookMarksProvider>
-                </SnackbarHost>,
-            ),
-        );
-
+        render(<RecipeDetailScreen recipeId="rec_1" />);
         fireEvent.click(screen.getByRole('button', { name: /^More actions for /u }));
 
         expect(screen.getByRole('menuitem', { name: 'Make private' })).toBeTruthy();
@@ -753,7 +736,7 @@ describe('RecipeDetailScreen — owner actions', () => {
             'an imported public-web recipe, under the upsell',
             'upsell',
             'imported_public',
-            "Anyone can see a public recipe and save a copy. To make this one private again, you'll need Pro.",
+            'Anyone can see a public recipe and save a copy. It frees one of your private slots, and you can make it private again while you have a free slot.',
         ],
     ] as const)(
         '⛔ for %s, Make public asks first and sends nothing until confirmed',
@@ -780,23 +763,8 @@ describe('RecipeDetailScreen — owner actions', () => {
         },
     );
 
-    it('⛔ for an imported public-web recipe under hidden, Make public goes at once: there is no cost to confirm', () => {
-        seedRecipe(
-            makeRecipeDetail({ ownerId: 'usr_1', visibility: RecipeVisibility.PRIVATE, sourceType: 'imported_public' }),
-        );
-        useUserProfileMock.mockReturnValue(profile('usr_1', 'hidden'));
-        const mutate = vi.fn();
-        useSetRecipeVisibilityMock.mockReturnValue(
-            mutation<ReturnType<typeof useSetRecipeVisibility>>({ mutate: mutate as never }),
-        );
-
-        render(<RecipeDetailScreen recipeId="rec_1" />);
-        fireEvent.click(screen.getByRole('button', { name: /^More actions for /u }));
-        fireEvent.click(screen.getByRole('menuitem', { name: 'Make public' }));
-
-        expect(mutate).toHaveBeenCalledWith({ id: 'rec_1', visibility: 'public' }, expect.anything());
-        expect(screen.queryByRole('heading', { name: 'Make this recipe public?' })).toBeNull();
-    });
+    // DELETED with ADR-0077 section 6: "an imported public-web recipe goes public at once because Private costs Pro" tested the
+    // removed Pro rule. Its replacement is the third row of the table above (the slots words for that recipe).
 
     it('Keep private closes the confirm and sends nothing', () => {
         useUserProfileMock.mockReturnValue(profile('usr_1', 'hidden'));
@@ -817,7 +785,7 @@ describe('RecipeDetailScreen — owner actions', () => {
     // A Private refused AFTER it was sent (the editor's follow-up, answered once the editor had gone) is read from the
     // mutation cache and said in plain words; every other failure keeps the generic "try again".
     it('⛔ says the recipe stayed public when a Private sent elsewhere was refused', async () => {
-        useUserProfileMock.mockReturnValue(profile('usr_1', 'upsell'));
+        useUserProfileMock.mockReturnValue(profile('usr_1', 'hidden'));
         seedRecipe(makeRecipeDetail({ id: 'rec_1', ownerId: 'usr_1', visibility: RecipeVisibility.PUBLIC }));
         await queryClient
             .getMutationCache()
@@ -831,9 +799,7 @@ describe('RecipeDetailScreen — owner actions', () => {
 
         render(<RecipeDetailScreen recipeId="rec_1" />);
 
-        const notice = await screen.findByText(
-            'This recipe stays public. A recipe from a public web page needs Pro and a change of your own to be private.',
-        );
+        const notice = await screen.findByText('This recipe is still public: it couldn’t be made private.');
 
         // §6.4: in the header under the rating and visibility line, where the cook lands, not at the foot of the page.
         expect(notice.closest('[aria-live="assertive"]')).not.toBeNull();
@@ -1008,7 +974,9 @@ describe('RecipeDetailScreen — owner actions are design-system controls (U8)',
 describe('RecipeDetailScreen — visibility gating (C-004)', () => {
     // Plan 2026-10-14-009 D14, mirroring the web suite, REWRITTEN for ADR-0073: for a recipe the cook wrote Make private is
     // always offered (a slot); for an imported public-web recipe it is under granted and upsell only.
-    it('under upsell, offers Make private on an imported public-web recipe, and tapping it opens the Pro sheet and sends nothing', () => {
+    // REWRITTEN for ADR-0077 section 6: tapping Make private on an imported public-web recipe used to open the Pro sheet. It
+    // sends the write like any other recipe's, and the server counts the slot.
+    it('under upsell, tapping Make private on an imported public-web recipe sends it, with no sheet', () => {
         seedRecipe(makeRecipeDetail({ ownerId: 'usr_1', visibility: 'public', sourceType: 'imported_public' }));
         useUserProfileMock.mockReturnValue(profile('usr_1', 'upsell'));
         const mutate = vi.fn();
@@ -1020,8 +988,8 @@ describe('RecipeDetailScreen — visibility gating (C-004)', () => {
         fireEvent.click(screen.getByRole('button', { name: /^More actions for /u }));
         fireEvent.click(screen.getByRole('menuitem', { name: 'Make private' }));
 
-        expect(screen.getByRole('heading', { name: 'Private needs Pro for this recipe' })).toBeTruthy();
-        expect(mutate).not.toHaveBeenCalled();
+        expect(mutate).toHaveBeenCalledWith({ id: 'rec_1', visibility: 'private' });
+        expect(screen.queryByRole('heading', { name: 'Private needs Pro for this recipe' })).toBeNull();
     });
 
     it('a free cook who taps Make private on a recipe they wrote with a slot free makes it private, with no sheet', () => {
@@ -1096,14 +1064,15 @@ describe('RecipeDetailScreen — visibility gating (C-004)', () => {
         expect(screen.getByRole('menuitem', { name: 'Make private' })).toBeTruthy();
     });
 
-    it('⛔ under hidden, offers no Make private on an imported public-web recipe', () => {
+    // REWRITTEN for ADR-0077 section 6: an imported public-web recipe is offered Make private under every paid-feature state.
+    it('⛔ under hidden, still offers Make private on an imported public-web recipe: a slot, not Pro', () => {
         seedRecipe(makeRecipeDetail({ ownerId: 'usr_1', visibility: 'public', sourceType: 'imported_public' }));
         useUserProfileMock.mockReturnValue(profile('usr_1', 'hidden'));
 
         render(<RecipeDetailScreen recipeId="rec_1" />);
         fireEvent.click(screen.getByRole('button', { name: /^More actions for /u }));
 
-        expect(screen.queryByRole('menuitem', { name: 'Make private' })).toBeNull();
+        expect(screen.getByRole('menuitem', { name: 'Make private' })).toBeTruthy();
         expect(screen.getByRole('menuitem', { name: 'Version history' })).toBeTruthy();
     });
 
@@ -1256,37 +1225,30 @@ describe('RecipeDetailScreen — Save a copy', () => {
  */
 describe('RecipeDetailScreen — the refused Private, said inline (§6.4)', () => {
     const FINAL = 'This recipe is still public: it couldn’t be made private.';
-    const PREMIUM =
-        'This recipe stays public. A recipe from a public web page needs Pro and a change of your own to be private.';
     const SLOTS = 'Not available. All 50 of your private slots are in use.';
     // REWRITTEN for ADR-0073: the Pro sentences are the rule of an imported public-web recipe (the default here); a
     // recipe the cook wrote is refused only for every slot used.
     const seed = (
         visibility: RecipeVisibility = RecipeVisibility.PUBLIC,
-        sourceType: 'imported_public' | 'user_created' = 'imported_public',
+        sourceType: 'imported_public' | 'user_created' = 'user_created',
     ): void => seedRecipe(makeRecipeDetail({ id: 'rec_1', ownerId: 'usr_1', visibility, sourceType }));
 
-    it('⛔ says the recipe is still public, in the header, once the route has kept the claim', () => {
+    // REWRITTEN for ADR-0077 section 6: the `.final` (Pro) sentence is gone; the same placement is proved for the slots sentence.
+    it('⛔ says every slot is used, in the header, once the route has kept the claim', () => {
+        seedSlots({ used: 50, limit: 50 });
         seed();
         useUserProfileMock.mockReturnValue(profile('usr_1', 'hidden'));
 
         render(<RecipeDetailScreen recipeId="rec_1" finishRefused />);
 
-        const notice = screen.getByText(FINAL);
+        const notice = screen.getByText(SLOTS);
 
         expect(notice.closest('[aria-live="assertive"]')).not.toBeNull();
         expect(screen.getByRole('heading', { name: 'Weeknight Pasta' }).parentElement?.contains(notice)).toBe(true);
     });
 
-    it('takes the words from the profile: the upsell gets the Pro sentence', () => {
-        seed();
-        useUserProfileMock.mockReturnValue(profile('usr_1', 'upsell'));
-
-        render(<RecipeDetailScreen recipeId="rec_1" finishRefused />);
-
-        expect(screen.getByText(PREMIUM)).toBeTruthy();
-        expect(screen.queryByText(FINAL)).toBeNull();
-    });
+    // DELETED with ADR-0077 section 6: "the upsell gets the Pro sentence" belonged to the removed Pro rule. The profile no
+    // longer chooses the words; the slots sentence below is the one refusal that remains.
 
     it('⛔ says the slots sentence for a recipe the cook wrote when every slot is known used', () => {
         seedSlots({ used: 50, limit: 50 });
@@ -1305,7 +1267,6 @@ describe('RecipeDetailScreen — the refused Private, said inline (§6.4)', () =
         render(<RecipeDetailScreen recipeId="rec_1" finishRefused refusalArrived />);
 
         expect(screen.queryByText(SLOTS)).toBeNull();
-        expect(screen.queryByText(PREMIUM)).toBeNull();
         expect(screen.queryByText(FINAL)).toBeNull();
     });
 
@@ -1332,7 +1293,6 @@ describe('RecipeDetailScreen — the refused Private, said inline (§6.4)', () =
         render(<RecipeDetailScreen recipeId="rec_1" finishRefused refusalArrived />);
 
         expect(screen.queryByText(FINAL)).toBeNull();
-        expect(screen.queryByText(PREMIUM)).toBeNull();
     });
 
     it('reports the arrived claim as seen once the body has mounted, and only once', () => {

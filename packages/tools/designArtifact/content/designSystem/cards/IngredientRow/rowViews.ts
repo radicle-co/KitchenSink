@@ -97,6 +97,7 @@ function rowView(seed: typeof seedLineKey, number: number, facts: RowFacts): Ing
         countedAsId: `c${String(number)}`,
         openLabel,
         secondLine: facts.secondLine ?? { kind: 'none' },
+        privateFood: undefined,
         amountInvalidNote: undefined,
         inEntry: false,
         editorOpen: false,

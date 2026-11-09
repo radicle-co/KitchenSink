@@ -317,6 +317,12 @@ export const visibilityChoice = (
  */
 export interface RecipeIngredientsFieldsProps extends RecipeFormSectionProps {
     /**
+     * Open a food's page: the row's `⋯ Open food` for a line that uses a food only the cook can see (private foods spec
+     * D6). Web opens a new tab (the draft stays here); native pushes the food page above the editor. Absent when the host
+     * has no such page, and the item is then not offered.
+     */
+    readonly onOpenFood?: (foodId: string) => void;
+    /**
      * The editor's ONE background nutrition read (plan 002 V1 B5, `useLineNutrition`): every row's panel and the
      * running total read it, so nutrition never enters the draft. REQUIRED, so a host cannot ship a total without it.
      */

@@ -29,7 +29,7 @@ test.describe('publish refused for a private food', () => {
             currentVersion: 1,
             ingredients: [
                 {
-                    ingredientId: 'ing_private_sauce',
+                    ingredientId: 'ec000000-0000-4000-8000-0000000000f4',
                     name: 'Secret Sauce',
                     foodId: FOOD_ID,
                     foodVisibility: 'private',

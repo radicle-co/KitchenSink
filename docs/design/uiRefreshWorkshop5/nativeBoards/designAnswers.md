@@ -442,3 +442,18 @@ them, and a dimension such as "9 inch" is a `note`, never the unit. They hold on
    publish sheet keeps "We’re still checking {names}…", and `{names}` uses the shown words. The settle announcement is
    unchanged (2026-11-06 item 4): it counts ingredients once the checks end, and a line still checking announces
    nothing of its own.
+6. Amends item 4 (2026-11-09). An editor row whose food was removed shows its attention line, "Food no longer
+   listed", in the second-line slot, because the cook must act on it. "Not counted" shows only on the quiet stand-in
+   rows (an outage, or a private food), where the cook has nothing to fix.
+
+## 2026-11-09: the editor after a private-food refusal (found in Nova Squad's web shots)
+
+The spec did not say what the editor shows behind and after the refusal sheet. The build shows the general save
+failure: "Couldn't save" in the header and a "We couldn't save your latest changes" notice with "Try again". That is
+wrong, because Try again sends the same publish and gets the same refusal.
+
+1. A refusal is not a save failure. The header keeps the device state ("Saved in this tab" on web, the native
+   equivalent on a phone). No save-failure notice and no Try again.
+2. The problem stays visible in the places the spec already gives it: the sections bar "⚠ 1" and the row's attention
+   line "Private food. A public recipe can't use it." Nothing new is added.
+3. Publish and Save changes stay enabled. Pressing either again opens the refusal sheet again.

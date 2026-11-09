@@ -7,16 +7,17 @@
 
 ## Dependencies
 
-| Spec                                                        | Relationship                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| ----------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [002-user-auth](../002-user-auth/spec.md)                   | **Required + extended** — Subscriber authentication and authenticated identity for recipient resolution use the shared auth mechanism owned by 002. 002 is shipped; this feature additionally **adds a group model to the identity service** (see A-002), so the groups API is new surface delivered under 014, not a dependency to wait on.                                                                                                                                  |
-| [003-usda-food-data](../003-usda-food-data/spec.md)         | **Downstream (launch consumer)** — 003 FR-041 (withdrawn as specified 2026-08-10) is satisfied by publishing through this service. The notification is published by the **recipe service** (T-044), because `FetchQueueDao.resolve` deletes `fetch_requesters` in the transaction that completes the food. The keyword is `food.resolution.completed` per 003's decision register. There is no `003 US-005` and no `FR-NOTIF`; the earlier citation to them was void (T-048). |
-| [001-commise-recipe-app](../001-commise-recipe-app/spec.md) | **Downstream** — recipe lifecycle notifications owned by 001 contract updates will be published through this service.                                                                                                                                                                                                                                                                                                                                                         |
-| [005-ai-integration](../005-ai-integration/spec.md)         | **Downstream** — AI-generated content disclosure events owned by 005 contract updates will use this service.                                                                                                                                                                                                                                                                                                                                                                  |
-| [008-cooking-mode](../008-cooking-mode/spec.md)             | **Downstream** — timer alert events owned by 008 contract updates will use this service. **Added 2026-10-29 (owner ruling):** a timer that ends while the app is closed always alerts the cook (008 FR-041). **Amended 2026-10-29 (owner ruling T17):** that alert is a local notification the phone schedules when the timer starts. It does not go through this service and uses no server push. The cook can turn timer alerts off in settings.                            |
-| [010-subscriptions](../010-subscriptions/spec.md)           | **Downstream, added 2026-10-28.** The trial notice, renewal notices, billing recovery and the written cancel confirmation go out through this service by email, push and in-app (FR-046 to FR-056).                                                                                                                                                                                                                                                                           |
-| [007-grocery-lists](../007-grocery-lists/spec.md)           | **Downstream, added 2026-10-28.** The pantry use-by reminder may use push and email (FR-052).                                                                                                                                                                                                                                                                                                                                                                                 |
-| [009-nutrition-planning](../009-nutrition-planning/spec.md) | **Downstream** — compliance-gap events owned by 009 contract updates will use this service.                                                                                                                                                                                                                                                                                                                                                                                   |
+| Spec                                                                                                | Relationship                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| --------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [002-user-auth](../002-user-auth/spec.md)                                                           | **Required + extended** — Subscriber authentication and authenticated identity for recipient resolution use the shared auth mechanism owned by 002. 002 is shipped; this feature additionally **adds a group model to the identity service** (see A-002), so the groups API is new surface delivered under 014, not a dependency to wait on.                                                                                                                                  |
+| [003-usda-food-data](../003-usda-food-data/spec.md)                                                 | **Downstream (launch consumer)** — 003 FR-041 (withdrawn as specified 2026-08-10) is satisfied by publishing through this service. The notification is published by the **recipe service** (T-044), because `FetchQueueDao.resolve` deletes `fetch_requesters` in the transaction that completes the food. The keyword is `food.resolution.completed` per 003's decision register. There is no `003 US-005` and no `FR-NOTIF`; the earlier citation to them was void (T-048). |
+| [001-commise-recipe-app](../001-commise-recipe-app/spec.md)                                         | **Downstream** — recipe lifecycle notifications owned by 001 contract updates will be published through this service.                                                                                                                                                                                                                                                                                                                                                         |
+| [005-ai-integration](../005-ai-integration/spec.md)                                                 | **Downstream** — AI-generated content disclosure events owned by 005 contract updates will use this service.                                                                                                                                                                                                                                                                                                                                                                  |
+| [008-cooking-mode](../008-cooking-mode/spec.md)                                                     | **Downstream** — timer alert events owned by 008 contract updates will use this service. **Added 2026-10-29 (owner ruling):** a timer that ends while the app is closed always alerts the cook (008 FR-041). **Amended 2026-10-29 (owner ruling T17):** that alert is a local notification the phone schedules when the timer starts. It does not go through this service and uses no server push. The cook can turn timer alerts off in settings.                            |
+| [010-subscriptions](../010-subscriptions/spec.md)                                                   | **Downstream, added 2026-10-28.** The trial notice, renewal notices, billing recovery and the written cancel confirmation go out through this service by email, push and in-app (FR-046 to FR-056).                                                                                                                                                                                                                                                                           |
+| [007-grocery-lists](../007-grocery-lists/spec.md)                                                   | **Downstream, added 2026-10-28.** The pantry use-by reminder may use push and email (FR-052).                                                                                                                                                                                                                                                                                                                                                                                 |
+| [009-nutrition-planning](../009-nutrition-planning/spec.md)                                         | **Downstream** — compliance-gap events owned by 009 contract updates will use this service.                                                                                                                                                                                                                                                                                                                                                                                   |
+| [ADR-0029 authored foods](../../docs/architecture/decisions/0029-authored-foods-substances-only.md) | **Downstream, added 2026-11-09.** When staff approve or decline a cook's request to make their food public, or an edit to a public food (ADR-0029 §5, §7), the **food service** publishes `food.publicationDecided` and the cook gets a push (FR-057 to FR-059).                                                                                                                                                                                                              |
 
 Resolves `specs/cross-feature-consistency-report.md` §5.3 / **WA-004** (no owner for notification delivery).
 
@@ -69,6 +70,31 @@ this section records **what** was decided, and the FRs below make it normative.
   field, and a rejected event is **not recorded as a row** (FR-042).
 - Q: May an identifier ever be a sentinel such as `'unknown'`? → A: **Never.** An id is REQUIRED except on
   create/upsert, where it is generated if absent (FR-043).
+
+### Session 2026-11-09: staff decisions on food publication requests (owner rulings)
+
+The owner ruled on 2026-11-09, as relayed with the private-foods work: the designer's push copy and in-context ask
+(`docs/design/uiRefreshWorkshop5/privateFoods/spec.md` §16 and §17) and the architect's Revision 4 of the private-foods
+blueprint. The answers below record the rulings as relayed. They are not verbatim quotes. The
+[2026-11-09 amendment](#amendment-2026-11-09-request-updates-staff-decisions-on-food-publication) makes them normative.
+
+- Q: When staff approve or decline a cook's request to make a food public, or approve or decline an edit to a public
+  food, does the cook hear about it outside the food page? → A: **Yes, by push.** The food page, the "Your foods"
+  badges and the Profile dot stay as they are (US-014, FR-058).
+- Q: Which category is that? FR-047 had three, and none fits: no law or promise requires it, the cook did not turn it
+  on, and it promotes nothing. → A: **A new, fourth category, "request updates": replies to something the cook asked
+  for.** It sits beside required notices, reminders and marketing (FR-047 amended, FR-057).
+- Q: Which platforms? → A: **Native only.** The web shows the in-app result only, because this spec defers web push
+  (FR-050).
+- Q: When is the cook asked for notification permission? → A: **In context, the first time the cook presses "Ask to
+  make public", never at sign-in.** The request is sent whatever the answer (FR-050 amended).
+- Q: What does the push say? → A: **Four messages, one per outcome, each opening that food's page, and never the
+  decline reason**, because a lock screen is not private (FR-052 amended, FR-058).
+- Q: What happens before this service's push channel exists? → A: **The in-app result is the only signal, and the app
+  does not ask for notification permission** (FR-059).
+- Two defaults were **derived here, not ruled**, and are stated so they can be challenged: email for request updates is
+  off until the cook turns it on, and request updates are not counted against the daily `reminder` caps (FR-057,
+  FR-051 amended).
 
 ## User Scenarios & Testing _(mandatory)_
 
@@ -318,6 +344,49 @@ payload a third time, and verify a **new** notification is delivered.
    notification and is delivered.
 6. **Given** the same payload is published to two **different** recipients, **Then** both recipients receive
    it — dedup is per recipient.
+
+---
+
+### User Story 14 — A Cook Hears Back When Staff Decide on Their Food (Priority: P2)
+
+_(Added 2026-11-09, owner ruling.)_ A cook asks to make a food they wrote public, or edits a food that is already
+public. Staff approve or decline it, often hours later. The cook gets one push on their phone. It says what happened
+and opens that food's page. The reason for a decline is on that page, never on the lock screen.
+
+**Why this priority**: The answer is already in the app: the food page, the "Your foods" badges and the Profile dot.
+So no cook loses a decision without the push. The push saves them from checking. It cannot ship before this service's
+push channel (FR-046, FR-053).
+
+**Independent Test**: A staff principal approves one request to make a private food public and declines one edit to a
+public food, for a cook with push allowed on a native device. Verify exactly two pushes, with the keys
+`foods.push.madePublic` and `foods.push.changeNotApproved`. Each opens `commise://foods/{foodId}`, and neither carries
+the decline reason. Then stop the food service after a decision commits and before it publishes, start it again, and
+verify the sweep sends the missing push once.
+
+**Acceptance Scenarios**:
+
+1. **Given** a pending request to make a private food public, **When** staff approve it, **Then** the author gets one
+   push with the key `foods.push.madePublic` and `{food}` set to the food's name. A tap opens that food's page.
+2. **Given** the same request, **When** staff decline it, **Then** the push key is `foods.push.notMadePublic`. The
+   push text and its payload carry no decline reason. The reason shows on the food page.
+3. **Given** a pending edit to a public food, **When** staff approve it, **Then** the push key is
+   `foods.push.changeLive` and `{food}` is the newly approved name. **When** staff decline it instead, **Then** the key
+   is `foods.push.changeNotApproved` and `{food}` is the name that is still live.
+4. **Given** a request that closes without a decision, because a newer edit replaced it or the author withdrew the
+   food, **Then** no push is sent.
+5. **Given** the food service stops after the decision commits and before it publishes, **When** it starts again,
+   **Then** its sweep publishes the missed notification, and the cook gets exactly one push for that request.
+6. **Given** the food service's own send and its sweep both publish for one request, or the bus delivers the envelope
+   twice, **Then** the cook gets one push (FR-046, FR-058).
+7. **Given** the cook turned request updates off for push, **When** staff decide, **Then** no push is sent. The food
+   page, the "Your foods" badge and the Profile dot still show the result.
+8. **Given** the cook uses the web app, **When** staff decide, **Then** there is no push and no permission prompt. The
+   food page and the "Your foods" list show the result.
+9. **Given** a cook on a native device who was never asked for notification permission, **When** they press "Ask to
+   make public" for the first time, **Then** the request is filed first and the system permission dialog shows after
+   it. A denial changes nothing else.
+10. **Given** this service's push channel has not shipped, **When** a cook presses "Ask to make public", **Then** no
+    permission dialog shows (FR-059).
 
 ---
 
@@ -1275,7 +1344,8 @@ SPECIFY at plan time, with its copy and localization key.
   never chosen by the producer at publish time. The entry declares:
     - its **category**: `requiredNotice` (a notice the law, a store rule or our own promise needs, such as a trial
       or billing notice), `reminder` (a service the cook turns on or off) or `marketing` (anything that promotes a
-      purchase).
+      purchase). _(Amended 2026-11-09, owner ruling.)_ A fourth category, `requestUpdate`, is a reply to something the
+      cook asked for, such as staff's decision on a food the cook asked to make public (FR-057).
     - the channels it may use, and each channel's default.
     - for a `requiredNotice`, its **deadline**: the latest moment it may arrive, stated against a date in the
       producer's own state (for example, 3 days before the first charge).
@@ -1298,6 +1368,8 @@ SPECIFY at plan time, with its copy and localization key.
       in" and the app gives a way to opt out. Every marketing email carries an unsubscribe link (CAN-SPAM). At launch
       no message in FR-052 is marketing. The in-app offers of `010-FR-041k` and `010-FR-041l` are cards in the app,
       not messages.
+    - _(Added 2026-11-09.)_ A `requestUpdate` is on in-app, on by push once the device allows notifications, and off by
+      email until the cook turns it on. FR-057 states the defaults and why.
     - The settings are typed, nullable columns in identity's settings table, where NULL means the default (ADR-0059).
       They are personal data and are erased with the account.
 - **FR-050** _(added 2026-10-28)_: The push permission MUST be asked in context, never on first launch with no
@@ -1320,6 +1392,20 @@ SPECIFY at plan time, with its copy and localization key.
     - **Web: push is deferred.** The web app has no service worker yet (019 plans one). On the web the trial notice
       and reminders go by email and in-app, and every web surface says "we email you". This is a stated disposition
       under CODING_STANDARDS §14, not an omission. Web push is reconsidered when 019's service worker ships.
+    - _(Amended 2026-11-09, owner ruling.)_ **A further real need: the first time the cook presses "Ask to make public"
+      on a food they wrote** (FR-057, US-014). It is never asked at sign-in. Three rules differ from the trial ask, on
+      purpose:
+        - **No screen of ours comes first.** The press is the context, and the design gives "Ask to make public" no
+          dialog (`docs/design/uiRefreshWorkshop5/privateFoods/spec.md` D7 and §16). The explanation screen above
+          belongs to the trial ask only.
+        - **The request is filed first, then the system dialog shows.** A dismissed dialog, a denial or a closed app
+          never loses the request, and a denial changes nothing else.
+        - **The app asks only when it can use the answer.** That means the OS reports the permission as not yet
+          decided, and FR-053's token registration is live (FR-059). This is a check in code, not a promise in
+          prose.
+    - _(Consequence, added 2026-11-09.)_ iOS shows its own permission dialog once per install. A cook who meets the
+      food need before a trial uses that one dialog there. So "the first ask is right after a trial starts" is no longer
+      always true. The plan target above is read over trial starters who had not been asked before their trial.
 
 ### Quiet hours and caps
 
@@ -1334,21 +1420,25 @@ SPECIFY at plan time, with its copy and localization key.
     - A `requiredNotice` is exempt from caps. It is scheduled to land outside quiet hours and before its deadline. If
       holding it for quiet hours would miss the deadline, it is sent.
     - Caps live in the same shared store as the quota bucket (FR-044), never in one task's memory.
+    - _(Added 2026-11-09.)_ A `requestUpdate` push keeps quiet hours: it is held and goes out when they end. It does not
+      count against the `reminder` caps and has no cap of its own. It answers a request the cook made, and FR-058 sends
+      at most one per request. This rule was derived, not ruled (see Clarifications, Session 2026-11-09).
 
 ### The message catalog
 
 - **FR-052** _(added 2026-10-28)_: The launch message catalog MUST be:
 
-    | `messageType` group               | Producer and owning FR                     | Category         | In-app | Push                 | Email                          | When                                                                                                                                                                                                                                                  |
-    | --------------------------------- | ------------------------------------------ | ---------------- | ------ | -------------------- | ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-    | Trial ends soon                   | identity billing, `010-FR-041h`            | `requiredNotice` | Yes    | Yes, with permission | Yes, always                    | 3 days before the first charge. Deadline: 2 days before it                                                                                                                                                                                            |
-    | Yearly renewal coming             | identity billing, `010-FR-041h`            | `requiredNotice` | Yes    | No                   | Yes, always                    | 30 days before a yearly renewal, inside California's 15 to 45 day window (`016-FR-050`)                                                                                                                                                               |
-    | Yearly reminder of the terms      | identity billing, `010-FR-041h`            | `requiredNotice` | Yes    | No                   | Yes, always                    | Once a year from the first paid date, for every paid subscription, monthly included. It names the plan, how often it charges, the amount and how to cancel. Counsel confirms whether California's annual reminder covers monthly terms (`016-FR-050`) |
-    | Payment failed                    | identity billing, `010-FR-043b`            | `requiredNotice` | Yes    | Yes, with permission | Yes, always                    | At the failure, half way through the grace period, and one day before it ends                                                                                                                                                                         |
-    | Cancellation and plan change done | identity billing, `010-FR-042e`, `FR-042h` | `requiredNotice` | Yes    | No                   | Yes, always                    | At once. This is the written confirmation of `016-FR-041`                                                                                                                                                                                             |
-    | Household coverage ending         | recipe-service household, `017-FR-034d`    | `requiredNotice` | Yes    | Yes, with permission | Yes, always                    | 7 days before a known end, and at once for a sudden one                                                                                                                                                                                               |
-    | Pantry use-by reminder            | recipe-workers, `007-FR-036`               | `reminder`       | On     | On, with permission  | Off until the cook turns it on | Once a day in the morning, as `007-FR-036` states                                                                                                                                                                                                     |
-    | Weekly planning reminder          | meal planning, 006                         | `reminder`       | On     | On, with permission  | Off until the cook turns it on | Off until the cook turns it on and picks a day and time. Offered after their first plan                                                                                                                                                               |
+    | `messageType` group                           | Producer and owning FR                     | Category         | In-app | Push                             | Email                          | When                                                                                                                                                                                                                                                  |
+    | --------------------------------------------- | ------------------------------------------ | ---------------- | ------ | -------------------------------- | ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+    | Trial ends soon                               | identity billing, `010-FR-041h`            | `requiredNotice` | Yes    | Yes, with permission             | Yes, always                    | 3 days before the first charge. Deadline: 2 days before it                                                                                                                                                                                            |
+    | Yearly renewal coming                         | identity billing, `010-FR-041h`            | `requiredNotice` | Yes    | No                               | Yes, always                    | 30 days before a yearly renewal, inside California's 15 to 45 day window (`016-FR-050`)                                                                                                                                                               |
+    | Yearly reminder of the terms                  | identity billing, `010-FR-041h`            | `requiredNotice` | Yes    | No                               | Yes, always                    | Once a year from the first paid date, for every paid subscription, monthly included. It names the plan, how often it charges, the amount and how to cancel. Counsel confirms whether California's annual reminder covers monthly terms (`016-FR-050`) |
+    | Payment failed                                | identity billing, `010-FR-043b`            | `requiredNotice` | Yes    | Yes, with permission             | Yes, always                    | At the failure, half way through the grace period, and one day before it ends                                                                                                                                                                         |
+    | Cancellation and plan change done             | identity billing, `010-FR-042e`, `FR-042h` | `requiredNotice` | Yes    | No                               | Yes, always                    | At once. This is the written confirmation of `016-FR-041`                                                                                                                                                                                             |
+    | Household coverage ending                     | recipe-service household, `017-FR-034d`    | `requiredNotice` | Yes    | Yes, with permission             | Yes, always                    | 7 days before a known end, and at once for a sudden one                                                                                                                                                                                               |
+    | Pantry use-by reminder                        | recipe-workers, `007-FR-036`               | `reminder`       | On     | On, with permission              | Off until the cook turns it on | Once a day in the morning, as `007-FR-036` states                                                                                                                                                                                                     |
+    | Weekly planning reminder                      | meal planning, 006                         | `reminder`       | On     | On, with permission              | Off until the cook turns it on | Off until the cook turns it on and picks a day and time. Offered after their first plan                                                                                                                                                               |
+    | Food publication decided _(added 2026-11-09)_ | food service, ADR-0029 §5 and §7, FR-058   | `requestUpdate`  | On     | On, with permission, native only | Off until the cook turns it on | When staff approve or decline. Keys `foods.push.madePublic`, `foods.push.notMadePublic`, `foods.push.changeLive`, `foods.push.changeNotApproved`, with the one parameter `{food}`. Each opens `commise://foods/{foodId}`. Never the decline reason    |
 
     A row is a group, because each producer registers its own `messageType` names (FR-041). The weekly planning
     reminder needs an FR in 006 at its plan. It is listed here so its channels and consent are fixed now. Apple's
@@ -1380,3 +1470,75 @@ SPECIFY at plan time, with its copy and localization key.
 - **SC-018**: A redelivered notification under FR-039 sends no second push or email (FR-046).
 - **SC-019**: A cook who turns a category off on one channel gets nothing in that category on that channel, and
   still gets it on the others (FR-049).
+
+## Amendment (2026-11-09): request updates, staff decisions on food publication
+
+The owner ruled that a cook gets a push when staff decide on a food the cook asked about (Clarifications, Session
+2026-11-09). A cook asks staff to make a private food public, or edits a food that is already public, and staff approve
+or decline (ADR-0029 §5 and §7). This amendment adds the category those replies use, makes the food service a producer,
+and states what the app does before the push channel exists. It changes FR-047, FR-049, FR-050, FR-051 and FR-052,
+adds US-014, and adds FR-057 to FR-059 with SC-020 and SC-021.
+
+- **FR-057** _(added 2026-11-09)_: **The `requestUpdate` category.** A `requestUpdate` is a reply to something the cook
+  asked for. Its defaults per channel are:
+    - **In-app: on.**
+    - **Push: on, once the cook allows notifications on the device** and FR-053 registers its token. Native only.
+      The web gets no push (FR-050).
+    - **Email: off until the cook turns it on.** _Why_: FR-049 keeps always-on email for a `requiredNotice` only, and
+      this is not one. No law, store rule or promise of ours needs the reply to reach the cook outside the app, and the
+      food page already shows it. Every other category the cook can turn off starts with email off (the `reminder`
+      rows of FR-052). So a `requestUpdate` follows that pattern. This default was derived, not ruled.
+    - **The cook can turn each channel off in settings.** The settings are three typed, nullable boolean columns in
+      identity's `settings` table, one per channel. NULL means the default (ADR-0059), and the defaults live once in
+      `SETTINGS_DEFAULTS`. They are personal data and are erased with the account (FR-049).
+    - **Turning in-app off silences only this service's in-app notification** (the bell's feed item). The food's own
+      state is not a notification: the food page's status, the "Your foods" badges and the Profile dot always show.
+    - Push and email copy for this category go through `staff-ux-engineer` with FR-048's other texts. The push copy is
+      in `docs/design/uiRefreshWorkshop5/privateFoods/spec.md` §16. **The email copy is not designed yet**, and the
+      email channel for this category does not ship without it.
+- **FR-058** _(added 2026-11-09)_: **The food service is a producer, and it publishes `food.publicationDecided`.**
+    - **Registration.** The food service is registered in the producer registry (FR-041): its producer name, its
+      EventBridge `source`, its quota magnitudes, the `messageType` `food.publicationDecided` in category
+      `requestUpdate`, and its owning feature (authored foods, ADR-0029).
+    - **When.** Food publishes after its decision transaction commits, and only for a request that ends `approved` or
+      `declined`. A request that ends `closed`, because a newer edit replaced it or the author withdrew the food, sends
+      nothing. A request that is still `pending` sends nothing.
+    - **What.** One FR-026 envelope per decided request. The recipient is `{ kind: "user", id: <the food's author> }`.
+      The `idempotencyKey` is the request id (FR-030: durable domain state, stable across retries). The payload is
+      `{ foodId, requestId, kind, outcome }`, where `kind` is `publication` or `edit` and `outcome` is `approved` or
+      `declined`. Its zod is strict and has **no field for a reason**, so a decline reason cannot be sent at all.
+    - **The text.** The localization key comes from `kind` and `outcome` (FR-048), and its one parameter `{food}` is
+      the food's live name after the decision. That is the new name on an approved edit, and the name still live on a
+      declined one. The tap opens `commise://foods/{foodId}`. The producer supplies that link with the text,
+      because this service never reads meaning out of `payload` (FR-023). So FR-048's optional addition carries a
+      link as well as a key and its parameters.
+
+        | `kind`        | `outcome`  | Key                            |
+        | ------------- | ---------- | ------------------------------ |
+        | `publication` | `approved` | `foods.push.madePublic`        |
+        | `publication` | `declined` | `foods.push.notMadePublic`     |
+        | `edit`        | `approved` | `foods.push.changeLive`        |
+        | `edit`        | `declined` | `foods.push.changeNotApproved` |
+
+    - **No missed sends.** Each request carries a durable `notified_at`. Food sets it only after the publish succeeds:
+      an HTTP `2xx`, or an EventBridge entry returned with no error. A sweep in the food service publishes every decided request whose `notified_at` is still NULL. Its
+      own send and the sweep build the envelope the same way, from committed rows. The sweep never sends for a request
+      decided longer ago than this service's FR-018 claim window. Past that window a resend would be a second push, so
+      such a request is counted and alarmed instead (ADR-0062).
+    - **At most one push per request.** The request id as `idempotencyKey` (FR-018), and FR-046's "at most once per
+      notification id per channel", make the inline send, the sweep and a bus redelivery one push.
+    - **Food never calls recipe-service** (ADR-0029 §5). _Why food can publish here when 003's notification comes from
+      recipe-service (T-044)_: there the recipients live in a table the completing transaction deletes. Here the
+      recipient is the food's author, which the decision transaction already reads.
+- **FR-059** _(added 2026-11-09)_: **Before this service's push channel ships, the in-app result is the only signal.**
+  Until FR-046's push fan-out and FR-053's token registration are live, the food page's status, the "Your foods" badges
+  and the Profile dot (from `author_seen_at`) carry every decision. The app MUST NOT ask for notification permission,
+  and the food service publishes nothing. The food leg of FR-058 ships with the channel or after it, never before.
+
+### Success criteria added 2026-11-09
+
+- **SC-020**: Each request that staff approve or decline gives its author **exactly one** push, in a test that covers
+  the inline send, a stop between the decision's commit and the publish followed by the sweep, and a bus redelivery.
+  A request that ends `closed` gives none (FR-058).
+- **SC-021**: No push carries a decline reason. The `food.publicationDecided` payload zod rejects any payload that adds a
+  reason field, and a test proves it (FR-058).

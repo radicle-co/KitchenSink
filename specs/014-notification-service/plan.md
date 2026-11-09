@@ -869,21 +869,22 @@ Legend:
 - **Implied**: referenced by feature docs but event contract not finalized.
 - **Coordination**: producer team dependency for final trigger schema/ownership sign-off.
 
-| Feature                   | Candidate trigger(s) / messageType namespace                                    | Recipient kind(s)                   | Priority in M8 integration | Ownership status                                                                                        |
-| ------------------------- | ------------------------------------------------------------------------------- | ----------------------------------- | -------------------------- | ------------------------------------------------------------------------------------------------------- |
-| `001` Commise Recipe App  | Recipe lifecycle notifications (create/update/share-style lifecycle references) | user, group                         | Medium                     | **Implied** — requires 001 contract finalization (**coordination required**)                            |
-| `002` Clerk User Auth     | Security/session/admin notices (optional for v1)                                | user, global                        | Low                        | Not explicitly required by 014 launch contract                                                          |
-| `003` USDA Food Data      | `food.resolution.completed` (003 decision register); failure notice unnamed     | user (fan-out list), optional group | **High**                   | **Firm** — published by the recipe service, not the food service (T-044)                                |
-| `004` Recipe Importing    | Import completion/failure notices (optional)                                    | user                                | Low                        | Not currently required by 014 launch goals                                                              |
-| `005` AI Integration      | AI-generation disclosure/compliance events                                      | user                                | High                       | **Implied/Firm-in-principle** — disclosure required; event taxonomy pending (**coordination required**) |
-| `006` Meal Planning       | Plan-change reminders / schedule nudges                                         | user, group                         | Medium                     | Implied via M8 launch integration requirement (**coordination required**)                               |
-| `007` Grocery Lists       | Collaboration/list-change events                                                | group, user                         | Medium                     | Implied by 007 collaboration hazard references (**coordination required**)                              |
-| `008` Cooking Mode        | Timer started/completed/expired alerts                                          | user                                | **High**                   | **Firm-in-spirit** time-sensitive alerts; concrete message contract pending (**coordination required**) |
-| `009` Nutrition Planning  | Compliance-gap / deficiency-related informational notices                       | user                                | High                       | **Implied** and partially open in 009 artifacts (**coordination required**)                             |
-| `010` Subscriptions       | Trial ending, past-due, entitlement-change notices                              | user                                | Medium                     | Present in 010 planning language; integration scope decision pending (**coordination required**)        |
-| `011` Recipe Digitization | OCR job completed/failed, circle/invite workflow informational events           | user, group                         | Low/Medium                 | Optional in v1; not hard M8 gate                                                                        |
-| `012` Creator Profiles    | Moderation/action-result notifications to creators                              | user                                | Medium                     | Present in 012 requirement narratives; integration contract pending (**coordination required**)         |
-| `013` Cooking School      | Publish/enroll milestone events to learners/creators                            | user, group                         | Medium                     | 013 plan explicitly defers full notification ownership to 014 (**coordination required**)               |
+| Feature                   | Candidate trigger(s) / messageType namespace                                    | Recipient kind(s)                   | Priority in M8 integration | Ownership status                                                                                          |
+| ------------------------- | ------------------------------------------------------------------------------- | ----------------------------------- | -------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `001` Commise Recipe App  | Recipe lifecycle notifications (create/update/share-style lifecycle references) | user, group                         | Medium                     | **Implied** — requires 001 contract finalization (**coordination required**)                              |
+| `002` Clerk User Auth     | Security/session/admin notices (optional for v1)                                | user, global                        | Low                        | Not explicitly required by 014 launch contract                                                            |
+| `003` USDA Food Data      | `food.resolution.completed` (003 decision register); failure notice unnamed     | user (fan-out list), optional group | **High**                   | **Firm** — published by the recipe service, not the food service (T-044)                                  |
+| `004` Recipe Importing    | Import completion/failure notices (optional)                                    | user                                | Low                        | Not currently required by 014 launch goals                                                                |
+| `005` AI Integration      | AI-generation disclosure/compliance events                                      | user                                | High                       | **Implied/Firm-in-principle** — disclosure required; event taxonomy pending (**coordination required**)   |
+| `006` Meal Planning       | Plan-change reminders / schedule nudges                                         | user, group                         | Medium                     | Implied via M8 launch integration requirement (**coordination required**)                                 |
+| `007` Grocery Lists       | Collaboration/list-change events                                                | group, user                         | Medium                     | Implied by 007 collaboration hazard references (**coordination required**)                                |
+| `008` Cooking Mode        | Timer started/completed/expired alerts                                          | user                                | **High**                   | **Firm-in-spirit** time-sensitive alerts; concrete message contract pending (**coordination required**)   |
+| `009` Nutrition Planning  | Compliance-gap / deficiency-related informational notices                       | user                                | High                       | **Implied** and partially open in 009 artifacts (**coordination required**)                               |
+| `010` Subscriptions       | Trial ending, past-due, entitlement-change notices                              | user                                | Medium                     | Present in 010 planning language; integration scope decision pending (**coordination required**)          |
+| `011` Recipe Digitization | OCR job completed/failed, circle/invite workflow informational events           | user, group                         | Low/Medium                 | Optional in v1; not hard M8 gate                                                                          |
+| `012` Creator Profiles    | Moderation/action-result notifications to creators                              | user                                | Medium                     | Present in 012 requirement narratives; integration contract pending (**coordination required**)           |
+| `013` Cooking School      | Publish/enroll milestone events to learners/creators                            | user, group                         | Medium                     | 013 plan explicitly defers full notification ownership to 014 (**coordination required**)                 |
+| Authored foods (ADR-0029) | `food.publicationDecided` (category `requestUpdate`, added 2026-11-09)          | user (the food's author)            | Medium                     | **Firm** — owner ruling 2026-11-09; published by the **food service** (FR-058), unlike 003's notification |
 
 ### M8 required integration subset (per launch plan + current evidence)
 
@@ -896,14 +897,15 @@ Minimum must-wire in M8 execution backlog:
 The owner confirmed on 2026-08-05 that full M8 scope stands. Recording the standing
 constraint that comes with it:
 
-| Producer | Exists in code?                     | Integration task                                      |
-| -------- | ----------------------------------- | ----------------------------------------------------- |
-| `003`    | ✅ `packages/services/food-service` | T-042 – T-044 (publisher lands in the recipe service) |
-| `005`    | ❌ specification only               | T-018                                                 |
-| `008`    | ❌ specification only               | T-018                                                 |
-| `009`    | ❌ specification only               | T-018                                                 |
-| `012`    | ❌ specification only               | T-021 (added 2026-08-05)                              |
-| `013`    | ❌ specification only               | T-022 (added 2026-08-05)                              |
+| Producer       | Exists in code?                                                                     | Integration task                                                                                  |
+| -------------- | ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `003`          | ✅ `packages/services/food-service`                                                 | T-042 – T-044 (publisher lands in the recipe service)                                             |
+| `005`          | ❌ specification only                                                               | T-018                                                                                             |
+| `008`          | ❌ specification only                                                               | T-018                                                                                             |
+| `009`          | ❌ specification only                                                               | T-018                                                                                             |
+| `012`          | ❌ specification only                                                               | T-021 (added 2026-08-05)                                                                          |
+| `013`          | ❌ specification only                                                               | T-022 (added 2026-08-05)                                                                          |
+| Authored foods | ✅ `packages/services/food-service` (`food_publication_requests`, migration `0028`) | T-086 – T-090 (added 2026-11-09; T-086 registers it here, T-087 – T-090 land in the food service) |
 
 Only **003** can be integrated end-to-end today, and its notification is published by the
 **recipe service**, not the food service: `FetchQueueDao.resolve` deletes every
@@ -931,6 +933,15 @@ is the M8 _milestone_ gate, not `SC-001`, that needs all six producers.
 ### Deferred channels
 
 - Email, mobile push provider integration, webhook callbacks.
+- ⚠️ _(Note added 2026-11-09.)_ **This list is stale for email and mobile push.** `spec.md`'s 2026-10-28 amendment
+  (FR-046 to FR-056) brought both into scope, and the 2026-11-09 amendment (FR-057 to FR-059) adds a producer that
+  uses push. **This plan has no section for the 2026-10-28 channels yet**, and `tasks.md` has no task for them: the
+  push fan-out (FR-046), the registry's category and channel fields (FR-047), the localized text fill (FR-048), the
+  per-category settings (FR-049), the permission ask (FR-050), quiet hours and caps (FR-051), device tokens (FR-053),
+  email (FR-054), the provider choice (FR-055) and the channel counters (FR-056). That plan is owed, with
+  `staff-architect`. Webhook callbacks stay deferred. See
+  [_Request updates: food publication decisions_](#request-updates-food-publication-decisions-added-2026-11-09) for
+  what the 2026-11-09 amendment adds on top of it.
 
 ### Client dispatch contract
 
@@ -976,11 +987,150 @@ relevant context"), which had no implementing surface.
 
 - No user-facing preference center in initial launch baseline.
 - Operationally, producers can control emission and target scope; recipients are auth-scoped.
+- ⚠️ _(Note added 2026-11-09.)_ **Superseded in `spec.md`.** FR-049 (2026-10-28) gives every cook a per-category,
+  per-channel setting, held as typed nullable columns in identity's `settings` table (ADR-0059). FR-057 (2026-11-09)
+  adds the first category with a concrete column set, `requestUpdate`. Its columns are planned in
+  [_Request updates: food publication decisions_](#request-updates-food-publication-decisions-added-2026-11-09). The
+  other categories' columns are owed with the 2026-10-28 channel plan.
 
 ### Planned extension path
 
 - Add per-user category preferences and delivery-channel preferences in follow-on milestone work.
 - Preserve backwards compatibility by keeping envelope contract stable and moving preference logic into routing policy.
+
+---
+
+## Request updates: food publication decisions (added 2026-11-09)
+
+`spec.md` FR-057 to FR-059, US-014, SC-020 and SC-021. Owner ruling 2026-11-09: when staff approve or decline a
+cook's request to make a food public, or an edit to a public food (ADR-0029 §5 and §7), the cook gets a push. This
+section plans the food service's producer leg, the settings columns and the client work. ⚠️ **It sits on top of the
+2026-10-28 channel plan, which does not exist yet** (see _Deferred channels_). The push fan-out, token registration
+and the settings read at send time are owed there, and T-091 depends on them by name.
+
+### Pattern register
+
+- **Polling Publisher over the domain row (the transactional-outbox intent, without an outbox table).** The
+  `food_publication_requests` row is written in the decision transaction and already holds everything the envelope
+  needs. A `notified_at` stamp on that row marks it sent. A separate outbox table would hold a second copy of the same
+  fact. Publishing inside the transaction is refused, because a push for a decision that then rolls back cannot be
+  taken back.
+- **Factory: one envelope builder, reading committed rows.** The inline send and the sweep both call it, so the two
+  paths cannot build different envelopes. It never builds from the decision's in-memory result.
+- **Visitor, satisfied by an exhaustive `switch`** over `(kind, outcome)` → localization key. A fifth case is a
+  compile error, not a silent default.
+- **Idempotent Receiver, on this service's side.** `idempotencyKey = requestId` (FR-018, FR-030) and FR-046's "at most
+  once per notification id per channel" turn the inline send, the sweep and a bus redelivery into one push.
+- **ADR-0059's typed settings columns, with defaults resolved on read.** No SQL `DEFAULT`, so a cook who never chose
+  stays on the code's default.
+
+### The producer leg (food service)
+
+- **Ingress: the EventBridge path** (FR-024). The food service already publishes `FoodFetchCompleted` to EventBridge,
+  so it holds a client and the pattern. What it sends here is a notification **envelope**, not a domain event (FR-025).
+  The food task role gains `events:PutEvents` on the notification bus, the bus resource policy (T-035) admits it, and
+  the registry's `eventSources` maps its `source` to the producer name (FR-041). Food's Fargate tasks reach AWS through
+  the Internet Gateway, so ADR-0004's NAT consumer table does not change.
+- **Registry entry** (FR-041): producer `food-service`, its `source`, quota magnitudes sized for staff decisions (tens
+  a day, so a small sustained rate and burst), owning feature "authored foods (ADR-0029)", and one `messageType`,
+  `food.publicationDecided`, in category `requestUpdate` (FR-047) with push and in-app on and email off by default
+  (FR-057).
+- **The envelope.**
+
+    ```jsonc
+    {
+        "schemaVersion": 1,
+        "producer": "food-service",
+        "messageType": "food.publicationDecided",
+        "recipient": { "kind": "user", "id": "<food.user_id: the author's identity user id>" },
+        "idempotencyKey": "<food_publication_requests.id>",
+        "occurredAt": "<decided_at, ISO 8601>",
+        "text": {
+            "key": "foods.push.madePublic",
+            "params": { "food": "<the food's live name>" },
+            "link": "commise://foods/<foodId>",
+        },
+        "payload": { "foodId": "<id>", "requestId": "<id>", "kind": "publication", "outcome": "approved" },
+    }
+    ```
+
+    The `text` field's final name and shape are FR-048's, fixed by `staff-architect` in the channel plan. It carries
+    the tap target as well as the key, because this service never reads the payload (FR-023). The payload
+    zod is `z.strictObject`, authored in the food service beside its other publication schemas
+    (`src/foods/publication.schema.ts`) and copied to `@kitchensink/schema-food` by `contract:generate` (ADR-0014).
+    It has no reason field, so SC-021 holds by construction, and a test proves a payload with one fails to parse.
+    The recipient id MUST be the same identity user id this service binds subscribers to (FR-005). T-087 pins it with
+    a test rather than assuming it.
+
+- **`kind`.** A request is an `edit` when the same food has an earlier request with status `approved`, and a
+  `publication` otherwise. A food becomes `promoted` only through an approval (ADR-0029 §5), so history answers the
+  question after the fact, and the sweep reads it the same way the inline send does. The food's current visibility
+  cannot answer it, because every approved request leaves the food `promoted`.
+- **`{food}`.** The live `food.name` read after the decision: the new name on an approved edit, the name still live
+  on a declined one. The author is the only recipient, so a private food's name reaches only its author.
+- **The inline send.** After `PublicationRequestsDao.decide` commits with `approved` or `declined`, the service builds
+  the envelope from committed rows and publishes it. On success (no error on the returned entry) it runs
+  `UPDATE … SET notified_at = now() WHERE id = $1 AND notified_at IS NULL`. A failed publish is logged and left for
+  the sweep. It never fails the staff member's decision, which has already committed.
+- **The sweep.** It runs in the food worker's existing loop, not as a new scheduled rule. If it is ever moved to an
+  `AWS::Events::Rule`, that rule follows ADR-0060's non-prod gate. Its predicate is one SQL constant:
+  `status IN ('approved', 'declined') AND notified_at IS NULL AND decided_at > now() - <bound>`. ⛔ The predicate
+  never reads `decided_at IS NOT NULL` alone, because migration `0028` gives a `closed` request a `decided_at` too,
+  and that would push for every replaced or withdrawn request. A short grace after `decided_at` keeps the sweep off
+  requests the inline send is still handling. A race is harmless, because both sends carry the same key.
+- **The sweep's age bound.** `<bound>` MUST be shorter than this service's FR-018 claim window, less one sweep
+  interval. The claim starts no earlier than `decided_at`, so a resend inside the bound always lands inside the window.
+  A resend outside it would be a second push. A request older than the bound and still unsent is stamped as given up
+  (counted, not sent) and alarmed through the relay (ADR-0062). The claim window is configured, so the bound is
+  derived from the same configuration value and never restated as a number.
+- **Counters.** Sent inline, sent by the sweep, publish failed, given up. Dimensioned on `Stage` (ADR-0062) and never
+  on a food or request id (`spec.md` C-7).
+- **Why the food service publishes, when 003's notification comes from recipe-service (T-044).** There the recipients
+  live in `fetch_requesters`, which the completing transaction deletes. Here the recipient is `food.user_id`, which the
+  decision transaction already reads. Food never calls recipe-service (ADR-0029 §5).
+
+### Data model changes
+
+- **Food migration (next free number after `0028`): `notified_at timestamptz` on `food_publication_requests`.**
+  Expand-only and nullable (ADR-0035). A CHECK in `0028`'s own style makes the illegal state unrepresentable:
+  `notified_at IS NULL OR status IN ('approved', 'declined')`. A partial index serves the sweep:
+  `(decided_at) WHERE status IN ('approved', 'declined') AND notified_at IS NULL`. The column holds a time, not a
+  person, so the table stays outside the erasure sweep's owner-bearing set, as `0028` states. A LOCAL e2e test proves
+  the CHECK and the index on a real database (CODING_STANDARDS §7.1a).
+- **Identity migration (next free number after `0019`): three nullable boolean columns on `settings`**,
+  `request_updates_in_app`, `request_updates_push` and `request_updates_email`, with no SQL `DEFAULT` (ADR-0059).
+  `userSettingsSchema` gains `requestUpdatesInApp`, `requestUpdatesPush` and `requestUpdatesEmail`.
+  `patchUserSettingsRequestSchema` gains the same three as optional booleans, and `SETTINGS_DEFAULTS` gains `true`,
+  `true` and `false`. The server deploys before the clients, because PATCH is strict. `eraseIdentityRow` already
+  deletes the row, and `identity-db`'s `erasureCoverage.test.ts` must stay green. These columns are named
+  `request_updates_<channel>`, and the other categories' columns in the channel plan follow the same
+  `<category>_<channel>` pattern.
+
+### Clients
+
+- **Native permission ask (FR-050 amended).** In the "Ask to make public" command, after the request mutation
+  succeeds: when `expo-notifications` reports the permission as `undetermined`, call the channel's token-registration
+  command (FR-053), which asks the OS. No screen of ours comes first (design D7). The OS remembers the answer, so
+  "at most once" needs no stored flag. The ask belongs to FR-053's registration module. Until that module ships,
+  "Ask to make public" requests no permission (FR-059), and a component test pins that.
+- **The push tap and the deep link.** The mobile app declares `commise` as its scheme (`app.config.ts`) but has no
+  React Navigation `linking` config yet. Add one, with `foods/:foodId` mapped to `FoodDetail`. Use React Navigation's
+  `linking` instead of parsing the URL by hand. The in-app feed item opens the same food page on both platforms.
+- **Web.** No push and no permission prompt. The food page and the "Your foods" list already show the result. The
+  feed item opens the food page. This is a stated disposition under CODING_STANDARDS §14, not an omission.
+- **Settings screen.** The three toggles join FR-049's settings surface on both platforms, after `staff-ux-engineer`
+  SPECIFY. The push setting belongs to the account, so the web shows it and says it applies to the phone app.
+- **Copy.** The four `foods.push.*` keys and their `{food}` parameter, in every locale
+  (`docs/design/uiRefreshWorkshop5/privateFoods/spec.md` §16). The email text is not designed. Email for this
+  category does not ship until `staff-ux-engineer` designs it (FR-057).
+
+### Build order
+
+1. The 2026-10-28 channel plan and its tasks (owed): push fan-out, token registration, the FR-048 text fill, settings
+   read at send time.
+2. Identity settings columns (T-085). They can land early, because a column nobody reads harms nothing.
+3. The food leg (T-086 to T-090), then this service's handling of the new category (T-091).
+4. Clients (T-092 to T-095). Until step 1 and step 3 are live, FR-059 holds: in-app only, no permission ask.
 
 ---
 

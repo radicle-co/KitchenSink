@@ -86,6 +86,15 @@ This feature owns that infrastructure.
 > and **GR-019**. The counts below are updated; the `sync-report`/`verify-report` staleness note still stands
 > and is now further out of date, not less.
 
+> **Amended 2026-11-09 (owner ruling: staff decisions on food publication requests reach the cook by push).**
+> `spec.md` gained a `Clarifications → Session 2026-11-09` block, **US-014**, **FR-057 – FR-059**, **SC-020 –
+> SC-021**, a new notification category `requestUpdate`, and amendments to FR-047, FR-049, FR-050, FR-051 and FR-052.
+> The food service becomes a producer. `plan.md` gained _Request updates: food publication decisions_, and `tasks.md`
+> gained **T-085 – T-095**. ⚠️ The **2026-10-28** email and push amendment (FR-046 – FR-056) only ever reached
+> `spec.md`: `plan.md` has no channel section, `tasks.md` has no channel task, and `v-model/` traces nothing past
+> FR-033. Both new amendments are owed that work (`review.md` → Outstanding, item 5). The counts below predate both
+> amendments and are left as they were.
+
 Present:
 
 - `spec.md` — **44 FR**, 8 NFR, **16 SC**, **13 user stories**

@@ -350,4 +350,57 @@ describe('publication requests (real database)', () => {
             expect(after.items[0]?.publicationState).toBe('editNotApproved');
         });
     });
+
+    describe('lock order: the food first, then its request (no deadlock with an author edit)', () => {
+        it('a decision waiting for the food holds no lock on the request, so an edit holding the food can still close it', async () => {
+            const opened = await requests.request(id, AUTHOR);
+
+            if (opened.kind !== 'opened') {
+                throw new Error('no request');
+            }
+
+            const editor = await pool.connect();
+
+            try {
+                // The author's edit, as `replaceAuthored` takes its locks: the food row, then the request row.
+                await editor.query('BEGIN');
+                await editor.query(`SELECT 1 FROM food WHERE id = $1 FOR UPDATE`, [id]);
+
+                const deciding = requests.decide(opened.request.id, { approve: true });
+
+                // Give the decision time to start and reach the food lock.
+                await new Promise((resolve) => setTimeout(resolve, 500));
+                await editor.query(
+                    `UPDATE food_publication_requests SET status = 'closed', decided_at = now() WHERE id = $1`,
+                    [opened.request.id],
+                );
+                await editor.query('COMMIT');
+
+                // The edit closed the request first; the decision re-reads it under its own locks and refuses.
+                await expect(deciding).resolves.toStrictEqual({ kind: 'refused', reason: 'closed' });
+            } finally {
+                await editor.query('ROLLBACK').catch(() => undefined);
+                editor.release();
+            }
+        });
+
+        it('an approval racing a real author edit never deadlocks (40P01) and leaves one coherent state', async () => {
+            for (let round = 0; round < 8; round += 1) {
+                const opened = await requests.request(id, AUTHOR);
+
+                if (opened.kind === 'missing' || opened.kind === 'refused') {
+                    break;
+                }
+
+                const requestId = 'request' in opened ? opened.request.id : '';
+                const [decided, edited] = await Promise.allSettled([
+                    requests.decide(requestId, { approve: true }),
+                    authored.replaceAuthored({ ...blend(), id, macros: { ...blend().macros, calories: 200 + round } }),
+                ]);
+
+                expect(decided.status).toBe('fulfilled');
+                expect(edited.status).toBe('fulfilled');
+            }
+        });
+    });
 });

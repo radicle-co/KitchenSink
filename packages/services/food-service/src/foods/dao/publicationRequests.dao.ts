@@ -2,7 +2,8 @@
  * `PublicationRequestsDao` (ADR-0029 §5, §7) — the author's request to make a food public, and staff's decision on it.
  *
  * DESIGN PATTERN: Repository over `food_publication_requests`, with every decision delegated to the pure
- * `publicationRequestPolicy`. The DAO's job is the LOCK ORDER (request, then food) and the transaction: it reads the
+ * `publicationRequestPolicy`. The DAO's job is the LOCK ORDER (food, then its request: the order an author's edit takes in
+ * `AuthoredFoodsDao.replaceAuthored`, so the two cannot deadlock) and the transaction: it reads the
  * facts under lock, asks the policy, and writes the verdict, so a stale "newest version" or "not withdrawn" cannot
  * survive to the write.
  *
@@ -211,7 +212,7 @@ export class PublicationRequestsDao {
     /**
      * Staff approve or decline one request.
      *
-     * Approval, in ONE transaction: lock the request, lock the food, ask the policy (still pending, food live,
+     * Approval, in ONE transaction: lock the food, then its request, ask the policy (still pending, food live,
      * version still the newest), apply that version's snapshot to the live row, set `visibility = 'promoted'`, mark
      * it approved. A rename that now collides with the author's other food answers `duplicate` and the request stays
      * pending. Food never calls recipe-service.
@@ -226,8 +227,11 @@ export class PublicationRequestsDao {
 
         try {
             return await this.db.transaction(async (tx: FoodTx) => {
+                // ⛔ The food first, then its request, the order `replaceAuthored` takes. The request's food is read
+                // WITHOUT a lock (a request never moves to another food); locking the request first would hold it
+                // while waiting for a food an author's edit holds and is about to need the request of.
                 const found = await tx.execute<{ food_id: string }>(sql`
-                    SELECT food_id FROM food_publication_requests WHERE id = ${requestId} FOR UPDATE
+                    SELECT food_id FROM food_publication_requests WHERE id = ${requestId}
                 `);
                 const foodId = found.rows[0]?.food_id;
 
@@ -235,13 +239,17 @@ export class PublicationRequestsDao {
                     return { kind: 'missing' };
                 }
 
+                const locked = await tx.execute<{ status: string; user_id: string | null }>(sql`
+                    SELECT status, user_id FROM food WHERE id = ${foodId} FOR UPDATE
+                `);
+
+                await tx.execute(sql`SELECT 1 FROM food_publication_requests WHERE id = ${requestId} FOR UPDATE`);
+
+                // Read AFTER both locks: an edit that held the food may have closed this request.
                 const [request] = await tx
                     .select()
                     .from(foodPublicationRequests)
                     .where(eq(foodPublicationRequests.id, requestId));
-                const locked = await tx.execute<{ status: string; user_id: string | null }>(sql`
-                    SELECT status, user_id FROM food WHERE id = ${foodId} FOR UPDATE
-                `);
                 const foodRow = locked.rows[0];
 
                 if (request === undefined || foodRow === undefined) {

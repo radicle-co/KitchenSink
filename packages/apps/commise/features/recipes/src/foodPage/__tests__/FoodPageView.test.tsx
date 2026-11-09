@@ -212,4 +212,16 @@ describe('FoodPageView (web): where the actions sit (spec section 5.3)', () => {
             buttonSurfaceClass('secondary', { size: 'lg' }),
         );
     });
+
+    it('inside the panel the text comes first from 600: nothing is ordered above the statement', () => {
+        view(makeOwnState('private', { request: undefined }));
+        const statement = screen.getByText(/Only you can see this food/u).parentElement as HTMLElement;
+        const actions = group();
+
+        // The order classes that move the actions to the end of a phone page are reset together from 600, so the DOM order
+        // (statement, then actions) is the reading and the visual order in the panel.
+        expect(statement.className).toContain('sm:order-none');
+        expect(actions.className).toContain('sm:order-none');
+        expect(statement.nextElementSibling).toBe(actions);
+    });
 });

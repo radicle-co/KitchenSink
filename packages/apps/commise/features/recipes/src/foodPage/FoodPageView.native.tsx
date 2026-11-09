@@ -144,10 +144,12 @@ const FoodShown: FC<FoodPageViewProps & { readonly state: FoodShownState }> = ({
                             {line}
                         </DesignText>
                     ))}
+                    {/* From 600 dp the actions sit in the panel, under its text. */}
+                    {tablet ? actions : null}
                 </YStack>
             )}
 
-            {tablet ? actions : null}
+            {tablet && copy.statement === undefined ? actions : null}
 
             {copy.comparison === undefined ? null : (
                 <YStack gap="$2">

@@ -3,7 +3,7 @@
  * the same copy as the web leaf (`foodPageCopy.test.ts` pins the words once), plus what is native-only: the primary
  * action leads on a phone, and the actions are reachable by role.
  */
-import { cleanup, fireEvent, screen } from '@testing-library/react';
+import { cleanup, fireEvent, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { render } from '@commise/ui/testing/tamagui';
@@ -11,6 +11,14 @@ import { render } from '@commise/ui/testing/tamagui';
 import { makeFood, makeOwnState, makeRequest, makeViewProps } from '../__fixtures__/foodPageFixtures.js';
 import { FoodPageView } from '../FoodPageView.native.js';
 import type { FoodPageState } from '../foodPageState.js';
+
+const windowWidth = vi.hoisted(() => ({ current: 390 }));
+
+vi.mock('react-native', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('react-native')>();
+
+    return { ...actual, useWindowDimensions: () => ({ ...actual.useWindowDimensions(), width: windowWidth.current }) };
+});
 
 afterEach(cleanup);
 
@@ -143,5 +151,38 @@ describe('FoodPageView (native): the author states', () => {
         expect(onWithdrawKeep).toHaveBeenCalledOnce();
         fireEvent.click(screen.getByRole('button', { name: 'Withdraw food' }));
         expect(onWithdrawConfirm).toHaveBeenCalledOnce();
+    });
+});
+
+describe('FoodPageView (native): where the actions sit (spec section 5.3)', () => {
+    /** The status panel: the statement's own container. */
+    const panelOf = () => screen.getByText(/Only you can see this food/u).parentElement as HTMLElement;
+    const at = (width: number) => {
+        windowWidth.current = width;
+    };
+
+    afterEach(() => at(390));
+
+    it('from 600 dp the actions are inside the status panel, under its text, the primary last', () => {
+        at(800);
+        view(makeOwnState('private', { request: undefined }));
+        const panel = panelOf();
+        const buttons = within(panel)
+            .getAllByRole('button')
+            .map((button) => button.textContent);
+
+        expect(buttons).toEqual(['Edit', 'Ask to make public']);
+        // The text comes first, then the actions.
+        expect(panel.firstElementChild?.textContent).toMatch(/Only you can see this food/u);
+    });
+
+    it('on a phone the actions are outside the panel, stacked with the primary on top', () => {
+        at(375);
+        view(makeOwnState('private', { request: undefined }));
+
+        expect(within(panelOf()).queryByRole('button')).toBeNull();
+        const names = screen.getAllByRole('button').map((button) => button.textContent);
+
+        expect(names.indexOf('Ask to make public')).toBeLessThan(names.indexOf('Edit'));
     });
 });

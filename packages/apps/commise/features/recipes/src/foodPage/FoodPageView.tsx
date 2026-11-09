@@ -146,7 +146,7 @@ const FoodShown: FC<FoodPageViewProps & { readonly state: FoodShownState }> = ({
             {copy.statement === undefined && actions === null ? null : (
                 <section className="order-2 contents sm:flex sm:flex-col sm:gap-3 sm:rounded-lg sm:bg-paper sm:p-4">
                     {copy.statement === undefined ? null : (
-                        <div className="order-2 flex flex-col gap-1 rounded-lg bg-paper p-4 sm:rounded-none sm:bg-transparent sm:p-0">
+                        <div className="order-2 flex flex-col gap-1 rounded-lg bg-paper p-4 sm:order-none sm:rounded-none sm:bg-transparent sm:p-0">
                             <p className="text-card-title text-ink" tabIndex={-1}>
                                 {copy.statement}
                             </p>

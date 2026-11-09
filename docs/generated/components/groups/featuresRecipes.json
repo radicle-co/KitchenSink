@@ -4,16 +4,16 @@
     "packageName": "@commise/features-recipes",
     "layer": "feature",
     "coverage": {
-        "components": 198,
-        "implementations": 335,
-        "props": 2345,
-        "documentedComponents": 198,
-        "implementationsWithModuleDoc": 335,
-        "implementationsWithComponentDoc": 224,
-        "documentedProps": 1787,
-        "classifiedComponents": 176,
-        "componentsWithPatternTag": 95,
-        "crossPlatformComponents": 137
+        "components": 200,
+        "implementations": 339,
+        "props": 2353,
+        "documentedComponents": 200,
+        "implementationsWithModuleDoc": 339,
+        "implementationsWithComponentDoc": 228,
+        "documentedProps": 1791,
+        "classifiedComponents": 178,
+        "componentsWithPatternTag": 96,
+        "crossPlatformComponents": 139
     },
     "components": [
         {
@@ -8373,6 +8373,15 @@
                             "declaredIn": "packages/apps/commise/features/recipes/src/detail/RecipeDetailDialogs.tsx"
                         },
                         {
+                            "name": "privateFoods",
+                            "type": "Pick<PrivateFoodsRefusalSheetProps, \"lines\" | \"onOpenFood\" | \"onClose\">",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "A Make public the server refused because a line uses a food only the cook can see (private foods spec F3): the lines\nnamed, with the only ways that work (change them, or ask to make each food public). Absent when nothing was refused.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/RecipeDetailDialogs.tsx"
+                        },
+                        {
                             "name": "recipeTitle",
                             "type": "string",
                             "typeDetail": null,
@@ -15796,6 +15805,15 @@
                     "exportKind": "named",
                     "props": [
                         {
+                            "name": "foodOpensOverEditor",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "false",
+                            "description": "The app leaves this editor in place when it opens a food (native pushes a screen over it): the refusal then closes first.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/editor/RecipeEditorSurface.tsx"
+                        },
+                        {
                             "name": "initialSection",
                             "type": "enum",
                             "typeDetail": [
@@ -15854,6 +15872,15 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "Leave the editor (×). The session has already checkpointed the exit.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/editor/RecipeEditorSurface.tsx"
+                        },
+                        {
+                            "name": "onOpenFood",
+                            "type": "((foodId: string) => void)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Open a food's page (the row's `⋯ Open food`, and the refusal's Open food). Web opens a new tab so the draft stays here;\nnative pushes the page above the editor. Absent when the app has no such page.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/editor/RecipeEditorSurface.tsx"
                         },
                         {
@@ -17503,15 +17530,6 @@
                             "declaredIn": "packages/apps/commise/features/recipes/src/foodPage/FoodDetailScreen.native.tsx"
                         },
                         {
-                            "name": "onEdit",
-                            "type": "() => void",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "Open the edit sheet, prefilled by the state (the waiting edit, the declined version, or the food).",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/foodPage/useFoodPage.ts"
-                        },
-                        {
                             "name": "onLeave",
                             "type": "() => void",
                             "typeDetail": null,
@@ -17526,6 +17544,103 @@
                     "docSignals": {
                         "presentational": false,
                         "orchestration": true
+                    }
+                }
+            ]
+        },
+        {
+            "id": "featuresRecipes/foodPage/FoodEditSheet",
+            "name": "FoodEditSheet",
+            "group": "featuresRecipes",
+            "packageName": "@commise/features-recipes",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/recipes/src/foodPage",
+            "kind": "presentational",
+            "patterns": [
+                "Adapter over the design-system `Sheet` — the form's session mapped to the sheet's slots"
+            ],
+            "platforms": [
+                "web",
+                "native"
+            ],
+            "crossPlatform": true,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "FoodEditSheet",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/foodPage/FoodEditSheet.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/foodPage",
+                    "moduleDoc": "@commise/features-recipes/foodPage — `FoodEditSheet` (web): the edit form of the cook's own food, on the design-system\n`Sheet` (private foods spec section 6, states 13 and 14). The fields, limits and errors are the create form's own\n(`ingredientCreateFood`); what differs is the title, the submit (\"Save\", or \"Send for review\" for a public food, whose\nedit goes to staff while readers keep the approved version), and the notice above the form.\n\nPresentational: `props → JSX` over `useFoodEdit`'s session. Fields are labels wrapping inputs, like the create sheet.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes/foodPage — `FoodEditSheet` (web): the edit form of the cook's own food, on the design-system"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Adapter over the design-system `Sheet` — the form's session mapped to the sheet's slots"
+                        }
+                    ],
+                    "description": "The edit sheet.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "session",
+                            "type": "FoodEditSession",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": null
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                },
+                {
+                    "name": "FoodEditSheet",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/foodPage/FoodEditSheet.native.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/foodPage",
+                    "moduleDoc": "@commise/features-recipes/foodPage — `FoodEditSheet` (native): the React Native leaf of `./FoodEditSheet.tsx`, on\nthe same session and words. A bottom sheet with the fields on the design-system `Input` (which keeps itself in view while\nthe keyboard is up). Styled with Tamagui only.\n\nPresentational: `props → JSX` over `useFoodEdit`'s session.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes/foodPage — `FoodEditSheet` (native): the React Native leaf of `./FoodEditSheet.tsx`, on"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Adapter over the design-system `Sheet` — the form's session mapped to the sheet's slots"
+                        }
+                    ],
+                    "description": "The edit sheet.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "session",
+                            "type": "FoodEditSession",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": null
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
                     }
                 }
             ]
@@ -21314,6 +21429,93 @@
             ]
         },
         {
+            "id": "featuresRecipes/form/PrivateFoodNote",
+            "name": "PrivateFoodNote",
+            "group": "featuresRecipes",
+            "packageName": "@commise/features-recipes",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/recipes/src/form",
+            "kind": "presentational",
+            "patterns": [],
+            "platforms": [
+                "web",
+                "native"
+            ],
+            "crossPlatform": true,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "PrivateFoodNote",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/form/PrivateFoodNote.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/form",
+                    "moduleDoc": "@commise/features-recipes/form — `PrivateFoodNote` (web): what a row says of a food only the cook can see\n(private foods spec D3). In a PUBLIC recipe it is an attention line, `caption` in `attention` with the lock glyph; in a\nprivate recipe it is the quiet \"Private food\" `StatusBadge`. Neither is a control: opening the food is the row's ⋯ menu.\n\nPresentational: `props → JSX`.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes/form — `PrivateFoodNote` (web): what a row says of a food only the cook can see"
+                        }
+                    ],
+                    "description": "The note.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "view",
+                            "type": "RowPrivateFoodView",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": null
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                },
+                {
+                    "name": "PrivateFoodNote",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/form/PrivateFoodNote.native.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/form",
+                    "moduleDoc": "@commise/features-recipes/form — `PrivateFoodNote` (native): the React Native leaf of `./PrivateFoodNote.tsx`. An\nattention line with the lock glyph in a PUBLIC recipe, the quiet \"Private food\" badge in a private one; neither opens\nanything. Styled with Tamagui only.\n\nPresentational: `props → JSX`.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes/form — `PrivateFoodNote` (native): the React Native leaf of `./PrivateFoodNote.tsx`. An"
+                        }
+                    ],
+                    "description": "The note.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "view",
+                            "type": "RowPrivateFoodView",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": null
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
             "id": "featuresRecipes/form/RecipeBasicsFields",
             "name": "RecipeBasicsFields",
             "group": "featuresRecipes",
@@ -21531,6 +21733,15 @@
                             "declaredIn": "packages/apps/commise/features/recipes/src/form/props.ts"
                         },
                         {
+                            "name": "onOpenFood",
+                            "type": "((foodId: string) => void)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Open a food's page: the row's `⋯ Open food` for a line that uses a food only the cook can see (private foods spec\nD6). Web opens a new tab (the draft stays here); native pushes the food page above the editor. Absent when the host\nhas no such page, and the item is then not offered.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/props.ts"
+                        },
+                        {
                             "name": "paste",
                             "type": "IngredientsPasteView",
                             "typeDetail": null,
@@ -21620,6 +21831,15 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "Called with the next values on every field/row edit (add, remove, or change).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/props.ts"
+                        },
+                        {
+                            "name": "onOpenFood",
+                            "type": "((foodId: string) => void)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Open a food's page: the row's `⋯ Open food` for a line that uses a food only the cook can see (private foods spec\nD6). Web opens a new tab (the draft stays here); native pushes the food page above the editor. Absent when the host\nhas no such page, and the item is then not offered.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/form/props.ts"
                         },
                         {

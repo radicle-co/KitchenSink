@@ -6,11 +6,11 @@
     "coverage": {
         "components": 55,
         "implementations": 55,
-        "props": 156,
+        "props": 158,
         "documentedComponents": 54,
         "implementationsWithModuleDoc": 53,
         "implementationsWithComponentDoc": 40,
-        "documentedProps": 149,
+        "documentedProps": 151,
         "classifiedComponents": 40,
         "componentsWithPatternTag": 26,
         "crossPlatformComponents": 0
@@ -3802,6 +3802,15 @@
                             "declaredIn": "packages/apps/commise/mobile/src/screens/RecipeDetailScreen.tsx"
                         },
                         {
+                            "name": "onOpenFood",
+                            "type": "((foodId: string) => void)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Open a food's page (the make-public refusal's Open food).",
+                            "declaredIn": "packages/apps/commise/mobile/src/screens/RecipeDetailScreen.tsx"
+                        },
+                        {
                             "name": "onViewVersions",
                             "type": "((recipeId: string) => void)",
                             "typeDetail": null,
@@ -4011,6 +4020,15 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "The recipe was published, or its changes saved: show it, and say which, or that it stayed public (E8).",
+                            "declaredIn": "packages/apps/commise/mobile/src/screens/RecipeEditorScreen.tsx"
+                        },
+                        {
+                            "name": "onOpenFood",
+                            "type": "((foodId: string) => void)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Open a food's page above the editor (the refusal's Open food and a row's `⋯ Open food`).",
                             "declaredIn": "packages/apps/commise/mobile/src/screens/RecipeEditorScreen.tsx"
                         },
                         {

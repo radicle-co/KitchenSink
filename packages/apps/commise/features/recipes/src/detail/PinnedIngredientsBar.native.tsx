@@ -25,7 +25,7 @@ import { PressScale } from '@commise/ui/press-scale';
 import { useScreenReaderFocusOnSignal } from '@commise/ui/screen-reader-focus';
 import { Text } from '@commise/ui/text';
 import { useState, type FC, type ReactNode } from 'react';
-import { ScrollView, type View as NativeView } from 'react-native';
+import { Pressable, ScrollView, useWindowDimensions, type View as NativeView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { styled, View, XStack, YStack } from 'tamagui';
 
@@ -41,14 +41,20 @@ const Overlay = styled(YStack, {
     pointerEvents: 'box-none',
 });
 
-/** The scrim: the `scrim` role over the whole overlay. */
-const Scrim = styled(View, {
-    name: 'PinnedIngredientsScrim',
+/** The layer the scrim fills: the whole overlay, clipped to it. It takes no touch of its own, the press catcher inside does. */
+const ScrimLayer = styled(View, {
+    name: 'PinnedIngredientsScrimLayer',
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
+    overflow: 'hidden',
+});
+
+/** The scrim: the `scrim` role, as tall as the window; the layer clips it to the overlay. */
+const ScrimFill = styled(View, {
+    name: 'PinnedIngredientsScrim',
     backgroundColor: '$scrim',
 });
 
@@ -81,7 +87,7 @@ const Well = styled(View, {
     name: 'PinnedIngredientsWell',
     width: 36,
     height: 36,
-    borderRadius: 18,
+    borderRadius: '$full',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '$action',
@@ -111,7 +117,7 @@ const CloseOnBack: FC<{ readonly onBack: () => void }> = ({ onBack }) => {
 
 /** The opened list: a dialog, its contents entering as a section does. The list's own first element takes the cursor. */
 const OpenList: FC<{ readonly name: string; readonly children: ReactNode }> = ({ name, children }) => (
-    <Panel role="dialog" aria-label={name}>
+    <Panel role="dialog" aria-label={name} collapsable={false}>
         <ScrollView keyboardShouldPersistTaps="handled">
             <EnterTransition>{children}</EnterTransition>
         </ScrollView>
@@ -131,6 +137,7 @@ export const PinnedIngredientsBar: FC<
 > = ({ facts, open, onOpenChange, scrimLabel, children }) => {
     const { top } = useSafeAreaInsets();
     const bottomEdge = useBottomEdge();
+    const { height: windowHeight } = useWindowDimensions();
     // The list's close takes the cursor back to the bar, which stays mounted: a counter of closes is the signal.
     const [wasOpen, setWasOpen] = useState(open);
     const [closes, setCloses] = useState(0);
@@ -146,7 +153,17 @@ export const PinnedIngredientsBar: FC<
 
     return (
         <Overlay bottom={bottomEdge} aria-modal={open}>
-            {open && <Scrim role="button" aria-label={scrimLabel} onPress={() => onOpenChange(false)} />}
+            {open && (
+                <ScrimLayer>
+                    <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel={scrimLabel}
+                        onPress={() => onOpenChange(false)}
+                    >
+                        <ScrimFill height={windowHeight} />
+                    </Pressable>
+                </ScrimLayer>
+            )}
             <Column paddingTop={top + 8}>
                 <PressScale
                     ref={barNode}
@@ -159,7 +176,7 @@ export const PinnedIngredientsBar: FC<
                 >
                     <BarFrame>
                         <YStack flex={1} flexShrink={1} aria-hidden>
-                            <Text typeRole="body" chromeCap="1.5" color="$ink" fontWeight="600">
+                            <Text typeRole="barTitle" color="$ink">
                                 {facts.heading}{' '}
                                 <Text typeRole="meta" chromeCap="1.5" color="$inkMuted">
                                     {facts.forServings}
@@ -169,7 +186,7 @@ export const PinnedIngredientsBar: FC<
                                 {facts.meta}
                             </Text>
                         </YStack>
-                        <Text typeRole="body" chromeCap="1.5" color="$actionText" fontWeight="600" aria-hidden>
+                        <Text typeRole="barTitle" color="$actionText" aria-hidden>
                             {facts.cue}
                         </Text>
                         <Well aria-hidden>

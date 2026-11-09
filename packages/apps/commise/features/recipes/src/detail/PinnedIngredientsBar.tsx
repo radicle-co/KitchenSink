@@ -19,6 +19,7 @@
  */
 import { Icon } from '@commise/ui/icon';
 import { enterTransitionClassName } from '@commise/ui/motion';
+import { surfaceToneClass } from '@commise/ui/surface-tone';
 import * as Dialog from '@radix-ui/react-dialog';
 import type { FC, ReactNode } from 'react';
 
@@ -37,8 +38,7 @@ export interface PinnedIngredientsBarProps {
  * The bar's face, shared by the trigger in the page and the close button over the scrim. It sets NO width: the trigger is
  * `fixed` with an inset on each side, and a width on top of those would push its right edge past the window.
  */
-const BAR_FACE =
-    'flex min-h-16 items-center gap-2.5 rounded-lg bg-paper py-2 pe-3 ps-4 text-start text-ink shadow-[inset_0_0_0_1px_var(--color-line-divider),var(--shadow-lg)]';
+const BAR_FACE = `flex min-h-16 items-center gap-2.5 rounded-lg ${surfaceToneClass('paper')} py-2 pe-3 ps-4 text-start text-ink shadow-[inset_0_0_0_1px_var(--color-line-divider),var(--shadow-lg)]`;
 
 /** Where the bar sits: pinned under the top chrome. */
 const BAR_PLACE = 'fixed inset-x-3 top-[calc(env(safe-area-inset-top,0px)+0.5rem)]';
@@ -97,7 +97,7 @@ export const PinnedIngredientsBar: FC<PinnedIngredientsBarProps> = ({ facts, ope
                     </Dialog.Close>
                     <div
                         tabIndex={-1}
-                        className={`absolute inset-x-0 top-[4.5rem] max-h-[calc(100dvh-env(safe-area-inset-top,0px)-6rem-var(--bottom-chrome,0px))] overflow-y-auto overscroll-contain rounded-lg bg-paper pb-2.5 shadow-xl outline-none ${enterTransitionClassName}`}
+                        className={`absolute inset-x-0 top-[4.5rem] max-h-[calc(100dvh-env(safe-area-inset-top,0px)-6rem-var(--bottom-chrome,0px))] overflow-y-auto overscroll-contain rounded-lg ${surfaceToneClass('paper')} pb-2.5 shadow-xl outline-none ${enterTransitionClassName}`}
                     >
                         {children}
                     </div>

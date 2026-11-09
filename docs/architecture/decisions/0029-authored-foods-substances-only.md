@@ -3,7 +3,7 @@
 - **Status:** Accepted
 - **Date:** 2026-08-31
 - **Plan:** `docs/plans/2026-08-30-001-feat-resolution-funnel-earned-autonomy-plan.md` (U10–U12, U16, U18–U19)
-- **Owner rulings:** Q3a, Q3b, Q3c and the promotion Sybil gate (all 2026-08-30)
+- **Owner rulings:** Q3a, Q3b, Q3c, the promotion Sybil gate (2026-08-30), and the private-food rulings (2026-11-08)
 - **Relates to:** [ADR-0052](0052-food-data-sources.md): an authored food's values carry no citation
   (`food_nutrition_value.citation_id` is NULL), and the authored route stays its provenance (D9a).
 
@@ -39,41 +39,43 @@ The decision decomposes into rulings, each with its enforcement point:
    old rows; the per-author half (`(normalized_name, user_id)`) lets two cooks each have their own
    "protein blend" while one cook cannot have two. Migration `0013_authored_foods.sql`; the
    `food_visibility_coherent` CHECK makes the illegal states unrepresentable.
-4. **Private until promoted (Q3c) — and R20 scopes EVERY shared tier.** An authored food is born
-   `visibility='private'`: retrievable by its author alone (stranger → the same 404 a missing id gets, on
-   every action including read — `authorshipPolicy.ts`). The privacy fact is _captured_ into the recipe
-   database at admission/refresh (`ingredients.food_owner_id`, migration 0040) because ADR-0006 forbids
-   the cross-database join — and every shared surface then filters on its own side: food search, recipe
-   local search/suggest, the verification gate's band statistics and memo tier (a private `food_id` never
-   enters a global mapping — the mapping-scope policy's `correctedFoodIsPrivate` clamp), and the detail
-   read's viewer overlay (`RESOLVED_UNAVAILABLE`, plan U13). A clone by a non-author UNBINDS the line
-   into a freeform row rather than carrying a reference the cloner cannot see.
-5. **Promotion: corroboration TRIGGERS, a human PUBLISHES (owner ruling: the promotion Sybil gate).** Cross-author
-   agreement (distinct tenured authors, macro agreement around the median) mints a row in the
-   `food_promotions` moderation queue (migration 0015) and nothing more; only an operator holding
-   `food:admin` publishes, electing the OLDEST contributing food canonical. Publication is TWO-PHASE by
-   database boundary: phase 1 atomic in food (queue decision + visibility flip), phase 2 an idempotent
-   curated correction on the recipe side binding the name to the canonical — a kill between phases leaves
-   every intermediate state safe. Two throwaway accounts can mint a queue entry, never a public food.
+4. **Private until published, and private foods live only in private recipes.** An authored food is born
+   `visibility='private'` and is readable by its author alone (a stranger gets the 404 a missing id gets,
+   `authorshipPolicy.ts`). A recipe that is published and public may hold no line bound to a private food: every write
+   that would leave one so is refused with `PRIVATE_FOODS_ON_PUBLIC_RECIPE`, naming the lines (`publicFoodsPolicy.ts`),
+   and the recipe database enforces the same rule with `recipe_holds_private_food` and a constraint trigger. Before
+   deciding, the write re-asks food, as the author, about each captured private food, and clears
+   `food_lookups.food_owner_id` for one food now reports public. The R20 filters stay on every shared surface (food
+   search, local search and suggest, search-by-food, band statistics, memo tier, global mappings), and the viewer overlay
+   stays as defence. A clone keeps its bindings and is born a draft, so the rule meets it at publish.
+5. **Publication: the author asks, staff approve.** The author files a request against the food's current version
+   (`food_publication_requests`); an operator holding `food:admin` approves or declines it. Approval re-checks, under
+   lock, that the food is not withdrawn and is at the requested version, then applies it and sets
+   `visibility='promoted'`. A declined version cannot be asked again; an edit makes a new version. Food never calls
+   recipe-service; the recipe side learns of the change through its own re-capture. Promotion is one-way. One request
+   table serves both asks: the first publication of a private food, and each edit of a public one.
 6. **Erasure: delete-if-unreferenced, orphan-if-referenced (Q3b).** A dead author's unreferenced foods
    are deleted whole; a food a living recipe still lines against is KEPT with its `user_id` retained
    pseudonymously (the `recipes.owner_id` Recital-26 posture) and its version attribution NULLed. The
    recipe-side mirror (erasure step 13) deletes the unreferenced private-food catalog rows and retains
    the referenced ones — hidden from every living search by the R20 filter regardless.
-7. **Versioning: the table half only.** `food_versions` (migration 0014) records every authored edit as
-   the recipes pattern does — the S3 archive half is deliberately deferred. This is the recourse for the
-   accepted KTD-I residual: a promoted food's later edits move every referencing recipe's figures, and
-   history is the answer until a version-pinning decision is made (named, not designed).
-8. **The cache split (ADR-0020 amendment).** The edge-cached `/api/v1/foods/nutrition` stays
-   caller-invariant: a PRIVATE authored food can never appear in it, for anyone; the author reads their
-   own through the authenticated `/api/v1/foods/authored-nutrition` (a path deliberately outside the
-   edge's `/nutrition*` shared-cache pattern), and the recipe gateway's authored phase is never
-   process-cached. A PROMOTED food is world-readable with caller-invariant nutrition, so it enters the
-   shared population the moment phase 1 commits.
-9. **Delete is tombstone-first (U18).** The voluntary delete flips the row to the internal `DELETING`
-   status _before_ the cross-service reference check (closing the TOCTOU), refuses while referenced
-   (`FOOD_REFERENCED`, with the caller's own recipe ids only), fails CLOSED when the check cannot run,
-   and `DELETING` never reaches the wire.
+   The erasure donate-flip donates only an elected recipe that holds no private food; any other elected recipe is
+   removed with the owner-only set, so a dead author's private foods are always unreferenced and deleted.
+   Orphan-if-referenced now applies to promoted foods.
+7. **Versioning, and edits to a public food go back to review.** `food_versions` records every authored edit. The live
+   food row is always the approved version, and every read (search, `/nutrition`, `refs/resolve`, every recipe) serves
+   it. A private food's edit applies at once. A public food's edit is written only as the next version, and a pending
+   `food_publication_requests` row points at it. Readers, other cooks and the author's own recipes keep the approved
+   version until staff approve. Approval applies that version's snapshot to the live row, and then every recipe that
+   uses the food moves together. Decline leaves the live row alone and keeps the declined version as history. A newer
+   edit closes the older pending request, so staff only ever approve the newest version.
+8. **A promoted food is world-readable.** Food search and the shared `/nutrition` route admit `visibility='promoted'`
+   beside catalog rows (`promotedIsPublic.ts`). The edge-cached `/api/v1/foods/nutrition` stays caller-invariant: a
+   PRIVATE authored food can never appear in it, for anyone; the author reads their own through the authenticated
+   `/api/v1/foods/authored-nutrition` (a path deliberately outside the edge's `/nutrition*` shared-cache pattern), and the
+   recipe gateway's authored phase is never process-cached.
+9. **Delete is a withdrawal.** The author's `DELETE` flips `RESOLVED` to `WITHDRAWN` and keeps the row, with no
+   cross-service check; a referencing line shows the food as removed. A pending publication request is closed with it.
 10. **A corroborated PENDING food completes (R10's second clause, U19).** A catalog food created by
     add-by-name for a novel name, once two independent authors' corrections corroborate its identity,
     is marked `RESOLVED` and leaves the USDA sync queue — the community's agreement IS the identity
@@ -88,15 +90,18 @@ The decision decomposes into rulings, each with its enforcement point:
   row can be mistaken for pipeline data (no source row, no crosswalk, `source_id IS NULL` value rows).
 - Privacy is enforced at every tier that could leak a name, not at one route — and the erasure gate
   (R24, `erasureSweepCoverage.test.ts`) now audits BOTH databases' user-keyed food data.
-- Accepted residuals, recorded rather than hidden: promoted-food nutrition drift under referencing
-  recipes (version history is the recourse); the U19 trigger's promotion assertion is unverifiable
-  across the database boundary (blast radius: one dataless completion; `requeue` is the repair); and a
-  pseudonymous ULID survives erasure on kept rows by design (ADR-0027's posture).
+- Accepted residuals, recorded rather than hidden: the edge-cached `/nutrition` serves the previous approved figures for
+  its TTL after an approval; a staff-approved rename can collide with the author's other foods (the approval answers
+  `409` and the request stays pending); promotion is one-way, so reversing it later needs a reverse path for the
+  private-food rule; the database trigger turns a forgotten write path into a rolled-back transaction, which on erasure
+  would be a stuck job (the donate filter and its e2e prevent it); the author's own recipes show the approved figure,
+  not the pending edit; and a pseudonymous ULID survives erasure on kept rows by design (ADR-0027's posture).
 
 ## Guards
 
-`authorshipPolicy` truth table; `foodPromotionsSchema`/`authoredFoodsSchema`/`foodVersionsSchema`
-integration suites; `privateFoodScoping` + `privateFoodErasure` + `cloneVisibility` (clone-unbind) +
-`lineVerification` (viewer overlay) integration suites; the R24 erasure gate; `promotionsApi` end-to-end
-funnel; `corroboratedCompletion`. CLAUDE.md's T150 entry carries this amendment so the next reader does
-not "fix" the authored door away.
+`authorshipPolicy` truth table; `publicFoodsPolicy`, `promotedIsPublic` and `publicationRequestPolicy` truth tables;
+the migration `0064` trigger suite (`publicRecipePublicFoods` e2e); `foodPublicationRequestsSchema` and
+`publicationRequests.dao` e2e suites; the `authoredFoodsSchema`/`foodVersionsSchema` integration suites;
+`privateFoodScoping` + `privateFoodErasure` + `cloneVisibility` + `lineVerification` suites; the R24 erasure gate;
+`corroboratedCompletion`. CLAUDE.md's T150 entry carries this amendment so the next reader does not "fix" the authored
+door away.

@@ -24,6 +24,7 @@
         "seed-catalog": "tsx src/seedCatalog.ts",
         "reset-pool": "tsx src/resetPool.ts",
         "bulk-seed": "tsx src/bulkSeed.ts",
+        "decide-publication": "tsx src/decideFoodPublication.ts",
         "walk": "tsx src/userStoryWalk.ts"
     },
     "devDependencies": {

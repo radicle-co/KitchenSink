@@ -270,18 +270,18 @@ export const SEED_WORLD: readonly FixtureRecipeDefinition[] = [
 /**
  * The co-author's PRIVATE food. The one line of {@link PRIVATE_FOOD_RECIPE} is bound to it.
  *
- * An authored food is private to its author until a human promotes it (ADR-0029), and a pool slot cannot promote.
- * So when the SIGNER reads the co-author's recipe, this line reaches them with no name and the status
- * `RESOLVED_UNAVAILABLE` (plan 002 R9), and the app shows its stand-in in the name's place.
+ * An authored food is private to its author until staff approve publishing it (ADR-0029 section 5), and a pool slot
+ * cannot ask. It lives only in the co-author's private recipe, which the signer cannot read.
  *
- * `recipes/privateFoodStandIn.yaml` also checks that this name never appears on the signer's screen. So it must not
- * appear in the recipe's own title, description or steps, and it must be plain letters, because the flow puts it
- * inside a Maestro pattern.
+ * The name must not appear in the recipe's own title, description or steps, and it must be plain letters, because a
+ * flow puts it inside a Maestro pattern.
  */
 export const PRIVATE_FOOD_NAME = 'Smoked Chili Oil';
 
 /**
- * The co-author's PUBLIC recipe whose one line — 2 tbsp — is bound to {@link PRIVATE_FOOD_NAME}.
+ * The co-author's PRIVATE recipe whose one line — 2 tbsp — is bound to {@link PRIVATE_FOOD_NAME}. A private food lives
+ * only in a private recipe (ADR-0029 section 4): the recipe database refuses a published public recipe that holds one, so
+ * this recipe cannot be public. The signer cannot read it, and the flows that need it public to show a stand-in are gone.
  *
  * ⛔ NOT IN {@link SEED_WORLD}. Everything there is either reconciled by the signer's per-flow reset or created by
  * `provision`'s DECLARED-name loop. A declared name has no food, so that loop would publish a line every viewer can
@@ -298,7 +298,7 @@ export const PRIVATE_FOOD_RECIPE: FixtureRecipeDefinition = {
     baseTitle: 'Secret Recipe Crostini',
     cuisine: 'Italian',
     description: 'Toasted bread with a drizzle.',
-    visibility: 'public',
+    visibility: 'private',
     servings: 2,
     prepTimeMinutes: 10,
     cookTimeMinutes: 30,

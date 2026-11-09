@@ -236,8 +236,10 @@ describe('the private-food recipe', () => {
         );
     });
 
-    it('is the co-author’s PUBLIC recipe — a public row the signer does not own, so the signer can open it', () => {
-        expect(manifest.privateFoodRecipe).toMatchObject({ owner: 'coAuthor', visibility: 'public' });
+    // REWRITTEN for ADR-0029 section 4 (owner rulings 2026-11-08): a private food lives only in a private recipe, and the
+    // database refuses a published public recipe that holds one. So the fixture is the co-author's PRIVATE recipe.
+    it('is the co-author’s PRIVATE recipe — a private food cannot be on a public one', () => {
+        expect(manifest.privateFoodRecipe).toMatchObject({ owner: 'coAuthor', visibility: 'private' });
     });
 
     it('has exactly one line — 2 tbsp of the private food — which is the label the flow asserts', () => {

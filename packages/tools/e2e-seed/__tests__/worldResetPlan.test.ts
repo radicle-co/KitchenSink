@@ -214,13 +214,13 @@ describe('planWorldReset — empty mode', () => {
  */
 describe('planPrivateFoodRecipe', () => {
     const BINDING = 'binding-now';
-    /** The fixture the rows are judged against: public, one line. */
+    /** The fixture the rows are judged against: PRIVATE (a private food lives only in a private recipe), one line. */
     const FIXTURE = manifest.privateFoodRecipe;
 
-    /** A row as the co-author reads it: public, one line bound to the food's current binding. */
+    /** A row as the co-author reads it: private, one line bound to the food's current binding. */
     const intact = (id: string, over: Partial<PrivateFoodRecipeRow> = {}): PrivateFoodRecipeRow => ({
         id,
-        visibility: 'public',
+        visibility: 'private',
         lineBindingIds: [BINDING],
         ...over,
     });
@@ -248,10 +248,12 @@ describe('planPrivateFoodRecipe', () => {
         ).toEqual({ action: 'create', deleteRecipeIds: ['stale'] });
     });
 
-    it('replaces a row at the wrong visibility — a private row is one the signer cannot open', () => {
-        expect(planPrivateFoodRecipe([intact('hidden', { visibility: 'private' })], FIXTURE, BINDING)).toEqual({
+    // REWRITTEN for ADR-0029 section 4: the fixture is private now, so the wrong visibility is a PUBLIC row (which the
+    // database would refuse to hold a private food in; a stale one from before the rule is replaced).
+    it('replaces a row at the wrong visibility', () => {
+        expect(planPrivateFoodRecipe([intact('open', { visibility: 'public' })], FIXTURE, BINDING)).toEqual({
             action: 'create',
-            deleteRecipeIds: ['hidden'],
+            deleteRecipeIds: ['open'],
         });
     });
 

@@ -196,9 +196,10 @@ Owner ruling, 2026-10-29, on the question "Who can keep a web import private?": 
   lists the capability under every plan.
 - **What does not change.** Public stays a linked card (§3). The substantive edit still gates publication of a clone
   (`001-FR-005b`). ADR-0023's downgrade-only rule is untouched.
-- **Code is owed.** `recipes/domain/visibilityPolicy.ts` still enforces the old rule in `evaluateVisibility`, and
-  `usesPremiumCapability` still marks a private `imported_public`. Both change in one commit, with failing tests
-  first. The spec records this as a separate code task.
+- **The code follows this.** `privateRuleOf(imported_public)` answers `slots`, and `PrivateRule` has no Premium member, so
+  every exhaustive switch over it is checked by the compiler. `evaluateVisibility` and `slotRuleApplies` treat
+  `imported_public` like every other label, `usesPremiumCapability` answers false for every recipe, and the editor's
+  Premium-only strings and its blocked-publish "web import" case are gone.
 
 ## Consequences
 

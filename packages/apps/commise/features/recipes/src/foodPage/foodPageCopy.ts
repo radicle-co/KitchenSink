@@ -7,6 +7,7 @@
  * @pattern Template Method — one table of per-state copy that the platform leaves render
  */
 import type { BadgeStatus } from '@commise/ui/status-badge';
+import type { PublicationStateValue } from '@kitchensink/schema-food';
 
 import { fillTemplate } from '../format/fillTemplate.js';
 import { foodEditComparison, type ComparedRow } from './foodEditComparison.js';
@@ -67,6 +68,42 @@ export interface FoodPageCopy {
     readonly withdraw: { readonly offered: boolean; readonly body: string };
 }
 
+/**
+ * The badges of one publication state: the ONE table the page and the "Your foods" rows both read, so a food reads the same
+ * word in both. Pure.
+ */
+export function badgesOf(word: PublicationStateValue | 'othersPublic', m: FoodPageMessages): readonly FoodBadge[] {
+    switch (word) {
+        case 'private':
+            return [{ status: 'private', text: m.status.private }];
+        case 'asked':
+            return [
+                { status: 'private', text: m.status.private },
+                { status: 'note', text: m.status.asked },
+            ];
+        case 'notApproved':
+            return [
+                { status: 'private', text: m.status.private },
+                { status: 'attention', text: m.status.declined },
+            ];
+        case 'public':
+        case 'othersPublic':
+            return [{ status: 'public', text: m.status.public }];
+        case 'editWaiting':
+            return [
+                { status: 'public', text: m.status.public },
+                { status: 'note', text: m.status.editWaiting },
+            ];
+        case 'editNotApproved':
+            return [
+                { status: 'public', text: m.status.public },
+                { status: 'attention', text: m.status.editDeclined },
+            ];
+        case 'withdrawn':
+            return [{ status: 'note', text: m.status.withdrawn }];
+    }
+}
+
 const EDIT_SECONDARY: FoodAction = { key: 'edit', variant: 'secondary' };
 
 function dateText(iso: string | undefined, locale: string): string {
@@ -120,7 +157,7 @@ export function foodPageCopyOf(state: FoodShownState, m: FoodPageMessages, local
         case 'private':
             return {
                 ...base,
-                badges: [{ status: 'private', text: m.status.private }],
+                badges: badgesOf(state.kind, m),
                 statement: m.private.statement,
                 details: [m.private.askNote],
                 actions: [EDIT_SECONDARY, { key: 'ask', variant: 'primary' }],
@@ -129,10 +166,7 @@ export function foodPageCopyOf(state: FoodShownState, m: FoodPageMessages, local
         case 'asked':
             return {
                 ...base,
-                badges: [
-                    { status: 'private', text: m.status.private },
-                    { status: 'note', text: m.status.asked },
-                ],
+                badges: badgesOf(state.kind, m),
                 statement: fillTemplate(m.asked.statement, { date }),
                 details: [m.asked.detail],
                 actions: [EDIT_SECONDARY],
@@ -141,10 +175,7 @@ export function foodPageCopyOf(state: FoodShownState, m: FoodPageMessages, local
         case 'notApproved':
             return {
                 ...base,
-                badges: [
-                    { status: 'private', text: m.status.private },
-                    { status: 'attention', text: m.status.declined },
-                ],
+                badges: badgesOf(state.kind, m),
                 statement: m.declined.statement,
                 details: [...reasonLine, m.declined.next],
                 actions: [{ key: 'edit', variant: 'primary' }],
@@ -153,7 +184,7 @@ export function foodPageCopyOf(state: FoodShownState, m: FoodPageMessages, local
         case 'public':
             return {
                 ...base,
-                badges: [{ status: 'public', text: m.status.public }],
+                badges: badgesOf(state.kind, m),
                 statement: m.public.statement,
                 details: [m.public.detail],
                 actions: [EDIT_SECONDARY],
@@ -162,10 +193,7 @@ export function foodPageCopyOf(state: FoodShownState, m: FoodPageMessages, local
         case 'editWaiting':
             return {
                 ...base,
-                badges: [
-                    { status: 'public', text: m.status.public },
-                    { status: 'note', text: m.status.editWaiting },
-                ],
+                badges: badgesOf(state.kind, m),
                 statement: fillTemplate(m.editWaiting.statement, { date }),
                 details: [m.editWaiting.detail],
                 actions: [EDIT_SECONDARY],
@@ -174,10 +202,7 @@ export function foodPageCopyOf(state: FoodShownState, m: FoodPageMessages, local
         case 'editNotApproved':
             return {
                 ...base,
-                badges: [
-                    { status: 'public', text: m.status.public },
-                    { status: 'attention', text: m.status.editDeclined },
-                ],
+                badges: badgesOf(state.kind, m),
                 statement: m.editDeclined.statement,
                 details: [...reasonLine, m.editDeclined.next],
                 actions: [EDIT_SECONDARY],
@@ -186,7 +211,7 @@ export function foodPageCopyOf(state: FoodShownState, m: FoodPageMessages, local
         case 'withdrawn':
             return {
                 ...base,
-                badges: [{ status: 'note', text: m.status.withdrawn }],
+                badges: badgesOf(state.kind, m),
                 statement: m.withdrawn.statement,
                 details: [m.withdrawn.detail],
                 actions: [],
@@ -195,7 +220,7 @@ export function foodPageCopyOf(state: FoodShownState, m: FoodPageMessages, local
         case 'othersPublic':
             return {
                 ...base,
-                badges: [{ status: 'public', text: m.status.public }],
+                badges: badgesOf(state.kind, m),
                 statement: undefined,
                 details: [],
                 actions: [],

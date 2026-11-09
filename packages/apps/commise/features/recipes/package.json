@@ -11,6 +11,7 @@
         "./widget": "./src/widget/index.ts",
         "./detail": "./src/detail/index.ts",
         "./editor": "./src/editor/index.ts",
+        "./food-page": "./src/foodPage/index.ts",
         "./session": "./src/session/index.ts",
         "./list": "./src/list/index.ts",
         "./discovery": "./src/discovery/index.ts",

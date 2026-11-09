@@ -121,18 +121,17 @@ explicit pick. The review gate checks every paste match, whatever its measured e
 
     The paste view is `matchStateOf`, a pure policy applied in this order:
 
-    | State         | When                                                                                                                                                                                   |
-    | ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-    | `default`     | A candidate sits on the `default` rung, whatever answered (or nothing did), whatever the gate said.                                                                                    |
-    | `noMatch`     | Nothing proposed and no candidates.                                                                                                                                                    |
-    | `needsChoice` | Nothing proposed, but candidates exist.                                                                                                                                                |
-    | `needsChoice` | The spend ceiling refused the review (`budgetSpent`). Curated, memo and exact-name proposals too. Reason `reviewBudgetSpent`.                                                          |
-    | `confident`   | A curated mapping. A `contradict` keeps it confident and adds the note `reviewDisagreed`.                                                                                              |
-    | `needsChoice` | A verdict on record that a saved line would badge AMBIGUOUS (`savedLineAsks`: `contradict` under a contradicted band, `abstain` under an inconclusive one), for memos and exact names. |
-    | `needsChoice` | A memo or lexical proposal read `contradict` or `doubt`.                                                                                                                               |
-    | `checking`    | A memo or lexical proposal whose review is owed and has no verdict.                                                                                                                    |
-    | `confident`   | A memo otherwise, a lexical proposal read `agree`, or an exact-name rung whose review was refused, gave up, was never sent, or came back unreadable.                                   |
-    | `needsChoice` | A lexical proposal read `abstain` or `hedged`, or one the gate refused, gave up on or was not asked.                                                                                   |
+    | State         | When                                                                                                                                                                                                                                                                                            |
+    | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+    | `default`     | A candidate sits on the `default` rung, whatever answered (or nothing did), whatever the gate said.                                                                                                                                                                                             |
+    | `noMatch`     | Nothing proposed and no candidates.                                                                                                                                                                                                                                                             |
+    | `needsChoice` | Nothing proposed, but candidates exist.                                                                                                                                                                                                                                                         |
+    | `needsChoice` | The spend ceiling refused the review (`budgetSpent`). Curated, memo and exact-name proposals too. Reason `reviewBudgetSpent`.                                                                                                                                                                   |
+    | `needsChoice` | A verdict on record that a saved line would badge AMBIGUOUS (`savedLineAsks`: `contradict` under a contradicted band, `abstain` under an inconclusive one), for curated mappings, memos and exact names (owner ruling 2026-11-08, Q1). A curated `contradict` keeps the note `reviewDisagreed`. |
+    | `needsChoice` | A memo or lexical proposal read `contradict` or `doubt`.                                                                                                                                                                                                                                        |
+    | `checking`    | Any proposal, curated mappings included, whose review is owed and has no verdict.                                                                                                                                                                                                               |
+    | `confident`   | A curated mapping or a memo otherwise, a lexical proposal read `agree`, or an exact-name rung whose review was refused, gave up, was never sent, or came back unreadable.                                                                                                                       |
+    | `needsChoice` | A lexical proposal read `abstain` or `hedged`, or one the gate refused, gave up on or was not asked.                                                                                                                                                                                            |
     - **The direction is enforced.** `matchStateOf` asks whenever `savedLineAsks` would, so a line the review shows as
       matched never saves as AMBIGUOUS (owner ruling 2026-11-08).
     - **The two surfaces differ in one direction, and on purpose.** Asking the cook before a bind is cheap. So the paste
@@ -140,7 +139,7 @@ explicit pick. The review gate checks every paste match, whatever its measured e
       warning. So a saved line shows the AMBIGUOUS badge only for `contradict` (under a contradicted band) and
       `abstain`, and keeps its catalog status for `doubt`, `hedged` and `unreadable`. A contradicted band still
       withholds nutrition on a saved line whatever the reading. `contradict` is the only reading that adds
-      `reviewDisagreed` to a curated mapping, because a low-certainty disagreement is noise, not a reason to look at
+      `reviewDisagreed` to a curated mapping (on whatever state it gets), because a low-certainty disagreement is noise, not a reason to look at
       curation.
     - **An unreadable reply is a review that gave up.** On paste it reads `reviewUnchecked`, like an exhausted review.
       It never reads `checking` forever, and it does not read as an abstention.

@@ -162,12 +162,17 @@ describe('matchStateOf — the truth table', () => {
         ],
         [
             'a CURATED mapping is a match, so it wins over the default (owner ruling 5)',
-            facts({ proposal: { matchedBy: 'curated', rung: null }, defaultApplies: true }),
+            facts({ proposal: { matchedBy: 'curated', rung: null }, defaultApplies: true, verdict: VERIFIED }),
             { state: 'confident', reason: 'curatedMapping' },
         ],
         [
             "a CURATED mapping that names the default food is still a person's decision",
-            facts({ proposal: { matchedBy: 'curated', rung: null }, defaultApplies: true, proposalIsDefault: true }),
+            facts({
+                proposal: { matchedBy: 'curated', rung: null },
+                defaultApplies: true,
+                proposalIsDefault: true,
+                verdict: VERIFIED,
+            }),
             { state: 'confident', reason: 'curatedMapping' },
         ],
         [
@@ -197,19 +202,24 @@ describe('matchStateOf — the truth table', () => {
         ],
         // 3. Curated.
         [
-            'a curated mapping',
+            'a curated mapping the gate verified',
+            facts({ proposal: { matchedBy: 'curated', rung: null }, verdict: VERIFIED }),
+            { state: 'confident', reason: 'curatedMapping' },
+        ],
+        [
+            '⛔ a curated mapping whose review is still owed is CHECKING (owner ruling 2026-11-08, Q1)',
             facts({ proposal: { matchedBy: 'curated', rung: null } }),
-            { state: 'confident', reason: 'curatedMapping' },
+            { state: 'checking', reason: 'awaitingReview' },
         ],
         [
-            '⛔ a curated mapping the gate CONTRADICTED stays confident, with a review note',
+            '⛔ a curated mapping the gate CONTRADICTED needs a choice, and keeps the review note for curation',
             facts({ proposal: { matchedBy: 'curated', rung: null }, verdict: CONTRADICTED }),
-            { state: 'confident', reason: 'curatedMapping', reviewNote: 'reviewDisagreed' },
+            { state: 'needsChoice', reason: 'reviewContradicted', reviewNote: 'reviewDisagreed' },
         ],
         [
-            'a curated mapping the gate abstained on stays confident, with no note',
+            'a curated mapping the gate abstained on needs a choice, with no note',
             facts({ proposal: { matchedBy: 'curated', rung: null }, verdict: ABSTAINED }),
-            { state: 'confident', reason: 'curatedMapping' },
+            { state: 'needsChoice', reason: 'reviewAbstained' },
         ],
         // 4 and 5. Memo.
         [

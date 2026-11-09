@@ -284,6 +284,17 @@ describe('ParseJobMatchView.decorate', () => {
 
         it('a curated mapping beats the default, even when it names the default food', async () => {
             const { view } = setup({
+                verdicts: new Map([
+                    [
+                        'v2:milk',
+                        {
+                            band: 'verified',
+                            certainty: 'high',
+                            identityVerdict: 'agree',
+                            aspects: ['identity', 'quantity'],
+                        },
+                    ],
+                ]),
                 matches: [
                     matchOf({
                         proposal: {
@@ -322,7 +333,7 @@ describe('ParseJobMatchView.decorate', () => {
         expect(firstMatch(await view.decorate(COOK, CALLER, viewOf()))?.state).toBe('confident');
     });
 
-    it('⛔ keeps a CURATED proposal the gate contradicted confident, notes it, and counts it for curation review', async () => {
+    it('⛔ asks about a CURATED proposal the gate contradicted, notes it, and counts it for curation review', async () => {
         const { view, metric } = setup({
             matches: [
                 matchOf({
@@ -344,7 +355,11 @@ describe('ParseJobMatchView.decorate', () => {
 
         const match = firstMatch(await view.decorate(COOK, CALLER, viewOf()));
 
-        expect(match).toMatchObject({ state: 'confident', reason: 'curatedMapping', reviewNote: 'reviewDisagreed' });
+        expect(match).toMatchObject({
+            state: 'needsChoice',
+            reason: 'reviewContradicted',
+            reviewNote: 'reviewDisagreed',
+        });
         expect(metric).toHaveBeenCalledTimes(1);
     });
 

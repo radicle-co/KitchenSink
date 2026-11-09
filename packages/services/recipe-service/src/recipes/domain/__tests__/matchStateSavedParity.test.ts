@@ -9,8 +9,7 @@
  *  1. `confident` implies the verdict, when there is one, would not badge a saved line AMBIGUOUS (`savedLineAsks`).
  *  2. `confident` implies no review is still owed: a verdict that has not landed yet can still turn it into (1).
  *
- * ⛔ The `curated` tier is excluded until the owner rules on whether a curated mapping may ask (Q1 of the 2026-11-08
- * blueprint); a curated mapping is a person's decision and today stays confident whatever the model says.
+ * The `curated` tier is included (owner ruling 2026-11-08, Q1): a curated mapping asks and waits like a memo or an exact name.
  */
 import { describe, expect, it } from 'vitest';
 
@@ -22,6 +21,7 @@ import { matchStateOf, type MatchFacts, type MatchVerdict } from '../matchState.
 const TIERS: readonly (readonly [MatchFacts['proposal']])[] = [
     ...RANK_TIERS.map((rung: RankTier) => [{ matchedBy: 'lexical', rung }] as const),
     [{ matchedBy: 'memo', rung: null }] as const,
+    [{ matchedBy: 'curated', rung: null }] as const,
 ];
 const REVIEWS: readonly MatchFacts['review'][] = ['asked', 'refused', 'exhausted', 'notAsked', 'budgetSpent'];
 const CERTAINTIES = ['low', 'medium', 'high'] as const;

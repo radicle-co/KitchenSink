@@ -128,11 +128,13 @@ const savedStatus = (verdict: LineVerdictRow) =>
     resolveLineStatus(verdict.band, FoodResolutionStatus.RESOLVED, identityReadingOf(verdict));
 
 const MEMO = { matchedBy: 'memo', food: { kind: 'root', id: 'F-egg' }, rung: null, margin: null } as const;
+const CURATED = { matchedBy: 'curated', food: { kind: 'root', id: 'F-egg' }, rung: null, margin: null } as const;
 const EXACT = { matchedBy: 'lexical', food: { kind: 'root', id: 'F-egg' }, rung: 'exact', margin: 0.3 } as const;
 
 describe('paste review and saved badge: "1 egg"', () => {
     it.each([
         ['a remembered match', MEMO],
+        ['a curated mapping', CURATED],
         ['an exact name', EXACT],
     ] as const)('%s: while the review runs it is checking, never confident', async (_label, proposal) => {
         expect(await reviewState(proposal)).toBe('checking');
@@ -140,6 +142,7 @@ describe('paste review and saved badge: "1 egg"', () => {
 
     it.each([
         ['a remembered match', MEMO],
+        ['a curated mapping', CURATED],
         ['an exact name', EXACT],
     ] as const)(
         '%s: an abstaining verdict asks the cook, exactly as the saved line would badge',
@@ -151,6 +154,7 @@ describe('paste review and saved badge: "1 egg"', () => {
 
     it.each([
         ['a remembered match', MEMO],
+        ['a curated mapping', CURATED],
         ['an exact name', EXACT],
     ] as const)('%s: an agreeing verdict is confident and the saved line is not AMBIGUOUS', async (_l, proposal) => {
         expect(await reviewState(proposal, AGREE)).toBe('confident');

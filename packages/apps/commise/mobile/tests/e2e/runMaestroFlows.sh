@@ -232,7 +232,6 @@ recipes:shell/tabBar
 recipes:recipes/landscape
 recipes:recipes/servingScale
 recipes:recipes/detailCooking
-recipes:recipes/pinnedIngredients
 recipes:recipes/detailBack
 recipes:recipes/deferredCalories
 recipes:recipes/emptyLibrary

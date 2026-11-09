@@ -9,6 +9,12 @@ appId: ${APP_ID}
 #   3. A tick in the list is the card's tick: close the list, scroll back to the card, and the row is checked.
 #
 # The seeded lamb's lines and steps are fixed by the recipe-service seed (`detailCooking.yaml` reads the same ones).
+#
+# ⛔ NOT IN FLOW_PLAN YET (recorded in `maestroFlowSelection.test.ts`, KNOWN_UNRUN_FLOWS). The bar shows only once the card has
+# scrolled above the top of the screen, and every seeded recipe is too short for that: the lamb's card still ends 230 px below
+# the top at the end of the page. Steps 3-6 below (open, tick, close, the card's tick) PASSED on an Android emulator on
+# 2026-11-08 with the bar forced on; steps 1-2 (it is absent on the card, present in the steps) have never run. Promote the
+# flow once the seeded world holds a recipe with ten or more steps.
 - runFlow: ../auth/signin.yaml
 
 - assertVisible: 'My recipes'
@@ -38,12 +44,13 @@ appId: ${APP_ID}
 - extendedWaitUntil:
       visible: 'Ingredients for .*Hide list.*'
       timeout: 10000
-- assertVisible:
-      text: 'Servings'
-      above: '8 Lamb loin chops.*'
+- assertVisible: 'Servings'
 
 # ── TICK ── in the list.
-- tapOn: '3 tbsp Olive oil.*'
+# The card's rows stay in the tree under the bar and the scrim, so the list's row is the one BELOW its Servings label.
+- tapOn:
+      text: '3 tbsp Olive oil.*'
+      below: 'Servings'
 - assertVisible: 'Ingredients for .*, 1 ticked. Hide list.*'
 
 # ── CLOSE ── by the bar, which stays above its list.

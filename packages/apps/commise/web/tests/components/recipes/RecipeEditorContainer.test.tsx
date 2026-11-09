@@ -790,7 +790,7 @@ describe('RecipeEditorContainer (web) — Private (E1, private slots and Pro)', 
             ['a failed profile read', 'failed'],
             ['a profile still loading', undefined],
         ] as const)(
-            '⛔ under %s, says "Who can see it: Public" and offers no Private and no Pro',
+            '⛔ under %s, still shows the field with both choices (no Private-less statement exists) and no Pro',
             async (_label, state) => {
                 profile.paidFeatures = state;
                 await openRecipe(
@@ -801,8 +801,8 @@ describe('RecipeEditorContainer (web) — Private (E1, private slots and Pro)', 
                 );
 
                 expect(await screen.findByText('Who can see it')).toBeTruthy();
-                expect(screen.queryByRole('radio', { name: /^Private/u })).toBeNull();
-                expect(screen.queryByRole('radio', { name: /^Public/u })).toBeNull();
+                expect(screen.getByRole('radio', { name: /^Private/u })).toBeTruthy();
+                expect(screen.getByRole('radio', { name: /^Public/u })).toBeTruthy();
                 expect(screen.queryByText('Pro')).toBeNull();
                 expect(screen.queryByRole('dialog', { name: /Pro/u })).toBeNull();
             },

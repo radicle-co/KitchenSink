@@ -5,7 +5,7 @@
  *
  * @pattern Repository — the read seam over food-service, as `@kitchensink/recipe-service-client`'s `queries.ts` is
  */
-import { experimental_streamedQuery, queryOptions, skipToken } from '@tanstack/react-query';
+import { experimental_streamedQuery, infiniteQueryOptions, queryOptions, skipToken } from '@tanstack/react-query';
 
 import type { FoodServiceClient } from './client.js';
 import { EMPTY_PROGRESSIVE_ANSWER, withProgressiveFrame, type ProgressiveAnswer } from './progressiveAnswer.js';
@@ -35,6 +35,10 @@ export const foodServiceKeys = {
     all: ['food-service'] as const,
     food: (id: string) => ['food-service', 'food', id] as const,
     dataSources: () => ['food-service', 'data-sources'] as const,
+    /** The newest publication request of one authored food. */
+    publicationRequest: (id: string) => ['food-service', 'publication-request', id] as const,
+    /** One cook's own foods: keyed on the cook, as every per-cook read is (ADR-0054). */
+    ownFoods: (subject: string | undefined) => ['food-service', 'own-foods', subject ?? null] as const,
     /**
      * Every progressive search of one cook (ADR-0055): its database frame holds the cook's own foods, so the answer is
      * the cook's, keyed on them as ADR-0054 keys every per-cook read (plan 002 S3 property 7). With no one signed in,
@@ -69,6 +73,22 @@ export function foodQueries(client: FoodServiceClient) {
                 // Only a resolved food is worth keeping: a `202` (still resolving) is stale at once, so the next
                 // mount asks again instead of showing an answer that is already out of date.
                 staleTime: (query) => (query.state.data?.status === 'RESOLVED' ? FOOD_STALE_TIME_MS : 0),
+            }),
+        /** `GET .../authored/{id}/publication-request`: the newest request, whatever its status. Always re-read on mount: staff decide out of band. */
+        publicationRequest: (id: string) =>
+            queryOptions({
+                queryKey: foodServiceKeys.publicationRequest(id),
+                queryFn: id === '' ? skipToken : () => client.getPublicationRequest(id),
+                staleTime: 0,
+            }),
+        /** `GET /api/v1/foods/authored`: the cook's own foods, paged by the server's opaque cursor. With no cook it asks nothing. */
+        ownFoods: (subject: string | undefined) =>
+            infiniteQueryOptions({
+                queryKey: foodServiceKeys.ownFoods(subject),
+                queryFn: subject === undefined ? skipToken : ({ pageParam }) => client.listOwnFoods(pageParam),
+                initialPageParam: undefined as string | undefined,
+                getNextPageParam: (page) => page.nextCursor,
+                staleTime: 0,
             }),
         /** `GET /api/v1/foods/sources`: the sources a stored value cites. Its retry is the app's, as `food`'s is. */
         dataSources: () =>

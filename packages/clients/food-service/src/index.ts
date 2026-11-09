@@ -28,6 +28,9 @@ export {
     ForbiddenError,
     InvalidRequestError,
     NotFoundError,
+    PublicationNotApprovableError,
+    PublicationNotRequestableError,
+    PublicationRequestNotFoundError,
     RateLimitedError,
     RemoteFoodGoneError,
     RequesterLimitReachedError,
@@ -43,6 +46,9 @@ export {
     isForbiddenError,
     isInvalidRequestError,
     isNotFoundError,
+    isPublicationNotApprovableError,
+    isPublicationNotRequestableError,
+    isPublicationRequestNotFoundError,
     isRateLimitedError,
     isRemoteFoodGoneError,
     isRequesterLimitReachedError,
@@ -99,7 +105,12 @@ export type {
 // so it is re-exported from the contract rather than restated.
 export { VARIANT_ATTRIBUTES } from '@kitchensink/schema-food';
 
-export type { CreateAuthoredFoodInput, CreateAuthoredFoodResult, FoodNutritionBatchResult } from './types.js';
+export type {
+    CreateAuthoredFoodInput,
+    CreateAuthoredFoodResult,
+    FoodNutritionBatchResult,
+    UpdateAuthoredFoodResult,
+} from './types.js';
 
 // Drift layer 3 (Skew) — CODING_STANDARDS §15.2.5. The comparison itself is internal (the client wires it
 // automatically; route the warning with the `onContractSkew` option). Only the TEST SEAM is exported, because a

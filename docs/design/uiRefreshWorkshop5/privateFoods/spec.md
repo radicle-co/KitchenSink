@@ -688,4 +688,14 @@ without withdrawing. Notifications when staff decide. The cook learns on the pag
   a "Your foods" row that opens a plain list of the cook's own foods, each with its status badge, and each row opens the
   food page. It needs the same list endpoint the food page reads from. **Architect** for the endpoint. The list design
   follows the Collections list rows. A board is owed before build.
-- Q3 stays with the owner.
+- Q3 answered by the owner (2026-11-09): when staff decide, the cook gets a push notification. The in-app result on
+  the food page and the editor rows stays. Native only. Web shows the in-app result only, unless the architect finds
+  web push already exists.
+    - Ask for push permission in context, the first time the cook presses "Ask to make public", never at sign-in. The
+      ask stays sent whatever the answer. If permission is denied, nothing else changes.
+    - Copy (keys under `foods.push.*`). Each tap opens that food's page.
+        - Approved: "{food} is public now". Body: "Your recipes can use it in public."
+        - Not approved: "{food} wasn't made public". Body: "Open it to see why."
+        - Edit approved: "Your change to {food} is live".
+        - Edit not approved: "Your change to {food} wasn't approved". Body: "Open it to see why."
+    - No decline reason in the notice itself, because a lock screen is not private.

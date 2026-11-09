@@ -15,7 +15,7 @@ export interface SharedAlbStackProps extends StackProps {
  *
  * One shared internet-facing Application Load Balancer per stage, owned by the global infra.
  * Backend services (identity, food, …) do NOT create their own ALB — each imports this ALB's
- * HTTPS listener and attaches a host-based {@link elbv2.ApplicationListenerRule} (unique priority
+ * HTTPS listener and attaches a host-based `elbv2.ApplicationListenerRule` (unique priority
  * per service) routing its subdomain to its own target group. Unmatched hosts hit the listener's
  * default fixed-response 404.
  *

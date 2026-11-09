@@ -127,7 +127,10 @@ export class IngredientLinePlanner {
         return {
             inputs: forwarded.map(toLineInput),
             identities,
-            namesText: ingredientNamesText(lookupIds, identities),
+            namesText: ingredientNamesText(
+                forwarded.map((line) => ({ foodLookupId: line.ingredientId, displayText: line.displayText })),
+                identities,
+            ),
         };
     }
 }

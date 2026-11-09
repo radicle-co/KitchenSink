@@ -2104,8 +2104,8 @@ describe('RecipesService.clone — content fidelity + provenance (Tier-2)', () =
                         sortOrder: 0,
                     },
                 ],
-                // The search text the CLONER's read gives the lines — the fixture names every food "Onion".
-                ingredientNamesText: 'Onion',
+                // The search text the CLONER's read gives the lines — the fixture names every food "Onion", then the line's own words.
+                ingredientNamesText: 'Onion sifted',
                 steps: [{ instruction: 'Bake', timerSeconds: 600 }],
             }),
             FAKE_TX,

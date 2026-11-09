@@ -213,7 +213,10 @@ describe('RecipesService.create — line composition (T043b)', () => {
 
         await service.create(OWNER_PRINCIPAL, CREATE_DTO, undefined);
 
-        expect(dal.create).toHaveBeenCalledWith(expect.objectContaining({ ingredientNamesText: 'Red onion' }), FAKE_TX);
+        expect(dal.create).toHaveBeenCalledWith(
+            expect.objectContaining({ ingredientNamesText: 'Red onion diced' }),
+            FAKE_TX,
+        );
     });
 
     it('rejects a line naming a binding that does not exist with UNKNOWN_INGREDIENT (not a raw FK error)', async () => {
@@ -273,7 +276,7 @@ describe('RecipesService.update — line composition (T043b)', () => {
         expect(dal.update).toHaveBeenCalledWith(
             'r-1',
             expect.objectContaining({
-                ingredientNamesText: 'Onion',
+                ingredientNamesText: 'Onion diced',
                 ingredients: [expect.objectContaining({ foodLookupId: ONION_ID })],
             }),
             FAKE_TX,

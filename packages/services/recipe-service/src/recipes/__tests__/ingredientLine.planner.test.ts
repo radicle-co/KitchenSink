@@ -174,6 +174,14 @@ describe('IngredientLinePlanner.plan', () => {
         expect(plan.namesText).toBe('beef brisket grandma’s spice mix');
     });
 
+    it('adds the words the cook wrote on a line to the search text, after its name', async () => {
+        const { planner } = build([ROOT, DECLARED], { 'food-1': 'beef brisket' });
+
+        const plan = await planner.plan(undefined, [line('l-root', { displayText: 'point cut' }), line('l-declared')]);
+
+        expect(plan.namesText).toBe('beef brisket point cut grandma’s spice mix');
+    });
+
     it('⛔ leaves a bound line nameless — and out of the search text — when food cannot be asked', async () => {
         const { planner } = build([ROOT, DECLARED]);
 

@@ -455,7 +455,8 @@ describe('RecipesService.clone — a line on another author’s PRIVATE food (pl
         const { response, input, snapshot, resolve } = await cloneWith(CLONER_PRINCIPAL, { outcome: 'absent' });
 
         expect(input.ingredients[0]?.foodLookupId).toBe(INGREDIENT_ID);
-        expect(input.ingredientNamesText).toBe('');
+        // Only the line's own words (`diced`): the private food's name never enters.
+        expect(input.ingredientNamesText).toBe('diced');
         expect(snapshot?.ingredients[0]).not.toHaveProperty('ingredientName');
         expect(response.clonePrivateFoodLineCount).toBe(1);
         // The names are read with the CLONER's credential — never the author's view.
@@ -471,7 +472,8 @@ describe('RecipesService.clone — a line on another author’s PRIVATE food (pl
             rootId: 'food-private',
         });
 
-        expect(input.ingredientNamesText).toBe('');
+        // Only the line's own words (`diced`): the private food's name never enters.
+        expect(input.ingredientNamesText).toBe('diced');
         expect(snapshot?.ingredients[0]).not.toHaveProperty('ingredientName');
         expect(response).not.toHaveProperty('clonePrivateFoodLineCount');
     });

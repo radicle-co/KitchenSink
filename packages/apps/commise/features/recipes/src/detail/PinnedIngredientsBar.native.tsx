@@ -149,6 +149,7 @@ export const PinnedIngredientsBar: FC<
                     onPress={() => onOpenChange(!open)}
                     accessibilityRole="button"
                     accessibilityLabel={facts.name}
+                    accessibilityHint={facts.hint}
                     expanded={open}
                     width="fill"
                 >

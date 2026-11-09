@@ -22,6 +22,8 @@ export interface PinnedBarFacts {
     readonly name: string;
     /** The opened list's dialog name. */
     readonly dialogName: string;
+    /** What pressing the bar does, for native, which has no aria-haspopup. */
+    readonly hint: string;
 }
 
 /** What {@link pinnedBarFactsOf} reads. */
@@ -48,6 +50,8 @@ export interface PinnedBarFactsInput {
         | 'pinnedNameShow'
         | 'pinnedNameHide'
         | 'pinnedDialogName'
+        | 'pinnedHintShow'
+        | 'pinnedHintHide'
     >;
     readonly locale: Locale;
 }
@@ -78,7 +82,8 @@ export const pinnedBarFactsOf = ({
     const tickedText = fillTemplate(copy.pinnedTicked, { count: format.format(ticked) });
     // The servings are formatted for the locale like the counts are (digits, grouping).
     const servingsText = format.format(servings);
-    const forServings = fillTemplate(copy.ingredientsFor, { count: servingsText });
+    // Display only: "for 4" is drawn with a no-break space so it never splits, and the label wraps between the words instead.
+    const forServings = fillTemplate(copy.ingredientsFor, { count: servingsText }).replace(/ /gu, '\u00a0');
     const summary = ticked === 0 ? items : fillTemplate(copy.pinnedSummaryTicked, { items, ticked: tickedText });
 
     return {
@@ -87,6 +92,7 @@ export const pinnedBarFactsOf = ({
         meta: ticked === 0 ? items : fillTemplate(copy.pinnedMeta, { items, ticked: tickedText }),
         cue: open ? copy.pinnedHide : copy.pinnedShow,
         name: fillTemplate(open ? copy.pinnedNameHide : copy.pinnedNameShow, { count: servingsText, summary }),
+        hint: open ? copy.pinnedHintHide : copy.pinnedHintShow,
         dialogName: fillTemplate(copy.pinnedDialogName, { count: servingsText }),
     };
 };

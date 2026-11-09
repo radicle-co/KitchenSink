@@ -169,6 +169,22 @@ for (const width of [430, 375]) {
             // The servings stepper is the first control in the panel, never in the bar.
             await expect(panel.getByRole('group', { name: 'Servings' })).toBeVisible();
 
+            // The list is on TOP: what the window draws at the panel's centre is inside the panel, and what it draws at the
+            // scrim's edge is the scrim, not the page (a stacking-context bug once left the steps painting over it).
+            const hits = await page.evaluate(() => {
+                const dialog = document.querySelector('[role="dialog"]');
+                const box = dialog?.getBoundingClientRect();
+                const centre = box === undefined ? null : document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+                const edge = document.elementFromPoint(5, 400);
+
+                return {
+                    centreInPanel: centre !== null && dialog?.contains(centre) === true,
+                    edgeIsScrim: edge?.getAttribute('aria-label') === 'Close the ingredients list',
+                };
+            });
+
+            expect(hits).toEqual({ centreInPanel: true, edgeIsScrim: true });
+
             // A tick in the panel is the card's tick.
             await panel.getByRole('checkbox', { name: /ingredient number 3/u }).check();
             await page.getByRole('button', { name: /Hide list\.$/u }).click();

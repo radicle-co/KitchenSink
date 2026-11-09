@@ -35,11 +35,23 @@ const { detail } = recipeMessages.en;
 /** The scale of an iOS device at its largest accessibility setting. */
 const SCALE = 3.1;
 
+// react-native-web drops `accessibilityHint`, so the pressables are wrapped to record the accessibility props a screen reader is given.
+const seen = vi.hoisted(() => ({ pressables: [] as { accessibilityLabel?: string; accessibilityHint?: string }[] }));
+
 vi.mock('react-native', async (importOriginal) => {
     const actual = await importOriginal<typeof import('react-native')>();
+    const { createElement } = await import('react');
 
     return {
         ...actual,
+        Pressable: (props: import('react-native').PressableProps) => {
+            seen.pressables.push({
+                ...(props.accessibilityLabel === undefined ? {} : { accessibilityLabel: props.accessibilityLabel }),
+                ...(props.accessibilityHint === undefined ? {} : { accessibilityHint: props.accessibilityHint }),
+            });
+
+            return createElement(actual.Pressable, props);
+        },
         useWindowDimensions: () => ({ ...actual.Dimensions.get('window'), width: 390, height: 844, fontScale: 1 }),
         AccessibilityInfo: { ...actual.AccessibilityInfo, sendAccessibilityEvent: vi.fn() },
     };
@@ -247,6 +259,20 @@ describe('the pinned ingredients bar (native)', () => {
         expect(panel.querySelector('[style*="opacity"]')).not.toBeNull();
     });
 
+    it('gives the bar a hint saying what it does, and flips it when the list is open (React Native has no aria-haspopup)', () => {
+        render(<Page />);
+
+        const hintOf = (label: RegExp): string | undefined =>
+            [...seen.pressables].reverse().find((press) => label.test(press.accessibilityLabel ?? ''))
+                ?.accessibilityHint;
+
+        expect(hintOf(/Show list\.$/u)).toBe(detail.pinnedHintShow);
+
+        fireEvent.click(bar('Show'));
+
+        expect(hintOf(/Hide list\.$/u)).toBe(detail.pinnedHintHide);
+    });
+
     it('caps the bar text at 1.5x at a system text scale of 3.1: chrome never draws larger than the page title', () => {
         render(<Page />, SCALE);
 
@@ -305,7 +331,7 @@ describe('useIngredientsCardScrollWatch (the page scroll, as the bar reads it)',
         expect(result.current.scrolledPast).toBe(false);
     });
 
-    it('re-reads the card when a taller list changes its height', () => {
+    it('re-reads the card at once when its height changes with no scroll: the bar never shows over the card', () => {
         const { result } = renderHook(() => useIngredientsCardScrollWatch(TOP_INSET));
 
         act(() => result.current.onCardLayout(layoutOf(700, 600)));
@@ -313,9 +339,14 @@ describe('useIngredientsCardScrollWatch (the page scroll, as the bar reads it)',
 
         expect(result.current.scrolledPast).toBe(true);
 
+        // A rotation, a text-size change or a refresh makes the card taller; the page does not scroll.
         act(() => result.current.onCardLayout(layoutOf(700, 900)));
-        act(() => result.current.onScroll(scrollTo(1301)));
 
         expect(result.current.scrolledPast).toBe(false);
+
+        // And back: a card that shrinks under the cook's position is past again.
+        act(() => result.current.onCardLayout(layoutOf(700, 600)));
+
+        expect(result.current.scrolledPast).toBe(true);
     });
 });

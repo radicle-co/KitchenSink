@@ -382,6 +382,9 @@ export interface RecipeDetailMessages {
     readonly pinnedDialogName: string;
     /** The scrim behind the opened list, a button for a screen reader that reaches it (out of the Tab order). */
     readonly pinnedScrimClose: string;
+    /** The bar's hint on native, where there is no aria-haspopup: what pressing it does. */
+    readonly pinnedHintShow: string;
+    readonly pinnedHintHide: string;
     /** The note shown while the amounts are scaled (contains `{original}`). */
     readonly scaledFrom: string;
     /** The ghost action that returns the amounts to the recipe's own servings. */
@@ -1088,6 +1091,8 @@ export const recipeMessages: LocalizedMessages<RecipeMessages> = {
             pinnedNameHide: 'Ingredients for {count}, {summary}. Hide list.',
             pinnedDialogName: 'Ingredients for {count}',
             pinnedScrimClose: 'Close the ingredients list',
+            pinnedHintShow: 'Opens the ingredient list',
+            pinnedHintHide: 'Closes the ingredient list',
             scaledFrom: 'Amounts scaled from {original} servings.',
             resetScale: 'Reset',
             scaledAnnounce: 'Amounts for {count} servings.',

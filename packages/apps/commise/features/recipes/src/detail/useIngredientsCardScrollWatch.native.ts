@@ -9,12 +9,15 @@
  * content-relative: the editor's section index does the same), and the scroll view's `onScroll` gives the offset. The
  * answer is a boolean in state, set on every scroll event but re-rendering only when it flips.
  *
- * shortcut: the answer is recomputed on a scroll event, not on a re-layout, so a card whose height changes while the page is
- * still (a rotation, a text-size change, a refresh that changes the ingredients, a notice above it) keeps its old answer
- * until the next scroll event. A scroll event follows any touch of the page, so the bar is wrong only until the cook next
- * moves it. Recompute on layout too, with the last offset as a latch (as `ScrollHost` keeps one), if a device finding asks.
+ * Both events recompute the answer from the other's last value, so a card that changes height while the page is still (a
+ * rotation, a text-size change, a refresh, a notice above it) is re-read at once and the bar never shows over the card. The
+ * two last values live in a ref written ONLY inside the two handlers, never during render (a previous-value latch, as
+ * `ScrollHost` keeps one).
+ *
+ * @pattern Adapter over React Native's layout and scroll events — the handlers are the handle; the latch is the one place
+ *     the two events meet.
  */
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 
 /** A layout event, with the only fields this hook reads (so `LayoutChangeEvent` fits it). */
 interface CardLayoutEvent {
@@ -43,20 +46,29 @@ export interface IngredientsCardScrollWatch {
  * @returns Whether the card has scrolled past, and the two handlers that feed it.
  */
 export function useIngredientsCardScrollWatch(topInset: number): IngredientsCardScrollWatch {
-    const [cardBottom, setCardBottom] = useState<number | undefined>(undefined);
     const [scrolledPast, setScrolledPast] = useState(false);
-    const onCardLayout = useCallback((event: CardLayoutEvent) => {
-        const { y, height } = event.nativeEvent.layout;
+    // The last card bottom and page offset, each written only inside its handler.
+    const seen = useRef<{ cardBottom: number | undefined; offset: number }>({ cardBottom: undefined, offset: 0 });
+    const settle = useCallback(() => {
+        const { cardBottom, offset } = seen.current;
 
-        setCardBottom(y + height);
-    }, []);
+        setScrolledPast(cardBottom !== undefined && offset + topInset >= cardBottom);
+    }, [topInset]);
+    const onCardLayout = useCallback(
+        (event: CardLayoutEvent) => {
+            const { y, height } = event.nativeEvent.layout;
+
+            seen.current.cardBottom = y + height;
+            settle();
+        },
+        [settle],
+    );
     const onScroll = useCallback(
         (event: PageScrollEvent) => {
-            if (cardBottom !== undefined) {
-                setScrolledPast(event.nativeEvent.contentOffset.y + topInset >= cardBottom);
-            }
+            seen.current.offset = event.nativeEvent.contentOffset.y;
+            settle();
         },
-        [cardBottom, topInset],
+        [settle],
     );
 
     return { scrolledPast, onCardLayout, onScroll };

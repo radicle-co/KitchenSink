@@ -292,6 +292,10 @@ const REF_MODULES: Readonly<Record<string, RefSite>> = {
         verdict: 'sanctioned',
         why: "`seen` is the same in-effect previous-value latch as the screen-reader twin, and the ref it acts on is the CALLER's (`SearchField`'s, attached to a native `TextInput`), whose sole use here is the imperative `TextInput.focus()` — the external, non-declarative native API with no declarative form (`autoFocus` fires at mount only). It moves keyboard focus only for a press the person started (the Recipes search proxy), never on mount or on an unrelated render.",
     },
+    'packages/apps/commise/features/recipes/src/detail/useIngredientsCardScrollWatch.native.ts': {
+        verdict: 'sanctioned-adjacent',
+        why: "ONE `useRef` holding the last card bottom and the last page offset, so the answer \"the card is above the top\" is recomputed when EITHER event arrives: a card that changes height while the page is still (rotation, text size, refresh) is re-read at once instead of showing the bar over it. It is a previous-value latch written ONLY inside the two event handlers, never during render, so a discarded render can neither consume nor advance it; the answer itself is plain state. Both events are external, non-declarative sources (layout and scroll), and holding either in state would re-render the whole page at scroll frequency.",
+    },
     'packages/apps/commise/features/recipes/src/hooks/useIngredientEntry.ts': {
         verdict: 'sanctioned-adjacent',
         why: 'ONE `useRef`, `sessionRef`, the open analytics session (a Memento). It holds no render-affecting state: it is written and read only in effects and in the handlers that settle a session (a pick, a change of active field, a row removed), so a session survives the re-renders typing causes and settles exactly once.',

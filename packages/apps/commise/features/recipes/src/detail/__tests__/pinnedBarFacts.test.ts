@@ -44,8 +44,13 @@ describe('pinnedBarFactsOf', () => {
     });
 
     it('formats the servings for the locale, like the counts', () => {
-        expect(facts({ servings: 1200 }).forServings).toBe('for 1,200');
+        expect(facts({ servings: 1200 }).forServings).toBe('for\u00a01,200');
         expect(facts({ servings: 1200 }).dialogName).toBe('Ingredients for 1,200');
+    });
+
+    it('hints what the bar does: opens while closed, closes while open', () => {
+        expect(facts().hint).toBe('Opens the ingredient list');
+        expect(facts({ open: true }).hint).toBe('Closes the ingredient list');
     });
 
     it('uses the singular for one item', () => {
@@ -68,7 +73,8 @@ describe('pinnedBarFactsOf', () => {
 
         expect(bar.dialogName).toBe('Ingredients for 6');
         expect(bar.heading).toBe('Ingredients');
-        expect(bar.forServings).toBe('for 6');
-        expect(bar.name.startsWith(`${bar.heading} ${bar.forServings}`)).toBe(true);
+        expect(bar.forServings).toBe('for\u00a06');
+        // "for 6" never splits across lines (a no-break space), and the name says the same words with a plain space.
+        expect(bar.name.startsWith(`${bar.heading} ${bar.forServings.replace('\u00a0', ' ')}`)).toBe(true);
     });
 });

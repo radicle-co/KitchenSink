@@ -269,7 +269,7 @@ describe('scaleRecipeForServings — quantities', () => {
                 name: 'Garlic',
                 quantity: exact(6),
                 unit: 'cloves',
-                notes: 'minced',
+                displayText: 'minced',
                 isUserEntered: true,
             },
         ]);

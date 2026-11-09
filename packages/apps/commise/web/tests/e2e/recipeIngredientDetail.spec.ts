@@ -147,7 +147,7 @@ test.describe('ingredient preparation + section (U26/U27)', () => {
  *
  * Each line is found by its checkbox's accessible name, which on a variant-bound line carries every part
  * comma-joined (R27). The screen shows the parts with a middle dot and never as a comma-joined label: the row text is
- * asserted against that label, and a line whose notes carry the same phrase in the cook's own words is the control
+ * asserted against that label, and a line whose displayText carries the same phrase in the cook's own words is the control
  * that shows the assertion can fail.
  */
 const VARIANT_RECIPE_ID = 'db000000-0000-4000-8000-0000000000a1';
@@ -245,7 +245,10 @@ test.describe('variant details on the read view (curated U15)', () => {
             { ...rootBrisket, displayText: 'flat half, separable lean and fat' },
         ]);
 
-        await expect(lineItem(page, '1 lb beef brisket')).toContainText('flat half, separable lean and fat');
+        // The cook's words REPLACE the food's name on the row (ADR displayText), so the row is found by them.
+        await expect(lineItem(page, '1 lb flat half, separable lean and fat')).toContainText(
+            'flat half, separable lean and fat',
+        );
         await expect(lineItem(page, `2 lb beef brisket, ${AE1_SPOKEN}`)).not.toContainText(
             'flat half, separable lean and fat',
         );

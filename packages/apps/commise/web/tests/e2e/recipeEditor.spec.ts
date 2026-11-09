@@ -180,7 +180,7 @@ for (const colorScheme of SCHEMES) {
             // The device draft is written one second after typing stops.
             await expect(page).toHaveURL(/draft=local/u, { timeout: 5_000 });
             await page.waitForFunction(() =>
-                Object.keys(window.sessionStorage).some((key) => key.startsWith('editor.draft.v1.')),
+                Object.keys(window.sessionStorage).some((key) => key.startsWith('editor.draft.v2.')),
             );
 
             await page.reload();
@@ -701,7 +701,7 @@ test.describe('Discard leaves nothing syncing', () => {
         await expect(page.getByText(/Syncing \d+ change/u)).toHaveCount(0);
         await page.waitForFunction(() =>
             Object.keys(window.sessionStorage)
-                .filter((key) => key.startsWith('sync.outbox.v1.'))
+                .filter((key) => key.startsWith('sync.outbox.v2.'))
                 .every(
                     (key) =>
                         (

@@ -14,6 +14,7 @@ import { FieldLabel, Input } from '@commise/ui/input';
 import { PressScale } from '@commise/ui/press-scale';
 import { Text as DesignText } from '@commise/ui/text';
 import type { FC } from 'react';
+import { useWindowDimensions } from 'react-native';
 import { XStack, YStack } from 'tamagui';
 
 import { ingredientUnitNoteId } from './fieldErrorIds.js';
@@ -48,8 +49,16 @@ const AmountField: FC<{
     </YStack>
 );
 
+/** The width from which "Name on the recipe" and "Note" share a row (a tablet). */
+const TABLET_WIDTH = 600;
+
 /** The row editor's fields. */
 export const IngredientLineEditor: FC<IngredientLineEditorProps> = ({ view, index, m, details }) => {
+    // On a phone Name and Note stack full width: side by side the name box showed a few letters at the largest text size
+    // and its label wrapped. Each is its own field, so a tablet keeps them in one row.
+    const stacked = useWindowDimensions().width < TABLET_WIDTH;
+    const pairedField = stacked ? { alignSelf: 'stretch' } : { minWidth: 160, flexGrow: 1, flexBasis: 160 };
+
     // A refused amount that was not mistyped here (the form's refusal) has no note of its own, but an invalid field
     // still has to say why to a screen reader: the sentence the row shows for it.
     const amountHint = view.amountNote?.text ?? (view.amountInvalid ? m.rowAmountInvalid : undefined);
@@ -71,8 +80,14 @@ export const IngredientLineEditor: FC<IngredientLineEditorProps> = ({ view, inde
                     )}
                 </XStack>
             </YStack>
-            <XStack flexWrap="wrap" alignItems="flex-end" columnGap="$3" rowGap="$4">
-                <YStack gap="$1" minWidth={160} flexGrow={1} flexBasis={160}>
+            <XStack
+                flexDirection={stacked ? 'column' : 'row'}
+                flexWrap="wrap"
+                alignItems={stacked ? 'stretch' : 'flex-end'}
+                columnGap="$3"
+                rowGap="$4"
+            >
+                <YStack gap="$1" {...pairedField}>
                     <FieldLabel forId={view.ids.displayText} label={m.rowDisplayTextLabel} />
                     <Input
                         id={view.ids.displayText}
@@ -82,7 +97,7 @@ export const IngredientLineEditor: FC<IngredientLineEditorProps> = ({ view, inde
                         onChangeText={view.onDisplayText}
                     />
                 </YStack>
-                <YStack gap="$1" minWidth={160} flexGrow={1} flexBasis={160}>
+                <YStack gap="$1" {...pairedField}>
                     <FieldLabel forId={view.ids.note} label={m.rowNoteLabel} />
                     <Input
                         id={view.ids.note}

@@ -48,7 +48,7 @@ describe('PrivateFoodsRefusalSheet (native)', () => {
     it('each line has its own Open food button, named for that line, calling with that food', () => {
         const { onOpenFood } = renderSheet();
 
-        fireEvent.click(screen.getByRole('button', { name: 'Open 2 tbsp My spice mix' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Open food: 2 tbsp My spice mix' }));
         expect(onOpenFood).toHaveBeenCalledExactlyOnceWith('f2');
         expect(screen.queryByText(/new tab/u)).toBeNull();
     });

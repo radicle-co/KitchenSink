@@ -57,7 +57,7 @@ describe('RecipeVersionsView — a refused restore', () => {
 
         await userEvent
             .setup()
-            .click(within(dialog).getByRole('button', { name: /^Open .*My spice mix.* in a new tab$/u }));
+            .click(within(dialog).getByRole('button', { name: /^Open food: .*My spice mix.*, opens in a new tab$/u }));
         expect(onOpenFood).toHaveBeenCalledWith('food_mix');
 
         await userEvent.setup().click(within(dialog).getByRole('button', { name: 'Close' }));

@@ -500,7 +500,9 @@ describe('RecipeEditorSurface — the refusal of a private food in a public reci
     it('Open food opens that food through the app, and the sheet stays', async () => {
         const { onOpenFood } = open();
 
-        await userEvent.click(screen.getByRole('button', { name: /^Open .*My spice mix.* in a new tab$/u }));
+        await userEvent.click(
+            screen.getByRole('button', { name: /^Open food: .*My spice mix.*, opens in a new tab$/u }),
+        );
 
         expect(onOpenFood).toHaveBeenCalledExactlyOnceWith('food_spice');
         expect(screen.getByRole('dialog', { name: sheetName })).toBeTruthy();

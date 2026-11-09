@@ -56,7 +56,7 @@ describe('RecipeVersionsView — a refused restore', () => {
         expect(within(dialog).queryByRole('button', { name: /private/iu })).toBeNull();
         expect(within(dialog).queryByText(/upgrade|pro\b/iu)).toBeNull();
 
-        fireEvent.click(within(dialog).getByRole('button', { name: 'Open 2 tbsp My spice mix' }));
+        fireEvent.click(within(dialog).getByRole('button', { name: 'Open food: 2 tbsp My spice mix' }));
         expect(onOpenFood).toHaveBeenCalledWith('food_mix');
 
         fireEvent.click(within(dialog).getByRole('button', { name: 'Close' }));

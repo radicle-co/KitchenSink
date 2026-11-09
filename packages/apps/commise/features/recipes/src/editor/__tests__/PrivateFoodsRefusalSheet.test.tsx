@@ -46,7 +46,9 @@ describe('PrivateFoodsRefusalSheet (web)', () => {
     it('each line has its own Open food button, named for that line and for the new tab, calling with that food', async () => {
         const { onOpenFood } = renderSheet();
 
-        await userEvent.click(screen.getByRole('button', { name: 'Open 2 tbsp My spice mix in a new tab' }));
+        await userEvent.click(
+            screen.getByRole('button', { name: 'Open food: 2 tbsp My spice mix, opens in a new tab' }),
+        );
         expect(onOpenFood).toHaveBeenCalledExactlyOnceWith('f2');
         expect(screen.getByText('Each food opens in a new tab, so your recipe stays here.')).toBeTruthy();
     });

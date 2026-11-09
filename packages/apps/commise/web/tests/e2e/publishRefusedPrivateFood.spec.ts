@@ -64,7 +64,7 @@ test.describe('publish refused for a private food', () => {
         await expect(sheet).toBeVisible();
 
         const popup = page.waitForEvent('popup');
-        await sheet.getByRole('button', { name: /^Open .*Secret Sauce.* in a new tab$/u }).click();
+        await sheet.getByRole('button', { name: /^Open food: .*Secret Sauce.*, opens in a new tab$/u }).click();
         expect(new URL((await popup).url()).pathname).toMatch(new RegExp(`/foods/${FOOD_ID}$`, 'u'));
 
         // The editor was never navigated away from.

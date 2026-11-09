@@ -509,8 +509,8 @@ export const editorMessages: LocalizedMessages<EditorMessages> = {
             back: 'Back to editor',
             close: 'Close',
             openFood: 'Open food',
-            openFoodName: 'Open {line}',
-            openFoodNameWeb: 'Open {line} in a new tab',
+            openFoodName: 'Open food: {line}',
+            openFoodNameWeb: 'Open food: {line}, opens in a new tab',
             closeLabel: 'Close this message',
         },
         publishBlocked: {

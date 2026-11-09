@@ -1,0 +1,80 @@
+appId: ${APP_ID}
+---
+# The pinned ingredients bar on the recipe page (owner ruling R1, `docs/plans/2026-11-08-pinnedIngredientsBar.md`; web mirror
+# `recipeDetailPinnedIngredients.spec.ts`), on a device:
+#
+#   1. In the steps, with the ingredients card scrolled away, ONE button is pinned at the top: "Ingredients for {n}, {count}
+#      items. Show list." It is not drawn while the card is on screen.
+#   2. Tapping it opens the list under it, the servings stepper first ("Servings"), then the rows; the bar now reads Hide.
+#   3. A tick in the list is the card's tick: close the list, scroll back to the card, and the row is checked.
+#
+# The seeded lamb's lines and steps are fixed by the recipe-service seed (`detailCooking.yaml` reads the same ones).
+- runFlow: ../auth/signin.yaml
+
+- assertVisible: 'My recipes'
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: '${E2E_RECIPE_LAMB}'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
+- tapOn: '${E2E_RECIPE_LAMB}'
+
+# ── THE CARD IN VIEW ── no bar yet: the cook has not scrolled past the ingredients.
+- assertNotVisible: 'Ingredients for .*Show list.*'
+
+# ── IN THE STEPS ── the bar is pinned. Centred, so the step is clear of the tab bar.
+- scrollUntilVisible:
+      element: 'Mark step 2 as current'
+      direction: DOWN
+      timeout: 20000
+      centerElement: true
+- extendedWaitUntil:
+      visible: 'Ingredients for .*Show list.*'
+      timeout: 10000
+
+# ── OPEN ── the stepper leads the list, then the rows.
+- tapOn: 'Ingredients for .*Show list.*'
+- extendedWaitUntil:
+      visible: 'Ingredients for .*Hide list.*'
+      timeout: 10000
+- assertVisible:
+      text: 'Servings'
+      above: '8 Lamb loin chops.*'
+
+# ── TICK ── in the list.
+- tapOn: '3 tbsp Olive oil.*'
+- assertVisible: 'Ingredients for .*, 1 ticked. Hide list.*'
+
+# ── CLOSE ── by the bar, which stays above its list.
+- tapOn: 'Ingredients for .*Hide list.*'
+- extendedWaitUntil:
+      visible: 'Ingredients for .*, 1 ticked. Show list.*'
+      timeout: 10000
+- assertNotVisible: 'Ingredients for .*Hide list.*'
+
+# ── THE CARD'S TICK ── back at the card, the row is checked, and the bar is gone.
+- scrollUntilVisible:
+      element: '3 tbsp Olive oil.*'
+      direction: UP
+      timeout: 20000
+      centerElement: true
+- runFlow:
+      when:
+          platform: Android
+      commands:
+          - assertVisible:
+                text: '3 tbsp Olive oil.*'
+                checked: true
+- runFlow:
+      when:
+          platform: iOS
+      commands:
+          - assertVisible:
+                text: 'checkbox, checked'
+                below: '8 Lamb loin chops.*'
+                above: '3 cloves Garlic.*'
+- assertNotVisible: 'Ingredients for .*Show list.*'
+
+# ── LEAVE THE TICK AS FOUND ── the seed is shared with other flows.
+- tapOn: '3 tbsp Olive oil.*'

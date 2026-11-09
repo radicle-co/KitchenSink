@@ -108,7 +108,7 @@ describe('the arm registry', () => {
         // arm's vessel-in-`foods` figure is partly a measurement of that enumeration and is NOT comparable
         // with v1-v5's, which were built to name none. It IS comparable ACROSS MODELS on this arm — every
         // model sees the same words — which is the comparison a model bake-off actually asks for.
-        // ⛔ Pinned token-for-token, in order, exactly as v6's is: a 23rd vessel word is a new fact and must
+        // ⛔ Pinned token-for-token, in order, exactly as v6's is: a 24th vessel word is a new fact and must
         // fail here rather than quietly widen what the census is measuring.
         const ENUMERATING_ARMS: Readonly<Record<string, readonly string[]>> = {
             v6: ["'skillet'", "'bowl')"],
@@ -126,6 +126,7 @@ describe('the arm registry', () => {
                 'boiler',
                 'stove',
                 'pan',
+                'dish',
                 'saucepan',
                 'saucepan',
                 'saucepan',
@@ -877,6 +878,7 @@ describe('shipped — the arm that measures the prompt production actually sends
         const answer = JSON.stringify([
             {
                 food_items: ['flour'],
+                display: 'food',
                 measurement: { quantity: '2', unit: 'cups', unit_type: 'VOLUME' },
                 preparations: ['sifted'],
                 equipment: null,
@@ -897,8 +899,20 @@ describe('shipped — the arm that measures the prompt production actually sends
         // prep across all of them would erase the distinction the document is shaped to draw, and the prep
         // column would measure the projection rather than the model.
         const answer = JSON.stringify([
-            { food_items: ['cream cheese'], measurement: null, preparations: ['Mix'], equipment: null },
-            { food_items: ['butter'], measurement: null, preparations: ['Mix', 'melted'], equipment: null },
+            {
+                food_items: ['cream cheese'],
+                display: 'food',
+                measurement: null,
+                preparations: ['Mix'],
+                equipment: null,
+            },
+            {
+                food_items: ['butter'],
+                display: 'food',
+                measurement: null,
+                preparations: ['Mix', 'melted'],
+                equipment: null,
+            },
         ]);
         const reading = classifyParseResponse(answer, 'end_turn', PARSE_VARIANT_SHIPPED.readAnswer);
 
@@ -919,6 +933,7 @@ describe('shipped — the arm that measures the prompt production actually sends
         const answer = JSON.stringify([
             {
                 food_items: ['sugar'],
+                display: 'food',
                 measurement: { quantity: 'two tablespoons', unit: 'tablespoons', unit_type: 'VOLUME' },
                 preparations: null,
                 equipment: null,
@@ -935,7 +950,9 @@ describe('shipped — the arm that measures the prompt production actually sends
         // models and is not one — it fires on lines that state no measure. The empty array is named by the
         // prompt itself ("No culinary content -> []").
         const nullMeasure = classifyParseResponse(
-            JSON.stringify([{ food_items: ['salt'], measurement: null, preparations: null, equipment: null }]),
+            JSON.stringify([
+                { food_items: ['salt'], display: 'food', measurement: null, preparations: null, equipment: null },
+            ]),
             'end_turn',
             PARSE_VARIANT_SHIPPED.readAnswer,
         );
@@ -953,7 +970,7 @@ describe('shipped — the arm that measures the prompt production actually sends
         // ⛔ The artefact that would make the whole run meaningless in the other direction: a reader that
         // accepted both shapes could not tell a production answer from a bake-off one.
         const shipped = JSON.stringify([
-            { food_items: ['flour'], measurement: null, preparations: null, equipment: null },
+            { food_items: ['flour'], display: 'food', measurement: null, preparations: null, equipment: null },
         ]);
         const v1Document = '{"measure":"one cup","foods":[{"name":"flour","prep":null}]}';
 
@@ -965,6 +982,7 @@ describe('shipped — the arm that measures the prompt production actually sends
         const extra = JSON.stringify([
             {
                 food_items: ['flour'],
+                display: 'food',
                 measurement: null,
                 preparations: null,
                 equipment: null,

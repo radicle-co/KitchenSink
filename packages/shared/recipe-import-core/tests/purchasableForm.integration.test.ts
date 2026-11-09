@@ -54,7 +54,10 @@ const engines: ParseEnginePorts = {
         async parse(lines): Promise<readonly EngineAnswer[]> {
             return lines.map((line) =>
                 promoteLlmParse(
-                    { statedMeasure: '2 tablespoons', foods: [{ name: 'unsalted butter', prep: 'melted' }] },
+                    {
+                        statedMeasure: '2 tablespoons',
+                        foods: [{ name: 'unsalted butter', prep: 'melted', display: 'food' }],
+                    },
                     line,
                 ),
             );
@@ -72,7 +75,7 @@ describe('a purchasable form survives the parse pipeline', () => {
         );
 
         expect(outcome?.tier).toBe('parse');
-        expect(outcome?.parsed?.foods).toEqual([{ name: 'unsalted butter', prep: 'melted' }]);
+        expect(outcome?.parsed?.foods).toEqual([{ name: 'unsalted butter', prep: 'melted', display: 'food' }]);
         expect(outcome !== undefined && 'agreement' in outcome ? outcome.agreement : undefined).toEqual({
             kind: 'agree',
         });
@@ -143,7 +146,10 @@ describe('dried, frozen and canned survive the parse pipeline', () => {
                 async parse(lines): Promise<readonly EngineAnswer[]> {
                     return lines.map((sourceLine) =>
                         promoteLlmParse(
-                            { statedMeasure: llm.statedMeasure, foods: [{ name: llm.name, prep: llm.prep }] },
+                            {
+                                statedMeasure: llm.statedMeasure,
+                                foods: [{ name: llm.name, prep: llm.prep, display: 'food' }],
+                            },
                             sourceLine,
                         ),
                     );
@@ -157,7 +163,7 @@ describe('dried, frozen and canned survive the parse pipeline', () => {
             { onTierFailure: () => undefined, onUnreadablePayload: () => undefined },
         );
 
-        expect(outcome?.parsed?.foods).toEqual([{ name: llm.name, prep: llm.prep }]);
+        expect(outcome?.parsed?.foods).toEqual([{ name: llm.name, prep: llm.prep, display: 'food' }]);
     });
 });
 
@@ -214,7 +220,10 @@ describe('whipped survives the parse pipeline where the cook wrote it', () => {
                 async parse(lines): Promise<readonly EngineAnswer[]> {
                     return lines.map((sourceLine) =>
                         promoteLlmParse(
-                            { statedMeasure: llm.statedMeasure, foods: [{ name: llm.name, prep: llm.prep }] },
+                            {
+                                statedMeasure: llm.statedMeasure,
+                                foods: [{ name: llm.name, prep: llm.prep, display: 'food' }],
+                            },
                             sourceLine,
                         ),
                     );
@@ -228,7 +237,7 @@ describe('whipped survives the parse pipeline where the cook wrote it', () => {
             { onTierFailure: () => undefined, onUnreadablePayload: () => undefined },
         );
 
-        expect(outcome?.parsed?.foods).toEqual([{ name: llm.name, prep: llm.prep }]);
+        expect(outcome?.parsed?.foods).toEqual([{ name: llm.name, prep: llm.prep, display: 'food' }]);
         expect(outcome !== undefined && 'agreement' in outcome ? outcome.agreement : undefined).toEqual({
             kind: 'agree',
         });

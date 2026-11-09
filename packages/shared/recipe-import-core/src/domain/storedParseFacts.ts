@@ -102,7 +102,14 @@ export const storedParseSchema: z.ZodType<StoredParse> = z.strictObject({
     statedMeasure: z.string().nullable(),
     quantity: ingredientQuantitySchema,
     unit: z.string().nullable(),
-    foods: z.array(z.strictObject({ name: z.string(), prep: z.string().nullable() })),
+    // `display` is optional: the CRF never answers it, and a row written before v3 has none (ADR-0026 §11).
+    foods: z.array(
+        z.strictObject({
+            name: z.string(),
+            prep: z.string().nullable(),
+            display: z.enum(['written', 'food']).nullable().optional(),
+        }),
+    ),
     reviewReasons: z.array(z.enum(INGREDIENT_REVIEW_REASONS)),
 });
 

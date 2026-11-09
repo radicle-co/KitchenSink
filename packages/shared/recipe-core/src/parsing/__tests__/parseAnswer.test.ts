@@ -21,6 +21,7 @@ import type { ModelParseAnswer } from '../parseAnswer.js';
 describe('modelParseAnswerSchema — the relational document v5 asks for', () => {
     const record = (over: Record<string, unknown> = {}): unknown => ({
         food_items: ['flour'],
+        display: 'food',
         measurement: { quantity: '2', unit: 'cups', unit_type: 'VOLUME' },
         preparations: null,
         equipment: null,
@@ -49,7 +50,7 @@ describe('modelParseAnswerSchema — the relational document v5 asks for', () =>
     it('accepts null in every nullable slot the schema declares', () => {
         expect(
             modelParseAnswerSchema.safeParse([
-                { food_items: null, measurement: null, preparations: null, equipment: null },
+                { food_items: null, display: null, measurement: null, preparations: null, equipment: null },
             ]).success,
         ).toBe(true);
     });
@@ -59,7 +60,7 @@ describe('modelParseAnswerSchema — the relational document v5 asks for', () =>
     });
 
     it('refuses a record missing a declared key', () => {
-        expect(modelParseAnswerSchema.safeParse([{ food_items: ['flour'] }]).success).toBe(false);
+        expect(modelParseAnswerSchema.safeParse([{ food_items: ['flour'], display: 'food' }]).success).toBe(false);
     });
 
     it('refuses a NUMERIC quantity — a number is a reading, this field is the source WORDS', () => {
@@ -88,7 +89,7 @@ describe('modelParseAnswerSchema — the relational document v5 asks for', () =>
 describe('normalizeParseAnswer — projecting the relational document', () => {
     const one = (over: Record<string, unknown> = {}): ModelParseAnswer =>
         modelParseAnswerSchema.parse([
-            { food_items: ['flour'], measurement: null, preparations: null, equipment: null, ...over },
+            { food_items: ['flour'], display: 'food', measurement: null, preparations: null, equipment: null, ...over },
         ]);
 
     it('rejoins the model own quantity and unit into ONE phrase for the shared measure reader', () => {
@@ -121,30 +122,30 @@ describe('normalizeParseAnswer — projecting the relational document', () => {
 
     it('carries each record OWN preparations onto that record foods, not the first record', () => {
         const answer = modelParseAnswerSchema.parse([
-            { food_items: ['sugar'], measurement: null, preparations: null, equipment: null },
-            { food_items: ['butter'], measurement: null, preparations: ['melted'], equipment: null },
+            { food_items: ['sugar'], display: 'food', measurement: null, preparations: null, equipment: null },
+            { food_items: ['butter'], display: 'food', measurement: null, preparations: ['melted'], equipment: null },
         ]);
 
         expect(normalizeParseAnswer(answer).foods).toEqual([
-            { name: 'sugar', prep: null },
-            { name: 'butter', prep: 'melted' },
+            { name: 'sugar', prep: null, display: 'food' },
+            { name: 'butter', prep: 'melted', display: 'food' },
         ]);
     });
 
     it('joins several preparations on one record', () => {
         expect(normalizeParseAnswer(one({ preparations: ['peeled', 'minced'] })).foods).toEqual([
-            { name: 'flour', prep: 'peeled, minced' },
+            { name: 'flour', prep: 'peeled, minced', display: 'food' },
         ]);
     });
 
     it('drops a food with no name — a nameless food carries no identity to resolve', () => {
         expect(normalizeParseAnswer(one({ food_items: ['flour', '  ', ''] })).foods).toEqual([
-            { name: 'flour', prep: null },
+            { name: 'flour', prep: null, display: 'food' },
         ]);
     });
 
     it('yields an empty food list for a null food_items and for the empty document', () => {
-        expect(normalizeParseAnswer(one({ food_items: null })).foods).toEqual([]);
+        expect(normalizeParseAnswer(one({ food_items: null, display: null })).foods).toEqual([]);
         expect(normalizeParseAnswer(modelParseAnswerSchema.parse([])).foods).toEqual([]);
         expect(normalizeParseAnswer(modelParseAnswerSchema.parse([])).statedMeasure).toBeNull();
     });
@@ -158,7 +159,9 @@ describe('normalizeParseAnswer — projecting the relational document', () => {
 
 describe('the model own quantity and unit are kept SEPARATE — owner ruling 2026-08-27', () => {
     const one = (measurement: unknown): ModelParseAnswer =>
-        modelParseAnswerSchema.parse([{ food_items: ['x'], measurement, preparations: null, equipment: null }]);
+        modelParseAnswerSchema.parse([
+            { food_items: ['x'], display: 'food', measurement, preparations: null, equipment: null },
+        ]);
 
     /**
      * ⛔ MEASURED LOSS, not a preference. Rejoining the model's split into a phrase and re-parsing it with
@@ -210,5 +213,68 @@ describe('the model own quantity and unit are kept SEPARATE — owner ruling 202
         expect(parse.statedQuantity).toBeNull();
         expect(parse.statedUnit).toBeNull();
         expect(parse.statedMeasure).toBeNull();
+    });
+});
+
+/**
+ * ADR-0026 §11 (owner ruling 2026-11-08): the answer's `display` says whether the app shows the cook's words for the
+ * food or its own food name. It is REQUIRED and strict, and null exactly when `food_items` is null: a record that names
+ * foods without saying how to show them, or one that shows a food it never named, is a malformed document.
+ */
+describe('display: the cook’s words or the food’s name', () => {
+    const answer = (over: Record<string, unknown>): unknown => [
+        { food_items: ['flour'], display: 'food', measurement: null, preparations: null, equipment: null, ...over },
+    ];
+
+    it.each(['written', 'food'])('accepts %j on a record that names foods', (display) => {
+        expect(modelParseAnswerSchema.safeParse(answer({ display })).success).toBe(true);
+    });
+
+    it.each([
+        [
+            'an absent display',
+            (() => {
+                const { display: _display, ...rest } = (answer({}) as Record<string, unknown>[])[0] ?? {};
+
+                return [rest];
+            })(),
+        ],
+        ['a display of null on a record that names foods', answer({ display: null })],
+        ['a display on a record that names no food', answer({ food_items: null, display: 'food' })],
+        ['a display outside the two words', answer({ display: 'both' })],
+        ['an empty display', answer({ display: '' })],
+        ['a display in capitals', answer({ display: 'Written' })],
+    ])('refuses %s', (_label, value) => {
+        expect(modelParseAnswerSchema.safeParse(value).success).toBe(false);
+    });
+
+    it('accepts null display with null food_items: a time or temperature record', () => {
+        expect(modelParseAnswerSchema.safeParse(answer({ food_items: null, display: null })).success).toBe(true);
+    });
+
+    it('copies the record’s display onto EACH of its foods, and each record keeps its own', () => {
+        const parsed = modelParseAnswerSchema.parse([
+            {
+                food_items: ['walnuts', 'pecans'],
+                display: 'food',
+                measurement: null,
+                preparations: null,
+                equipment: null,
+            },
+            {
+                food_items: ['lean ground beef'],
+                display: 'written',
+                measurement: null,
+                preparations: null,
+                equipment: null,
+            },
+            { food_items: null, display: null, measurement: null, preparations: ['Bake'], equipment: null },
+        ]);
+
+        expect(normalizeParseAnswer(parsed).foods).toEqual([
+            { name: 'walnuts', prep: null, display: 'food' },
+            { name: 'pecans', prep: null, display: 'food' },
+            { name: 'lean ground beef', prep: null, display: 'written' },
+        ]);
     });
 });

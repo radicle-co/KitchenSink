@@ -45,6 +45,7 @@ function document(name: string, measure: string | null = '1 tablespoon'): string
     return JSON.stringify([
         {
             food_items: [name],
+            display: 'food',
             measurement:
                 measure === null
                     ? null

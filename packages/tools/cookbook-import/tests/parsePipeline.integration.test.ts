@@ -92,7 +92,10 @@ function stubbedModel(readings: ReadonlyMap<string, { measure: string | null; na
                 return reading === undefined
                     ? { unavailable: true }
                     : promoteLlmParse(
-                          { statedMeasure: reading.measure, foods: [{ name: reading.name, prep: null }] },
+                          {
+                              statedMeasure: reading.measure,
+                              foods: [{ name: reading.name, prep: null, display: 'food' }],
+                          },
                           line,
                       );
             });

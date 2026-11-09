@@ -505,7 +505,7 @@ describe('the exhaustion landing split (amended 2026-08-31)', () => {
  */
 describe('a ceiling denial on a parse-job line lands the CRF reading alone', () => {
     const VALID_PARSE =
-        '[{"food_items":["flour"],"measurement":{"quantity":"2","unit":"cups","unit_type":"volume"},"preparations":null,"equipment":null}]';
+        '[{"food_items":["flour"],"display":"food","measurement":{"quantity":"2","unit":"cups","unit_type":"volume"},"preparations":null,"equipment":null}]';
 
     /** Deps whose Nth reservation (1-based) is denied; every earlier one is reserved. */
     function denyingAt(call: number, text = VALID_PARSE) {
@@ -760,6 +760,7 @@ describe('the transient/terminal split', () => {
             text: JSON.stringify([
                 {
                     food_items: ['flour'],
+                    display: 'food',
                     measurement: { quantity: '2', unit: 'cups', unit_type: 'volume' },
                     preparations: null,
                     equipment: null,
@@ -792,6 +793,7 @@ describe('the transient/terminal split', () => {
             text: JSON.stringify([
                 {
                     food_items: ['flour'],
+                    display: 'food',
                     measurement: { quantity: '2', unit: 'cups', unit_type: 'volume' },
                     preparations: null,
                     equipment: null,
@@ -894,7 +896,7 @@ describe('KTD-F — the cache bounds redelivery amplification', () => {
                 {
                     line_digest: storedDigest,
                     engine: 'llm',
-                    engine_version: 'amazon.nova-micro-v1:0@v2',
+                    engine_version: 'amazon.nova-micro-v1:0@v3',
                     parse: cachedFacts,
                 },
             ],

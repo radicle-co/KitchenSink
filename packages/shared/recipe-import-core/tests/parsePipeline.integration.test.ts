@@ -236,7 +236,10 @@ function makeEngines(): ParseEnginePorts & {
                 const measure = statedMeasureOf(golden);
 
                 return promoteLlmParse(
-                    { statedMeasure: measure === '' ? null : measure, foods: [{ name: golden.name, prep: null }] },
+                    {
+                        statedMeasure: measure === '' ? null : measure,
+                        foods: [{ name: golden.name, prep: null, display: 'food' }],
+                    },
                     line,
                 );
             });
@@ -947,7 +950,7 @@ describe('U36 — an absent CRF unit is rescued, over the real readers', () => {
                         return promoteLlmParse(
                             {
                                 statedMeasure: rescue.llmMeasure,
-                                foods: [{ name: rescue.llmName, prep: null }],
+                                foods: [{ name: rescue.llmName, prep: null, display: 'food' }],
                             },
                             line,
                         );
@@ -1060,7 +1063,7 @@ describe('U36 — an absent CRF unit is rescued, over the real readers', () => {
                 async parse(lines): Promise<readonly EngineAnswer[]> {
                     return lines.map((sourceLine) =>
                         promoteLlmParse(
-                            { statedMeasure: 'one pint', foods: [{ name: 'milk', prep: null }] },
+                            { statedMeasure: 'one pint', foods: [{ name: 'milk', prep: null, display: 'food' }] },
                             sourceLine,
                         ),
                     );
@@ -1280,7 +1283,10 @@ describe('the cook`s own measure words reach the pasted row, whichever engine wi
                 async parse(lines): Promise<readonly EngineAnswer[]> {
                     return lines.map((line) =>
                         promoteLlmParse(
-                            { statedMeasure: entryFor(line).words, foods: [{ name: entryFor(line).name, prep: null }] },
+                            {
+                                statedMeasure: entryFor(line).words,
+                                foods: [{ name: entryFor(line).name, prep: null, display: 'food' }],
+                            },
                             line,
                         ),
                     );

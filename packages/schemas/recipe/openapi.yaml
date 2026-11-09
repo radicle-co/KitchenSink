@@ -6468,6 +6468,12 @@ components:
               prep:
                 nullable: true
                 type: string
+              display:
+                nullable: true
+                type: string
+                enum:
+                  - written
+                  - food
               match:
                 nullable: true
                 type: object

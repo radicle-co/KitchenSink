@@ -34,6 +34,7 @@
  * contract's.
  */
 import type { IngredientQuantity } from '@kitchensink/recipe-core';
+import type { FoodDisplay } from '@kitchensink/recipe-core/parsing/parse-answer';
 import type { ParseEngine } from '@kitchensink/recipe-core/parsing/parse-key';
 
 import type { IngredientReviewReason, ParsedIngredientLine } from './ingredientLine.js';
@@ -87,6 +88,17 @@ export interface ParsedFood {
      * `cooked` is arguably identity to a cook. `dried figs` was the second edge until the 2026-11-06 ruling.
      */
     readonly prep: string | null;
+    /**
+     * Whether the line shows the cook's own words for this food (`'written'`) or the app's food name (`'food'`), as the
+     * model answered (ADR-0026 §11, owner ruling 2026-11-08).
+     *
+     * ⛔ ABSENT and `null` mean the same thing: NO parse answered. The CRF engine never answers, so a CRF-only line, a
+     * refusal and a spent ceiling carry none, and the line shows its food's name. That is ABSENCE, not dissent
+     * (ADR-0026 §3): it is never compared between engines and never decides a winner. The merge takes the foods from the
+     * model, so the model's answer is the one that survives. Optional so the CRF promotion and every existing
+     * construction site stay as they are; the wire spells the absent case `null`.
+     */
+    readonly display?: FoodDisplay | null;
 }
 
 /**

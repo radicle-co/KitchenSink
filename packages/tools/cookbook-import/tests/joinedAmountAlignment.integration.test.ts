@@ -189,7 +189,13 @@ describeIfInstalled('U37 — a joined CRF amount, against the real CRF engine', 
             // The MERGE path — the shipped pipeline, through the real promotion adapters.
             const merged = mergeParses({
                 crf: promoteCrfReading(crf, entry.line),
-                llm: promoteLlmParse({ statedMeasure: entry.model.measure, foods: entry.model.foods }, entry.line),
+                llm: promoteLlmParse(
+                    {
+                        statedMeasure: entry.model.measure,
+                        foods: entry.model.foods.map((food) => ({ ...food, display: 'food' as const })),
+                    },
+                    entry.line,
+                ),
             });
 
             return {

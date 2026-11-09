@@ -7173,6 +7173,20 @@
                                     "items": {
                                         "additionalProperties": false,
                                         "properties": {
+                                            "display": {
+                                                "anyOf": [
+                                                    {
+                                                        "enum": [
+                                                            "written",
+                                                            "food"
+                                                        ],
+                                                        "type": "string"
+                                                    },
+                                                    {
+                                                        "type": "null"
+                                                    }
+                                                ]
+                                            },
                                             "match": {
                                                 "anyOf": [
                                                     {
@@ -7494,6 +7508,20 @@
                                                 "items": {
                                                     "additionalProperties": false,
                                                     "properties": {
+                                                        "display": {
+                                                            "anyOf": [
+                                                                {
+                                                                    "enum": [
+                                                                        "written",
+                                                                        "food"
+                                                                    ],
+                                                                    "type": "string"
+                                                                },
+                                                                {
+                                                                    "type": "null"
+                                                                }
+                                                            ]
+                                                        },
                                                         "match": {
                                                             "anyOf": [
                                                                 {
@@ -7807,6 +7835,20 @@
             "$schema": "https://json-schema.org/draft/2020-12/schema",
             "additionalProperties": false,
             "properties": {
+                "display": {
+                    "anyOf": [
+                        {
+                            "enum": [
+                                "written",
+                                "food"
+                            ],
+                            "type": "string"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ]
+                },
                 "match": {
                     "anyOf": [
                         {
@@ -8051,6 +8093,20 @@
                     "items": {
                         "additionalProperties": false,
                         "properties": {
+                            "display": {
+                                "anyOf": [
+                                    {
+                                        "enum": [
+                                            "written",
+                                            "food"
+                                        ],
+                                        "type": "string"
+                                    },
+                                    {
+                                        "type": "null"
+                                    }
+                                ]
+                            },
                             "match": {
                                 "anyOf": [
                                     {

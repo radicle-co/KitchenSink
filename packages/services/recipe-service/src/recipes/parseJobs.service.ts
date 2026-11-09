@@ -213,7 +213,13 @@ const storedProposalSchema = z.looseObject({
     quantity: ingredientQuantitySchema,
     unit: z.string().nullable(),
     statedMeasure: z.string().nullable(),
-    foods: z.array(z.looseObject({ name: z.string(), prep: z.string().nullable() })),
+    foods: z.array(
+        z.looseObject({
+            name: z.string(),
+            prep: z.string().nullable(),
+            display: z.enum(['written', 'food']).nullable().optional(),
+        }),
+    ),
     reviewReasons: z.array(z.string()),
 });
 
@@ -226,7 +232,8 @@ export function projectProposal(stored: unknown): ParseProposal {
         quantity: parsed.quantity,
         unit: parsed.unit,
         statedMeasure: parsed.statedMeasure,
-        foods: parsed.foods.map((food) => ({ name: food.name, prep: food.prep })),
+        // `?? null`: a stored parse with no answer reads null on the wire, never a guess (ADR-0026 §11).
+        foods: parsed.foods.map((food) => ({ name: food.name, prep: food.prep, display: food.display ?? null })),
         reviewReasons: parsed.reviewReasons,
     };
 }

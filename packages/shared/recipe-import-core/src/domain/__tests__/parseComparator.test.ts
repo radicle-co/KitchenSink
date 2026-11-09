@@ -1702,3 +1702,17 @@ describe('canonicaliseFood — a seed or a weed is the food, not a preparation',
         });
     });
 });
+
+describe('canonicaliseFood keeps the display answer when it moves words (ADR-0026 section 11)', () => {
+    it('carries `display` through a re-placement of the preparation words', () => {
+        const moved = canonicaliseFood({ name: 'frozen blueberries', prep: 'chopped, frozen', display: 'written' });
+
+        expect(moved.display).toBe('written');
+    });
+
+    it('returns the same object, display included, when nothing moved', () => {
+        const food = { name: 'flour', prep: null, display: 'food' } as const;
+
+        expect(canonicaliseFood(food)).toBe(food);
+    });
+});

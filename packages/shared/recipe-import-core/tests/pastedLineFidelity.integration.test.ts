@@ -71,7 +71,7 @@ function enginesFor(crf: CrfReading, model: ModelAnswer): ParseEnginePorts {
                             statedMeasure: statedMeasure === '' ? null : statedMeasure,
                             statedQuantity: model.statedQuantity,
                             statedUnit: model.statedUnit,
-                            foods: model.foods,
+                            foods: model.foods.map((food) => ({ ...food, display: 'food' as const })),
                         },
                         line,
                     ),

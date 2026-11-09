@@ -94,8 +94,13 @@ export interface PastedLinesInput {
  */
 function proposedRowsOf(proposal: ParseProposal, sourceLine: string): readonly PastedRow[] {
     return proposal.foods.map((food, index) => {
-        // The parse answer carries no display choice yet (ADR-0026 §11), so every row shows the food's own name.
-        const { name, quantity, unit } = pastedLineRowOf({ ...proposal, sourceLine, display: null }, index, food.name);
+        // `display` is the model's answer for THIS food (ADR-0026 §11); absent reads as no answer. The row's `displayText` and
+        // `note` are not drawn or saved here yet: that is the editor's own change.
+        const { name, quantity, unit } = pastedLineRowOf(
+            { ...proposal, sourceLine, display: food.display ?? null },
+            index,
+            food.name,
+        );
 
         return {
             name,

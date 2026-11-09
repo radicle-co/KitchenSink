@@ -101,7 +101,7 @@ describe('parseProposalSchema', () => {
         // without failing this pin and arguing itself in review. `match` is that argument: it names food ids, but as a
         // PROPOSAL and up to five CANDIDATES the cook chooses between, and nothing in it says a line IS bound to one.
         // The match's own key set is pinned below for the same reason.
-        expect(Object.keys(parseProposalFoodSchema.shape).sort()).toEqual(['match', 'name', 'prep']);
+        expect(Object.keys(parseProposalFoodSchema.shape).sort()).toEqual(['display', 'match', 'name', 'prep']);
         expect(Object.keys(parseProposalMatchSchema.shape).sort()).toEqual([
             'candidates',
             'proposed',
@@ -271,5 +271,21 @@ describe('parseJobLineSchema — withdrawn', () => {
         });
 
         expect(result.success).toBe(true);
+    });
+});
+
+describe('parseProposalFoodSchema: display (ADR-0026 section 11)', () => {
+    const food = (display: unknown) => ({ name: 'flour', prep: null, display });
+
+    it.each(['written', 'food', null])('accepts %j', (display) => {
+        expect(parseProposalFoodSchema.safeParse(food(display)).success).toBe(true);
+    });
+
+    it('accepts an older server’s food that sends no key at all, read as null', () => {
+        expect(parseProposalFoodSchema.safeParse({ name: 'flour', prep: null }).success).toBe(true);
+    });
+
+    it.each(['both', '', 'Written', 1])('refuses %j', (display) => {
+        expect(parseProposalFoodSchema.safeParse(food(display)).success).toBe(false);
     });
 });

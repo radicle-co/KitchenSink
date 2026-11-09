@@ -273,11 +273,17 @@ export const PARSE_PROMPT_VERSION = 'v3';
  * decision as well as a correctness one — and a truncated answer is a REFUSAL, never a partial read, so the
  * cap has to clear the longest legitimate answer rather than the median one.
  *
- * ⚠️ 900 because the v5-static prompt's answer is a RELATIONAL ARRAY of records rather than one document; a
- * cap sized for a single flat document truncates it. It is NOT shared with the verification gate's
- * `VERIFICATION_MAX_OUTPUT_TOKENS`, which bounds a different answer and moves for different reasons.
+ * ⚠️ 1,100 because the answer is a RELATIONAL ARRAY of records rather than one document; a cap sized for a single flat
+ * document truncates it. It was 900 until prompt v3 added the fifth key, `display`, to every record that names a
+ * food (17 characters, about 7 tokens, each). Re-estimated without calling the model: the longest realistic answer
+ * (a 14-record run-on ingredient line of about 370 characters, 2,164 characters of JSON) is about 720 to 800
+ * tokens, which left 11 to 20 percent under 900 and leaves 27 to 35 percent under 1,100, room for about 21 records.
+ * The estimate has no tokenizer behind it (error about 25 percent), so the headroom is bought, not trusted. Raising
+ * the cap changes no answer (temperature 0, the cap only truncates), so the measured rates still hold. It is NOT
+ * shared with the verification gate's `VERIFICATION_MAX_OUTPUT_TOKENS`, which bounds a different answer and moves
+ * for different reasons.
  */
-export const PARSE_MAX_OUTPUT_TOKENS = 900;
+export const PARSE_MAX_OUTPUT_TOKENS = 1100;
 
 /**
  * `inferenceConfig.temperature`.

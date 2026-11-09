@@ -238,13 +238,15 @@ describe('the input cap — REJECTED, never truncated (ADR-0024 layer 1)', () =>
 });
 
 describe('the call parameters the measurement was denominated in', () => {
-    it('caps output where a well-formed answer has better than 3x headroom', () => {
+    it('caps output with room for the longest realistic multi-record answer', () => {
         // ⛔ RAISED from 200 with the prompt swap. The relational document is an ARRAY of records carrying a
         // nested measurement, so it is far more verbose than v1's flat shape: measured 35-43 output tokens on
         // ingredient lines but multi-record instruction lines run longer, and 200 would CLIP them — reporting
         // our own ceiling as the model's contract failure. 900 is the value the 84%/53% gold-set result was
-        // measured at, and a truncation count is still reported so the headroom stays observable.
-        expect(PARSE_MAX_OUTPUT_TOKENS).toBe(900);
+        // measured at; prompt v3's fifth key (`display`) pushed the longest realistic answer (about 720-800 tokens by
+        // estimate) inside 20% of it, so the cap is 1,100. It only truncates, so the measured rates stand, and a
+        // truncation count is still reported so the headroom stays observable.
+        expect(PARSE_MAX_OUTPUT_TOKENS).toBe(1100);
     });
 
     it('pins temperature to the value the comparison was run at', () => {

@@ -14,11 +14,16 @@ import {
     InvalidRequestError,
     isBadRequestError,
     isNotFoundError,
+    isPrivateFoodsOnPublicRecipeError,
     isPublishRequirementsUnmetError,
     isVersionLineUnrestorableError,
     RecipeServiceClient,
 } from '../index.js';
-import type { PublishRequirementsUnmetError, VersionLineUnrestorableError } from '../index.js';
+import type {
+    PrivateFoodsOnPublicRecipeError,
+    PublishRequirementsUnmetError,
+    VersionLineUnrestorableError,
+} from '../index.js';
 import {
     FIXTURE_OTHER_PHOTO_UUID,
     FIXTURE_OTHER_RECIPE_UUID,
@@ -885,5 +890,29 @@ describe('RecipeServiceClient — test-principal self-purge (ADR-0040)', () => {
         const fetchMock = stubFetch(200, { jobId: JOB_ID, status: 'purging' });
 
         await expect(makeClient(fetchMock).getTestReset(JOB_ID)).rejects.toThrow();
+    });
+    it('⛔ restoreRecipeVersion surfaces a 400 PRIVATE_FOODS_ON_PUBLIC_RECIPE as its own error, naming the refused lines', async () => {
+        const fetchMock = stubFetch(400, {
+            code: 'PRIVATE_FOODS_ON_PUBLIC_RECIPE',
+            message: 'A public recipe cannot use foods only you can see.',
+            details: {
+                lines: [
+                    { sortOrder: 2, foodId: 'food_a' },
+                    { sortOrder: 5, foodId: 'food_b' },
+                ],
+            },
+        });
+
+        const error = await makeClient(fetchMock)
+            .restoreRecipeVersion('rec_1', 2)
+            .catch((caught: unknown) => caught);
+
+        expect(isPrivateFoodsOnPublicRecipeError(error)).toBe(true);
+        expect(isBadRequestError(error)).toBe(true);
+        expect((error as PrivateFoodsOnPublicRecipeError).lines).toStrictEqual([
+            { sortOrder: 2, foodId: 'food_a' },
+            { sortOrder: 5, foodId: 'food_b' },
+        ]);
+        expect((error as PrivateFoodsOnPublicRecipeError).status).toBe(400);
     });
 });

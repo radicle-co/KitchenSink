@@ -18,7 +18,7 @@
  * a forward-compatible deploy into a client-side type error. The typed narrowing happens once, in
  * `client.ts`'s `errorForCode`, whose `switch` IS exhaustive over the published set.
  */
-import type { PublishRequirement, VersionConflictSide } from '@kitchensink/recipe-core';
+import type { PrivateFoodLine, PublishRequirement, VersionConflictSide } from '@kitchensink/recipe-core';
 
 import type { PullDiff } from './types.js';
 
@@ -81,6 +81,29 @@ export class PublishRequirementsUnmetError extends BadRequestError {
 /** Type guard for {@link PublishRequirementsUnmetError}. */
 export function isPublishRequirementsUnmetError(error: unknown): error is PublishRequirementsUnmetError {
     return error instanceof PublishRequirementsUnmetError;
+}
+
+/**
+ * `400 PRIVATE_FOODS_ON_PUBLIC_RECIPE` (ADR-0029 section 4): the write would leave a PUBLIC recipe holding a food only its
+ * author can see. `lines` names every refused line, matched to the cook's lines by `foodId` and, for two lines of one
+ * food, by `sortOrder`. A {@link BadRequestError}, so the outbox treats it as terminal as it treats every 400: sending
+ * the same body meets the same refusal.
+ */
+export class PrivateFoodsOnPublicRecipeError extends BadRequestError {
+    /** Every refused line, at least one. */
+    public readonly lines: readonly PrivateFoodLine[];
+
+    public constructor(lines: readonly PrivateFoodLine[], message = 'A public recipe cannot use a private food') {
+        super(message, 'PRIVATE_FOODS_ON_PUBLIC_RECIPE');
+        this.name = 'PrivateFoodsOnPublicRecipeError';
+        this.lines = lines;
+        Object.setPrototypeOf(this, PrivateFoodsOnPublicRecipeError.prototype);
+    }
+}
+
+/** Type guard for {@link PrivateFoodsOnPublicRecipeError}. */
+export function isPrivateFoodsOnPublicRecipeError(error: unknown): error is PrivateFoodsOnPublicRecipeError {
+    return error instanceof PrivateFoodsOnPublicRecipeError;
 }
 
 /** `401` — no/invalid/expired token, or wrong authorized party (the caller is unauthenticated). */

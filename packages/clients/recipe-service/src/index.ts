@@ -68,6 +68,7 @@ export {
     UnexpectedResponseError,
     VersionConflictError,
     VersionLineUnrestorableError,
+    PrivateFoodsOnPublicRecipeError,
     PublishRequirementsUnmetError,
     isBadRequestError,
     isFetchUnavailableError,
@@ -88,6 +89,7 @@ export {
     isUnexpectedResponseError,
     isVersionConflictError,
     isVersionLineUnrestorableError,
+    isPrivateFoodsOnPublicRecipeError,
     isPublishRequirementsUnmetError,
 } from './errors.js';
 

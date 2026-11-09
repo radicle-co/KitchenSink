@@ -63,6 +63,7 @@ import {
     PrivateSlotsFullError,
     ParseJobExpiredError,
     VersionLineUnrestorableError,
+    PrivateFoodsOnPublicRecipeError,
     PublishRequirementsUnmetError,
     PullDriftError,
     RecipeServiceClientError,
@@ -1751,6 +1752,8 @@ export class RecipeServiceClient {
             case 'IDENTITY_SYNC_PENDING':
                 return new UnauthorizedError(body.message, body.code);
             // The publish floor: its own class, carrying what is missing, and still a `BadRequestError`.
+            case 'PRIVATE_FOODS_ON_PUBLIC_RECIPE':
+                return new PrivateFoodsOnPublicRecipeError(body.details.lines, body.message);
             case 'PUBLISH_REQUIREMENTS_UNMET':
                 return new PublishRequirementsUnmetError(body.details.missing, body.message);
             case 'VALIDATION_FAILED':
@@ -1806,8 +1809,6 @@ export class RecipeServiceClient {
             case 'UNSUPPORTED_MEDIA_TYPE':
             case 'TOO_MANY_REQUESTS':
             case 'NOT_READY':
-            // ADR-0029 section 4: carried by code until the client increment gives it a class that holds `details.lines`.
-            case 'PRIVATE_FOODS_ON_PUBLIC_RECIPE':
             case 'INTERNAL_ERROR':
                 return new UnexpectedResponseError(res.status, body.message, body.code, res.retryAfterSeconds);
 

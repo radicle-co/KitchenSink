@@ -241,3 +241,28 @@ describe('foodKeyOfDraft', () => {
         expect(foodKeyOfDraft(session, 'd-1')).toBeUndefined();
     });
 });
+
+describe('offerWithdrawn (the server stopped showing the binding it offered)', () => {
+    const WITHDRAWN: PasteMatchEvent = { type: 'offerWithdrawn', key: '0:0' };
+
+    it.each([
+        ['server', SERVER],
+        ['review', { boundBy: 'review', pick: { kind: 'food', foodId: 'whole', name: 'Whole milk' } } as LineBinding],
+    ])('removes a binding the %s made', (_who, binding) => {
+        const session = run(ACCEPTED, JOINED_MILK, { type: 'bindingOffered', key: '0:0', binding }, WITHDRAWN);
+
+        expect(session.bindings.has('0:0')).toBe(false);
+    });
+
+    it('⛔ never removes the cook’s own pick', () => {
+        const session = run(ACCEPTED, JOINED_MILK, { type: 'bindingSet', key: '0:0', binding: COOK });
+
+        expect(reducePasteMatchSession(session, WITHDRAWN)).toBe(session);
+    });
+
+    it('a line with no binding changes nothing', () => {
+        const session = run(ACCEPTED, JOINED_MILK);
+
+        expect(reducePasteMatchSession(session, WITHDRAWN)).toBe(session);
+    });
+});

@@ -7,6 +7,7 @@
  * The rulings it holds:
  * - ONLY a confident line arrives bound. A `default`, `needsChoice` or `noMatch` line is bound only by the cook's pick in
  *   the overlay (ADR-0070 section 5: defaults serve imports, never the cook), and a `checking` line only by the cook's.
+ * - A binding the server or review offered is kept only while the wire reads `confident`; the cook's own is always kept.
  * - The overlay's binding wins over a late verdict, always (ADR-0071 section 9: "a late verdict never replaces a cook
  *   pick"). When the cook's pick differs from a verdict that reads confident, the line carries a {@link ReviewNote} (the
  *   food the check suggests, and why); a note is recomputed from the wire every time and never trusted from the overlay.
@@ -120,7 +121,9 @@ function bindingOf(
     }
 
     if (held.boundBy !== 'cook') {
-        return held;
+        // A binding the server or review offered stays only while the wire still shows it: a paste line must never look
+        // matched when the saved line would ask (ADR-0071 section 9).
+        return match.state === 'confident' ? held : undefined;
     }
 
     return { boundBy: 'cook', pick: held.pick, reviewNote: reviewNoteOf(held, match, reviewReasonOf) };

@@ -415,6 +415,47 @@ describe('usePasteMatching — a checking line that is later reviewed', () => {
     });
 });
 
+describe('usePasteMatching — an offer the server stops showing is withdrawn', () => {
+    const confident = () => milkLine(makeParseMatch({ reason: 'exactName', candidates: [OAT] }));
+    const asks = () =>
+        milkLine(
+            makeParseMatch({ state: 'needsChoice', reason: 'reviewContradicted', proposed: null, candidates: [OAT] }),
+        );
+    const rebinds = (dispatch: Harness['dispatch']) =>
+        dispatch.mock.calls.flatMap(([action]) => (action.kind === 'rebindIngredient' ? [action] : []));
+
+    it('⛔ unbinds a line the server bound once the wire reads needsChoice, and puts the draft line back as written', async () => {
+        const { read, dispatch, result } = setup(jobOf(confident()));
+        await settle();
+        expect(result.current.lines[0]).toMatchObject({ state: 'confident', binding: { boundBy: 'server' } });
+        dispatch.mockClear();
+
+        read(jobOf(asks()));
+        await settle();
+
+        expect(mocks.create).toHaveBeenCalledWith('milk');
+        expect(rebinds(dispatch)).toHaveLength(1);
+        expect(rebinds(dispatch)[0]?.binding).toMatchObject({ ingredientId: 'free_milk' });
+        expect(result.current.lines[0]).toMatchObject({ state: 'needsChoice', binding: undefined });
+    });
+
+    it('⛔ never touches the cook’s own pick', async () => {
+        const { read, dispatch, result } = setup(jobOf(confident()));
+        await settle();
+        act(() => result.current.pick('0:0', { kind: 'food', foodId: 'oat', name: 'Oat milk' }));
+        await settle();
+        dispatch.mockClear();
+        mocks.create.mockClear();
+
+        read(jobOf(asks()));
+        await settle();
+
+        expect(mocks.create).not.toHaveBeenCalled();
+        expect(rebinds(dispatch)).toEqual([]);
+        expect(result.current.lines[0]?.binding).toMatchObject({ boundBy: 'cook', pick: { foodId: 'oat' } });
+    });
+});
+
 describe('usePasteMatching — the cook’s pick', () => {
     const open = () =>
         milkLine(

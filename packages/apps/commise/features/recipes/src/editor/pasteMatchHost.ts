@@ -11,6 +11,8 @@
  *   answer for the old job would land on the new job's line. Every event that can arrive late carries its job.
  * - **A pick that saved binds the line as the COOK'S** and marks that it saved (`saved`, with the tag the press gave it),
  *   which the view reads to move focus.
+ * - **An offer the server stops showing is withdrawn** (`offerWithdrawn`): the binding goes unless the cook made it, and
+ *   the draft line is re-pointed back to the line as written.
  * - **A binding the REVIEW offers lands only on a line nobody has bound** (ADR-0071 section 9: a late verdict never
  *   replaces a pick the cook made), and only then is the draft line re-pointed (`rebinds`, applied by the host and then
  *   cleared). A pick the cook made first leaves both untouched.
@@ -84,6 +86,13 @@ export type PasteMatchHostEvent =
           readonly jobId: string | undefined;
           readonly key: string;
           readonly binding: Exclude<LineBinding, { readonly boundBy: 'cook' }>;
+          readonly draft: DraftBinding;
+      }
+    /** The server stopped showing the offered food: unbind the line unless the cook did, and re-point its draft line. */
+    | {
+          readonly type: 'offerWithdrawn';
+          readonly jobId: string | undefined;
+          readonly key: string;
           readonly draft: DraftBinding;
       }
     /** The host re-pointed the draft line. */
@@ -187,6 +196,14 @@ export function reducePasteMatchHost(host: PasteMatchHost, event: PasteMatchHost
                 ledger: reduceSendLedger(host.ledger, { type: 'saved', key: event.key }),
                 saved: { key: event.key, tag: event.tag, seq: (host.saved?.seq ?? 0) + 1 },
             };
+        }
+
+        case 'offerWithdrawn': {
+            const session = reducePasteMatchSession(host.session, { type: 'offerWithdrawn', key: event.key });
+
+            return session === host.session
+                ? host
+                : { ...host, session, rebinds: new Map(host.rebinds).set(event.key, event.draft) };
         }
 
         case 'reviewAdmitted': {

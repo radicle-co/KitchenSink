@@ -457,3 +457,48 @@ describe('pasteMatchLinesOf - the late review note', () => {
         expect(only(linesOf(jobWith(confident()), { session: picked(review) })).binding).toEqual(review);
     });
 });
+
+describe('pasteMatchLinesOf - a held binding the cook did not make', () => {
+    const SERVER_WHOLE: PasteMatchEvent = {
+        type: 'bindingOffered',
+        key: '0:0',
+        binding: { boundBy: 'server', pick: { kind: 'food', foodId: 'whole', name: 'Whole milk' } },
+    };
+    const needsChoice: WireMatch = {
+        state: 'needsChoice',
+        reason: 'reviewContradicted',
+        proposed: null,
+        candidates: [WHOLE, SKIM],
+    };
+    const checking: WireMatch = { state: 'checking', reason: 'awaitingReview', proposed: WHOLE, candidates: [WHOLE] };
+
+    it('is kept while the wire still reads confident', () => {
+        const line = only(linesOf(jobWith(confident()), { session: sessionOf(SERVER_WHOLE) }));
+
+        expect(line.state).toBe('confident');
+        expect(line.binding).toMatchObject({ boundBy: 'server' });
+    });
+
+    it.each([
+        ['needsChoice', needsChoice],
+        ['checking', checking],
+    ])(
+        'is dropped once the wire reads %s: the paste never looks matched when the saved line would ask',
+        (state, match) => {
+            const line = only(linesOf(jobWith(match), { session: sessionOf(SERVER_WHOLE) }));
+
+            expect(line.state).toBe(state);
+            expect(line.binding).toBeUndefined();
+        },
+    );
+
+    it('⛔ the cook’s own pick is kept whatever the wire reads', () => {
+        const line = only(
+            linesOf(jobWith(needsChoice), {
+                session: sessionOf({ type: 'bindingSet', key: '0:0', binding: COOK_OAT }),
+            }),
+        );
+
+        expect(line.binding).toMatchObject({ boundBy: 'cook', pick: { foodId: 'oat' } });
+    });
+});

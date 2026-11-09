@@ -438,6 +438,50 @@ export function usePasteMatching(options: UsePasteMatchingOptions): PasteMatchin
         }
     }, [reviewedKey]);
 
+    // ── A binding the server offered that the wire no longer shows ───────────────────────────────────────────────
+    // The paste never looks matched when the saved line would ask: a held server or review binding on a food whose match
+    // no longer reads confident is withdrawn, and its draft line goes back to the food as written. The cook's pick stays.
+    const withdrawn = [...session.joins].flatMap(([key, entry]) => {
+        const match = wireFoodOf(job, key)?.match;
+        const held = session.bindings.get(key);
+
+        return entry.status === 'joined' &&
+            match != null &&
+            match.state !== 'confident' &&
+            held?.boundBy !== 'cook' &&
+            held !== undefined
+            ? [key]
+            : [];
+    });
+    const withdrawnKey = withdrawn[0];
+    const withdrawOffer = useEffectEvent((): void => {
+        if (
+            withdrawnKey === undefined ||
+            jobId === undefined ||
+            claimed.current.has(`withdraw:${jobId}:${withdrawnKey}`)
+        ) {
+            return;
+        }
+
+        claimed.current.add(`withdraw:${jobId}:${withdrawnKey}`);
+        void createFreeform.mutateAsync(wireFoodOf(job, withdrawnKey)?.name ?? '').then(
+            (ingredient) =>
+                hostDispatch({
+                    type: 'offerWithdrawn',
+                    jobId,
+                    key: withdrawnKey,
+                    draft: lineBindingOf(toIngredientLine(ingredient)),
+                }),
+            () => claimed.current.delete(`withdraw:${jobId}:${withdrawnKey}`),
+        );
+    });
+
+    useEffect(() => {
+        if (withdrawnKey !== undefined) {
+            withdrawOffer();
+        }
+    }, [withdrawnKey]);
+
     // The draft line the reducer earned a re-point for: applied, then cleared.
     const rebinds = host.rebinds;
     const applyRebinds = useEffectEvent((): void => {

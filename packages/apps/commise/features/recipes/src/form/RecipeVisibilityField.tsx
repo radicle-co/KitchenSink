@@ -2,7 +2,7 @@
  * @module @commise/features-recipes/form — `RecipeVisibilityField` (web): "Who can see it"
  * (`docs/design/uiOverhaul/buildSpec.md` §7.7 item 2), a radio group of two cards, Public and Private.
  *
- * The host renders it only when Private is offered (`recipeOffersPrivate`); otherwise `RecipeVisibilityStatement`. Private
+ * Every recipe offers Private (ADR-0073). Private
  * works within the cook's private slots (ADR-0073): the card says how many are left, and with none left it is refused
  * with three ways forward (`slotsFull`). Under the premium rule's `upsell` (an imported public-web recipe), Private carries
  * the Premium badge and choosing it calls `onPremiumRequired` instead of changing the value: the upsell decides, and

@@ -35,7 +35,6 @@ import { RecipeBasicsFields } from '../form/RecipeBasicsFields.js';
 import { RecipeIngredientsFields } from '../form/RecipeIngredientsFields.js';
 import { RecipeInstructionsFields } from '../form/RecipeInstructionsFields.js';
 import { RecipeVisibilityField } from '../form/RecipeVisibilityField.js';
-import { RecipeVisibilityStatement } from '../form/RecipeVisibilityStatement.js';
 import { entryFieldIdOf } from '../form/fieldIds.js';
 import { pendingIngredientIds } from '../form/ingredientStatus.js';
 import type { EditorSeed } from '../hooks/useRecipeEditor.js';
@@ -169,20 +168,16 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
                           title: editor.values.title,
                           cuisine: editor.values.cuisine,
                       })}
-                {privateChoice.offersPrivate ? (
-                    <RecipeVisibilityField
-                        values={editor.values}
-                        onChange={editor.setValues}
-                        {...privateChoice.field}
-                        onPremiumRequired={privateChoice.onPremiumRequired}
-                        onConfirmPublic={privateChoice.onConfirmPublic}
-                        // The refusal's "Make a private recipe public" and "Delete a private recipe": either frees a slot
-                        // in the cook's recipes (the session checkpoints the draft as the cook leaves).
-                        onFreeASlot={onOpenMyRecipes}
-                    />
-                ) : (
-                    <RecipeVisibilityStatement {...privateChoice.statement} />
-                )}
+                <RecipeVisibilityField
+                    values={editor.values}
+                    onChange={editor.setValues}
+                    {...privateChoice.field}
+                    onPremiumRequired={privateChoice.onPremiumRequired}
+                    onConfirmPublic={privateChoice.onConfirmPublic}
+                    // The refusal's "Make a private recipe public" and "Delete a private recipe": either frees a slot
+                    // in the cook's recipes (the session checkpoints the draft as the cook leaves).
+                    onFreeASlot={onOpenMyRecipes}
+                />
             </>
         ),
     };

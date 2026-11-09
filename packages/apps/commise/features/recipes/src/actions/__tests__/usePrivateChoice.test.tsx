@@ -46,18 +46,6 @@ function mount(
 }
 
 describe('usePrivateChoice - the slots rule (a free cook`s own, book or paid-site recipe)', () => {
-    it.each(['granted', 'upsell', 'hidden', 'loading'] as const)(
-        'always offers Private, whatever the paid-feature state (%s)',
-        (state) => {
-            expect(
-                mount(state, RecipeVisibility.PUBLIC, PUBLIC_DRAFT, 'slots', OPEN).result.current.offersPrivate,
-            ).toBe(true);
-            expect(
-                mount(state, RecipeVisibility.PUBLIC, PUBLIC_DRAFT, 'slots', FULL).result.current.offersPrivate,
-            ).toBe(true);
-        },
-    );
-
     it('hands the field the slot standing it draws its count and its refusal from', () => {
         const { result } = mount('upsell', RecipeVisibility.PUBLIC, PUBLIC_DRAFT, 'slots', FULL);
 
@@ -79,12 +67,6 @@ describe('usePrivateChoice - the slots rule (a free cook`s own, book or paid-sit
                     .privateRefusal,
             ).toBeUndefined();
         }
-    });
-
-    it('a kept draft`s Private that the slots refuse still shows the field (not the statement)', () => {
-        const { result } = mount('upsell', RecipeVisibility.PUBLIC, PRIVATE_DRAFT, 'slots', FULL);
-
-        expect(result.current.offersPrivate).toBe(true);
     });
 
     it('"Get Pro" from the refusal opens the Pro sheet under the upsell, and changes nothing', () => {
@@ -128,7 +110,6 @@ describe('usePrivateChoice - the slots rule (a free cook`s own, book or paid-sit
 
         expect(kept.result.current.confirm.open).toBe(false);
         expect(kept.onChange).not.toHaveBeenCalled();
-        expect(kept.result.current.statement.focusOnMount).toBe(false);
 
         const confirmed = mount('hidden', RecipeVisibility.PRIVATE, PRIVATE_DRAFT, 'slots', OPEN);
 
@@ -137,7 +118,6 @@ describe('usePrivateChoice - the slots rule (a free cook`s own, book or paid-sit
 
         expect(confirmed.onChange).toHaveBeenCalledWith({ ...PRIVATE_DRAFT, visibility: RecipeVisibility.PUBLIC });
         expect(confirmed.result.current.confirm.open).toBe(false);
-        expect(confirmed.result.current.statement.focusOnMount).toBe(true);
     });
 
     it('Pro (no slots to free) goes public at once, with no dialog', () => {
@@ -166,7 +146,6 @@ describe('usePrivateChoice - a DRAFT holds no slot (ADR-0073 section 12)', () =>
 
         expect(result.current.field.privateRefusal).toBeUndefined();
         expect(result.current.field.facts.standing).toEqual({ kind: 'draft' });
-        expect(result.current.offersPrivate).toBe(true);
     });
 
     // REMOVED with the inline refusal (owner ruling 2026-10-26): once Publish was refused for want of a slot the field used to

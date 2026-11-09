@@ -3,10 +3,7 @@
  * (`docs/design/uiOverhaul/buildSpec.md` §7.7 item 2), the React Native leaf of `./RecipeVisibilityField.tsx`, on the
  * same props and the same rule (`visibilityChoice`): a radio group of two 56 pt cards; under `upsell` Private asks for
  * the upsell instead of changing the value, and for a downgraded owner Public on a private recipe asks to confirm
- * (`onConfirmPublic`), its card saying beforehand what it costs (`visibilityFieldOf`; plan 2026-10-14-009 D14, Q5). The
- * host renders `RecipeVisibilityStatement` instead when Private is not offered.
- *
- * A card is named by its whole text, so the Premium badge is read with it (an `aria-label` would replace it).
+ * (`onConfirmPublic`), its card saying beforehand what it costs (`visibilityFieldOf`; plan 2026-10-14-009 D14, Q5).
  *
  * Colours come from the theme at render, so both colour schemes paint (owner D15).
  *

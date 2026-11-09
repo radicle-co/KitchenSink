@@ -83,8 +83,7 @@ export interface RecipeEditorSectionProps extends RecipeFormSectionProps {
 
 /**
  * Props for the "Who can see it" field (`docs/design/uiOverhaul/buildSpec.md` §7.7 item 2): the draft's slice, and the
- * facts the paid-feature rule decides from (owner ruling 2026-10-13; plan 2026-10-14-009 D14). The host renders this
- * leaf only when Private is offered (`offersPrivate`), and `RecipeVisibilityStatement` otherwise.
+ * facts the paid-feature rule decides from (owner ruling 2026-10-13; plan 2026-10-14-009 D14).
  */
 export interface RecipeVisibilityFieldProps extends Omit<RecipeFormSectionProps, 'errors'> {
     /**
@@ -115,12 +114,6 @@ export interface RecipeVisibilityFieldProps extends Omit<RecipeFormSectionProps,
      * where either frees a slot. REQUIRED, so no host can ship the refusal's ways forward as dead rows.
      */
     readonly onFreeASlot: () => void;
-}
-
-/** Props for `RecipeVisibilityStatement`, both platform leaves (`usePrivateChoice().statement`). */
-export interface RecipeVisibilityStatementProps {
-    /** It replaces the field the cook just used: take the focus that field had (web: only if focus is lost). */
-    readonly focusOnMount: boolean;
 }
 
 /** One card of the "Who can see it" field. */

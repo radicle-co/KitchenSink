@@ -215,3 +215,45 @@ describe('FoodDao.readRefFacts', () => {
         expect(statements).toHaveLength(0);
     });
 });
+
+describe('FoodDao.readNutritionBatch — the shared, edge-cached read admits PROMOTED rows (ADR-0029 §8)', () => {
+    /** A chainable stand-in for the drizzle builder that records every `where` and resolves to no rows. */
+    function recordingDb(): { db: FoodDrizzle; wheres: string[] } {
+        const wheres: string[] = [];
+        const chain: object = new Proxy(() => undefined, {
+            get: (_target, key) => {
+                if (key === 'then') {
+                    return (resolve: (rows: unknown[]) => void): void => resolve([]);
+                }
+
+                if (key === 'where') {
+                    return (condition: SQL): object => {
+                        const query = dialect.sqlToQuery(condition);
+
+                        wheres.push(query.sql.replace('$2', JSON.stringify(query.params[1] ?? null)));
+
+                        return chain;
+                    };
+                }
+
+                return (): object => chain;
+            },
+        });
+
+        return { db: { select: () => chain } as unknown as FoodDrizzle, wheres };
+    }
+
+    it("reads catalog rows and promoted rows, and never a private author's", async () => {
+        const { db, wheres } = recordingDb();
+
+        await new FoodDao(db).readNutritionBatch(['01JFOOD']);
+
+        const statusRead = wheres.find((text) => text.includes('user_id'));
+
+        expect(statusRead).toBeDefined();
+        expect(statusRead).toBe(
+            '"food"."id" = ANY($1) AND ("food"."user_id" IS NULL OR "food"."visibility" = "promoted")',
+        );
+        expect(statusRead).not.toMatch(/"user_id" = /);
+    });
+});

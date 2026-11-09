@@ -648,7 +648,9 @@ export class FoodsService {
                 // R20 (U11): flagged ONLY on the caller's own authored hits — the lexical tier's
                 // author-augmentation signal. A catalog row publishes nothing; a stranger's authored row never
                 // left the DAO's predicate, because an authored food is author-only (ADR-0036).
-                ...(hit.userId !== null && hit.userId === callerId ? { visibility: 'private' as const } : {}),
+                ...(hit.userId !== null && hit.userId === callerId && hit.visibility === 'private'
+                    ? { visibility: 'private' as const }
+                    : {}),
                 ...(variant === undefined ? {} : { variant: variantViewOf(variant) }),
             };
         });
@@ -1479,9 +1481,9 @@ export class FoodsService {
                 source: portion.source ?? 'author',
             })),
             provenance,
-            // U10 (Q3c): present ONLY for an authored food; a catalog row publishes no visibility at all.
-            // An authored food is author-only, so `private` is the only value the wire can carry (ADR-0036).
-            ...(record.userId === null || record.visibility === 'public' ? {} : { visibility: 'private' as const }),
+            // U10 (Q3c): present ONLY for a PRIVATE authored food; a catalog or promoted row publishes no visibility
+            // at all (ADR-0029 §8: promoted is world-readable), so `private` is the only value the wire carries.
+            ...(record.userId !== null && record.visibility === 'private' ? { visibility: 'private' as const } : {}),
             variants,
         };
     }

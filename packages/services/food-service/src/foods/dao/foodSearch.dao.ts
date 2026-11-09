@@ -64,6 +64,7 @@ import type { RankTier } from '@kitchensink/recipe-core/resolution/ranking-tiers
 import { meetsSearchMinimum } from '@kitchensink/recipe-core/resolution/search-minimum';
 
 import { catalogRankTierOrdinal, catalogTieredSortKey } from './foodRelevance.js';
+import { PROMOTED_VISIBILITY } from '../domain/promotedIsPublic.js';
 
 /** Max search rows returned (FR-010). */
 const SEARCH_LIMIT = 20;
@@ -149,7 +150,7 @@ export type CatalogSearchHit = Pick<SearchHit, 'id' | 'name' | 'aliases' | 'scor
  * WHOSE rows a search statement may return (plan 002 R40, S3). The privacy boundary of every search is this value,
  * rendered by {@link scopePredicate} into the statement's `WHERE`.
  *
- * - `catalog` — catalog rows only (`user_id IS NULL`): the shared route, which no caller may change (property 1).
+ * - `catalog` — world-readable rows only (catalog and promoted, `promotedIsPublic.ts`): the shared route, which no caller may change (property 1).
  * - `author` — one author's own rows only: the per-caller authored route (property 6).
  * - `catalogAndAuthor` — both: the per-caller `GET /search` recipe-service's resolution reads (R20, plan U11).
  *
@@ -169,13 +170,13 @@ export type SearchScope =
 function scopePredicate(scope: SearchScope): SQL {
     switch (scope.kind) {
         case 'catalog':
-            return sql`user_id IS NULL`;
+            return sql`(user_id IS NULL OR visibility = ${sql.raw(`'${PROMOTED_VISIBILITY}'`)})`;
 
         case 'author':
             return sql`user_id = ${scope.userId}`;
 
         case 'catalogAndAuthor':
-            return sql`(user_id IS NULL OR user_id = ${scope.userId})`;
+            return sql`(user_id IS NULL OR visibility = ${sql.raw(`'${PROMOTED_VISIBILITY}'`)} OR user_id = ${scope.userId})`;
 
         default: {
             const unreachable: never = scope;

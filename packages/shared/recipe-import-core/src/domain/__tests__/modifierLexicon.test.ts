@@ -88,6 +88,7 @@ describe('classifyModifier — KTD-11b, as a vocabulary', () => {
         for (const word of ['black-eyed', 'Black-eyed', 'corned']) {
             expect(classifyModifier(word), word).toBe('identity');
         }
+
         // ...while the participles they resemble are still preparation.
         for (const word of ['eyed', 'horned', 'sauteed']) {
             expect(classifyModifier(word), word).toBe('preparation');

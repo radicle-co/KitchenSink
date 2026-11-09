@@ -699,3 +699,22 @@ without withdrawing. Notifications when staff decide. The cook learns on the pag
         - Edit approved: "Your change to {food} is live".
         - Edit not approved: "Your change to {food} wasn't approved". Body: "Open it to see why."
     - No decline reason in the notice itself, because a lock screen is not private.
+
+## 17. After the architect's Revision 4 (2026-11-09)
+
+These bind over the sections above.
+
+- The refusal is a 400 with the refused lines keyed by `foodId` (ties by `sortOrder`), not a 409. A parked save that
+  meets it makes the editor work the refusal out from its own lines and open the sheet. If no line is private any more,
+  the cook presses Save again.
+- Each line carries `foodVisibility` from food's live answer, so a just-approved food reads public at once and the
+  row's attention line clears.
+- The food page and the "Your foods" list read one `publicationState` per food: `private`, `asked`, `notApproved`,
+  `public`, `editWaiting`, `editNotApproved`, `withdrawn`. They map to states 5, 6, 7, 8, 9, 10 and 11.
+- Profile's "Your foods" row shows a dot when a staff decision is new since the cook last opened that food. Use the
+  existing unread-dot treatment if one exists, with an accessible name: "Your foods, 1 new decision".
+- Push waits for spec 014's notification channel. Until then, the result is in-app only: the food page, the Your foods
+  badges and the Profile dot. The app does NOT ask for notification permission in this increment (014 FR-050). The
+  push copy and the in-context ask in §16 stay for that later increment.
+- The free cook's 50 slots are already enforced on the server, so "keep it private" works for a cook with a free slot.
+  Remove the old "needs Pro and a change of your own" strings.

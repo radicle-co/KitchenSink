@@ -15,6 +15,7 @@
 import { sql, type InferInsertModel, type InferSelectModel } from 'drizzle-orm';
 import {
     check,
+    foreignKey,
     customType,
     index,
     integer,
@@ -346,34 +347,41 @@ export const foodVersions = pgTable(
 );
 
 /**
- * U12 (0015): the promotion MODERATION QUEUE — corroboration is the TRIGGER, never the PUBLISHER
- * (owner ruling 2026-08-30). A pending row is a candidacy awaiting a human; approval elects
- * `canonical_food_id` and publishes; a rejected row's `data_fingerprint` bars identical resubmission.
- * No person columns by design — contributing AUTHORS are derivable by join, and the operator's identity
- * reaches the audit log only (the `requeue` precedent), so this table stays out of the erasure sweep.
+ * 0028: a request to make an authored food public, or to publish an edit of a public one (ADR-0029 §5, §7). One row
+ * points at one `food_versions` row; staff approve or decline it. No person columns by design — the author is
+ * `food.user_id`, and the staff member reaches the audit log only — so the table stays out of the erasure sweep and
+ * cascades with its food.
  */
-export const foodPromotions = pgTable(
-    'food_promotions',
+export const foodPublicationRequests = pgTable(
+    'food_publication_requests',
     {
         id: uuid('id').primaryKey().defaultRandom(),
-        normalizedName: text('normalized_name').notNull(),
-        /** The compatible contributing food ids, ordered by id — one policy evaluation, one unit. */
-        candidateFoodIds: jsonb('candidate_food_ids').notNull(),
-        dataFingerprint: varchar('data_fingerprint', { length: 64 }).notNull(),
+        foodId: text('food_id')
+            .notNull()
+            .references(() => food.id, { onDelete: 'cascade' }),
+        foodVersionNumber: integer('food_version_number').notNull(),
+        /** `pending` | `approved` | `declined` | `closed` (CHECK `food_publication_requests_status_valid`). */
         status: text('status').notNull().default('pending'),
-        canonicalFoodId: text('canonical_food_id'),
+        declineReason: text('decline_reason'),
         createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
         decidedAt: timestamp('decided_at', { withTimezone: true }),
+        /** When the author opened the food after the decision; drives the unseen-decision dot. */
+        authorSeenAt: timestamp('author_seen_at', { withTimezone: true }),
     },
     (table) => [
-        uniqueIndex('food_promotions_pending_name_unique')
-            .on(table.normalizedName)
+        foreignKey({
+            name: 'food_publication_requests_version_fk',
+            columns: [table.foodId, table.foodVersionNumber],
+            foreignColumns: [foodVersions.foodId, foodVersions.versionNumber],
+        }).onDelete('cascade'),
+        uniqueIndex('food_publication_requests_pending_unique')
+            .on(table.foodId)
             .where(sql`${table.status} = 'pending'`),
-        index('idx_food_promotions_name').on(table.normalizedName),
+        index('idx_food_publication_requests_food').on(table.foodId),
     ],
 );
 
-export type FoodPromotionRow = InferSelectModel<typeof foodPromotions>;
+export type FoodPublicationRequestRow = InferSelectModel<typeof foodPublicationRequests>;
 
 export type FoodVersionRow = InferSelectModel<typeof foodVersions>;
 export type NewFoodVersionRow = InferInsertModel<typeof foodVersions>;

@@ -15,4 +15,5 @@ export * from './schemas/dataSources.schema.js';
 export * from './schemas/serviceErasure.schema.js';
 export * from './schemas/foods.schema.js';
 export * from './schemas/progressiveSearch.schema.js';
+export * from './schemas/publication.schema.js';
 export * from './schemas/health.schema.js';

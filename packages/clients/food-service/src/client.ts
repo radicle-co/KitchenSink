@@ -1356,6 +1356,13 @@ export class FoodServiceClient {
             case 'INTERNAL_ERROR':
                 return new UnexpectedResponseError(res.status, body.message);
 
+            // The publication codes (ADR-0029 §5): no call this client makes can answer them yet. The client half
+            // (typed errors and the hooks that raise them) is the follow-up increment, which replaces this arm.
+            case 'PUBLICATION_NOT_REQUESTABLE':
+            case 'PUBLICATION_REQUEST_NOT_FOUND':
+            case 'PUBLICATION_NOT_APPROVABLE':
+                return new UnexpectedResponseError(res.status, body.message);
+
             default: {
                 // EXHAUSTIVENESS GATE (§15.1: drift must fail at `typecheck`, not in e2e). Adding a code to the
                 // service's `foodErrorCodeSchema` breaks this line until this client decides what it means — and

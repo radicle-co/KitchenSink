@@ -28,6 +28,7 @@ import { FoodRecoveryService, type RequeueFoodStore } from '../src/foods/admin/f
 import { FoodsAdminController } from '../src/foods/admin/foodsAdmin.controller.js';
 import { IllegalStatusTransitionError } from '../src/foods/dao/dao.errors.js';
 import type { FoodStatus } from '../src/foods/dao/food.dao.js';
+import { FoodPublicationService } from '../src/foods/publication.service.js';
 import { foodErrorSchema } from '../src/foods/foods.schema.js';
 import { SilentWorkerLogger } from '../src/worker/SilentWorkerLogger.js';
 import { principalFor } from './support/mockedFoodsApi.js';
@@ -71,6 +72,8 @@ describe('POST …/admin/foods/{id}/requeue — a DELETING food is a plain 404 (
                 { provide: FoodRecoveryService, useValue: recovery },
                 // Plain object: the requeue route never reads the metrics service.
                 { provide: AdminMetricsService, useValue: {} },
+                // Plain object: the requeue route never reaches the publication queue.
+                { provide: FoodPublicationService, useValue: {} },
                 FoodAuthGuard,
                 // Registered exactly as `AppModule` registers it.
                 { provide: APP_FILTER, useClass: ApiExceptionFilter },

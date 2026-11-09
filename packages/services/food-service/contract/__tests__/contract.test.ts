@@ -343,6 +343,8 @@ describe('openapi coverage', () => {
             'CreateAuthoredFoodRequest',
             // The erasure body carries no authority, so an unknown key (a smuggled ownerId) is refused.
             'FoodServiceErasureRequest',
+            // ADR-0029 §5: staff's decision takes approve and a reason, and nothing else.
+            'PublicationDecisionRequest',
             'ResolveFoodRefsRequest',
             'ResolveFoodRequest',
             'UpdateAuthoredFoodRequest',

@@ -21,6 +21,7 @@ import type { AuthenticatedRequest } from '../../../auth/authenticatedPrincipal.
 import type { ApiErrorBody } from '../../../common/apiError.schema.js';
 import { AdminMetricsService } from '../adminMetrics.service.js';
 import { FoodRecoveryService } from '../foodRecovery.service.js';
+import type { FoodPublicationService } from '../../publication.service.js';
 import { FoodsAdminController } from '../foodsAdmin.controller.js';
 
 const METRICS = {
@@ -56,11 +57,13 @@ function makeController(): {
         queueDepths: vi.fn().mockResolvedValue(METRICS.queue),
     };
     const recovery = { requeueFood: vi.fn().mockResolvedValue({ id: FOOD_ID, status: 'PENDING' }) };
+    const publications = { listPending: vi.fn(), decide: vi.fn() };
 
     return {
         controller: new FoodsAdminController(
             service as unknown as AdminMetricsService,
             recovery as unknown as FoodRecoveryService,
+            publications as unknown as FoodPublicationService,
         ),
         service,
         recovery,

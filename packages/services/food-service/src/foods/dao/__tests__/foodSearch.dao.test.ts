@@ -528,9 +528,10 @@ describe('FoodSearchDao.searchCatalog / searchAuthored — the split statements 
         const [statement, ...rest] = await statementsOf((dao) => dao.searchCatalog('chicken breast'));
 
         expect(rest).toHaveLength(0);
-        expect(scopeOf(statement!)).toBe(
-            " WHERE status = 'RESOLVED' AND food.retired_at IS NULL AND (user_id IS NULL OR visibility = 'promoted')",
+        expect(scopeOf(statement!)).toMatch(
+            /^ WHERE status = 'RESOLVED' AND food\.retired_at IS NULL AND \(user_id IS NULL OR visibility = \$\d+\)$/,
         );
+        expect(statement!.params).toContain('promoted');
         expect(statement!.text).not.toMatch(/user_id =/);
     });
 
@@ -539,7 +540,12 @@ describe('FoodSearchDao.searchCatalog / searchAuthored — the split statements 
         const [perCaller] = await statementsOf((dao) => dao.search('chicken breast', CALLER));
 
         expect(stringParams(perCaller!)).toContain(CALLER);
-        expect(stringParams(catalog!).every((param) => param.includes('chicken') || param === 'breast')).toBe(true);
+        // `promoted` is the one constant the world-readable scope binds; every other value derives from the query.
+        expect(
+            stringParams(catalog!).every(
+                (param) => param.includes('chicken') || param === 'breast' || param === 'promoted',
+            ),
+        ).toBe(true);
     });
 
     it('ranks with the very sort key the per-caller search uses, so the two lists merge by score', async () => {
@@ -568,7 +574,7 @@ describe('FoodSearchDao.searchCatalog / searchAuthored — the split statements 
         const [statement] = await statementsOf((dao) => dao.search('chicken breast', CALLER));
 
         expect(scopeOf(statement!)).toMatch(
-            /^ WHERE status = 'RESOLVED' AND food\.retired_at IS NULL AND \(user_id IS NULL OR visibility = 'promoted' OR user_id = \$\d+\)$/,
+            /^ WHERE status = 'RESOLVED' AND food\.retired_at IS NULL AND \(user_id IS NULL OR visibility = \$\d+ OR user_id = \$\d+\)$/,
         );
     });
 

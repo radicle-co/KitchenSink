@@ -84,7 +84,8 @@ function makeService(
         unused,
         unused,
         new FoodMetrics('test', () => undefined),
-        unused,
+        // The author reading their own food asks where publication stands and marks a decision seen.
+        { publicationStateFor: vi.fn().mockResolvedValue('private'), markSeen: vi.fn() } as never,
         variantDao as FoodVariantDao,
         unused,
     );

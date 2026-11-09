@@ -48,7 +48,6 @@ import {
     Query,
     Req,
     Res,
-    UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { Response } from 'express';
@@ -57,12 +56,12 @@ import { sanitizeFoodName } from '@kitchensink/recipe-core/food-name';
 import {
     FOOD_ADMIN_SCOPE,
     hasScope,
-    IDENTITY_SYNC_PENDING_CODE,
     isServicePrincipalSub,
-    resolveRequesterId,
     type AuthenticatedPrincipal,
     type AuthenticatedRequest,
 } from '../auth/authenticatedPrincipal.js';
+import type { EditPendingResponse } from './publication.schema.js';
+import { requirePrincipal, requireRequesterId, requireUserUlid } from '../auth/requireCaller.js';
 import { apiError } from '../common/apiError.js';
 import { AdoptRateLimit, ResolveRateLimit, SearchRateLimit } from '../common/throttle/throttle.decorators.js';
 import {
@@ -618,17 +617,24 @@ export class FoodsController {
     /**
      * `PUT /api/v1/foods/{id}` — full replacement of an AUTHORED food (plan U10). Authorization is the
      * pure `authorshipPolicy`, evaluated in the service BEFORE anything else touches the row: stranger +
-     * private → 404, stranger + promoted → 403, pipeline food → 409 `NOT_EDITABLE`.
+     * private → 404, stranger + promoted → 403, pipeline food → 409 `NOT_EDITABLE`. A PRIVATE food answers `200`
+     * with the food; a PUBLIC food answers `202 { publication: { state: 'editPending', versionNumber } }` (ADR-0029 §7).
      */
     @Put(':id')
     public async updateAuthored(
         @Param('id') id: string,
         @Body() body: UpdateAuthoredFoodBodyDto,
         @Req() req: AuthenticatedRequest,
-    ): Promise<FoodResponse> {
+        @Res({ passthrough: true }) res: Response,
+    ): Promise<FoodResponse | EditPendingResponse> {
         this.requireId(id);
 
-        return this.foodsService.updateAuthored(this.requireUserUlid(req), id, body);
+        const result = await this.foodsService.updateAuthored(this.requireUserUlid(req), id, body);
+
+        // ADR-0029 §7: an edit of a PUBLIC food is accepted, not applied — `202`, and the live food is unchanged.
+        res.status(isEditPending(result) ? HttpStatus.ACCEPTED : HttpStatus.OK);
+
+        return result;
     }
 
     /**
@@ -713,20 +719,7 @@ export class FoodsController {
      *   first-token sync race, `IDENTITY_SYNC_PENDING`).
      */
     private requireRequesterId(req: AuthenticatedRequest): string {
-        const principal = this.requirePrincipal(req);
-        const resolution = resolveRequesterId(principal);
-
-        if (resolution.status === IDENTITY_SYNC_PENDING_CODE) {
-            // `IDENTITY_SYNC_PENDING_CODE` is `auth/authenticatedPrincipal.ts`'s constant and `apiError` takes a
-            // PUBLISHED `FoodErrorCode`, so the two agreeing is a `typecheck` obligation rather than a
-            // convention: change the auth constant's string and this line stops compiling.
-            throw apiError(
-                IDENTITY_SYNC_PENDING_CODE,
-                'App-user identity (external_id) not yet available; retry with a refreshed token.',
-            );
-        }
-
-        return resolution.requesterId;
+        return requireRequesterId(req);
     }
 
     /**
@@ -739,22 +732,12 @@ export class FoodsController {
      * @throws (→ 401) the {@link requireRequesterId} cases; (→ 403) for a service principal.
      */
     private requireUserUlid(req: AuthenticatedRequest): string {
-        const requesterId = this.requireRequesterId(req);
-
-        if (requesterId.startsWith('svc_')) {
-            throw apiError('FORBIDDEN', 'Authored foods belong to user accounts, not service principals.');
-        }
-
-        return requesterId;
+        return requireUserUlid(req);
     }
 
     /** Narrow the guard-populated principal, failing closed with `401` if somehow absent. */
     private requirePrincipal(req: AuthenticatedRequest): AuthenticatedPrincipal {
-        if (!req.user) {
-            throw new UnauthorizedException('Valid Clerk session or M2M token required');
-        }
-
-        return req.user;
+        return requirePrincipal(req);
     }
 
     /** Validate the `id` path param is a structurally valid ULID (FR-006) → else `400`. */
@@ -854,4 +837,9 @@ export class FoodsController {
 
         return name;
     }
+}
+
+/** Is this the `202` body of an edit that waits for staff, rather than the food? Pure. */
+function isEditPending(result: FoodResponse | EditPendingResponse): result is EditPendingResponse {
+    return 'publication' in result;
 }

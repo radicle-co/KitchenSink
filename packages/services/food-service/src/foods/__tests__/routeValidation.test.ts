@@ -38,6 +38,7 @@ import { ROUTE_ARGS_METADATA } from '@nestjs/common/constants';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 
+import { FoodPublicationController } from '../publication.controller.js';
 import { FoodsAdminController } from '../admin/foodsAdmin.controller.js';
 import {
     AddFoodBodyDto,
@@ -126,7 +127,12 @@ function inputsOf(controller: new (...args: never[]) => object): RouteInput[] {
 }
 
 /** Every HTTP controller in this service. A new controller belongs here — that is the point of a closed audit. */
-const CONTROLLERS = [FoodsController, FoodsAdminController, ServiceErasureController] as const;
+const CONTROLLERS = [
+    FoodsController,
+    FoodPublicationController,
+    FoodsAdminController,
+    ServiceErasureController,
+] as const;
 
 const ALL_INPUTS = CONTROLLERS.flatMap((controller) => inputsOf(controller));
 
@@ -135,16 +141,17 @@ describe('route input validation — the closed inventory', () => {
     // pass over an empty list. These figures are the tripwire.
     it('reads Nest route metadata at all (guards every other case in this file from vacuity)', () => {
         expect(ALL_INPUTS.length).toBeGreaterThanOrEqual(7);
-        // Eight bodies: the original three, U10's authored create + PUT, U18's erasure body, curated U8's
-        // `refs/resolve` body, and the remote pick's reference (ADR-0055 point 10).
-        expect(ALL_INPUTS.filter((input) => input.kind === 'body')).toHaveLength(8);
+        // Nine bodies: the original three, U10's authored create + PUT, U18's erasure body, curated U8's
+        // `refs/resolve` body, the remote pick's reference (ADR-0055 point 10), and staff's publication decision.
+        expect(ALL_INPUTS.filter((input) => input.kind === 'body')).toHaveLength(9);
         // Six queries: `GET /foods/search`, `GET /foods/nutrition` (plan U8), `GET /foods/authored-nutrition` (plan
         // U18 — deliberately REUSING `FoodNutritionQueryDto`, one shape for one meaning), and the split search's
         // `GET /foods/catalog/search` and `/authored/search` (plan 002 S3, one `SearchTermQueryDto`), and the
-        // progressive search, which reads the same `SearchTermQueryDto` (ADR-0055 point 5).
-        expect(ALL_INPUTS.filter((input) => input.kind === 'query')).toHaveLength(6);
-        // Nine params: the nine `:id` food routes (U19's corroborated trigger included).
-        expect(ALL_INPUTS.filter((input) => input.kind === 'param')).toHaveLength(9);
+        // progressive search, which reads the same `SearchTermQueryDto` (ADR-0055 point 5), staff's pending list, and the author's own-foods list.
+        expect(ALL_INPUTS.filter((input) => input.kind === 'query')).toHaveLength(8);
+        // Twelve params: the nine `:id` food routes (U19's corroborated trigger included), the author's two
+        // publication-request routes, and staff's decision.
+        expect(ALL_INPUTS.filter((input) => input.kind === 'param')).toHaveLength(12);
         // Nothing reads a caller-supplied HEADER. §15.4(1) puts headers under the pipe too, so a new one has to
         // arrive as a zod DTO — and this assertion is what makes adding one a decision rather than an accident.
         expect(ALL_INPUTS.filter((input) => input.kind === 'headers')).toStrictEqual([]);
@@ -180,6 +187,12 @@ describe('route input validation — the closed inventory', () => {
             .sort();
 
         expect(raw).toStrictEqual([
+            // The author's publication-request routes. Same `requireId` → `isFoodId` validation as every `:id` route.
+            'FoodPublicationController.read(@param id): String',
+            'FoodPublicationController.request(@param id): String',
+            // Staff's publication decision. The scope gate runs first (`403` precedes `400`, like the requeue), then
+            // `isUuid`; the request id is a UUID, not a food ULID.
+            'FoodsAdminController.decidePublicationRequest(@param id): String',
             // U9's operator requeue. Guarded by the same `isFoodId` check as every other `:id` route.
             'FoodsAdminController.requeueFood(@param id): String',
             // U18's authored-food DELETE. Same `requireId` → `isFoodId` validation as every `:id` route.

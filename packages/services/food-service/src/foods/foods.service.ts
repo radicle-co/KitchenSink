@@ -47,6 +47,7 @@ import { nutritionTargetOf } from './domain/nutritionTargets.js';
 import { refetchRefusalOf, refetchRefusalReason } from './domain/refetchPolicy.js';
 import { DuplicateAuthoredNameError, NotEditableError, NotFoodAuthorError } from './foods.errors.js';
 import { AuthoredFoodsDao } from './dao/authoredFoods.dao.js';
+import type { EditPendingResponse } from './publication.schema.js';
 import { projectStoredNutrition } from './nutrition/nutrientSelection.js';
 import { FoodVariantDao, type LiveVariant } from './dao/foodVariant.dao.js';
 import { leftoverTokens, matchVariant, namesOf } from './domain/variantQueryMatch.js';
@@ -74,6 +75,7 @@ import type {
     CreateAuthoredFoodRequest,
     UpdateAuthoredFoodRequest,
     CatalogFoodStatus,
+    PublicationStateValue,
 } from './foods.schema.js';
 import { SourceAdapterRegistry } from '../sources/SourceAdapterRegistry.js';
 import { isSourceAdmissionError, isSourceApiError } from '../sources/foodSource.errors.js';
@@ -298,7 +300,12 @@ export class FoodsService {
         const { record } = answered;
 
         if (record.status === 'RESOLVED') {
-            return this.toForwardedFoodResponse(id, answered);
+            const response = await this.toForwardedFoodResponse(id, answered);
+
+            // Only the AUTHOR is told where publication stands, and only the author opening the food clears the dot.
+            return requested.userId !== null && requested.userId === callerId
+                ? { ...response, publicationState: await this.opensOwnFood(id, callerId) }
+                : response;
         }
 
         if (record.status === 'PENDING' || record.status === 'UNRESOLVED' || record.status === 'AWAITING_RETRY') {
@@ -1118,6 +1125,20 @@ export class FoodsService {
     }
 
     /**
+     * The author opens their own food: marks its decided request seen and answers its publication state.
+     *
+     * @sideEffect Updates at most one request row.
+     */
+    private async opensOwnFood(id: string, authorId: string): Promise<PublicationStateValue> {
+        const [state] = await Promise.all([
+            this.authored.publicationStateFor(id),
+            this.authored.markSeen(id, authorId),
+        ]);
+
+        return state ?? 'private';
+    }
+
+    /**
      * `POST /api/v1/foods/authored` → `201` + the COMPLETE entity, born `RESOLVED` (plan U10, D9a).
      *
      * Walking through this door IS the provenance: `user_id` is set from the verified principal, there is
@@ -1158,10 +1179,14 @@ export class FoodsService {
      * @param callerId - The verified caller's app-user ULID.
      * @param id - The food id.
      * @param input - The validated replacement body.
-     * @returns The updated food's full response.
-     * @sideEffect Rewrites the food's scalars, macros and portions.
+     * @returns The updated food's full response, or `editPending` when the food is public and the edit waits for staff.
+     * @sideEffect Rewrites a private food's scalars, macros and portions; only appends a version for a public one.
      */
-    public async updateAuthored(callerId: string, id: string, input: UpdateAuthoredFoodRequest): Promise<FoodResponse> {
+    public async updateAuthored(
+        callerId: string,
+        id: string,
+        input: UpdateAuthoredFoodRequest,
+    ): Promise<FoodResponse | EditPendingResponse> {
         const facts = await this.authored.readAuthorshipFacts(id);
 
         if (facts === undefined) {
@@ -1200,6 +1225,12 @@ export class FoodsService {
 
         if (replaced.kind === 'duplicate') {
             throw new DuplicateAuthoredNameError(replaced.existingId);
+        }
+
+        if (replaced.kind === 'proposed') {
+            // ADR-0029 §7: a PUBLIC food's edit is saved as a version and waits for staff. Every reader, the author's
+            // own recipes included, keeps the approved version, so the answer is not the food.
+            return { publication: { state: 'editPending', versionNumber: replaced.versionNumber } };
         }
 
         return this.getFood(id, callerId);
@@ -1333,6 +1364,10 @@ export class FoodsService {
 
             throw new FoodNotFoundError(id);
         }
+
+        // A withdrawn food cannot be approved (the approval re-checks under lock), but a request left pending would
+        // still sit in staff's queue and block nothing else; close it so the queue only holds live work.
+        await this.authored.closePendingRequests(id);
     }
 
     /**

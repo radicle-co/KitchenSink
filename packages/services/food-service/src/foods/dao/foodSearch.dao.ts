@@ -170,13 +170,13 @@ export type SearchScope =
 function scopePredicate(scope: SearchScope): SQL {
     switch (scope.kind) {
         case 'catalog':
-            return sql`(user_id IS NULL OR visibility = ${sql.raw(`'${PROMOTED_VISIBILITY}'`)})`;
+            return sql`(user_id IS NULL OR visibility = ${PROMOTED_VISIBILITY})`;
 
         case 'author':
             return sql`user_id = ${scope.userId}`;
 
         case 'catalogAndAuthor':
-            return sql`(user_id IS NULL OR visibility = ${sql.raw(`'${PROMOTED_VISIBILITY}'`)} OR user_id = ${scope.userId})`;
+            return sql`(user_id IS NULL OR visibility = ${PROMOTED_VISIBILITY} OR user_id = ${scope.userId})`;
 
         default: {
             const unreachable: never = scope;

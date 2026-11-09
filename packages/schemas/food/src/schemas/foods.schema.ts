@@ -399,6 +399,22 @@ export type FoodRef = z.infer<typeof foodRefSchema>;
  */
 const foodRefViewSchema = z.object(foodRefSchema.shape);
 
+/**
+ * What the author reads about a food they wrote (ADR-0029 §5, §7): the one word the list, the food page and the badge
+ * all show. Derived on the service by `publicationStateOf`; a client never reconstructs it.
+ */
+export const publicationStateSchema = z.enum([
+    'private',
+    'asked',
+    'notApproved',
+    'public',
+    'editWaiting',
+    'editNotApproved',
+    'withdrawn',
+]);
+
+export type PublicationStateValue = z.infer<typeof publicationStateSchema>;
+
 /** The full golden record returned for a `RESOLVED` food (FR-002). */
 export const foodResponseSchema = z.object({
     /** Internal food id (ULID). */
@@ -424,6 +440,11 @@ export const foodResponseSchema = z.object({
      * publishing it would invite exactly that).
      */
     visibility: z.literal('private').optional(),
+    /**
+     * Present ONLY when the AUTHOR reads their own food: where its publication stands (revision 4, F19). Never
+     * published to another reader.
+     */
+    publicationState: publicationStateSchema.optional(),
     /**
      * Curated U8 (R17): the root's LIVE variants, in the order the variant picker lists them. `[]` for a root with
      * none and for an authored food, which never has any.
@@ -1097,6 +1118,18 @@ export const foodErrorCodeSchema = z.enum([
      * the source no longer has it, or its reference is not one this service can open. Search again for a fresh answer.
      */
     'REMOTE_FOOD_GONE',
+    /**
+     * The author cannot ask to publish this food (`409`, ADR-0029 §5): it is withdrawn, it is not private, or staff
+     * already declined this version. `details.reason` says which; an edit makes a new version that can be asked.
+     */
+    'PUBLICATION_NOT_REQUESTABLE',
+    /** No publication request with that id, or none for that food (`404`). */
+    'PUBLICATION_REQUEST_NOT_FOUND',
+    /**
+     * Staff cannot decide this request (`409`): it is already decided or closed, its food was withdrawn, or a newer
+     * version replaced it. `details.reason` says which. A decision on a stale request changes nothing.
+     */
+    'PUBLICATION_NOT_APPROVABLE',
     /** An unmapped server fault. The body carries no internal detail, by design. */
     'INTERNAL_ERROR',
 ]);
@@ -1225,6 +1258,27 @@ export const foodErrorSchema = z.discriminatedUnion('code', [
         })
         .loose(),
     z.object({ code: z.literal('REMOTE_FOOD_GONE'), message: z.string() }).loose(),
+    z
+        .object({
+            code: z.literal('PUBLICATION_NOT_REQUESTABLE'),
+            message: z.string(),
+            details: z.object({ id: z.string(), reason: z.enum(['withdrawn', 'notPrivate', 'declined']) }).loose(),
+        })
+        .loose(),
+    z
+        .object({
+            code: z.literal('PUBLICATION_REQUEST_NOT_FOUND'),
+            message: z.string(),
+            details: z.object({ id: z.string() }).loose(),
+        })
+        .loose(),
+    z
+        .object({
+            code: z.literal('PUBLICATION_NOT_APPROVABLE'),
+            message: z.string(),
+            details: z.object({ id: z.string(), reason: z.enum(['closed', 'withdrawn', 'notNewest']) }).loose(),
+        })
+        .loose(),
     z
         .object({
             code: z.literal('FETCH_UNAVAILABLE'),

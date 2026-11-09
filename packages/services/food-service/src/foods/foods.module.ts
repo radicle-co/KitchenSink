@@ -53,6 +53,9 @@ import { ServiceErasureController } from './serviceErasure.controller.js';
 import { GoldenRecordMergeEngine } from './merge/mergeEngine.js';
 import { MergeAndPersistService } from './merge/mergeAndPersist.service.js';
 import { AuthoredFoodsDao } from './dao/authoredFoods.dao.js';
+import { PublicationRequestsDao } from './dao/publicationRequests.dao.js';
+import { FoodPublicationController } from './publication.controller.js';
+import { FoodPublicationService } from './publication.service.js';
 import { TestPrincipalPurgeService } from './testPrincipalPurge.service.js';
 import { UserErasureService } from './userErasure.service.js';
 import { RoutedWorkerLogger } from '../worker/RoutedWorkerLogger.js';
@@ -75,9 +78,12 @@ import { UnconfiguredReferenceSealer } from './remote/UnconfiguredReferenceSeale
     // The per-user cap's storage and options (plan 002 R42). The guard is bound per route, never globally, so only
     // the routes `throttle.decorators.ts` marks are capped.
     imports: [ThrottlerModule.forRoot(throttlerModuleOptions)],
-    controllers: [FoodsController, FoodsAdminController, ServiceErasureController],
+    // ⚠️ FoodPublicationController FIRST: its `GET authored` must win against `FoodsController`'s `GET :id`.
+    controllers: [FoodPublicationController, FoodsController, FoodsAdminController, ServiceErasureController],
     providers: [
         FoodsService,
+        // ADR-0029 §5 — the author's request to publish a food, and staff's decision on it.
+        FoodPublicationService,
         EnqueueEmitter,
         AdminMetricsService,
         UserErasureService,
@@ -110,6 +116,11 @@ import { UnconfiguredReferenceSealer } from './remote/UnconfiguredReferenceSeale
             provide: AuthoredFoodsDao,
             inject: [DrizzleProvider],
             useFactory: (db: FoodDrizzle): AuthoredFoodsDao => new AuthoredFoodsDao(db),
+        },
+        {
+            provide: PublicationRequestsDao,
+            inject: [DrizzleProvider],
+            useFactory: (db: FoodDrizzle): PublicationRequestsDao => new PublicationRequestsDao(db),
         },
         // ⛔ NOT optional, and its absence did not fail a unit test: `FoodRecoveryService` takes this in its
         // constructor (U9), so without the provider Nest cannot instantiate the module AT ALL — the API
@@ -331,6 +342,6 @@ import { UnconfiguredReferenceSealer } from './remote/UnconfiguredReferenceSeale
 export class FoodsModule implements NestModule {
     /** Mount {@link FoodAuthGuard} on every `/api/v1/foods/*` route, incl. the admin endpoints (FR-035/FR-039). */
     public configure(consumer: MiddlewareConsumer): void {
-        consumer.apply(FoodAuthGuard).forRoutes(FoodsController, FoodsAdminController);
+        consumer.apply(FoodAuthGuard).forRoutes(FoodsController, FoodPublicationController, FoodsAdminController);
     }
 }

@@ -39,6 +39,7 @@ import { CatalogOwnerReader } from '../../src/foods/catalogOwnerReader.service.j
 import { CitedSourcesService } from '../../src/foods/citedSources.service.js';
 import type { CitedSourcesDao } from '../../src/foods/dao/citedSources.dao.js';
 import { RequesterSourceBudgetDao } from '../../src/foods/dao/requesterSourceBudget.dao.js';
+import type { AuthoredFoodsDao } from '../../src/foods/dao/authoredFoods.dao.js';
 import type { FoodDao } from '../../src/foods/dao/food.dao.js';
 import type { CandidateStore } from '../../src/foods/dao/foodCandidates.dao.js';
 import type { FoodForwardDao } from '../../src/foods/dao/foodForward.dao.js';
@@ -136,6 +137,8 @@ export interface MockedFoodsApiDoubles {
     readonly variants?: Partial<Record<keyof FoodVariantDao, unknown>>;
     /** The ranked local search behind `GET /api/v1/foods/search`. */
     readonly searchDao?: Partial<Record<keyof FoodSearchDao, unknown>>;
+    /** The authored-foods repository: only what the author reading their own food touches. */
+    readonly authored?: Partial<Record<keyof AuthoredFoodsDao, unknown>>;
     /** The crosswalk lookups search issues after ranking. */
     readonly sources?: Partial<Record<keyof FoodSourcesDao, unknown>>;
     /** The owner reader itself; when absent, the real reader runs over the other doubles (curated U8 S4, S5). */
@@ -223,7 +226,7 @@ export async function bootMockedFoodsApi(doubles: MockedFoodsApiDoubles): Promis
         (doubles.enqueue ?? unstaged('EnqueueEmitter')) as unknown as EnqueueEmitter,
         unstaged('SourceAdapterRegistry'),
         new FoodMetrics('test', () => undefined),
-        unstaged('AuthoredFoodsDao'),
+        (doubles.authored ?? unstaged('AuthoredFoodsDao')) as unknown as AuthoredFoodsDao,
         (doubles.variants ?? unstaged('FoodVariantDao')) as unknown as FoodVariantDao,
         // Unless a suite doubles the reader itself, the REAL owner reader runs over the doubled DAOs, so the mocked tier
         // exercises the Facade's composition and not a stand-in for it.

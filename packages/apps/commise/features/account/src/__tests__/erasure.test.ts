@@ -9,7 +9,9 @@ import { RecipeStatus, RecipeVisibility } from '@kitchensink/recipe-core';
 import {
     ACCOUNT_ERASURE_CONFIRMATION_PHRASE,
     confirmsErasurePhrase,
+    isErasureBlockedByPrivateFood,
     isErasureDonationEligible,
+    selectBlockedRecipes,
     selectDonatableRecipes,
 } from '../erasure.js';
 
@@ -89,5 +91,43 @@ describe('selectDonatableRecipes', () => {
         expect(
             selectDonatableRecipes([{ id: 'x', visibility: RecipeVisibility.PUBLIC, status: RecipeStatus.PUBLISHED }]),
         ).toEqual([]);
+    });
+});
+
+describe('a private recipe that holds a private food (private foods spec section 8, F7)', () => {
+    const owned = { visibility: RecipeVisibility.PRIVATE, status: RecipeStatus.PUBLISHED } as const;
+
+    it('is not offered for donation: the server deletes it, so offering it would be a lie', () => {
+        expect(isErasureDonationEligible({ ...owned, holdsPrivateFood: true })).toBe(false);
+        expect(isErasureDonationEligible({ ...owned, holdsPrivateFood: false })).toBe(true);
+        expect(isErasureDonationEligible(owned)).toBe(true);
+    });
+
+    it('is the blocked set: owner-only AND holding a private food, nothing else', () => {
+        expect(isErasureBlockedByPrivateFood({ ...owned, holdsPrivateFood: true })).toBe(true);
+        expect(isErasureBlockedByPrivateFood({ ...owned, holdsPrivateFood: false })).toBe(false);
+        expect(isErasureBlockedByPrivateFood(owned)).toBe(false);
+    });
+
+    it('a public published recipe never holds one, so it is in neither set', () => {
+        const publicOne = {
+            visibility: RecipeVisibility.PUBLIC,
+            status: RecipeStatus.PUBLISHED,
+            holdsPrivateFood: true,
+        };
+
+        expect(isErasureDonationEligible(publicOne)).toBe(false);
+        expect(isErasureBlockedByPrivateFood(publicOne)).toBe(false);
+    });
+
+    it('selectBlockedRecipes keeps input order', () => {
+        const recipes = [
+            { id: 'a', ...owned, holdsPrivateFood: true },
+            { id: 'b', ...owned },
+            { id: 'c', ...owned, holdsPrivateFood: true },
+        ];
+
+        expect(selectBlockedRecipes(recipes).map((recipe) => recipe.id)).toEqual(['a', 'c']);
+        expect(selectDonatableRecipes(recipes).map((recipe) => recipe.id)).toEqual(['b']);
     });
 });

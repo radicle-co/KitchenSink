@@ -38,6 +38,7 @@ import type { AccountEraseDialogProps } from './model.js';
 export const AccountEraseDialog: FC<AccountEraseDialogProps> = ({
     open,
     donatableRecipes,
+    blockedRecipes = [],
     recipesLoading = false,
     recipesError = false,
     selectedRecipeIds,
@@ -101,6 +102,22 @@ export const AccountEraseDialog: FC<AccountEraseDialogProps> = ({
                             </ul>
                         )}
                     </section>
+
+                    {blockedRecipes.length === 0 ? null : (
+                        <section aria-labelledby="erase-blocked-heading" className="flex flex-col gap-2">
+                            <h4 id="erase-blocked-heading" className="text-label text-ink">
+                                {erase.privateFoodsHeading}
+                            </h4>
+                            <p className="text-meta text-ink-muted">{erase.privateFoodsHelp}</p>
+                            <ul className="flex flex-col gap-1" role="list">
+                                {blockedRecipes.map((recipe) => (
+                                    <li key={recipe.id} className="text-meta text-ink">
+                                        {recipe.title}
+                                    </li>
+                                ))}
+                            </ul>
+                        </section>
+                    )}
 
                     <div className="flex flex-col gap-2">
                         <FieldLabel forId="erase-phrase" label={erase.phraseLabel} />

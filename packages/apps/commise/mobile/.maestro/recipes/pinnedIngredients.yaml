@@ -1,0 +1,86 @@
+appId: ${APP_ID}
+---
+# The pinned ingredients bar on the recipe page (owner ruling R1, `docs/plans/2026-11-08-pinnedIngredientsBar.md`; web mirror
+# `recipeDetailPinnedIngredients.spec.ts`), on a device:
+#
+#   1. On the card the bar is absent; scrolled into the steps, with the ingredients card above the top of the screen, ONE button
+#      is pinned at the top: "Ingredients for {n}, {count} items. Show list."
+#   2. Tapping it opens the list under it, the servings stepper first ("Servings"), then the rows; the bar now reads Hide.
+#   3. A tick in the list is the card's tick: close the list, scroll back to the card, and the row is checked.
+#
+# ⚠️ THE RECIPE. The bar draws only once the card has scrolled off the top, and every recipe in the seeded world is too short for
+# that, so this flow opens the signer's TALL recipe (twelve long steps), which `reset --mode library` adds alongside the filler
+# recipes (`LONG_LIBRARY_FLOWS` in runMaestroFlows.sh, `TALL_LIBRARY_RECIPE_BASE_TITLE` in e2e-seed). Its title is the base plus
+# the run key, which the manifest already supplies.
+- runFlow: ../auth/signin.yaml
+
+- assertVisible: 'My recipes'
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Tall Library Recipe ${E2E_RUN_KEY}'
+          DIRECTION: DOWN
+          TIMEOUT: 30000
+- tapOn: 'Tall Library Recipe ${E2E_RUN_KEY}'
+
+# ── THE CARD IN VIEW ── no bar yet: the cook has not scrolled past the ingredients.
+- scrollUntilVisible:
+      element: '3 tbsp Tomato paste.*'
+      direction: DOWN
+      timeout: 20000
+- assertNotVisible: 'Ingredients for .*Show list.*'
+
+# ── IN THE STEPS ── the bar is pinned.
+- scrollUntilVisible:
+      element: 'Mark step 8 as current'
+      direction: DOWN
+      timeout: 30000
+- extendedWaitUntil:
+      visible: 'Ingredients for .*Show list.*'
+      timeout: 10000
+
+# ── OPEN ── the stepper leads the list, then the rows.
+- tapOn: 'Ingredients for .*Show list.*'
+- extendedWaitUntil:
+      visible: 'Ingredients for .*Hide list.*'
+      timeout: 10000
+- assertVisible: 'Servings'
+
+# ── TICK ── in the list. The card's rows stay in the tree under the bar and the scrim, so the list's row is the one BELOW its
+# Servings label.
+- tapOn:
+      text: '3 tbsp Tomato paste.*'
+      below: 'Servings'
+- assertVisible: 'Ingredients for .*, 1 ticked. Hide list.*'
+
+# ── CLOSE ── by the bar, which stays above its list.
+- tapOn: 'Ingredients for .*Hide list.*'
+- extendedWaitUntil:
+      visible: 'Ingredients for .*, 1 ticked. Show list.*'
+      timeout: 10000
+- assertNotVisible: 'Ingredients for .*Hide list.*'
+
+# ── THE CARD'S TICK ── back at the card, the row is checked, and the bar is gone again.
+- scrollUntilVisible:
+      element: '3 tbsp Tomato paste.*'
+      direction: UP
+      timeout: 30000
+      centerElement: true
+- runFlow:
+      when:
+          platform: Android
+      commands:
+          - assertVisible:
+                text: '3 tbsp Tomato paste.*'
+                checked: true
+- runFlow:
+      when:
+          platform: iOS
+      commands:
+          - assertVisible:
+                text: 'checkbox, checked'
+                below: '1 cup Red wine.*'
+- assertNotVisible: 'Ingredients for .*Show list.*'
+
+# ── LEAVE THE TICK AS FOUND ──
+- tapOn: '3 tbsp Tomato paste.*'

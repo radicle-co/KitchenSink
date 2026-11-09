@@ -414,6 +414,29 @@ export const LIBRARY_FILLER_COUNT = 6;
 /** The filler recipes' title before it is scoped to a run: `<base> N`, then `<base> N <runKey>`. */
 const LIBRARY_FILLER_BASE_TITLE = 'Long Library Filler';
 
+/** The tall recipe's title before it is scoped to a run: `<base> <runKey>`. `recipes/pinnedIngredients` opens it by that title. */
+export const TALL_LIBRARY_RECIPE_BASE_TITLE = 'Tall Library Recipe';
+
+/**
+ * Twelve long steps. The pinned ingredients bar draws only once the ingredients card has scrolled ABOVE the top of the screen,
+ * and every recipe in {@link SEED_WORLD} is too short for that: the lamb's card still ends 230 px below the top at the end of
+ * its page on a 1080x2400 emulator. Twelve steps of two lines each put several screens under the card.
+ */
+const TALL_RECIPE_STEPS: readonly string[] = [
+    'Heat the oven to 160 degrees and set a heavy pot on the hob over a medium flame until a drop of water spits when it lands, taking your time and keeping the heat gentle.',
+    'Pat the ribs dry with paper towels and season them generously on every side, pressing the salt into the meat with your palm, taking your time and keeping the heat gentle.',
+    'Brown the ribs in the pot in two batches, a few minutes on each side, until a deep crust forms, then move them to a plate, taking your time and keeping the heat gentle.',
+    'Pour off most of the fat, add the shallots and cook them slowly, stirring now and then, until they are soft and just coloured.',
+    'Stir in the garlic and thyme for a minute, then add the tomato paste and cook it until it darkens a shade and smells sweet, taking your time and keeping the heat gentle.',
+    'Pour in the red wine, scrape the browned bits from the base of the pot and let the wine bubble until it has reduced by half, taking your time and keeping the heat gentle.',
+    'Return the ribs to the pot with any juices from the plate, add enough stock to come two thirds of the way up the meat, taking your time and keeping the heat gentle.',
+    'Bring the liquid to a simmer, lay a sheet of baking paper over the surface, cover the pot with its lid and slide it into the oven.',
+    'Braise for two hours, turning the ribs once halfway, then check that the meat is nearly tender when pressed with a spoon, taking your time and keeping the heat gentle.',
+    'Uncover the pot and cook for another thirty minutes so the top browns and the sauce thickens enough to coat the back of a spoon.',
+    'Lift the ribs out onto a warm dish, skim the fat from the sauce and simmer it hard for a few minutes until glossy and rich, taking your time and keeping the heat gentle.',
+    'Taste the sauce for salt and a squeeze of lemon, spoon it over the ribs and serve them at once with mash and something green.',
+];
+
 /**
  * The signer's filler recipes, for `reset --mode library` and `recipes/headerScrollsAway` alone.
  *
@@ -426,25 +449,48 @@ const LIBRARY_FILLER_BASE_TITLE = 'Long Library Filler';
  * @returns The run-scoped fillers, in creation order.
  */
 function deriveLibraryFillers(runKey: string): readonly FixtureRecipe[] {
-    return Object.freeze(
-        Array.from({ length: LIBRARY_FILLER_COUNT }, (_, index) =>
-            Object.freeze({
-                key: 'libraryFiller',
-                owner: 'signer',
-                baseTitle: `${LIBRARY_FILLER_BASE_TITLE} ${index + 1}`,
-                title: runScopedTitle(`${LIBRARY_FILLER_BASE_TITLE} ${index + 1}`, runKey),
-                cuisine: 'American',
-                description: 'A recipe that only makes the library longer than a screen.',
-                visibility: 'private',
-                servings: 2,
-                prepTimeMinutes: 5,
-                cookTimeMinutes: 5,
-                totalTimeMinutes: 10,
-                ingredients: Object.freeze([Object.freeze({ name: 'Olive oil', quantity: 1, unit: 'tbsp' })]),
-                steps: Object.freeze([Object.freeze({ instruction: 'Stir.', timerSeconds: undefined })]),
-            } as const),
-        ),
+    const fillers = Array.from({ length: LIBRARY_FILLER_COUNT }, (_, index) =>
+        Object.freeze({
+            key: 'libraryFiller',
+            owner: 'signer',
+            baseTitle: `${LIBRARY_FILLER_BASE_TITLE} ${index + 1}`,
+            title: runScopedTitle(`${LIBRARY_FILLER_BASE_TITLE} ${index + 1}`, runKey),
+            cuisine: 'American',
+            description: 'A recipe that only makes the library longer than a screen.',
+            visibility: 'private',
+            servings: 2,
+            prepTimeMinutes: 5,
+            cookTimeMinutes: 5,
+            totalTimeMinutes: 10,
+            ingredients: Object.freeze([Object.freeze({ name: 'Olive oil', quantity: 1, unit: 'tbsp' })]),
+            steps: Object.freeze([Object.freeze({ instruction: 'Stir.', timerSeconds: undefined })]),
+        } as const),
     );
+    // The same set holds the tall recipe, so the one reset mode and its residue-by-title rule already cover it.
+    const tall = Object.freeze({
+        key: 'libraryFiller',
+        owner: 'signer',
+        baseTitle: TALL_LIBRARY_RECIPE_BASE_TITLE,
+        title: runScopedTitle(TALL_LIBRARY_RECIPE_BASE_TITLE, runKey),
+        cuisine: 'American',
+        description: 'A recipe tall enough that its ingredients card scrolls off the screen.',
+        visibility: 'private',
+        servings: 4,
+        prepTimeMinutes: 20,
+        cookTimeMinutes: 150,
+        totalTimeMinutes: 170,
+        // Three different names: two identical lines would be ticked together on a device.
+        ingredients: Object.freeze([
+            Object.freeze({ name: 'Short ribs', quantity: 2, unit: 'kg' }),
+            Object.freeze({ name: 'Red wine', quantity: 1, unit: 'cup' }),
+            Object.freeze({ name: 'Tomato paste', quantity: 3, unit: 'tbsp' }),
+        ]),
+        steps: Object.freeze(
+            TALL_RECIPE_STEPS.map((instruction) => Object.freeze({ instruction, timerSeconds: undefined })),
+        ),
+    } as const);
+
+    return Object.freeze([...fillers, tall]);
 }
 
 /**

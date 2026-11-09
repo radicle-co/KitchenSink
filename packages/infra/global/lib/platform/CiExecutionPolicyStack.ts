@@ -13,7 +13,7 @@
  * A role that could deploy this stack could rewrite its own execution policy and boundary, which is exactly the
  * privilege the policies exist to remove. Three structural properties keep it out of CI's reach:
  *
- * - it uses {@link CliCredentialsStackSynthesizer}: the owner's own admin session creates it, with no bootstrap
+ * - it uses `CliCredentialsStackSynthesizer`: the owner's own admin session creates it, with no bootstrap
  *   role in the path (so it does not even depend on the shared default bootstrap another application owns);
  * - `bin/account.ts` constructs it ONLY under the CDK context flag `ciPoliciesOwnerDeploy`, which no workflow
  *   passes, so `accountDeploy.yml`'s `cdk deploy --all` cannot see it;

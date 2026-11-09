@@ -86,7 +86,7 @@ describe('RecipeDetailView (web) — a variant-bound line (F1/AE1 display, R25)'
                 dataSourcesHref="/en/legal/sources"
                 unreachableRetry={idleUnreachableRetry}
                 recipe={makeRecipeDetail({
-                    ingredients: [makeVariantBoundLine({ preparation: 'sliced thin', notes: 'trim the cap' })],
+                    ingredients: [makeVariantBoundLine({ preparation: 'sliced thin', displayText: 'trim the cap' })],
                 })}
             />,
         );
@@ -271,7 +271,7 @@ describe('RecipeDetailView (web) — no comma-joined variant label (origin Succe
                     ingredients: [
                         makeVariantBoundLine(),
                         // The cook's own words: the detector must find these, or it finds nothing anywhere.
-                        makeRootBoundLine({ notes: 'flat half, separable lean and fat' }),
+                        makeRootBoundLine({ displayText: 'flat half, separable lean and fat' }),
                     ],
                 })}
             />,

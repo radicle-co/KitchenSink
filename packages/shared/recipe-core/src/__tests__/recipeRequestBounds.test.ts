@@ -40,7 +40,8 @@ import {
     recipeIngredientGroupLabelSchema,
     recipeIngredientIdSchema,
     recipeIngredientNameSchema,
-    recipeIngredientNotesSchema,
+    recipeIngredientDisplayTextSchema,
+    recipeIngredientNoteSchema,
     recipeIngredientPreparationSchema,
     recipeIngredientQuantitySchema,
     recipeIngredientUnitSchema,
@@ -177,10 +178,21 @@ describe('ingredient line strings', () => {
         expect(accepts(recipeIngredientUnitSchema, '')).toBe(false);
     });
 
-    it('notes rejects `""`, which the read schema rejects too', () => {
-        expect(accepts(recipeIngredientNotesSchema, 'finely chopped')).toBe(true);
-        expect(accepts(recipeIngredientNotesSchema, '')).toBe(false);
-        expect(accepts(recipeIngredientViewSchema.shape.notes, '')).toBe(false);
+    it('note rejects blank text, which the read schema rejects too', () => {
+        expect(accepts(recipeIngredientNoteSchema, '9 inch')).toBe(true);
+        expect(accepts(recipeIngredientNoteSchema, '')).toBe(false);
+        expect(accepts(recipeIngredientNoteSchema, '   ')).toBe(false);
+        expect(accepts(recipeIngredientViewSchema.shape.note, '')).toBe(false);
+    });
+
+    it('displayText rejects blank text, which the database CHECK refuses too', () => {
+        expect(accepts(recipeIngredientDisplayTextSchema, '   ')).toBe(false);
+    });
+
+    it('displayText rejects `""`, which the read schema rejects too', () => {
+        expect(accepts(recipeIngredientDisplayTextSchema, 'finely chopped')).toBe(true);
+        expect(accepts(recipeIngredientDisplayTextSchema, '')).toBe(false);
+        expect(accepts(recipeIngredientViewSchema.shape.displayText, '')).toBe(false);
     });
 });
 
@@ -373,7 +385,7 @@ describe('U26 — ingredient preparation', () => {
     it('the READ schema accepts what the request schema produces, and still rejects `""`', () => {
         expect(accepts(recipeIngredientViewSchema.shape.preparation, 'finely chopped')).toBe(true);
         expect(accepts(recipeIngredientViewSchema.shape.preparation, '')).toBe(false);
-        // ⚠️ NO maximum on the read side, deliberately — the `recipeIngredientNotesSchema` precedent: a response
+        // ⚠️ NO maximum on the read side, deliberately — the `recipeIngredientDisplayTextSchema` precedent: a response
         // has to be able to carry a value persisted before the bound existed.
         expect(accepts(recipeIngredientViewSchema.shape.preparation, 'a'.repeat(500))).toBe(true);
     });

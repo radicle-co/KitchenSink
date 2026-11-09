@@ -76,7 +76,7 @@ describe('RecipeDetailView (native) — a variant-bound line (F1/AE1 display, R2
             <RecipeDetailView
                 unreachableRetry={idleUnreachableRetry}
                 recipe={makeRecipeDetail({
-                    ingredients: [makeVariantBoundLine({ preparation: 'sliced thin', notes: 'trim the cap' })],
+                    ingredients: [makeVariantBoundLine({ preparation: 'sliced thin', displayText: 'trim the cap' })],
                 })}
             />,
         );
@@ -155,7 +155,7 @@ describe('RecipeDetailView (native) — no comma-joined variant label (origin Su
                 recipe={makeRecipeDetail({
                     ingredients: [
                         makeVariantBoundLine(),
-                        makeRootBoundLine({ notes: 'flat half, separable lean and fat' }),
+                        makeRootBoundLine({ displayText: 'flat half, separable lean and fat' }),
                     ],
                 })}
             />,

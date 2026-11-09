@@ -484,7 +484,7 @@ export const ingredientVariantSchema = z.object({
 /**
  * A recipe ingredient line as returned on the wire (the read projection of {@link RecipeIngredient}). It
  * carries exactly what the recipe-detail UI renders: the line's `name`, the `quantity`/`unit`, an optional
- * free-form `notes` override, and `isUserEntered` (the "user-entered" badge — a line whose name the cook
+ * `displayText` (the food words the line shows) and `note`, and `isUserEntered` (the "user-entered" badge — a line whose name the cook
  * declared). Per-line nutrition and persistence ids stay server-side.
  */
 export interface RecipeIngredientView {
@@ -527,7 +527,10 @@ export interface RecipeIngredientView {
     /** What the source stated: one value, two bounds, or nothing (U8/KTD-6). Never a bare number. */
     quantity: IngredientQuantity;
     unit?: string;
-    notes?: string;
+    /** The food text this line SHOWS (the cook's own words); absent shows the bound food's name. Never a food name. */
+    displayText?: string;
+    /** A dimension the cook wrote in parentheses after the amount ("9 inch"), shown beside the food. */
+    note?: string;
     /**
      * How this recipe prepares the food (plan U26) — `finely chopped`, `at room temperature`.
      *
@@ -584,10 +587,11 @@ export const recipeIngredientViewSchema = z.object({
     unresolvedReason: unresolvedFoodReasonSchema.optional(),
     quantity: ingredientQuantitySchema,
     unit: z.string().min(1).optional(),
-    notes: z.string().min(1).optional(),
-    // U26/U27 — `.min(1)` and NO maximum, matching `notes` above and for the same two reasons: `''` would be
+    displayText: z.string().min(1).optional(),
+    note: z.string().min(1).optional(),
+    // U26/U27 — `.min(1)` and NO maximum, matching `displayText` above and for the same two reasons: `''` would be
     // a response no client can read back, and a response must be able to carry a value persisted before the
-    // request-side bound existed (the `recipeIngredientNotesSchema` precedent). The bounds live on the
+    // request-side bound existed (the `recipeIngredientDisplayTextSchema` precedent). The bounds live on the
     // REQUEST schemas in `recipeRequestBounds.ts`.
     preparation: z.string().min(1).optional(),
     groupLabel: z.string().min(1).optional(),
@@ -858,7 +862,7 @@ export const ingredientSchema = z.object({
  * These are the canonical DOMAIN field names. The REST wire schema
  * (`RecipeIngredient` in `api.openapi.yaml`) exposes a subset under shorter
  * names — the mapping is: domain `ingredientName` ↔ wire `name`, domain
- * `displayText` ↔ wire `notes`. `quantity`/`unit`/`ingredientId` are shared.
+ * `displayText` ↔ wire `displayText`. `quantity`/`unit`/`ingredientId` are shared.
  */
 export interface RecipeIngredient {
     id: string;
@@ -867,8 +871,10 @@ export interface RecipeIngredient {
     /** What the source stated: one value, two bounds, or nothing (U8/KTD-6). Never a bare number. */
     quantity: IngredientQuantity;
     unit: string;
-    /** Free-form display override (wire field: `notes`). ⛔ Not a preparation — see {@link preparation}. */
+    /** The food text this line shows (wire field + column: `displayText` / `display_text`). ⛔ Not a preparation — see {@link preparation}. */
     displayText?: string;
+    /** A dimension the cook wrote in parentheses after the amount (wire field + column: `note`). Shown beside the food. */
+    note?: string;
     /**
      * How this recipe prepares the food (plan U26; wire field: `preparation`, column `preparation`).
      *

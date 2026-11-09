@@ -74,7 +74,7 @@ function noArchive(read: ReturnType<typeof vi.fn> = vi.fn().mockResolvedValue(un
 
 /** The lines a restore writes, as the fake restorer returns them: the snapshot's lines under a restored binding. */
 const RESTORED_LINES = [
-    { ingredientId: 'restored-lookup', quantity: { kind: 'exact', value: 2 }, unit: 'cup', notes: 'sifted' },
+    { ingredientId: 'restored-lookup', quantity: { kind: 'exact', value: 2 }, unit: 'cup', displayText: 'sifted' },
 ];
 
 /** A line restorer that answers {@link RESTORED_LINES}. Its own policy is pinned by `versionLine.restorer.test.ts`. */

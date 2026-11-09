@@ -45,7 +45,8 @@ import {
     recipeExpectedVersionSchema,
     recipeIngredientGroupLabelSchema,
     recipeIngredientIdSchema,
-    recipeIngredientNotesSchema,
+    recipeIngredientDisplayTextSchema,
+    recipeIngredientNoteSchema,
     recipeIngredientPreparationSchema,
     recipeIngredientSourceLineSchema,
     recipeIngredientSourcePhraseSchema,
@@ -87,14 +88,15 @@ export const recipeIngredientInputSchema = z.strictObject({
     /** Omit for a unitless line; `''` is rejected so "unitless" has ONE representation. */
     unit: recipeIngredientUnitSchema.optional(),
     /**
-     * Free-form display override (persisted as `displayText`).
+     * The food text this line SHOWS (persisted as `displayText`): the cook's own words ("lean ground beef"), chosen once
+     * when the line was written. Omit to show the bound food's name.
      *
-     * ⛔ NOT the preparation, and U26 RESOLVED that rather than renaming it. No EDITOR writes this field —
-     * its one producer is `@kitchensink/cookbook-import`, which writes the source's whole normalized clause
-     * ("2 cups all-purpose flour, sifted") verbatim for a reader. See `preparation` below and
-     * `0030_ingredient_preparation_and_group.sql` for why the two are separate facts.
+     * ⛔ NOT the preparation, and not a food name. See `preparation` below and `0030_ingredient_preparation_and_group.sql`
+     * for why they are separate facts. It was the wire field `notes` until 2026-11-08.
      */
-    notes: recipeIngredientNotesSchema.optional(),
+    displayText: recipeIngredientDisplayTextSchema.optional(),
+    /** A dimension the cook wrote in parentheses after the amount ("9 inch"), shown beside the food (migration 0063). */
+    note: recipeIngredientNoteSchema.optional(),
     /**
      * How THIS recipe prepares the food — `finely chopped`, `at room temperature` (plan U26).
      *

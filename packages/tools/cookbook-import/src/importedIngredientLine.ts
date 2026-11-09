@@ -109,13 +109,15 @@ export function toImportedIngredientLine(parsed: ParsedClause, ingredient: Resol
         // representation, and it is the absent key.
         ...(measure.unit === '' ? {} : { unit: measure.unit }),
         ...(parsed.preparation === undefined ? {} : { preparation: parsed.preparation }),
-        // The source's own words, kept verbatim beside the structured values, for a reader.
-        notes: parsed.raw,
+        // The food words the line shows and the dimension the cook wrote, from the same rule a paste applies (owner ruling
+        // 2026-11-08). The source's whole clause is `sourceLine` below, never a display text.
+        ...(measure.displayText === undefined ? {} : { displayText: measure.displayText }),
+        ...(measure.note === undefined ? {} : { note: measure.note }),
         // ⛔ The field the GATE reads, and it must be the SOURCE's words. `raw` is only byte-identical to
         // what the parser received, and the scanner normalizes first (`dropPartitiveOf` → `normalizeQuantity`
         // → `one` becomes `1`), so sending `raw` would verify our parse against a string we produced from
         // that parse — "a gate that reports success by construction", in the schema's own words. Not a
-        // duplicate of `notes` in meaning either: one is a display override, the other is the transcription
+        // duplicate of `displayText` in meaning either: one is the shown food text, the other is the transcription
         // a verdict is keyed on.
         sourceLine: parsed.sourceText ?? parsed.raw,
         // ⛔ The memo tier's KEY GRAIN (migration 0041, owner ruling 2026-08-31): the phrase the parser

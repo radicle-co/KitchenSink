@@ -543,7 +543,7 @@ const paths: Readonly<Record<string, Partial<Record<HttpMethod, Operation>>>> = 
             operationId: 'rebindRecipeIngredientLine',
             summary: 'Move one line of the caller’s recipe to another food (plan 002 U5).',
             description:
-                'The line keeps its amount, unit, notes, preparation and section, and the recipe gets a new version. A target that is already the line’s food changes nothing.',
+                'The line keeps its amount, unit, displayText, note, preparation and section, and the recipe gets a new version. A target that is already the line’s food changes nothing.',
             parameters: [
                 uuidPathParam('id', 'The recipe id.'),
                 {

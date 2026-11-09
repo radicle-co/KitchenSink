@@ -32,6 +32,7 @@ export interface IngredientLineInput {
     quantity: IngredientQuantity;
     unit: string;
     displayText?: string;
+    note?: string;
     /**
      * How THIS recipe prepares the food — `finely chopped`, `at room temperature` (plan U26, migration 0030).
      * Distinct from {@link displayText}, and never part of the line's name.
@@ -153,6 +154,7 @@ export class IngredientLinesDal {
                     ...quantityColumns(line.quantity),
                     unit: line.unit,
                     displayText: line.displayText ?? null,
+                    note: line.note ?? null,
                     // `?? null`, never `?? ''`: the columns' CHECKs refuse a blank, and NULL is the ONE
                     // spelling of absent.
                     preparation: line.preparation ?? null,

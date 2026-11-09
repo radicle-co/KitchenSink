@@ -22,6 +22,7 @@ describe('toIngredientResponse', () => {
             foodLookupId: 'lookup-1',
             unit: 'cup',
             displayText: 'trimmed',
+            note: '9 inch',
             preparation: 'sliced',
             groupLabel: 'Meat',
         });
@@ -32,7 +33,8 @@ describe('toIngredientResponse', () => {
             foodId: 'food-1',
             quantity: { kind: 'exact', value: 1 },
             unit: 'cup',
-            notes: 'trimmed',
+            displayText: 'trimmed',
+            note: '9 inch',
             preparation: 'sliced',
             groupLabel: 'Meat',
             isUserEntered: false,

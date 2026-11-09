@@ -116,7 +116,7 @@ describe('ingredients (recipe line) preparation + group_label (migrations 0030 �
 
     // ⛔ `''` would be a SECOND spelling of absent, and the read projection omits the key for `NULL` only —
     // so a blank would reach the wire as `preparation: ''`, which `recipeIngredientViewSchema` (`min(1)`)
-    // rejects: a body the server can write and no client can read. The exact break `notes` had.
+    // rejects: a body the server can write and no client can read. The exact break `displayText` (then `notes`) had.
     it('REFUSES a blank preparation', async () => {
         await expect(insertLine({ preparation: '', groupLabel: null })).rejects.toThrow(
             /ingredients_preparation_present/u,

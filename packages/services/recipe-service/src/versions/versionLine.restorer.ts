@@ -67,7 +67,8 @@ export class VersionLineRestorer {
                 ingredientId: lookupIdOf(decision, declared),
                 quantity: line.quantity,
                 unit: line.unit,
-                ...(line.displayText !== undefined ? { notes: line.displayText } : {}),
+                ...(line.displayText !== undefined ? { displayText: line.displayText } : {}),
+                ...(line.note !== undefined ? { note: line.note } : {}),
                 // U26/U27 — on the BASE request schema precisely so a restore can carry them.
                 ...(line.preparation !== undefined ? { preparation: line.preparation } : {}),
                 ...(line.groupLabel !== undefined ? { groupLabel: line.groupLabel } : {}),

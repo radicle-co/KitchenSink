@@ -186,6 +186,7 @@ function toClonedLineInput(row: IngredientRow): IngredientLineInput {
         quantity: quantityFromColumns(row),
         unit: row.unit,
         ...(row.displayText !== null ? { displayText: row.displayText } : {}),
+        ...(row.note !== null ? { note: row.note } : {}),
         // U26/U27 — facts about THIS LINE that the cloner is copying wholesale.
         ...(row.preparation !== null ? { preparation: row.preparation } : {}),
         ...(row.groupLabel !== null ? { groupLabel: row.groupLabel } : {}),
@@ -268,6 +269,7 @@ function aggregateToSnapshot(aggregate: RecipeAggregate, identities: LineIdentit
                 quantity: quantityFromColumns(line),
                 unit: line.unit,
                 ...(line.displayText !== null ? { displayText: line.displayText } : {}),
+                ...(line.note !== null ? { note: line.note } : {}),
                 // U26/U27 — in the SNAPSHOT, so a restore can put them back.
                 ...(line.preparation !== null ? { preparation: line.preparation } : {}),
                 ...(line.groupLabel !== null ? { groupLabel: line.groupLabel } : {}),
@@ -316,7 +318,8 @@ function ingredientsChanged(existing: IngredientRow[], incoming: RecipeIngredien
             // object's own identity, and it is what makes an upper-bound-only edit substantive (C-004).
             !quantitiesEqual(quantityFromColumns(row), next.quantity) ||
             (row.unit.length > 0 ? row.unit : '') !== (next.unit ?? '') ||
-            (row.displayText ?? null) !== (next.notes ?? null) ||
+            (row.displayText ?? null) !== (next.displayText ?? null) ||
+            (row.note ?? null) !== (next.note ?? null) ||
             // ⛔ U26/U27 — this function is a POSITIVE field-by-field enumeration (see the note above), so a
             // line field left out here is invisible to it and nothing fails to compile. Left out, an edit
             // that changes ONLY how the onion is chopped, or which section the line sits in, is saved with

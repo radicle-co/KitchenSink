@@ -953,7 +953,7 @@ describe('RecipeDetailView (native) — a long ingredient line cannot push the r
             ingredients: [
                 makeIngredientView({
                     name: 'Slow-roasted San Marzano tomatoes from the co-op down the road',
-                    notes: 'peeled, deseeded, and crushed by hand just before serving',
+                    displayText: 'peeled, deseeded, and crushed by hand just before serving',
                     isUserEntered: true,
                 }),
             ],
@@ -1475,7 +1475,7 @@ describe('RecipeDetailView (native) — ingredient preparation (U26)', () => {
                         makeIngredientView({
                             name: 'Flour',
                             preparation: 'sifted',
-                            notes: '2 cups all-purpose flour, sifted',
+                            displayText: '2 cups all-purpose flour, sifted',
                         }),
                     ],
                 })}

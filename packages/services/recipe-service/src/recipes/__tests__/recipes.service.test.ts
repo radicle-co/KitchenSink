@@ -1585,6 +1585,7 @@ function richAggregate(recipeOverrides: Partial<Parameters<typeof makeRecipeRow>
                 quantity: '2',
                 unit: 'cup',
                 displayText: 'diced',
+                note: '9 inch',
                 sortOrder: 0,
             }),
         ],
@@ -1614,7 +1615,8 @@ describe('RecipesService — response mapping fidelity (Tier-2)', () => {
             hasVariants: false,
             quantity: { kind: 'exact', value: 2 },
             unit: 'cup',
-            notes: 'diced',
+            displayText: 'diced',
+            note: '9 inch',
             isUserEntered: false,
             resolutionStatus: 'RESOLVED',
         });
@@ -1642,7 +1644,8 @@ describe('RecipesService — response mapping fidelity (Tier-2)', () => {
         expect(res).not.toHaveProperty('cuisine');
         expect(res.steps[0]).not.toHaveProperty('timerSeconds'); // null timer → omitted
         expect(res.ingredients[0]).not.toHaveProperty('unit'); // empty unit → omitted
-        expect(res.ingredients[0]).not.toHaveProperty('notes'); // null displayText → omitted
+        expect(res.ingredients[0]).not.toHaveProperty('displayText'); // null displayText → omitted
+        expect(res.ingredients[0]).not.toHaveProperty('note'); // null note → omitted
     });
 
     it('reflects a tombstone deletedAt as an ISO string (not null) when set', async () => {
@@ -1771,12 +1774,13 @@ describe('RecipesService — C-004 substantive-edit detection, per field (Tier-2
     }
 
     // The existing rich aggregate: 1 step (instruction 'Mix', timer 45) + 1 ingredient
-    // (ing-A, qty 2, unit 'cup', notes 'diced').
+    // (ing-A, qty 2, unit 'cup', displayText 'diced', note '9 inch').
     const SAME_INGREDIENT = {
         ingredientId: 'ing-A',
         quantity: { kind: 'exact', value: 2 },
         unit: 'cup',
-        notes: 'diced',
+        displayText: 'diced',
+        note: '9 inch',
     } as const satisfies RecipeIngredientInputDto;
     const SAME_STEP = { instruction: 'Mix', timerSeconds: 45 };
 
@@ -1855,8 +1859,12 @@ describe('RecipesService — C-004 substantive-edit detection, per field (Tier-2
         expect(await isSubstantive({ ingredients: [{ ...SAME_INGREDIENT, unit: 'tbsp' }] })).toBe(true);
     });
 
-    it('an ingredient NOTES-only change is substantive', async () => {
-        expect(await isSubstantive({ ingredients: [{ ...SAME_INGREDIENT, notes: 'minced' }] })).toBe(true);
+    it('an ingredient displayText-only change is substantive', async () => {
+        expect(await isSubstantive({ ingredients: [{ ...SAME_INGREDIENT, displayText: 'minced' }] })).toBe(true);
+    });
+
+    it('an ingredient note-only change is substantive', async () => {
+        expect(await isSubstantive({ ingredients: [{ ...SAME_INGREDIENT, note: '10 inch' }] })).toBe(true);
     });
 
     /**
@@ -2317,21 +2325,21 @@ describe('RecipesService — preparation + groupLabel travel with the line (U26/
         expect(res.ingredients[0]?.name).not.toContain('finely chopped');
     });
 
-    // ⛔ `notes` (the wire name for `display_text`) and `preparation` are DIFFERENT FACTS with different
+    // ⛔ `displayText` (the wire name for `display_text`), `note` and `preparation` are DIFFERENT FACTS with different
     // producers — U26 resolved that rather than renaming one into the other. This pins that both reach the
     // wire independently, so a later "these look redundant, drop one" edit reds here.
-    it('emits `notes` and `preparation` as SEPARATE keys — U26 did not merge them', async () => {
+    it('emits `displayText` and `preparation` as SEPARATE keys — U26 did not merge them', async () => {
         const dal = fakeRecipesDal({ findById: vi.fn().mockResolvedValue(groupedAggregate()) });
 
         const res = await newService(dal).getById({ viewerId: OWNER, id: 'r-1', caller: undefined, budget: 'read' });
 
-        expect(res.ingredients[0]?.notes).toBe('2 cups onion, finely chopped');
+        expect(res.ingredients[0]?.displayText).toBe('2 cups onion, finely chopped');
         expect(res.ingredients[0]?.preparation).toBe('finely chopped');
     });
 
     // ⛔ `null` → the key is OMITTED, never emitted as `''`. `recipeIngredientViewSchema` rejects `''`
     // (`min(1)`), so emitting a blank is a body this server can write and no client can read — the exact
-    // break `notes` had before its `min(1)` landed.
+    // break `displayText` had before its `min(1)` landed.
     it('OMITS both keys for an ungrouped, unprepared line rather than emitting `""`', async () => {
         const bare: RecipeAggregate = {
             recipe: makeRecipeRow({ id: 'r-2', ownerId: OWNER, deletedAt: null }),

@@ -83,7 +83,10 @@ export interface RecipeFormIngredient {
      * ⛔ NOT the preparation, and no editor writes it — see {@link preparation}. It is carried here only so
      * that opening an IMPORTED recipe and saving it does not destroy the clause the importer stored.
      */
-    readonly notes?: string;
+    /** The food text the line shows (the cook's own words); absent shows the bound food's name (wire: `displayText`). */
+    readonly displayText?: string;
+    /** A dimension the cook wrote in parentheses after the amount ("9 inch"), shown beside the food (wire: `note`). */
+    readonly note?: string;
     /**
      * How this recipe prepares the food — `finely chopped`, `at room temperature` (plan U26).
      *

@@ -98,11 +98,15 @@ describe('toImportedIngredientLine', () => {
         expect(toImportedIngredientLine({ ...parsed, unit: null }, ingredient)).not.toHaveProperty('unit');
     });
 
-    it('keeps `notes` carrying the clause too — display and transcription are different jobs', () => {
-        // Migration 0024 calls `display_text` a display OVERRIDE and refuses it as a substitute for
-        // `source_line`. They hold the same string here and are not the same fact; changing what an
-        // imported line DISPLAYS is a separate decision from what the gate verifies against.
-        expect(toImportedIngredientLine(parsed, ingredient).notes).toBe('2 cups all-purpose flour, sifted');
+    it('sends the clause as `sourceLine` ONLY: no parse answered `display`, so the line shows its food’s name', () => {
+        // Migration 0024 refuses `display_text` as a substitute for `source_line`, and the owner ruling of 2026-11-08
+        // makes `displayText` the food words a parse chose to show. An importer with no such answer sends none,
+        // instead of the whole clause it used to send as `notes`.
+        const line = toImportedIngredientLine(parsed, ingredient);
+
+        expect(line).not.toHaveProperty('notes');
+        expect(line).not.toHaveProperty('displayText');
+        expect(line.sourceLine).toBe('2 cups all-purpose flour, sifted');
     });
 });
 

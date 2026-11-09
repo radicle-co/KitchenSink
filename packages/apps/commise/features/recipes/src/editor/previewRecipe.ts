@@ -65,7 +65,8 @@ export function previewRecipeOf(input: PreviewInput): RecipeDetail {
             ...(line.variant === undefined ? {} : { variant: line.variant }),
             quantity: draftQuantity(line),
             ...(line.unit === undefined || line.unit === '' ? {} : { unit: line.unit }),
-            ...(line.notes === undefined || line.notes === '' ? {} : { notes: line.notes }),
+            ...(line.displayText === undefined || line.displayText === '' ? {} : { displayText: line.displayText }),
+            ...(line.note === undefined || line.note === '' ? {} : { note: line.note }),
             ...(line.preparation === undefined || line.preparation.trim() === ''
                 ? {}
                 : { preparation: line.preparation.trim() }),

@@ -2044,6 +2044,10 @@
             "$schema": "https://json-schema.org/draft/2020-12/schema",
             "additionalProperties": false,
             "properties": {
+                "displayText": {
+                    "minLength": 1,
+                    "type": "string"
+                },
                 "groupLabel": {
                     "maxLength": 60,
                     "minLength": 1,
@@ -2054,7 +2058,7 @@
                     "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                     "type": "string"
                 },
-                "notes": {
+                "note": {
                     "minLength": 1,
                     "type": "string"
                 },
@@ -2264,6 +2268,10 @@
                     "items": {
                         "additionalProperties": false,
                         "properties": {
+                            "displayText": {
+                                "minLength": 1,
+                                "type": "string"
+                            },
                             "groupLabel": {
                                 "maxLength": 60,
                                 "minLength": 1,
@@ -2274,7 +2282,7 @@
                                 "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                                 "type": "string"
                             },
-                            "notes": {
+                            "note": {
                                 "minLength": 1,
                                 "type": "string"
                             },
@@ -10416,6 +10424,10 @@
                                 ],
                                 "type": "string"
                             },
+                            "displayText": {
+                                "minLength": 1,
+                                "type": "string"
+                            },
                             "foodId": {
                                 "minLength": 1,
                                 "type": "string"
@@ -10438,7 +10450,7 @@
                                 "minLength": 1,
                                 "type": "string"
                             },
-                            "notes": {
+                            "note": {
                                 "minLength": 1,
                                 "type": "string"
                             },
@@ -11076,6 +11088,10 @@
             "$schema": "https://json-schema.org/draft/2020-12/schema",
             "additionalProperties": false,
             "properties": {
+                "displayText": {
+                    "minLength": 1,
+                    "type": "string"
+                },
                 "groupLabel": {
                     "maxLength": 60,
                     "minLength": 1,
@@ -11086,7 +11102,7 @@
                     "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                     "type": "string"
                 },
-                "notes": {
+                "note": {
                     "minLength": 1,
                     "type": "string"
                 },
@@ -12760,6 +12776,10 @@
                                         ],
                                         "type": "string"
                                     },
+                                    "displayText": {
+                                        "minLength": 1,
+                                        "type": "string"
+                                    },
                                     "foodId": {
                                         "minLength": 1,
                                         "type": "string"
@@ -12782,7 +12802,7 @@
                                         "minLength": 1,
                                         "type": "string"
                                     },
-                                    "notes": {
+                                    "note": {
                                         "minLength": 1,
                                         "type": "string"
                                     },
@@ -13425,6 +13445,10 @@
                     "items": {
                         "additionalProperties": false,
                         "properties": {
+                            "displayText": {
+                                "minLength": 1,
+                                "type": "string"
+                            },
                             "groupLabel": {
                                 "maxLength": 60,
                                 "minLength": 1,
@@ -13435,7 +13459,7 @@
                                 "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                                 "type": "string"
                             },
-                            "notes": {
+                            "note": {
                                 "minLength": 1,
                                 "type": "string"
                             },

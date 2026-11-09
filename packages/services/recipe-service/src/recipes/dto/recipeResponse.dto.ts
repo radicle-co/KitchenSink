@@ -47,7 +47,8 @@ export interface RecipeIngredientResponse {
     /** What the source stated — one value, two bounds, or nothing (U8/KTD-6). Never a bare number. */
     quantity: IngredientQuantity;
     unit?: string;
-    notes?: string;
+    displayText?: string;
+    note?: string;
     /** How THIS recipe prepares the food (plan U26). ⛔ Never part of {@link name}. */
     preparation?: string;
     /** The section this line belongs to (plan U27). Absent means ungrouped, which is most lines. */

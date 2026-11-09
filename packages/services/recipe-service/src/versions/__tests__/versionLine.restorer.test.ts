@@ -58,6 +58,7 @@ describe('VersionLineRestorer.restoreLines', () => {
             snapshotLine({
                 ingredientName: 'Beef brisket',
                 displayText: 'trimmed',
+                note: '9 inch',
                 preparation: 'sliced',
                 groupLabel: 'Meat',
                 userCalories: 40,
@@ -71,7 +72,8 @@ describe('VersionLineRestorer.restoreLines', () => {
                 ingredientId: 'l-root',
                 quantity: { kind: 'exact', value: 2 },
                 unit: 'cup',
-                notes: 'trimmed',
+                displayText: 'trimmed',
+                note: '9 inch',
                 preparation: 'sliced',
                 groupLabel: 'Meat',
                 userCalories: 40,
@@ -79,7 +81,7 @@ describe('VersionLineRestorer.restoreLines', () => {
         ]);
     });
 
-    it('⛔ OMITS a preparation, section and notes the snapshot did not carry, rather than restoring `""`', async () => {
+    it('⛔ OMITS a preparation, section, displayText and note the snapshot did not carry, rather than restoring `""`', async () => {
         // A restore that cannot carry a field silently strips it; one that invents `""` restores a value the cook
         // never wrote. Both fields sit on the BASE request schema (U26/U27) precisely so a restore can carry them.
         const { restorer } = build(
@@ -92,7 +94,8 @@ describe('VersionLineRestorer.restoreLines', () => {
 
         expect(line).not.toHaveProperty('preparation');
         expect(line).not.toHaveProperty('groupLabel');
-        expect(line).not.toHaveProperty('notes');
+        expect(line).not.toHaveProperty('displayText');
+        expect(line).not.toHaveProperty('note');
     });
 
     it('⛔ declares a name ONCE however many lines carry it, and never resolves one to another food', async () => {

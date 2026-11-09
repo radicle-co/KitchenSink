@@ -29,7 +29,8 @@ interface IngredientLine {
     name?: string;
     quantity: unknown;
     unit?: string;
-    notes?: string;
+    displayText?: string;
+    note?: string;
 }
 
 interface RecipeBody {
@@ -76,7 +77,8 @@ describe('recipe↔ingredient composition (integration)', () => {
                         ingredientId: FLOUR.id,
                         quantity: { kind: 'exact', value: 2 },
                         unit: 'cup',
-                        notes: 'sifted',
+                        displayText: 'sifted',
+                        note: '9 inch',
                     },
                     { ingredientId: SUGAR.id, quantity: { kind: 'exact', value: 1 }, unit: 'tbsp' },
                 ],
@@ -92,7 +94,8 @@ describe('recipe↔ingredient composition (integration)', () => {
                 name: 'Flour',
                 quantity: { kind: 'exact', value: 2 },
                 unit: 'cup',
-                notes: 'sifted',
+                displayText: 'sifted',
+                note: '9 inch',
                 isUserEntered: true,
                 unresolvedReason: 'author_declared',
             },

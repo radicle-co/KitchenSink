@@ -413,6 +413,47 @@ describe('toRecipeFormValues + validate + submit — the quantity round-trip (U9
  * against: a mapper that drops a field lets a cook open a recipe, change nothing, press save, and lose the
  * preparation — with every assertion about "the recipe was saved" still passing.
  */
+/**
+ * Owner ruling 2026-11-08: a line carries the food text it shows (`displayText`) and a dimension (`note`). A load then a
+ * save with no edit must keep both, or opening a recipe in the editor and saving it would silently erase them.
+ */
+describe('displayText + note survive the draft round trip', () => {
+    const detail = makeRecipeDetail({
+        ingredients: [
+            makeIngredientView({
+                ingredientId: 'ing-1',
+                name: 'Pie pastry',
+                quantity: { kind: 'exact', value: 1 },
+                displayText: 'double-crust pie pastry',
+                note: '9 inch',
+            }),
+        ],
+    });
+
+    it('seeds both from a loaded recipe, and sends both on create and on update', () => {
+        const values = toRecipeFormValues(detail);
+
+        expect(values.ingredients[0]).toMatchObject({ displayText: 'double-crust pie pastry', note: '9 inch' });
+        expect(toCreateRecipeInput(values).ingredients[0]).toMatchObject({
+            displayText: 'double-crust pie pastry',
+            note: '9 inch',
+        });
+        expect(toCreateRecipeInput(values).ingredients[0]).not.toHaveProperty('notes');
+    });
+
+    it('omits a blank value rather than sending it, and trims what it sends', () => {
+        const values = toRecipeFormValues(detail);
+        const edited = {
+            ...values,
+            ingredients: values.ingredients.map((line) => ({ ...line, displayText: '   ', note: '  9 inch  ' })),
+        };
+        const line = toCreateRecipeInput(edited).ingredients[0];
+
+        expect(line).not.toHaveProperty('displayText');
+        expect(line).toMatchObject({ note: '9 inch' });
+    });
+});
+
 describe('U26/U27 — preparation + groupLabel survive the draft round trip', () => {
     const detailWith = (over: Partial<RecipeIngredientView>): RecipeDetail =>
         makeRecipeDetail({

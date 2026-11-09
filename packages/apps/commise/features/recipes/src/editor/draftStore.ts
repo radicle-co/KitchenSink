@@ -39,7 +39,7 @@ import type { RecipeFormValues } from '../form/values.js';
 import type { PendingRebind } from '../hooks/lineCommit.js';
 
 /** The format this release writes. Hand-bumped: a bump is a decision, recorded in ADR-0057. */
-export const DRAFT_FORMAT_VERSION = 1;
+export const DRAFT_FORMAT_VERSION = 2;
 
 /** The most drafts kept per user on one device. */
 export const MAX_KEPT_DRAFTS = 20;
@@ -103,7 +103,8 @@ const draftIngredientSchema = z
         quantity: draftAmountSchema,
         quantityHigh: draftAmountSchema.optional(),
         unit: z.string().optional(),
-        notes: z.string().optional(),
+        displayText: z.string().optional(),
+        note: z.string().optional(),
         preparation: z.string().optional(),
         groupLabel: z.string().optional(),
         // ⚠️ The LINE vocabulary, not the catalog one: a line read as `NEEDS_REVIEW` or `FOOD_UNREACHABLE` is a normal

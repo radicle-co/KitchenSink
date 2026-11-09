@@ -36,13 +36,14 @@ describe('correctionPhraseOf — what a rebind teaches (R17: the correction is a
 });
 
 describe('toLineRequest — a stored line as the update path re-saves it (AE11)', () => {
-    it('carries every fact the cook set: a range, the unit, notes, preparation, section and all four overrides', () => {
+    it('carries every fact the cook set: a range, the unit, displayText, note, preparation, section and all four overrides', () => {
         const row = makeIngredientLineRow({
             foodLookupId: 'lookup-1',
             quantity: '1',
             quantityHigh: '2',
             unit: 'cup',
             displayText: '1–2 cups flour, sifted',
+            note: '9 inch',
             preparation: 'sifted',
             groupLabel: 'For the dough',
             userCalories: '100',
@@ -55,7 +56,8 @@ describe('toLineRequest — a stored line as the update path re-saves it (AE11)'
             ingredientId: 'lookup-1',
             quantity: { kind: 'range', low: 1, high: 2 },
             unit: 'cup',
-            notes: '1–2 cups flour, sifted',
+            displayText: '1–2 cups flour, sifted',
+            note: '9 inch',
             preparation: 'sifted',
             groupLabel: 'For the dough',
             userCalories: 100,

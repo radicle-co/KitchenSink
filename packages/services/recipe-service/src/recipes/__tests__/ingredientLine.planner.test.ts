@@ -138,7 +138,7 @@ describe('IngredientLinePlanner.plan', () => {
         const { planner } = build([ROOT, DECLARED], { 'food-1': 'beef brisket' });
 
         const plan = await planner.plan(undefined, [
-            line('l-root', { notes: 'trimmed', preparation: 'sliced', groupLabel: 'Meat' }),
+            line('l-root', { displayText: 'trimmed', note: '9 inch', preparation: 'sliced', groupLabel: 'Meat' }),
             line('l-declared', { unit: undefined, userCalories: 40 }),
         ]);
 
@@ -148,6 +148,7 @@ describe('IngredientLinePlanner.plan', () => {
                 quantity: { kind: 'exact', value: 2 },
                 unit: 'cup',
                 displayText: 'trimmed',
+                note: '9 inch',
                 preparation: 'sliced',
                 groupLabel: 'Meat',
                 sortOrder: 0,

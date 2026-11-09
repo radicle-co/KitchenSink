@@ -42,7 +42,8 @@ export function toIngredientResponse(row: IngredientRow, view: IngredientLineVie
         // Both quantity columns, read through the ONE adapter (`dal/quantityColumns.ts`).
         quantity: quantityFromColumns(row),
         ...(row.unit.length > 0 ? { unit: row.unit } : {}),
-        ...(row.displayText !== null ? { notes: row.displayText } : {}),
+        ...(row.displayText !== null ? { displayText: row.displayText } : {}),
+        ...(row.note !== null ? { note: row.note } : {}),
         // U26/U27 — omitted for `NULL`, NEVER emitted as `''`: `recipeIngredientViewSchema` rejects a blank.
         // ⛔ `preparation` is its own key beside `name`, never folded into it.
         ...(row.preparation !== null ? { preparation: row.preparation } : {}),

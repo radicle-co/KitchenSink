@@ -52,7 +52,8 @@ const BUTTER_ID = '00000000-0000-4000-8000-0000000000cc';
 interface LineBody {
     name: string;
     unit?: string;
-    notes?: string;
+    displayText?: string;
+    note?: string;
     preparation?: string;
     groupLabel?: string;
 }
@@ -208,9 +209,11 @@ describe('preparation + group label, wire to column and back (integration)', () 
     });
 
     it('✅ a PATCH may CHANGE a section, preserving the line’s other fields', async () => {
-        const created = await create([line({ notes: 'a note', preparation: 'sifted', groupLabel: 'Dry' })]);
+        const created = await create([
+            line({ displayText: 'a note', note: '9 inch', preparation: 'sifted', groupLabel: 'Dry' }),
+        ]);
         const response = await patch(created.id, created.currentVersion, [
-            line({ notes: 'a note', preparation: 'sifted', groupLabel: 'Wet' }),
+            line({ displayText: 'a note', note: '9 inch', preparation: 'sifted', groupLabel: 'Wet' }),
         ]);
 
         expect(response.status).toBe(200);
@@ -220,7 +223,8 @@ describe('preparation + group label, wire to column and back (integration)', () 
         expect(fetched.ingredients[0]).toMatchObject({
             name: 'Flour',
             unit: 'cup',
-            notes: 'a note',
+            displayText: 'a note',
+            note: '9 inch',
             preparation: 'sifted',
             groupLabel: 'Wet',
         });

@@ -42,7 +42,7 @@ import { FoodServiceClient } from '@kitchensink/food-service-client';
 import { useFoodServiceClient, useFoodServiceSubject } from '@kitchensink/food-service-client/hooks';
 import type { RecipeServiceClient } from '@kitchensink/recipe-service-client';
 import { useRecipeServiceClient } from '@kitchensink/recipe-service-client/hooks';
-import { EMPTY_OUTBOX, appendIntent, saveOutbox, settle, type Intent } from '@kitchensink/sync';
+import { EMPTY_OUTBOX, appendIntent, saveOutbox, settle, storeKeyFor, type Intent } from '@kitchensink/sync';
 import { QueryClient, QueryClientProvider, onlineManager } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import type { ReactElement } from 'react';
@@ -522,7 +522,7 @@ describe('RecipeServiceGate — the cook’s unsent saves outlive an expired ses
             COOK_A,
             settle(appendIntent(EMPTY_OUTBOX, parkedUpdate), { seq: 1, outcome: 'parked', status: 401 }),
         );
-        await nativeDeviceStore.setItem(`editor.draft.v1.${COOK_A}`, '{"formatVersion":1,"drafts":{}}');
+        await nativeDeviceStore.setItem(`editor.draft.v2.${COOK_A}`, '{"formatVersion":2,"drafts":{}}');
         onlineManager.setOnline(false);
 
         signIn(COOK_A);
@@ -533,15 +533,15 @@ describe('RecipeServiceGate — the cook’s unsent saves outlive an expired ses
         signIn(null);
         view.rerender(<QueueProbe />);
 
-        expect(await nativeDeviceStore.getItem(`sync.outbox.v1.${COOK_A}`)).not.toBeNull();
-        expect(await nativeDeviceStore.getItem(`editor.draft.v1.${COOK_A}`)).not.toBeNull();
+        expect(await nativeDeviceStore.getItem(storeKeyFor(COOK_A))).not.toBeNull();
+        expect(await nativeDeviceStore.getItem(`editor.draft.v2.${COOK_A}`)).not.toBeNull();
 
         // B signs in on the same phone: B sees an empty outbox, and A's keys are untouched.
         signIn(COOK_B);
         view.rerender(<QueueProbe />);
         await waitFor(() => expect(screen.getByText('pending:0|parked:')).toBeTruthy());
-        expect(await nativeDeviceStore.getItem(`sync.outbox.v1.${COOK_A}`)).not.toBeNull();
-        expect(await nativeDeviceStore.getItem(`editor.draft.v1.${COOK_A}`)).not.toBeNull();
+        expect(await nativeDeviceStore.getItem(storeKeyFor(COOK_A))).not.toBeNull();
+        expect(await nativeDeviceStore.getItem(`editor.draft.v2.${COOK_A}`)).not.toBeNull();
         expect(requests).toEqual([]);
 
         // A signs in again: the records reappear, and the 401-parked write goes out and leaves the outbox.

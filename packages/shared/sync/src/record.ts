@@ -83,4 +83,4 @@ export interface OutboxRecord extends Intent {
  * ⚠️ Version 1 is the format ADR-0057 records (`seq`, `sending`, the counter and the resolutions included). Nothing
  * wrote an outbox before that format was fixed — the queue had no `submit` call site — so it was not bumped for it.
  */
-export const LOCAL_SCHEMA_VERSION = 1;
+export const LOCAL_SCHEMA_VERSION = 2;

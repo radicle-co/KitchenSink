@@ -119,7 +119,7 @@ const CREATE_DTO: CreateRecipeDto = {
     prepTimeMinutes: 5,
     cookTimeMinutes: 10,
     totalTimeMinutes: 15,
-    ingredients: [{ ingredientId: ONION_ID, quantity: { kind: 'exact', value: 2 }, unit: 'cup', notes: 'diced' }],
+    ingredients: [{ ingredientId: ONION_ID, quantity: { kind: 'exact', value: 2 }, unit: 'cup', displayText: 'diced' }],
     steps: [{ instruction: 'Mix' }],
 };
 
@@ -130,7 +130,7 @@ const ONION_LINE = {
     foodId: ONION_FOOD_ID,
     quantity: { kind: 'exact', value: 2 },
     unit: 'cup',
-    notes: 'diced',
+    displayText: 'diced',
     // Curated U9: a root line says whether its root has a variant to pick; the nutrition double answers nothing.
     hasVariants: false,
     isUserEntered: false,
@@ -263,7 +263,7 @@ describe('RecipesService.update — line composition (T043b)', () => {
         const patch: UpdateRecipeDto = {
             expectedVersion: 1,
             ingredients: [
-                { ingredientId: ONION_ID, quantity: { kind: 'exact', value: 2 }, unit: 'cup', notes: 'diced' },
+                { ingredientId: ONION_ID, quantity: { kind: 'exact', value: 2 }, unit: 'cup', displayText: 'diced' },
             ],
         };
         await service.update(OWNER_PRINCIPAL, 'r-1', patch, undefined);

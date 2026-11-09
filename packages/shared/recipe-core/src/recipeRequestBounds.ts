@@ -249,22 +249,27 @@ export const recipeIngredientQuantitySchema = z
 export const recipeIngredientUnitSchema = z.string().min(1);
 
 /**
- * An ingredient line's free-form display override (persisted as `displayText`).
+ * The food text an ingredient line SHOWS (persisted as `displayText`, column `display_text`): the cook's own words for
+ * the food ("lean ground beef"), chosen once when the line was written. Absent shows the bound food's name.
  *
- * `.min(1)` fixes a real round-trip break: `''` persisted non-NULL and the read projection emitted
- * `notes: ''`, which `recipeIngredientViewSchema.notes` (`min(1)`) rejects.
+ * ⛔ Trimmed and `.min(1)`. `''` persisted non-NULL and the read projection emitted it, which
+ * `recipeIngredientViewSchema.displayText` (`min(1)`) rejects, so a client could write a line it could not read back; a
+ * blank value is also a second spelling of absent beside the key's omission, and the database refuses it too
+ * (`ingredients_display_text_present`).
  *
- * ⛔ NOT A PREPARATION, and U26 RESOLVED that rather than renaming this (plan U26's open question). The
- * docstring above is accurate and the field is not dead — it simply has no EDITOR writer. Its one producer
- * is `@kitchensink/cookbook-import`'s `toImportedIngredientLine`, which writes `notes: parsed.raw`: the
- * whole normalized clause the book printed (`2 cups all-purpose flour, sifted`), kept verbatim beside the
- * structured values for a reader. Retitling this field to "preparation" would therefore relabel every
- * imported line's FULL CLAUSE as a preparation phrase, on a surface that renders it
- * (`RecipeDetailBody.tsx`) — a visible corruption of data at rest, not a docstring fix. So
- * {@link recipeIngredientPreparationSchema} is a genuinely new field, this one is untouched, and no
- * backfill happens.
+ * ⛔ NOT a food name and NOT a preparation: nothing resolves against it, it is never shared, and it is not part of a
+ * line's matching input (ADR-0045). It replaces the wire name `notes`, which named a free-form override nobody could
+ * explain; `notes` is gone from the wire.
  */
-export const recipeIngredientNotesSchema = z.string().min(1);
+export const recipeIngredientDisplayTextSchema = z.string().trim().min(1);
+
+/**
+ * A dimension the cook wrote in parentheses after the amount ("9 inch"), shown beside the food (persisted as `note`).
+ *
+ * ⛔ Trimmed and `.min(1)` for the same reason as {@link recipeIngredientDisplayTextSchema}; the database refuses a blank
+ * too (`ingredients_note_present`). Never a unit, never a food name, never a matching input.
+ */
+export const recipeIngredientNoteSchema = z.string().trim().min(1);
 
 /**
  * How a cook prepares this line's food — `finely chopped`, `at room temperature`, `roughly torn` (plan U26).
@@ -319,7 +324,7 @@ export const recipeIngredientGroupLabelSchema = z
  * The raw line a cook's SOURCE stated for one ingredient — the transcription, never our rendering of it.
  *
  * ⛔ This is what U11's verification gate checks OUR PARSE AGAINST, which is the only reason it exists. It is
- * therefore never the ingredient's name and never {@link recipeIngredientNotesSchema}: verifying a parse
+ * therefore never the ingredient's name and never {@link recipeIngredientDisplayTextSchema}: verifying a parse
  * against a string we ourselves produced from that parse is circular and always agrees, which is a gate that
  * reports success by construction. `2 cups all-purpose flour, sifted` is a source line; `Flour` is not.
  *

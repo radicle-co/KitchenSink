@@ -240,7 +240,10 @@ test.describe('variant details on the read view (curated U15)', () => {
     });
 
     test('no line shows a comma-joined variant label; the cook’s own comma-joined words do show', async ({ page }) => {
-        await openRecipeWith(page, [flatHalfBrisket, { ...rootBrisket, notes: 'flat half, separable lean and fat' }]);
+        await openRecipeWith(page, [
+            flatHalfBrisket,
+            { ...rootBrisket, displayText: 'flat half, separable lean and fat' },
+        ]);
 
         await expect(lineItem(page, '1 lb beef brisket')).toContainText('flat half, separable lean and fat');
         await expect(lineItem(page, `2 lb beef brisket, ${AE1_SPOKEN}`)).not.toContainText(

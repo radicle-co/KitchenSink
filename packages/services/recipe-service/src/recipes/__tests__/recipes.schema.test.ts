@@ -55,7 +55,7 @@ import {
     recipeExpectedVersionSchema,
     recipeIngredientIdSchema,
     recipeIngredientGroupLabelSchema,
-    recipeIngredientNotesSchema,
+    recipeIngredientDisplayTextSchema,
     recipeIngredientPreparationSchema,
     recipeIngredientSourceLineSchema,
     recipeIngredientSourcePhraseSchema,
@@ -154,7 +154,7 @@ describe('the request fields ARE the recipe-core Value Objects (identity, not eq
         expect(unwrap(createRecipeRequestSchema.shape.description)).toBe(recipeDescriptionSchema);
         expect(unwrap(createRecipeRequestSchema.shape.cuisine)).toBe(recipeCuisineSchema);
         expect(unwrap(recipeIngredientInputSchema.shape.unit)).toBe(recipeIngredientUnitSchema);
-        expect(unwrap(recipeIngredientInputSchema.shape.notes)).toBe(recipeIngredientNotesSchema);
+        expect(unwrap(recipeIngredientInputSchema.shape.displayText)).toBe(recipeIngredientDisplayTextSchema);
         expect(unwrap(recipeStepInputSchema.shape.timerSeconds)).toBe(recipeTimerSecondsSchema);
         expect(unwrap(recipeIngredientInputSchema.shape.userCalories)).toBe(recipeLineNutritionSchema);
     });
@@ -345,10 +345,14 @@ describe('ingredient line strings — no name, and the min(1)s', () => {
         expect(lineAccepts({})).toBe(true);
     });
 
-    it('notes rejects `""`, which the read schema rejects too — the server used to store and echo it', () => {
-        expect(lineAccepts({ notes: 'finely chopped' })).toBe(true);
-        expect(lineAccepts({ notes: '' })).toBe(false);
-        expect(recipeIngredientViewSchema.shape.notes.safeParse('').success).toBe(false);
+    it('displayText and note reject `""`, which the read schema rejects too — the server used to store and echo it', () => {
+        expect(lineAccepts({ displayText: 'finely chopped' })).toBe(true);
+        expect(lineAccepts({ displayText: '' })).toBe(false);
+        expect(recipeIngredientViewSchema.shape.displayText.safeParse('').success).toBe(false);
+        expect(lineAccepts({ note: '9 inch' })).toBe(true);
+        expect(lineAccepts({ note: '' })).toBe(false);
+        expect(lineAccepts({ note: '   ' })).toBe(false);
+        expect(recipeIngredientViewSchema.shape.note.safeParse('').success).toBe(false);
     });
 });
 
@@ -978,9 +982,11 @@ describe('U26 — ingredient preparation, on the BASE schema', () => {
         expect(parsed.preparation).toBe('sifted');
     });
 
-    it('⛔ does NOT displace `notes`, which is a display override with its own producer', () => {
-        expect(lineAccepts({ notes: '2 cups all-purpose flour, sifted', preparation: 'sifted' })).toBe(true);
-        expect(Object.keys(recipeIngredientInputSchema.shape)).toContain('notes');
+    it('⛔ does NOT displace `displayText` or `note`, which have their own producers', () => {
+        expect(lineAccepts({ displayText: 'all-purpose flour', note: '9 inch', preparation: 'sifted' })).toBe(true);
+        expect(Object.keys(recipeIngredientInputSchema.shape)).toEqual(expect.arrayContaining(['displayText', 'note']));
+        // `notes` is gone from the wire: a client that still sends it is refused, not silently ignored.
+        expect(Object.keys(recipeIngredientInputSchema.shape)).not.toContain('notes');
     });
 });
 
@@ -1023,14 +1029,14 @@ describe('U27 — ingredient group label, on the BASE schema', () => {
     it('✅ a PATCH may move a line between sections while preserving its other fields', () => {
         const parsed = updateRecipeRequestSchema.safeParse({
             expectedVersion: 1,
-            ingredients: [{ ...A_LINE, unit: 'cup', notes: 'sifted', groupLabel: 'For the topping' }],
+            ingredients: [{ ...A_LINE, unit: 'cup', displayText: 'sifted', groupLabel: 'For the topping' }],
         });
 
         expect(parsed.success).toBe(true);
         expect(parsed.success && parsed.data.ingredients?.[0]).toMatchObject({
             ingredientId: A_LINE.ingredientId,
             unit: 'cup',
-            notes: 'sifted',
+            displayText: 'sifted',
             groupLabel: 'For the topping',
         });
     });

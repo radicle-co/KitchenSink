@@ -149,7 +149,8 @@ export const draftToSnapshot = (values: RecipeFormValues, version: number): Reci
             ingredientId: line.ingredientId,
             quantity: draftQuantity(line),
             unit: line.unit ?? '',
-            ...(line.notes === undefined || line.notes === '' ? {} : { displayText: line.notes }),
+            ...(line.displayText === undefined || line.displayText === '' ? {} : { displayText: line.displayText }),
+            ...(line.note === undefined || line.note === '' ? {} : { note: line.note }),
             // U26/U27 — the DRAFT side of the conflict comparison. `computeConflictDiff` compares this
             // projection against the server's snapshot through `ingredientContentChanged`, so a field
             // missing here is a field the merge believes the local edit never touched: the cook's
@@ -215,7 +216,8 @@ export const applyServerSnapshotToRecipeDetail = (base: RecipeDetail, side: Vers
                 ...(ingredient.unit === '' ? {} : { unit: ingredient.unit }),
                 ...(ingredient.displayText === undefined || ingredient.displayText === ''
                     ? {}
-                    : { notes: ingredient.displayText }),
+                    : { displayText: ingredient.displayText }),
+                ...(ingredient.note === undefined || ingredient.note === '' ? {} : { note: ingredient.note }),
                 // U26/U27 — carried onto the conflict shell too, so the three-way merge's "server" and
                 // "base" sides can differ on them at all. A side that cannot REPRESENT a field can never
                 // report a conflict about it.

@@ -131,7 +131,7 @@ describe.skipIf(TARGET.kind === 'absent')('the curated cookbook import against a
                 ingredientId: resolution.ingredient.id,
                 quantity: parsed.quantity,
                 ...(parsed.unit === null ? {} : { unit: parsed.unit }),
-                notes: parsed.raw,
+                sourceLine: parsed.raw,
             });
         }
 

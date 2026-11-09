@@ -176,11 +176,10 @@ describe('a historical measure, from prose to the shipped contract', () => {
     });
 
     /** R35 — the book's own words reach the fields a human and the verification gate read. */
-    it('keeps the source’s own measure in the display text and the source line', () => {
+    it('keeps the source’s own measure in the source line', () => {
         const { body } = candidateFor('international-jewish');
         const milk = body.ingredients.find((line) => line.sourcePhrase?.includes('milk'));
 
-        expect(milk?.notes).toContain('gill');
         expect(milk?.sourceLine).toContain('gill');
         // …while the structured unit is the restated one, which is the distinction R35 exists to make.
         expect(milk?.unit).toBe('cup');

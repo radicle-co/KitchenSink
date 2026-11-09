@@ -1122,8 +1122,8 @@ export function stepTimerLabel(
  * @param ingredient - The line.
  * @returns The words, in the order they are drawn.
  */
-export function lineTailOf(ingredient: Pick<RecipeIngredientView, 'preparation' | 'notes'>): readonly string[] {
-    return [ingredient.preparation, ingredient.notes].filter(
+export function lineTailOf(ingredient: Pick<RecipeIngredientView, 'preparation' | 'displayText'>): readonly string[] {
+    return [ingredient.preparation, ingredient.displayText].filter(
         (words): words is string => words !== undefined && words.length > 0,
     );
 }

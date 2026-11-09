@@ -61,7 +61,7 @@ describe('lineDisplayName', () => {
     it('⛔ never makes a name up from the line’s notes or preparation (R9: there is no fallback)', () => {
         const line = makeIngredientView({
             name: undefined,
-            notes: 'the good one from the market',
+            displayText: 'the good one from the market',
             preparation: 'finely chopped',
             resolutionStatus: FoodResolutionStatus.FOOD_UNREACHABLE,
         });

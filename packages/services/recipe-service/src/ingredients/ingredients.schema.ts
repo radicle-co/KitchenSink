@@ -211,7 +211,7 @@ export type AddIngredientByFoodVariantRequest = z.infer<typeof addIngredientByFo
 
 /**
  * Body of `POST /api/v1/recipes/{id}/ingredients/{position}/rebind` (plan 002 U5): move ONE line to a food the cook
- * picked, or to what a name resolves to. The line keeps its amount, unit, notes, preparation and section (AE11).
+ * picked, or to what a name resolves to. The line keeps its amount, unit, displayText, note, preparation and section (AE11).
  *
  * ⚠️ Authored HERE, beside the food-id and name shapes it composes, although the route is a recipes route: a
  * `*.schema.ts` may import only flat siblings, so this is the one file that can compose them without re-declaring

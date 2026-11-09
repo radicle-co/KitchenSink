@@ -1162,8 +1162,9 @@ too.
 
 The answer's `display` is strict and required: `"written"` or `"food"` for a record that names foods, and `null` exactly
 when `food_items` is `null`. It rides on each food of its record through promotion, the merge (the foods come from the
-model) and the stored parse, and reaches the wire as `foods[].display`. The prompt grew, so the assembled input cap (`MAX_PARSE_PROMPT_CHARS`) leaves less room for the line than it did; a line
-over the cap is still rejected, never truncated. `PARSE_MAX_OUTPUT_TOKENS` is unchanged: the answer gains one short key per
+model) and the stored parse, and reaches the wire as `foods[].display`. The prompt grew, so `MAX_PARSE_PROMPT_CHARS` rose from 22,000 to 24,000 (owner ruling 2026-11-08) to keep the room a line
+had before v3; the reservation ceiling is derived from that one constant (ADR-0024 layer 1). A line over the cap is still
+rejected, never truncated. `PARSE_MAX_OUTPUT_TOKENS` is unchanged: the answer gains one short key per
 record.
 
 ## Consequences

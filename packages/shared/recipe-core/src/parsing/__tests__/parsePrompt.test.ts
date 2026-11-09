@@ -17,10 +17,12 @@ import { createHash } from 'node:crypto';
 
 import { describe, expect, it } from 'vitest';
 
+import { inputTokenCeiling } from '../../spend/spendArithmetic.js';
 import { modelParseAnswerSchema } from '../parseAnswer.js';
 
 import {
     MAX_PARSE_PROMPT_CHARS,
+    PARSE_INPUT_TOKEN_CEILING,
     PARSE_MAX_OUTPUT_TOKENS,
     PARSE_PROMPT_SHA256,
     PARSE_PROMPT_VERSION,
@@ -142,6 +144,17 @@ describe('PARSE_SYSTEM_PROMPT: rule 11, DISPLAY (ADR-0026 section 11)', () => {
     it('teaches both answers: the examples include a written and a food', () => {
         expect(PARSE_SYSTEM_PROMPT).toContain('"display":"written"');
         expect(PARSE_SYSTEM_PROMPT).toContain('"display":"food"');
+    });
+});
+
+describe('MAX_PARSE_PROMPT_CHARS: the input cap after prompt v3 (owner ruling 2026-11-08)', () => {
+    it('is 24,000 code points, which keeps a line about 2,250 characters of room beside the v3 prompt', () => {
+        expect(MAX_PARSE_PROMPT_CHARS).toBe(24_000);
+        expect(roomForLine()).toBeGreaterThanOrEqual(2_250);
+    });
+
+    it('is the one constant ADR-0024 layer 1 reserves from: the token ceiling is derived from it', () => {
+        expect(PARSE_INPUT_TOKEN_CEILING).toBe(inputTokenCeiling(MAX_PARSE_PROMPT_CHARS, 2));
     });
 });
 

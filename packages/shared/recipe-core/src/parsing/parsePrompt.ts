@@ -296,7 +296,7 @@ export const PARSE_TEMPERATURE = 0;
  * cap of its own. One token per code point is an upper bound for every tokenizer in the roster, so a
  * character count is a safe proxy and needs no tokenizer.
  */
-export const MAX_PARSE_PROMPT_CHARS = 22_000;
+export const MAX_PARSE_PROMPT_CHARS = 24_000;
 
 /** The two message turns the parse leg sends: one system, one user. */
 const PARSE_PROMPT_TURNS = 2;
@@ -307,8 +307,8 @@ const PARSE_PROMPT_TURNS = 2;
  * ⛔ NOT equal to the code-point cap. This was `PARSE_MAX_INPUT_TOKENS = MAX_PARSE_PROMPT_CHARS`, on the claim
  * that "one token per code point is an upper bound for every tokenizer in the roster". A byte-fallback BPE
  * tokenizer breaks that: an unknown code point is emitted as its UTF-8 bytes, up to FOUR tokens. At this
- * prompt's size the gap is not academic — 22,000 code points of non-Latin text could bill ~88,000 input
- * tokens against a reservation priced for 22,000, and ADR-0024 §2 says an unbounded input makes the
+ * prompt's size the gap is not academic — 24,000 code points of non-Latin text could bill ~96,000 input
+ * tokens against a reservation priced for 24,000, and ADR-0024 §2 says an unbounded input makes the
  * reservation "a lie". Bytes are the real bound; a caller holding its prompt uses `inputTokenBound` instead,
  * which is tighter still.
  */

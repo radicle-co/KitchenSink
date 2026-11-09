@@ -566,7 +566,7 @@ describe('buildVariantPrompt', () => {
         expect(onDefaultCap.length).toBeGreaterThan(0);
 
         // ⛔ The overflowing line is DERIVED from the cap, never a literal. It was `'x'.repeat(1_900)` against
-        // a 2,000 cap; the shipped cap then rose to 22,000 and the literal silently stopped overflowing —
+        // a 2,000 cap; the shipped cap then rose (22,000, now 24,000) and the literal silently stopped overflowing —
         // the assertion passed vacuously until the throw check caught it. Deriving it is the same discipline
         // the surrounding comment already applies to WHICH arm is tested.
         const overflow = MAX_PARSE_PROMPT_CHARS - [...longest.systemPrompt].length + 1;
@@ -729,7 +729,7 @@ describe('v6 — the owner’s zero-shot relational prompt, verbatim', () => {
         // The arm's own cap admits it; the shipped constant still refuses it. Raising the shipped bound to
         // fit a candidate would weaken the guard that protects production.
         // ⚠️ REWRITTEN 2026-08-27. This read "does NOT raise the SHIPPED cap to accommodate itself" and
-        // asserted v6's cap EXCEEDED `MAX_PARSE_PROMPT_CHARS`. The shipped cap then rose 2,000 -> 22,000 with
+        // asserted v6's cap EXCEEDED `MAX_PARSE_PROMPT_CHARS`. The shipped cap then rose 2,000 -> 22,000 -> 24,000 with
         // the prompt swap, so v6's 8,000 is now BELOW it and the comparison inverted. The property under test
         // was never "bigger than shipped" — it was "the arm carries its OWN bound, and that bound is the one
         // enforced", which is what this now asserts and which survives the shipped cap moving either way.

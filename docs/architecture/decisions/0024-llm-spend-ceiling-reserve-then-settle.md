@@ -614,7 +614,7 @@ tier is 50% off (`-flex` usage types, half of every rate) **and keeps the cache*
 echoed back in the response, same `cacheReadInputTokens`. Measured shipped cost is **$0.000260/line**.
 
 ⚠️ **THE OPEN ITEM: the reservation is now ~37x the actual, and this ADR has not decided what to do.**
-Layer 1's caps rose with the prompt — `MAX_PARSE_PROMPT_CHARS` 2,000 → 22,000, `PARSE_MAX_OUTPUT_TOKENS`
+Layer 1's caps rose with the prompt — `MAX_PARSE_PROMPT_CHARS` 2,000 → 22,000 → 24,000 (prompt v3, owner ruling 2026-11-08: ADR-0026 section 11 added a rule and a key, and 22,000 left a line about 380 characters), `PARSE_MAX_OUTPUT_TOKENS`
 200 → 900 — so the worst case charged before each call went **116 → 9,735 micro-dollars**, against a measured
 actual of **260**.
 

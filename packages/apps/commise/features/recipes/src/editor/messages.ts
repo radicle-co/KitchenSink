@@ -192,6 +192,32 @@ export interface EditorMessages {
     };
 
     /**
+     * The refusal when a public recipe holds a food only its author can see (ADR-0029 section 4; private foods spec
+     * section 7). `why` is a count text; `{line}` in the open-food names is the line as the editor shows it.
+     */
+    readonly publishRefused: {
+        readonly title: string;
+        readonly why: PluralText;
+        readonly newTab: string;
+        readonly waysHeading: string;
+        readonly wayChange: string;
+        readonly wayAsk: string;
+        readonly wayPrivatePublish: string;
+        readonly wayPrivateSave: string;
+        /** One line for a cook whose private recipes are full. Never an upsell. */
+        readonly slotsFull: string;
+        readonly draftKept: string;
+        readonly changesKept: string;
+        readonly publishPrivate: string;
+        readonly savePrivate: string;
+        readonly back: string;
+        readonly close: string;
+        readonly openFood: string;
+        readonly openFoodName: string;
+        readonly openFoodNameWeb: string;
+        readonly closeLabel: string;
+    };
+    /**
      * The dialog (web) or bottom sheet (native) a Publish opens when the cook chose Private and cannot keep it (owner
      * ruling 2026-10-26, replacing the earlier stop-and-ask): every private slot is used. The spec's
      * `recipe.publish.noSlot.*` and `recipe.publish.blocked.*`. The two actions carry EQUAL weight.
@@ -448,6 +474,30 @@ export const editorMessages: LocalizedMessages<EditorMessages> = {
             close: 'Close',
         },
 
+        publishRefused: {
+            title: 'This recipe can’t be public yet',
+            why: {
+                one: '{count} ingredient uses a food only you can see. A public recipe can use only public foods, so every reader sees each ingredient and its nutrition.',
+                other: '{count} ingredients use foods only you can see. A public recipe can use only public foods, so every reader sees each ingredient and its nutrition.',
+            },
+            newTab: 'Each food opens in a new tab, so your recipe stays here.',
+            waysHeading: 'To go on',
+            wayChange: 'Change or remove these ingredients in the editor.',
+            wayAsk: 'Ask to make each food public from its page. Once staff approve it, you can make this recipe public.',
+            wayPrivatePublish: 'Or publish this recipe as private.',
+            wayPrivateSave: 'Or make this recipe private. Other cooks won’t be able to see it anymore.',
+            slotsFull: 'Your private recipes are full, so this recipe can’t be made private right now.',
+            draftKept: 'Your recipe is saved as a draft.',
+            changesKept: 'Your changes are kept on this device. The public recipe hasn’t changed.',
+            publishPrivate: 'Publish as private',
+            savePrivate: 'Make private and save',
+            back: 'Back to editor',
+            close: 'Close',
+            openFood: 'Open food',
+            openFoodName: 'Open {line}',
+            openFoodNameWeb: 'Open {line} in a new tab',
+            closeLabel: 'Close this message',
+        },
         publishBlocked: {
             noSlot: {
                 title: 'Your private slots are full',

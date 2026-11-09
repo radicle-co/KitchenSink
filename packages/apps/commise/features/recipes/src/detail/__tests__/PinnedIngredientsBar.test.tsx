@@ -12,6 +12,7 @@ import { FoodServiceProvider } from '@kitchensink/food-service-client/hooks';
 import { renderWithRecipeClient } from '@commise/test-utils';
 import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-client/testing';
 import { act, cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import type { ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -143,6 +144,17 @@ const view = (over: { readonly lines?: typeof ingredients } = {}): ReactElement 
     />
 );
 
+/** Radix's overlay: a plain scrim, dismissed by a press outside the content. */
+const scrim = (): Element => {
+    const found = document.querySelector('.bg-scrim');
+
+    if (found === null) {
+        throw new Error('The open list drew no scrim.');
+    }
+
+    return found;
+};
+
 const barName = (tail: string): RegExp => new RegExp(`^Ingredients for 4, [^.]*\\. ${tail} list\\.$`, 'u');
 const showBar = (): HTMLElement => screen.getByRole('button', { name: barName('Show') });
 
@@ -240,7 +252,9 @@ describe('the pinned ingredients bar (web)', () => {
 
             const bar = screen.getByRole('button', { name: barName('Hide') });
 
-            expect(bar.getAttribute('aria-expanded')).toBe('true');
+            // Inside the dialog the bar face is a plain close button: it announces no popup and no expanded state.
+            expect(bar.hasAttribute('aria-expanded')).toBe(false);
+            expect(bar.hasAttribute('aria-haspopup')).toBe(false);
             expect(within(bar).getByText('Hide')).toBeTruthy();
         });
 
@@ -280,11 +294,16 @@ describe('the pinned ingredients bar (web)', () => {
             await waitFor(() => expect(document.activeElement).toBe(showBar()));
         });
 
-        it('closes when the scrim is pressed', () => {
+        it('closes when the scrim is pressed (a pointer down outside the content)', async () => {
             open();
-            fireEvent.click(screen.getByLabelText(detail.pinnedScrimClose));
+            // Radix arms its outside-press listener a tick after the content mounts.
+            await act(async () => {
+                await new Promise((resolve) => setTimeout(resolve, 0));
+            });
+            // This Radix defers an outside dismissal to the click that completes the press, so press and release.
+            await userEvent.click(scrim());
 
-            expect(screen.queryByRole('dialog')).toBeNull();
+            await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
         });
 
         it('blocks the page behind the scrim from scrolling while it is open, and frees it on close', () => {
@@ -298,23 +317,30 @@ describe('the pinned ingredients bar (web)', () => {
             expect(document.body.hasAttribute('data-scroll-locked')).toBe(false);
         });
 
-        it('keeps the bar visible and pressable ABOVE the scrim while the list is open', () => {
+        it('keeps the bar in the dialog, out of the hidden tree, and pressing it closes', () => {
             const panel = open();
             const hide = screen.getByRole('button', { name: barName('Hide') });
-            const scrim = screen.getByLabelText(detail.pinnedScrimClose);
-            const layer = (element: Element): number =>
-                Number(/(?:^|\s)z-(\d+)(?:\s|$)/u.exec(element.closest('[class*="z-"]')?.className ?? '')?.[1]);
 
-            // The bar the cook can press is in the dialog's content (not hidden from the accessibility tree), on a layer above the scrim.
+            // The pressable bar is the dialog's own close button; its layer above the scrim is Playwright's `elementFromPoint`.
             expect(panel.contains(hide)).toBe(true);
-            expect(layer(hide)).toBeGreaterThan(layer(scrim));
             expect(hide.closest('[aria-hidden="true"]')).toBeNull();
             expect(hide.closest('[inert]')).toBeNull();
 
-            // Pressing it is the way to close.
             fireEvent.click(hide);
 
             expect(screen.queryByRole('dialog')).toBeNull();
+        });
+
+        it('puts focus on the list panel itself on open, and Tab goes to the servings minus button next', async () => {
+            const panel = open();
+
+            expect(document.activeElement).toBe(panel.lastElementChild);
+            expect(document.activeElement).not.toBe(screen.getByRole('button', { name: barName('Hide') }));
+            expect(panel.lastElementChild?.getAttribute('tabindex')).toBe('-1');
+
+            await userEvent.tab();
+
+            expect(document.activeElement).toBe(within(panel).getByRole('button', { name: detail.servingsDecrease }));
         });
 
         it('keeps the cook in the list: Tab from the last control wraps to the bar and on to the first', () => {

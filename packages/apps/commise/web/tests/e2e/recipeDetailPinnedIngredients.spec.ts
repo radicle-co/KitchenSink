@@ -173,17 +173,38 @@ for (const width of [430, 375]) {
             // scrim's edge is the scrim, not the page (a stacking-context bug once left the steps painting over it).
             const hits = await page.evaluate(() => {
                 const dialog = document.querySelector('[role="dialog"]');
+                const hide = dialog?.querySelector('button');
                 const box = dialog?.getBoundingClientRect();
-                const centre = box === undefined ? null : document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+                const hideBox = hide?.getBoundingClientRect();
+                const centre =
+                    box === undefined
+                        ? null
+                        : document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+                const barHit =
+                    hideBox === undefined
+                        ? null
+                        : document.elementFromPoint(hideBox.left + hideBox.width / 2, hideBox.top + hideBox.height / 2);
                 const edge = document.elementFromPoint(5, 400);
 
                 return {
                     centreInPanel: centre !== null && dialog?.contains(centre) === true,
-                    edgeIsScrim: edge?.getAttribute('aria-label') === 'Close the ingredients list',
+                    // The bar stays pressable ABOVE the scrim: what the window draws at its centre is the Hide button.
+                    barIsHideButton: barHit !== null && hide?.contains(barHit) === true,
+                    edgeIsScrim: edge?.classList.contains('bg-scrim') === true,
                 };
             });
 
-            expect(hits).toEqual({ centreInPanel: true, edgeIsScrim: true });
+            expect(hits).toEqual({ centreInPanel: true, barIsHideButton: true, edgeIsScrim: true });
+
+            // The page behind the open list does not scroll under a wheel.
+            const openY = await page.evaluate(() => window.scrollY);
+
+            await page.mouse.move(5, 400);
+            await page.mouse.wheel(0, -200);
+            await page.evaluate(
+                () => new Promise<void>((done) => requestAnimationFrame(() => requestAnimationFrame(() => done()))),
+            );
+            expect(await page.evaluate(() => window.scrollY)).toBe(openY);
 
             // A tick in the panel is the card's tick.
             await panel.getByRole('checkbox', { name: /ingredient number 3/u }).check();
@@ -221,12 +242,11 @@ for (const width of [430, 375]) {
             // The observer reports the hidden marker one frame later, and the list closes then: poll, do not read once.
             await expect(page.getByRole('dialog', { name: 'Ingredients for 4' })).toBeHidden();
 
-            // The page scrolls again: a fixed scroll up from the foot moves the window.
+            // The page scrolls again: a wheel up from the foot moves the window (a scripted scrollBy would move it even under the lock).
             const before = await page.evaluate(() => window.scrollY);
 
-            await page.evaluate(() => {
-                window.scrollBy(0, -200);
-            });
+            await page.mouse.move(200, 400);
+            await page.mouse.wheel(0, -200);
             await expect.poll(() => page.evaluate(() => window.scrollY)).toBeLessThan(before);
         });
 

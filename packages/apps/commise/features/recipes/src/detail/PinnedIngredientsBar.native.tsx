@@ -123,7 +123,11 @@ const OpenList: FC<{ readonly name: string; readonly children: ReactNode }> = ({
  * shell's, handed in as props.
  */
 export const PinnedIngredientsBar: FC<
-    Omit<PinnedIngredientsBarProps, 'children'> & { readonly children: ReactNode }
+    Omit<PinnedIngredientsBarProps, 'children'> & {
+        readonly children: ReactNode;
+        /** The scrim's accessible name: native draws its own scrim button, where web's dialog overlay needs none. */
+        readonly scrimLabel: string;
+    }
 > = ({ facts, open, onOpenChange, scrimLabel, children }) => {
     const { top } = useSafeAreaInsets();
     const bottomEdge = useBottomEdge();

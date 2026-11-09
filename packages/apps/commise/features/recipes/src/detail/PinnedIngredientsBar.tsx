@@ -29,8 +29,6 @@ export interface PinnedIngredientsBarProps {
     readonly facts: PinnedBarFacts;
     readonly open: boolean;
     readonly onOpenChange: (open: boolean) => void;
-    /** The scrim's accessible name. */
-    readonly scrimLabel: string;
     /** The list: the servings row and the rows. */
     readonly children: ReactNode;
 }
@@ -54,20 +52,17 @@ const BarContent: FC<{ readonly facts: PinnedBarFacts; readonly open: boolean }>
         <span aria-hidden="true" className="text-label font-semibold text-action-text">
             {facts.cue}
         </span>
-        <span aria-hidden="true" className="grid size-9 shrink-0 place-items-center rounded-full bg-action text-on-action">
+        <span
+            aria-hidden="true"
+            className="grid size-9 shrink-0 place-items-center rounded-full bg-action text-on-action"
+        >
             <Icon name={open ? 'chevronUp' : 'chevronDown'} size={20} />
         </span>
     </>
 );
 
 /** The pinned bar, its scrim and its list. Whether the list is open is the shell's, handed in as props. */
-export const PinnedIngredientsBar: FC<PinnedIngredientsBarProps> = ({
-    facts,
-    open,
-    onOpenChange,
-    scrimLabel,
-    children,
-}) => (
+export const PinnedIngredientsBar: FC<PinnedIngredientsBarProps> = ({ facts, open, onOpenChange, children }) => (
     // `hidden` from a 720 px body: the sticky card does this job there (R2), and the bar never draws.
     <div className="@min-[45rem]/detail:hidden">
         <Dialog.Root open={open} onOpenChange={onOpenChange}>
@@ -77,27 +72,27 @@ export const PinnedIngredientsBar: FC<PinnedIngredientsBarProps> = ({
                 </button>
             </Dialog.Trigger>
             <Dialog.Portal>
-                <Dialog.Overlay asChild>
-                    <button
-                        type="button"
-                        tabIndex={-1}
-                        aria-label={scrimLabel}
-                        onClick={() => onOpenChange(false)}
-                        className="fixed inset-0 z-30 cursor-default touch-none bg-scrim"
-                    />
-                </Dialog.Overlay>
-                <Dialog.Content aria-label={facts.dialogName} aria-describedby={undefined} className={`${BAR_PLACE} z-40`}>
-                    <Dialog.Close
-                        aria-label={facts.name}
-                        aria-expanded
-                        aria-haspopup="dialog"
-                        className={BAR_FACE}
-                    >
+                <Dialog.Overlay className="fixed inset-0 z-30 bg-scrim" />
+                <Dialog.Content
+                    aria-label={facts.dialogName}
+                    aria-describedby={undefined}
+                    // Focus goes to the panel itself (the content's last child), not to the close button Radix would pick first.
+                    onOpenAutoFocus={(event) => {
+                        event.preventDefault();
+
+                        if (
+                            event.target instanceof HTMLElement &&
+                            event.target.lastElementChild instanceof HTMLElement
+                        ) {
+                            event.target.lastElementChild.focus();
+                        }
+                    }}
+                    className={`${BAR_PLACE} z-40`}
+                >
+                    <Dialog.Close aria-label={facts.name} className={BAR_FACE}>
                         <BarContent facts={facts} open />
                     </Dialog.Close>
-                    {/* Focus lands on the panel itself (React's autoFocus runs before Radix looks), so Tab reaches the first control. */}
                     <div
-                        autoFocus
                         tabIndex={-1}
                         className={`absolute inset-x-0 top-[4.5rem] max-h-[calc(100dvh-env(safe-area-inset-top,0px)-6rem-var(--bottom-chrome,0px))] overflow-y-auto overscroll-contain rounded-lg bg-paper pb-2.5 shadow-xl outline-none ${enterTransitionClassName}`}
                     >

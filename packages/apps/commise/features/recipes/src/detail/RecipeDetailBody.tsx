@@ -374,7 +374,6 @@ export const RecipeDetailBody: FC<RecipeDetailBodyWebProps> = ({
                         })}
                         open={pinnedIngredients.open}
                         onOpenChange={pinnedIngredients.onOpenChange}
-                        scrimLabel={detail.pinnedScrimClose}
                     >
                         <div className="flex items-center justify-between gap-3 pe-3 ps-4 pt-2.5">
                             <span className="text-meta text-ink-muted">{detail.servingsAdjustLabel}</span>

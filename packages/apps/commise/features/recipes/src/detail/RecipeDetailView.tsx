@@ -20,6 +20,7 @@ import { useState, type FC } from 'react';
 import { RecipeDetailBody } from './RecipeDetailBody.js';
 import { useCookMarks } from './useCookMarks.js';
 import { useIngredientsCardScrolledPast } from './useIngredientsCardScrolledPast.js';
+import { usePinnedIngredients } from './usePinnedIngredients.js';
 import { useServingScale } from './useServingScale.js';
 import type { RecipeDetailViewProps } from './model.js';
 
@@ -31,14 +32,8 @@ export const RecipeDetailView: FC<RecipeDetailViewProps> = (props) => {
     const [descriptionExpanded, setDescriptionExpanded] = useState(false);
     const [nutritionExpanded, setNutritionExpanded] = useState(false);
     const { cardEndRef, scrolledPast } = useIngredientsCardScrolledPast();
-    const [listOpen, setListOpen] = useState(false);
     // The bar is drawn once the card is above the chrome, and only for a recipe with lines to list (owner ruling R1).
-    const barShown = scrolledPast && props.recipe.ingredients.length > 0;
-
-    // A list left open when its bar goes away must not reopen when the bar returns: adjust the state during render.
-    if (!barShown && listOpen) {
-        setListOpen(false);
-    }
+    const pinnedIngredients = usePinnedIngredients({ scrolledPast, eligible: props.recipe.ingredients.length > 0 });
 
     useKeepAwake(screenOn);
 
@@ -57,7 +52,7 @@ export const RecipeDetailView: FC<RecipeDetailViewProps> = (props) => {
             nutritionExpanded={nutritionExpanded}
             onToggleNutrition={() => setNutritionExpanded((expanded) => !expanded)}
             ingredientsEndRef={cardEndRef}
-            pinnedIngredients={{ shown: barShown, open: listOpen && barShown, onOpenChange: setListOpen }}
+            pinnedIngredients={pinnedIngredients}
         />
     );
 };

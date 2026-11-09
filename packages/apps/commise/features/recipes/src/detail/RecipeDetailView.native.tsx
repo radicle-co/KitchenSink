@@ -28,6 +28,7 @@ import { detailNativeLayoutOf } from './detailFacts.js';
 import { RecipeDetailBody } from './RecipeDetailBody.native.js';
 import { useCookMarks } from './useCookMarks.js';
 import { useIngredientsCardScrollWatch } from './useIngredientsCardScrollWatch.native.js';
+import { usePinnedIngredients } from './usePinnedIngredients.js';
 import { useServingScale } from './useServingScale.js';
 import type { RecipeDetailViewProps } from './model.js';
 
@@ -46,15 +47,12 @@ export const RecipeDetailView: FC<RecipeDetailViewProps> = (props) => {
     const [sourcesClosed, setSourcesClosed] = useState(0);
     const { top } = useSafeAreaInsets();
     const { scrolledPast, onCardLayout, onScroll } = useIngredientsCardScrollWatch(top);
-    const [listOpen, setListOpen] = useState(false);
     const layout = detailNativeLayoutOf(width - 2 * GUTTER, cappedFontScale(fontScale));
     // The bar is for the one-column page: from a 720 pt body the ingredients sit beside the steps (owner ruling R2).
-    const barShown = scrolledPast && layout.columns === 'one' && props.recipe.ingredients.length > 0;
-
-    // A list left open when its bar goes away must not reopen when the bar returns: adjust the state during render.
-    if (!barShown && listOpen) {
-        setListOpen(false);
-    }
+    const pinnedIngredients = usePinnedIngredients({
+        scrolledPast,
+        eligible: layout.columns === 'one' && props.recipe.ingredients.length > 0,
+    });
 
     useKeepAwake(screenOn);
 
@@ -76,7 +74,7 @@ export const RecipeDetailView: FC<RecipeDetailViewProps> = (props) => {
                 layout={layout}
                 onIngredientsLayout={onCardLayout}
                 onScroll={onScroll}
-                pinnedIngredients={{ shown: barShown, open: listOpen && barShown, onOpenChange: setListOpen }}
+                pinnedIngredients={pinnedIngredients}
                 onOpenDataSources={() => setSourcesOpen(true)}
                 dataSourcesReturnFocusSignal={sourcesClosed}
             />

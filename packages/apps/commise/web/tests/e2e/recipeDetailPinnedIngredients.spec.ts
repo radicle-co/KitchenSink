@@ -189,6 +189,23 @@ for (const width of [430, 375]) {
             await expect(page.getByRole('button', { name: /Show list\.$/u })).toBeFocused();
         });
 
+        test('a list left open is closed when the window grows to a 720 px body, and the page scrolls again', async ({
+            page,
+        }) => {
+            await openRecipe(page);
+            // The foot of the page: wide, the sticky card has run out of column and ends up above the window too.
+            await page.evaluate(() => {
+                window.scrollTo(0, document.documentElement.scrollHeight);
+            });
+            await page.getByRole('button', { name: /Show list\.$/u }).click();
+            await expect(page.getByRole('dialog', { name: 'Ingredients for 4' })).toBeVisible();
+
+            await page.setViewportSize({ width: 1280, height: 800 });
+
+            await expect(page.getByRole('dialog')).toHaveCount(0);
+            expect(await page.evaluate(() => document.documentElement.style.overflow)).toBe('');
+        });
+
         test('the bar is gone when the ingredients card is back in view', async ({ page }) => {
             await openRecipe(page);
             await scrollIntoSteps(page);

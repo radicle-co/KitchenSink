@@ -63,7 +63,7 @@ export const PinnedIngredientsBar: FC<PinnedIngredientsBarProps> = ({
     }, [open]);
 
     // @sideEffect While the list is open: the page behind the scrim does not scroll, Escape closes, and Tab wraps between
-    // the bar and the list's controls, so focus never leaves them.
+    // the bar and the list's controls, so focus never leaves them, and a window grown to a 720 px body closes it.
     useEffect(() => {
         if (!open) {
             return undefined;
@@ -91,12 +91,22 @@ export const PinnedIngredientsBar: FC<PinnedIngredientsBarProps> = ({
             next?.focus();
         };
 
+        // The window can grow to a 720 px body (a tablet, a rotation, a resize) while the list is open. The article's
+        // container query then hides the whole thing, and nothing visible is left to close it or to lift the scroll lock.
+        const onResize = (): void => {
+            if (bar.current?.getClientRects().length === 0) {
+                onOpenChange(false);
+            }
+        };
+
         documentElement.style.overflow = 'hidden';
         document.addEventListener('keydown', onKeyDown);
+        window.addEventListener('resize', onResize);
 
         return () => {
             documentElement.style.overflow = before;
             document.removeEventListener('keydown', onKeyDown);
+            window.removeEventListener('resize', onResize);
         };
     }, [open, onOpenChange]);
 
@@ -109,7 +119,7 @@ export const PinnedIngredientsBar: FC<PinnedIngredientsBarProps> = ({
                     tabIndex={-1}
                     aria-label={scrimLabel}
                     onClick={() => onOpenChange(false)}
-                    className="fixed inset-0 z-30 cursor-default bg-scrim"
+                    className="fixed inset-0 z-30 cursor-default touch-none bg-scrim"
                 />
             )}
             <button

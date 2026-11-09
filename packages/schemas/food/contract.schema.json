@@ -3729,6 +3729,24 @@
             ],
             "type": "object"
         },
+        "publicationNotApprovableReasonSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "enum": [
+                "closed",
+                "withdrawn",
+                "notNewest"
+            ],
+            "type": "string"
+        },
+        "publicationNotRequestableReasonSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "enum": [
+                "withdrawn",
+                "notPrivate",
+                "declined"
+            ],
+            "type": "string"
+        },
         "publicationRequestDetailSchema": {
             "$schema": "https://json-schema.org/draft/2020-12/schema",
             "additionalProperties": false,

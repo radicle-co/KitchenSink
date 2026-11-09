@@ -51,8 +51,11 @@ recipes 1 ── 1..* ingredients ──NOT NULL──> food_lookups ──> a r
 - **`food_lookups` IS THE BINDING.** It replaces the old shared catalog minus its `name`, and holds
   `food_id` and `food_variant_id` (opaque, may dangle), `unresolved_food_id`, `food_owner_id` and
   `created_at`. `food_owner_id` belongs to the root arm only (`food_lookups_owner_needs_a_root`), because only
-  a root food can be a cook's private food. The old catalog's `prior_fraction` did not move: its only reader
-  was the recipe-side name ranker, which the name's removal removes.
+  a root food can be a cook's private food. A found binding is returned as it stands, with one exception: a
+  public root admission clears a stale `food_owner_id`. Food answered that the food is public now, and a
+  promotion is one-way, so a binding still marked private is stale; leaving it would hand a promoted food back as
+  private to the next cook and hide it from every cook but its author. The old catalog's `prior_fraction` did not
+  move: its only reader was the recipe-side name ranker, which the name's removal removes.
 - **`unresolved_foods` IS THE FAILURE RECORD** — the name that failed, the phrase it came from, the
   normalized key, a status, a reason code, the tiers consulted and unavailable, an attempt count, and
   operator-only detail.

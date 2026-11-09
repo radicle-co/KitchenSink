@@ -639,22 +639,23 @@ export class RecipesService {
      * recipe now holds a private food. Any row aborts the write (its transaction rolls back). It backs the policy
      * against a binding that changed between the check and the write.
      *
+     * ⛔ It judges the status and visibility of the row the write RETURNED, never the copy read before the transaction:
+     * a set-visibility or publish that committed in between moved the row, and a check on the stale copy would let the
+     * database's commit-time trigger be the first to notice, as a raw 500.
+     *
      * @param tx - The write's open transaction.
-     * @param recipeId - The recipe just written.
-     * @param state - The status and visibility the write left.
+     * @param written - The aggregate the write returned.
      * @throws {RecipeDomainError} `PRIVATE_FOODS_ON_PUBLIC_RECIPE`.
      * @sideEffect One read, and only for a published public recipe.
      */
-    private async assertNoPrivateFoodLinesIn(
-        tx: RecipeTx,
-        recipeId: string,
-        state: { readonly status: RecipeStatus; readonly visibility: RecipeVisibility },
-    ): Promise<void> {
-        if (state.status !== RecipeStatus.PUBLISHED || state.visibility !== RecipeVisibility.PUBLIC) {
+    private async assertNoPrivateFoodLinesIn(tx: RecipeTx, written: RecipeAggregate): Promise<void> {
+        const { id, status, visibility } = written.recipe;
+
+        if (status !== RecipeStatus.PUBLISHED || visibility !== RecipeVisibility.PUBLIC) {
             return;
         }
 
-        const [first, ...rest] = await this.dal.privateFoodLines(tx, recipeId);
+        const [first, ...rest] = await this.dal.privateFoodLines(tx, id);
 
         if (first !== undefined) {
             throw privateFoodsOnPublicRecipe([first, ...rest]);
@@ -739,7 +740,7 @@ export class RecipesService {
         const nowPublicFoods = await this.publicFoodsGuard(
             caller,
             publicState,
-            plan.inputs.map((line) => ({ foodLookupId: line.foodLookupId, sortOrder: line.sortOrder ?? 0 })),
+            plan.inputs.map((line) => ({ foodLookupId: line.foodLookupId, sortOrder: line.sortOrder })),
             plan.identities,
         );
         // ⛔ ONE TRANSACTION: the recipe and its version row commit together or not at all (owner ruling
@@ -756,9 +757,11 @@ export class RecipesService {
 
             // The author's byline (plan 2026-10-15-010 D8): the read model first, read INSIDE this transaction.
             const byline = await this.bylineIn(tx, principal);
+
             if (nowPublicFoods.length > 0) {
                 await this.dal.clearPublicFoodOwners(tx, nowPublicFoods);
             }
+
             const created = await this.dal.create(
                 {
                     ownerId: principal.userId,
@@ -797,7 +800,7 @@ export class RecipesService {
             );
 
             await this.recordSnapshotIn(tx, created, plan.identities, principal.userId, 'Created', byline);
-            await this.assertNoPrivateFoodLinesIn(tx, created.recipe.id, publicState);
+            await this.assertNoPrivateFoodLinesIn(tx, created);
 
             return created;
         });
@@ -1155,7 +1158,7 @@ export class RecipesService {
             caller,
             publicState,
             plan !== undefined
-                ? plan.inputs.map((line) => ({ foodLookupId: line.foodLookupId, sortOrder: line.sortOrder ?? 0 }))
+                ? plan.inputs.map((line) => ({ foodLookupId: line.foodLookupId, sortOrder: line.sortOrder }))
                 : existing.ingredients.map((row) => ({ foodLookupId: row.foodLookupId, sortOrder: row.sortOrder })),
             identities,
         );
@@ -1295,7 +1298,7 @@ export class RecipesService {
                 editor,
                 options.snapshot?.baseVersion,
             );
-            await this.assertNoPrivateFoodLinesIn(tx, id, publicState);
+            await this.assertNoPrivateFoodLinesIn(tx, result);
 
             return result;
         });
@@ -1556,6 +1559,7 @@ export class RecipesService {
             }
 
             assertVisibilityAllowed(visibilityAsk, standing);
+
             if (nowPublicFoods.length > 0) {
                 await this.dal.clearPublicFoodOwners(tx, nowPublicFoods);
             }
@@ -1563,7 +1567,7 @@ export class RecipesService {
             const written = await this.dal.setVisibility(id, visibility, tx);
 
             if (written !== undefined) {
-                await this.assertNoPrivateFoodLinesIn(tx, id, publicState);
+                await this.assertNoPrivateFoodLinesIn(tx, written);
             }
 
             return written;

@@ -60,7 +60,10 @@ The decision decomposes into rulings, each with its enforcement point:
    recipe-side mirror (erasure step 13) deletes the unreferenced private-food catalog rows and retains
    the referenced ones — hidden from every living search by the R20 filter regardless.
    The erasure donate-flip donates only an elected recipe that holds no private food; any other elected recipe is
-   removed with the owner-only set, so a dead author's private foods are always unreferenced and deleted.
+   removed with the owner-only set, so no kept recipe ever holds a dead author's private food. That does not make
+   the food's own deletion certain: the fan-out enqueues the recipe leg and then asks for the food references
+   without waiting for the worker to delete the author's recipes, so a private food can still read as referenced
+   and be kept orphaned on the food side, while the recipe-side binding is deleted by step 13.
    Orphan-if-referenced now applies to promoted foods.
 7. **Versioning, and edits to a public food go back to review.** `food_versions` records every authored edit. The live
    food row is always the approved version, and every read (search, `/nutrition`, `refs/resolve`, every recipe) serves

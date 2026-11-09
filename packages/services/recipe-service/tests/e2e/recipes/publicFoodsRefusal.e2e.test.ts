@@ -208,6 +208,60 @@ describe('a public recipe holds no private food (e2e, assembled app + food fake)
         expect(((await put.json()) as RefusalBody).details.lines).toEqual([{ sortOrder: 0, foodId: PRIVATE_FOOD }]);
     });
 
+    it('a PATCH that swaps the private line for a public food AND publishes in one request succeeds', async () => {
+        // The draft holds the private food; the same PATCH replaces it and publishes. The recipe row is written before
+        // its lines, so a trigger that judged the recipe against the OLD lines would answer a raw 500.
+        const draft = await json<RecipeBody>('POST', '/api/v1/recipes', 201, {
+            ...recipeBody('swap and publish', [privateLookup], 'public'),
+            status: 'draft',
+        });
+        const published = await json<RecipeBody & { readonly status: string }>(
+            'PATCH',
+            `/api/v1/recipes/${draft.id}`,
+            200,
+            {
+                expectedVersion: draft.currentVersion,
+                status: 'published',
+                ingredients: [{ ingredientId: sharedLookup, quantity: { kind: 'exact', value: 1 }, unit: 'cup' }],
+            },
+        );
+
+        expect(published.status).toBe('published');
+        expect(published.ingredients.map((line) => line.ingredientId)).toEqual([sharedLookup]);
+    });
+
+    it('never answers 5xx when set-visibility races an update that puts a private food on the same recipe', async () => {
+        const outcomes: number[] = [];
+
+        for (let round = 0; round < 12; round += 1) {
+            const created = await json<RecipeBody>(
+                'POST',
+                '/api/v1/recipes',
+                201,
+                recipeBody(`race ${round}`, [sharedLookup], 'private'),
+            );
+            const [patch, visibility] = await Promise.all([
+                call('PATCH', `/api/v1/recipes/${created.id}`, {
+                    expectedVersion: created.currentVersion,
+                    ingredients: [{ ingredientId: privateLookup, quantity: { kind: 'exact', value: 1 }, unit: 'cup' }],
+                }),
+                call('PATCH', `/api/v1/recipes/${created.id}/visibility`, { visibility: 'public' }),
+            ]);
+
+            outcomes.push(patch.status, visibility.status);
+
+            const { rows } = await pool.query(
+                `SELECT 1 FROM recipes r WHERE r.id = $1 AND r.visibility = 'public' AND r.status = 'published'
+                    AND recipe_holds_private_food(r.id)`,
+                [created.id],
+            );
+
+            expect(rows).toHaveLength(0);
+        }
+
+        expect(outcomes.filter((status) => status >= 500)).toEqual([]);
+    });
+
     it('RECAPTURES a food promoted since it was bound: the write succeeds and clears the stale captured owner', async () => {
         // The food is private when the cook binds it, and promoted by staff afterwards.
         food.foods.set(`${SCOPE}-promoted`, { name: 'Promoted blend', status: 'RESOLVED', ownerId: AUTHOR });

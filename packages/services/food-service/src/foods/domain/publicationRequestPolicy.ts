@@ -8,6 +8,8 @@
  * @pattern Specification — pure decisions over facts the DAO read under lock
  */
 
+import type { PublicationNotApprovableReason, PublicationNotRequestableReason } from '../foods.schema.js';
+
 /** The 0013 visibility. */
 type Visibility = 'public' | 'private' | 'promoted';
 
@@ -36,7 +38,7 @@ export function decideEdit(input: { readonly visibility: Visibility; readonly ha
 }
 
 /** Why an author's request is refused. */
-export type RequestRefusal = 'withdrawn' | 'notPrivate' | 'declined';
+export type RequestRefusal = PublicationNotRequestableReason;
 
 /** The verdict on an author's request. `existing` is the idempotent answer for a request already pending. */
 export type RequestDecision =
@@ -83,7 +85,7 @@ export function decideRequest(facts: RequestFacts): RequestDecision {
 }
 
 /** Why staff cannot approve. */
-export type ApprovalRefusal = 'closed' | 'withdrawn' | 'notNewest';
+export type ApprovalRefusal = PublicationNotApprovableReason;
 
 /** The verdict on an approval. */
 export type ApprovalDecision =

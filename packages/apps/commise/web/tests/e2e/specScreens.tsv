@@ -30,6 +30,7 @@ cuisineField.spec.ts	/, /recipes/[id], /recipes/[id]/edit, /recipes/new, /sign-i
 dataSources.spec.ts	/, /legal/sources, /profile, /sign-in/[[...sign-in]]
 discoverNoResults.spec.ts	/, /discover, /sign-in/[[...sign-in]]
 discoverReflow.spec.ts	/, /discover, /sign-in/[[...sign-in]]
+foodPage.spec.ts	/, /foods/[foodId], /sign-in/[[...sign-in]]
 headingOutline.spec.ts	/, /collections, /discover, /recipes, /sign-in/[[...sign-in]]
 home.spec.ts	/, /recipes, /sign-in/[[...sign-in]]
 homeNavCutover.spec.ts	/, /sign-in/[[...sign-in]]
@@ -114,3 +115,4 @@ variantDetailsDialogFooter.spec.ts	/, /recipes/[id]/edit, /recipes/new, /sign-in
 variantSurfaceReflow.spec.ts	/, /discover, /recipes/[id], /recipes/[id]/edit, /recipes/[id]/versions, /recipes/new, /sign-in/[[...sign-in]]
 versions.spec.ts	/, /recipes/[id], /recipes/[id]/versions, /sign-in/[[...sign-in]]
 visualRegression.spec.ts	*
+yourFoods.spec.ts	/, /foods, /profile, /sign-in/[[...sign-in]]

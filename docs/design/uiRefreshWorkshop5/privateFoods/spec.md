@@ -561,9 +561,10 @@ Blocked on F7. With `holdsPrivateFood` on each `DonatableRecipe`:
   the dialog name; "To go on" is H3. Erasure "These will be deleted" is H4 under the dialog's H3 section.
 - **Roles and names:**
     - Badges are text, read with the badge row in order ("Public, Edit waiting for review").
-    - Refusal "Open food" buttons: web name "Open {line} in a new tab" (`publishRefused.openFoodNameWeb`), native
-      "Open {line}" (`publishRefused.openFoodName`). `{line}` is the visible line text, so the name starts with the
-      visible words (SC 2.5.3).
+    - Refusal "Open food" buttons: native name "Open food: {line}" (`publishRefused.openFoodName`), web "Open food:
+      {line}, opens in a new tab" (`publishRefused.openFoodNameWeb`). The name starts with the button's own visible
+      words, "Open food", and `{line}` follows as context (SC 2.5.3). Amended 2026-11-09: "Open {line}" did not start
+      with the visible words.
     - Row ⋯ item: `row.openFood` "Open food". On web its name adds ", opens in a new tab" (`row.openFoodNewTab`).
     - Comparison rows: each row's spoken text is `foodPage.yourEdit.rowSpoken`. The arrow is hidden.
     - The private-food attention line is the row's description (`aria-describedby` on web, `accessibilityHint` on

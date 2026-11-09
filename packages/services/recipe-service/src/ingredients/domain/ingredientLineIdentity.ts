@@ -34,6 +34,8 @@ export type FoodPresence = 'present' | 'withdrawn' | 'gone' | 'unreachable' | 'u
 export interface LineFood {
     readonly rootId: string;
     readonly variant?: IngredientVariant;
+    /** Whether food's LIVE answer says the food is its author's private one. Absent when food did not say. */
+    readonly isPrivate?: boolean;
 }
 
 /**
@@ -76,8 +78,8 @@ function boundIdentity(arm: FoodLookupArm, answer: FoodRefAnswer | undefined): I
         presence: answer.status === 'WITHDRAWN' ? 'withdrawn' : 'present',
         food:
             answer.variant === undefined
-                ? { rootId: answer.rootId }
-                : { rootId: answer.rootId, variant: answer.variant },
+                ? { rootId: answer.rootId, isPrivate: answer.isPrivate }
+                : { rootId: answer.rootId, variant: answer.variant, isPrivate: answer.isPrivate },
     };
 }
 

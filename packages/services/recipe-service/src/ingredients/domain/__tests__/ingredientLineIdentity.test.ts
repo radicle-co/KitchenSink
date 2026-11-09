@@ -134,8 +134,9 @@ describe('deriveIngredientLineIdentity', () => {
             ]),
         );
 
-        expect(root.food).toStrictEqual({ rootId: 'food-1' });
-        expect(variant.food).toStrictEqual({ rootId: 'R-brisket', variant: FLAT });
+        // Food's live privacy answer rides with the food (ADR-0029 section 4).
+        expect(root.food).toStrictEqual({ rootId: 'food-1', isPrivate: false });
+        expect(variant.food).toStrictEqual({ rootId: 'R-brisket', variant: FLAT, isPrivate: false });
     });
 
     it('⛔ carries no food when the line has no name to show: absent, unreachable, nameless or unbound', () => {

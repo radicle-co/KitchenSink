@@ -160,4 +160,45 @@ describe("erasure's private-food step — bindings (R20)", () => {
 
         expect((await bindingById(bystanders))?.food_owner_id).toBe(USER_BYSTANDER);
     });
+
+    describe('a donate election never donates a recipe that holds a private food (ADR-0029 section 6)', () => {
+        /** A private published recipe with NO private-food line: the shared food keeps it donatable. */
+        async function insertPlainRecipe(ownerId: string): Promise<string> {
+            const recipe = await db.execute<{ id: string }>(sql`
+                INSERT INTO recipes (owner_id, title, description, servings, prep_time_minutes, cook_time_minutes,
+                                     total_time_minutes, visibility, status)
+                VALUES (${ownerId}, ${NAME_PREFIX + ' plain'}, 'probe', 2, 5, 5, 10, 'private', 'published')
+                RETURNING id
+            `);
+            const id = recipe.rows[0]?.id;
+
+            if (id === undefined) {
+                throw new Error('test setup: the recipe insert returned no id');
+            }
+
+            return id;
+        }
+
+        async function recipeById(id: string): Promise<{ visibility: string; status: string } | undefined> {
+            const { rows } = await db.execute<{ visibility: string; status: string }>(sql`
+                SELECT visibility, status FROM recipes WHERE id = ${id}
+            `);
+
+            return rows[0];
+        }
+
+        it('donates the elected recipe without a private food and REMOVES the elected one that holds one, then deletes the food', async () => {
+            const privateBinding = await insertPrivateFoodBinding(USER_ERASED);
+            const holdsPrivate = await insertReferencingRecipe(USER_ERASED, privateBinding);
+            const plain = await insertPlainRecipe(USER_ERASED);
+
+            // Would raise the 0064 trigger and roll the whole erasure back if the flip touched the private-food recipe.
+            await eraseRecipeRows(db, USER_ERASED, [holdsPrivate, plain]);
+
+            expect(await recipeById(plain)).toEqual({ visibility: 'public', status: 'published' });
+            expect(await recipeById(holdsPrivate)).toBeUndefined();
+            // The dead author's private food is now unreferenced, so it is deleted with the recipe that held it.
+            expect(await bindingById(privateBinding)).toBeUndefined();
+        });
+    });
 });

@@ -167,6 +167,8 @@ export interface RecipeAggregate {
 export interface ListRecipeRow {
     recipe: RecipeRow;
     coverPhotoKey?: string;
+    /** Whether any line is bound to a private food (`recipe_holds_private_food`, migration 0064). */
+    holdsPrivateFood?: boolean;
 }
 
 /**
@@ -266,6 +268,47 @@ export class RecipesDal {
             .for('update');
 
         return row === undefined ? undefined : { visibility: row.visibility, status: row.status };
+    }
+
+    /**
+     * Forget the captured private owner of foods food now reports public (ADR-0029 section 4). Promotion is one-way, so
+     * the capture is stale for good; clearing it lets every shared surface and the database's own rule see the food as
+     * public. Runs INSIDE the write's transaction, before the recipe is written.
+     *
+     * @param tx - The open transaction.
+     * @param foodIds - Root food ids food reported public.
+     * @sideEffect Updates `food_lookups.food_owner_id` to NULL for those foods.
+     */
+    public async clearPublicFoodOwners(tx: RecipeTx, foodIds: readonly string[]): Promise<void> {
+        if (foodIds.length === 0) {
+            return;
+        }
+
+        await tx.execute(sql`
+            UPDATE food_lookups SET food_owner_id = NULL
+             WHERE food_id = ANY(${sql.param([...foodIds])}) AND food_owner_id IS NOT NULL
+        `);
+    }
+
+    /**
+     * The recipe's lines bound to a private food, by position, as the database's own rule states it
+     * (`recipe_private_food_lines`, migration 0064). The LAST statement of a write that can leave the recipe public: any
+     * row aborts the write.
+     *
+     * @param tx - The open transaction.
+     * @param recipeId - The recipe.
+     * @returns The refused lines, in line order.
+     * @sideEffect Reads.
+     */
+    public async privateFoodLines(
+        tx: RecipeTx,
+        recipeId: string,
+    ): Promise<{ readonly sortOrder: number; readonly foodId: string }[]> {
+        const result = await tx.execute<{ sort_order: number; food_id: string }>(
+            sql`SELECT sort_order, food_id FROM recipe_private_food_lines(${recipeId}::uuid)`,
+        );
+
+        return result.rows.map((row) => ({ sortOrder: row.sort_order, foodId: row.food_id }));
     }
 
     /**
@@ -522,15 +565,36 @@ export class RecipesDal {
 
         const ids = pageRows.map((row) => row.id);
         const coverKeys = ids.length > 0 ? await this.loadCoverKeys(ids) : new Map<string, string>();
+        const holding = ids.length > 0 ? await this.loadHoldingPrivateFood(ids) : new Set<string>();
 
         return {
             rows: pageRows.map((recipe) => {
                 const coverPhotoKey = coverKeys.get(recipe.id);
 
-                return { recipe, ...(coverPhotoKey !== undefined ? { coverPhotoKey } : {}) };
+                return {
+                    recipe,
+                    holdsPrivateFood: holding.has(recipe.id),
+                    ...(coverPhotoKey !== undefined ? { coverPhotoKey } : {}),
+                };
             }),
             total,
         };
+    }
+
+    /**
+     * Which of a page's recipes hold a line bound to a private food, in ONE query, by the database's own rule
+     * (`recipe_holds_private_food`, migration 0064 - the rule is written once).
+     *
+     * @param ids - The page's recipe ids.
+     * @returns The ids that hold one.
+     * @sideEffect Reads.
+     */
+    private async loadHoldingPrivateFood(ids: readonly string[]): Promise<ReadonlySet<string>> {
+        const result = await this.db.execute<{ id: string }>(
+            sql`SELECT id FROM recipes WHERE id = ANY(${sql.param([...ids])}::uuid[]) AND recipe_holds_private_food(id)`,
+        );
+
+        return new Set(result.rows.map((row) => row.id));
     }
 
     /**

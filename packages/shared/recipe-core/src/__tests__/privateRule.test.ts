@@ -10,7 +10,9 @@ import type { PrivateRule } from '../index.js';
  */
 const EXPECTED: Record<RecipeSourceType, PrivateRule> = {
     [RecipeSourceType.USER_CREATED]: 'slots',
-    [RecipeSourceType.IMPORTED_PUBLIC]: 'premium',
+    // ADR-0077 section 6 (owner ruling 2026-10-29, "Any cook, using a slot"): an imported public-web recipe is private
+    // within the cook's slots like a recipe they wrote, with no Premium or substantive edit needed.
+    [RecipeSourceType.IMPORTED_PUBLIC]: 'slots',
     [RecipeSourceType.IMPORTED_PHYSICAL]: 'privateOnly',
     [RecipeSourceType.IMPORTED_PAID]: 'privateOnly',
 };
@@ -28,14 +30,13 @@ describe('privateRuleOf', () => {
     );
 });
 
-describe('usesPremiumCapability is derived from privateRuleOf', () => {
-    it.each(Object.values(RecipeSourceType))(
-        '%s: private uses a premium capability iff its rule is premium',
-        (sourceType) => {
-            expect(usesPremiumCapability({ visibility: RecipeVisibility.PRIVATE, sourceType })).toBe(
-                EXPECTED[sourceType] === 'premium',
-            );
-            expect(usesPremiumCapability({ visibility: RecipeVisibility.PUBLIC, sourceType })).toBe(false);
-        },
-    );
+describe('no private rule is Premium-only (ADR-0077 section 6)', () => {
+    it('the rules are slots and privateOnly, and nothing else', () => {
+        expect(new Set(Object.values(EXPECTED))).toEqual(new Set(['slots', 'privateOnly']));
+    });
+
+    it.each(Object.values(RecipeSourceType))('%s: keeping it private is never a premium capability', (sourceType) => {
+        expect(usesPremiumCapability({ visibility: RecipeVisibility.PRIVATE, sourceType })).toBe(false);
+        expect(usesPremiumCapability({ visibility: RecipeVisibility.PUBLIC, sourceType })).toBe(false);
+    });
 });

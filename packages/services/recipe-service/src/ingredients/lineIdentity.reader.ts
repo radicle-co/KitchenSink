@@ -12,7 +12,7 @@
 import { Injectable } from '@nestjs/common';
 
 import type { CallerToken } from '../auth/CallerToken.js';
-import { foodRefOf, type FoodLookupArm, type FoodRef } from '../database/schema/foodLookupArm.js';
+import { foodRefKey, foodRefOf, type FoodLookupArm, type FoodRef } from '../database/schema/foodLookupArm.js';
 import { FoodLookupsDal } from './dal/foodLookups.dal.js';
 import { deriveIngredientLineIdentity, type IngredientLineIdentity } from './domain/ingredientLineIdentity.js';
 import type { FoodRefAnswer } from './domain/foodRefAnswer.js';
@@ -45,6 +45,35 @@ export class LineIdentityReader {
         budget: NutritionReadBudget,
     ): Promise<ReadonlyMap<string, IngredientLineIdentity>> {
         return identifyArmsThrough(this.refs, caller, arms, budget);
+    }
+
+    /**
+     * Which of these captured-private foods does food NOW report public (ADR-0029 section 4)? The recapture a write
+     * makes before it refuses a public recipe: a food promoted since it was bound is public, and its captured owner is
+     * stale.
+     *
+     * Fails CLOSED: a food that is still private, absent, or could not be asked about is left out, so the captured
+     * value stands and the write is refused. Promotion is one-way, so a food reported public stays public.
+     *
+     * @param caller - The writer's credential, forwarded to food (the author, for their own foods).
+     * @param foodIds - The root food ids captured as private.
+     * @returns The ids food reports public. Never rejects.
+     * @sideEffect At most one batched food request.
+     */
+    public async publicAmong(
+        caller: CallerToken | undefined,
+        foodIds: readonly string[],
+    ): Promise<ReadonlySet<string>> {
+        const refs = foodIds.map((id): FoodRef => ({ kind: 'root', id }));
+        const { answers } = await this.refs.resolve(caller, refs, 'read');
+
+        return new Set(
+            foodIds.filter((id) => {
+                const answer = answers.get(foodRefKey({ kind: 'root', id }));
+
+                return answer?.outcome === 'found' && !answer.isPrivate;
+            }),
+        );
     }
 
     /**

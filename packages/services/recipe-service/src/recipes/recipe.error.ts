@@ -9,6 +9,7 @@
 import { HttpException } from '@nestjs/common';
 import {
     RecipeErrorCode,
+    type PrivateFoodLine,
     type PublishRequirement,
     type RecipeError,
     type VersionConflictSide,
@@ -89,6 +90,22 @@ export function foodNotAdmissible(foodId: string, reason: string): RecipeDomainE
         RecipeErrorCode.UNKNOWN_INGREDIENT,
         `Food '${foodId}' cannot back an ingredient: ${reason}.`,
         { foodId },
+    );
+}
+
+/**
+ * `PRIVATE_FOODS_ON_PUBLIC_RECIPE` (→ 400) — the write would leave a recipe published and public while a line is bound to
+ * a food its author keeps private (`domain/publicFoodsPolicy.ts`, ADR-0029 section 4). `details.lines` names every such
+ * line, so a client marks each and offers "Open food".
+ *
+ * @param lines - Every refused line (at least one), by position and food.
+ * @returns The error.
+ */
+export function privateFoodsOnPublicRecipe(lines: readonly [PrivateFoodLine, ...PrivateFoodLine[]]): RecipeDomainError {
+    return new RecipeDomainError(
+        RecipeErrorCode.PRIVATE_FOODS_ON_PUBLIC_RECIPE,
+        'A public recipe cannot use a food only its author can see. Make the food public, or keep the recipe private.',
+        { lines: lines.map((line) => ({ sortOrder: line.sortOrder, foodId: line.foodId })) },
     );
 }
 

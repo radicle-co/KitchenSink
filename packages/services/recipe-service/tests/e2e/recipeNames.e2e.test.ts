@@ -50,6 +50,7 @@ let sharedLookup: string;
 let privateLookup: string;
 let declaredLookup: string;
 let recipeId: string;
+let publicRecipeId: string;
 
 /** Send one request as `userId`, forwarding their bearer to food. */
 async function call(userId: string, method: string, path: string, body?: unknown): Promise<Response> {
@@ -75,9 +76,14 @@ async function json<T>(userId: string, method: string, path: string, expected: n
 }
 
 /** A one-step recipe with one line per binding, created by the author. */
-async function createRecipe(title: string, lookupIds: readonly string[]): Promise<RecipeBody> {
+async function createRecipe(
+    title: string,
+    lookupIds: readonly string[],
+    visibility: 'public' | 'private' = 'public',
+): Promise<RecipeBody> {
     return json<RecipeBody>(AUTHOR, 'POST', '/api/v1/recipes', 201, {
         title: `${SCOPE} ${title}`,
+        visibility,
         servings: 2,
         prepTimeMinutes: 5,
         cookTimeMinutes: 10,
@@ -116,7 +122,9 @@ describe('recipe line names (e2e, assembled app + food fake)', () => {
         declaredLookup = (
             await json<{ id: string }>(AUTHOR, 'POST', '/api/v1/ingredients', 201, { name: `${SCOPE} spice mix` })
         ).id;
-        recipeId = (await createRecipe('three arms', [sharedLookup, privateLookup, declaredLookup])).id;
+        // A private food lives only in a PRIVATE recipe (ADR-0029 section 4): a public one holding it is refused.
+        recipeId = (await createRecipe('three arms', [sharedLookup, privateLookup, declaredLookup], 'private')).id;
+        publicRecipeId = (await createRecipe('shared arms', [sharedLookup, declaredLookup])).id;
     });
 
     afterAll(async () => {
@@ -146,14 +154,15 @@ describe('recipe line names (e2e, assembled app + food fake)', () => {
         });
     });
 
-    it('⛔ shows a stranger the private line as unavailable — no name and no food id (AE10)', async () => {
-        const detail = await json<RecipeBody>(STRANGER, 'GET', `/api/v1/recipes/${recipeId}`, 200);
-        const line = lineOn(detail, privateLookup);
+    // REPLACED for ADR-0029 section 4. This case read a PUBLIC recipe holding the author's private food as a stranger
+    // and asserted the line came back unavailable. That recipe can no longer exist, and a stranger cannot read a private
+    // one at all, so what is asserted is the concealment: the whole recipe answers 404, and a public recipe's shared
+    // line is still named for the same stranger (the positive control).
+    it('⛔ conceals the private recipe from a stranger entirely, and still names a public recipe’s shared line (AE10)', async () => {
+        expect((await call(STRANGER, 'GET', `/api/v1/recipes/${recipeId}`)).status).toBe(404);
 
-        expect(line?.resolutionStatus).toBe('RESOLVED_UNAVAILABLE');
-        expect(line).not.toHaveProperty('name');
-        expect(line).not.toHaveProperty('foodId');
-        // The positive control on the same read: the shared line is named for the stranger.
+        const detail = await json<RecipeBody>(STRANGER, 'GET', `/api/v1/recipes/${publicRecipeId}`, 200);
+
         expect(lineOn(detail, sharedLookup)?.name).toBe('Beef brisket');
     });
 
@@ -249,7 +258,8 @@ describe('recipe line names (e2e, assembled app + food fake)', () => {
             return page.results.map((hit) => hit.recipe.id);
         };
 
-        expect(await ids(STRANGER, SHARED_FOOD)).toContain(recipeId);
+        expect(await ids(STRANGER, SHARED_FOOD)).toContain(publicRecipeId);
+        expect(await ids(STRANGER, SHARED_FOOD)).not.toContain(recipeId);
         expect(await ids(AUTHOR, PRIVATE_FOOD)).toContain(recipeId);
         expect(await ids(STRANGER, PRIVATE_FOOD)).not.toContain(recipeId);
     });

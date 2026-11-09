@@ -77,6 +77,8 @@ export const RECIPE_ERROR_STATUS: Readonly<Record<RecipeErrorCode, number>> = {
     IMPORT_ITEM_ALREADY_SAVED: HttpStatus.CONFLICT,
     // ── Private slots (ADR-0073): a 403, NOT a 409 - an installed client reads an unknown 409 as a version conflict ──
     PRIVATE_SLOTS_FULL: HttpStatus.FORBIDDEN,
+    // ── Private foods (ADR-0029 section 4): a 400 beside PUBLISH_REQUIREMENTS_UNMET, NOT a 409 (a 409 is a version conflict to the outbox) ──
+    PRIVATE_FOODS_ON_PUBLIC_RECIPE: HttpStatus.BAD_REQUEST,
 
     // ── Auth and account lifecycle ──
     UNAUTHORIZED: HttpStatus.UNAUTHORIZED,

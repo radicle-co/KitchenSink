@@ -1806,6 +1806,8 @@ export class RecipeServiceClient {
             case 'UNSUPPORTED_MEDIA_TYPE':
             case 'TOO_MANY_REQUESTS':
             case 'NOT_READY':
+            // ADR-0029 section 4: carried by code until the client increment gives it a class that holds `details.lines`.
+            case 'PRIVATE_FOODS_ON_PUBLIC_RECIPE':
             case 'INTERNAL_ERROR':
                 return new UnexpectedResponseError(res.status, body.message, body.code, res.retryAfterSeconds);
 

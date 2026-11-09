@@ -37,6 +37,9 @@ export function fakeRecipesDal(overrides: Partial<RecipesDal> = {}): RecipesDal 
         countPrivateSlots: vi.fn(async () => 0),
         // A public DRAFT by default: publishing it is never counted, so a suite that is not about slots is unaffected.
         lockSlotFacts: vi.fn(async () => ({ visibility: 'public', status: 'draft' })),
+        // ADR-0029 section 4: no captured owners to clear and no private lines by default.
+        clearPublicFoodOwners: vi.fn(async () => undefined),
+        privateFoodLines: vi.fn(async () => []),
         setVisibility: vi.fn(),
         transaction: vi.fn(async (fn: (tx: RecipeTx) => Promise<unknown>) => fn(FAKE_TX)),
         ...overrides,

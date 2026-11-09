@@ -38,6 +38,7 @@ export function toIngredientResponse(row: IngredientRow, view: IngredientLineVie
         ...(view.foodId === undefined ? {} : { foodId: view.foodId }),
         ...(view.variant === undefined ? {} : { variant: view.variant }),
         ...(view.hasVariants === undefined ? {} : { hasVariants: view.hasVariants }),
+        ...(view.foodVisibility === undefined ? {} : { foodVisibility: view.foodVisibility }),
         ...(view.unresolvedReason === undefined ? {} : { unresolvedReason: view.unresolvedReason }),
         // Both quantity columns, read through the ONE adapter (`dal/quantityColumns.ts`).
         quantity: quantityFromColumns(row),
@@ -65,6 +66,8 @@ export interface RecipeResponseExtras {
     nutrition?: RecipeDetailNutrition;
     /** Absolute CDN URL of the cover photo (FR-001c). Resolved by the caller (list LATERAL / detail photos). */
     coverPhotoUrl?: string;
+    /** Whether any line is bound to a private food (the cook's own list only; ADR-0029 section 4). */
+    holdsPrivateFood?: boolean;
     /**
      * The VIEWER's own rating (1–5), for the `RecipeDetail.viewerRating` field (FR-013). DETAIL reads only,
      * and only when the viewer has actually rated — ABSENT otherwise (never `0`). Resolved by the caller
@@ -100,6 +103,7 @@ function toRecipeBase(recipe: RecipeAggregate['recipe'], extras: RecipeResponseE
         ...(extras.viewerRating !== undefined ? { viewerRating: extras.viewerRating } : {}),
         // Cover photo (FR-001c) — absent when the recipe has no photos.
         ...(extras.coverPhotoUrl !== undefined ? { coverPhotoUrl: extras.coverPhotoUrl } : {}),
+        ...(extras.holdsPrivateFood !== undefined ? { holdsPrivateFood: extras.holdsPrivateFood } : {}),
         // Embedded photos + per-serving nutrition for the detail read (absent on list/search metadata).
         ...(extras.photos !== undefined ? { photos: extras.photos } : {}),
         ...(extras.nutrition !== undefined ? { nutrition: extras.nutrition } : {}),

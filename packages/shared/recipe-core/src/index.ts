@@ -6,6 +6,8 @@ export {
     publishRequirementsUnmetDetailsSchema,
 } from './publishRequirement.js';
 export type { PublishRequirement, PublishRequirementsUnmetDetails } from './publishRequirement.js';
+export { privateFoodLinesDetailsSchema } from './privateFoodLines.js';
+export type { PrivateFoodLine, PrivateFoodLinesDetails } from './privateFoodLines.js';
 export {
     FoodResolutionStatus,
     NAMELESS_LINE_STATUSES,

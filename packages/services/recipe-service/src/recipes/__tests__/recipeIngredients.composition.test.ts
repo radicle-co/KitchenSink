@@ -133,6 +133,7 @@ const ONION_LINE = {
     displayText: 'diced',
     // Curated U9: a root line says whether its root has a variant to pick; the nutrition double answers nothing.
     hasVariants: false,
+    foodVisibility: 'public',
     isUserEntered: false,
     resolutionStatus: FoodResolutionStatus.RESOLVED,
 };

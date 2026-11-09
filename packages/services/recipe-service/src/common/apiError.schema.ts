@@ -40,6 +40,7 @@ import { z } from 'zod';
 
 import {
     IDENTITY_SYNC_PENDING_CODE,
+    privateFoodLinesDetailsSchema,
     publishRequirementsUnmetDetailsSchema,
     versionConflictDetailsSchema,
 } from '@kitchensink/recipe-core';
@@ -145,6 +146,8 @@ export const recipeErrorCodeSchema = z.enum([
      * know to a version conflict. `details.used` and `details.limit` say how many slots the cook holds and how many they get.
      */
     'PRIVATE_SLOTS_FULL',
+    /** A write would leave a published public recipe holding a private food; `details.lines` names each (ADR-0029 section 4). */
+    'PRIVATE_FOODS_ON_PUBLIC_RECIPE',
 
     // ── Auth and account-lifecycle codes, which are NOT recipe-domain errors ──
     /** No, invalid, expired, or wrong-authorized-party bearer token. */
@@ -256,6 +259,14 @@ export const recipeApiErrorSchema = z.discriminatedUnion('code', [
             message: z.string(),
             /** Every unmet requirement, at least one, from `recipe-core`'s vocabulary. Composed, never re-declared. */
             details: publishRequirementsUnmetDetailsSchema.loose(),
+        })
+        .loose(),
+    z
+        .object({
+            code: z.literal('PRIVATE_FOODS_ON_PUBLIC_RECIPE'),
+            message: z.string(),
+            /** Every refused line, at least one, from `recipe-core`'s vocabulary. Composed, never re-declared. */
+            details: privateFoodLinesDetailsSchema.loose(),
         })
         .loose(),
     z

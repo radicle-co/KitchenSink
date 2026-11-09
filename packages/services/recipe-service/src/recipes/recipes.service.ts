@@ -43,10 +43,12 @@ import {
     publishRequirementsUnmet,
     recipeNotFound,
     versionConflict,
+    privateFoodsOnPublicRecipe,
 } from './recipe.error.js';
 import type { PrivateSlotUsage } from './recipes.schema.js';
 import { evaluateProvenance } from './domain/provenancePolicy.js';
 import { evaluatePublication, type PublishPolicyInput } from './domain/publishPolicy.js';
+import { evaluatePublicFoods, type PublicFoodsLine } from './domain/publicFoodsPolicy.js';
 import {
     SLOT_NOT_NEEDED,
     privateSlotAllowanceOf,
@@ -438,12 +440,12 @@ function assertVisibilityAllowed(
  * which fields the policy is asked with.
  *
  * @param principal - The verified caller.
- * @param recipe - The recipe's provenance label and whether it carries a substantive edit once the write lands.
+ * @param recipe - The recipe's provenance label.
  * @param requested - The visibility asked for.
  */
 function visibilityAskOf(
     principal: Principal,
-    recipe: { readonly sourceType: RecipeSourceType; readonly hasSubstantiveEdit: boolean },
+    recipe: { readonly sourceType: RecipeSourceType },
     requested: RecipeVisibility,
 ): Omit<VisibilityPolicyInput, 'hasAvailablePrivateSlot'> {
     return {
@@ -451,7 +453,6 @@ function visibilityAskOf(
         containment: principal.containment,
         sourceType: recipe.sourceType,
         isPremium: isPremiumPrincipal(principal),
-        hasSubstantiveEdit: recipe.hasSubstantiveEdit,
         requested,
     };
 }
@@ -585,6 +586,82 @@ export class RecipesService {
     }
 
     /**
+     * Refuse a write that would leave a recipe published and public while a line is bound to a private food (ADR-0029
+     * section 4), after RECAPTURING: a food promoted since it was bound is public now and its captured owner is stale.
+     *
+     * Asks food only when the policy would deny, so a private recipe, a draft, or a recipe with no private food costs
+     * no call. Fails CLOSED: a food that is still private, absent or unreachable keeps its captured value.
+     *
+     * @param caller - The writer's credential, forwarded to food as the author.
+     * @param state - The status and visibility the write leaves.
+     * @param lines - The lines the write leaves, by position and binding.
+     * @param identities - Those bindings' identities, by lookup id.
+     * @returns The foods food reports public, whose captured owner the write clears INSIDE its transaction.
+     * @throws {RecipeDomainError} `PRIVATE_FOODS_ON_PUBLIC_RECIPE`, naming every line still bound to a private food.
+     * @sideEffect At most one batched food request.
+     */
+    private async publicFoodsGuard(
+        caller: CallerToken | undefined,
+        state: { readonly status: RecipeStatus; readonly visibility: RecipeVisibility },
+        lines: readonly { readonly foodLookupId: string; readonly sortOrder: number }[],
+        identities: LineIdentities,
+    ): Promise<readonly string[]> {
+        const rootLines = lines.flatMap((line): PublicFoodsLine[] => {
+            const arm = identities.get(line.foodLookupId)?.arm;
+
+            return arm?.kind === 'root'
+                ? [{ sortOrder: line.sortOrder, foodId: arm.foodId, foodOwnerId: privateFoodOwnerOf(arm) ?? null }]
+                : [];
+        });
+        const first = evaluatePublicFoods({ ...state, lines: rootLines });
+
+        if (first.allowed) {
+            return [];
+        }
+
+        const nowPublic = await this.identities.publicAmong(caller, [
+            ...new Set(first.lines.map((line) => line.foodId)),
+        ]);
+        const second = evaluatePublicFoods({
+            ...state,
+            lines: rootLines.map((line) => (nowPublic.has(line.foodId) ? { ...line, foodOwnerId: null } : line)),
+        });
+
+        if (!second.allowed) {
+            throw privateFoodsOnPublicRecipe(second.lines);
+        }
+
+        return [...nowPublic];
+    }
+
+    /**
+     * The LAST statement of a write that can leave a recipe public: ask the database, by its own rule, whether the
+     * recipe now holds a private food. Any row aborts the write (its transaction rolls back). It backs the policy
+     * against a binding that changed between the check and the write.
+     *
+     * @param tx - The write's open transaction.
+     * @param recipeId - The recipe just written.
+     * @param state - The status and visibility the write left.
+     * @throws {RecipeDomainError} `PRIVATE_FOODS_ON_PUBLIC_RECIPE`.
+     * @sideEffect One read, and only for a published public recipe.
+     */
+    private async assertNoPrivateFoodLinesIn(
+        tx: RecipeTx,
+        recipeId: string,
+        state: { readonly status: RecipeStatus; readonly visibility: RecipeVisibility },
+    ): Promise<void> {
+        if (state.status !== RecipeStatus.PUBLISHED || state.visibility !== RecipeVisibility.PUBLIC) {
+            return;
+        }
+
+        const [first, ...rest] = await this.dal.privateFoodLines(tx, recipeId);
+
+        if (first !== undefined) {
+            throw privateFoodsOnPublicRecipe([first, ...rest]);
+        }
+    }
+
+    /**
      * Create a recipe owned by `principal.userId`.
      *
      * ⚠️ A create is no longer ALWAYS `user_created` (004-FR-024 / ADR-0023). It carries the provenance the
@@ -625,11 +702,7 @@ export class RecipesService {
         const provenance = provenanceDecision.provenance;
         const requested = dto.visibility ?? RecipeVisibility.PUBLIC;
         const isPremium = isPremiumPrincipal(principal);
-        const visibilityAsk = visibilityAskOf(
-            principal,
-            { sourceType: provenance.sourceType, hasSubstantiveEdit: false },
-            requested,
-        );
+        const visibilityAsk = visibilityAskOf(principal, { sourceType: provenance.sourceType }, requested);
         // ADR-0073: only a free cook's private PUBLISHED recipe takes a slot, and THAT decision is made inside the write's transaction,
         // under the per-user lock, below. Every other request has no slot to lack, so it is judged here, before the planner,
         // exactly as it always was - a pure refusal must not cost a call to food. (A slot refusal does: it is only known
@@ -661,6 +734,14 @@ export class RecipesService {
 
         // OUTSIDE the transaction: the plan reads the bindings and asks food for their names.
         const plan = await this.planner.plan(caller, dto.ingredients);
+        // ADR-0029 section 4: a published public recipe holds no private food. Judged before the write, after recapture.
+        const publicState = { status, visibility: requested };
+        const nowPublicFoods = await this.publicFoodsGuard(
+            caller,
+            publicState,
+            plan.inputs.map((line) => ({ foodLookupId: line.foodLookupId, sortOrder: line.sortOrder ?? 0 })),
+            plan.identities,
+        );
         // ⛔ ONE TRANSACTION: the recipe and its version row commit together or not at all (owner ruling
         // 2026-09-06). Everything above stays OUTSIDE — reads, policy and pure derivation — and so does
         // everything below, because a Postgres transaction must never be held across a network call.
@@ -675,6 +756,9 @@ export class RecipesService {
 
             // The author's byline (plan 2026-10-15-010 D8): the read model first, read INSIDE this transaction.
             const byline = await this.bylineIn(tx, principal);
+            if (nowPublicFoods.length > 0) {
+                await this.dal.clearPublicFoodOwners(tx, nowPublicFoods);
+            }
             const created = await this.dal.create(
                 {
                     ownerId: principal.userId,
@@ -713,6 +797,7 @@ export class RecipesService {
             );
 
             await this.recordSnapshotIn(tx, created, plan.identities, principal.userId, 'Created', byline);
+            await this.assertNoPrivateFoodLinesIn(tx, created.recipe.id, publicState);
 
             return created;
         });
@@ -997,6 +1082,7 @@ export class RecipesService {
             // arrow is required (a bare `.map(toRecipeSummaryResponse)` would pass the index as the extras arg).
             data: rows.map((row) =>
                 toRecipeSummaryResponse(row, {
+                    ...(row.holdsPrivateFood !== undefined ? { holdsPrivateFood: row.holdsPrivateFood } : {}),
                     ...(row.coverPhotoKey !== undefined
                         ? { coverPhotoUrl: resolveCdnUrl(this.photosCdnUrl, row.coverPhotoKey) }
                         : {}),
@@ -1059,6 +1145,21 @@ export class RecipesService {
                 'postCommit',
             ));
 
+        // ADR-0029 section 4: judged on the state the write leaves, against the lines it leaves (the patch's, else the
+        // stored ones), after recapture. The visibility an update leaves is the stored one: only set-visibility moves it.
+        const publicState = {
+            status: dto.status ?? recipeStatusSchema.parse(existing.recipe.status),
+            visibility: existing.recipe.visibility,
+        };
+        const nowPublicFoods = await this.publicFoodsGuard(
+            caller,
+            publicState,
+            plan !== undefined
+                ? plan.inputs.map((line) => ({ foodLookupId: line.foodLookupId, sortOrder: line.sortOrder ?? 0 }))
+                : existing.ingredients.map((row) => ({ foodLookupId: row.foodLookupId, sortOrder: row.sortOrder })),
+            identities,
+        );
+
         // ⛔ No lead-calorie recompute here any more (plan U10). This block existed to keep a denormalized
         // column in step with the lines and the serving count; with the column dropped there is nothing to
         // keep in step, and the figure is derived on every detail read from food's live data instead.
@@ -1087,7 +1188,7 @@ export class RecipesService {
         const existingStatus = recipeStatusSchema.parse(existing.recipe.status);
         const afterStatus = dto.status ?? existingStatus;
         const publishesDraft = existingStatus === RecipeStatus.DRAFT && afterStatus === RecipeStatus.PUBLISHED;
-        const takesSlotLock = publishesDraft && slotRuleApplies({ sourceType, isPremium });
+        const takesSlotLock = publishesDraft && slotRuleApplies({ isPremium });
 
         // ⛔ ONE TRANSACTION, and the CAS miss must LEAVE it before it is diagnosed. `raiseVersionConflict`
         // calls `dal.readConflict`, which opens its own transaction AND issues
@@ -1135,14 +1236,14 @@ export class RecipesService {
                     }
 
                     assertVisibilityAllowed(
-                        visibilityAskOf(
-                            principal,
-                            { sourceType, hasSubstantiveEdit: existing.recipe.hasSubstantiveEdit || newlySubstantive },
-                            RecipeVisibility.PRIVATE,
-                        ),
+                        visibilityAskOf(principal, { sourceType }, RecipeVisibility.PRIVATE),
                         takesSlot && counted !== undefined ? counted : SLOT_NOT_NEEDED,
                     );
                 }
+            }
+
+            if (nowPublicFoods.length > 0) {
+                await this.dal.clearPublicFoodOwners(tx, nowPublicFoods);
             }
 
             const result = await this.dal.update(
@@ -1194,6 +1295,7 @@ export class RecipesService {
                 editor,
                 options.snapshot?.baseVersion,
             );
+            await this.assertNoPrivateFoodLinesIn(tx, id, publicState);
 
             return result;
         });
@@ -1404,15 +1506,28 @@ export class RecipesService {
 
         const isPremium = isPremiumPrincipal(principal);
         const sourceType = existing.recipe.sourceType;
-        const visibilityAsk = visibilityAskOf(
-            principal,
-            { sourceType, hasSubstantiveEdit: existing.recipe.hasSubstantiveEdit },
-            visibility,
-        );
+        const visibilityAsk = visibilityAskOf(principal, { sourceType }, visibility);
         // The row's facts are only known for certain UNDER the lock (set-visibility does not bump the version, and another
         // request may publish a draft in between), so the lock is taken whenever the slot rule could apply to a move to
         // private, and the precise verdict is made from the facts read under it.
-        const mayNeedSlot = visibility === RecipeVisibility.PRIVATE && slotRuleApplies({ sourceType, isPremium });
+        const mayNeedSlot = visibility === RecipeVisibility.PRIVATE && slotRuleApplies({ isPremium });
+
+        // ADR-0029 section 4: making a published recipe public is refused while it holds a private food. Only that move
+        // costs a read of the bindings and a call to food.
+        const publicState = { status: recipeStatusSchema.parse(existing.recipe.status), visibility };
+        const nowPublicFoods =
+            publicState.status === RecipeStatus.PUBLISHED && visibility === RecipeVisibility.PUBLIC
+                ? await this.publicFoodsGuard(
+                      caller,
+                      publicState,
+                      existing.ingredients.map((row) => ({ foodLookupId: row.foodLookupId, sortOrder: row.sortOrder })),
+                      await this.identities.identify(
+                          caller,
+                          existing.ingredients.map((row) => row.foodLookupId),
+                          'read',
+                      ),
+                  )
+                : [];
 
         // ONE TRANSACTION (ADR-0073): set-visibility used to be a single UPDATE; it now needs the per-user lock, the count
         // and the write to be one unit, or two requests racing at 49 both pass.
@@ -1441,8 +1556,17 @@ export class RecipesService {
             }
 
             assertVisibilityAllowed(visibilityAsk, standing);
+            if (nowPublicFoods.length > 0) {
+                await this.dal.clearPublicFoodOwners(tx, nowPublicFoods);
+            }
 
-            return this.dal.setVisibility(id, visibility, tx);
+            const written = await this.dal.setVisibility(id, visibility, tx);
+
+            if (written !== undefined) {
+                await this.assertNoPrivateFoodLinesIn(tx, id, publicState);
+            }
+
+            return written;
         });
 
         if (!updated) {

@@ -708,11 +708,15 @@ export const eraseRecipeRows = async (
         `);
 
         // 1. Donate-flip (U3b): elected recipes → community-visible. BOTH columns; scoped to the owner.
+        //    ⛔ ONLY a recipe that holds no private food (ADR-0029 section 6): a public recipe may not hold one (migration
+        //    0064 would roll this whole transaction back, stranding the erasure), and a dead author's private foods must
+        //    stay unreferenced so they are deleted. Such an elected recipe is removed with the owner-only set below.
         await tx.execute(sql`
             UPDATE recipes
             SET visibility = 'public', status = 'published', updated_at = now()
             WHERE id IN (SELECT jsonb_array_elements_text(${publishElectionJson}::jsonb)::uuid)
               AND owner_id = ${ownerId}
+              AND NOT recipe_holds_private_food(id)
         `);
 
         // 2. The removed set = the owner's rows that are NOT truly-public (owner-only, non-donated). Captured

@@ -730,6 +730,22 @@ describe('RecipesService.list', () => {
         expect(response.data).toHaveLength(1);
     });
 
+    it('carries holdsPrivateFood from the DAL on every list item (revision 4, F7), true or false', async () => {
+        const dal = fakeRecipesDal({
+            findAll: vi.fn().mockResolvedValue({
+                rows: [
+                    { recipe: aggregate().recipe, holdsPrivateFood: true },
+                    { recipe: aggregate().recipe, holdsPrivateFood: false },
+                ],
+                total: 2,
+            }),
+        });
+
+        const response = await newService(dal).list(OWNER, { page: 1, pageSize: 2, sortBy: 'updatedAt' });
+
+        expect(response.data.map((item) => item.holdsPrivateFood)).toEqual([true, false]);
+    });
+
     it('reports hasMore=false on a SHORT final page (fewer rows than pageSize, nothing left)', async () => {
         // S-R8 correctness fix: `total: 2` here was internally inconsistent with `rows: [aggregate()]`
         // (1 row) under the OLD `page * pageSize < total` formula, which ignored the actual row count —
@@ -1613,6 +1629,7 @@ describe('RecipesService — response mapping fidelity (Tier-2)', () => {
             name: 'Onion',
             foodId: permissiveFoodIdOf('ing-A'),
             hasVariants: false,
+            foodVisibility: 'public',
             quantity: { kind: 'exact', value: 2 },
             unit: 'cup',
             displayText: 'diced',

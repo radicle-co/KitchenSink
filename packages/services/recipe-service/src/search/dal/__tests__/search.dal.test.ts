@@ -175,12 +175,11 @@ describe('rowToRecipe', () => {
     });
 
     it('derives usesPremiumCapability from visibility + sourceType (never visibility alone)', () => {
-        // REWRITTEN for ADR-0073 section 10: only a private imported_public recipe is PRO; a private user_created one is
-        // a free cook's private slot.
+        // REWRITTEN for ADR-0077 section 6: no private recipe is PRO; a private imported_public one is a slot too.
         expect(
             rowToRecipe(makeRawRecipeSearchRow({ visibility: 'private', source_type: 'imported_public' }) as never)
                 .usesPremiumCapability,
-        ).toBe(true);
+        ).toBe(false);
         expect(
             rowToRecipe(makeRawRecipeSearchRow({ visibility: 'private', source_type: 'user_created' }) as never)
                 .usesPremiumCapability,

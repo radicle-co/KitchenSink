@@ -23,6 +23,9 @@
 --
 -- ⚠️ EXPAND-ONLY and without a backfill: the triggers judge writes from now on, and nothing is live (owner, 2026-09-26).
 
+-- ⚠️ Bounded wait: the two triggers lock ingredients and recipes, which every write path uses.
+SET LOCAL lock_timeout = '5s';
+
 CREATE OR REPLACE FUNCTION recipe_private_food_lines(p_recipe_id uuid)
 RETURNS TABLE (sort_order integer, food_id text)
 LANGUAGE sql STABLE AS $$

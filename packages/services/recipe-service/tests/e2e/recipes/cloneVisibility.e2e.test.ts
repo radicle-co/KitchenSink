@@ -427,13 +427,14 @@ describe('Clone + visibility US2 (integration)', () => {
     // ── U13: clone of a private-food line (R20) — the binding is KEPT and no name leaks ────────────────
 
     /**
-     * Seed the AUTHOR's public recipe carrying a second line bound to one of the AUTHOR's private foods, which the
+     * Seed the AUTHOR's recipe carrying a second line bound to one of the AUTHOR's private foods, which the
      * food fake holds under `name`, readable by the AUTHOR only.
      */
     async function seedPrivateFoodSource(
         privateFood: typeof PRIVATE_FOOD,
         name: string,
         title: string,
+        visibility: 'public' | 'private' = 'private',
     ): Promise<string> {
         await ensureFoodLookup(pool, {
             arm: 'private',
@@ -446,7 +447,7 @@ describe('Clone + visibility US2 (integration)', () => {
         const sourceId = await seedRecipe(db, pool, {
             ownerId: AUTHOR,
             title,
-            visibility: 'public',
+            visibility,
             status: 'published',
             sourceType: 'user_created',
         });
@@ -468,56 +469,36 @@ describe('Clone + visibility US2 (integration)', () => {
     }
 
     /**
-     * ⚠️ REWRITTEN (plan 002). This case used to assert the clone UNBOUND the line: a different ingredient id, a
-     * freeform user-entered copy. Plan 002 inverts that — a clone KEEPS every binding, including one to another
-     * author's private food, because the recipe database no longer stores a name that a kept binding could leak.
-     * What the cloner must not get is the NAME, anywhere: not on the line (it reads `RESOLVED_UNAVAILABLE`, with no
-     * name and no food id), not in the clone's search text, and not frozen into the clone's first version.
-     * `clonePrivateFoodLineCount` keeps its wire name and now counts the lines bound to a food the cloner may not see.
+     * ⚠️ REPLACED (ADR-0029 section 4, owner rulings 2026-11-08). This case cloned a PUBLIC recipe that held another
+     * author's private food and asserted the cloner got no name. That recipe can no longer exist: a private food lives
+     * only in a private recipe, and only its owner can read (and so clone) a private recipe. So the stranger-clone
+     * leak cannot be reached, and what is asserted instead is the rule that removed it: the database refuses to put a
+     * private food on a published public recipe, and refuses to make such a recipe public.
      */
-    it("U13: cloning a recipe with ANOTHER author's private-food line KEEPS the binding and leaks no name", async () => {
+    it("U13: a public recipe cannot hold ANOTHER author's private food, so there is nothing for a stranger to clone", async () => {
         const sourceId = await seedPrivateFoodSource(PRIVATE_FOOD, 'Grandma Blend', 'Clone unbind source');
 
-        const response = await fetch(`${baseUrl}/api/v1/recipes/${sourceId}/clone`, {
-            method: 'POST',
-            headers: { authorization: bearerFor(CLONER) },
+        await expect(
+            pool.query(`UPDATE recipes SET visibility = 'public' WHERE id = $1`, [sourceId]),
+        ).rejects.toMatchObject({ code: '23514', constraint: 'recipes_public_holds_no_private_food' });
+
+        const publicSource = await seedRecipe(db, pool, {
+            ownerId: AUTHOR,
+            title: 'Public source',
+            visibility: 'public',
+            status: 'published',
+            sourceType: 'user_created',
         });
 
-        expect(response.status).toBe(201);
-
-        const clone = (await response.json()) as RecipeBody;
-
-        // The banner's number: exactly the lines bound to a food the cloner may not see.
-        expect(clone.clonePrivateFoodLineCount).toBe(1);
-
-        const privateLine = clone.ingredients[1];
-
-        // ⛔ The SAME binding — a clone keeps it.
-        expect(privateLine?.ingredientId).toBe(PRIVATE_FOOD.lookupId);
-        expect(privateLine?.resolutionStatus).toBe('RESOLVED_UNAVAILABLE');
-        expect(privateLine?.isUserEntered).toBe(false);
-        // ⛔ …and neither its name nor its food id reaches the cloner.
-        expect(privateLine).not.toHaveProperty('name');
-        expect(privateLine).not.toHaveProperty('foodId');
-
-        // The positive control on the same response: the ordinary line is named, so the absence above is the
-        // privacy rule and not a read that names nothing.
-        expect(clone.ingredients[0]).toMatchObject({ ingredientId: FLOUR_ID, name: 'Flour' });
-
-        // ⛔ Nor in the two recipe-level surfaces every reader can reach. The declared line's name IS there.
-        const searchText = await searchTextOf(clone.id);
-
-        expect(searchText).toContain('Flour');
-        expect(searchText.toLowerCase()).not.toContain('grandma');
-
-        // The clone is a draft and records no version until it is first published; the first version it then
-        // freezes is the one that must not carry the name.
-        const firstVersion = await publishCloneAndReadFirstVersionLines(pool, baseUrl, clone, bearerFor(CLONER));
-
-        expect(firstVersion).toHaveLength(2);
-        expect(firstVersion[0]).toMatchObject({ ingredientId: FLOUR_ID, ingredientName: 'Flour' });
-        expect(firstVersion[1]).toMatchObject({ ingredientId: PRIVATE_FOOD.lookupId });
-        expect(firstVersion[1]).not.toHaveProperty('ingredientName');
+        await expect(
+            insertIngredientLine(pool, {
+                recipeId: publicSource,
+                foodLookupId: PRIVATE_FOOD.lookupId,
+                quantity: '1',
+                unit: 'cup',
+                sortOrder: 1,
+            }),
+        ).rejects.toMatchObject({ code: '23514', constraint: 'ingredients_public_recipe_no_private_food' });
     });
 
     /**

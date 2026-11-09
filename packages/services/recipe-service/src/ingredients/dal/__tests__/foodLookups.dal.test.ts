@@ -10,6 +10,7 @@ import { DatabaseError } from 'pg';
 import type { RecipeDrizzle } from '../../../database/client.js';
 import { makeFakeDrizzle } from '../../../__testing__/makeFakeDrizzle.js';
 import { FoodLookupsDal } from '../foodLookups.dal.js';
+import { PrivateFoodSettleError } from '../foodLookups.errors.js';
 
 const AT = new Date('2026-09-30T00:00:00.000Z');
 
@@ -79,5 +80,26 @@ describe('FoodLookupsDal.deleteIfOrphanedFailure — a concurrent reference is a
 
         expect(await dal.deleteIfOrphanedFailure('l1')).toBe(false);
         expect(fake.calls.filter((call) => call.method === 'delete')).toHaveLength(1);
+    });
+});
+
+describe('FoodLookupsDal.settleFailure - a shared failure binds a shared food only (ADR-0029 section 4)', () => {
+    const handle = { unresolvedFoodId: 'u1', lookupId: 'l-failure' } as never;
+    const root = (foodOwnerId: string | null) =>
+        ({ kind: 'root', lookupId: 'l-bound', foodId: 'food-1', foodOwnerId, createdAt: AT }) as never;
+
+    it('refuses to move lines onto a PRIVATE root, touching nothing', async () => {
+        const fake = makeFakeDrizzle<RecipeDrizzle>();
+        const dal = new FoodLookupsDal(fake.db);
+
+        await expect(dal.settleFailure(handle, root('01JAUTHOR'))).rejects.toBeInstanceOf(PrivateFoodSettleError);
+        expect(fake.calls).toHaveLength(0);
+    });
+
+    it('does not refuse a shared root (the guard stops at the transaction, which a fake db cannot open)', async () => {
+        const fake = makeFakeDrizzle<RecipeDrizzle>();
+        const dal = new FoodLookupsDal(fake.db);
+
+        await expect(dal.settleFailure(handle, root(null))).rejects.not.toBeInstanceOf(PrivateFoodSettleError);
     });
 });

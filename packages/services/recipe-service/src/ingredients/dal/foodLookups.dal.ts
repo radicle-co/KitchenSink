@@ -36,6 +36,7 @@ import { foodLookups, ingredients, unresolvedFoods } from '../../database/schema
 import type { Writer } from '../../database/unitOfWork.js';
 import { admittedRefOf, type FoodAdmission, type ResolvedHandle } from '../domain/foodAdmission.js';
 import { mergeAttempt, type FailureUpdate, type NewFailure } from '../domain/failureOutcome.js';
+import { PrivateFoodSettleError } from './foodLookups.errors.js';
 
 /** A read-only surface satisfied by the client and a transaction handle. */
 type Reader = Pick<RecipeDrizzle, 'select'>;
@@ -362,9 +363,16 @@ export class FoodLookupsDal {
      * @param handle - Food's proof that it resolved the failure's own pending food or phrase.
      * @param bound - The binding the lines move to: a root, or the variant food's forward ends at.
      * @returns How many lines moved: `0` when another settle got there first, which is final.
+     * @throws {PrivateFoodSettleError} when `bound` is a private food's root.
      * @sideEffect One transaction: a row lock, an update of `ingredients` and one of `unresolved_foods`.
      */
     public async settleFailure(handle: ResolvedHandle, bound: BoundArm): Promise<number> {
+        // ⛔ A failure is shared by every recipe that declared the phrase, public ones included, and a public recipe may hold
+        // no private food (ADR-0029 section 4): so it never settles onto one. Checked before the lock, so nothing is touched.
+        if (bound.kind === 'root' && bound.foodOwnerId !== null) {
+            throw new PrivateFoodSettleError(bound.lookupId);
+        }
+
         return this.db.transaction(async (tx) => {
             const [locked] = await tx
                 .select({ settledLookupId: unresolvedFoods.settledLookupId })

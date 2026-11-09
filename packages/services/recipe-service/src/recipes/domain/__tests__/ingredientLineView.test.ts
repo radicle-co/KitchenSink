@@ -198,3 +198,44 @@ describe('ingredientNamesText — the search column, from the names the lines ha
         expect(ingredientNamesText([], identities)).toBe('');
     });
 });
+
+describe('composeIngredientLineView - foodVisibility (revision 4, F4)', () => {
+    const shown = (isPrivate: boolean | undefined): IngredientLineIdentity => ({
+        arm: ROOT,
+        name: 'grandma blend',
+        presence: 'present',
+        food: { rootId: 'food-1', ...(isPrivate === undefined ? {} : { isPrivate }) },
+    });
+
+    it('says private when food’s live answer says the food is private, whatever the captured owner says', () => {
+        expect(composeIngredientLineView(shown(true), FoodResolutionStatus.RESOLVED).foodVisibility).toBe('private');
+        expect(
+            composeIngredientLineView(
+                { ...shown(true), arm: { ...ROOT, foodOwnerId: null } as FoodLookupArm },
+                FoodResolutionStatus.RESOLVED,
+            ).foodVisibility,
+        ).toBe('private');
+    });
+
+    it('says public when food’s live answer says the food is public, even if the captured owner is stale', () => {
+        expect(composeIngredientLineView(shown(false), FoodResolutionStatus.RESOLVED).foodVisibility).toBe('public');
+    });
+
+    it('is absent when food was not asked or gave no visibility, and on a hidden line', () => {
+        expect(composeIngredientLineView(shown(undefined), FoodResolutionStatus.RESOLVED)).not.toHaveProperty(
+            'foodVisibility',
+        );
+        expect(composeIngredientLineView(shown(true), FoodResolutionStatus.RESOLVED_UNAVAILABLE)).not.toHaveProperty(
+            'foodVisibility',
+        );
+    });
+
+    it('is absent on an unbound (declared) line', () => {
+        expect(
+            composeIngredientLineView(
+                { arm: unresolvedArm('author_declared'), name: 'yeast', presence: 'none' } as never,
+                FoodResolutionStatus.UNRESOLVED,
+            ),
+        ).not.toHaveProperty('foodVisibility');
+    });
+});

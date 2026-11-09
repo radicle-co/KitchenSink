@@ -8,6 +8,8 @@
  * - A line with no name to show reaches the wire only under one of `NAMELESS_LINE_STATUSES`, which tell the
  *   client which label to render. Composing one under any other status throws: it would be a lie on the wire.
  * - Only an unresolved line carries a reason code.
+ * - `foodVisibility` is food's LIVE answer (not the captured owner, which goes stale on promotion), and is absent on a
+ *   hidden line and on one food could not be asked about.
  * - `foodId` is the LIVE ROOT food named on this read (curated U9), on root- and variant-bound lines alike; `variant`
  *   appears exactly when that food is a variant, and `hasVariants` exactly when it is a root. The one exception is a
  *   ROOT line food could not be asked about: it keeps its bound id, the only root it can know.
@@ -35,6 +37,8 @@ export interface IngredientLineView {
     readonly foodId?: string;
     readonly variant?: IngredientVariant;
     readonly hasVariants?: boolean;
+    /** Whether food's LIVE answer says the line's food is private to its author (ADR-0029 section 4). */
+    readonly foodVisibility?: 'private' | 'public';
     readonly unresolvedReason?: UnresolvedFoodReasonCode;
     readonly isUserEntered: boolean;
     readonly resolutionStatus?: LineResolutionStatus;
@@ -104,6 +108,9 @@ export function composeIngredientLineView(
         ...(food === undefined ? {} : { foodId: food.rootId }),
         ...(food?.variant === undefined ? {} : { variant: food.variant }),
         ...(food === undefined || food.variant !== undefined ? {} : { hasVariants: facts.hasLiveVariants ?? false }),
+        ...(food?.isPrivate === undefined
+            ? {}
+            : { foodVisibility: food.isPrivate ? ('private' as const) : ('public' as const) }),
         ...(arm.kind === 'unresolved' ? { unresolvedReason: arm.failure.reasonCode } : {}),
         isUserEntered: isUserEnteredOf(identity),
         ...(finalStatus === undefined ? {} : { resolutionStatus: finalStatus }),

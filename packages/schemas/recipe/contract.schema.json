@@ -1151,6 +1151,9 @@
                 "hasSubstantiveEdit": {
                     "type": "boolean"
                 },
+                "holdsPrivateFood": {
+                    "type": "boolean"
+                },
                 "id": {
                     "minLength": 1,
                     "type": "string"
@@ -1518,6 +1521,9 @@
                                 "type": "string"
                             },
                             "hasSubstantiveEdit": {
+                                "type": "boolean"
+                            },
+                            "holdsPrivateFood": {
                                 "type": "boolean"
                             },
                             "id": {
@@ -9696,6 +9702,56 @@
                     "additionalProperties": {},
                     "properties": {
                         "code": {
+                            "const": "PRIVATE_FOODS_ON_PUBLIC_RECIPE",
+                            "type": "string"
+                        },
+                        "details": {
+                            "additionalProperties": {},
+                            "properties": {
+                                "lines": {
+                                    "items": {
+                                        "additionalProperties": false,
+                                        "properties": {
+                                            "foodId": {
+                                                "minLength": 1,
+                                                "type": "string"
+                                            },
+                                            "sortOrder": {
+                                                "maximum": 9007199254740991,
+                                                "minimum": 0,
+                                                "type": "integer"
+                                            }
+                                        },
+                                        "required": [
+                                            "sortOrder",
+                                            "foodId"
+                                        ],
+                                        "type": "object"
+                                    },
+                                    "minItems": 1,
+                                    "type": "array"
+                                }
+                            },
+                            "required": [
+                                "lines"
+                            ],
+                            "type": "object"
+                        },
+                        "message": {
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "code",
+                        "message",
+                        "details"
+                    ],
+                    "type": "object"
+                },
+                {
+                    "additionalProperties": {},
+                    "properties": {
+                        "code": {
                             "const": "IMPORT_QUOTA_EXCEEDED",
                             "type": "string"
                         },
@@ -10441,6 +10497,9 @@
                 "hasSubstantiveEdit": {
                     "type": "boolean"
                 },
+                "holdsPrivateFood": {
+                    "type": "boolean"
+                },
                 "id": {
                     "minLength": 1,
                     "type": "string"
@@ -10486,6 +10545,13 @@
                             },
                             "foodId": {
                                 "minLength": 1,
+                                "type": "string"
+                            },
+                            "foodVisibility": {
+                                "enum": [
+                                    "private",
+                                    "public"
+                                ],
                                 "type": "string"
                             },
                             "groupLabel": {
@@ -10922,6 +10988,7 @@
                 "IMPORT_CURSOR_MOVED",
                 "IMPORT_ITEM_ALREADY_SAVED",
                 "PRIVATE_SLOTS_FULL",
+                "PRIVATE_FOODS_ON_PUBLIC_RECIPE",
                 "UNAUTHORIZED",
                 "IDENTITY_SYNC_PENDING",
                 "FORBIDDEN",
@@ -11588,6 +11655,9 @@
                 "hasSubstantiveEdit": {
                     "type": "boolean"
                 },
+                "holdsPrivateFood": {
+                    "type": "boolean"
+                },
                 "id": {
                     "minLength": 1,
                     "type": "string"
@@ -12091,6 +12161,9 @@
                                         "type": "string"
                                     },
                                     "hasSubstantiveEdit": {
+                                        "type": "boolean"
+                                    },
+                                    "holdsPrivateFood": {
                                         "type": "boolean"
                                     },
                                     "id": {
@@ -12793,6 +12866,9 @@
                         "hasSubstantiveEdit": {
                             "type": "boolean"
                         },
+                        "holdsPrivateFood": {
+                            "type": "boolean"
+                        },
                         "id": {
                             "minLength": 1,
                             "type": "string"
@@ -12838,6 +12914,13 @@
                                     },
                                     "foodId": {
                                         "minLength": 1,
+                                        "type": "string"
+                                    },
+                                    "foodVisibility": {
+                                        "enum": [
+                                            "private",
+                                            "public"
+                                        ],
                                         "type": "string"
                                     },
                                     "groupLabel": {

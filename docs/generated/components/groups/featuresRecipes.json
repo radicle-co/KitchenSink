@@ -6,11 +6,11 @@
     "coverage": {
         "components": 195,
         "implementations": 331,
-        "props": 2304,
+        "props": 2303,
         "documentedComponents": 195,
         "implementationsWithModuleDoc": 331,
         "implementationsWithComponentDoc": 220,
-        "documentedProps": 1774,
+        "documentedProps": 1773,
         "classifiedComponents": 173,
         "componentsWithPatternTag": 93,
         "crossPlatformComponents": 136
@@ -8019,15 +8019,6 @@
                             "defaultValue": null,
                             "description": "",
                             "declaredIn": "packages/apps/commise/features/recipes/src/detail/PinnedIngredientsBar.tsx"
-                        },
-                        {
-                            "name": "scrimLabel",
-                            "type": "string",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "The scrim's accessible name.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/PinnedIngredientsBar.tsx"
                         }
                     ],
                     "usesRefApi": [],
@@ -8087,8 +8078,8 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "The scrim's accessible name.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/PinnedIngredientsBar.tsx"
+                            "description": "The scrim's accessible name: native draws its own scrim button, where web's dialog overlay needs none.",
+                            "declaredIn": null
                         }
                     ],
                     "usesRefApi": [],

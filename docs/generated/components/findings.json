@@ -2400,7 +2400,7 @@
             "sourcePath": "packages/apps/commise/features/recipes/src/detail/PinnedIngredientsBar.tsx",
             "message": "the web and native leaves declare different prop names",
             "evidence": [
-                "web: children facts onOpenChange open scrimLabel",
+                "web: children facts onOpenChange open",
                 "native: facts onOpenChange open scrimLabel"
             ]
         },

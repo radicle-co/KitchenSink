@@ -68,7 +68,7 @@ describe('foodPageCopyOf', () => {
 
         expect(c.badges.map((b) => b.text)).toEqual(['Private', 'Waiting for review']);
         expect(c.badges[1]?.status).toBe('note');
-        expect(c.statement).toBe('You asked to make this food public on Nov 9, 2026.');
+        expect(c.statement).toBe('You asked to make this food public on Nov 9, 2026.');
         expect(c.actions.map((a) => a.key)).toEqual(['edit']);
         expect(c.withdraw.body).toBe(m.withdraw.bodyAsked);
     });
@@ -95,7 +95,7 @@ describe('foodPageCopyOf', () => {
         const c = copy('editWaiting');
 
         expect(c.badges.map((b) => b.text)).toEqual(['Public', 'Edit waiting for review']);
-        expect(c.statement).toBe('You sent an edit for review on Nov 9, 2026.');
+        expect(c.statement).toBe('You sent an edit for review on Nov 9, 2026.');
         expect(c.comparison?.heading).toBe('Your edit');
         expect(c.comparison?.rows).toEqual([
             { text: '120 kcal → 135 kcal', spoken: 'Calories: public 120 kcal, your edit 135 kcal', label: 'Calories' },

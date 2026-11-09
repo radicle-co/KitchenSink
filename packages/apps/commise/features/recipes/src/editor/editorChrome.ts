@@ -10,6 +10,7 @@
  *
  * @pattern Presentation Model — a pure projection of the editor's lifecycle into what its chrome shows
  */
+import { parkedRefusalRows } from '../foodPage/privateFoodsRefusal.js';
 import type { UseRecipeEditorResult } from '../hooks/useRecipeEditor.js';
 import { defaultRecipeFormValues, recipeFormValuesEqual } from '../form/values.js';
 import { pluralOf } from '../format/plural.js';
@@ -157,7 +158,8 @@ function discardOf(editor: UseRecipeEditorResult, keep: DraftKeep, m: EditorMess
 function failureOf(editor: UseRecipeEditorResult, keep: DraftKeep, m: EditorMessages): EditorChrome['failure'] {
     const { parked } = editor;
 
-    if (parked === undefined) {
+    // A refusal of a private food in a public recipe is not a save failure, and Try again would send the same refused write.
+    if (parked === undefined || parkedRefusalRows(parked, editor.values).length > 0) {
         return undefined;
     }
 

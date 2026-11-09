@@ -106,8 +106,11 @@ export function badgesOf(word: PublicationStateValue | 'othersPublic', m: FoodPa
 
 const EDIT_SECONDARY: FoodAction = { key: 'edit', variant: 'secondary' };
 
+/** A date that never breaks across lines ("Nov 9, 2026" stays whole): its spaces are no-break spaces. */
 function dateText(iso: string | undefined, locale: string): string {
-    return iso === undefined ? '' : new Intl.DateTimeFormat(locale, { dateStyle: 'medium' }).format(new Date(iso));
+    return iso === undefined
+        ? ''
+        : new Intl.DateTimeFormat(locale, { dateStyle: 'medium' }).format(new Date(iso)).replaceAll(' ', '\u00a0');
 }
 
 function comparisonOf(state: FoodShownState, m: FoodPageMessages): FoodPageCopy['comparison'] {

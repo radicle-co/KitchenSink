@@ -16,8 +16,8 @@ import type { PrivateFoodsRefusalSheetProps } from '../privateFoodsRefusalSheetP
 afterEach(cleanup);
 
 const LINES = [
-    { rowId: 'a', foodId: 'f1', text: '1 cup Oat milk' },
-    { rowId: 'b', foodId: 'f2', text: '2 tbsp My spice mix' },
+    { rowId: 'a', foodId: 'f1', amount: '1 cup', words: 'Oat milk' },
+    { rowId: 'b', foodId: 'f2', amount: '2 tbsp', words: 'My spice mix' },
 ];
 
 function renderSheet(props: Partial<PrivateFoodsRefusalSheetProps> = {}) {
@@ -35,8 +35,8 @@ describe('PrivateFoodsRefusalSheet (native)', () => {
         const dialog = document.body;
 
         expect(within(dialog).getByText(/^2 ingredients use foods only you can see\./u)).toBeTruthy();
-        expect(within(dialog).getByText('1 cup Oat milk')).toBeTruthy();
-        expect(within(dialog).getByText('2 tbsp My spice mix')).toBeTruthy();
+        expect(within(dialog).getByText('Oat milk', { exact: false })).toBeTruthy();
+        expect(within(dialog).getByText('My spice mix', { exact: false })).toBeTruthy();
     });
 
     it('says "ingredient uses" for one line', () => {
@@ -89,5 +89,12 @@ describe('PrivateFoodsRefusalSheet (native)', () => {
         expect(screen.getByRole('button', { name: 'Close' })).toBeTruthy();
         expect(screen.queryByRole('button', { name: 'Back to editor' })).toBeNull();
         expect(screen.queryByText(/as private|make this recipe private/iu)).toBeNull();
+    });
+
+    it('draws the amount as its own strong run before the words, as the editor row does', () => {
+        renderSheet();
+
+        expect(screen.getByText('1 cup')).toBeTruthy();
+        expect(screen.getByText('1 cup').parentElement?.textContent?.replaceAll('\u00a0', ' ')).toBe('1 cup Oat milk');
     });
 });

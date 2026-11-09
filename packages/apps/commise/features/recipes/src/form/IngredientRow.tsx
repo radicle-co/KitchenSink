@@ -27,6 +27,8 @@ import { FOCUS_RING_CLASS } from '@commise/ui/focus-ring';
 import { PRESS_FILL_CLASS } from '@commise/ui/surface-tone';
 import { useRef, type FC, type ReactNode } from 'react';
 
+import { AmountRun } from './AmountRun.js';
+
 import {
     ingredientCommitFailureId,
     ingredientNoFoodNoteId,
@@ -97,16 +99,11 @@ const OpenControl: FC<{ readonly row: IngredientRowView; readonly expanded: bool
                         </span>
                     </>
                 ) : (
-                    <span className="break-words text-body-md text-ink">
-                        {row.amountText !== '' && (
-                            <>
-                                <span className="text-figure-inline font-semibold">{row.amountText}</span>{' '}
-                            </>
-                        )}
+                    <AmountRun amount={row.amountText}>
                         {row.displayName}
                         {row.noteText !== undefined && <PrepJoin>{row.noteText}</PrepJoin>}
                         {row.prepText !== undefined && <PrepJoin>{row.prepText}</PrepJoin>}
-                    </span>
+                    </AmountRun>
                 )}
                 {row.variantParts !== undefined && <VariantPartsLine parts={row.variantParts} tone="secondary" />}
             </span>

@@ -202,6 +202,7 @@ export function useRecipeVersions({ recipeId, onOpenFood }: RecipeVersionsInput)
                               foodId: refusedFoods.find((refused) => refused.sortOrder === index)?.foodId,
                           })),
                           refusedFoods,
+                          locale,
                       ),
                       onOpenFood: (foodId: string) => onOpenFood?.(foodId),
                       onClose: restore.reset,

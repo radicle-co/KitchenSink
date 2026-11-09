@@ -15,8 +15,8 @@ import type { PrivateFoodsRefusalSheetProps } from '../privateFoodsRefusalSheetP
 afterEach(cleanup);
 
 const LINES = [
-    { rowId: 'a', foodId: 'f1', text: '1 cup Oat milk' },
-    { rowId: 'b', foodId: 'f2', text: '2 tbsp My spice mix' },
+    { rowId: 'a', foodId: 'f1', amount: '1 cup', words: 'Oat milk' },
+    { rowId: 'b', foodId: 'f2', amount: '2 tbsp', words: 'My spice mix' },
 ];
 
 function renderSheet(props: Partial<PrivateFoodsRefusalSheetProps> = {}) {
@@ -33,8 +33,8 @@ describe('PrivateFoodsRefusalSheet (web)', () => {
         const dialog = screen.getByRole('dialog', { name: 'This recipe can’t be public yet' });
 
         expect(within(dialog).getByText(/^2 ingredients use foods only you can see\./u)).toBeTruthy();
-        expect(within(dialog).getByText('1 cup Oat milk')).toBeTruthy();
-        expect(within(dialog).getByText('2 tbsp My spice mix')).toBeTruthy();
+        expect(within(dialog).getByText('Oat milk')).toBeTruthy();
+        expect(within(dialog).getByText('My spice mix')).toBeTruthy();
     });
 
     it('says "ingredient uses" for one line', () => {
@@ -95,5 +95,21 @@ describe('PrivateFoodsRefusalSheet (web)', () => {
         await userEvent.keyboard('{Escape}');
         expect(onClose).toHaveBeenCalledOnce();
         expect(onSendAsPrivate).not.toHaveBeenCalled();
+    });
+
+    it('draws a line exactly as the editor row reads: the amount strong, an ordinary space, then the words', () => {
+        renderSheet();
+        const amount = screen.getByText('1 cup');
+
+        expect(amount.className).toContain('font-semibold');
+        expect(amount.parentElement?.textContent?.replaceAll('\u00a0', ' ')).toBe('1 cup Oat milk');
+        // The words are not strong, and no amount draws no empty strong span (never an invented "1").
+        expect(screen.getByText('My spice mix').className).not.toContain('font-semibold');
+    });
+
+    it('a line with no amount draws only its words', () => {
+        renderSheet({ lines: [{ rowId: 'c', foodId: 'f3', amount: '', words: 'Pinch of salt' }] });
+
+        expect(screen.getByText('Pinch of salt').querySelector('.font-semibold')).toBeNull();
     });
 });

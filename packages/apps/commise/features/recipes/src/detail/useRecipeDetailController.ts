@@ -18,7 +18,7 @@
  *     profile read, the session claims and a navigation port (`RecipeDetailNav`) instead of this module importing a router.
  */
 import { knownPaidFeaturesOf, paidFeatureStateOf, type ProfileQueryState } from '@commise/features-account';
-import { useMessages } from '@commise/i18n/react';
+import { useLocale, useMessages } from '@commise/i18n/react';
 import type { ActionMenuItem, ActionMenuProps } from '@commise/ui/action-menu';
 import { RecipeVisibility, canClone, isOwner, makeViewer, type RecipeDetail } from '@kitchensink/recipe-core';
 import { isPrivateFoodsOnPublicRecipeError } from '@kitchensink/recipe-service-client';
@@ -127,6 +127,7 @@ export function useRecipeDetailController(input: RecipeDetailControllerInput): R
     const { id, recipe, sessionClaims, profile, finishRefused, refusalArrived, onFinishRefusalSeen, nav, saving } =
         input;
     const { detailActions, moreMenu, visibility: visibilityCopy } = useMessages(recipeActionMessages);
+    const locale = useLocale();
     const deleteRecipe = useDeleteRecipe();
     const setVisibility = useSetRecipeVisibility();
     const cloneRecipe = useCloneRecipe();
@@ -301,7 +302,7 @@ export function useRecipeDetailController(input: RecipeDetailControllerInput): R
                 ? {}
                 : {
                       privateFoods: {
-                          lines: refusedLinesOf(recipe.ingredients, refusedFoods),
+                          lines: refusedLinesOf(recipe.ingredients, refusedFoods, locale),
                           onOpenFood: (foodId: string) => nav.onOpenFood?.(foodId),
                           onClose: setVisibility.reset,
                       },

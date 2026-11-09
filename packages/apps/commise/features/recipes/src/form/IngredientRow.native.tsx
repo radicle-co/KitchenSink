@@ -32,6 +32,7 @@ import { VariantPartsLine } from '@commise/ui/variant-parts-line';
 import { useRef, type FC, type ReactNode } from 'react';
 import { Pressable, StyleSheet, View, type LayoutChangeEvent } from 'react-native';
 
+import { AmountRun } from './AmountRun.native.js';
 import { PREP_JOINER } from '../format/prepJoiner.js';
 import { ingredientCommitFailureId, ingredientNoFoodNoteId, ingredientStandInId } from './fieldErrorIds.js';
 import { rowBadgeStatus } from './ingredientRowPolicy.js';
@@ -123,9 +124,7 @@ const OpenControl: FC<{
                         </View>
                     </>
                 ) : (
-                    <Text typeRole="body" color="$ink">
-                        {amount}
-                        {amount !== null && ' '}
+                    <AmountRun amount={row.amountText}>
                         {row.displayName}
                         {row.noteText !== undefined && (
                             <Text typeRole="body" color="$inkMuted">{`${PREP_JOINER}${row.noteText}`}</Text>
@@ -133,7 +132,7 @@ const OpenControl: FC<{
                         {row.prepText !== undefined && (
                             <Text typeRole="body" color="$inkMuted">{`${PREP_JOINER}${row.prepText}`}</Text>
                         )}
-                    </Text>
+                    </AmountRun>
                 )}
                 {row.variantParts !== undefined && <VariantPartsLine parts={row.variantParts} tone="secondary" />}
             </View>

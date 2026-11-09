@@ -482,7 +482,8 @@ describe('RecipeEditorSurface — the refusal of a private food in a public reci
         const dialog = screen.getByRole('dialog', { name: 'This recipe can’t be public yet' });
 
         expect(within(dialog).getByText(/1 ingredient uses a food only you can see/u)).toBeTruthy();
-        expect(within(dialog).getByText(/2 tbsp.*My spice mix/u)).toBeTruthy();
+        expect(within(dialog).getByText('2 tbsp')).toBeTruthy();
+        expect(within(dialog).getByText('My spice mix')).toBeTruthy();
     });
 
     it('Open food opens that food through the app, and the sheet stays', async () => {
@@ -513,6 +514,29 @@ describe('RecipeEditorSurface — the refusal of a private food in a public reci
         );
         expect(setValues).not.toHaveBeenCalled();
         expect(retry).not.toHaveBeenCalled();
+    });
+
+    it('⛔ shows no save-failure notice and no Try again: a refusal is not a failed save (designAnswers 2026-11-09)', () => {
+        open();
+
+        expect(screen.queryByText(/We couldn.t save your latest changes/u)).toBeNull();
+        expect(screen.queryByRole('button', { name: 'Try again', hidden: true })).toBeNull();
+    });
+
+    it('⛔ Publish stays enabled and reopens the sheet, sending nothing', async () => {
+        const publish = vi.fn();
+        open({ editorOver: { values: publicDraft(), parked: refused, publish } });
+        await userEvent.click(screen.getByRole('button', { name: 'Back to editor' }));
+        await waitFor(() =>
+            expect(screen.queryByRole('dialog', { name: 'This recipe can’t be public yet' })).toBeNull(),
+        );
+
+        const [primary] = screen.getAllByRole('button', { name: 'Publish' });
+        expect((primary as HTMLButtonElement).disabled).toBe(false);
+        await userEvent.click(primary as HTMLElement);
+
+        expect(await screen.findByRole('dialog', { name: 'This recipe can’t be public yet' })).toBeTruthy();
+        expect(publish).not.toHaveBeenCalled();
     });
 
     it.each([

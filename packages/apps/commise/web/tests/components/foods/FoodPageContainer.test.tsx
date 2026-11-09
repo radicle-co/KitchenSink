@@ -5,6 +5,7 @@
  * food's name, else the fallback), Back going to My recipes, and the edit sheet mounted on the session's edit handle.
  */
 import { LocaleProvider } from '@commise/i18n/react';
+import { expectOneBackInBarAndOneInHeader } from '@commise/test-utils';
 import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { render } from '@testing-library/react';
@@ -80,5 +81,18 @@ describe('FoodPageContainer', () => {
         await userEvent.setup().click(screen.getAllByRole('link', { name: /my recipes/iu })[0] as HTMLElement);
 
         expect(pushMock).toHaveBeenCalledWith('/en/recipes');
+    });
+
+    it('has one Back in the pinned bar and one as the header’s eyebrow, so a wide screen has one too', () => {
+        mount({ kind: 'private', food: { name: 'Oat milk' } });
+
+        expectOneBackInBarAndOneInHeader('Back to My recipes');
+    });
+
+    it('starts at the page gutter the shell gives: no gutter of its own and not centred (buildSpec 1.3)', () => {
+        mount({ kind: 'private', food: { name: 'Oat milk' } });
+        const content = screen.getByRole('button', { name: 'leave the food page' }).parentElement as HTMLElement;
+
+        expect(content.className).not.toMatch(/\bpx-\d|\bmx-auto\b/u);
     });
 });

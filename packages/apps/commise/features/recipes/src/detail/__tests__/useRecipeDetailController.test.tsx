@@ -596,7 +596,7 @@ describe('useRecipeDetailController — Make public refused for a private food (
 
         await waitFor(() =>
             expect(result.current.dialogs.privateFoods?.lines).toEqual([
-                { rowId: 'i1', foodId: 'food_spice', text: '2 tbsp My spice mix' },
+                { rowId: 'i1', foodId: 'food_spice', amount: '2 tbsp', words: 'My spice mix' },
             ]),
         );
     });

@@ -21,8 +21,10 @@ import type { FC } from 'react';
 
 import { fillTemplate } from '../format/fillTemplate.js';
 import { pluralOf } from '../format/plural.js';
+import { AmountRun } from '../form/AmountRun.js';
 import { refusalPlanOf } from '../foodPage/privateFoodsRefusal.js';
 import { editorMessages } from './messages.js';
+import { refusedLineLabel } from './refusedLineText.js';
 import type { PrivateFoodsRefusalSheetProps } from './privateFoodsRefusalSheetProps.js';
 
 /** The refusal sheet. */
@@ -80,11 +82,11 @@ export const PrivateFoodsRefusalSheet: FC<PrivateFoodsRefusalSheetProps> = ({
                 <ul className="flex flex-col gap-3">
                     {lines.map((line) => (
                         <li key={line.rowId} className="flex flex-col items-start gap-2">
-                            <span className="text-body text-ink">{line.text}</span>
+                            <AmountRun amount={line.amount}>{line.words}</AmountRun>
                             <Button
                                 variant="secondary"
                                 size="md"
-                                accessibilityLabel={fillTemplate(m.openFoodNameWeb, { line: line.text })}
+                                accessibilityLabel={fillTemplate(m.openFoodNameWeb, { line: refusedLineLabel(line) })}
                                 onPress={() => onOpenFood(line.foodId)}
                             >
                                 {m.openFood}

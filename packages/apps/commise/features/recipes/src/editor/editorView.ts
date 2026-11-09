@@ -11,6 +11,7 @@ import type { Locale } from '@commise/i18n';
 import type { RecipeDetail, VersionConflictSide } from '@kitchensink/recipe-core';
 import { classifyFailure, resendsWhenParked, type FailureClass, type SyncFailure } from '@kitchensink/sync';
 
+import { parkedRefusalRows } from '../foodPage/privateFoodsRefusal.js';
 import { recipeFormValuesEqual, type RecipeFormValues } from '../form/values.js';
 import type { IngredientLineNameMessages } from '../messages.js';
 import { computeConflictDiff } from '../versions/conflictDiff.js';
@@ -294,7 +295,9 @@ export function editorViewOf(input: EditorViewInput): EditorView {
             lifecycle,
             durableDevice: input.keep,
             memento: input.memento,
-            outbox: outboxSlotOf(parked, outstanding),
+            // ⛔ A refusal of a private food in a public recipe is not a failed save (designAnswers 2026-11-09): the header
+            // keeps the device state, and the sheet, the sections bar and the row carry the problem.
+            outbox: parkedRefusalRows(parked, draft).length > 0 ? { kind: 'none' } : outboxSlotOf(parked, outstanding),
             serverCurrent: serverValues !== undefined && !changedFromServer && outstanding === undefined,
         }),
         status: editorStatusOf({

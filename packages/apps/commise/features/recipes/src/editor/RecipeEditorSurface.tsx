@@ -19,7 +19,7 @@
  * @pattern Composition — the editor's leaves arranged over one session; the app supplies the one leaf that differs
  */
 import type { PaidFeatureState } from '@commise/features-account';
-import { useMessages } from '@commise/i18n/react';
+import { useLocale, useMessages } from '@commise/i18n/react';
 import { Button } from '@commise/ui/button';
 import { RecipeVisibility } from '@kitchensink/recipe-core';
 import { useState, type FC, type ReactNode } from 'react';
@@ -45,7 +45,8 @@ import { IngredientStatusPoller } from './IngredientStatusPoller.js';
 import { editorMessages } from './messages.js';
 import { PrivateFoodsRefusalSheet } from './PrivateFoodsRefusalSheet.js';
 import { PublishBlockedSheet } from './PublishBlockedSheet.js';
-import { refusedLineText } from './refusedLineText.js';
+import { draftQuantity } from '../form/quantity.js';
+import { refusedLineParts } from './refusedLineText.js';
 import { RecipeEditorView } from './RecipeEditorView.js';
 import { RecipePreviewSheet } from './RecipePreviewSheet.js';
 import { errorsStillHolding } from './gate.js';
@@ -116,6 +117,7 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
     const pendingFieldId = pending === undefined ? undefined : entryFieldIdOf(pending.target);
     const errors = errorsStillHolding(editor.refusedFields, editor.values, session.rowEditor.entry.pendingEntryText);
     const { ingredients: ingredientsCopy } = useMessages(editorMessages);
+    const locale = useLocale();
     // Kept while the sheet closes, so its words do not change under its own animation.
     const blocked = useLastDefined(editor.publishBlocked);
     // E1 + plan 2026-10-14-009 D14, amended by ADR-0073: Private within the cook's slots (the count is the server's, shown
@@ -148,7 +150,13 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
 
         return line?.foodId === undefined
             ? []
-            : [{ rowId: line.key, foodId: line.foodId, text: refusedLineText(line) }];
+            : [
+                  {
+                      rowId: line.key,
+                      foodId: line.foodId,
+                      ...refusedLineParts({ ...line, quantity: draftQuantity(line) }, locale),
+                  },
+              ];
     });
 
     const sections: Readonly<Record<EditorSectionId, ReactNode>> = {
@@ -241,6 +249,7 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
                 onClose={onClose}
                 onPreview={session.preview.show}
                 onRefused={session.rowEditor.refused}
+                onReopenRefusal={() => setDismissedKey(undefined)}
                 onOpenMyRecipes={onOpenMyRecipes}
             />
             <RecipePreviewSheet

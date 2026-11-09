@@ -8,6 +8,8 @@ import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { buttonSurfaceClass } from '@commise/ui/button';
+
 import { makeFood, makeOwnState, makeRequest, makeViewProps } from '../__fixtures__/foodPageFixtures.js';
 import { FoodPageView } from '../FoodPageView.js';
 import type { FoodPageState } from '../foodPageState.js';
@@ -171,5 +173,43 @@ describe('FoodPageView (web): Withdraw', () => {
         view(makeOwnState('public', { request: undefined }), { withdraw: { open: true, busy: false, failed: true } });
 
         expect(screen.getByText('We couldn’t withdraw this food.')).toBeTruthy();
+    });
+});
+
+describe('FoodPageView (web): where the actions sit (spec section 5.3)', () => {
+    /** jsdom applies no stylesheet, so the layout is asserted through the classes that carry it. */
+    const group = () => screen.getByRole('button', { name: 'Edit' }).closest('[data-actions]') as HTMLElement;
+
+    it('the actions are inside the status panel, under its text, so from 600 they read as part of it', () => {
+        view(makeOwnState('private', { request: undefined }));
+        const panel = screen.getByText(/Only you can see this food/u).closest('section') as HTMLElement;
+
+        expect(within(panel).getByRole('button', { name: 'Edit' })).toBeTruthy();
+        expect(within(panel).getByRole('button', { name: 'Ask to make public' })).toBeTruthy();
+    });
+
+    it('on a phone they stack full width with the primary on top; from 600 they are a row with the primary last', () => {
+        view(makeOwnState('private', { request: undefined }));
+        const classes = group().className;
+
+        expect(classes).toContain('flex-col-reverse');
+        expect(classes).toContain('sm:flex-row');
+        expect(classes).toContain('sm:justify-end');
+        // Each action is a full-width cell on a phone and its content's width from 600.
+        for (const name of ['Edit', 'Ask to make public']) {
+            expect(screen.getByRole('button', { name }).closest('[data-action]')?.className).toContain(
+                'w-full sm:w-auto',
+            );
+        }
+    });
+
+    it('draws the actions at the large size, 52 px tall', () => {
+        view(makeOwnState('private', { request: undefined }));
+        const ask = screen.getByRole('button', { name: 'Ask to make public' });
+
+        expect(ask.className).toContain(buttonSurfaceClass('primary', { size: 'lg' }));
+        expect(screen.getByRole('button', { name: 'Edit' }).className).toContain(
+            buttonSurfaceClass('secondary', { size: 'lg' }),
+        );
     });
 });

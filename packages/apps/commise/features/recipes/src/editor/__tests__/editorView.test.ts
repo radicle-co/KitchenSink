@@ -1,8 +1,8 @@
 /** The editor's projections (`editorView.ts`): what its containers read, from the core, the lane and the outbox. */
-import { RecipeStatus } from '@kitchensink/recipe-core';
+import { RecipeStatus, RecipeVisibility } from '@kitchensink/recipe-core';
 import { describe, expect, it } from 'vitest';
 
-import { makeRecipeDetail } from '../../__fixtures__/index.js';
+import { makeFilledRecipeFormValues, makeRecipeDetail, withLineKeys } from '../../__fixtures__/index.js';
 import { defaultRecipeFormValues } from '../../form/values.js';
 import { seedEditorCore } from '../editorCore.js';
 import {
@@ -170,5 +170,50 @@ describe('editorViewOf', () => {
 
         expect(view.parked).toEqual({ failure: 'unknown', kind: 'create' });
         expect(view.discard).toMatchObject({ withdraw: 41, remove: undefined, mayLeaveServerCopy: true });
+    });
+});
+
+describe('editorViewOf — the refusal of a private food in a public recipe', () => {
+    const privateLine = {
+        isUserEntered: false,
+        ingredientId: '00000000-0000-4000-8000-000000000001',
+        foodId: 'food_spice',
+        name: 'My spice mix',
+        quantity: 2,
+        unit: 'tbsp',
+        foodVisibility: 'private' as const,
+    };
+    const viewOf = (visibility: RecipeVisibility, status: number) => {
+        const values = makeFilledRecipeFormValues({ visibility, ingredients: withLineKeys([privateLine]) });
+        const { core } = seedEditorCore({
+            memento: {
+                recipeRef: 'local:recipe:a',
+                baseVersion: null,
+                values,
+                pendingRebinds: [],
+                savedAt: '2026-10-09T11:00:00.000Z',
+            },
+        });
+
+        return editorViewOf({
+            core,
+            lane: {},
+            failures: [record({ localId: 'local:recipe:a', status })],
+            seedRecipe: undefined,
+            keep: 'disk',
+            memento: 'written',
+        });
+    };
+
+    it('⛔ a refused write is not a save failure: the header keeps the device state', () => {
+        const refused = viewOf(RecipeVisibility.PUBLIC, 400);
+
+        expect(refused.parked).toMatchObject({ failure: 'terminal', status: 400 });
+        expect(refused.saveStatus).toEqual({ kind: 'keptOnDevice', store: 'disk', awaiting: 'checkpoint' });
+    });
+
+    it('a 400 on a private draft, and any other terminal answer, still read as a failed save', () => {
+        expect(viewOf(RecipeVisibility.PRIVATE, 400).saveStatus).toEqual({ kind: 'syncFailed', failure: 'terminal' });
+        expect(viewOf(RecipeVisibility.PUBLIC, 422).saveStatus).toEqual({ kind: 'syncFailed', failure: 'terminal' });
     });
 });

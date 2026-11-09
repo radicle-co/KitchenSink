@@ -2482,7 +2482,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/web/src/components/foods/FoodPageContainer.tsx",
                     "dir": "packages/apps/commise/web/src/components/foods",
-                    "moduleDoc": "The author's food page (`/[locale]/foods/[foodId]`; private foods spec section 5). Orchestration: it mounts the shared\nfood page session (`useFoodPage`) in the design system's `PushedPageFrame` and hands Edit to the app’s edit sheet.\nOpened from the editor it is a NEW TAB (the editor’s draft stays where the cook left it), so Back goes to My recipes;\nthe title is the food’s name, wrapping between words.\n\n⚠️ The address is a one-way door: it is linked and bookmarked, so renaming it later costs redirects.",
+                    "moduleDoc": "The author's food page (`/[locale]/foods/[foodId]`; private foods spec section 5). Orchestration: it mounts the shared\nfood page session (`useFoodPage`) in the design system's `PushedPageFrame` and hands Edit to the app’s edit sheet.\nOpened from the editor it is a NEW TAB (the editor’s draft stays where the cook left it), so Back goes to My recipes;\nthe title is the food’s name, wrapping between words. It starts at the gutter the shell gives (left-aligned, buildSpec\n1.3), and Back is the pinned bar below 840 and the header’s eyebrow from it.\n\n⚠️ The address is a one-way door: it is linked and bookmarked, so renaming it later costs redirects.",
                     "moduleTags": [
                         {
                             "name": "pattern",

@@ -4,7 +4,8 @@
  * The author's food page (`/[locale]/foods/[foodId]`; private foods spec section 5). Orchestration: it mounts the shared
  * food page session (`useFoodPage`) in the design system's `PushedPageFrame` and hands Edit to the app’s edit sheet.
  * Opened from the editor it is a NEW TAB (the editor’s draft stays where the cook left it), so Back goes to My recipes;
- * the title is the food’s name, wrapping between words.
+ * the title is the food’s name, wrapping between words. It starts at the gutter the shell gives (left-aligned, buildSpec
+ * 1.3), and Back is the pinned bar below 840 and the header’s eyebrow from it.
  *
  * ⚠️ The address is a one-way door: it is linked and bookmarked, so renaming it later costs redirects.
  *
@@ -12,6 +13,7 @@
  */
 import { FoodEditSheet, FoodPageView, foodPageMessages, useFoodPage } from '@commise/features-recipes/food-page';
 import { useMessages } from '@commise/i18n/react';
+import { LargeTitleHeader } from '@commise/ui/large-title-header';
 import { PushedPageFrame } from '@commise/ui/pushed-page';
 import type { Route } from 'next';
 import { useRouter } from 'next/navigation';
@@ -43,10 +45,8 @@ export const FoodPageContainer: FC<FoodPageContainerProps> = ({ foodId, locale }
     return (
         <PushedPageFrame back={back} headingId={headingId} title={title}>
             {() => (
-                <div className="mx-auto flex w-full max-w-[40rem] flex-col gap-4 px-4 pb-8">
-                    <h1 id={headingId} className="text-large-title text-ink [overflow-wrap:anywhere]">
-                        {title}
-                    </h1>
+                <div className="flex w-full max-w-list flex-col gap-4 pb-8">
+                    <LargeTitleHeader headingId={headingId} title={title} back={back} />
                     <FoodPageView {...session} onLeave={() => router.push(recipesPath as Route)} />
                     <FoodEditSheet session={session.edit} />
                 </div>

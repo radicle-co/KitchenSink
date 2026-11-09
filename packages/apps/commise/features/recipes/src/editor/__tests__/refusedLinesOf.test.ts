@@ -19,15 +19,15 @@ describe('refusedLinesOf', () => {
             line({ foodId: 'food_b', name: 'Salt' }),
         ];
 
-        expect(refusedLinesOf(lines, [{ sortOrder: 0, foodId: 'food_a' }])).toEqual([
-            { rowId: '0', foodId: 'food_a', text: '2 tbsp My spice mix' },
+        expect(refusedLinesOf(lines, [{ sortOrder: 0, foodId: 'food_a' }], 'en')).toEqual([
+            { rowId: '0', foodId: 'food_a', amount: '2 tbsp', words: 'My spice mix' },
         ]);
     });
 
     it('falls back to the line’s name when it has no display text', () => {
         expect(
-            refusedLinesOf([line({ foodId: 'food_a', name: 'Oat milk' })], [{ sortOrder: 0, foodId: 'food_a' }]),
-        ).toEqual([{ rowId: '0', foodId: 'food_a', text: '1 tbsp Oat milk' }]);
+            refusedLinesOf([line({ foodId: 'food_a', name: 'Oat milk' })], [{ sortOrder: 0, foodId: 'food_a' }], 'en'),
+        ).toEqual([{ rowId: '0', foodId: 'food_a', amount: '1 tbsp', words: 'Oat milk' }]);
     });
 
     it('breaks a tie between two lines of one food by sortOrder', () => {
@@ -36,15 +36,15 @@ describe('refusedLinesOf', () => {
             line({ foodId: 'food_a', displayText: 'second' }),
         ];
 
-        expect(refusedLinesOf(lines, [{ sortOrder: 1, foodId: 'food_a' }]).map((row) => row.text)).toEqual([
-            '1 tbsp second',
+        expect(refusedLinesOf(lines, [{ sortOrder: 1, foodId: 'food_a' }], 'en').map((row) => row.words)).toEqual([
+            'second',
         ]);
     });
 
     it('prefers the line’s own ingredient id as the row id and drops a food the lines no longer hold', () => {
         const lines = [line({ ingredientId: 'ing_1', foodId: 'food_a', displayText: 'x' })];
 
-        expect(refusedLinesOf(lines, [{ sortOrder: 0, foodId: 'food_gone' }])).toEqual([]);
-        expect(refusedLinesOf(lines, [{ sortOrder: 0, foodId: 'food_a' }])[0]?.rowId).toBe('ing_1');
+        expect(refusedLinesOf(lines, [{ sortOrder: 0, foodId: 'food_gone' }], 'en')).toEqual([]);
+        expect(refusedLinesOf(lines, [{ sortOrder: 0, foodId: 'food_a' }], 'en')[0]?.rowId).toBe('ing_1');
     });
 });

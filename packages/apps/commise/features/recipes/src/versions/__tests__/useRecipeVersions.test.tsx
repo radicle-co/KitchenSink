@@ -210,7 +210,7 @@ describe('useRecipeVersions — a restore the server refuses for a private food'
 
         await waitFor(() => expect(result.current.privateFoods).toBeDefined());
         expect(result.current.privateFoods?.lines).toEqual([
-            expect.objectContaining({ foodId: 'food_mix', text: '2 tbsp My spice mix' }),
+            expect.objectContaining({ foodId: 'food_mix', amount: '2 tbsp', words: 'My spice mix' }),
         ]);
         expect(result.current.list.restoreError).toBeUndefined();
     });

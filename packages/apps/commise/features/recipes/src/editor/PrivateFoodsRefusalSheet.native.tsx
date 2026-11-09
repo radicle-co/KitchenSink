@@ -23,8 +23,10 @@ import { YStack } from 'tamagui';
 
 import { fillTemplate } from '../format/fillTemplate.js';
 import { pluralOf } from '../format/plural.js';
+import { AmountRun } from '../form/AmountRun.native.js';
 import { refusalPlanOf } from '../foodPage/privateFoodsRefusal.js';
 import { editorMessages } from './messages.js';
+import { refusedLineLabel } from './refusedLineText.js';
 import type { PrivateFoodsRefusalSheetProps } from './privateFoodsRefusalSheetProps.js';
 
 /** The refusal sheet. */
@@ -84,13 +86,11 @@ export const PrivateFoodsRefusalSheet: FC<PrivateFoodsRefusalSheetProps> = ({
                 <YStack gap="$3">
                     {lines.map((line) => (
                         <YStack key={line.rowId} alignItems="flex-start" gap="$2">
-                            <DesignText typeRole="body" color="$ink">
-                                {line.text}
-                            </DesignText>
+                            <AmountRun amount={line.amount}>{line.words}</AmountRun>
                             <Button
                                 variant="secondary"
                                 size="md"
-                                accessibilityLabel={fillTemplate(m.openFoodName, { line: line.text })}
+                                accessibilityLabel={fillTemplate(m.openFoodName, { line: refusedLineLabel(line) })}
                                 onPress={() => onOpenFood(line.foodId)}
                             >
                                 {m.openFood}

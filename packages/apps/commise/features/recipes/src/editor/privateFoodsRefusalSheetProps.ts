@@ -9,8 +9,10 @@ import type { RefusalDoor } from '../foodPage/privateFoodsRefusal.js';
 export interface RefusedLineView {
     readonly rowId: string;
     readonly foodId: string;
-    /** The line exactly as the editor row reads: the amount, then the cook’s words. */
-    readonly text: string;
+    /** The amount as the editor row shows it, or `''`. Drawn strong, as the row draws it. */
+    readonly amount: string;
+    /** The cook’s words, as the editor row reads them. */
+    readonly words: string;
 }
 
 /** Props for the `PrivateFoodsRefusalSheet` leaves. */

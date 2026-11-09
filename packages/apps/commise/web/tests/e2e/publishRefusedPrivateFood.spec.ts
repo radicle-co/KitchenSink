@@ -71,5 +71,13 @@ test.describe('publish refused for a private food', () => {
         await sheet.getByRole('button', { name: 'Back to editor' }).click();
         await expect(sheet).toBeHidden();
         await expect(page).toHaveURL(new RegExp(`/recipes/${RECIPE_ID}/edit$`, 'u'));
+
+        // A refusal is not a failed save (designAnswers 2026-11-09): the header keeps the device state, there is no
+        // save-failure notice and no Try again (which would send the same refused write), and Publish reopens the sheet.
+        await expect(page.getByText('Saved in this tab').first()).toBeVisible();
+        await expect(page.getByText(/couldn.t save your latest changes/iu)).toHaveCount(0);
+        await expect(page.getByRole('button', { name: 'Try again' })).toHaveCount(0);
+        await page.getByRole('button', { name: 'Publish', exact: true }).first().click();
+        await expect(sheet).toBeVisible();
     });
 });

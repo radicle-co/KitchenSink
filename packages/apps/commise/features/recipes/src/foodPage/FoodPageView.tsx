@@ -7,7 +7,8 @@
  * only draws them.
  *
  * Presentational: `props → JSX`. The actions are one group in the DOM: at the end of the content on a phone (where the
- * thumb is) and right under the status panel from 600 px (reading order), moved by CSS `order`, never duplicated.
+ * thumb is, full width, the primary on top) and inside the status panel from 600 px (reading order, a row with the
+ * primary last), moved by CSS, never duplicated.
  *
  * @pattern Visitor — an exhaustive switch over the `FoodPageState` union
  */
@@ -85,6 +86,50 @@ const FoodShown: FC<FoodPageViewProps & { readonly state: FoodShownState }> = ({
     const name = state.food.name ?? m.titleFallback;
     const press = { edit: onEdit, ask: onAsk } as const;
 
+    const actions =
+        copy.actions.length === 0 ? null : (
+            <div
+                data-actions
+                className="order-[90] flex flex-col-reverse gap-3 sm:order-none sm:flex-row sm:flex-wrap sm:justify-end"
+            >
+                {copy.actions.map((action) => {
+                    const common = {
+                        size: 'lg',
+                        width: 'fill',
+                        disabled: copy.actionsDisabled,
+                        busy: action.key === 'ask' && ask === 'busy',
+                        description: copy.actionsNote,
+                        onPress: press[action.key],
+                    } as const;
+                    const label = action.key === 'ask' && ask === 'busy' ? m.ask.busy : m.action[action.key];
+
+                    return (
+                        <div key={action.key} data-action className="w-full sm:w-auto">
+                            {action.variant === 'primary' ? (
+                                <Button variant="primary" icon={ACTION_ICON[action.key]} {...common}>
+                                    {label}
+                                </Button>
+                            ) : (
+                                <Button variant="secondary" icon={ACTION_ICON[action.key]} {...common}>
+                                    {label}
+                                </Button>
+                            )}
+                        </div>
+                    );
+                })}
+                {copy.actionsNote === undefined ? null : (
+                    <p aria-hidden className="text-meta text-ink-muted sm:w-full sm:text-end">
+                        {copy.actionsNote}
+                    </p>
+                )}
+                {ask === 'failed' ? (
+                    <p role="alert" className="text-meta text-danger-text sm:w-full sm:text-end">
+                        {m.ask.failed}
+                    </p>
+                ) : null}
+            </div>
+        );
+
     return (
         <div className="flex flex-col gap-4">
             <ul className="order-1 flex flex-wrap gap-2">
@@ -95,53 +140,25 @@ const FoodShown: FC<FoodPageViewProps & { readonly state: FoodShownState }> = ({
                 ))}
             </ul>
 
-            {copy.statement === undefined ? null : (
-                <section className="order-2 flex flex-col gap-1 rounded-lg bg-paper p-4">
-                    <p className="text-card-title text-ink" tabIndex={-1}>
-                        {copy.statement}
-                    </p>
-                    {copy.details.map((line) => (
-                        <p key={line} className="text-meta text-ink-muted">
-                            {line}
-                        </p>
-                    ))}
-                </section>
-            )}
-
-            {copy.actions.length === 0 ? null : (
-                <div className="order-[90] flex flex-col gap-3 sm:order-3 sm:flex-row sm:flex-wrap">
-                    {copy.actions.map((action) => {
-                        const common = {
-                            size: 'md',
-                            width: 'auto',
-                            disabled: copy.actionsDisabled,
-                            busy: action.key === 'ask' && ask === 'busy',
-                            description: copy.actionsNote,
-                            onPress: press[action.key],
-                        } as const;
-                        const label = action.key === 'ask' && ask === 'busy' ? m.ask.busy : m.action[action.key];
-
-                        return action.variant === 'primary' ? (
-                            <Button key={action.key} variant="primary" icon={ACTION_ICON[action.key]} {...common}>
-                                {label}
-                            </Button>
-                        ) : (
-                            <Button key={action.key} variant="secondary" icon={ACTION_ICON[action.key]} {...common}>
-                                {label}
-                            </Button>
-                        );
-                    })}
-                    {copy.actionsNote === undefined ? null : (
-                        <p aria-hidden className="text-meta text-ink-muted">
-                            {copy.actionsNote}
-                        </p>
+            {/* One group of actions in the DOM. On a phone the panel is `contents`: the statement keeps its own card and
+                the actions fall to the end of the page by `order` (where the thumb is). From 600 the panel is the card
+                and the actions sit inside it, under its text. */}
+            {copy.statement === undefined && actions === null ? null : (
+                <section className="order-2 contents sm:flex sm:flex-col sm:gap-3 sm:rounded-lg sm:bg-paper sm:p-4">
+                    {copy.statement === undefined ? null : (
+                        <div className="order-2 flex flex-col gap-1 rounded-lg bg-paper p-4 sm:rounded-none sm:bg-transparent sm:p-0">
+                            <p className="text-card-title text-ink" tabIndex={-1}>
+                                {copy.statement}
+                            </p>
+                            {copy.details.map((line) => (
+                                <p key={line} className="text-meta text-ink-muted">
+                                    {line}
+                                </p>
+                            ))}
+                        </div>
                     )}
-                    {ask === 'failed' ? (
-                        <p role="alert" className="text-meta text-danger-text">
-                            {m.ask.failed}
-                        </p>
-                    ) : null}
-                </div>
+                    {actions}
+                </section>
             )}
 
             {copy.comparison === undefined ? null : (

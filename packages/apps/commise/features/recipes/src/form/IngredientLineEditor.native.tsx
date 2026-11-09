@@ -164,11 +164,7 @@ export const IngredientLineEditor: FC<IngredientLineEditorProps> = ({ view, inde
             )}
             {view.detailsOffered && (
                 <YStack gap="$3">
-                    <PressScale
-                        accessibilityRole="button"
-                        aria-expanded={view.detailsOpen}
-                        onPress={view.onToggleDetails}
-                    >
+                    <PressScale accessibilityRole="button" expanded={view.detailsOpen} onPress={view.onToggleDetails}>
                         <YStack minHeight={48} justifyContent="center" alignSelf="flex-start">
                             <DesignText typeRole="label" color="$actionText">
                                 {m.rowFoodDetails}

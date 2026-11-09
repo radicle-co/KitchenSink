@@ -84,6 +84,16 @@ describe('classifyModifier — KTD-11b, as a vocabulary', () => {
         }
     });
 
+    it('files `black-eyed` and `corned` as identity: they name the food, not a step the cook does', () => {
+        for (const word of ['black-eyed', 'Black-eyed', 'corned']) {
+            expect(classifyModifier(word), word).toBe('identity');
+        }
+        // ...while the participles they resemble are still preparation.
+        for (const word of ['eyed', 'horned', 'sauteed']) {
+            expect(classifyModifier(word), word).toBe('preparation');
+        }
+    });
+
     it('does not mistake a seed or a weed for a participle, though both end in -ed', () => {
         // `1/4 teaspoon celery seed` was stored as `celery` with the preparation `seed` (paste import, 2026-11-08).
         for (const word of ['seed', 'flaxseed', 'grapeseed', 'poppyseed', 'weed', 'seaweed', 'dillweed', 'Seed,']) {

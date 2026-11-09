@@ -37,6 +37,7 @@ import type {
 } from '../ingredientMatching/matchLine.js';
 import { foodKeyOf } from './matchDemand.js';
 import { draftKeyOf, type PasteMatchSession } from './pasteMatchSession.js';
+import { savedWordsOf } from './pastedLines.js';
 
 type WireLine = ParseJobResponse['lines'][number];
 type WireProposal = NonNullable<WireLine['proposal']>;
@@ -149,13 +150,17 @@ function reviewNoteOf(
 /** One food as a line. Pure. */
 function lineOf(
     key: string,
-    line: LineText,
+    readLine: LineText,
+    savedWords: string,
     food: WireFood,
     held: LineBinding | undefined,
     failed: boolean,
     reviewReasonOf: (reason: string) => string,
 ): MatchLine {
     const match = food.match;
+    // The parse has answered, so a line only waiting on its review shows the words the saved line will show.
+    const line: LineText =
+        match == null || match.state === 'checking' ? { measure: readLine.measure, words: savedWords } : readLine;
 
     if (match == null) {
         return failed
@@ -223,7 +228,17 @@ export function pasteMatchLinesOf(input: PasteMatchLinesInput): readonly MatchLi
 
             return draftKeyOf(session, key) === undefined
                 ? []
-                : [lineOf(key, text, food, session.bindings.get(key), optionsFailed.has(key), reviewReasonOf)];
+                : [
+                      lineOf(
+                          key,
+                          text,
+                          savedWordsOf(proposal, wireLine.sourceLine, foodIndex),
+                          food,
+                          session.bindings.get(key),
+                          optionsFailed.has(key),
+                          reviewReasonOf,
+                      ),
+                  ];
         });
     });
 }

@@ -13,6 +13,8 @@ import type { ParseJobResponse } from '@kitchensink/schema-recipe';
 
 import type { LineBinding, MatchLine } from '../../ingredientMatching/matchLine.js';
 import { pasteMatchLinesOf, type PasteMatchLinesInput } from '../pasteMatchLines.js';
+import { pastedLinesOf } from '../pastedLines.js';
+import { openChoiceFactsOf } from '../pasteOpenChoices.js';
 import { emptyPasteMatchSession, reducePasteMatchSession, type PasteMatchEvent } from '../pasteMatchSession.js';
 
 interface WireMatch {
@@ -52,6 +54,8 @@ const jobWith = (
                 proposal: {
                     raw,
                     statedMeasure,
+                    quantity: { kind: 'absent' },
+                    unit: null,
                     foods: [{ name: 'milk', prep: null, ...(match === undefined ? {} : { match }) }],
                 },
             },
@@ -500,5 +504,81 @@ describe('pasteMatchLinesOf - a held binding the cook did not make', () => {
         );
 
         expect(line.binding).toMatchObject({ boundBy: 'cook', pick: { foodId: 'oat' } });
+    });
+});
+
+/**
+ * Designer ruling 2026-11-08: while a line is READ the raw pasted words are right; once the parse has answered and only
+ * the review is pending ("Checking…"), the row shows the words the SAVED line will show: displayText when the parse keeps
+ * the cook's words (`display: 'written'`), else the proposal's food name. The oracle is the row `pastedLineRowOf` builds
+ * from the same parse answer (through `pastedLinesOf`), so the two cannot drift.
+ */
+describe('pasteMatchLinesOf - a checking line shows the words the saved line will show', () => {
+    const jobFor = (raw: string, name: string, display: 'written' | 'food', match: WireMatch | undefined) =>
+        ({
+            id: 'job-1',
+            status: 'complete',
+            lines: [
+                {
+                    lineIndex: 0,
+                    sourceLine: raw,
+                    status: 'parsed',
+                    progress: null,
+                    proposal: {
+                        raw,
+                        statedMeasure: null,
+                        quantity: { kind: 'exact', value: 1 },
+                        unit: null,
+                        foods: [{ name, prep: null, display, ...(match === undefined ? {} : { match }) }],
+                        reviewReasons: [],
+                    },
+                },
+            ],
+        }) as unknown as ParseJobResponse;
+
+    const savedWordsOf = (job: ParseJobResponse): string => {
+        const [pasted] = pastedLinesOf({ job, jobFailed: false, now: 0, typedByCook: new Set() });
+        const row = pasted?.kind === 'settled' ? pasted.rows[0] : undefined;
+
+        return row?.displayText ?? row?.name ?? '';
+    };
+
+    const checking: WireMatch = { state: 'checking', reason: 'awaitingReview', proposed: WHOLE, candidates: [WHOLE] };
+
+    it.each([
+        ['written', '1 pound sweet Italian sausage links', 'sweet Italian sausage'],
+        ['food', '2 large eggs', 'eggs'],
+    ] as const)('a %s answer: the checking row’s words equal the saved line’s', (display, raw, name) => {
+        for (const match of [checking, undefined]) {
+            const job = jobFor(raw, name, display, match);
+            const words = only(linesOf(job)).line.words;
+
+            expect(words).toBe(savedWordsOf(job));
+            expect(words).not.toBe('');
+        }
+    });
+
+    it('the two answers really differ from the raw words (the test would otherwise prove nothing)', () => {
+        const written = jobFor('1 pound sweet Italian sausage links', 'sweet Italian sausage', 'written', checking);
+
+        expect(savedWordsOf(written)).not.toBe('sweet Italian sausage links');
+        expect(only(linesOf(written)).line.words).not.toBe('sweet Italian sausage links');
+    });
+
+    it('a line that is not checking keeps the pasted words', () => {
+        const ask: WireMatch = { state: 'needsChoice', reason: 'reviewDoubted', proposed: null, candidates: [WHOLE] };
+        const job = jobFor('2 large eggs', 'eggs', 'food', ask);
+
+        expect(only(linesOf(job)).line.words).toBe('2 large eggs');
+    });
+
+    it('the publish sheet’s "still checking" names are the same words', () => {
+        const checkingJob = jobFor('1 pound sweet Italian sausage links', 'sweet Italian sausage', 'written', checking);
+        const lines = [
+            ...linesOf(checkingJob),
+            { key: '1:0', line: { measure: '', words: 'kale' }, state: 'noMatch', binding: undefined } as MatchLine,
+        ];
+
+        expect(openChoiceFactsOf(lines, 2)?.checkingNames).toEqual([savedWordsOf(checkingJob)]);
     });
 });

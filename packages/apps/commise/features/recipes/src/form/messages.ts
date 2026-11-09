@@ -276,6 +276,8 @@ export interface RecipeFormMessages {
     readonly rowCountedAsLabel: string;
     /** A row's quiet second line when it shows the cook's own words. Holds `{food}`. */
     readonly rowCountedAs: string;
+    /** The same slot's line when the matched food counts nothing (a food the cook may not see). */
+    readonly rowNotCounted: string;
     /** `row.change`: the row editor's Change, beside the food. */
     readonly rowChange: string;
     /** `row.foodDetails`, in the `⋯` and in the row editor. */
@@ -760,6 +762,7 @@ export const recipeFormMessages: LocalizedMessages<RecipeFormMessages> = {
         rowNotePlaceholder: 'For example, 9 inch',
         rowCountedAsLabel: 'Counted as',
         rowCountedAs: 'Counted as {food}',
+        rowNotCounted: 'Not counted',
         rowChange: 'Change',
         rowFoodDetails: 'Food details',
         rowFoodCalories: '{food} · {cal} cal per 100 g',

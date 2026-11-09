@@ -1268,3 +1268,33 @@ describe('ingredientRowViewOf — the cook’s own words (displayText) and the n
         expect(next).toMatchObject({ displayText: 'my sweet brisket', name: 'beef chuck' });
     });
 });
+
+/** Designer ruling 2026-11-08 (spec item 4): a food the cook may not see counts nothing, so its quiet second line says so. */
+describe('ingredientRowViewOf — a stand-in row that holds the cook’s words says "Not counted"', () => {
+    const hidden = (over: Partial<UnkeyedFormIngredient> = {}) =>
+        bound({
+            name: undefined,
+            resolutionStatus: FoodResolutionStatus.RESOLVED_UNAVAILABLE,
+            displayText: 'my secret blend',
+            ...over,
+        });
+
+    it('keeps the stand-in chip and reads "Not counted" where "Counted as" would be', () => {
+        const { row } = onlyRow({ lines: [hidden()] });
+
+        expect(row.standIn).toBe(true);
+        expect(row.displayName).toBe(shared.ingredientLineName.privateFood);
+        expect(row.countedAs).toBe(m.rowNotCounted);
+    });
+
+    it('without the cook’s words the row has no such line', () => {
+        expect(onlyRow({ lines: [hidden({ displayText: undefined })] }).row.countedAs).toBeUndefined();
+    });
+
+    it('an attention line takes its place, as it does for "Counted as"', () => {
+        const { row } = onlyRow({ lines: [hidden({ resolutionStatus: FoodResolutionStatus.FOOD_REMOVED })] });
+
+        expect(row.secondLine.kind).toBe('attention');
+        expect(row.countedAs).toBeUndefined();
+    });
+});

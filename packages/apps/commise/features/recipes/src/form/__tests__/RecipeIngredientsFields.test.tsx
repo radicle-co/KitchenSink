@@ -1244,3 +1244,20 @@ describe('RecipeIngredientsFields (web) — the cook’s own words and the note 
         expect(toCreateRecipeInput(seen.at(-1) as RecipeFormValues).ingredients[0]).not.toHaveProperty('displayText');
     });
 });
+
+describe('RecipeIngredientsFields (web) — a stand-in row that holds the cook’s words', () => {
+    const HIDDEN: UnkeyedFormIngredient = {
+        ...RICE,
+        name: undefined,
+        resolutionStatus: FoodResolutionStatus.RESOLVED_UNAVAILABLE,
+        displayText: 'my secret blend',
+    };
+
+    it('keeps the stand-in chip and says "Not counted" in place of "Counted as"', () => {
+        render(<StatefulLeaf initial={[HIDDEN]} />);
+
+        expect(screen.getByText(standIns.privateFood)).toBeTruthy();
+        expect(screen.getByText(en.rowNotCounted)).toBeTruthy();
+        expect(screen.queryByText(/Counted as/u)).toBeNull();
+    });
+});

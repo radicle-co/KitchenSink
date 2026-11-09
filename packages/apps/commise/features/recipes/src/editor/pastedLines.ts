@@ -91,6 +91,29 @@ export interface PastedLinesInput {
     readonly typedByCook: ReadonlySet<number>;
 }
 
+/** The row recipe-core builds for one food of a parse answer: the one rule the saved line and the paste list share. Pure. */
+function pastedRowOf(proposal: ParseProposal, sourceLine: string, foodIndex: number) {
+    const food = proposal.foods[foodIndex];
+
+    return pastedLineRowOf({ ...proposal, sourceLine, display: food?.display ?? null }, foodIndex, food?.name ?? '');
+}
+
+/**
+ * The words the SAVED line shows for one food of a parse answer: the cook's words when the parse keeps them
+ * (`displayText`), else the proposal's food name. A paste row whose parse has answered and whose review is pending shows
+ * these, so it reads as the line will read once saved. Pure.
+ *
+ * @param proposal - The line's parse answer.
+ * @param sourceLine - The line as pasted.
+ * @param foodIndex - Which food of the proposal.
+ * @returns The words.
+ */
+export function savedWordsOf(proposal: ParseProposal, sourceLine: string, foodIndex: number): string {
+    const row = pastedRowOf(proposal, sourceLine, foodIndex);
+
+    return row.displayText ?? row.name;
+}
+
 /**
  * The rows a parsed proposal adds: one per food. Each row's measure and name are recipe-core's `pastedLineRowOf` (the
  * cook's own words, an amount on the first food only, a leading size word as the unit), the rule recipe-service's paste matcher keys
@@ -99,11 +122,7 @@ export interface PastedLinesInput {
 function proposedRowsOf(proposal: ParseProposal, sourceLine: string): readonly PastedRow[] {
     return proposal.foods.map((food, index) => {
         // `display` is the model's answer for THIS food (ADR-0026 §11); absent reads as no answer.
-        const { name, quantity, unit, displayText, note } = pastedLineRowOf(
-            { ...proposal, sourceLine, display: food.display ?? null },
-            index,
-            food.name,
-        );
+        const { name, quantity, unit, displayText, note } = pastedRowOf(proposal, sourceLine, index);
 
         return {
             name,

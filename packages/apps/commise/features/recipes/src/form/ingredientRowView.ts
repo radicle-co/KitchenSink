@@ -655,6 +655,35 @@ const secondLineViewOf = (
 };
 
 /**
+ * The row's quiet "Counted as {food}" line, or "Not counted" for a stand-in row that holds the cook's words. Pure.
+ *
+ * @param facts - Whether the row shows the cook's words, whether it is a stand-in holding them, whether the slot is free.
+ * @param m - The form's copy.
+ * @returns The line, or `undefined` when the slot stays empty.
+ */
+const countedAsLineOf = (
+    facts: {
+        readonly writtenWords: boolean;
+        readonly standInWords: boolean;
+        readonly quiet: boolean;
+        readonly foodName: string;
+    },
+    m: RecipeFormMessages,
+): string | undefined => {
+    if (!facts.quiet) {
+        return undefined;
+    }
+
+    if (facts.standInWords) {
+        return m.rowNotCounted;
+    }
+
+    return facts.writtenWords && facts.foodName !== ''
+        ? fillTemplate(m.rowCountedAs, { food: facts.foodName })
+        : undefined;
+};
+
+/**
  * One row's view.
  *
  * @param line - The line.
@@ -698,6 +727,8 @@ export const ingredientRowViewOf = (
         ? foodName
         : lineAmountName(line, quantity, line.unit, ctx.shared.ingredientLineName);
     const writtenWords = !presentation.standIn && displayName !== foodName;
+    // A stand-in row (a food the cook may not see) that holds the cook's words: the chip stays, and nothing is counted.
+    const standInWords = presentation.standIn && (line.displayText ?? '').trim() !== '';
     const amountText = formatQuantity(quantity, ctx.locale, line.unit);
     // A stand-in row is named by its amount too, as the row shows it (WCAG 2.5.3, option C).
     const triggerFood = presentation.standIn
@@ -782,8 +813,7 @@ export const ingredientRowViewOf = (
         amountText,
         noteText: lineTailOf({ note, preparation: undefined })[0],
         prepText: prep === undefined || prep === '' ? undefined : prep,
-        countedAs:
-            writtenWords && quiet && foodName !== '' ? fillTemplate(m.rowCountedAs, { food: foodName }) : undefined,
+        countedAs: countedAsLineOf({ writtenWords, standInWords, quiet, foodName }, m),
         countedAsId: ingredientCountedAsId(line.key),
         // A stand-in row shows no note or preparation (the leaves draw them only beside a real name), so its name carries
         // none. "Counted as" is the control's description, never part of its name (#144).

@@ -5,7 +5,7 @@
  * views. The detail render consumes a {@link RecipeDetail} directly (it is already the read model); the
  * only shaping needed is small formatting the two platforms must not diverge on.
  */
-import type { ReactNode } from 'react';
+import type { ReactNode, RefCallback } from 'react';
 
 import type { Locale } from '@commise/i18n';
 import { spokenVariantParts } from '@commise/ui/variant-parts-line';
@@ -967,6 +967,19 @@ export interface DetailScreenOn {
 }
 
 /**
+ * The pinned ingredients bar's state, as the shell holds it (owner ruling R1,
+ * `docs/plans/2026-11-08-pinnedIngredientsBar.md`). Both platforms read the same three facts.
+ */
+export interface PinnedIngredientsState {
+    /** Whether the bar is drawn: the ingredients card has scrolled above the top chrome, and there are lines. */
+    readonly shown: boolean;
+    /** Whether the list it opens is open. Never true while the bar is not shown. */
+    readonly open: boolean;
+    /** Open or close the list. */
+    readonly onOpenChange: (open: boolean) => void;
+}
+
+/**
  * Props for the PURE detail body — the whole `RecipeDetailView` contract plus everything its shell binds: the serving
  * scale, the cook's marks, Screen on and the description's disclosure.
  *
@@ -991,6 +1004,17 @@ export interface RecipeDetailBodyProps extends RecipeDetailViewProps {
     readonly nutritionExpanded: boolean;
     /** Expand or collapse the Nutrition row. */
     readonly onToggleNutrition: () => void;
+    /** The pinned ingredients bar (owner ruling R1): shown from the card scrolling away, and its list. */
+    readonly pinnedIngredients: PinnedIngredientsState;
+}
+
+/**
+ * The WEB body's props: the shared contract plus the callback ref that watches the end of the ingredients card. Native has no
+ * such handle; its shell reads the card's `onLayout` and the scroll view's `onScroll` instead.
+ */
+export interface RecipeDetailBodyWebProps extends RecipeDetailBodyProps {
+    /** Attach to the zero-height marker at the card's end, so the shell learns when the card has scrolled away. */
+    readonly ingredientsEndRef: RefCallback<HTMLElement>;
 }
 
 /**
@@ -1010,6 +1034,12 @@ export interface RecipeDetailBodyNativeProps extends RecipeDetailBodyProps {
      * queries instead.
      */
     readonly layout: DetailNativeLayout;
+    /** The ingredients block's `onLayout`, so the shell learns where the card ends in the scroll content. */
+    readonly onIngredientsLayout: (event: {
+        readonly nativeEvent: { readonly layout: { readonly y: number; readonly height: number } };
+    }) => void;
+    /** The page scroll view's `onScroll`, so the shell learns when the card has scrolled away. */
+    readonly onScroll: (event: { readonly nativeEvent: { readonly contentOffset: { readonly y: number } } }) => void;
 }
 
 /**

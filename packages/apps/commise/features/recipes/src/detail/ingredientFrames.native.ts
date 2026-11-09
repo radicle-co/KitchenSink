@@ -96,3 +96,14 @@ export const IngredientCheckBoxSlot = styled(XStack, {
     height: nativeTokens.type.body.lineHeight,
     alignItems: 'center',
 });
+
+/** The list's first row: "Servings" and the stepper at the end (board `.sheetServe`). */
+export const PinnedServingsRow = styled(XStack, {
+    name: 'PinnedServingsRow',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: '$3',
+    paddingBottom: '$1',
+    paddingLeft: '$4',
+    paddingRight: '$3',
+});

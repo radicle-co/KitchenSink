@@ -4,16 +4,16 @@
     "packageName": "@commise/features-recipes",
     "layer": "feature",
     "coverage": {
-        "components": 193,
-        "implementations": 327,
-        "props": 2282,
-        "documentedComponents": 193,
-        "implementationsWithModuleDoc": 327,
-        "implementationsWithComponentDoc": 216,
-        "documentedProps": 1762,
-        "classifiedComponents": 171,
-        "componentsWithPatternTag": 92,
-        "crossPlatformComponents": 134
+        "components": 195,
+        "implementations": 331,
+        "props": 2304,
+        "documentedComponents": 195,
+        "implementationsWithModuleDoc": 331,
+        "implementationsWithComponentDoc": 220,
+        "documentedProps": 1774,
+        "classifiedComponents": 173,
+        "componentsWithPatternTag": 93,
+        "crossPlatformComponents": 136
     },
     "components": [
         {
@@ -7425,6 +7425,147 @@
             ]
         },
         {
+            "id": "featuresRecipes/detail/IngredientRuns",
+            "name": "IngredientRuns",
+            "group": "featuresRecipes",
+            "packageName": "@commise/features-recipes",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/recipes/src/detail",
+            "kind": "presentational",
+            "patterns": [],
+            "platforms": [
+                "web",
+                "native"
+            ],
+            "crossPlatform": true,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "IngredientRuns",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/detail/IngredientRuns.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/detail",
+                    "moduleDoc": "@commise/features-recipes — the ingredient rows of the recipe page, grouped: a label over its run of lines, an\nungrouped recipe one list (`buildSpec.md` §6.1, F9). The ingredients card and the pinned list (owner ruling R1) draw the\nSAME rows from this one component, so the two cannot disagree on a row, a group or a tick.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes — the ingredient rows of the recipe page, grouped: a label over its run of lines, an"
+                        }
+                    ],
+                    "description": "The grouped ingredient rows. Presentational: props → JSX, no state of its own.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "allRemoved",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Every line's food was removed from the catalog (the rows say so once, not on each line).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/IngredientRuns.tsx"
+                        },
+                        {
+                            "name": "checked",
+                            "type": "ReadonlySet<string>",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/IngredientRuns.tsx"
+                        },
+                        {
+                            "name": "ingredients",
+                            "type": "readonly RecipeIngredientView[]",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The lines, already scaled to the chosen servings.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/IngredientRuns.tsx"
+                        },
+                        {
+                            "name": "onToggle",
+                            "type": "(ingredientId: string) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/IngredientRuns.tsx"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                },
+                {
+                    "name": "IngredientRuns",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/detail/IngredientRuns.native.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/detail",
+                    "moduleDoc": "@commise/features-recipes — the native ingredient rows, grouped: a label over its run of lines, an ungrouped\nrecipe one list (`buildSpec.md` §6.1, F9). The ingredients card and the pinned list (owner ruling R1) draw the SAME rows\nfrom this one component, so the two cannot disagree on a row, a group or a tick. The native twin of `IngredientRuns.tsx`.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes — the native ingredient rows, grouped: a label over its run of lines, an ungrouped"
+                        }
+                    ],
+                    "description": "The grouped ingredient rows. Presentational: props → JSX, no state of its own.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "allRemoved",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Every line's food was removed from the catalog (the rows say so once, not on each line).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/IngredientRuns.tsx"
+                        },
+                        {
+                            "name": "checked",
+                            "type": "ReadonlySet<string>",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/IngredientRuns.tsx"
+                        },
+                        {
+                            "name": "ingredients",
+                            "type": "readonly RecipeIngredientView[]",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The lines, already scaled to the chosen servings.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/IngredientRuns.tsx"
+                        },
+                        {
+                            "name": "onToggle",
+                            "type": "(ingredientId: string) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/IngredientRuns.tsx"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
             "id": "featuresRecipes/detail/NutritionFigure",
             "name": "NutritionFigure",
             "group": "featuresRecipes",
@@ -7804,6 +7945,164 @@
             ]
         },
         {
+            "id": "featuresRecipes/detail/PinnedIngredientsBar",
+            "name": "PinnedIngredientsBar",
+            "group": "featuresRecipes",
+            "packageName": "@commise/features-recipes",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/recipes/src/detail",
+            "kind": "orchestration",
+            "patterns": [
+                "Adapter over the DOM focus and scroll APIs — `.focus()` and the document's scroll lock have no declarative form."
+            ],
+            "platforms": [
+                "web",
+                "native"
+            ],
+            "crossPlatform": true,
+            "propsDiverge": true,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "PinnedIngredientsBar",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/detail/PinnedIngredientsBar.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/detail",
+                    "moduleDoc": "@commise/features-recipes — the web pinned ingredients bar and the list it opens (owner ruling R1,\n`docs/plans/2026-11-08-pinnedIngredientsBar.md`; boards `RecipeDetailScrolledMobile` and\n`RecipeDetailIngredientsOpenMobile`).\n\nBelow a 720 px body, once the ingredients card has scrolled above the top of the window, ONE button pins at the top:\n\"Ingredients for 4 / 13 items · 1 ticked / Show\". It opens the list as a panel directly under it, over a scrim, with the\npage behind it held still. The bar has no stepper (a mistap must never rescale a recipe mid-cook); the stepper is the\nfirst row of the list. From 720 the sticky card does this job, so the whole thing is `hidden` by the article's\ncontainer query and the bar never draws.\n\nA non-modal dialog, kept by hand because the bar must stay pressable above its own panel: focus moves into the list on\nopen and back to the bar on close, Tab wraps between the bar and the list, Escape and the scrim close it.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes — the web pinned ingredients bar and the list it opens (owner ruling R1,"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Adapter over the DOM focus and scroll APIs — `.focus()` and the document's scroll lock have no declarative form."
+                        }
+                    ],
+                    "description": "The pinned bar, its scrim and its list. Orchestration of its own focus, key and scroll behaviour: whether the list is\nopen is the shell's, handed in as props.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "children",
+                            "type": "ReactNode",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The list: the servings row and the rows.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/PinnedIngredientsBar.tsx"
+                        },
+                        {
+                            "name": "facts",
+                            "type": "PinnedBarFacts",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/PinnedIngredientsBar.tsx"
+                        },
+                        {
+                            "name": "onOpenChange",
+                            "type": "(open: boolean) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/PinnedIngredientsBar.tsx"
+                        },
+                        {
+                            "name": "open",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/PinnedIngredientsBar.tsx"
+                        },
+                        {
+                            "name": "scrimLabel",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The scrim's accessible name.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/PinnedIngredientsBar.tsx"
+                        }
+                    ],
+                    "usesRefApi": [
+                        "useRef"
+                    ],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": true
+                    }
+                },
+                {
+                    "name": "PinnedIngredientsBar",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/detail/PinnedIngredientsBar.native.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/detail",
+                    "moduleDoc": "@commise/features-recipes — the native pinned ingredients bar and the list it opens (owner ruling R1,\n`docs/plans/2026-11-08-pinnedIngredientsBar.md`; boards `RecipeDetailScrolledMobile` and\n`RecipeDetailIngredientsOpenMobile`). The native twin of `PinnedIngredientsBar.tsx`.\n\nONE button pinned at the top of the screen, under the status bar: \"Ingredients for 4 / 13 items · 1 ticked / Show\". It\nopens the list in a panel directly under it, over a scrim, the servings stepper first. The bar has no stepper (a mistap\nmust never rescale a recipe mid-cook). The overlay stops at the bottom edge the screen's frame publishes, so the bar\nand the panel never run under the tab bar or the bottom safe area; a list taller than the room scrolls inside the panel.\n\nAll text is the design-system `Text` at the chrome cap (1.5x), so the bar never draws larger than the page title\n(`designAnswers.md`, 2026-11-07). The Android back button closes the list through the back seam (ADR-0056), asked only\nwhile the list is open.\n\nshortcut: the board's elevation (`shadow-lg` on the bar, `shadow-xl` on the panel) waits for a design-system shadow\nprimitive, as the page's cards do (`detailFrames.native.ts`); the hairline and the scrim carry the edge until then.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes — the native pinned ingredients bar and the list it opens (owner ruling R1,"
+                        }
+                    ],
+                    "description": "The pinned bar, its scrim and its list. Orchestration of its own back-press seam: whether the list is open is the\nshell's, handed in as props.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "facts",
+                            "type": "PinnedBarFacts",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/PinnedIngredientsBar.tsx"
+                        },
+                        {
+                            "name": "onOpenChange",
+                            "type": "(open: boolean) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/PinnedIngredientsBar.tsx"
+                        },
+                        {
+                            "name": "open",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/PinnedIngredientsBar.tsx"
+                        },
+                        {
+                            "name": "scrimLabel",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The scrim's accessible name.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/PinnedIngredientsBar.tsx"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": true
+                    }
+                }
+            ]
+        },
+        {
             "id": "featuresRecipes/detail/RecipeDetailBody",
             "name": "RecipeDetailBody",
             "group": "featuresRecipes",
@@ -7899,6 +8198,15 @@
                             "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
                         },
                         {
+                            "name": "ingredientsEndRef",
+                            "type": "RefCallback<HTMLElement>",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Attach to the zero-height marker at the card's end, so the shell learns when the card has scrolled away.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
+                        },
+                        {
                             "name": "marks",
                             "type": "DetailMarks",
                             "typeDetail": null,
@@ -7959,6 +8267,15 @@
                             "required": false,
                             "defaultValue": null,
                             "description": "Native: open the version history from the status row.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
+                        },
+                        {
+                            "name": "pinnedIngredients",
+                            "type": "PinnedIngredientsState",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The pinned ingredients bar (owner ruling R1): shown from the card scrolling away, and its list.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
                         },
                         {
@@ -8180,12 +8497,30 @@
                             "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
                         },
                         {
+                            "name": "onIngredientsLayout",
+                            "type": "(event: { readonly nativeEvent: { readonly layout: { readonly y: number; readonly height: number; }; }; }) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The ingredients block's `onLayout`, so the shell learns where the card ends in the scroll content.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
+                        },
+                        {
                             "name": "onOpenDataSources",
                             "type": "() => void",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
                             "description": "Open the Data sources sheet.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
+                        },
+                        {
+                            "name": "onScroll",
+                            "type": "(event: { readonly nativeEvent: { readonly contentOffset: { readonly y: number; }; }; }) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The page scroll view's `onScroll`, so the shell learns when the card has scrolled away.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
                         },
                         {
@@ -8222,6 +8557,15 @@
                             "required": false,
                             "defaultValue": null,
                             "description": "Native: open the version history from the status row.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
+                        },
+                        {
+                            "name": "pinnedIngredients",
+                            "type": "PinnedIngredientsState",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The pinned ingredients bar (owner ruling R1): shown from the card scrolling away, and its list.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
                         },
                         {
@@ -8670,7 +9014,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/recipes/src/detail/RecipeDetailView.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/detail",
-                    "moduleDoc": "@commise/features-recipes — web recipe-detail view (T066 building block).\n\nThe ORCHESTRATION SHELL of the recipe page, and nothing else: it binds what the page holds for the cook — the\nsession serving scale, the cook's marks (`useCookMarks`, blueprint A13), the one \"Screen on\" state with its wake\nlock (A20), and the description's and the Nutrition row's disclosures — and hands the pure render (`RecipeDetailBody.tsx`) the result. The\npublic contract (`RecipeDetailViewProps`) carries none of them, which is the point: an app composes this and cannot\nship the page with the scale, the checks or Screen on un-wired, because there is nothing for it to wire.\n\nScreen on defaults to off on each visit and is released when the cook leaves the page (the hold's effect cleanup).",
+                    "moduleDoc": "@commise/features-recipes — web recipe-detail view (T066 building block).\n\nThe ORCHESTRATION SHELL of the recipe page, and nothing else: it binds what the page holds for the cook — the\nsession serving scale, the cook's marks (`useCookMarks`, blueprint A13), the one \"Screen on\" state with its wake\nlock (A20), the description's and the Nutrition row's disclosures, and the pinned ingredients bar's open state — and hands the pure render (`RecipeDetailBody.tsx`) the result. The\npublic contract (`RecipeDetailViewProps`) carries none of them, which is the point: an app composes this and cannot\nship the page with the scale, the checks or Screen on un-wired, because there is nothing for it to wire.\n\nScreen on defaults to off on each visit and is released when the cook leaves the page (the hold's effect cleanup).",
                     "moduleTags": [
                         {
                             "name": "module",

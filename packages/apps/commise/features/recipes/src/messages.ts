@@ -364,6 +364,24 @@ export interface RecipeDetailMessages {
     readonly byAuthor: string;
     /** The serving count beside the Ingredients heading (contains `{count}`). */
     readonly ingredientsFor: string;
+    /** The pinned ingredients bar (owner ruling R1): the item count, singular and plural (`Intl.PluralRules`). */
+    readonly pinnedItemsOne: string;
+    readonly pinnedItemsOther: string;
+    /** "{count} ticked". Left out of the bar while nothing is ticked. */
+    readonly pinnedTicked: string;
+    /** The bar's second line: "{items} · {ticked}". */
+    readonly pinnedMeta: string;
+    /** The same two facts inside the button's spoken name: "{items}, {ticked}". */
+    readonly pinnedSummaryTicked: string;
+    readonly pinnedShow: string;
+    readonly pinnedHide: string;
+    /** The one button's name while the list is closed and open. Starts with the visible words (SC 2.5.3). */
+    readonly pinnedNameShow: string;
+    readonly pinnedNameHide: string;
+    /** The opened list's dialog name. */
+    readonly pinnedDialogName: string;
+    /** The scrim behind the opened list, a button for a screen reader that reaches it (out of the Tab order). */
+    readonly pinnedScrimClose: string;
     /** The note shown while the amounts are scaled (contains `{original}`). */
     readonly scaledFrom: string;
     /** The ghost action that returns the amounts to the recipe's own servings. */
@@ -1059,6 +1077,17 @@ export const recipeMessages: LocalizedMessages<RecipeMessages> = {
             difficultyLabel: 'Difficulty',
             byAuthor: 'by {byline}',
             ingredientsFor: 'for {count}',
+            pinnedItemsOne: '{count} item',
+            pinnedItemsOther: '{count} items',
+            pinnedTicked: '{count} ticked',
+            pinnedMeta: '{items} · {ticked}',
+            pinnedSummaryTicked: '{items}, {ticked}',
+            pinnedShow: 'Show',
+            pinnedHide: 'Hide',
+            pinnedNameShow: 'Ingredients for {count}, {summary}. Show list.',
+            pinnedNameHide: 'Ingredients for {count}, {summary}. Hide list.',
+            pinnedDialogName: 'Ingredients for {count}',
+            pinnedScrimClose: 'Close the ingredients list',
             scaledFrom: 'Amounts scaled from {original} servings.',
             resetScale: 'Reset',
             scaledAnnounce: 'Amounts for {count} servings.',

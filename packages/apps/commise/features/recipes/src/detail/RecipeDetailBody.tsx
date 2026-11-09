@@ -24,7 +24,7 @@
  * @pattern Humble Object — the pure render half of the orchestration/render split whose shell is
  *     `RecipeDetailView.tsx`. It holds no fetch state and decides nothing.
  */
-import { useMessages } from '@commise/i18n/react';
+import { useLocale, useMessages } from '@commise/i18n/react';
 import { Button, buttonSurfaceClass } from '@commise/ui/button';
 import { useFocusOnSignal } from '@commise/ui/dialog-focus';
 import { Icon } from '@commise/ui/icon';
@@ -44,14 +44,7 @@ import { bylineMessages } from '../byline/messages.js';
 import { AmbiguityReview } from './AmbiguityReview.js';
 import { DetailEmptySection } from './DetailEmptySection.js';
 import { DetailNutritionSection } from './DetailNutritionSection.js';
-import {
-    detailByline,
-    detailEyebrow,
-    detailStatCells,
-    detailStatusLine,
-    ingredientGroupRuns,
-    isLongDescription,
-} from './detailFacts.js';
+import { detailByline, detailEyebrow, detailStatCells, detailStatusLine, isLongDescription } from './detailFacts.js';
 import {
     BODY_GRID,
     DETAIL_ARTICLE,
@@ -63,8 +56,10 @@ import {
     INGREDIENTS_COLUMN,
     STEPS_COLUMN,
 } from './detailLayoutClasses.js';
-import { IngredientCheckRow } from './IngredientCheckRow.js';
-import { allLinesFoodRemoved, detailNoticeState, removedFoodNotice, type RecipeDetailBodyProps } from './model.js';
+import { IngredientRuns } from './IngredientRuns.js';
+import { allLinesFoodRemoved, detailNoticeState, removedFoodNotice, type RecipeDetailBodyWebProps } from './model.js';
+import { pinnedBarFactsOf } from './pinnedBarFacts.js';
+import { PinnedIngredientsBar } from './PinnedIngredientsBar.js';
 import { RecipeHero } from './RecipeHero.js';
 import { RecipeSourceLine } from './RecipeSourceLine.js';
 import { ServingScaleControl } from './ServingScaleControl.js';
@@ -95,7 +90,7 @@ const TILE_GLYPH = { total: 'clock', prep: 'timer', difficulty: 'chartColumn' } 
  *
  * Exported for tests and for its shell; deliberately NOT on the package barrel — an app composes `RecipeDetailView`.
  */
-export const RecipeDetailBody: FC<RecipeDetailBodyProps> = ({
+export const RecipeDetailBody: FC<RecipeDetailBodyWebProps> = ({
     recipe,
     headerActions,
     back,
@@ -116,8 +111,11 @@ export const RecipeDetailBody: FC<RecipeDetailBodyProps> = ({
     onToggleDescription,
     nutritionExpanded,
     onToggleNutrition,
+    ingredientsEndRef,
+    pinnedIngredients,
 }) => {
     const { detail, duration, card } = useMessages(recipeMessages);
+    const locale = useLocale();
     const bylineCopy = useMessages(bylineMessages);
     const owner = viewerIsOwner === true;
     const noPhoto = recipe.photos.length === 0;
@@ -350,27 +348,50 @@ export const RecipeDetailBody: FC<RecipeDetailBodyProps> = ({
                         />
                     ) : (
                         // A group is a label over its run of lines (§6.1, F9); an ungrouped recipe draws one list.
-                        ingredientGroupRuns(scaled.ingredients).map((run, index) => (
-                            <div key={`${run.label ?? ''}-${String(index)}`} className="flex flex-col">
-                                {run.label !== undefined && (
-                                    <h3 className="px-4 pb-1 pt-4 text-caption text-ink-muted">{run.label}</h3>
-                                )}
-                                <ul className="flex flex-col">
-                                    {run.lines.map((ingredient, lineIndex) => (
-                                        <IngredientCheckRow
-                                            key={ingredient.ingredientId}
-                                            divided={lineIndex > 0}
-                                            ingredient={ingredient}
-                                            checked={marks.checkedLines.has(ingredient.ingredientId)}
-                                            allRemoved={allRemoved}
-                                            onToggle={marks.toggleLine}
-                                        />
-                                    ))}
-                                </ul>
-                            </div>
-                        ))
+                        <IngredientRuns
+                            ingredients={scaled.ingredients}
+                            checked={marks.checkedLines}
+                            allRemoved={allRemoved}
+                            onToggle={marks.toggleLine}
+                        />
+                    )}
+                    {/* The marker the pinned bar watches (owner ruling R1): zero tall, at the card's end. */}
+                    {recipe.ingredients.length > 0 && (
+                        <div ref={ingredientsEndRef} aria-hidden="true" className="h-0" />
                     )}
                 </section>
+
+                {/* Owner ruling R1: below a 720 px body, the ingredients stay in reach from the steps. */}
+                {pinnedIngredients.shown && (
+                    <PinnedIngredientsBar
+                        facts={pinnedBarFactsOf({
+                            ingredients: recipe.ingredients,
+                            checked: marks.checkedLines,
+                            servings,
+                            open: pinnedIngredients.open,
+                            copy: detail,
+                            locale,
+                        })}
+                        open={pinnedIngredients.open}
+                        onOpenChange={pinnedIngredients.onOpenChange}
+                        scrimLabel={detail.pinnedScrimClose}
+                    >
+                        <div className="flex items-center justify-between gap-3 pe-3 ps-4 pt-2.5">
+                            <span className="text-meta text-ink-muted">{detail.servingsAdjustLabel}</span>
+                            <ServingScaleControl
+                                servings={servings}
+                                baseServings={recipe.servings}
+                                onServingsChange={onServingsChange}
+                            />
+                        </div>
+                        <IngredientRuns
+                            ingredients={scaled.ingredients}
+                            checked={marks.checkedLines}
+                            allRemoved={allRemoved}
+                            onToggle={marks.toggleLine}
+                        />
+                    </PinnedIngredientsBar>
+                )}
 
                 <div className={STEPS_COLUMN}>
                     <section aria-labelledby="steps" className="flex flex-col gap-3">

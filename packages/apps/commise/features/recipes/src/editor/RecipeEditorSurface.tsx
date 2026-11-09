@@ -231,9 +231,8 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
             {blocked === undefined ? null : (
                 <PublishBlockedSheet
                     open={editor.publishBlocked !== undefined}
-                    ask={blocked}
                     slotTotal={
-                        blocked.kind === 'noSlot' && blocked.total !== undefined
+                        blocked.total !== undefined
                             ? blocked.total
                             : slotStanding.kind === 'full' || slotStanding.kind === 'open'
                               ? slotStanding.limit

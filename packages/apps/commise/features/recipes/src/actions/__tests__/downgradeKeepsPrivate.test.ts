@@ -30,7 +30,7 @@ import { usePrivateChoice } from '../usePrivateChoice.js';
 const PRIVATE = RecipeVisibility.PRIVATE;
 const PUBLIC = RecipeVisibility.PUBLIC;
 const OVER = { kind: 'full', used: 60, limit: 50 } as const;
-const RULES: readonly PrivateRule[] = ['slots', 'privateOnly', 'premium'];
+const RULES: readonly PrivateRule[] = ['slots', 'privateOnly'];
 const REFUSALS: readonly (PrivateRefusal | undefined)[] = [undefined, ...PRIVATE_REFUSALS];
 
 describe('a downgrade never makes a private recipe public - the pure rules', () => {

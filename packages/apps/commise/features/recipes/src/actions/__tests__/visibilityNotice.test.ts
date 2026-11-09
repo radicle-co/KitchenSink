@@ -7,7 +7,7 @@
  * ⛔ The finish claim is a URL, which is the reader's to forge, and case (1) has no server answer to carry: the client
  * withheld the Private, so the server never saw it. So the sentence is confirmed against facts the page holds from the
  * server: the viewer owns the recipe, the recipe is public, and Private is KNOWN to be refused for this viewer on this
- * recipe (`knownRefusal`: the paid-feature rule for an imported public-web recipe, every slot used for any other). The
+ * recipe (`knownRefusal`: every slot used). The
  * words come from that reason, never from the link.
  *
  * REWRITTEN for ADR-0073: the input was the profile's paid-feature state (`known`); a free cook's own recipe is no longer
@@ -20,7 +20,6 @@ import { visibilityNoticeOf, type VisibilityNoticeInput } from '../visibilityNot
 
 const copy = recipeActionMessages.en.visibility;
 const FINAL = copy.privateRefused.final;
-const PREMIUM = copy.privateRefused.premium;
 // The slots sentence is filled with the SERVER's limit; this package states no number of its own.
 const SLOTS = 'Not available. All 50 of your private slots are in use.';
 
@@ -39,7 +38,8 @@ const noticeOf = (overrides: Partial<VisibilityNoticeInput>): string | undefined
 describe('visibilityNoticeOf — the finish claim (a link or route param the reader may forge)', () => {
     it.each([
         ['final', FINAL],
-        ['premium', PREMIUM],
+        // REWRITTEN for ADR-0077 section 6: there is no premium sentence; any non-slots refusal says `final`.
+        ['premium', FINAL],
         ['slots', SLOTS],
     ] as const)('⛔ says the %s refusal in its own words for an owner of a public recipe', (knownRefusal, words) => {
         expect(noticeOf({ finishRefused: true, knownRefusal })).toBe(words);
@@ -66,7 +66,7 @@ describe('visibilityNoticeOf — a refusal the server gave', () => {
         'says the %s reason for an owner of a public recipe',
         (serverRefusal) => {
             expect(noticeOf({ serverRefusal, knownRefusal: undefined })).toBe(
-                serverRefusal === 'slots' ? SLOTS : copy.privateRefused[serverRefusal],
+                serverRefusal === 'slots' ? SLOTS : FINAL,
             );
         },
     );
@@ -78,7 +78,7 @@ describe('visibilityNoticeOf — a refusal the server gave', () => {
 
 describe('visibilityNoticeOf — precedence', () => {
     it('lets the latest server answer win over the finish claim', () => {
-        expect(noticeOf({ serverRefusal: 'premium', finishRefused: true, knownRefusal: 'final' })).toBe(PREMIUM);
+        expect(noticeOf({ serverRefusal: 'slots', finishRefused: true, knownRefusal: 'final' })).toBe(SLOTS);
     });
 
     it('lets a later generic failure of the page’s own write win over the finish claim: it is the more recent word', () => {

@@ -40,14 +40,11 @@ describe('RecipeMakePublicDialog (web)', () => {
     // REWRITTEN for the owner ruling of 2026-10-26 (ADR-0073): public is NEVER final. The `final` and `unknown` words
     // ("You won't be able to make this one private again", "You may not be able to...") are gone; a private recipe made
     // public frees one of the cook's slots, and a free slot is all it takes to make it private again.
-    it.each([
-        [
-            'frees',
-            'Anyone can see a public recipe and save a copy. It frees one of your private slots, and you can make it private again while you have a free slot.',
-        ],
-        ['premium', "Anyone can see a public recipe and save a copy. To make this one private again, you'll need Pro."],
-    ] as const)('under %s, asks "Make this recipe public?" and says plainly what it costs', (consequence, body) => {
-        renderDialog({ consequence });
+    // REWRITTEN for ADR-0077 section 6: the `premium` consequence is gone with the premium rule; only `frees` remains.
+    it('under frees, asks "Make this recipe public?" and says plainly what it costs', () => {
+        const body =
+            'Anyone can see a public recipe and save a copy. It frees one of your private slots, and you can make it private again while you have a free slot.';
+        renderDialog({ consequence: 'frees' });
 
         const dialog = screen.getByRole('alertdialog', { name: 'Make this recipe public?' });
 
@@ -56,18 +53,13 @@ describe('RecipeMakePublicDialog (web)', () => {
     });
 
     it('⛔ never claims public is final, in any consequence', () => {
-        for (const consequence of ['frees', 'premium'] as const) {
-            const { unmount } = render(
-                <RecipeMakePublicDialog open consequence={consequence} onConfirm={vi.fn()} onKeep={vi.fn()} />,
-            );
+        renderDialog({ consequence: 'frees' });
 
-            expect(screen.queryByText(/won.t be able|may not be able|never/iu)).toBeNull();
-            unmount();
-        }
+        expect(screen.queryByText(/won.t be able|may not be able|never/iu)).toBeNull();
     });
 
     it('⛔ offers exactly two verbs — Keep private and Make public — and nothing that sells', () => {
-        renderDialog({ consequence: 'premium' });
+        renderDialog({ consequence: 'frees' });
 
         const buttons = screen.getAllByRole('button').map((button) => button.textContent);
 

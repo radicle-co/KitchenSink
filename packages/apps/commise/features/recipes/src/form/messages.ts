@@ -111,8 +111,6 @@ export interface RecipeFormMessages {
         readonly kindOfDish: string;
         readonly dietAndTags: string;
     };
-    /** The badge on the Private choice for a cook whose plan does not include private recipes. */
-    readonly premiumBadge: string;
     /** The Paste steps sheet's close control (house form "Close {thing}"); the sheet's other copy is `editorMessages.steps`. */
     readonly pasteStepsClose: string;
     /** Label for the read-only computed total-time value. */
@@ -693,7 +691,6 @@ export const recipeFormMessages: LocalizedMessages<RecipeFormMessages> = {
             kindOfDish: 'Kind of dish',
             dietAndTags: 'Diet and tags',
         },
-        premiumBadge: 'Pro',
         pasteStepsClose: 'Close paste steps',
         totalTimeLabel: 'Total time',
         durationMinutes: '{minutes} min',

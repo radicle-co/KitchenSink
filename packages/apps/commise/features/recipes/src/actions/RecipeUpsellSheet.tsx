@@ -25,8 +25,8 @@ import type { RecipeUpsellSheetProps } from './model.js';
 /** The web Premium sheet for a private recipe. */
 export const RecipeUpsellSheet: FC<RecipeUpsellSheetProps> = ({ open, variant, onOpenChange, onSeePremium }) => {
     const { upsell } = useMessages(recipeActionMessages);
-    const words = variant.kind === 'noSlot' ? upsell.noSlot : upsell.webImport;
-    const body = variant.kind === 'noSlot' ? fillTemplate(words.body, { total: variant.total }) : words.body;
+    const words = upsell.noSlot;
+    const body = fillTemplate(words.body, { total: variant.total });
 
     return (
         <Sheet

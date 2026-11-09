@@ -68,8 +68,10 @@ export function visibilityNoticeOf(
     }
 
     const say = (reason: PrivateRefusal): string => {
+        // Every refusal a recipe can meet is `slots` (ADR-0077 section 6); any other reason, from a link made before it,
+        // is said as the generic `final`.
         if (reason !== 'slots') {
-            return messages.privateRefused[reason];
+            return messages.privateRefused.final;
         }
 
         return input.slotLimit === undefined

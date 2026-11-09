@@ -394,18 +394,13 @@ export interface UseRecipeEditorResult {
     };
 }
 
-/** Why a Private is refused for an imported public-web recipe: `premium` (Pro would allow it) or `final` (paid features hidden). */
-export type PublicOnlyRefusal = Exclude<PrivateRefusal, 'slots'>;
-
 /**
  * Why a Publish with Private chosen did not go out, and asks the cook what to do (owner ruling 2026-10-26): every private
- * slot is used (`noSlot`; `total` is the limit when the SERVER said it), or the recipe is an imported public-web one that
- * needs Pro and a change of the cook's own (`webImport`; `refusal` `final` is the paid-features-hidden variant, which sells
- * nothing). Nothing turns a private recipe public on its own, so a kept Private draft is asked about either way.
+ * slot is used (`noSlot`; `total` is the limit when the SERVER said it). Nothing turns a private recipe public on its own,
+ * so a kept Private draft is asked about. (An imported public-web recipe is no longer a second case: it uses a slot like
+ * any other, ADR-0077 section 6.)
  */
-export type PublishBlocked =
-    | { readonly kind: 'noSlot'; readonly total?: number }
-    | { readonly kind: 'webImport'; readonly refusal: PublicOnlyRefusal };
+export type PublishBlocked = { readonly kind: 'noSlot'; readonly total?: number };
 
 /** An answer on the settlement bus. */
 type Settlement = SettlementEvent<EditorWriteAnswer>;
@@ -739,12 +734,8 @@ function stopVisibilityStep(ctx: EditorContext, error: unknown): void {
  * that fails sends no Publish and stops the save the way a failed held re-pick does (`drainFailed`: the alert with Try
  * again). A recipe the server does not hold yet needs none: its create carries the visibility.
  *
- * ⛔ THE SAME STEP OWNS THE LAST CASE OF "nothing turns a private recipe public on its own" (owner ruling 2026-10-26). A
- * Private the server is KNOWN to refuse for the Premium rule (`visibilityFollowUp` says `refused`: an imported public-web
- * recipe) is not sent, and the Publish does not go out public either: it STOPS and raises the ask
- * ({@link UseRecipeEditorResult.publishBlocked}). Nothing is sent until the cook answers: "Publish as public" moves the
- * draft to Public and runs the Publish again (the follow-up is then `none`), "Keep as draft" clears the ask. The slots
- * refusal is not asked here: the gate has already stopped that Publish (`slotsFull`).
+ * A Private the server is KNOWN to refuse (`visibilityFollowUp` says `refused`: every slot used) is not sent here: the
+ * gate has already stopped that Publish (`slotsFull`) and raised the ask ({@link UseRecipeEditorResult.publishBlocked}).
  *
  * @pattern Pipeline step — the first stage of a first Publish, holding the lane like the held re-picks' command queue
  * @returns Whether the step took over: the Publish runs again when it answers. @sideEffect Sends the visibility write.
@@ -757,14 +748,6 @@ function writeVisibilityFirst(ctx: EditorContext, trigger: CheckpointTrigger): b
     }
 
     const followUp = visibilityFollowUp(draft.visibility, server.recipe, ctx.opts.privateRefusal);
-
-    // Whether or not paid features are shown (`final` is the hidden variant): a kept Private is never published public
-    // without the cook's answer. A cook who moved the choice to Public themselves has no follow-up and is not asked.
-    if (followUp.kind === 'refused' && followUp.refusal !== 'slots') {
-        ctx.setPublishBlocked({ kind: 'webImport', refusal: followUp.refusal });
-
-        return true;
-    }
 
     if (followUp.kind !== 'send') {
         return false;

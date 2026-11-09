@@ -15,7 +15,6 @@
  */
 import { useMessages } from '@commise/i18n/react';
 import { nativeTokens } from '@commise/ui/native';
-import { StatusBadge } from '@commise/ui/status-badge';
 import { useTheme } from '@commise/ui/theme';
 import { touchFloor } from '@commise/ui/layout';
 import type { RecipeVisibility } from '@kitchensink/recipe-core';
@@ -24,7 +23,6 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { heldVisibility } from '../actions/privateGate.js';
 import { editorMessages } from '../editor/messages.js';
-import { recipeFormMessages } from './messages.js';
 import { visibilityChoice, visibilityFieldOf, type RecipeVisibilityFieldProps } from './props.js';
 
 /** "Who can see it": Public or Private. */
@@ -38,7 +36,6 @@ export const RecipeVisibilityField: FC<RecipeVisibilityFieldProps> = ({
     onConfirmPublic,
     onFreeASlot,
 }) => {
-    const m = useMessages(recipeFormMessages);
     const { visibility: v } = useMessages(editorMessages);
     const { colors } = useTheme();
     // Idempotent over a host that already passes the held value: the field enforces the rule rather than trusting it.
@@ -54,9 +51,7 @@ export const RecipeVisibilityField: FC<RecipeVisibilityFieldProps> = ({
     const choose = (chosen: RecipeVisibility): void => {
         const next = visibilityChoice(shown, chosen, savedVisibility, facts);
 
-        if (next === 'premiumRequired') {
-            onPremiumRequired?.();
-        } else if (next === 'confirmPublic') {
+        if (next === 'confirmPublic') {
             onConfirmPublic();
         } else if (next !== undefined) {
             onChange({ ...values, ...next });
@@ -102,7 +97,6 @@ export const RecipeVisibilityField: FC<RecipeVisibilityFieldProps> = ({
                                     <Text style={[styles.hint, { color: colors.inkMuted }]}>{option.note}</Text>
                                 )}
                             </View>
-                            {option.premium ? <StatusBadge status="pro">{m.premiumBadge}</StatusBadge> : null}
                         </Pressable>
                     );
                 })}

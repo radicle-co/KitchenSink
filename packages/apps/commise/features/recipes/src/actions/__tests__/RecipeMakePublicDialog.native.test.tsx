@@ -36,22 +36,17 @@ describe('RecipeMakePublicDialog (native)', () => {
         expect(screen.queryByRole('heading', { name: m.title })).toBeNull();
     });
 
-    it.each([
-        ['frees', m.bodyFrees],
-        ['premium', m.bodyPremium],
-    ] as const)(
-        'under %s, is an interrupting alert titled by the question, saying what it costs',
-        (consequence, body) => {
-            renderDialog({ consequence });
+    // REWRITTEN for ADR-0077 section 6: the `premium` consequence is gone with the premium rule; only `frees` remains.
+    it('under frees, is an interrupting alert titled by the question, saying what it costs', () => {
+        renderDialog({ consequence: 'frees' });
 
-            expect(screen.getByRole('alert')).toBeTruthy();
-            expect(screen.getByRole('heading', { name: 'Make this recipe public?' })).toBeTruthy();
-            expect(screen.getByText(body)).toBeTruthy();
-        },
-    );
+        expect(screen.getByRole('alert')).toBeTruthy();
+        expect(screen.getByRole('heading', { name: 'Make this recipe public?' })).toBeTruthy();
+        expect(screen.getByText(m.bodyFrees)).toBeTruthy();
+    });
 
     it('⛔ offers exactly two verbs — Keep private and Make public — and nothing that sells', () => {
-        renderDialog({ consequence: 'premium' });
+        renderDialog({ consequence: 'frees' });
 
         const names = screen.getAllByRole('button').map((button) => button.textContent);
 

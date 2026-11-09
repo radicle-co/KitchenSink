@@ -15,7 +15,6 @@ import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { editorMessages } from '../../editor/messages.js';
-import { recipeFormMessages } from '../messages.js';
 import { RecipeVisibilityStatement } from '../RecipeVisibilityStatement.js';
 
 const v = editorMessages.en.visibility;
@@ -29,7 +28,6 @@ describe('RecipeVisibilityStatement (web)', () => {
         expect(screen.getByText(v.legend)).toBeTruthy();
         expect(screen.getByText(v.public)).toBeTruthy();
         expect(screen.getByText(v.publicHint)).toBeTruthy();
-        expect(screen.queryByText(v.privateUnavailable)).toBeNull();
     });
 
     it('⛔ offers no choice: no radio, no group, no Private, no Pro', () => {
@@ -38,7 +36,7 @@ describe('RecipeVisibilityStatement (web)', () => {
         expect(screen.queryByRole('radio')).toBeNull();
         expect(screen.queryByRole('group')).toBeNull();
         expect(screen.queryByText(v.private)).toBeNull();
-        expect(screen.queryByText(recipeFormMessages.en.premiumBadge)).toBeNull();
+        expect(screen.queryByText(/^Pro$/u)).toBeNull();
     });
 
     // REMOVED (owner ruling 2026-10-26): the statement no longer says a kept Private will not be kept. With paid features

@@ -230,22 +230,17 @@ describe('RecipeEditorSurface — the Private choice', () => {
         expect(screen.getByRole('radio', { name: /private/i })).toBeTruthy();
     });
 
-    // REWRITTEN for the owner ruling of 2026-10-26: an imported public-web recipe with paid features hidden shows Private
-    // REFUSED (aria-disabled, still focusable, the reason as its description) instead of leaving the card out, so the
-    // publish-time ask never has to appear for it.
-    it('⛔ shows Private refused, with the reason, for an imported public-web recipe when paid features are hidden', () => {
+    // REWRITTEN for ADR-0077 section 6: an imported public-web recipe is under the slots rule, so with paid features hidden
+    // Private is OFFERED, not refused (it used to be aria-disabled with "can only be public").
+    it('⛔ offers Private, not refused, for an imported public-web recipe when paid features are hidden', () => {
         const recipe = makeRecipeDetail({ sourceType: 'imported_public', visibility: 'public' });
 
         mount({ seed: { recipe }, paidFeatures: 'hidden', knownPaidFeatures: 'hidden' });
 
         const card = screen.getByRole('radio', { name: /private/i });
 
-        expect(card.getAttribute('aria-disabled')).toBe('true');
-        expect(card.hasAttribute('disabled')).toBe(false);
-        expect(screen.getAllByText('Not available. A recipe from a public web page can only be public.').length).toBe(
-            1,
-        );
-        expect(screen.queryByRole('dialog', { name: /can.t be private yet/u })).toBeNull();
+        expect(card.getAttribute('aria-disabled')).toBeNull();
+        expect(screen.queryByText('Not available. A recipe from a public web page can only be public.')).toBeNull();
     });
 
     // REWRITTEN for the owner ruling of 2026-10-26 (ADR-0073 section 12): a DRAFT holds no slot. These two cases used a new
@@ -417,10 +412,10 @@ describe('RecipeEditorSurface — Publish asks about the paste’s open lines (R
 });
 
 describe('RecipeEditorSurface — the blocked-publish dialog', () => {
-    it.each([
-        [{ kind: 'noSlot' }, 'Your private slots are full'],
-        [{ kind: 'webImport', refusal: 'premium' }, 'This recipe can’t be private yet'],
-    ] as const)('shows %j while the editor stands it, wired to the editor’s two answers', async (ask, title) => {
+    // REWRITTEN for ADR-0077 section 6: the `webImport` ask is gone; only the slots ask remains.
+    it('shows the slots ask while the editor stands it, wired to the editor’s two answers', async () => {
+        const ask = { kind: 'noSlot' } as const;
+        const title = 'Your private slots are full';
         const user = userEvent.setup();
         const keepAsDraft = vi.fn();
         const publishAsPublic = vi.fn();

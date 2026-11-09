@@ -21,13 +21,12 @@ import { RecipeVisibility } from '@kitchensink/recipe-core';
 import type { RecipeVisibilityFieldProps, RecipeVisibilityStatementProps } from '../form/props.js';
 import type { RecipeFormValues } from '../form/values.js';
 import type { RecipeMakePublicDialogProps, RecipeUpsellSheetProps } from './model.js';
-import { effectiveVisibility, heldVisibility } from './privateGate.js';
+import { heldVisibility } from './privateGate.js';
 import {
     recipeMakePublicConsequence,
     recipePrivateRefusalOf,
     refusalWhileDrafting,
     slotStandingForRecipe,
-    usesSlots,
     type PrivateRule,
     type RecipePrivateFacts,
     type SlotStanding,
@@ -103,7 +102,7 @@ export function usePrivateChoice(options: UsePrivateChoiceOptions): PrivateChoic
     // ⛔ Not `options.saved`: a cook who has moved the draft off Private has given up the free return to it. And under the
     // slots rule a recipe that is not published holds no slot whatever it is stored as (a private DRAFT is stored Private),
     // so there is nothing held to return to: Publish is what takes the slot.
-    const heldByTheServer = usesSlots(rule) && !publication.published ? RecipeVisibility.PUBLIC : options.saved;
+    const heldByTheServer = !publication.published ? RecipeVisibility.PUBLIC : options.saved;
     const saved = heldVisibility(heldByTheServer, values.visibility);
     const gate = useGatedPrivate({
         facts: shown,
@@ -126,10 +125,10 @@ export function usePrivateChoice(options: UsePrivateChoiceOptions): PrivateChoic
     // kept Private the slots refuse still shows the field - where the refusal and its ways forward are.)
     // Owner ruling 2026-10-26: an imported public-web recipe with paid features KNOWN to be hidden (a failed read is not) shows the field too, with Private
     // REFUSED and the reason as its description, rather than a statement with no Private card.
-    const offersPrivate =
-        gate.offersPrivate ||
-        effectiveVisibility(refusal, saved, values.visibility) === RecipeVisibility.PRIVATE ||
-        (rule === 'premium' && known.state === 'hidden');
+    // Every recipe offers Private now (ADR-0077 section 6): the only refusal left is the slots one, which the field shows
+    // with its ways forward. So this is always true; the host still chooses its leaf by it until the Private-less
+    // statement is retired.
+    const offersPrivate = true;
 
     return {
         offersPrivate,

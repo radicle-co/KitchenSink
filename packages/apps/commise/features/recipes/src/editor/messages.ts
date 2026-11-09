@@ -193,9 +193,8 @@ export interface EditorMessages {
 
     /**
      * The dialog (web) or bottom sheet (native) a Publish opens when the cook chose Private and cannot keep it (owner
-     * ruling 2026-10-26, replacing the earlier stop-and-ask): `noSlot` when every private slot is used, `webImport` for an
-     * imported public-web recipe (Premium and a change of the cook's own). The spec's `recipe.publish.noSlot.*`,
-     * `recipe.publish.webImport.*` and `recipe.publish.blocked.*`. The two actions carry EQUAL weight.
+     * ruling 2026-10-26, replacing the earlier stop-and-ask): every private slot is used. The spec's
+     * `recipe.publish.noSlot.*` and `recipe.publish.blocked.*`. The two actions carry EQUAL weight.
      *
      * The `upsell` lines and `seePremium` exist for when there is a subscription page to go to (feature 010) and are
      * unused until `PUBLISH_BLOCKED_PREMIUM_UPSELL` is turned on (`publishBlockedCopy.ts`).
@@ -208,13 +207,6 @@ export interface EditorMessages {
             /** The same, said when the limit is not known: never a count the client does not have. */
             readonly bodyNoCount: string;
             /** `{premiumFeatures}` is the list of what Premium adds. */
-            readonly upsell: string;
-        };
-        readonly webImport: {
-            readonly title: string;
-            readonly body: string;
-            /** Paid features hidden: the Premium sentence is gone. */
-            readonly bodyNoPaid: string;
             readonly upsell: string;
         };
         readonly publishPublic: string;
@@ -252,19 +244,11 @@ export interface EditorMessages {
         /**
          * Under the Public card of a private recipe, whenever choosing it opens the make-public confirm
          * (`recipeMakePublicConsequence`; WCAG 3.2.2 asks that the cook be told before using it): `publicFrees` for a
-         * cook with private slots, `publicNeedsPremium` only for an imported public-web recipe, where Premium is still the
-         * rule.
+         * cook with private slots.
          *
          * ⛔ PUBLIC IS NEVER FINAL (owner ruling 2026-10-26): there is no "you won't be able to make it private again".
          */
         readonly publicFrees: string;
-        readonly publicNeedsPremium: string;
-        /**
-         * A draft kept from before the cook lost the paid features still says Private, for a recipe not held private
-         * (`refusedDraftPrivate`): on the statement under hidden, on the Public card under the upsell.
-         */
-        readonly privateUnavailable: string;
-        readonly privatePremiumOnly: string;
         readonly private: string;
         readonly privateHint: string;
         /** Private's line while a slot is free: `{left}` and `{total}` come from the server. */
@@ -286,8 +270,6 @@ export interface EditorMessages {
         readonly overLimit: string;
         /** The link under `overLimit`, where paid features are shown: opens the Premium sheet. */
         readonly aboutPremium: string;
-        /** An imported public-web recipe a free cook cannot make private (Premium and a change of their own). */
-        readonly webPrivate: string;
         /** The title over the ways forward from a full set of slots. */
         readonly waysTitle: string;
         readonly wayMakePublic: string;
@@ -474,13 +456,6 @@ export const editorMessages: LocalizedMessages<EditorMessages> = {
                     'Your private slots are all in use, so this recipe can’t be private right now. You can publish it as public, or keep it as a draft. Nothing is lost either way.',
                 upsell: 'Pro gives you unlimited private recipes, plus {premiumFeatures}.',
             },
-            webImport: {
-                title: 'This recipe can’t be private yet',
-                body: 'A recipe from a public web page can be private with Pro, once you have changed it yourself. You can publish it as public, or keep it as a draft. Nothing is lost either way.',
-                bodyNoPaid:
-                    'A recipe from a public web page can only be public. You can publish it as public, or keep it as a draft.',
-                upsell: 'Pro gives you unlimited private recipes, plus {premiumFeatures}. This one also needs a change of your own.',
-            },
             publishPublic: 'Publish as public',
             keepDraft: 'Keep as draft',
             seePremium: 'See Pro',
@@ -518,12 +493,6 @@ export const editorMessages: LocalizedMessages<EditorMessages> = {
             public: 'Public',
             publicHint: 'Anyone can find it in Discover',
             publicFrees: 'This frees one of your private slots. To make it private again, you need a free slot.',
-            publicNeedsPremium: "To make it private again, you'll need Pro.",
-            // Paid features hidden: the Private card is shown refused, and this is its reason (`publicRefused`'s pattern).
-            privateUnavailable: 'Not available. A recipe from a public web page can only be public.',
-            // The owner's design wording of 2026-10-26 (`editor privatePremiumOnly`).
-            privatePremiumOnly:
-                'A recipe from a public web page needs Pro and a change of your own to be private. If it still can’t be private when you publish, we will ask what you want to do.',
             private: 'Private',
             privateHint: 'Only you can see it',
             slotsLeft: '{left} of {total} private slots left',
@@ -535,8 +504,6 @@ export const editorMessages: LocalizedMessages<EditorMessages> = {
             overLimit:
                 'You have {count} private recipes and {total} private slots. They stay private. To make another recipe private, first bring your private recipes under {total}.',
             aboutPremium: 'About Pro',
-            webPrivate:
-                'Not available. A recipe from a public web page needs Pro and a change of your own to be private.',
             waysTitle: 'To keep this recipe private',
             wayMakePublic: 'Make a private recipe public',
             wayMakePublicDetail: 'It frees its slot',

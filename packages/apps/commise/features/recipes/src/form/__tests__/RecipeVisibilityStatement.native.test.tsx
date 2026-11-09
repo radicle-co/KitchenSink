@@ -16,7 +16,6 @@ vi.mock('react-native', async (importOriginal) => {
 
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { editorMessages } from '../../editor/messages.js';
-import { recipeFormMessages } from '../messages.js';
 import { RecipeVisibilityStatement } from '../RecipeVisibilityStatement.native.js';
 import { render } from '@commise/ui/testing/tamagui';
 
@@ -47,7 +46,7 @@ describe('RecipeVisibilityStatement (native)', () => {
 
         expect(screen.queryByRole('radio')).toBeNull();
         expect(screen.queryByText(v.private)).toBeNull();
-        expect(screen.queryByText(recipeFormMessages.en.premiumBadge)).toBeNull();
+        expect(screen.queryByText(/^Pro$/u)).toBeNull();
     });
 
     // REMOVED (owner ruling 2026-10-26): see the web statement test; the reason now lives on the refused Private card.

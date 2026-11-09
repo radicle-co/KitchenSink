@@ -75,10 +75,12 @@ describe('useRecipePrivate', () => {
         expect(result.current.refusal).toBeUndefined();
     });
 
-    it('a recipe never saved, and every label but imported_public, is counted against the slots', async () => {
+    // REWRITTEN for ADR-0077 section 6: `imported_public` is no longer under a premium rule; it is counted against the slots.
+    it('a recipe never saved, and every label, imported_public included, is counted against the slots', async () => {
         const cases = [
             [undefined, 'slots'],
             [RecipeSourceType.USER_CREATED, 'slots'],
+            [RecipeSourceType.IMPORTED_PUBLIC, 'slots'],
             // A book or paid-site recipe uses a slot too but can never go public: its own rule (ADR-0073 sections 4 and 7).
             [RecipeSourceType.IMPORTED_PHYSICAL, 'privateOnly'],
             [RecipeSourceType.IMPORTED_PAID, 'privateOnly'],
@@ -90,15 +92,5 @@ describe('useRecipePrivate', () => {
             expect(result.current.rule).toBe(rule);
             await waitFor(() => expect(result.current.refusal).toBe('slots'));
         }
-    });
-
-    it('an imported public-web recipe is under the premium rule: its refusal is the paid-feature one, whatever the count', async () => {
-        const { result, getPrivateSlots } = mount('limited-full', RecipeSourceType.IMPORTED_PUBLIC, 'upsell');
-
-        expect(result.current.rule).toBe('premium');
-        expect(result.current.refusal).toBe('premium');
-        // The count plays no part in that rule, so it is not even asked.
-        await Promise.resolve();
-        expect(getPrivateSlots).not.toHaveBeenCalled();
     });
 });

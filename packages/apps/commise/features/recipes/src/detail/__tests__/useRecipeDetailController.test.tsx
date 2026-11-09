@@ -187,7 +187,8 @@ describe('useRecipeDetailController — the action row and the ⋯ menu', () => 
 
     // REWRITTEN for ADR-0073. It said Make private is offered under granted and upsell and not under hidden: the paid
     // features alone decided. A free cook's own (or book, or paid-site) recipe is now under the SLOTS rule, so Make private
-    // is offered whatever the paid features say; only an imported public-web recipe keeps the Pro rule.
+    // is offered whatever the paid features say. REWRITTEN again for ADR-0077 section 6: an imported public-web recipe is
+    // under the slots rule too.
     it.each(['granted', 'upsell', 'hidden'] as const)(
         'offers Make private on a recipe the cook wrote under %s: it is a slot, not a Pro feature',
         (paid) => {
@@ -197,24 +198,20 @@ describe('useRecipeDetailController — the action row and the ⋯ menu', () => 
         },
     );
 
-    it.each([
-        ['granted', true],
-        ['upsell', true],
-        ['hidden', false],
-    ] as const)(
-        'offers Make private on an imported public-web recipe under %s: %s (Pro is still its rule)',
-        (paid, offered) => {
+    it.each(['granted', 'upsell', 'hidden'] as const)(
+        'offers Make private on an imported public-web recipe under %s: it is a slot, not a Pro feature',
+        (paid) => {
             const { result } = mount({
                 sessionClaims: { external_id: OWNER },
                 profile: settledProfile(OWNER, paid),
                 recipe: { sourceType: RecipeSourceType.IMPORTED_PUBLIC },
             });
 
-            expect(result.current.menu?.items.some((item) => item.id === 'makePrivate')).toBe(offered);
+            expect(result.current.menu?.items.some((item) => item.id === 'makePrivate')).toBe(true);
         },
     );
 
-    it('offers Make private on a recipe the cook wrote while the profile is in flight, and not on an imported public-web one', () => {
+    it('offers Make private while the profile is in flight, on a recipe the cook wrote and on an imported public-web one', () => {
         const wrote = mount({ sessionClaims: { external_id: OWNER }, profile: profileInFlight });
         const web = mount({
             sessionClaims: { external_id: OWNER },
@@ -223,7 +220,7 @@ describe('useRecipeDetailController — the action row and the ⋯ menu', () => 
         });
 
         expect(wrote.result.current.menu?.items.map((item) => item.id)).toEqual(['versions', 'makePrivate']);
-        expect(web.result.current.menu?.items.map((item) => item.id)).toEqual(['versions']);
+        expect(web.result.current.menu?.items.map((item) => item.id)).toEqual(['versions', 'makePrivate']);
     });
 
     it('⛔ Make private with every slot used still SENDS the write: the server, not the count, says no', async () => {
@@ -475,25 +472,27 @@ describe('useRecipeDetailController — the rating block', () => {
 });
 
 describe('useRecipeDetailController — the visibility notice', () => {
-    // REWRITTEN for ADR-0073: a withheld Private is confirmed against the refusal the page KNOWS for this recipe, which is
-    // the Pro rule's for an imported public-web recipe and "every slot used" for any other. A free cook with a slot
-    // free is not refused, so a forged claim says nothing to them.
-    it('says a withheld Private only for the owner of a public recipe whose Private is known refused', () => {
+    // REWRITTEN for ADR-0073 and again for ADR-0077 section 6: a withheld Private is confirmed against the refusal the page
+    // KNOWS for this recipe, which is "every slot used" for every recipe, an imported public-web one included. A free cook
+    // with a slot free is not refused, so a forged claim says nothing to them.
+    it('says a withheld Private only for the owner of a public recipe whose Private is known refused', async () => {
         const web = { sourceType: RecipeSourceType.IMPORTED_PUBLIC };
         const refused = mount({
             sessionClaims: { external_id: OWNER },
             profile: settledProfile(OWNER, 'hidden'),
             recipe: web,
             finishRefused: true,
+            slots: { used: 50, limit: 50 },
         });
         const forged = mount({
             sessionClaims: { external_id: 'usr_other' },
             profile: settledProfile('usr_other', 'hidden'),
             recipe: web,
             finishRefused: true,
+            slots: { used: 50, limit: 50 },
         });
 
-        expect(refused.result.current.visibilityNotice).toBeDefined();
+        await waitFor(() => expect(refused.result.current.visibilityNotice).toBeDefined());
         expect(forged.result.current.visibilityNotice).toBeUndefined();
     });
 

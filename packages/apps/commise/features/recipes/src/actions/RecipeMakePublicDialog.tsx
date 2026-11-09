@@ -26,14 +26,13 @@ import type { RecipeMakePublicDialogProps } from './model.js';
 /** "Make this recipe public?": the cost, said plainly, then Keep private or Make public. */
 export const RecipeMakePublicDialog: FC<RecipeMakePublicDialogProps> = ({
     open,
-    consequence,
     busy = false,
     error = false,
     onConfirm,
     onKeep,
 }) => {
     const { makePublicDialog: m, visibility } = useMessages(recipeActionMessages);
-    const body = { frees: m.bodyFrees, premium: m.bodyPremium }[consequence];
+    const body = m.bodyFrees;
 
     return (
         <ConfirmDialog

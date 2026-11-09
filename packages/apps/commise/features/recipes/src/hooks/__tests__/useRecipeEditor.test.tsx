@@ -3596,11 +3596,12 @@ describe('the visibility write comes BEFORE the first publish of a stored draft'
 
 /**
  * Owner ruling 2026-10-26 (the blocked-publish dialog, which replaced the stop-and-ask): the last case of "nothing turns a
- * private recipe public on its own". A Private the server is KNOWN to refuse (an imported public-web recipe: Pro plus a change of the cook's own) no
- * longer publishes public on Publish. REWRITES "a Private the server is known to refuse for want of Pro is not
+ * private recipe public on its own". A Private the server is KNOWN to refuse no longer publishes public on Publish.
+ * REWRITTEN for ADR-0077 section 6: the `webImport` ask (Pro plus a change of the cook's own) is gone, so these cases
+ * run on the slots refusal, the only one left. REWRITES "a Private the server is known to refuse for want of Pro is not
  * sent: the recipe publishes public", which asserted the behaviour this ruling removes.
  */
-describe('Publish of a Private the server is known to refuse (imported public-web recipe)', () => {
+describe('Publish of a Private the server is known to refuse (slots full; an imported public-web recipe is no exception, ADR-0077 section 6)', () => {
     const STORED_PUBLIC = makeRecipeDetail({
         id: 'rec_1',
         currentVersion: 3,
@@ -3624,20 +3625,20 @@ describe('Publish of a Private the server is known to refuse (imported public-we
         });
     }
 
-    it('⛔ a premium refusal opens the ask and sends nothing', async () => {
-        const view = mountPrivate('premium');
+    it('⛔ a slots refusal opens the ask and sends nothing', async () => {
+        const view = mountPrivate('slots');
 
         press(view);
         await settle();
 
-        expect(view.result.current.publishBlocked).toEqual({ kind: 'webImport', refusal: 'premium' });
+        expect(view.result.current.publishBlocked).toEqual({ kind: 'noSlot' });
         expect(view.setVisibility).not.toHaveBeenCalled();
         expect(view.port.submitExclusive).not.toHaveBeenCalled();
         expect(view.result.current.values.visibility).toBe(RecipeVisibility.PRIVATE);
     });
 
     it('"Publish as public" publishes with visibility public, and the editor’s choice moves to Public', async () => {
-        const view = mountPrivate('premium');
+        const view = mountPrivate('slots');
         press(view);
 
         act(() => {
@@ -3653,7 +3654,7 @@ describe('Publish of a Private the server is known to refuse (imported public-we
     });
 
     it('⛔ "Keep as draft" sends nothing and keeps the cook’s Private', async () => {
-        const view = mountPrivate('premium');
+        const view = mountPrivate('slots');
         press(view);
 
         act(() => {
@@ -3667,23 +3668,8 @@ describe('Publish of a Private the server is known to refuse (imported public-we
         expect(view.port.submitExclusive).not.toHaveBeenCalled();
     });
 
-    // Owner ruling 2026-10-26, completed: a kept Private draft is a private recipe, and nothing turns it public on its own.
-    // With paid features hidden the field shows Private refused, and Publish asks (no upsell) exactly as it does where Pro
-    // is shown; only a cook who moved the choice to Public themselves publishes without it.
-    it('⛔ with paid features hidden (a final refusal) a kept Private draft is ASKED about too, and nothing is sent', async () => {
-        const view = mountPrivate('final');
-
-        press(view);
-        await settle();
-
-        expect(view.result.current.publishBlocked).toEqual({ kind: 'webImport', refusal: 'final' });
-        expect(view.setVisibility).not.toHaveBeenCalled();
-        expect(view.port.submitExclusive).not.toHaveBeenCalled();
-        expect(view.result.current.values.visibility).toBe(RecipeVisibility.PRIVATE);
-    });
-
-    it('⛔ with paid features hidden, a cook who moved the choice to Public themselves publishes with no ask', async () => {
-        const view = mountPrivate('final');
+    it('⛔ a cook who moved the choice to Public themselves publishes with no ask', async () => {
+        const view = mountPrivate('slots');
         act(() => {
             view.result.current.setField('visibility', RecipeVisibility.PUBLIC);
         });
@@ -3696,7 +3682,7 @@ describe('Publish of a Private the server is known to refuse (imported public-we
     });
 
     it('asks again on the next Publish after Keep as draft', async () => {
-        const view = mountPrivate('premium');
+        const view = mountPrivate('slots');
         press(view);
         act(() => {
             view.result.current.keepAsDraft();
@@ -3704,7 +3690,7 @@ describe('Publish of a Private the server is known to refuse (imported public-we
 
         press(view);
 
-        expect(view.result.current.publishBlocked).toEqual({ kind: 'webImport', refusal: 'premium' });
+        expect(view.result.current.publishBlocked).toEqual({ kind: 'noSlot' });
         expect(view.port.submitExclusive).not.toHaveBeenCalled();
     });
 
@@ -3721,7 +3707,7 @@ describe('Publish of a Private the server is known to refuse (imported public-we
     });
 
     it('is not asked when the cook chose Public', async () => {
-        const view = mount({ recipe: STORED_PUBLIC }, undefined, fakePort(), 'premium');
+        const view = mount({ recipe: STORED_PUBLIC }, undefined, fakePort(), 'slots');
 
         press(view);
         await settle();
@@ -3731,7 +3717,7 @@ describe('Publish of a Private the server is known to refuse (imported public-we
     });
 
     it('only a Publish asks: a draft checkpoint sends no ask and no visibility', async () => {
-        const view = mountPrivate('premium');
+        const view = mountPrivate('slots');
 
         act(() => {
             view.result.current.checkpoint('sectionChange');

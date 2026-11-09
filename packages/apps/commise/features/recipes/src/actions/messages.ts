@@ -8,8 +8,6 @@
  */
 import type { LocalizedMessages } from '@commise/i18n';
 
-import type { PrivateRefusal } from './privateGate.js';
-
 /** Copy for the delete-confirmation dialog (T068). */
 export interface RecipeDeleteDialogMessages {
     /** Dialog title / accessible name. */
@@ -38,8 +36,6 @@ interface RecipeMakePublicDialogMessages {
     readonly title: string;
     /** A free cook's recipe going public: it frees one of their private slots. */
     readonly bodyFrees: string;
-    /** An imported public-web recipe under the upsell, where Premium is still the rule. */
-    readonly bodyPremium: string;
     readonly confirm: string;
     /** The safe action; focus opens on it. */
     readonly keep: string;
@@ -62,7 +58,8 @@ export interface RecipeVisibilityToggleMessages {
      * (`useServerRefusedPrivate`), or the editor withheld it because the server would. Trying again cannot succeed, so it
      * is not offered. `premium` under the upsell; otherwise `final`.
      */
-    readonly privateRefused: Readonly<Record<PrivateRefusal, string>>;
+    /** `final` says the change could not be made, whatever the reason; `slots` states the SERVER's limit. */
+    readonly privateRefused: Readonly<Record<'final' | 'slots', string>>;
 }
 
 /** Copy for the "More actions" overflow (C4) that groups the detail header's secondary owner actions. */
@@ -106,8 +103,6 @@ export interface RecipeUpsellVariantMessages {
 export interface RecipeUpsellMessages {
     /** A full set of private slots (`{total}` is the server's limit): how to free one, and that Premium has no limit. */
     readonly noSlot: RecipeUpsellVariantMessages;
-    /** An imported public-web recipe, where Premium and a change of the cook's own are still the rule. */
-    readonly webImport: RecipeUpsellVariantMessages;
     readonly seePremium: string;
     readonly notNow: string;
     /** The sheet's Close control name. */
@@ -169,8 +164,6 @@ export const recipeActionMessages: LocalizedMessages<RecipeActionMessages> = {
             title: 'Make this recipe public?',
             bodyFrees:
                 'Anyone can see a public recipe and save a copy. It frees one of your private slots, and you can make it private again while you have a free slot.',
-            bodyPremium:
-                "Anyone can see a public recipe and save a copy. To make this one private again, you'll need Pro.",
             confirm: 'Make public',
             keep: 'Keep private',
             busy: 'Making public…',
@@ -182,10 +175,6 @@ export const recipeActionMessages: LocalizedMessages<RecipeActionMessages> = {
             error: 'We couldn’t change who can see this recipe. Try again.',
             privateRefused: {
                 final: 'This recipe is still public: it couldn’t be made private.',
-                // The owner's design wording of 2026-10-26 (`actions privateRefused.premium`): the premium rule is the imported
-                // public-web recipe's.
-                premium:
-                    'This recipe stays public. A recipe from a public web page needs Pro and a change of your own to be private.',
                 // `recipe.visibility.slotsFull`: the editor board's words, now the recipe page's too. `{total}` is the SERVER's
                 // limit (`visibilityNoticeOf` fills it); this package states no number of its own.
                 slots: 'Not available. All {total} of your private slots are in use.',
@@ -221,10 +210,6 @@ export const recipeActionMessages: LocalizedMessages<RecipeActionMessages> = {
             noSlot: {
                 title: 'Keep more recipes private',
                 body: 'All {total} of your private slots are in use. Pro has no limit. To free a slot, make a private recipe public or delete one.',
-            },
-            webImport: {
-                title: 'Private needs Pro for this recipe',
-                body: 'This recipe is from a public web page. To keep it private, you need Pro and a change of your own to the recipe.',
             },
             seePremium: 'See Pro',
             notNow: 'Not now',

@@ -204,7 +204,7 @@ export function useRecipeDetailController(input: RecipeDetailControllerInput): R
         owner: viewerIsOwner,
         isPublic,
         hasMarks: marks.hasMarks,
-        offersPrivate: privateGate.offersPrivate,
+        offersPrivate: true,
         mayBePublic: mayBePublic(recipePrivate.rule),
     });
 

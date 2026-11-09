@@ -55,7 +55,7 @@ export interface RecipeMakePublicDialogProps {
  * What the Premium sheet says (ADR-0073): `noSlot` when every private slot is used (`total` is the SERVER's limit, never a
  * number of this package's own), `webImport` when the recipe is from a public web page, where Premium is still the rule.
  */
-export type RecipeUpsellVariant = { readonly kind: 'noSlot'; readonly total: number } | { readonly kind: 'webImport' };
+export type RecipeUpsellVariant = { readonly kind: 'noSlot'; readonly total: number };
 
 /**
  * Props for the Premium sheet a free-tier cook gets for "Private" in the recipe editor (build spec §6.4, §7.7 item 2):
@@ -63,7 +63,7 @@ export type RecipeUpsellVariant = { readonly kind: 'noSlot'; readonly total: num
  */
 export interface RecipeUpsellSheetProps {
     readonly open: boolean;
-    /** Which fact the sheet states: every slot used (the server's limit), or an imported public-web recipe. */
+    /** Which fact the sheet states: every slot used (the server's limit). */
     readonly variant: RecipeUpsellVariant;
     /** Every close route calls this with `false`. */
     readonly onOpenChange: (open: boolean) => void;

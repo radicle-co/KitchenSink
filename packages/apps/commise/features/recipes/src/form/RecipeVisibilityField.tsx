@@ -16,14 +16,12 @@
  *     note and that decision's input, it selects no second mode of the field
  */
 import { useMessages } from '@commise/i18n/react';
-import { StatusBadge } from '@commise/ui/status-badge';
 import { FOCUS_RING_CLASS } from '@commise/ui/focus-ring';
 import type { RecipeVisibility } from '@kitchensink/recipe-core';
 import type { FC } from 'react';
 
 import { heldVisibility } from '../actions/privateGate.js';
 import { editorMessages } from '../editor/messages.js';
-import { recipeFormMessages } from './messages.js';
 import { visibilityChoice, visibilityFieldOf, type RecipeVisibilityFieldProps } from './props.js';
 
 // Layout and state-independent chrome only. The two state classes below are mutually exclusive, never layered on each
@@ -44,7 +42,6 @@ export const RecipeVisibilityField: FC<RecipeVisibilityFieldProps> = ({
     onConfirmPublic,
     onFreeASlot,
 }) => {
-    const m = useMessages(recipeFormMessages);
     const { visibility: v } = useMessages(editorMessages);
     // Idempotent over a host that already passes the held value: the field enforces the rule rather than trusting it.
     const savedVisibility = heldVisibility(held, values.visibility);
@@ -59,9 +56,7 @@ export const RecipeVisibilityField: FC<RecipeVisibilityFieldProps> = ({
     const choose = (chosen: RecipeVisibility): void => {
         const next = visibilityChoice(shown, chosen, savedVisibility, facts);
 
-        if (next === 'premiumRequired') {
-            onPremiumRequired?.();
-        } else if (next === 'confirmPublic') {
+        if (next === 'confirmPublic') {
             onConfirmPublic();
         } else if (next !== undefined) {
             onChange({ ...values, ...next });
@@ -76,16 +71,11 @@ export const RecipeVisibilityField: FC<RecipeVisibilityFieldProps> = ({
                     const chosen = shown === option.value;
                     const titleId = `recipe-visibility-${option.value}`;
                     const hintId = `${titleId}-hint`;
-                    const badgeId = `${titleId}-badge`;
                     const noteId = `${titleId}-note`;
                     // A refused card is described by its reason alone: the hint ("Anyone can find it in Discover") is not true of it.
                     const describedBy = option.refused
                         ? noteId
-                        : [
-                              hintId,
-                              ...(option.note === undefined ? [] : [noteId]),
-                              ...(option.premium ? [badgeId] : []),
-                          ].join(' ');
+                        : [hintId, ...(option.note === undefined ? [] : [noteId])].join(' ');
 
                     return (
                         <label
@@ -117,11 +107,6 @@ export const RecipeVisibilityField: FC<RecipeVisibilityFieldProps> = ({
                                     </span>
                                 )}
                             </span>
-                            {option.premium ? (
-                                <span id={badgeId} className="shrink-0">
-                                    <StatusBadge status="pro">{m.premiumBadge}</StatusBadge>
-                                </span>
-                            ) : null}
                         </label>
                     );
                 })}

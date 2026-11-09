@@ -6,11 +6,11 @@
     "coverage": {
         "components": 200,
         "implementations": 339,
-        "props": 2353,
+        "props": 2354,
         "documentedComponents": 200,
         "implementationsWithModuleDoc": 339,
         "implementationsWithComponentDoc": 228,
-        "documentedProps": 1791,
+        "documentedProps": 1792,
         "classifiedComponents": 178,
         "componentsWithPatternTag": 96,
         "crossPlatformComponents": 139
@@ -34816,6 +34816,15 @@
                             "required": false,
                             "defaultValue": null,
                             "description": "Back to the recipe, drawn in the list's header; absent draws none.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/versions/RecipeVersionsView.tsx"
+                        },
+                        {
+                            "name": "onOpenFood",
+                            "type": "((foodId: string) => void)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Open a food's page, from the refusal a restore can meet. Web opens a new tab; native pushes the page.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/versions/RecipeVersionsView.tsx"
                         },
                         {

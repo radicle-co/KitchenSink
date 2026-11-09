@@ -20,15 +20,7 @@
 import { knownPaidFeaturesOf, paidFeatureStateOf, type ProfileQueryState } from '@commise/features-account';
 import { useMessages } from '@commise/i18n/react';
 import type { ActionMenuItem, ActionMenuProps } from '@commise/ui/action-menu';
-import {
-    RecipeVisibility,
-    canClone,
-    isOwner,
-    makeViewer,
-    quantityLowerBound,
-    type PrivateFoodLine,
-    type RecipeDetail,
-} from '@kitchensink/recipe-core';
+import { RecipeVisibility, canClone, isOwner, makeViewer, type RecipeDetail } from '@kitchensink/recipe-core';
 import { isPrivateFoodsOnPublicRecipeError } from '@kitchensink/recipe-service-client';
 import {
     useCloneRecipe,
@@ -46,9 +38,7 @@ import { useMakePublicConfirm } from '../actions/useMakePublicConfirm.js';
 import { useRecipePrivate } from '../actions/useRecipePrivate.js';
 import { useServerRefusedPrivate } from '../actions/useServerRefusedPrivate.js';
 import { visibilityNoticeOf } from '../actions/visibilityNotice.js';
-import { refusedLineText } from '../editor/refusedLineText.js';
-import type { RefusedLineView } from '../editor/privateFoodsRefusalSheetProps.js';
-import { matchRefusedLines } from '../foodPage/privateFoodsRefusal.js';
+import { refusedLinesOf } from '../editor/refusedLinesOf.js';
 import { useLeaveWhenClosed } from '../hooks/useLeaveWhenClosed.js';
 import { ratingModeFor } from '../rating/model.js';
 import { detailMenuOf, type DetailMenuItem } from './detailMenu.js';
@@ -79,33 +69,6 @@ export interface RecipeDetailNav {
     readonly onDeleted: () => void;
     /** Open a food's page (the make-public refusal's Open food). Absent when the app has none. */
     readonly onOpenFood?: (foodId: string) => void;
-}
-
-/**
- * The recipe's own lines the server named, as the refusal sheet lists them: matched by food (ties by position), worded the
- * way the editor row reads. Pure.
- */
-function refusedLinesOf(recipe: RecipeDetail, refused: readonly PrivateFoodLine[]): readonly RefusedLineView[] {
-    const rows = recipe.ingredients.flatMap((line, index) =>
-        line.foodId === undefined
-            ? []
-            : [{ rowId: line.ingredientId ?? String(index), foodId: line.foodId, sortOrder: index }],
-    );
-
-    return matchRefusedLines(refused, rows).map((row) => {
-        const line = recipe.ingredients[row.sortOrder];
-
-        return {
-            rowId: row.rowId,
-            foodId: row.foodId,
-            text: refusedLineText({
-                quantity: line === undefined ? Number.NaN : (quantityLowerBound(line.quantity) ?? Number.NaN),
-                unit: line?.unit,
-                displayText: line?.displayText,
-                name: line?.name,
-            }),
-        };
-    });
 }
 
 /** Input to {@link useRecipeDetailController}. */
@@ -338,7 +301,7 @@ export function useRecipeDetailController(input: RecipeDetailControllerInput): R
                 ? {}
                 : {
                       privateFoods: {
-                          lines: refusedLinesOf(recipe, refusedFoods),
+                          lines: refusedLinesOf(recipe.ingredients, refusedFoods),
                           onOpenFood: (foodId: string) => nav.onOpenFood?.(foodId),
                           onClose: setVisibility.reset,
                       },

@@ -12,8 +12,9 @@
 import { SnackbarHost } from '@commise/ui/snackbar';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, renderHook, screen, waitFor } from '@testing-library/react';
-import { makeRecipeDetail, makeRecipeVersion } from '@kitchensink/recipe-core/testing';
-import { VersionConflictError } from '@kitchensink/recipe-service-client';
+import type { RecipeIngredient } from '@kitchensink/recipe-core';
+import { makeIngredient, makeRecipeDetail, makeRecipeVersion } from '@kitchensink/recipe-core/testing';
+import { PrivateFoodsOnPublicRecipeError, VersionConflictError } from '@kitchensink/recipe-service-client';
 import { RecipeServiceProvider } from '@kitchensink/recipe-service-client/hooks';
 import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-client/testing';
 import { Suspense, type FC, type ReactNode } from 'react';
@@ -25,15 +26,38 @@ afterEach(() => {
     vi.restoreAllMocks();
 });
 
-function setup(recipeId = 'rec_1') {
+/** A line of a saved version: a tablespoon of something, with the overrides. */
+const savedLine = (over: Partial<RecipeIngredient>): RecipeIngredient => ({
+    ...makeIngredient(),
+    recipeId: 'rec_1',
+    ingredientId: `ing_${over.sortOrder ?? 0}`,
+    quantity: { kind: 'exact', value: 1 },
+    unit: 'tbsp',
+    sortOrder: 0,
+    ...over,
+});
+
+function setup(recipeId = 'rec_1', extra: { readonly onOpenFood?: (foodId: string) => void } = {}) {
     const client = createFakeRecipeServiceClient();
-    const listVersions = vi
-        .spyOn(client, 'listRecipeVersions')
-        .mockResolvedValue([
-            makeRecipeVersion({ id: 'ver_1', versionNumber: 1 }),
-            makeRecipeVersion({ id: 'ver_2', versionNumber: 2 }),
-            makeRecipeVersion({ id: 'ver_3', versionNumber: 3 }),
-        ]);
+    const listVersions = vi.spyOn(client, 'listRecipeVersions').mockResolvedValue([
+        makeRecipeVersion({
+            id: 'ver_1',
+            versionNumber: 1,
+            snapshot: {
+                ...makeRecipeVersion({ versionNumber: 1 }).snapshot,
+                ingredients: [
+                    savedLine({ ingredientName: 'Salt', sortOrder: 0 }),
+                    savedLine({
+                        displayText: 'My spice mix',
+                        quantity: { kind: 'exact', value: 2 },
+                        sortOrder: 1,
+                    }),
+                ],
+            },
+        }),
+        makeRecipeVersion({ id: 'ver_2', versionNumber: 2 }),
+        makeRecipeVersion({ id: 'ver_3', versionNumber: 3 }),
+    ]);
     const getRecipe = vi.spyOn(client, 'getRecipeById').mockResolvedValue(makeRecipeDetail({ currentVersion: 3 }));
     const restore = vi.spyOn(client, 'restoreRecipeVersion').mockResolvedValue({
         recipe: makeRecipeDetail({ currentVersion: 4 }),
@@ -50,7 +74,7 @@ function setup(recipeId = 'rec_1') {
             </RecipeServiceProvider>
         </QueryClientProvider>
     );
-    const view = renderHook(() => useRecipeVersions({ recipeId }), { wrapper });
+    const view = renderHook(() => useRecipeVersions({ recipeId, ...extra }), { wrapper });
 
     return { client, listVersions, getRecipe, restore, ...view };
 }
@@ -171,5 +195,49 @@ describe('useRecipeVersions — preview and compare', () => {
         act(() => result.current.compare.onClose());
 
         expect(result.current.compare.open).toBe(false);
+    });
+});
+
+describe('useRecipeVersions — a restore the server refuses for a private food', () => {
+    const refusal = () => new PrivateFoodsOnPublicRecipeError([{ sortOrder: 1, foodId: 'food_mix' }]);
+
+    it('names the refused line from the version being restored and shows no generic error beside the sheet', async () => {
+        const { result, restore } = setup();
+        await waitFor(() => expect(result.current.list.versions).toHaveLength(3));
+        restore.mockRejectedValue(refusal());
+
+        act(() => result.current.list.onRestore(1));
+
+        await waitFor(() => expect(result.current.privateFoods).toBeDefined());
+        expect(result.current.privateFoods?.lines).toEqual([
+            expect.objectContaining({ foodId: 'food_mix', text: '2 tbsp My spice mix' }),
+        ]);
+        expect(result.current.list.restoreError).toBeUndefined();
+    });
+
+    it('opens the food through the host, and closing clears the refusal', async () => {
+        const onOpenFood = vi.fn();
+        const { result, restore } = setup('rec_1', { onOpenFood });
+        await waitFor(() => expect(result.current.list.versions).toHaveLength(3));
+        restore.mockRejectedValue(refusal());
+        act(() => result.current.list.onRestore(1));
+        await waitFor(() => expect(result.current.privateFoods).toBeDefined());
+
+        act(() => result.current.privateFoods?.onOpenFood('food_mix'));
+        expect(onOpenFood).toHaveBeenCalledWith('food_mix');
+
+        act(() => result.current.privateFoods?.onClose());
+        await waitFor(() => expect(result.current.privateFoods).toBeUndefined());
+    });
+
+    it('leaves every other failed restore as the list’s own error', async () => {
+        const { result, restore } = setup();
+        await waitFor(() => expect(result.current.list.versions).toHaveLength(3));
+        restore.mockRejectedValue(new Error('boom'));
+
+        act(() => result.current.list.onRestore(1));
+
+        await waitFor(() => expect(result.current.list.restoreError?.kind).toBe('generic'));
+        expect(result.current.privateFoods).toBeUndefined();
     });
 });

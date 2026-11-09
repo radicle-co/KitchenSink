@@ -85,7 +85,13 @@ function RecipeDetailRoute({ navigation, route }: TabScreenProps<'RecipeDetail'>
 
 /** A recipe's version history. */
 function RecipeVersionsRoute({ navigation, route }: TabScreenProps<'RecipeVersions'>): JSX.Element {
-    return <RecipeVersionsScreen recipeId={route.params.recipeId} onBack={() => navigation.goBack()} />;
+    return (
+        <RecipeVersionsScreen
+            recipeId={route.params.recipeId}
+            onBack={() => navigation.goBack()}
+            onOpenFood={(foodId) => navigation.getParent()?.navigate('FoodDetail', { foodId, from: 'recipe' })}
+        />
+    );
 }
 
 /** A collection's detail. */

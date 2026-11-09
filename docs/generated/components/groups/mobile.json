@@ -6,11 +6,11 @@
     "coverage": {
         "components": 55,
         "implementations": 55,
-        "props": 158,
+        "props": 159,
         "documentedComponents": 54,
         "implementationsWithModuleDoc": 53,
         "implementationsWithComponentDoc": 40,
-        "documentedProps": 151,
+        "documentedProps": 152,
         "classifiedComponents": 40,
         "componentsWithPatternTag": 26,
         "crossPlatformComponents": 0
@@ -4241,6 +4241,15 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "Invoked when the back affordance is activated.",
+                            "declaredIn": "packages/apps/commise/mobile/src/screens/RecipeVersionsScreen.tsx"
+                        },
+                        {
+                            "name": "onOpenFood",
+                            "type": "((foodId: string) => void)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Opens a food's page, from the refusal a restore can meet.",
                             "declaredIn": "packages/apps/commise/mobile/src/screens/RecipeVersionsScreen.tsx"
                         },
                         {

@@ -17,8 +17,10 @@
 import { RecipeVersionListError, recipeVersionMessages } from '@commise/features-recipes';
 import { RecipeVersionsView, useRecipeTitle } from '@commise/features-recipes/versions';
 import { useMessages } from '@commise/i18n/react';
+import { useParams } from 'next/navigation';
 import type { FC } from 'react';
 
+import { withBasePath } from '@/lib/basePath';
 import { ClientQueryBoundary } from '@/components/app/ClientQueryBoundary';
 import { RecipeVersionsFrame, useRecipeVersionsNav } from '@/components/recipes/RecipeVersionsFrame';
 import { RecipeVersionsRouteLoading } from '@/components/recipes/RecipeVersionsRouteLoading';
@@ -56,11 +58,20 @@ const VersionsError: FC<{ readonly onBack: () => void; readonly backHref: string
  */
 const SettledVersions: FC<RecipeVersionsContainerProps> = ({ recipeId }) => {
     const { recipeHref, goToRecipe } = useRecipeVersionsNav(recipeId);
+    const { locale } = useParams<{ locale: string }>();
     const title = useRecipeTitle(recipeId);
 
     return (
         <RecipeVersionsFrame recipeId={recipeId} parent={title}>
-            <RecipeVersionsView recipeId={recipeId} onBack={goToRecipe} backHref={recipeHref} />
+            <RecipeVersionsView
+                recipeId={recipeId}
+                onBack={goToRecipe}
+                backHref={recipeHref}
+                // The refused restore's Open food: a new tab, so this page stays where the cook is (private foods spec D5).
+                onOpenFood={(foodId) =>
+                    window.open(withBasePath(`/${locale}/foods/${encodeURIComponent(foodId)}`), '_blank', 'noopener')
+                }
+            />
         </RecipeVersionsFrame>
     );
 };

@@ -31,6 +31,8 @@ export interface RecipeVersionsScreenProps {
     readonly recipeId: string;
     /** Invoked when the back affordance is activated. */
     readonly onBack: () => void;
+    /** Opens a food's page, from the refusal a restore can meet. */
+    readonly onOpenFood?: (foodId: string) => void;
 }
 
 /**
@@ -39,7 +41,7 @@ export interface RecipeVersionsScreenProps {
  * @param props - The recipe id and the back callback.
  * @returns The read boundary, each of whose branches — loading, failed and settled — sits in the pinned-page frame.
  */
-export function RecipeVersionsScreen({ recipeId, onBack }: RecipeVersionsScreenProps): JSX.Element {
+export function RecipeVersionsScreen({ recipeId, onBack, onOpenFood }: RecipeVersionsScreenProps): JSX.Element {
     useScreenTrace('RecipeVersionsScreen');
     const { versionList } = useMessages(recipeVersionMessages);
     const headingId = useId();
@@ -78,7 +80,11 @@ export function RecipeVersionsScreen({ recipeId, onBack }: RecipeVersionsScreenP
             }
             resetKeys={[recipeId]}
         >
-            <SettledVersions recipeId={recipeId} framed={framed} />
+            <SettledVersions
+                recipeId={recipeId}
+                framed={framed}
+                {...(onOpenFood === undefined ? {} : { onOpenFood })}
+            />
         </QueryBoundary>
     );
 }
@@ -88,6 +94,7 @@ interface SettledVersionsProps {
     readonly recipeId: string;
     /** The screen's frame, given the content and the parent's name. */
     readonly framed: (content: ReactNode, parent: string) => JSX.Element;
+    readonly onOpenFood?: (foodId: string) => void;
 }
 
 /**
@@ -96,10 +103,13 @@ interface SettledVersionsProps {
  * @param props - The recipe id and the frame.
  * @returns The framed history.
  */
-function SettledVersions({ recipeId, framed }: SettledVersionsProps): JSX.Element {
+function SettledVersions({ recipeId, framed, onOpenFood }: SettledVersionsProps): JSX.Element {
     const title = useRecipeTitle(recipeId);
 
-    return framed(<RecipeVersionsView recipeId={recipeId} />, title);
+    return framed(
+        <RecipeVersionsView recipeId={recipeId} {...(onOpenFood === undefined ? {} : { onOpenFood })} />,
+        title,
+    );
 }
 
 const styles = StyleSheet.create({

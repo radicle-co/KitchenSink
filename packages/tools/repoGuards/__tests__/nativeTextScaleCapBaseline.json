@@ -42,7 +42,6 @@
         "packages/apps/commise/features/recipes/src/form/AuthoredFoodSheet.native.tsx": 5,
         "packages/apps/commise/features/recipes/src/form/CandidatesPanelBody.native.tsx": 5,
         "packages/apps/commise/features/recipes/src/form/IngredientGroupHeading.native.tsx": 1,
-        "packages/apps/commise/features/recipes/src/form/IngredientLineEditor.native.tsx": 5,
         "packages/apps/commise/features/recipes/src/form/IngredientRowPanelBody.native.tsx": 5,
         "packages/apps/commise/features/recipes/src/form/IngredientsNutritionTotal.native.tsx": 3,
         "packages/apps/commise/features/recipes/src/form/MoveToGroupSheet.native.tsx": 1,

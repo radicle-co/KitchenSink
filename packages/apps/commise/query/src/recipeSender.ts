@@ -24,6 +24,7 @@
 import { isSessionSubjectChangedError, isTokenMintFailedError } from '@commise/features-account';
 import {
     isInvalidRequestError,
+    isPrivateFoodsOnPublicRecipeError,
     isPrivateSlotsFullError,
     isRecipeNotFoundError,
     isRecipeServiceClientError,
@@ -180,6 +181,12 @@ function failureFor(error: unknown): RecipeSendResult {
             status: 403,
             answer: { kind: 'recipeSlotsFull', used: error.used, limit: error.limit },
         };
+    }
+
+    // ⛔ A PRIVATE FOOD IN A PUBLIC RECIPE travels as data too: the editor names the lines and drops the refused write, where
+    // a bare 400 would park behind a Try again that sends the same refusal. Still terminal, never re-sent by the drain.
+    if (isPrivateFoodsOnPublicRecipeError(error)) {
+        return { outcome: 'failed', status: 400, answer: { kind: 'recipePrivateFoods', lines: error.lines } };
     }
 
     if (isInvalidRequestError(error)) {

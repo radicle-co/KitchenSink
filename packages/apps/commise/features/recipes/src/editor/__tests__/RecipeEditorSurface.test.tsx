@@ -462,28 +462,39 @@ describe('RecipeEditorSurface — the refusal of a private food in a public reci
     };
     const publicDraft = (visibility: RecipeVisibility = RecipeVisibility.PUBLIC) =>
         makeFilledRecipeFormValues({ visibility, ingredients: withLineKeys([LINE]) });
-    const refused = { failure: 'terminal', kind: 'update', status: 400 } as const;
+    // What `useRecipeEditor` holds once the server refused the write: the write is already dropped, so nothing is parked.
+    const refusal = { lines: [{ sortOrder: 0, foodId: 'food_spice' }], count: 1 } as const;
 
     const open = (over: Partial<HarnessProps> = {}) => {
         const setValues = vi.fn();
         const retry = vi.fn();
+        const publish = vi.fn();
         const onOpenFood = vi.fn();
         const view = mount({
-            editorOver: { values: publicDraft(), parked: refused, setValues, retry },
+            editorOver: { values: publicDraft(), privateFoodRefusal: refusal, setValues, retry, publish },
             onOpenFood,
             ...over,
         });
 
-        return { ...view, setValues, retry, onOpenFood };
+        return { ...view, setValues, retry, publish, onOpenFood };
     };
 
-    it('⛔ a parked 400 on a public draft with a private-food line opens the refusal, naming the line', () => {
+    const sheetName = 'This recipe can’t be public yet';
+
+    it('⛔ a refusal of a private food opens the sheet, naming the line', () => {
         open();
-        const dialog = screen.getByRole('dialog', { name: 'This recipe can’t be public yet' });
+        const dialog = screen.getByRole('dialog', { name: sheetName });
 
         expect(within(dialog).getByText(/1 ingredient uses a food only you can see/u)).toBeTruthy();
         expect(within(dialog).getByText('2 tbsp')).toBeTruthy();
         expect(within(dialog).getByText('My spice mix')).toBeTruthy();
+    });
+
+    it('⛔ shows no save-failure notice and no Try again: the refused write is dropped, not parked', () => {
+        open();
+
+        expect(screen.queryByText(/We couldn.t save your latest changes/u)).toBeNull();
+        expect(screen.queryByRole('button', { name: 'Try again', hidden: true })).toBeNull();
     });
 
     it('Open food opens that food through the app, and the sheet stays', async () => {
@@ -492,59 +503,41 @@ describe('RecipeEditorSurface — the refusal of a private food in a public reci
         await userEvent.click(screen.getByRole('button', { name: /^Open .*My spice mix.* in a new tab$/u }));
 
         expect(onOpenFood).toHaveBeenCalledExactlyOnceWith('food_spice');
-        expect(screen.getByRole('dialog', { name: 'This recipe can’t be public yet' })).toBeTruthy();
+        expect(screen.getByRole('dialog', { name: sheetName })).toBeTruthy();
     });
 
-    it('Publish as private moves the draft to Private and sends it again, in one step', async () => {
-        const { setValues, retry } = open();
+    it('Publish as private moves the draft to Private and sends the draft as it now is, in one step', async () => {
+        const { setValues, publish, retry } = open();
 
         await userEvent.click(screen.getByRole('button', { name: 'Publish as private' }));
 
         expect(setValues).toHaveBeenCalledWith(expect.objectContaining({ visibility: RecipeVisibility.PRIVATE }));
-        expect(retry).toHaveBeenCalledOnce();
-    });
-
-    it('Back to editor closes the sheet and sends nothing', async () => {
-        const { setValues, retry } = open();
-
-        await userEvent.click(screen.getByRole('button', { name: 'Back to editor' }));
-
-        await waitFor(() =>
-            expect(screen.queryByRole('dialog', { name: 'This recipe can’t be public yet' })).toBeNull(),
-        );
-        expect(setValues).not.toHaveBeenCalled();
+        expect(publish).toHaveBeenCalledOnce();
         expect(retry).not.toHaveBeenCalled();
     });
 
-    it('⛔ shows no save-failure notice and no Try again: a refusal is not a failed save (designAnswers 2026-11-09)', () => {
-        open();
+    it('Back to editor closes the sheet and sends nothing', async () => {
+        const { setValues, publish, retry } = open();
 
-        expect(screen.queryByText(/We couldn.t save your latest changes/u)).toBeNull();
-        expect(screen.queryByRole('button', { name: 'Try again', hidden: true })).toBeNull();
-    });
-
-    it('⛔ Publish stays enabled and reopens the sheet, sending nothing', async () => {
-        const publish = vi.fn();
-        open({ editorOver: { values: publicDraft(), parked: refused, publish } });
         await userEvent.click(screen.getByRole('button', { name: 'Back to editor' }));
-        await waitFor(() =>
-            expect(screen.queryByRole('dialog', { name: 'This recipe can’t be public yet' })).toBeNull(),
-        );
 
-        const [primary] = screen.getAllByRole('button', { name: 'Publish' });
-        expect((primary as HTMLButtonElement).disabled).toBe(false);
-        await userEvent.click(primary as HTMLElement);
-
-        expect(await screen.findByRole('dialog', { name: 'This recipe can’t be public yet' })).toBeTruthy();
+        await waitFor(() => expect(screen.queryByRole('dialog', { name: sheetName })).toBeNull());
+        expect(setValues).not.toHaveBeenCalled();
         expect(publish).not.toHaveBeenCalled();
+        expect(retry).not.toHaveBeenCalled();
     });
 
-    it.each([
-        ['a 409', { failure: 'conflict', kind: 'update', status: 409 } as const, RecipeVisibility.PUBLIC],
-        ['a private draft', refused, RecipeVisibility.PRIVATE],
-    ])('opens nothing for %s', (_label, parked, visibility) => {
-        mount({ editorOver: { values: publicDraft(visibility), parked } });
+    it('opens nothing without a refusal, and nothing once the refused food is out of the draft', () => {
+        mount({ editorOver: { values: publicDraft() } });
+        expect(screen.queryByRole('dialog', { name: sheetName })).toBeNull();
+        cleanup();
 
-        expect(screen.queryByRole('dialog', { name: 'This recipe can’t be public yet' })).toBeNull();
+        mount({
+            editorOver: {
+                values: makeFilledRecipeFormValues({ ingredients: [] }),
+                privateFoodRefusal: refusal,
+            },
+        });
+        expect(screen.queryByRole('dialog', { name: sheetName })).toBeNull();
     });
 });

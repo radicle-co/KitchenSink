@@ -61,7 +61,12 @@
 import type { ErrorReporter } from '@commise/features-core';
 import type { Locale } from '@commise/i18n';
 import { useMessages } from '@commise/i18n/react';
-import { RecipeVisibility, type RecipeDetail, type VersionConflictSide } from '@kitchensink/recipe-core';
+import {
+    RecipeVisibility,
+    type PrivateFoodLine,
+    type RecipeDetail,
+    type VersionConflictSide,
+} from '@kitchensink/recipe-core';
 import { isPrivateSlotsFullError, isVersionConflictError } from '@kitchensink/recipe-service-client';
 import {
     isLocalRef,
@@ -157,7 +162,16 @@ export type EditorWriteAnswer =
     | { readonly kind: 'recipeDeleted'; readonly id: string }
     | { readonly kind: 'recipeConflict'; readonly server: VersionConflictSide; readonly base?: VersionConflictSide }
     /** The server refused a Private for want of a slot (`403 PRIVATE_SLOTS_FULL`): what it counted, and the cook's limit. */
-    | { readonly kind: 'recipeSlotsFull'; readonly used: number; readonly limit: number };
+    | { readonly kind: 'recipeSlotsFull'; readonly used: number; readonly limit: number }
+    /** The server refused a public recipe that holds foods only its author can see (`400 PRIVATE_FOODS_ON_PUBLIC_RECIPE`): the lines. */
+    | { readonly kind: 'recipePrivateFoods'; readonly lines: readonly PrivateFoodLine[] };
+
+/** The server's refusal of a private food in a public recipe, as the editor holds it for its sheet. */
+export interface PrivateFoodRefusal {
+    readonly lines: readonly PrivateFoodLine[];
+    /** 1 for the first refusal, and one more for each after it. */
+    readonly count: number;
+}
 
 /** What `submitExclusive` did (the app's `ExclusiveSubmit`, structurally). */
 export type EditorSubmitOutcome =
@@ -310,14 +324,19 @@ export interface UseRecipeEditorResult {
      * ruling 2026-10-26). `undefined` while no ask stands. Raised by a Publish only, never by a save.
      */
     readonly publishBlocked: PublishBlocked | undefined;
+    /**
+     * The server's refusal of a public recipe that holds a private food (designAnswers 2026-11-09): the lines it named, and a
+     * count that is new for every refusal so a sheet the cook dismissed opens again for the next one. The refused write is
+     * dropped from the outbox as it lands, so nothing stands in the lane and no Try again is offered; the cook's next Publish
+     * or Save changes sends the current draft. `undefined` until the server has refused one.
+     */
+    readonly privateFoodRefusal: PrivateFoodRefusal | undefined;
     readonly lifecycle: RecipeLifecycle;
     /** The recipe's server id, once it has one. */
     readonly recipeId: string | undefined;
     readonly saveStatus: SaveStatus;
     /** The parked write the cook has to decide on, with its class; `undefined` while nothing is parked. */
-    readonly parked:
-        | { readonly failure: FailureClass; readonly kind: 'create' | 'update'; readonly status?: number | undefined }
-        | undefined;
+    readonly parked: { readonly failure: FailureClass; readonly kind: 'create' | 'update' } | undefined;
     /** Whether the draft differs from what the server holds: a published recipe's Save changes needs it. */
     readonly hasUnsavedChanges: boolean;
     /** The resume notice, while a published recipe's device changes from an earlier visit stand. */
@@ -442,6 +461,7 @@ interface EditorContext {
     /** The standing publish-as-public ask, if any (`writeVisibilityFirst` raises it). */
     readonly publishBlocked: PublishBlocked | undefined;
     readonly setPublishBlocked: Dispatch<SetStateAction<PublishBlocked | undefined>>;
+    readonly setPrivateFoodRefusal: Dispatch<SetStateAction<PrivateFoodRefusal | undefined>>;
     readonly clearResume: () => void;
 }
 
@@ -1018,12 +1038,39 @@ function slotsRefusedByServer(ctx: EditorContext, seq: number, limit: number): v
     );
 }
 
+/**
+ * The server refused a public recipe that holds a private food (designAnswers 2026-11-09, item 4). Try again would send the
+ * same refusal, so the write is withdrawn as it lands (a record may be dropped, never re-sent: ADR-0057) and the cook is
+ * shown the lines. The draft is untouched, so the next Publish or Save changes sends it as it is by then.
+ *
+ * @sideEffect Withdraws the parked record and records the refusal for the sheet.
+ */
+function privateFoodsRefusedByServer(ctx: EditorContext, seq: number, lines: readonly PrivateFoodLine[]): void {
+    ctx.lane.dispatch({ type: 'deferredTaken' });
+
+    void ctx.opts.port.withdraw(seq).then(
+        () => {
+            ctx.lane.dispatch({ type: 'withdrawn', seq });
+            ctx.setPrivateFoodRefusal((previous) => ({ lines, count: (previous?.count ?? 0) + 1 }));
+        },
+        (error: unknown) => {
+            withdrawRefused(ctx, error, 'recipeRetry');
+        },
+    );
+}
+
 /** A parked answer for the outstanding write. @sideEffect */
 function onParked(ctx: EditorContext, event: Settlement, pending: OutstandingWrite): void {
     ctx.lane.dispatch({ type: 'parked', seq: event.seq });
 
     if (event.answer?.kind === 'recipeSlotsFull') {
         slotsRefusedByServer(ctx, event.seq, event.answer.limit);
+
+        return;
+    }
+
+    if (event.answer?.kind === 'recipePrivateFoods') {
+        privateFoodsRefusedByServer(ctx, event.seq, event.answer.lines);
 
         return;
     }
@@ -1860,6 +1907,7 @@ export function useRecipeEditor(seed: EditorSeed, opts: UseRecipeEditorOptions):
         entryText: '',
     });
     const [publishBlocked, setPublishBlocked] = useState<PublishBlocked | undefined>(undefined);
+    const [privateFoodRefusal, setPrivateFoodRefusal] = useState<PrivateFoodRefusal | undefined>(undefined);
     const ctx: EditorContext = {
         core: stores.core,
         lane: stores.lane,
@@ -1873,6 +1921,7 @@ export function useRecipeEditor(seed: EditorSeed, opts: UseRecipeEditorOptions):
         setGate,
         publishBlocked,
         setPublishBlocked,
+        setPrivateFoodRefusal,
         clearResume: () => {
             setResume(undefined);
         },
@@ -1921,6 +1970,7 @@ export function useRecipeEditor(seed: EditorSeed, opts: UseRecipeEditorOptions):
         refusedFields: gate.refused,
         publishAttempted: gate.attempted,
         publishBlocked,
+        privateFoodRefusal,
         lifecycle: view.lifecycle,
         recipeId: view.serverId,
         saveStatus: view.saveStatus,

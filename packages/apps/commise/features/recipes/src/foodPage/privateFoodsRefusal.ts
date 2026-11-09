@@ -10,8 +10,6 @@
  */
 import type { PrivateFoodLine } from '@kitchensink/recipe-core';
 
-import { privateFoodRowIndexes, type PrivateFoodDraft } from '../form/privateFoodLines.js';
-
 /** A row of the draft, as far as the refusal needs it. */
 export interface RefusalRow {
     readonly rowId: string;
@@ -105,18 +103,20 @@ export function refusalPlanOf({ door, canGoPrivate }: { door: RefusalDoor; canGo
 }
 
 /**
- * The lines to name when the outbox PARKED a write the server refused with `400` (F6, revision 4). The outbox keeps only the
- * status, not the refusal's body, so the editor works the refusal out from its own lines: a terminal `400` on a public
- * draft that holds a private-food line is that refusal. A `400` for another reason names nothing here, and the generic
- * alert stands. Pure.
+ * The draft's rows the server's refusal named (F6, revision 4): matched by `foodId`, ties broken by `sortOrder`
+ * ({@link matchRefusedLines}). A line whose food the cook has since removed from the draft names nothing. Pure.
  *
- * @param parked - The parked write, or `undefined`.
+ * @param lines - The lines the server refused.
  * @param values - The draft.
- * @returns The positions of the private-food lines; empty when this is not that refusal.
+ * @returns The positions of the refused rows, in the order the editor shows them.
  */
-export function parkedRefusalRows(
-    parked: { readonly failure: string; readonly status?: number | undefined } | undefined,
-    values: PrivateFoodDraft,
+export function refusedRowsOf(
+    lines: readonly PrivateFoodLine[],
+    values: { readonly ingredients: readonly { readonly key: string; readonly foodId?: string | undefined }[] },
 ): readonly number[] {
-    return parked?.failure === 'terminal' && parked.status === 400 ? privateFoodRowIndexes(values) : [];
+    const rows = values.ingredients.flatMap((line, index) =>
+        line.foodId === undefined ? [] : [{ rowId: line.key, foodId: line.foodId, sortOrder: index }],
+    );
+
+    return matchRefusedLines(lines, rows).map((row) => row.sortOrder);
 }

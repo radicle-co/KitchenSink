@@ -2256,7 +2256,7 @@ describe('characterization: a write parked in an earlier session', () => {
     it('stands in the lane: it shows as parked, and a checkpoint writes the device draft but sends nothing', async () => {
         const { result, port, drafts } = withEarlierParked(503);
 
-        expect(result.current.parked).toEqual({ failure: 'transient', kind: 'update', status: 503 });
+        expect(result.current.parked).toEqual({ failure: 'transient', kind: 'update' });
 
         act(() => {
             result.current.setField('description', 'Mine.');
@@ -2394,7 +2394,7 @@ describe('characterization: the device draft', () => {
         });
         await settle();
 
-        expect(result.current.parked).toEqual({ failure: 'terminal', kind: 'update', status: 400 });
+        expect(result.current.parked).toEqual({ failure: 'terminal', kind: 'update' });
         expect(result.current.state.status).toBe('editing');
         expect(port.submitted).toHaveLength(1);
     });
@@ -2700,7 +2700,7 @@ describe('discard while the create is parked', () => {
         );
         view.rerender({ seed: { memento } });
 
-        expect(view.result.current.parked).toEqual({ failure: 'transient', kind: 'create', status: 503 });
+        expect(view.result.current.parked).toEqual({ failure: 'transient', kind: 'create' });
 
         act(() => {
             view.result.current.discard();
@@ -3832,5 +3832,84 @@ describe('a Publish the server refuses for want of a private slot the client did
 
         expect(view.result.current.publishBlocked).toBeUndefined();
         expect(view.result.current.parked).toMatchObject({ kind: 'update' });
+    });
+});
+
+/**
+ * Designer ruling 2026-11-09 (designAnswers, the refusal, item 4): a refused write is never offered again with Try again.
+ * The server's `400 PRIVATE_FOODS_ON_PUBLIC_RECIPE` is dropped from the outbox as it lands (a record may be withdrawn, never
+ * re-sent: ADR-0057), the editor keeps the refused lines for its sheet, and the cook's next Publish sends the CURRENT draft.
+ * It never reaches the general save-failure notice, whatever the order of steps.
+ */
+describe('a Publish the server refuses for a private food in a public recipe', () => {
+    const SALT = makeIngredientView({
+        ingredientId: '00000000-0000-4000-8000-000000000001',
+        name: 'Salt',
+        foodId: 'food_salt',
+    });
+    const MIX = makeIngredientView({
+        ingredientId: '00000000-0000-4000-8000-000000000002',
+        name: 'My spice mix',
+        foodId: 'food_mix',
+        foodVisibility: 'private',
+    });
+    const PUBLIC_DRAFT = makeRecipeDetail({
+        id: 'rec_1',
+        currentVersion: 3,
+        status: RecipeStatus.DRAFT,
+        visibility: RecipeVisibility.PUBLIC,
+        cuisine: 'Italian',
+        ingredients: [SALT, MIX],
+    });
+    const REFUSED = { kind: 'recipePrivateFoods', lines: [{ sortOrder: 1, foodId: 'food_mix' }] } as const;
+
+    async function publishRefused() {
+        const view = mount({ recipe: PUBLIC_DRAFT }, undefined, fakePort(), undefined);
+        act(() => {
+            view.result.current.publish('');
+        });
+        await settle();
+        const seq = view.port.lastSeq();
+        act(() => {
+            view.port.park(seq, 400, REFUSED);
+        });
+        await settle();
+        await settle();
+
+        return { view, seq };
+    }
+
+    it('⛔ drops the refused record at once, offers no Try again, and keeps the refused lines for the sheet', async () => {
+        const { view, seq } = await publishRefused();
+
+        expect(view.port.withdrawn).toEqual([seq]);
+        expect(view.result.current.parked).toBeUndefined();
+        expect(view.result.current.saveStatus.kind).not.toBe('syncFailed');
+        expect(view.result.current.privateFoodRefusal?.lines).toEqual(REFUSED.lines);
+    });
+
+    it('⛔ the cook removes the private line: Publish sends the CURRENT draft, and nothing refused is left behind', async () => {
+        const { view, seq } = await publishRefused();
+        const values = view.result.current.values;
+
+        act(() => {
+            view.result.current.setValues({
+                ...values,
+                ingredients: values.ingredients.filter((line) => line.foodId !== 'food_mix'),
+            });
+        });
+        act(() => {
+            view.result.current.publish('');
+        });
+        await settle();
+
+        const sent = view.port.submitted.at(-1) as { payload: { input: { ingredients: { ingredientId: string }[] } } };
+
+        expect(view.port.submitted).toHaveLength(2);
+        // The CURRENT draft: the salt line only, with the private line gone.
+        expect(sent.payload.input.ingredients.map((line) => line.ingredientId)).toEqual([SALT.ingredientId]);
+        // The refused record was dropped, once; it was never re-sent.
+        expect(view.port.withdrawn).toEqual([seq]);
+        expect(view.result.current.parked).toBeUndefined();
     });
 });

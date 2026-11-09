@@ -157,6 +157,7 @@ describe('FoodPageView (native): the author states', () => {
 describe('FoodPageView (native): where the actions sit (spec section 5.3)', () => {
     /** The status panel: the statement's own container. */
     const panelOf = () => screen.getByText(/Only you can see this food/u).parentElement as HTMLElement;
+
     const at = (width: number) => {
         windowWidth.current = width;
     };

@@ -195,6 +195,7 @@ describe('FoodPageView (web): where the actions sit (spec section 5.3)', () => {
         expect(classes).toContain('flex-col-reverse');
         expect(classes).toContain('sm:flex-row');
         expect(classes).toContain('sm:justify-end');
+
         // Each action is a full-width cell on a phone and its content's width from 600.
         for (const name of ['Edit', 'Ask to make public']) {
             expect(screen.getByRole('button', { name }).closest('[data-action]')?.className).toContain(

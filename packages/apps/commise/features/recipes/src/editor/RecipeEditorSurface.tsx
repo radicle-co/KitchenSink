@@ -40,7 +40,7 @@ import { pendingIngredientIds } from '../form/ingredientStatus.js';
 import type { EditorSeed } from '../hooks/useRecipeEditor.js';
 import { useLastDefined } from '../hooks/useLastDefined.js';
 import type { RecipeEditorViewProps } from './frameProps.js';
-import { parkedRefusalRows } from '../foodPage/privateFoodsRefusal.js';
+import { refusedRowsOf } from '../foodPage/privateFoodsRefusal.js';
 import { IngredientStatusPoller } from './IngredientStatusPoller.js';
 import { editorMessages } from './messages.js';
 import { PrivateFoodsRefusalSheet } from './PrivateFoodsRefusalSheet.js';
@@ -139,12 +139,14 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
         onChange: editor.setValues,
     });
 
-    // F6: a write the outbox parked with a 400 on a PUBLIC draft that holds a private-food line is the server's refusal of that
-    // (the outbox keeps the status, not the body), so the sheet is derived from the draft's own lines.
-    const refusedRows = parkedRefusalRows(editor.parked, editor.values);
-    const refusalKey = refusedRows.join(',');
-    const [dismissedKey, setDismissedKey] = useState<string | undefined>(undefined);
-    const refusalOpen = refusedRows.length > 0 && dismissedKey !== refusalKey;
+    // F6: the server's refusal of a public recipe that holds a private food. The refused write is already dropped from the
+    // outbox (`useRecipeEditor`), so the lines come from the editor and name the draft's rows by food. Each refusal has its own
+    // count, so a sheet the cook dismissed opens again when the next Publish is refused.
+    const refusal = editor.privateFoodRefusal;
+    const refusedRows = refusal === undefined ? [] : refusedRowsOf(refusal.lines, editor.values);
+    const [dismissedCount, setDismissedCount] = useState<number | undefined>(undefined);
+    const refusalOpen = refusal !== undefined && refusedRows.length > 0 && dismissedCount !== refusal.count;
+    const dismissRefusal = (): void => setDismissedCount(refusal?.count);
     const refusedLines = refusedRows.flatMap((index) => {
         const line = editor.values.ingredients[index];
 
@@ -249,7 +251,6 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
                 onClose={onClose}
                 onPreview={session.preview.show}
                 onRefused={session.rowEditor.refused}
-                onReopenRefusal={() => setDismissedKey(undefined)}
                 onOpenMyRecipes={onOpenMyRecipes}
             />
             <RecipePreviewSheet
@@ -267,17 +268,23 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
                     lines={refusedLines}
                     onOpenFood={(foodId) => {
                         if (foodOpensOverEditor) {
-                            setDismissedKey(refusalKey);
+                            dismissRefusal();
                         }
 
                         onOpenFood?.(foodId);
                     }}
                     onSendAsPrivate={() => {
-                        setDismissedKey(refusalKey);
+                        dismissRefusal();
                         editor.setValues({ ...editor.values, visibility: RecipeVisibility.PRIVATE });
-                        editor.retry();
+
+                        // The refused write is gone, so this sends the draft as it now is.
+                        if (recipeIsPublished(seed.recipe)) {
+                            editor.saveChanges(session.rowEditor.entry.pendingEntryText);
+                        } else {
+                            editor.publish(session.rowEditor.entry.pendingEntryText);
+                        }
                     }}
-                    onClose={() => setDismissedKey(refusalKey)}
+                    onClose={dismissRefusal}
                 />
             )}
             {blocked === undefined ? null : (

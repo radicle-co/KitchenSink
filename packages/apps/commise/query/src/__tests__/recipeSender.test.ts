@@ -21,6 +21,7 @@ import {
     ForbiddenError,
     InvalidRequestError,
     NotFoundError,
+    PrivateFoodsOnPublicRecipeError,
     PrivateSlotsFullError,
     RecipeServiceClientError,
     SourceUnavailableError,
@@ -172,6 +173,28 @@ describe('recipeSender', () => {
 
             expect(classifyFailure(failure)).toBe('terminal');
             expect(resendsWhenParked(failure)).toBe(false);
+        },
+    );
+
+    it.each([
+        ['a create', 'create', 'createRecipe'],
+        ['an update (a Publish)', 'update', 'updateRecipe'],
+    ] as const)(
+        '⛔ %s refused for a private food in a public recipe parks as a terminal 400 and carries the refused lines',
+        async (_label, kind, method) => {
+            const lines = [{ sortOrder: 1, foodId: 'food_mix' }];
+            const refuse = vi.fn().mockRejectedValue(new PrivateFoodsOnPublicRecipeError(lines));
+            const send = recipeSender(() => ({ [method]: refuse }) as never);
+
+            // The lines travel with the refusal (`recipePrivateFoods`), so the editor can name them and drop the refused write.
+            expect(await send(record(kind, { id: 'r1', input: {} }))).toStrictEqual({
+                outcome: 'failed',
+                status: 400,
+                answer: { kind: 'recipePrivateFoods', lines },
+            });
+            expect(classifyFailure({ entity: 'recipe', intentKind: kind, localId: 'r1', status: 400 })).toBe(
+                'terminal',
+            );
         },
     );
 

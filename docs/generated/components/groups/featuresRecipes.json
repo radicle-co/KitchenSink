@@ -6,11 +6,11 @@
     "coverage": {
         "components": 201,
         "implementations": 341,
-        "props": 2360,
+        "props": 2358,
         "documentedComponents": 201,
         "implementationsWithModuleDoc": 341,
         "implementationsWithComponentDoc": 230,
-        "documentedProps": 1798,
+        "documentedProps": 1796,
         "classifiedComponents": 179,
         "componentsWithPatternTag": 96,
         "crossPlatformComponents": 140
@@ -16098,15 +16098,6 @@
                             "declaredIn": "packages/apps/commise/features/recipes/src/editor/frameProps.ts"
                         },
                         {
-                            "name": "onReopenRefusal",
-                            "type": "(() => void)",
-                            "typeDetail": null,
-                            "required": false,
-                            "defaultValue": null,
-                            "description": "Publish or Save changes was pressed while the server's refusal of a private food stands: the host reopens its sheet.\nNothing is sent, because the same write would get the same refusal.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/editor/frameProps.ts"
-                        },
-                        {
                             "name": "openChoices",
                             "type": "{ readonly facts: OpenChoicesFacts; readonly chooseNow: () => void; }",
                             "typeDetail": null,
@@ -16306,15 +16297,6 @@
                             "required": false,
                             "defaultValue": null,
                             "description": "A Publish or Save changes was refused: the row editor points at its pending text.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/editor/frameProps.ts"
-                        },
-                        {
-                            "name": "onReopenRefusal",
-                            "type": "(() => void)",
-                            "typeDetail": null,
-                            "required": false,
-                            "defaultValue": null,
-                            "description": "Publish or Save changes was pressed while the server's refusal of a private food stands: the host reopens its sheet.\nNothing is sent, because the same write would get the same refusal.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/editor/frameProps.ts"
                         },
                         {

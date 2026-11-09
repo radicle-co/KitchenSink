@@ -5,9 +5,7 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { RecipeVisibility } from '@kitchensink/recipe-core';
-
-import { matchRefusedLines, parkedRefusalRows, refusalPlanOf, type RefusalRow } from '../privateFoodsRefusal.js';
+import { matchRefusedLines, refusalPlanOf, refusedRowsOf, type RefusalRow } from '../privateFoodsRefusal.js';
 
 const ROWS: readonly RefusalRow[] = [
     { rowId: 'a', foodId: 'f1', sortOrder: 0 },
@@ -101,32 +99,25 @@ describe('refusalPlanOf', () => {
     });
 });
 
-describe('parkedRefusalRows (a parked write the server refused with 400, derived from the draft’s own lines — F6)', () => {
+describe('refusedRowsOf (the draft’s rows the server’s refusal named)', () => {
     const values = {
-        visibility: RecipeVisibility.PUBLIC,
-        ingredients: [{ foodVisibility: 'private' as const }, {}, { foodVisibility: 'private' as const }],
+        ingredients: [{ key: 'a', foodId: 'f1' }, { key: 'b', foodId: 'f2' }, { key: 'c' }, { key: 'd', foodId: 'f1' }],
     };
 
-    it('names the private-food lines when the parked write is a terminal 400', () => {
-        expect(parkedRefusalRows({ failure: 'terminal', status: 400 }, values)).toEqual([0, 2]);
-    });
-
-    it('names nothing for any other status or class: a 409 is a conflict and a 500 is not this refusal', () => {
-        for (const status of [409, 500, 502, undefined]) {
-            expect(parkedRefusalRows({ failure: 'terminal', status }, values)).toEqual([]);
-        }
-    });
-
-    it('names nothing when the draft holds no private food (the generic alert stands: this 400 is another refusal)', () => {
+    it('names the rows by food, in the order the editor shows them', () => {
         expect(
-            parkedRefusalRows(
-                { failure: 'terminal', status: 400 },
-                { ...values, visibility: RecipeVisibility.PRIVATE },
+            refusedRowsOf(
+                [
+                    { sortOrder: 3, foodId: 'f1' },
+                    { sortOrder: 1, foodId: 'f2' },
+                ],
+                values,
             ),
-        ).toEqual([]);
+        ).toEqual([1, 3]);
     });
 
-    it('names nothing when nothing is parked', () => {
-        expect(parkedRefusalRows(undefined, values)).toEqual([]);
+    it('names nothing for a food the cook has removed from the draft, and nothing for no lines', () => {
+        expect(refusedRowsOf([{ sortOrder: 0, foodId: 'gone' }], values)).toEqual([]);
+        expect(refusedRowsOf([], values)).toEqual([]);
     });
 });

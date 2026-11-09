@@ -19,7 +19,6 @@ import { useEffect, useEffectEvent, useState } from 'react';
 import { editorChromeOf, type EditorChrome, type FailureActionKind } from './editorChrome.js';
 import { useLastDefined } from '../hooks/useLastDefined.js';
 import type { FailureAction, RecipeEditorViewProps } from './frameProps.js';
-import { parkedRefusalRows } from '../foodPage/privateFoodsRefusal.js';
 import { firstInvalidFieldOf } from './gate.js';
 import { editorMessages, type EditorMessages } from './messages.js';
 import type { OpenChoicesFacts } from './openChoicesCopy.js';
@@ -116,7 +115,6 @@ export function useEditorPage(props: RecipeEditorViewProps): EditorPage {
         initialSection,
         onClose,
         onRefused,
-        onReopenRefusal,
         onOpenMyRecipes,
         openChoices,
         pasteReading,
@@ -252,12 +250,6 @@ export function useEditorPage(props: RecipeEditorViewProps): EditorPage {
     // so the cook is not asked to confirm a publish that cannot happen. It asks from here, where every route to Publish
     // passes, so none can skip the question.
     const finish = (): void => {
-        if (onReopenRefusal !== undefined && parkedRefusalRows(editor.parked, editor.values).length > 0) {
-            onReopenRefusal();
-
-            return;
-        }
-
         if (chrome.primary.action === 'publish' && readyLine?.kind === 'ready' && openChoices?.facts !== undefined) {
             setAsking(true);
 

@@ -158,11 +158,6 @@ export interface RecipeEditorViewProps {
     readonly onPreview: () => void;
     /** A Publish or Save changes was refused: the row editor points at its pending text. */
     readonly onRefused?: (outcome: GateOutcome) => void;
-    /**
-     * Publish or Save changes was pressed while the server's refusal of a private food stands: the host reopens its sheet.
-     * Nothing is sent, because the same write would get the same refusal.
-     */
-    readonly onReopenRefusal?: () => void;
     /** "Check My recipes", from an unknown create's alert. */
     readonly onOpenMyRecipes: () => void;
 }

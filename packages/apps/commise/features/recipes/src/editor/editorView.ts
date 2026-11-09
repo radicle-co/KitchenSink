@@ -11,7 +11,6 @@ import type { Locale } from '@commise/i18n';
 import type { RecipeDetail, VersionConflictSide } from '@kitchensink/recipe-core';
 import { classifyFailure, resendsWhenParked, type FailureClass, type SyncFailure } from '@kitchensink/sync';
 
-import { parkedRefusalRows } from '../foodPage/privateFoodsRefusal.js';
 import { recipeFormValuesEqual, type RecipeFormValues } from '../form/values.js';
 import type { IngredientLineNameMessages } from '../messages.js';
 import { computeConflictDiff } from '../versions/conflictDiff.js';
@@ -29,8 +28,6 @@ export type ParkedRecord = SyncFailure & { readonly seq: number };
 export interface ParkedView {
     readonly failure: FailureClass;
     readonly kind: 'create' | 'update';
-    /** The HTTP status of the parked write's answer, when it came back (`400` is a refusal the editor may be able to name). */
-    readonly status?: number | undefined;
 }
 
 /**
@@ -127,7 +124,6 @@ export function parkedOf(
         return {
             failure: record === undefined ? 'unknown' : classifyFailure(record),
             kind: outstanding.kind,
-            ...(record?.status === undefined ? {} : { status: record.status }),
         };
     }
 
@@ -295,9 +291,7 @@ export function editorViewOf(input: EditorViewInput): EditorView {
             lifecycle,
             durableDevice: input.keep,
             memento: input.memento,
-            // ⛔ A refusal of a private food in a public recipe is not a failed save (designAnswers 2026-11-09): the header
-            // keeps the device state, and the sheet, the sections bar and the row carry the problem.
-            outbox: parkedRefusalRows(parked, draft).length > 0 ? { kind: 'none' } : outboxSlotOf(parked, outstanding),
+            outbox: outboxSlotOf(parked, outstanding),
             serverCurrent: serverValues !== undefined && !changedFromServer && outstanding === undefined,
         }),
         status: editorStatusOf({

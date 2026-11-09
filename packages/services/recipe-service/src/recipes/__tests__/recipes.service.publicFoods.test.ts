@@ -11,6 +11,8 @@
  *     A food now public clears its captured owner INSIDE the write's transaction, before the recipe is written.
  *  4. FAIL CLOSED: food unreachable, or answering absent, means the captured value stands and the write is refused.
  *  5. The last statement of the transaction asks the database for the private lines; any row aborts the write.
+ *  6. It judges the state of the row the write RETURNED, not the copy read before the transaction: a concurrent
+ *     set-visibility or publish that moved the row in between must not slip past a check made on the stale state.
  */
 import { describe, expect, it, vi } from 'vitest';
 import { RecipeErrorCode } from '@kitchensink/recipe-core';
@@ -315,6 +317,25 @@ describe('RecipesService.update - public recipes hold no private food (rebind an
         expect(clearPublicFoodOwners).toHaveBeenCalledWith(FAKE_TX, [PRIVATE_FOOD]);
         expect(clearPublicFoodOwners.mock.invocationCallOrder[0]).toBeLessThan(update.mock.invocationCallOrder[0]!);
     });
+
+    it('judges the row the write RETURNED: a concurrent set-visibility made it public after `existing` was read', async () => {
+        const update = vi.fn().mockResolvedValue(aggregate({ visibility: 'public' }, [PRIVATE_LOOKUP]));
+        const findById = vi.fn().mockResolvedValue(aggregate({ visibility: 'private' }));
+        const privateFoodLines = vi.fn(async () => [{ sortOrder: 0, foodId: PRIVATE_FOOD }]);
+        const { service } = serviceOver(fakeRecipesDal({ findById, update, privateFoodLines }));
+
+        const error = await refusalOf(
+            service.update(
+                principal,
+                'r-1',
+                patch({ ingredients: [{ ingredientId: PRIVATE_LOOKUP, quantity: { kind: 'exact', value: 1 } }] }),
+                undefined,
+            ),
+        );
+
+        expect(error.code).toBe(RecipeErrorCode.PRIVATE_FOODS_ON_PUBLIC_RECIPE);
+        expect(privateFoodLines).toHaveBeenCalledWith(FAKE_TX, 'r-1');
+    });
 });
 
 describe('RecipesService.setVisibility - public recipes hold no private food', () => {
@@ -356,5 +377,16 @@ describe('RecipesService.setVisibility - public recipes hold no private food', (
         await service.setVisibility(principal, 'r-1', 'public' as never, undefined);
 
         expect(setVisibility).toHaveBeenCalledTimes(1);
+    });
+
+    it('judges the row the write RETURNED: a concurrent publish made the draft published after `existing` was read', async () => {
+        const setVisibility = vi.fn().mockResolvedValue(aggregate({ status: 'published' }, [PRIVATE_LOOKUP]));
+        const findById = vi.fn().mockResolvedValue(aggregate({ status: 'draft', visibility: 'private' }));
+        const privateFoodLines = vi.fn(async () => [{ sortOrder: 0, foodId: PRIVATE_FOOD }]);
+        const { service } = serviceOver(fakeRecipesDal({ findById, setVisibility, privateFoodLines }));
+
+        const error = await refusalOf(service.setVisibility(principal, 'r-1', 'public' as never, undefined));
+
+        expect(error.code).toBe(RecipeErrorCode.PRIVATE_FOODS_ON_PUBLIC_RECIPE);
     });
 });

@@ -6,7 +6,8 @@
  *
  * Claims only the database can prove: each raw-SQL door raises, the helper functions answer with positions, a draft /
  * private / deleted recipe is exempt, and the `FOR SHARE` lock closes the race between adding a private line and
- * making the recipe public, in BOTH orders.
+ * making the recipe public, in BOTH orders, the triggers judge the state a transaction LEAVES (they are deferred to
+ * commit), and a line on a catalog food takes no recipe lock, so a settle and a save cannot deadlock.
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import pg from 'pg';
@@ -165,7 +166,67 @@ describe('public recipes hold no private food (migration 0064)', () => {
         });
     });
 
-    describe('the FOR SHARE lock closes the race between a private line and going public', () => {
+    describe('the triggers are DEFERRED to commit: they judge the state a transaction leaves', () => {
+        it('a save that publishes AND swaps its private line for a catalog one in one transaction commits', async () => {
+            const id = await recipe('public', 'draft');
+            const client = await pool.connect();
+
+            await line(id, privateLookup, 0);
+
+            try {
+                await client.query('BEGIN');
+                // The order a save writes in: the recipe row first, the lines after.
+                await client.query(`UPDATE recipes SET status = 'published' WHERE id = $1`, [id]);
+                await client.query(`DELETE FROM ingredients WHERE recipe_id = $1`, [id]);
+                await line(id, catalogLookup, 0, client);
+                await client.query('COMMIT');
+            } finally {
+                await client.query('ROLLBACK').catch(() => undefined);
+                client.release();
+            }
+
+            expect((await pool.query(`SELECT status FROM recipes WHERE id = $1`, [id])).rows[0]).toEqual({
+                status: 'published',
+            });
+        });
+
+        it('still refuses at COMMIT when the transaction leaves a private line on a published public recipe', async () => {
+            const id = await recipe('public', 'draft');
+            const client = await pool.connect();
+
+            await line(id, privateLookup, 0);
+
+            try {
+                await client.query('BEGIN');
+                await client.query(`UPDATE recipes SET status = 'published' WHERE id = $1`, [id]);
+                await expect(client.query('COMMIT')).rejects.toMatchObject(violation);
+            } finally {
+                await client.query('ROLLBACK').catch(() => undefined);
+                client.release();
+            }
+
+            expect((await pool.query(`SELECT status FROM recipes WHERE id = $1`, [id])).rows[0]).toEqual({
+                status: 'draft',
+            });
+        });
+
+        it('a private line added and removed inside one transaction judges nothing', async () => {
+            const id = await recipe('public', 'published');
+            const client = await pool.connect();
+
+            try {
+                await client.query('BEGIN');
+                await line(id, privateLookup, 0, client);
+                await client.query(`DELETE FROM ingredients WHERE recipe_id = $1`, [id]);
+                await client.query('COMMIT');
+            } finally {
+                await client.query('ROLLBACK').catch(() => undefined);
+                client.release();
+            }
+        });
+    });
+
+    describe('the FOR SHARE lock, taken only for a private line, closes the race with going public', () => {
         const pending = (promise: Promise<unknown>): Promise<'pending' | 'settled'> =>
             Promise.race([
                 promise.then(
@@ -175,30 +236,28 @@ describe('public recipes hold no private food (migration 0064)', () => {
                 new Promise<'pending'>((resolve) => setTimeout(() => resolve('pending'), 400)),
             ]);
 
-        it('a line added first holds the recipe, so going public waits and then raises', async () => {
+        it('going public commits first: the private line, committing after it, raises', async () => {
             const id = await recipe('private', 'published');
             const adder = await pool.connect();
-            const publisher = await pool.connect();
 
             try {
                 await adder.query('BEGIN');
                 await line(id, privateLookup, 0, adder);
-                await publisher.query('BEGIN');
+                // The adder's line is uncommitted and its check is deferred, so the publish is not held up by it.
+                const publishing = pool.query(`UPDATE recipes SET visibility = 'public' WHERE id = $1`, [id]);
 
-                const publishing = publisher.query(`UPDATE recipes SET visibility = 'public' WHERE id = $1`, [id]);
-                const outcome = pending(publishing);
-
-                expect(await outcome).toBe('pending');
-                await adder.query('COMMIT');
-                await expect(publishing).rejects.toMatchObject(violation);
+                expect(await pending(publishing)).toBe('settled');
+                await expect(adder.query('COMMIT')).rejects.toMatchObject(violation);
+                await publishing.catch(() => undefined);
             } finally {
-                await publisher.query('ROLLBACK').catch(() => undefined);
+                await adder.query('ROLLBACK').catch(() => undefined);
                 adder.release();
-                publisher.release();
             }
+
+            expect((await pool.query(`SELECT 1 FROM ingredients WHERE recipe_id = $1`, [id])).rows).toHaveLength(0);
         });
 
-        it('going public first holds the recipe, so a private line waits and then raises', async () => {
+        it('a publish still uncommitted holds the recipe, so a private line waits at commit and then raises', async () => {
             const id = await recipe('private', 'published');
             const adder = await pool.connect();
             const publisher = await pool.connect();
@@ -208,15 +267,98 @@ describe('public recipes hold no private food (migration 0064)', () => {
                 await publisher.query(`UPDATE recipes SET visibility = 'public' WHERE id = $1`, [id]);
                 await adder.query('BEGIN');
 
+                // Deferred: the line goes in at once, and the check — with its lock — waits for COMMIT.
                 const adding = line(id, privateLookup, 0, adder);
 
-                expect(await pending(adding)).toBe('pending');
+                expect(await pending(adding)).toBe('settled');
+
+                const committing = adder.query('COMMIT');
+
+                expect(await pending(committing)).toBe('pending');
                 await publisher.query('COMMIT');
-                await expect(adding).rejects.toMatchObject(violation);
+                await expect(committing).rejects.toMatchObject(violation);
             } finally {
+                // The publisher first: the adder's queued statements may be waiting on its lock.
+                await publisher.query('ROLLBACK').catch(() => undefined);
                 await adder.query('ROLLBACK').catch(() => undefined);
                 adder.release();
                 publisher.release();
+            }
+        });
+
+        it('a line on a CATALOG food takes no lock on the recipe, so it never waits behind a recipe update', async () => {
+            const id = await recipe('private', 'published');
+            const adder = await pool.connect();
+            const updater = await pool.connect();
+
+            try {
+                await updater.query('BEGIN');
+                await updater.query(`UPDATE recipes SET title = title || '!' WHERE id = $1`, [id]);
+                await adder.query('BEGIN');
+
+                const adding = line(id, catalogLookup, 0, adder);
+
+                expect(await pending(adding)).toBe('settled');
+
+                const committing = adder.query('COMMIT');
+
+                expect(await pending(committing)).toBe('settled');
+                await committing;
+            } finally {
+                await updater.query('ROLLBACK').catch(() => undefined);
+                await adder.query('ROLLBACK').catch(() => undefined);
+                adder.release();
+                updater.release();
+            }
+        });
+    });
+
+    describe('a settle and a recipe save do not deadlock (40P01)', () => {
+        it('settle holds the failure and moves the save’s line while the save holds the recipe and waits for the failure', async () => {
+            const id = await recipe('public', 'published');
+            const failure = (
+                await pool.query<{ id: string }>(
+                    `INSERT INTO unresolved_foods (name, source_phrase, normalized_key, reason_code, tiers_consulted, tiers_unavailable, detail)
+                     VALUES ($1, $1, $1, 'cascade_exhausted', '{}', '{}', NULL) RETURNING id`,
+                    [`${SCOPE}-failure`],
+                )
+            ).rows[0]!.id;
+            const failureLookup = (
+                await pool.query<{ id: string }>(
+                    `INSERT INTO food_lookups (unresolved_food_id) VALUES ($1) RETURNING id`,
+                    [failure],
+                )
+            ).rows[0]!.id;
+            const save = await pool.connect();
+            const settle = await pool.connect();
+
+            await line(id, failureLookup, 0);
+
+            try {
+                // The save: holds the recipe row (its UPDATE), then reads the failure FOR SHARE (replaceForRecipe).
+                await save.query('BEGIN');
+                await save.query(`UPDATE recipes SET title = title || '!' WHERE id = $1`, [id]);
+
+                // The settle: locks the failure, then moves every line on it, this recipe's included.
+                await settle.query('BEGIN');
+                await settle.query(`SELECT 1 FROM unresolved_foods WHERE id = $1 FOR UPDATE`, [failure]);
+
+                const moving = settle.query(`UPDATE ingredients SET food_lookup_id = $1 WHERE food_lookup_id = $2`, [
+                    catalogLookup,
+                    failureLookup,
+                ]);
+                const reading = save.query(`SELECT 1 FROM unresolved_foods WHERE id = $1 FOR SHARE`, [failure]);
+
+                await expect(Promise.all([moving.then(() => settle.query('COMMIT')), reading])).resolves.toBeDefined();
+                await save.query('COMMIT');
+            } finally {
+                await save.query('ROLLBACK').catch(() => undefined);
+                await settle.query('ROLLBACK').catch(() => undefined);
+                save.release();
+                settle.release();
+                await pool.query(`DELETE FROM recipes WHERE owner_id = $1`, [OWNER]);
+                await pool.query(`DELETE FROM food_lookups WHERE id = $1`, [failureLookup]);
+                await pool.query(`DELETE FROM unresolved_foods WHERE id = $1`, [failure]);
             }
         });
     });

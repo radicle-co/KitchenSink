@@ -274,6 +274,19 @@ export function resolveLineStatus(
 }
 
 /**
+ * Whether a SAVED line carrying this verdict would badge AMBIGUOUS: the one question the paste review must also ask,
+ * so a proposal it shows as matched can never save as "Choose a match" (ADR-0071 §9, owner ruling 2026-11-08).
+ *
+ * Defined THROUGH {@link resolveLineStatus} rather than restated, so the two cannot drift.
+ *
+ * @param verdict - The stored verdict.
+ * @returns Whether `resolveLineStatus` answers AMBIGUOUS for it. Pure.
+ */
+export function savedLineAsks(verdict: Parameters<typeof identityReadingOf>[0]): boolean {
+    return resolveLineStatus(verdict.band, undefined, identityReadingOf(verdict)) === FoodResolutionStatus.AMBIGUOUS;
+}
+
+/**
  * Whether a verdict WITHHOLDS this line's catalog nutrition from the recipe's figure.
  *
  * Stated as its own predicate rather than inlined at the two call sites, so "withheld" has one definition:

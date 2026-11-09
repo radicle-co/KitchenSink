@@ -238,7 +238,7 @@ describe('ParseJobMatchView.decorate', () => {
             { kind: 'root', id: 'F-default', rung: 'default' },
         ] as const;
 
-        it('a memo of ANOTHER food is a match and wins over the default: confident, and proposed', async () => {
+        it('a memo of ANOTHER food is a match and wins over the default: shown as the match while its review runs', async () => {
             const { view } = setup({
                 matches: [
                     matchOf({
@@ -256,8 +256,8 @@ describe('ParseJobMatchView.decorate', () => {
             const match = firstMatch(await view.decorate(COOK, CALLER, viewOf()));
 
             expect(match).toMatchObject({
-                state: 'confident',
-                reason: 'rememberedMatch',
+                state: 'checking',
+                reason: 'awaitingReview',
                 proposed: { kind: 'root', id: 'F-whole' },
             });
         });
@@ -621,13 +621,13 @@ describe('ParseJobMatchView.decorate: a spent AI budget', () => {
         expect(findBudgetSpentKeys).toHaveBeenCalledWith(['v2:milk'], '2026-10');
     });
 
-    it('⛔ a fact recorded in an EARLIER period is not spent: the exact name is confident again', async () => {
+    it('⛔ a fact recorded in an EARLIER period is not spent: the exact name awaits its review again', async () => {
         vi.useFakeTimers({ now: NOW });
         const { view } = setup({ matches: [exactMatch], budgetSpent: new Map([['v2:milk', '2026-09']]) });
 
         expect(firstMatch(await view.decorate(COOK, CALLER, viewOf()))).toMatchObject({
-            state: 'confident',
-            reason: 'exactName',
+            state: 'checking',
+            reason: 'awaitingReview',
         });
     });
 
@@ -638,7 +638,7 @@ describe('ParseJobMatchView.decorate: a spent AI budget', () => {
         expect(firstMatch(await view.decorate(COOK, CALLER, viewOf()))?.reason).toBe('reviewBudgetSpent');
 
         vi.setSystemTime(new Date('2026-11-01T00:00:01.000Z'));
-        expect(firstMatch(await view.decorate(COOK, CALLER, viewOf()))?.reason).toBe('exactName');
+        expect(firstMatch(await view.decorate(COOK, CALLER, viewOf()))?.reason).toBe('awaitingReview');
     });
 
     it('carries `reviewResetsAt` ONLY on the budget-spent reason', async () => {
@@ -670,7 +670,7 @@ describe('ParseJobMatchView.decorate: a spent AI budget', () => {
         const { view, findBudgetSpentKeys } = setup({ matches: [exactMatch] });
         findBudgetSpentKeys.mockRejectedValue(new Error('connection terminated'));
 
-        expect(firstMatch(await view.decorate(COOK, CALLER, viewOf()))?.state).toBe('confident');
+        expect(firstMatch(await view.decorate(COOK, CALLER, viewOf()))?.state).toBe('checking');
     });
 });
 

@@ -1,10 +1,11 @@
 /**
- * The caller a food route acts for, narrowed from the guard-populated request. One definition for every controller, so
- * "who is the caller, and is it a person" cannot be answered two ways.
+ * The caller a food route acts for, narrowed from the guard-populated request, and the food id it names. One definition
+ * for every controller, so "who is the caller, is it a person, and is that a food id" cannot be answered two ways.
  */
 import { UnauthorizedException } from '@nestjs/common';
 
 import { apiError } from '../common/apiError.js';
+import { isFoodId } from '../db/ulid.js';
 import {
     IDENTITY_SYNC_PENDING_CODE,
     resolveRequesterId,
@@ -66,4 +67,16 @@ export function requireUserUlid(req: AuthenticatedRequest): string {
     }
 
     return requesterId;
+}
+
+/**
+ * Validate a route's `:id` path param is a structurally valid food ULID (FR-006).
+ *
+ * @param id - The raw path param.
+ * @throws (→ 400 `INVALID_ID`) for anything else, before a DAO is touched.
+ */
+export function requireId(id: string): void {
+    if (!isFoodId(id)) {
+        throw apiError('INVALID_ID', 'The id is not a valid food (ingredient) ULID');
+    }
 }

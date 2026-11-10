@@ -3967,7 +3967,11 @@ describe('a Publish refused for a private food after the editor was closed and o
         return { port: first.port, saveSeq: first.port.lastSeq(), memento };
     }
 
-    async function publishRefusedIn(second: ReturnType<typeof mount>, port: ReturnType<typeof fakePort>) {
+    async function publishRefusedInBy(
+        second: ReturnType<typeof mount>,
+        port: ReturnType<typeof fakePort>,
+        refuse: (seq: number) => void,
+    ) {
         act(() => {
             second.result.current.publish('');
         });
@@ -3975,13 +3979,16 @@ describe('a Publish refused for a private food after the editor was closed and o
         await settle();
         const seq = port.lastSeq();
         act(() => {
-            port.park(seq, 400, REFUSED);
+            refuse(seq);
         });
         await settle();
         await settle();
 
         return seq;
     }
+
+    const publishRefusedIn = async (second: ReturnType<typeof mount>, port: ReturnType<typeof fakePort>) =>
+        publishRefusedInBy(second, port, (seq) => port.park(seq, 400, REFUSED));
 
     function expectRefusalShown(second: ReturnType<typeof mount>, port: ReturnType<typeof fakePort>, seq: number) {
         expect(port.submitted.at(-1)).toMatchObject({ payload: { input: { status: RecipeStatus.PUBLISHED } } });
@@ -4091,6 +4098,60 @@ describe('a Publish refused for a private food after the editor was closed and o
         expect(view.result.current.parked).toBeUndefined();
         expect(view.result.current.state.status).toBe('editing');
         expect(view.result.current.writeInFlight).toBe(false);
+    });
+
+    // ⛔ Nobody listens when the refusal lands, so nobody can withdraw it: the outbox drops it as it settles (ruling
+    // a369e1852 at the one writer). The editor opened afterwards shows an unpublished draft with no Try again, and its
+    // own Publish goes out fresh and meets the sheet.
+    it('⛔ the refusal lands with NO editor open: the reopened one offers no Try again, and its Publish shows the sheet', async () => {
+        const first = mount({ recipe: PUBLIC_DRAFT }, undefined, fakePort(), undefined);
+        act(() => {
+            first.result.current.publish('');
+        });
+        await settle();
+        const refusedSeq = first.port.lastSeq();
+        first.unmount();
+        const { port } = first;
+        act(() => {
+            port.drop(refusedSeq, 400, REFUSED);
+        });
+        const second = mount({ recipe: PUBLIC_DRAFT }, undefined, port, undefined);
+        await settle();
+
+        expect(port.stateOf(refusedSeq)).toBeUndefined();
+        expect(second.result.current.parked).toBeUndefined();
+        expect(second.result.current.saveStatus.kind).not.toBe('syncFailed');
+        expect(second.result.current.lifecycle).not.toBe('published');
+
+        const seq = await publishRefusedInBy(second, port, (sent) => port.drop(sent, 400, REFUSED));
+
+        expect(seq).not.toBe(refusedSeq);
+        expectRefusalShown(second, port, seq);
+    });
+
+    it('⛔ a slots-full refusal of a Publish the closed editor sent lands on the reopened one: the ask, and the record dropped', async () => {
+        const PRIVATE_DRAFT = { ...PUBLIC_DRAFT, visibility: RecipeVisibility.PRIVATE };
+        const first = mount({ recipe: PRIVATE_DRAFT }, undefined, fakePort(), undefined);
+        act(() => {
+            first.result.current.publish('');
+        });
+        await settle();
+        const refusedSeq = first.port.lastSeq();
+        first.unmount();
+        const { port } = first;
+        const second = mount({ recipe: PRIVATE_DRAFT }, undefined, port, undefined);
+        await settle();
+
+        act(() => {
+            port.park(refusedSeq, 403, { kind: 'recipeSlotsFull', used: 50, limit: 50 });
+        });
+        await settle();
+        await settle();
+
+        expect(second.result.current.publishBlocked).toEqual({ kind: 'noSlot', total: 50 });
+        expect(port.withdrawn).toEqual([refusedSeq]);
+        expect(port.stateOf(refusedSeq)).toBeUndefined();
+        expect(second.result.current.parked).toBeUndefined();
     });
 
     it('a refusal for ANOTHER recipe is not this editor’s to show or drop', async () => {

@@ -149,15 +149,17 @@ describe('recipeSender', () => {
     /**
      * ⛔ ADR-0073 / code owed 9: A QUEUED PRIVATE WRITE THAT MEETS `PRIVATE_SLOTS_FULL` IS FINAL. Offline mode makes this
      * common: a cook can queue private writes while another device uses the last slot. It is a `403`, so
-     * `classifyFailure` calls it terminal (the cook edits or frees a slot), it parks, and the drain NEVER re-sends it by
-     * itself - a second copy would meet the same full slots, and for a create an unknown outcome is never repeated.
+     * `classifyFailure` calls it terminal (the cook edits or frees a slot), and the drain NEVER re-sends it by itself - a
+     * second copy would meet the same full slots. Ruling a369e1852: a refused write is dropped, not parked behind a Try
+     * again, so the sender marks it `drop` (the private-food refusal below too). A test that loses `drop` is the sender
+     * parking it again.
      */
     // Only a CREATE can meet it: an update's body carries no visibility, and a visibility write is not a sendable intent.
     it.each([
         ['a create', 'create', 'createRecipe'],
         ['an update (a Publish)', 'update', 'updateRecipe'],
     ] as const)(
-        '⛔ %s refused for want of a private slot parks as a terminal 403 and is never re-sent',
+        '⛔ %s refused for want of a private slot is a terminal 403 the drain DROPS, never parks or re-sends',
         async (_label, kind, method) => {
             const refuse = vi.fn().mockRejectedValue(new PrivateSlotsFullError(50, 50));
             const send = recipeSender(() => ({ [method]: refuse }) as never);
@@ -167,6 +169,7 @@ describe('recipeSender', () => {
                 outcome: 'failed',
                 status: 403,
                 answer: { kind: 'recipeSlotsFull', used: 50, limit: 50 },
+                drop: true,
             });
 
             const failure = { entity: 'recipe', intentKind: kind, localId: 'r1', status: 403 } as const;
@@ -180,7 +183,7 @@ describe('recipeSender', () => {
         ['a create', 'create', 'createRecipe'],
         ['an update (a Publish)', 'update', 'updateRecipe'],
     ] as const)(
-        '⛔ %s refused for a private food in a public recipe parks as a terminal 400 and carries the refused lines',
+        '⛔ %s refused for a private food in a public recipe is a terminal 400 the drain DROPS, with the refused lines',
         async (_label, kind, method) => {
             const lines = [{ sortOrder: 1, foodId: 'food_mix' }];
             const refuse = vi.fn().mockRejectedValue(new PrivateFoodsOnPublicRecipeError(lines));
@@ -191,6 +194,7 @@ describe('recipeSender', () => {
                 outcome: 'failed',
                 status: 400,
                 answer: { kind: 'recipePrivateFoods', lines },
+                drop: true,
             });
             expect(classifyFailure({ entity: 'recipe', intentKind: kind, localId: 'r1', status: 400 })).toBe(
                 'terminal',

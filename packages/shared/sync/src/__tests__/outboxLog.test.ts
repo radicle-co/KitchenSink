@@ -1339,3 +1339,15 @@ describe('applyDiscard — refused while the entity is saving, enabled again onc
         expect(outcome).toStrictEqual({ kind: 'settled' });
     });
 });
+
+describe('settle — dropped', () => {
+    it('⛔ removes a record on the wire, as a withdrawal would, and leaves the rest', () => {
+        const update = (localId: string): Intent =>
+            ({ entity: 'recipe', intentKind: 'update', localId, dependsOn: [], payload: {} }) as Intent;
+        const sending = markSending(appendIntent(appendIntent(EMPTY_OUTBOX, update('r1')), update('r2')), 1);
+
+        expect(settle(sending, { seq: 1, outcome: 'dropped' }).records.map((record) => record.localId)).toStrictEqual([
+            'r2',
+        ]);
+    });
+});

@@ -45,6 +45,7 @@ export const EMPTY_OUTBOX: OutboxLog = { records: [], nextSeq: 1, resolutions: {
 export type Settlement =
     | { readonly seq: number; readonly outcome: 'synced'; readonly serverId: string; readonly produces?: LocalRef }
     | { readonly seq: number; readonly outcome: 'parked'; readonly status?: number }
+    | { readonly seq: number; readonly outcome: 'dropped' }
     | { readonly seq: number; readonly outcome: 'blocked' }
     | { readonly seq: number; readonly outcome: 'deferred'; readonly until: number };
 
@@ -617,6 +618,13 @@ export function settle(log: OutboxLog, settlement: Settlement): OutboxLog {
                     state: 'parked',
                     ...(settlement.status === undefined ? {} : { lastStatus: settlement.status }),
                 })),
+            );
+
+        // Refused for good (ruling a369e1852): it leaves exactly as the cook's withdrawal of it would, by `withdraw`'s rule.
+        case 'dropped':
+            return withdraw(
+                withRecord(log, settlement.seq, (record) => ({ ...record, state: 'parked' })),
+                settlement.seq,
             );
 
         case 'blocked':

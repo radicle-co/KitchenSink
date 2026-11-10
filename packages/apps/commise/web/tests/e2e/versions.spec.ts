@@ -315,7 +315,9 @@ test.describe('version preview — a variant-bound line (curated U15)', () => {
                 id: 'ri_control',
                 ingredientId: 'db000000-0000-4000-8000-0000000000c3',
                 sortOrder: 3,
-                displayText: 'flat half, select',
+                // The cook's own comma-joined NOTE, a trailing clause after the name. Not `displayText`: that is now the
+                // name the line shows (ADR-0045, "A line's name is read, never stored"), which would hide "Olive oil".
+                note: 'flat half, select',
             }),
         ],
     };

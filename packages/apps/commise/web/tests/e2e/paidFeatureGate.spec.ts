@@ -16,8 +16,9 @@ import { makeCollection, makeRecipeDetail, mockRecipeApi, readViewerAppId } from
  * service. Role/label selectors only.
  *
  * REWRITTEN for ADR-0073 and the owner ruling of 2026-10-26: a RECIPE the cook wrote is no longer a paid feature. A free
- * cook keeps up to the server's limit of recipes private (a slot), whatever the gate says; only an imported public-web
- * recipe still needs Pro, and COLLECTIONS are unchanged. Public is never final.
+ * cook keeps up to the server's limit of recipes private (a slot), whatever the gate says, and COLLECTIONS are unchanged.
+ * Public is never final. UPDATED for ADR-0077 section 6 (owner ruling 2026-10-29, "Any cook, using a slot"): an imported
+ * public-web recipe no longer needs Pro either; it uses a slot like any recipe.
  *
  * UPDATED for the owner ruling of 2026-10-26 (ADR-0073 section 12, spec 001 FR-003b): a DRAFT holds no slot. A new recipe is
  * a draft, so its field counts nothing and refuses nothing; the count and the refusal belong to a PUBLISHED recipe (edit
@@ -157,10 +158,21 @@ test.describe('private slots — every slot used', () => {
     });
 });
 
-test.describe('paid features — an imported public-web recipe in the editor (Pro is still its rule)', () => {
+/**
+ * REWRITTEN for ADR-0077 section 6 (owner ruling 2026-10-29, "Any cook, using a slot"): an imported public-web recipe is
+ * private within a slot like any recipe. These cases proved the removed Pro rule (a Pro badge and the Pro sheet under
+ * upsell, a refusal "can only be public" under hidden); they now prove a free cook with a slot left makes it private with
+ * no Pro anywhere, and a free cook with every slot used meets the slots refusal, not the Pro one.
+ */
+test.describe('private slots — an imported public-web recipe in the editor (a slot, like any recipe)', () => {
     const WEB_ID = 'ec000000-0000-4000-8000-0000000000f3';
 
-    async function openWebRecipe(page: Page, paidFeatures: 'granted' | 'upsell' | 'hidden'): Promise<void> {
+    /** The editor for a PUBLISHED public web import (a draft holds no slot), with `held` private recipes already kept. */
+    async function openWebRecipe(
+        page: Page,
+        paidFeatures: 'granted' | 'upsell' | 'hidden',
+        slots: { readonly held: number; readonly limit?: number } = { held: 0 },
+    ): Promise<void> {
         await signInWithTicket(page);
         const viewerId = await readViewerAppId(page);
         const web = makeRecipeDetail({
@@ -168,39 +180,56 @@ test.describe('paid features — an imported public-web recipe in the editor (Pr
             ownerId: viewerId,
             title: 'Web Stew',
             visibility: 'public',
+            status: 'published',
             sourceType: 'imported_public',
         });
-        await mockRecipeApi(page, { viewerId, paidFeatures, recipes: [web] });
+        const held = Array.from({ length: slots.held }, (_, index) =>
+            makeRecipeDetail({
+                id: `ec000000-0000-4000-8000-00000000020${index}`,
+                ownerId: viewerId,
+                title: `Held ${index}`,
+                visibility: 'private',
+                status: 'published',
+            }),
+        );
+        await mockRecipeApi(page, {
+            viewerId,
+            paidFeatures,
+            recipes: [web, ...held],
+            ...(slots.limit === undefined ? {} : { privateSlotLimit: slots.limit }),
+        });
         await page.goto(route(`/recipes/${WEB_ID}/edit`));
         await expect(page.getByRole('heading', { level: 1, name: 'Edit recipe' })).toBeVisible();
     }
 
-    test('upsell: Private carries the Pro badge and opens the Pro sheet; Public stays chosen', async ({ page }) => {
-        await openWebRecipe(page, 'upsell');
+    for (const state of ['upsell', 'hidden'] as const) {
+        test(`${state}, a slot free: Private is a choice, with no Pro badge, no Pro sheet and no web-import refusal`, async ({
+            page,
+        }) => {
+            await openWebRecipe(page, state);
 
-        await expect(page.getByText('Pro', { exact: true })).toBeVisible();
-        await page.getByRole('radio', { name: /^Private/u }).click();
+            const card = page.getByRole('radio', { name: /^Private/u });
+            await expect(card).not.toHaveAttribute('aria-disabled', 'true');
+            await card.click();
 
-        await expect(page.getByRole('dialog', { name: 'Private needs Pro for this recipe' })).toBeVisible();
-        await page.getByRole('button', { name: 'Not now' }).click();
+            await expect(card).toBeChecked();
+            await expect(page.getByText('Pro', { exact: true })).toHaveCount(0);
+            await expect(page.getByRole('dialog', { name: 'Private needs Pro for this recipe' })).toHaveCount(0);
+            await expect(page.getByText(/can only be public/u)).toHaveCount(0);
+        });
+    }
+
+    test('⛔ hidden, every slot used: Private is refused with the slots total, with no Pro way', async ({ page }) => {
+        await openWebRecipe(page, 'hidden', { held: 2, limit: 2 });
+
+        await expect(page.getByText('Not available. All 2 of your private slots are in use.')).toBeVisible();
+        await expect(page.getByText(/can only be public/u)).toHaveCount(0);
+        await expect(page.getByRole('button', { name: /Get Pro/u })).toHaveCount(0);
+
+        await page.getByRole('radio', { name: /^Private/u }).click({ force: true });
+
         await expect(page.getByRole('radio', { name: /^Public/u })).toBeChecked();
-    });
-
-    test('⛔ hidden: Private is shown refused with its reason, with no Pro and no upsell', async ({ page }) => {
-        await openWebRecipe(page, 'hidden');
-
-        // Owner ruling 2026-10-26: Private is shown REFUSED (aria-disabled, still focusable), the reason its description.
-        await expect(page.getByText('Who can see it')).toBeVisible();
-        const card = page.getByRole('radio', { name: /^Private/u });
-        await expect(card).toHaveAttribute('aria-disabled', 'true');
-        // "Still focusable" is the claim. Playwright's `toBeEnabled` reads `aria-disabled="true"` as disabled, so it
-        // contradicted the line above; focusing the card is what a keyboard cook does and what the refusal needs.
-        await card.focus();
-        await expect(card).toBeFocused();
-        await expect(
-            page.getByText('Not available. A recipe from a public web page can only be public.'),
-        ).toBeVisible();
-        await expect(page.getByText('Pro', { exact: true })).toHaveCount(0);
+        await expect(page.getByRole('dialog', { name: 'Private needs Pro for this recipe' })).toHaveCount(0);
     });
 });
 
@@ -209,6 +238,7 @@ test.describe('private slots — the recipe page’s ⋯ menu', () => {
         page: Page,
         paidFeatures: 'granted' | 'upsell' | 'hidden',
         sourceType: 'user_created' | 'imported_public' = 'user_created',
+        slots: { readonly held: number; readonly limit?: number } = { held: 0 },
     ): Promise<void> {
         await signInWithTicket(page);
         const viewerId = await readViewerAppId(page);
@@ -217,9 +247,24 @@ test.describe('private slots — the recipe page’s ⋯ menu', () => {
             ownerId: viewerId,
             title: 'Gate Stew',
             visibility: 'public',
+            status: 'published',
             sourceType,
         });
-        await mockRecipeApi(page, { viewerId, paidFeatures, recipes: [own] });
+        const held = Array.from({ length: slots.held }, (_, index) =>
+            makeRecipeDetail({
+                id: `ec000000-0000-4000-8000-00000000030${index}`,
+                ownerId: viewerId,
+                title: `Held ${index}`,
+                visibility: 'private',
+                status: 'published',
+            }),
+        );
+        await mockRecipeApi(page, {
+            viewerId,
+            paidFeatures,
+            recipes: [own, ...held],
+            ...(slots.limit === undefined ? {} : { privateSlotLimit: slots.limit }),
+        });
         await page.goto(route('/recipes/ec000000-0000-4000-8000-0000000000f1'));
         await expect(page.getByRole('heading', { name: 'Gate Stew' })).toBeVisible();
         await page.getByRole('button', { name: /^More actions for /u }).click();
@@ -237,19 +282,31 @@ test.describe('private slots — the recipe page’s ⋯ menu', () => {
         });
     }
 
-    test('upsell, an imported public-web recipe: Make private opens the Pro sheet', async ({ page }) => {
-        await openOwnRecipe(page, 'upsell', 'imported_public');
+    // REWRITTEN for ADR-0077 section 6 ("Any cook, using a slot"): these proved the removed Pro rule (the Pro sheet under
+    // upsell, no Make private under hidden). They now prove an imported public-web recipe goes private on a free slot in
+    // every paid-feature state, and that with every slot used the page says the slots refusal, not Pro.
+    for (const state of ['upsell', 'hidden'] as const) {
+        test(`${state}, an imported public-web recipe: Make private makes it private on a free slot, with no Pro sheet`, async ({
+            page,
+        }) => {
+            await openOwnRecipe(page, state, 'imported_public');
+
+            await page.getByRole('menuitem', { name: 'Make private' }).click();
+
+            await expect(page.getByText('Private', { exact: true })).toBeVisible();
+            await expect(page.getByRole('dialog', { name: 'Private needs Pro for this recipe' })).toHaveCount(0);
+        });
+    }
+
+    test('⛔ upsell, an imported public-web recipe with every slot used: Make private is refused with the slots total', async ({
+        page,
+    }) => {
+        await openOwnRecipe(page, 'upsell', 'imported_public', { held: 2, limit: 2 });
 
         await page.getByRole('menuitem', { name: 'Make private' }).click();
 
-        await expect(page.getByRole('dialog', { name: 'Private needs Pro for this recipe' })).toBeVisible();
-    });
-
-    test('⛔ hidden, an imported public-web recipe: the menu offers no Make private', async ({ page }) => {
-        await openOwnRecipe(page, 'hidden', 'imported_public');
-
-        await expect(page.getByRole('menuitem', { name: 'Version history' })).toBeVisible();
-        await expect(page.getByRole('menuitem', { name: 'Make private' })).toHaveCount(0);
+        await expect(page.getByText('Not available. All 2 of your private slots are in use.')).toBeVisible();
+        await expect(page.getByRole('dialog', { name: 'Private needs Pro for this recipe' })).toHaveCount(0);
     });
 });
 
@@ -296,8 +353,8 @@ test.describe('paid features — a collection’s ⋯ menu', () => {
 /**
  * Plan 2026-10-14-009 Q5 (UX SPECIFY 2026-10-15), REWRITTEN for ADR-0073 and the owner ruling of 2026-10-26: public is NEVER
  * final. Making a private recipe public is confirmed first where there is a cost worth saying - it frees one of the cook's
- * private slots, and a free slot is all it takes to make it private again - and an imported public-web recipe under the
- * upsell is told Pro is needed to return. Nothing ever says the recipe cannot go private again.
+ * private slots, and a free slot is all it takes to make it private again, an imported public-web recipe included
+ * (ADR-0077 section 6). Nothing ever says the recipe cannot go private again.
  */
 test.describe('private slots — making a private recipe public', () => {
     const PRIVATE_ID = 'ec000000-0000-4000-8000-0000000000f2';
@@ -349,11 +406,16 @@ test.describe('private slots — making a private recipe public', () => {
         await expect(page.getByText(/won.t be able|may not be able/u)).toHaveCount(0);
     });
 
-    test('upsell, an imported public-web recipe: the Public card says Pro is needed; Keep private leaves it private', async ({
+    // REWRITTEN for ADR-0077 section 6: this proved the Public card said Pro was needed to return. The way back is now a free
+    // slot, as for any recipe, so the card says the slots words and never the Pro sentence.
+    test('upsell, an imported public-web recipe: the Public card says it frees a slot, never Pro; Keep private leaves it private', async ({
         page,
     }) => {
         await openPrivateRecipe(page, 'upsell', `/recipes/${PRIVATE_ID}/edit`, 'imported_public');
-        await expect(page.getByText("To make it private again, you'll need Pro.")).toBeVisible();
+        await expect(
+            page.getByText('This frees one of your private slots. To make it private again, you need a free slot.'),
+        ).toBeVisible();
+        await expect(page.getByText(/you.ll need Pro/u)).toHaveCount(0);
 
         await page.getByRole('radio', { name: /^Public/u }).click();
         const dialog = page.getByRole('alertdialog', { name: 'Make this recipe public?' });

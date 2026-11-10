@@ -933,6 +933,8 @@ export const recipeIngredientSchema = z.object({
     // any recipe carrying a unitless line — see `recipe.types.test.ts`'s version-contract suite.
     unit: z.string(),
     displayText: z.string().min(1).optional(),
+    // `aggregateToSnapshot` freezes the note and the restorer reads it back; unnamed here, a parse strips it.
+    note: z.string().min(1).optional(),
     // U26/U27 — same `.min(1)`, no-maximum reasoning as the view schema above.
     preparation: z.string().min(1).optional(),
     groupLabel: z.string().min(1).optional(),

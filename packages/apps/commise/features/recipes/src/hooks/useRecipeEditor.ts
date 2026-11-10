@@ -1017,51 +1017,65 @@ function withdrawRefused(ctx: EditorContext, error: unknown, operation: 'recipeR
 }
 
 /**
- * The server refused the Publish for want of a private slot the client did not know was gone (another device used the last
- * one). It is no failure to retry: the write is withdrawn, so no Try again stands for it, and the cook is asked what they
- * want (owner ruling 2026-10-26) with the server's own limit. The drain drops it already (ruling a369e1852); the
- * withdrawal covers a record parked before that rule.
+ * The refused write leaves the outbox, then `show` tells the cook. Try again would send the same refusal, so no Try again
+ * stands for it (a record may be dropped, never re-sent: ADR-0057). The drain drops such a refusal as it lands (ruling
+ * a369e1852), so a `dropped` record is already out of the log and nothing is withdrawn; a record parked before that rule
+ * is withdrawn first.
  *
- * @sideEffect Withdraws the parked record and opens the dialog.
+ * @sideEffect Withdraws a parked record; clears the lane; runs `show`.
  */
-function slotsRefusedByServer(ctx: EditorContext, seq: number, limit: number): void {
-    void ctx.opts.port.withdraw(seq).then(
-        () => {
-            ctx.lane.dispatch({ type: 'withdrawn', seq });
-            ctx.setPublishBlocked({ kind: 'noSlot', total: limit });
-        },
-        (error: unknown) => {
-            withdrawRefused(ctx, error, 'recipeRetry');
-        },
-    );
+function whenRefusedWriteLeaves(ctx: EditorContext, event: Settlement, show: () => void): void {
+    const left = (): void => {
+        ctx.lane.dispatch({ type: 'withdrawn', seq: event.seq });
+        show();
+    };
+
+    if (event.outcome === 'dropped') {
+        left();
+
+        return;
+    }
+
+    void ctx.opts.port.withdraw(event.seq).then(left, (error: unknown) => {
+        withdrawRefused(ctx, error, 'recipeRetry');
+    });
 }
 
 /**
- * The server refused a public recipe that holds a private food (designAnswers 2026-11-09, item 4). Try again would send the
- * same refusal, so the write is withdrawn as it lands (a record may be dropped, never re-sent: ADR-0057) and the cook is
- * shown the lines. The draft is untouched, so the next Publish or Save changes sends it as it is by then.
+ * The server refused the Publish for want of a private slot the client did not know was gone (another device used the last
+ * one). It is no failure to retry, so the cook is asked what they want (owner ruling 2026-10-26) with the server's own
+ * limit.
  *
- * @sideEffect Withdraws the parked record and records the refusal for the sheet.
+ * @sideEffect The refused write leaves the outbox and the dialog opens.
  */
-function privateFoodsRefusedByServer(ctx: EditorContext, seq: number, lines: readonly PrivateFoodLine[]): void {
-    void ctx.opts.port.withdraw(seq).then(
-        () => {
-            ctx.lane.dispatch({ type: 'withdrawn', seq });
-            ctx.setPrivateFoodRefusal((previous) => ({ lines, count: (previous?.count ?? 0) + 1 }));
-        },
-        (error: unknown) => {
-            withdrawRefused(ctx, error, 'recipeRetry');
-        },
-    );
+function slotsRefusedByServer(ctx: EditorContext, event: Settlement, limit: number): void {
+    whenRefusedWriteLeaves(ctx, event, () => {
+        ctx.setPublishBlocked({ kind: 'noSlot', total: limit });
+    });
 }
 
-/** A parked answer for the outstanding write. @sideEffect */
-function onParked(ctx: EditorContext, event: Settlement, pending: OutstandingWrite): void {
-    ctx.lane.dispatch({ type: 'parked', seq: event.seq });
+/**
+ * The server refused a public recipe that holds a private food (designAnswers 2026-11-09, item 4), and the cook is shown the
+ * lines. The draft is untouched, so the next Publish or Save changes sends it as it is by then.
+ *
+ * @sideEffect The refused write leaves the outbox and the refusal is recorded for the sheet.
+ */
+function privateFoodsRefusedByServer(ctx: EditorContext, event: Settlement, lines: readonly PrivateFoodLine[]): void {
+    whenRefusedWriteLeaves(ctx, event, () => {
+        ctx.setPrivateFoodRefusal((previous) => ({ lines, count: (previous?.count ?? 0) + 1 }));
+    });
+}
+
+/** A parked or dropped answer for the outstanding write. @sideEffect */
+function onRefused(ctx: EditorContext, event: Settlement, pending: OutstandingWrite): void {
+    // A dropped record is already out of the log: it never waits for the cook.
+    if (event.outcome === 'parked') {
+        ctx.lane.dispatch({ type: 'parked', seq: event.seq });
+    }
 
     if (event.answer?.kind === 'recipeSlotsFull') {
         ctx.lane.dispatch({ type: 'deferredTaken' });
-        slotsRefusedByServer(ctx, event.seq, event.answer.limit);
+        slotsRefusedByServer(ctx, event, event.answer.limit);
 
         return;
     }
@@ -1069,7 +1083,7 @@ function onParked(ctx: EditorContext, event: Settlement, pending: OutstandingWri
     if (event.answer?.kind === 'recipePrivateFoods') {
         // What waited behind the refused write is not sent past it.
         ctx.lane.dispatch({ type: 'deferredTaken' });
-        privateFoodsRefusedByServer(ctx, event.seq, event.answer.lines);
+        privateFoodsRefusedByServer(ctx, event, event.answer.lines);
 
         return;
     }
@@ -1105,11 +1119,11 @@ function onSettled(ctx: EditorContext, event: Settlement): void {
         // clears the lane (the second withdrawal finds nothing).
         if (event.entity === 'recipe' && event.localId === ctx.core.get().server.ref) {
             if (event.answer?.kind === 'recipePrivateFoods') {
-                privateFoodsRefusedByServer(ctx, event.seq, event.answer.lines);
+                privateFoodsRefusedByServer(ctx, event, event.answer.lines);
             }
 
             if (event.answer?.kind === 'recipeSlotsFull') {
-                slotsRefusedByServer(ctx, event.seq, event.answer.limit);
+                slotsRefusedByServer(ctx, event, event.answer.limit);
             }
         }
 
@@ -1122,7 +1136,7 @@ function onSettled(ctx: EditorContext, event: Settlement): void {
     }
 
     if (event.outcome !== 'synced') {
-        onParked(ctx, event, pending);
+        onRefused(ctx, event, pending);
 
         return;
     }

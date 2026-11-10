@@ -193,6 +193,17 @@ export function withdraw(log: OutboxLog, seq: number): OutboxLog {
         throw new Error(`outbox: refusing to withdraw record ${String(seq)}, which is ${record.state}, not parked`);
     }
 
+    return removeRecord(log, record);
+}
+
+/**
+ * Take one record out of the log: the step a withdrawal and a drop share. Pure.
+ *
+ * @param log - The current log.
+ * @param record - A record the log holds.
+ * @returns A new log without it, nor the delete that waited on it.
+ */
+function removeRecord(log: OutboxLog, record: OutboxRecord): OutboxLog {
     // ⛔ The delete that waited on it goes with it. Discard while a create is on the wire queues the delete behind it,
     // depending on the ref the create produces (`supersede`); withdrawn, that create will never produce an id for this
     // entity, so the delete could never be sent and sat pending forever. ONLY that delete: anything else waiting on the
@@ -200,7 +211,7 @@ export function withdraw(log: OutboxLog, seq: number): OutboxLog {
     // resolved names a server row, so a delete waiting on it can still be sent and stays.
     const unresolved = record.produces !== undefined && log.resolutions[record.produces] === undefined;
     const strands = (candidate: OutboxRecord): boolean => unresolved && waitsOnCreate(candidate, record);
-    const gone = new Set<number>([seq, ...log.records.filter(strands).map((candidate) => candidate.seq)]);
+    const gone = new Set<number>([record.seq, ...log.records.filter(strands).map((candidate) => candidate.seq)]);
 
     return { ...log, records: log.records.filter((candidate) => !gone.has(candidate.seq)) };
 }
@@ -620,12 +631,12 @@ export function settle(log: OutboxLog, settlement: Settlement): OutboxLog {
                 })),
             );
 
-        // Refused for good (ruling a369e1852): it leaves exactly as the cook's withdrawal of it would, by `withdraw`'s rule.
-        case 'dropped':
-            return withdraw(
-                withRecord(log, settlement.seq, (record) => ({ ...record, state: 'parked' })),
-                settlement.seq,
-            );
+        // Refused for good (ruling a369e1852): it leaves exactly as the cook's withdrawal of it would.
+        case 'dropped': {
+            const dropped = log.records.find((record) => record.seq === settlement.seq);
+
+            return dropped === undefined ? log : removeRecord(log, dropped);
+        }
 
         case 'blocked':
             return withRecord(log, settlement.seq, (record) => ({ ...record, state: 'blocked' }));

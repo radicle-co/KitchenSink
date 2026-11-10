@@ -6,11 +6,11 @@
     "coverage": {
         "components": 203,
         "implementations": 345,
-        "props": 2379,
+        "props": 2380,
         "documentedComponents": 203,
         "implementationsWithModuleDoc": 345,
         "implementationsWithComponentDoc": 234,
-        "documentedProps": 1807,
+        "documentedProps": 1808,
         "classifiedComponents": 181,
         "componentsWithPatternTag": 97,
         "crossPlatformComponents": 142
@@ -17860,6 +17860,15 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "The label of that way out.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/foodPage/FoodDetailScreen.native.tsx"
+                        },
+                        {
+                            "name": "offline",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Whether the device is offline: the app's one connectivity reading, which this package may not read itself.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/foodPage/FoodDetailScreen.native.tsx"
                         },
                         {

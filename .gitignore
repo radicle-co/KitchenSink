@@ -195,3 +195,6 @@ packages/*/*/*/infra/node_modules/
 # committed: the real dependency is the pinned registry version, and CI installs that.
 .yalc/
 yalc.lock
+
+# trace-mcp per-repo state (guard mode, install date)
+.trace-mcp/

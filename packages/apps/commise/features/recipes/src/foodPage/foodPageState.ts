@@ -20,7 +20,8 @@ import type {
 
 /** Where the food read stands. */
 export type FoodRead =
-    | { readonly phase: 'pending' }
+    /** `parked`: TanStack paused the read for want of a connection (`fetchStatus: 'paused'`). */
+    | { readonly phase: 'pending'; readonly parked: boolean }
     | { readonly phase: 'error'; readonly error: unknown }
     | { readonly phase: 'ready'; readonly result: GetFoodResult };
 
@@ -65,8 +66,9 @@ export type FoodPageState =
  */
 export function foodPageStateOf({ read, request, online }: FoodPageInput): FoodPageState {
     // Offline, the app's `offlineFirst` read fails once and parks its retry, so it stays pending: that is state 4 too.
+    // Only a PARKED read, as `@commise/query`'s `PendingSlot` rules: one still in its first attempt is loading.
     if (read.phase === 'pending') {
-        return online ? { kind: 'loading' } : { kind: 'offline' };
+        return read.parked && !online ? { kind: 'offline' } : { kind: 'loading' };
     }
 
     if (read.phase === 'error') {

@@ -6,7 +6,7 @@
  */
 import { FoodServiceProvider } from '@kitchensink/food-service-client/hooks';
 import { NotFoundError, type FoodServiceClient } from '@kitchensink/food-service-client';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider, onlineManager } from '@tanstack/react-query';
 import { act, cleanup, renderHook, waitFor } from '@testing-library/react';
 import { createElement, type ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -21,6 +21,7 @@ vi.mock('@commise/ui/snackbar', () => ({ useSnackbar: () => ({ show }) }));
 afterEach(() => {
     cleanup();
     show.mockReset();
+    onlineManager.setOnline(true);
 });
 
 function setup(client: Partial<FoodServiceClient>, offline = false) {
@@ -163,6 +164,13 @@ describe('useFoodPage', () => {
 
     it('the host says offline: a failed read with no copy is the offline state, not an error', async () => {
         const { result } = setup({ getById: vi.fn().mockRejectedValue(new Error('network')) }, true);
+
+        await waitFor(() => expect(result.current.state.kind).toBe('offline'));
+    });
+
+    it('a read TanStack parked for want of a connection is the offline state, not a spinner', async () => {
+        onlineManager.setOnline(false);
+        const { result } = setup({ getById: vi.fn().mockResolvedValue(resolved('private')) }, true);
 
         await waitFor(() => expect(result.current.state.kind).toBe('offline'));
     });

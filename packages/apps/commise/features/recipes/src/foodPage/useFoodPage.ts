@@ -77,7 +77,7 @@ export function useFoodPage(foodId: string, { offline }: FoodPageHost): FoodPage
             ? { phase: 'ready', result: food.data }
             : food.isError
               ? { phase: 'error', error: food.error }
-              : { phase: 'pending' };
+              : { phase: 'pending', parked: food.fetchStatus === 'paused' };
     const state = foodPageStateOf({ read, request: request.data, online: !offline });
     const edit = useFoodEdit(state);
 

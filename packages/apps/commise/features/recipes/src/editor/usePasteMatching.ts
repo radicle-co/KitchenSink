@@ -53,7 +53,7 @@ import type { SettledRowCommit } from '../hooks/useIngredientRowEditor.js';
 import type { LinePick, MatchLine, PendingSend } from '../ingredientMatching/matchLine.js';
 import { failedOf, pendingOf, retryOf, type SendAttempt, type SendLedger } from '../ingredientMatching/sendLedger.js';
 import { shouldRequestMatches, unmatchedFoodRefsOf } from './matchDemand.js';
-import { matchRequestFailures, requestedMatchKeys } from './matchRequests.js';
+import { MAX_MATCH_ATTEMPTS, matchRequestFailures, requestedMatchKeys } from './matchRequests.js';
 import { nextJoinOf, type NextJoin, type RowJoin } from './pasteJoin.js';
 import { emptyPasteMatchHost, reducePasteMatchHost, type SavedPick } from './pasteMatchHost.js';
 import { boundByOf, pasteMatchLinesOf } from './pasteMatchLines.js';
@@ -444,6 +444,7 @@ export function usePasteMatching(options: UsePasteMatchingOptions): PasteMatchin
     }, [reviewedKey]);
 
     // ── A binding the server offered that the wire no longer shows ───────────────────────────────────────────────
+    const [failedWithdrawals, setFailedWithdrawals] = useState<ReadonlyMap<string, number>>(() => new Map());
     // The paste never looks matched when the saved line would ask: a held server or review binding on a food whose match
     // no longer reads confident is withdrawn, and its draft line goes back to the food as written. The cook's pick stays.
     const withdrawn = [...session.joins].flatMap(([key, entry]) => {
@@ -459,16 +460,23 @@ export function usePasteMatching(options: UsePasteMatchingOptions): PasteMatchin
             : [];
     });
     const withdrawnKey = withdrawn[0];
+    const withdrawClaim =
+        withdrawnKey === undefined || jobId === undefined ? undefined : `withdraw:${jobId}:${withdrawnKey}`;
+    // A failed withdrawal releases its claim and counts here, which re-runs the effect below: tried again in this session,
+    // and at most MAX_MATCH_ATTEMPTS times, the bound the match requests keep, so a down service is not a storm.
+    const withdrawFailures = withdrawClaim === undefined ? 0 : (failedWithdrawals.get(withdrawClaim) ?? 0);
     const withdrawOffer = useEffectEvent((): void => {
         if (
             withdrawnKey === undefined ||
             jobId === undefined ||
-            claimed.current.has(`withdraw:${jobId}:${withdrawnKey}`)
+            withdrawClaim === undefined ||
+            withdrawFailures >= MAX_MATCH_ATTEMPTS ||
+            claimed.current.has(withdrawClaim)
         ) {
             return;
         }
 
-        claimed.current.add(`withdraw:${jobId}:${withdrawnKey}`);
+        claimed.current.add(withdrawClaim);
         void createFreeform.mutateAsync(wireFoodOf(job, withdrawnKey)?.name ?? '').then(
             (ingredient) =>
                 hostDispatch({
@@ -477,7 +485,12 @@ export function usePasteMatching(options: UsePasteMatchingOptions): PasteMatchin
                     key: withdrawnKey,
                     draft: lineBindingOf(toIngredientLine(ingredient)),
                 }),
-            () => claimed.current.delete(`withdraw:${jobId}:${withdrawnKey}`),
+            () => {
+                claimed.current.delete(withdrawClaim);
+                setFailedWithdrawals((previous) =>
+                    new Map(previous).set(withdrawClaim, (previous.get(withdrawClaim) ?? 0) + 1),
+                );
+            },
         );
     });
 
@@ -485,7 +498,7 @@ export function usePasteMatching(options: UsePasteMatchingOptions): PasteMatchin
         if (withdrawnKey !== undefined) {
             withdrawOffer();
         }
-    }, [withdrawnKey]);
+    }, [withdrawnKey, withdrawFailures]);
 
     // The draft line the reducer earned a re-point for: applied, then cleared.
     const rebinds = host.rebinds;

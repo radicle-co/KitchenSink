@@ -412,6 +412,24 @@ export const publicationStateSchema = z.enum([
 
 export type PublicationStateValue = z.infer<typeof publicationStateSchema>;
 
+/**
+ * The macros an authored food declares, PER 100g (Q3a: macros-only at launch; feature 009 owns the
+ * additive expansion to full nutrient rows). Bounds are physical sanity, not nutrition science: no macro
+ * gram figure can exceed 100 in 100g, and energy tops out below 900 kcal/100g (pure fat).
+ */
+export const authoredMacrosSchema = z.strictObject({
+    /** Energy, kcal per 100g. */
+    calories: z.number().min(0).max(900),
+    /** Protein, g per 100g. */
+    proteinG: z.number().min(0).max(100),
+    /** Carbohydrate, g per 100g. */
+    carbsG: z.number().min(0).max(100),
+    /** Total fat, g per 100g. */
+    fatG: z.number().min(0).max(100),
+});
+
+export type AuthoredMacros = z.infer<typeof authoredMacrosSchema>;
+
 /** The full golden record returned for a `RESOLVED` food (FR-002). */
 export const foodResponseSchema = z.object({
     /** Internal food id (ULID). */
@@ -442,6 +460,13 @@ export const foodResponseSchema = z.object({
      * published to another reader.
      */
     publicationState: publicationStateSchema.optional(),
+    /**
+     * Present ONLY for a user-authored food: the four macros its LIVE (approved) version declares, per 100g, as the
+     * author wrote them. An edit waiting for staff does not change them. They are the figures `nutrients` already
+     * carries, by identity rather than by name, so the food page shows them and compares them with a waiting edit's
+     * `PublicationSnapshot.macros` figure to figure. Absent for a catalog food.
+     */
+    authoredMacros: authoredMacrosSchema.optional(),
     /**
      * Curated U8 (R17): the root's LIVE variants, in the order the variant picker lists them. `[]` for a root with
      * none and for an authored food, which never has any.
@@ -896,24 +921,6 @@ export const MAX_AUTHORED_PORTION_LABEL = 80;
 
 /** Most portions one authored food may declare. */
 export const MAX_AUTHORED_PORTIONS = 10;
-
-/**
- * The macros an authored food declares, PER 100g (Q3a: macros-only at launch; feature 009 owns the
- * additive expansion to full nutrient rows). Bounds are physical sanity, not nutrition science: no macro
- * gram figure can exceed 100 in 100g, and energy tops out below 900 kcal/100g (pure fat).
- */
-export const authoredMacrosSchema = z.strictObject({
-    /** Energy, kcal per 100g. */
-    calories: z.number().min(0).max(900),
-    /** Protein, g per 100g. */
-    proteinG: z.number().min(0).max(100),
-    /** Carbohydrate, g per 100g. */
-    carbsG: z.number().min(0).max(100),
-    /** Total fat, g per 100g. */
-    fatG: z.number().min(0).max(100),
-});
-
-export type AuthoredMacros = z.infer<typeof authoredMacrosSchema>;
 
 /** One household-measure portion an authored food declares. */
 export const authoredPortionInputSchema = z.strictObject({

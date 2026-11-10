@@ -2234,6 +2234,9 @@ components:
             - editWaiting
             - editNotApproved
             - withdrawn
+        authoredMacros:
+          allOf:
+            - $ref: "#/components/schemas/AuthoredMacros"
         variants:
           type: array
           items:

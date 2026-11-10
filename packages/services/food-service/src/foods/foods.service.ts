@@ -41,6 +41,7 @@ import {
 } from './foods.errors.js';
 import { normalizeName } from './foodName.js';
 import { MergeAndPersistService } from './merge/mergeAndPersist.service.js';
+import { authoredMacrosOf } from './domain/authoredMacros.js';
 import { evaluateAuthorship, type AuthorshipFoodFacts } from './domain/authorshipPolicy.js';
 import { answeringEntryOf, refTargetOf, resolveFoodRefs } from './domain/foodRefResolution.js';
 import { nutritionTargetOf } from './domain/nutritionTargets.js';
@@ -1495,6 +1496,9 @@ export class FoodsService {
             provenance[entry.field] = sourceOf(entry.sourceId);
         }
 
+        // An authored food's four figures, as its author wrote them (the same values `nutrients` carries below).
+        const authoredMacros = record.userId === null ? undefined : authoredMacrosOf(record.nutrients);
+
         return {
             id: record.id,
             name: record.name,
@@ -1519,6 +1523,7 @@ export class FoodsService {
             // U10 (Q3c): present ONLY for a PRIVATE authored food; a catalog or promoted row publishes no visibility
             // at all (ADR-0029 §8: promoted is world-readable), so `private` is the only value the wire carries.
             ...(record.userId !== null && record.visibility === 'private' ? { visibility: 'private' as const } : {}),
+            ...(authoredMacros === undefined ? {} : { authoredMacros }),
             variants,
         };
     }

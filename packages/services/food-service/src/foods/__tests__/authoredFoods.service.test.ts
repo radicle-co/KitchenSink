@@ -199,6 +199,55 @@ describe('getFood — the read gate (plan U10)', () => {
         expect(authored['markSeen']).not.toHaveBeenCalled();
     });
 
+    describe('authoredMacros — the author’s own figures, as structured data (ADR-0029 §7)', () => {
+        const nutrient = (name: string, unit: string, amount: string) => ({
+            nutrientId: `n-${name}-${unit}`,
+            name,
+            unit,
+            infoodsTag: null,
+            amount,
+            basis: 'per_100g',
+            source: null,
+        });
+        const LIVE = [
+            nutrient('Energy', 'kcal', '380'),
+            nutrient('Protein', 'g', '70'),
+            nutrient('Carbohydrate, by difference', 'g', '12'),
+            nutrient('Total lipid (fat)', 'g', '6'),
+        ];
+
+        it('the AUTHOR reads the macros of the LIVE row, even while an edit waits for staff', async () => {
+            const { service } = makeService({
+                record: makeRecord({ visibility: 'promoted', nutrients: LIVE }),
+                authored: { publicationStateFor: vi.fn().mockResolvedValue('editWaiting') },
+            });
+
+            const response = await service.getFood(FOOD_ID, AUTHOR);
+
+            expect(response).toMatchObject({
+                publicationState: 'editWaiting',
+                authoredMacros: { calories: 380, proteinG: 70, carbsG: 12, fatG: 6 },
+            });
+        });
+
+        it('a stranger reading a PROMOTED food reads the same figures: they are its public nutrients already', async () => {
+            const { service } = makeService({ record: makeRecord({ visibility: 'promoted', nutrients: LIVE }) });
+
+            const response = await service.getFood(FOOD_ID, STRANGER);
+
+            expect(response).toMatchObject({ authoredMacros: { calories: 380, proteinG: 70, carbsG: 12, fatG: 6 } });
+            expect('publicationState' in response).toBe(false);
+        });
+
+        it('a catalog food carries none', async () => {
+            const { service } = makeService({
+                record: makeRecord({ userId: null, visibility: 'public', nutrients: LIVE }),
+            });
+
+            expect('authoredMacros' in (await service.getFood(FOOD_ID, STRANGER))).toBe(false);
+        });
+    });
+
     it('a catalog food publishes NO visibility field at all', async () => {
         const { service } = makeService({ record: makeRecord({ userId: null, visibility: 'public' }) });
 

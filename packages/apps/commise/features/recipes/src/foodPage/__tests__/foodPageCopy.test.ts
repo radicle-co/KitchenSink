@@ -25,6 +25,7 @@ const FOOD: FoodResponse = {
     ],
     portions: [],
     provenance: {},
+    authoredMacros: { calories: 120, proteinG: 0, carbsG: 0, fatG: 0 },
     variants: [],
 };
 const REQUEST: PublicationRequestDetail = {

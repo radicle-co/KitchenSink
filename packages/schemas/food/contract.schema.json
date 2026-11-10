@@ -2586,6 +2586,38 @@
             "$schema": "https://json-schema.org/draft/2020-12/schema",
             "additionalProperties": false,
             "properties": {
+                "authoredMacros": {
+                    "additionalProperties": false,
+                    "properties": {
+                        "calories": {
+                            "maximum": 900,
+                            "minimum": 0,
+                            "type": "number"
+                        },
+                        "carbsG": {
+                            "maximum": 100,
+                            "minimum": 0,
+                            "type": "number"
+                        },
+                        "fatG": {
+                            "maximum": 100,
+                            "minimum": 0,
+                            "type": "number"
+                        },
+                        "proteinG": {
+                            "maximum": 100,
+                            "minimum": 0,
+                            "type": "number"
+                        }
+                    },
+                    "required": [
+                        "calories",
+                        "proteinG",
+                        "carbsG",
+                        "fatG"
+                    ],
+                    "type": "object"
+                },
                 "description": {
                     "type": [
                         "string",
@@ -2851,6 +2883,38 @@
                         "food": {
                             "additionalProperties": false,
                             "properties": {
+                                "authoredMacros": {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                        "calories": {
+                                            "maximum": 900,
+                                            "minimum": 0,
+                                            "type": "number"
+                                        },
+                                        "carbsG": {
+                                            "maximum": 100,
+                                            "minimum": 0,
+                                            "type": "number"
+                                        },
+                                        "fatG": {
+                                            "maximum": 100,
+                                            "minimum": 0,
+                                            "type": "number"
+                                        },
+                                        "proteinG": {
+                                            "maximum": 100,
+                                            "minimum": 0,
+                                            "type": "number"
+                                        }
+                                    },
+                                    "required": [
+                                        "calories",
+                                        "proteinG",
+                                        "carbsG",
+                                        "fatG"
+                                    ],
+                                    "type": "object"
+                                },
                                 "description": {
                                     "type": [
                                         "string",
@@ -4780,6 +4844,38 @@
                 "food": {
                     "additionalProperties": false,
                     "properties": {
+                        "authoredMacros": {
+                            "additionalProperties": false,
+                            "properties": {
+                                "calories": {
+                                    "maximum": 900,
+                                    "minimum": 0,
+                                    "type": "number"
+                                },
+                                "carbsG": {
+                                    "maximum": 100,
+                                    "minimum": 0,
+                                    "type": "number"
+                                },
+                                "fatG": {
+                                    "maximum": 100,
+                                    "minimum": 0,
+                                    "type": "number"
+                                },
+                                "proteinG": {
+                                    "maximum": 100,
+                                    "minimum": 0,
+                                    "type": "number"
+                                }
+                            },
+                            "required": [
+                                "calories",
+                                "proteinG",
+                                "carbsG",
+                                "fatG"
+                            ],
+                            "type": "object"
+                        },
                         "description": {
                             "type": [
                                 "string",

@@ -30,4 +30,10 @@ export const idleDetailBodyState = {
     onToggleDescription: (): void => undefined,
     nutritionExpanded: false,
     onToggleNutrition: (): void => undefined,
+    // The pinned ingredients bar at rest: the card is in view, so no bar. (`ingredientsEndRef` is the web body's alone, and `onIngredientsLayout` and `onScroll` the native body's.)
+    pinnedIngredients: { shown: false, open: false, onOpenChange: (): void => undefined },
+    ingredientsEndRef: (): void => undefined,
+    // And the NATIVE body's: where the ingredients block ends, and the page's scroll.
+    onIngredientsLayout: (): void => undefined,
+    onScroll: (): void => undefined,
 } as const;

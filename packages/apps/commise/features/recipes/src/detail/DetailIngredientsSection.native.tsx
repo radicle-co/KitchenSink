@@ -14,7 +14,7 @@ import { RefreshNotice } from '@commise/ui/refresh-notice';
 import { useScreenReaderFocusOnSignal } from '@commise/ui/screen-reader-focus';
 import { Surface } from '@commise/ui/surface-tone';
 import type { scaleRecipeForServings } from '@kitchensink/recipe-core/scaling';
-import { Fragment, type FC } from 'react';
+import type { FC } from 'react';
 import { View } from 'react-native';
 import { Text as DsText } from '@commise/ui/text';
 
@@ -24,15 +24,13 @@ import { DetailEmptySection } from './DetailEmptySection.native.js';
 import { DetailSection } from './detailFrames.native.js';
 import { detailStyles as styles } from './detailStyles.native.js';
 import {
-    IngredientGroupLabel,
     IngredientsCard,
     IngredientsNotices,
     RemovedFoodNotice,
     IngredientsEditRow,
     IngredientsHeadRow,
 } from './ingredientFrames.native.js';
-import { IngredientCheckRow } from './IngredientCheckRow.native.js';
-import { ingredientGroupRuns } from './detailFacts.js';
+import { IngredientRuns } from './IngredientRuns.native.js';
 import { allLinesFoodRemoved, removedFoodNotice, type RecipeDetailBodyNativeProps } from './model.js';
 import { ServingScaleControl } from './ServingScaleControl.js';
 
@@ -135,24 +133,13 @@ export const DetailIngredientsSection: FC<DetailIngredientsSectionProps> = ({
                     {removedNotice !== undefined && <RemovedFoodNotice role="note">{removedNotice}</RemovedFoodNotice>}
                 </IngredientsNotices>
                 {hasIngredients ? (
-                    <>
-                        {/* A group is a label over its run of lines (§6.1, F9); an ungrouped recipe draws one list. */}
-                        {ingredientGroupRuns(scaled.ingredients).map((run, index) => (
-                            <Fragment key={`${run.label ?? ''}-${String(index)}`}>
-                                {run.label !== undefined && <IngredientGroupLabel>{run.label}</IngredientGroupLabel>}
-                                {run.lines.map((ingredient, lineIndex) => (
-                                    <IngredientCheckRow
-                                        key={ingredient.ingredientId}
-                                        ingredient={ingredient}
-                                        checked={marks.checkedLines.has(ingredient.ingredientId)}
-                                        allRemoved={allRemoved}
-                                        onToggle={marks.toggleLine}
-                                        divided={lineIndex > 0}
-                                    />
-                                ))}
-                            </Fragment>
-                        ))}
-                    </>
+                    // A group is a label over its run of lines (§6.1, F9); an ungrouped recipe draws one list.
+                    <IngredientRuns
+                        ingredients={scaled.ingredients}
+                        checked={marks.checkedLines}
+                        allRemoved={allRemoved}
+                        onToggle={marks.toggleLine}
+                    />
                 ) : (
                     <DetailEmptySection
                         text={detail.noIngredients}

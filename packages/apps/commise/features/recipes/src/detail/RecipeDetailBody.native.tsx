@@ -22,11 +22,11 @@
  * @pattern Humble Object — the pure render half of the orchestration/render split whose shell is
  *     `RecipeDetailView.native.tsx`.
  */
-import { useMessages } from '@commise/i18n/react';
+import { useLocale, useMessages } from '@commise/i18n/react';
 import { KeepAwakeToggle } from '@commise/ui/keep-awake';
 import { LiveRegion } from '@commise/ui/live-region';
 import { RefreshNotice } from '@commise/ui/refresh-notice';
-import { useScreenReaderFocusOnSignal } from '@commise/ui/screen-reader-focus';
+import { useScreenReaderFocusOnMount, useScreenReaderFocusOnSignal } from '@commise/ui/screen-reader-focus';
 import { scaleRecipeForServings } from '@kitchensink/recipe-core/scaling';
 import type { FC, ReactElement } from 'react';
 import { ScrollView, View } from 'react-native';
@@ -43,10 +43,28 @@ import { DetailIngredientsSection } from './DetailIngredientsSection.native.js';
 import { DetailInstructionsSection } from './DetailInstructionsSection.native.js';
 import { DetailNutritionSection } from './DetailNutritionSection.native.js';
 import { DetailStatusRow } from './DetailStatusRow.native.js';
+import { PinnedServingsRow } from './ingredientFrames.native.js';
+import { IngredientRuns } from './IngredientRuns.native.js';
 import { detailStyles as styles } from './detailStyles.native.js';
-import { detailNoticeState, type RecipeDetailBodyNativeProps } from './model.js';
+import { allLinesFoodRemoved, detailNoticeState, type RecipeDetailBodyNativeProps } from './model.js';
+import { pinnedBarFactsOf } from './pinnedBarFacts.js';
+import { PinnedIngredientsBar } from './PinnedIngredientsBar.native.js';
 import { RecipeHero } from './RecipeHero.native.js';
 import { RecipeSourceLine } from './RecipeSourceLine.native.js';
+import { ServingScaleControl } from './ServingScaleControl.js';
+
+/** "Servings", the first thing in the opened list: it takes the screen-reader cursor when the list opens. */
+const PinnedServingsLabel: FC<{ readonly text: string }> = ({ text }) => {
+    const label = useScreenReaderFocusOnMount<View>();
+
+    return (
+        <View ref={label} accessible accessibilityRole="header">
+            <Text typeRole="meta" color="$inkMuted">
+                {text}
+            </Text>
+        </View>
+    );
+};
 
 /**
  * The pure `props → JSX` detail render. Everything it shows for a chosen serving count comes from
@@ -80,8 +98,12 @@ export const RecipeDetailBody: FC<RecipeDetailBodyNativeProps> = ({
     nutritionExpanded,
     onToggleNutrition,
     layout,
+    onIngredientsLayout,
+    onScroll,
+    pinnedIngredients,
 }) => {
     const { detail, duration, card } = useMessages(recipeMessages);
+    const locale = useLocale();
     const bylineCopy = useMessages(bylineMessages);
     const owner = viewerIsOwner === true;
     // A retry from the refresh notice that succeeds removes the button pressed, so the cursor goes to the title.
@@ -233,7 +255,7 @@ export const RecipeDetailBody: FC<RecipeDetailBodyNativeProps> = ({
         // The review block rides inside the steps block, not as a child of its own: an empty child of the content still
         // costs the content's gap and its margin, which left the last content 128 above the tab bar instead of 48.
         children.push(
-            <View key="ingredients" style={styles.sectionBlock}>
+            <View key="ingredients" style={styles.sectionBlock} onLayout={onIngredientsLayout}>
                 {ingredients}
             </View>,
             <View key="steps" style={styles.sectionBlock}>
@@ -251,9 +273,44 @@ export const RecipeDetailBody: FC<RecipeDetailBodyNativeProps> = ({
                 style={styles.scroll}
                 contentContainerStyle={styles.container}
                 keyboardShouldPersistTaps="handled"
+                onScroll={onScroll}
+                scrollEventThrottle={16}
+                // Android: while the list is open the page behind it is not for a screen reader (iOS: the overlay is modal).
+                importantForAccessibility={pinnedIngredients.open ? 'no-hide-descendants' : 'auto'}
             >
                 {children}
             </ScrollView>
+            {/* Owner ruling R1: the ingredients stay in reach from the steps. */}
+            {pinnedIngredients.shown && (
+                <PinnedIngredientsBar
+                    facts={pinnedBarFactsOf({
+                        ingredients: recipe.ingredients,
+                        checked: marks.checkedLines,
+                        servings,
+                        open: pinnedIngredients.open,
+                        copy: detail,
+                        locale,
+                    })}
+                    open={pinnedIngredients.open}
+                    onOpenChange={pinnedIngredients.onOpenChange}
+                    scrimLabel={detail.pinnedScrimClose}
+                >
+                    <PinnedServingsRow>
+                        <PinnedServingsLabel text={detail.servingsAdjustLabel} />
+                        <ServingScaleControl
+                            servings={servings}
+                            baseServings={recipe.servings}
+                            onServingsChange={onServingsChange}
+                        />
+                    </PinnedServingsRow>
+                    <IngredientRuns
+                        ingredients={scaled.ingredients}
+                        checked={marks.checkedLines}
+                        allRemoved={allLinesFoodRemoved(recipe.ingredients)}
+                        onToggle={marks.toggleLine}
+                    />
+                </PinnedIngredientsBar>
+            )}
             {/* The owner dialogs draw over the page, so they take no room in it. */}
             {scrollFooter}
         </>

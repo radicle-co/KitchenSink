@@ -78,6 +78,7 @@ recipeCrud.spec.ts	/, /recipes, /recipes/[id], /recipes/[id]/edit, /recipes/new,
 recipeDetailCooking.spec.ts	/, /recipes/[id], /sign-in/[[...sign-in]]
 recipeDetailHero.spec.ts	/, /recipes/[id], /sign-in/[[...sign-in]]
 recipeDetailLineAlignment.spec.ts	/, /recipes/[id], /sign-in/[[...sign-in]]
+recipeDetailPinnedIngredients.spec.ts	/, /recipes/[id], /sign-in/[[...sign-in]]
 recipeDetailNutrition.spec.ts	/, /recipes/[id], /sign-in/[[...sign-in]]
 recipeEditor.spec.ts	/, /recipes, /recipes/[id], /recipes/[id]/edit, /recipes/new, /sign-in/[[...sign-in]]
 recipeEditorSession.spec.ts	/, /recipes, /recipes/[id], /recipes/[id]/edit, /recipes/new, /sign-in/[[...sign-in]]

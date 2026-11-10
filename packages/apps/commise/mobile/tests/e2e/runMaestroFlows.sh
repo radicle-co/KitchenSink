@@ -227,6 +227,7 @@ home:home
 recipes:recipes/rating
 recipes:recipes/listDetail
 recipes:recipes/headerScrollsAway
+recipes:recipes/pinnedIngredients
 recipes:recipes/viewSetting
 recipes:shell/tabBar
 recipes:recipes/landscape
@@ -535,9 +536,9 @@ EMPTY_LIBRARY_FLOWS=" recipes/emptyLibrary "
 # The flows whose reset also seeds the gate-AMBIGUOUS probe recipe (`reset.ts --mode ambiguity`). Only these hold it, so
 # every other flow's `^4 recipes$` count stays true (plan 013 C3, owner decision 2026-10-19).
 AMBIGUITY_FLOWS=" recipes/ambiguityReview "
-# The flows whose reset adds the signer's filler recipes (`reset.ts --mode library`): the one flow that needs a Recipes list
-# longer than a screen. Only these hold them, so every other flow's `^4 recipes$` count stays true.
-LONG_LIBRARY_FLOWS=" recipes/headerScrollsAway "
+# The flows whose reset adds the signer's filler recipes AND the tall recipe (`reset.ts --mode library`): the flow that needs a
+# Recipes list longer than a screen, and the flow that needs a recipe page longer than a screen. Only these hold them, so every other flow's `^4 recipes$` count stays true.
+LONG_LIBRARY_FLOWS=" recipes/headerScrollsAway recipes/pinnedIngredients "
 
 # Where `e2e-seed provision` writes this run's fixture MANIFEST, and how it reaches the flows.
 #

@@ -40,6 +40,7 @@ shell/tabBar	CollectionDetailScreen, CollectionsScreen, CompleteSignUpScreen, Ho
 recipes/landscape	HomeScreen, RecipeDetailScreen, RecipeDiscoveryScreen, RecipeEditorScreen, RecipeListScreen, RecipeVersionsScreen
 recipes/servingScale	HomeScreen, RecipeDetailScreen, RecipeListScreen
 recipes/detailCooking	HomeScreen, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen, RecipeVersionsScreen
+recipes/pinnedIngredients	HomeScreen, RecipeDetailScreen, RecipeListScreen
 recipes/detailBack	HomeScreen, RecipeDetailScreen, RecipeListScreen
 recipes/deferredCalories	HomeScreen, RecipeDetailScreen, RecipeDiscoveryScreen, RecipeListScreen
 recipes/emptyLibrary	HomeScreen, RecipeEditorScreen, RecipeListScreen

@@ -208,6 +208,49 @@ describe('a public recipe holds no private food (e2e, assembled app + food fake)
         expect(((await put.json()) as RefusalBody).details.lines).toEqual([{ sortOrder: 0, foodId: PRIVATE_FOOD }]);
     });
 
+    it('refuses publishing a draft whose private line was renamed and saved first, and the line keeps the private food', async () => {
+        // The editor's two writes, as `toUpdateRecipeInput` builds them: the row editor's Name is the line's
+        // `displayText`, so renaming a line and closing the row editor (a save) sends the SAME binding with the cook's
+        // words; the later Publish sends the lines again with `status`.
+        const editedLine = {
+            ingredientId: privateLookup,
+            quantity: { kind: 'absent' },
+            displayText: 'pie crust',
+            note: '9 inch',
+            preparation: 'unbaked',
+        };
+        const draft = await json<RecipeBody>('POST', '/api/v1/recipes', 201, {
+            ...recipeBody('renamed then published', [privateLookup], 'public'),
+            status: 'draft',
+        });
+        const saved = await json<RecipeBody>('PATCH', `/api/v1/recipes/${draft.id}`, 200, {
+            expectedVersion: draft.currentVersion,
+            ingredients: [editedLine],
+        });
+        const { rows: bound } = await pool.query<{ food_lookup_id: string; food_owner_id: string | null }>(
+            `SELECT i.food_lookup_id, l.food_owner_id
+               FROM ingredients i JOIN food_lookups l ON l.id = i.food_lookup_id
+              WHERE i.recipe_id = $1`,
+            [draft.id],
+        );
+
+        expect(bound).toEqual([{ food_lookup_id: privateLookup, food_owner_id: AUTHOR }]);
+
+        const publish = await call('PATCH', `/api/v1/recipes/${draft.id}`, {
+            expectedVersion: saved.currentVersion,
+            status: 'published',
+            ingredients: [editedLine],
+        });
+        const { rows: stored } = await pool.query<{ status: string; visibility: string }>(
+            `SELECT status, visibility FROM recipes WHERE id = $1`,
+            [draft.id],
+        );
+
+        expect(publish.status).toBe(400);
+        expect(((await publish.json()) as RefusalBody).details.lines).toEqual([{ sortOrder: 0, foodId: PRIVATE_FOOD }]);
+        expect(stored).toEqual([{ status: 'draft', visibility: 'public' }]);
+    });
+
     it('a PATCH that swaps the private line for a public food AND publishes in one request succeeds', async () => {
         // The draft holds the private food; the same PATCH replaces it and publishes. The recipe row is written before
         // its lines, so a trigger that judged the recipe against the OLD lines would answer a raw 500.
@@ -295,5 +338,18 @@ describe('a public recipe holds no private food (e2e, assembled app + food fake)
         } finally {
             food.down = false;
         }
+    });
+
+    it('leaves, after every case above, no published public recipe holding a line whose food is private', async () => {
+        const { rows } = await pool.query(
+            `SELECT r.id FROM recipes r
+               JOIN ingredients i ON i.recipe_id = r.id
+               JOIN food_lookups l ON l.id = i.food_lookup_id
+              WHERE r.owner_id = $1 AND r.status = 'published' AND r.visibility = 'public'
+                AND l.food_id::text = ANY($2::text[])`,
+            [AUTHOR, [PRIVATE_FOOD]],
+        );
+
+        expect(rows).toEqual([]);
     });
 });

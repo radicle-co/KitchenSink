@@ -9065,6 +9065,10 @@
                                                             "isUserEntered": {
                                                                 "type": "boolean"
                                                             },
+                                                            "note": {
+                                                                "minLength": 1,
+                                                                "type": "string"
+                                                            },
                                                             "preparation": {
                                                                 "minLength": 1,
                                                                 "type": "string"
@@ -9332,6 +9336,10 @@
                                                             },
                                                             "isUserEntered": {
                                                                 "type": "boolean"
+                                                            },
+                                                            "note": {
+                                                                "minLength": 1,
+                                                                "type": "string"
                                                             },
                                                             "preparation": {
                                                                 "minLength": 1,
@@ -12449,6 +12457,10 @@
                                     "isUserEntered": {
                                         "type": "boolean"
                                     },
+                                    "note": {
+                                        "minLength": 1,
+                                        "type": "string"
+                                    },
                                     "preparation": {
                                         "minLength": 1,
                                         "type": "string"
@@ -13829,6 +13841,10 @@
                                             "isUserEntered": {
                                                 "type": "boolean"
                                             },
+                                            "note": {
+                                                "minLength": 1,
+                                                "type": "string"
+                                            },
                                             "preparation": {
                                                 "minLength": 1,
                                                 "type": "string"
@@ -14096,6 +14112,10 @@
                                             },
                                             "isUserEntered": {
                                                 "type": "boolean"
+                                            },
+                                            "note": {
+                                                "minLength": 1,
+                                                "type": "string"
                                             },
                                             "preparation": {
                                                 "minLength": 1,

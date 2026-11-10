@@ -4577,6 +4577,9 @@ components:
                               displayText:
                                 type: string
                                 minLength: 1
+                              note:
+                                type: string
+                                minLength: 1
                               preparation:
                                 type: string
                                 minLength: 1
@@ -4760,6 +4763,9 @@ components:
                               unit:
                                 type: string
                               displayText:
+                                type: string
+                                minLength: 1
+                              note:
                                 type: string
                                 minLength: 1
                               preparation:
@@ -7446,6 +7452,9 @@ components:
                   unit:
                     type: string
                   displayText:
+                    type: string
+                    minLength: 1
+                  note:
                     type: string
                     minLength: 1
                   preparation:

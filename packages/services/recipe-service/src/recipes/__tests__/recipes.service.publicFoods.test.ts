@@ -15,7 +15,7 @@
  *     set-visibility or publish that moved the row in between must not slip past a check made on the stale state.
  */
 import { describe, expect, it, vi } from 'vitest';
-import { RecipeErrorCode } from '@kitchensink/recipe-core';
+import { RecipeErrorCode, RecipeVisibility } from '@kitchensink/recipe-core';
 
 import type { Principal } from '../../auth/principal.js';
 import type { FoodLookupArm } from '../../database/schema/foodLookupArm.js';
@@ -157,7 +157,7 @@ function serviceOver(dal: RecipesDal, says: Partial<Record<string, FoodSays>> = 
 }
 
 describe('RecipesService.create - public recipes hold no private food', () => {
-    it('refuses a published public recipe with a private line: 409, naming the line, nothing written', async () => {
+    it('refuses a published public recipe with a private line: 400, naming the line, nothing written', async () => {
         const create = vi.fn();
         const { service } = serviceOver(fakeRecipesDal({ create }));
 
@@ -346,7 +346,7 @@ describe('RecipesService.setVisibility - public recipes hold no private food', (
             .mockResolvedValue(aggregate({ visibility: 'private' }, [SHARED_LOOKUP, PRIVATE_LOOKUP]));
         const { service } = serviceOver(fakeRecipesDal({ findById, setVisibility }));
 
-        const error = await refusalOf(service.setVisibility(principal, 'r-1', 'public' as never, undefined));
+        const error = await refusalOf(service.setVisibility(principal, 'r-1', RecipeVisibility.PUBLIC, undefined));
 
         expect(error.code).toBe(RecipeErrorCode.PRIVATE_FOODS_ON_PUBLIC_RECIPE);
         expect(error.details).toEqual({ lines: [{ sortOrder: 1, foodId: PRIVATE_FOOD }] });
@@ -361,7 +361,7 @@ describe('RecipesService.setVisibility - public recipes hold no private food', (
             [PRIVATE_FOOD]: 'public',
         });
 
-        await service.setVisibility(principal, 'r-1', 'private' as never, undefined);
+        await service.setVisibility(principal, 'r-1', RecipeVisibility.PRIVATE, undefined);
 
         expect(setVisibility).toHaveBeenCalledTimes(1);
         expect(clearPublicFoodOwners).not.toHaveBeenCalled();
@@ -374,7 +374,7 @@ describe('RecipesService.setVisibility - public recipes hold no private food', (
             .mockResolvedValue(aggregate({ status: 'draft', visibility: 'private' }, [PRIVATE_LOOKUP]));
         const { service } = serviceOver(fakeRecipesDal({ findById, setVisibility }));
 
-        await service.setVisibility(principal, 'r-1', 'public' as never, undefined);
+        await service.setVisibility(principal, 'r-1', RecipeVisibility.PUBLIC, undefined);
 
         expect(setVisibility).toHaveBeenCalledTimes(1);
     });
@@ -385,7 +385,7 @@ describe('RecipesService.setVisibility - public recipes hold no private food', (
         const privateFoodLines = vi.fn(async () => [{ sortOrder: 0, foodId: PRIVATE_FOOD }]);
         const { service } = serviceOver(fakeRecipesDal({ findById, setVisibility, privateFoodLines }));
 
-        const error = await refusalOf(service.setVisibility(principal, 'r-1', 'public' as never, undefined));
+        const error = await refusalOf(service.setVisibility(principal, 'r-1', RecipeVisibility.PUBLIC, undefined));
 
         expect(error.code).toBe(RecipeErrorCode.PRIVATE_FOODS_ON_PUBLIC_RECIPE);
     });

@@ -43,6 +43,7 @@ import { toRecipeFormValues } from '../../form/wire.js';
 import { draftToSnapshot } from '../../versions/merge.js';
 import type { RebindLineSend } from '../lineCommit.js';
 import { isDiscardPromiseBrokenError } from '../../editor/discardPromiseBrokenError.js';
+import { refusedRowsOf } from '../../foodPage/privateFoodsRefusal.js';
 import {
     useRecipeEditor,
     type EditorExit,
@@ -3911,5 +3912,280 @@ describe('a Publish the server refuses for a private food in a public recipe', (
         // The refused record was dropped, once; it was never re-sent.
         expect(view.port.withdrawn).toEqual([seq]);
         expect(view.result.current.parked).toBeUndefined();
+    });
+});
+
+/**
+ * The device path behind the missing refusal sheet: the cook renames the private line, closes the editor (its exit
+ * checkpoint saves through the outbox), opens it again and presses Publish. The second editor must show the server's
+ * refusal exactly as one editor would: the lines for the sheet, the refused record dropped, nothing published.
+ */
+describe('a Publish refused for a private food after the editor was closed and opened again', () => {
+    const SALT = makeIngredientView({
+        ingredientId: '00000000-0000-4000-8000-000000000001',
+        name: 'Salt',
+        foodId: 'food_salt',
+    });
+    const MIX = makeIngredientView({
+        ingredientId: '00000000-0000-4000-8000-000000000002',
+        name: 'Smoked Chili Oil',
+        foodId: 'food_mix',
+        foodVisibility: 'private',
+    });
+    const PUBLIC_DRAFT = makeRecipeDetail({
+        id: 'rec_1',
+        currentVersion: 3,
+        status: RecipeStatus.DRAFT,
+        visibility: RecipeVisibility.PUBLIC,
+        cuisine: 'Italian',
+        ingredients: [SALT, MIX],
+    });
+    const RENAMED = { ...MIX, displayText: 'pie crust', note: '9 inch', preparation: 'unbaked' };
+    const SAVED = makeRecipeDetail({ ...PUBLIC_DRAFT, currentVersion: 4, ingredients: [SALT, RENAMED] });
+    const REFUSED = { kind: 'recipePrivateFoods', lines: [{ sortOrder: 1, foodId: 'food_mix' }] } as const;
+
+    /** The first editor: the private line renamed in the row editor, then closed (its exit checkpoint queues the save). */
+    async function closedAfterRename() {
+        const first = mount({ recipe: PUBLIC_DRAFT }, undefined, fakePort(), undefined);
+        act(() => {
+            first.result.current.dispatch({
+                kind: 'updateIngredientAt',
+                index: 1,
+                patch: { displayText: 'pie crust', note: '9 inch', preparation: 'unbaked' },
+            });
+        });
+        act(() => {
+            first.result.current.checkpoint('editorExit');
+        });
+        await settle();
+        const memento = first.drafts.saved.at(-1);
+        first.unmount();
+
+        expect(first.port.submitted.at(-1)).toMatchObject({ intentKind: 'update', localId: 'rec_1' });
+        expect(memento).toBeDefined();
+
+        return { port: first.port, saveSeq: first.port.lastSeq(), memento };
+    }
+
+    async function publishRefusedInBy(
+        second: ReturnType<typeof mount>,
+        port: ReturnType<typeof fakePort>,
+        refuse: (seq: number) => void,
+    ) {
+        act(() => {
+            second.result.current.publish('');
+        });
+        await settle();
+        await settle();
+        const seq = port.lastSeq();
+        act(() => {
+            refuse(seq);
+        });
+        await settle();
+        await settle();
+
+        return seq;
+    }
+
+    const publishRefusedIn = async (second: ReturnType<typeof mount>, port: ReturnType<typeof fakePort>) =>
+        publishRefusedInBy(second, port, (seq) => port.park(seq, 400, REFUSED));
+
+    function expectRefusalShown(second: ReturnType<typeof mount>, port: ReturnType<typeof fakePort>, seq: number) {
+        expect(port.submitted.at(-1)).toMatchObject({ payload: { input: { status: RecipeStatus.PUBLISHED } } });
+        expect(second.result.current.privateFoodRefusal?.lines).toEqual(REFUSED.lines);
+        // The sheet opens only on a row it can name (`RecipeEditorSurface`): the reopened draft must still carry the food.
+        expect(refusedRowsOf(REFUSED.lines, second.result.current.values)).toEqual([1]);
+        expect(port.withdrawn).toContain(seq);
+        expect(port.stateOf(seq)).toBeUndefined();
+        expect(second.result.current.parked).toBeUndefined();
+        expect(second.result.current.saveStatus.kind).not.toBe('syncFailed');
+        expect(second.result.current.state.status).toBe('editing');
+        expect(second.onExit).not.toHaveBeenCalled();
+    }
+
+    it('the save answered before the editor opened again', async () => {
+        const { port, saveSeq } = await closedAfterRename();
+        act(() => {
+            port.sync(saveSeq, SAVED);
+        });
+        const second = mount({ recipe: SAVED }, undefined, port, undefined);
+
+        expectRefusalShown(second, port, await publishRefusedIn(second, port));
+    });
+
+    it('the save still on the wire when the editor opened again from the stale read and the kept draft', async () => {
+        const { port, saveSeq, memento } = await closedAfterRename();
+        port.claim(saveSeq);
+        const second = mount(
+            { recipe: PUBLIC_DRAFT, ...(memento === undefined ? {} : { memento }) },
+            undefined,
+            port,
+            undefined,
+        );
+
+        act(() => {
+            second.result.current.publish('');
+        });
+        await settle();
+        act(() => {
+            port.sync(saveSeq, SAVED);
+        });
+        await settle();
+        await settle();
+        const seq = port.lastSeq();
+
+        expect(seq).not.toBe(saveSeq);
+        act(() => {
+            port.park(seq, 400, REFUSED);
+        });
+        await settle();
+        await settle();
+
+        expectRefusalShown(second, port, seq);
+    });
+
+    // ⛔ The Publish was sent by the editor the cook closed, and the server's refusal lands on the one they opened again.
+    // That editor did not send the write, so it kept the answer aside and showed the refused record as a parked save
+    // behind Try again: no sheet, and a Try again that can only be refused again (ruling a369e1852).
+    it('⛔ the refusal of a Publish the closed editor sent lands on the reopened one: the sheet, and the record dropped', async () => {
+        const first = mount({ recipe: PUBLIC_DRAFT }, undefined, fakePort(), undefined);
+        act(() => {
+            first.result.current.publish('');
+        });
+        await settle();
+        const refusedSeq = first.port.lastSeq();
+        first.unmount();
+        const { port } = first;
+        const second = mount({ recipe: PUBLIC_DRAFT }, undefined, port, undefined);
+        await settle();
+
+        act(() => {
+            port.park(refusedSeq, 400, REFUSED);
+        });
+        await settle();
+        await settle();
+
+        expect(second.result.current.privateFoodRefusal?.lines).toEqual(REFUSED.lines);
+        expect(refusedRowsOf(REFUSED.lines, second.result.current.values)).toEqual([1]);
+        expect(port.withdrawn).toEqual([refusedSeq]);
+        expect(port.stateOf(refusedSeq)).toBeUndefined();
+        expect(second.result.current.parked).toBeUndefined();
+        expect(second.result.current.saveStatus.kind).not.toBe('syncFailed');
+        expect(second.onExit).not.toHaveBeenCalled();
+    });
+
+    it('its own Publish refused before the outbox told it the record’s number: the sheet, and the lane clear', async () => {
+        const view = mount({ recipe: PUBLIC_DRAFT }, undefined, fakePort(), undefined);
+        const { port } = view;
+        const queue = port.submitExclusive.getMockImplementation();
+        port.submitExclusive.mockImplementationOnce(async (intent) => {
+            const outcome = await queue!(intent);
+            port.park(port.lastSeq(), 400, REFUSED);
+
+            return outcome;
+        });
+
+        act(() => {
+            view.result.current.publish('');
+        });
+        await settle();
+        await settle();
+        await settle();
+        const seq = port.lastSeq();
+
+        expect(view.result.current.privateFoodRefusal?.lines).toEqual(REFUSED.lines);
+        expect(port.stateOf(seq)).toBeUndefined();
+        expect(view.result.current.parked).toBeUndefined();
+        expect(view.result.current.state.status).toBe('editing');
+        expect(view.result.current.writeInFlight).toBe(false);
+    });
+
+    // ⛔ Nobody listens when the refusal lands, so nobody can withdraw it: the outbox drops it as it settles (ruling
+    // a369e1852 at the one writer). The editor opened afterwards shows an unpublished draft with no Try again, and its
+    // own Publish goes out fresh and meets the sheet.
+    it('⛔ the refusal lands with NO editor open: the reopened one offers no Try again, and its Publish shows the sheet', async () => {
+        const first = mount({ recipe: PUBLIC_DRAFT }, undefined, fakePort(), undefined);
+        act(() => {
+            first.result.current.publish('');
+        });
+        await settle();
+        const refusedSeq = first.port.lastSeq();
+        first.unmount();
+        const { port } = first;
+        act(() => {
+            port.drop(refusedSeq, 400, REFUSED);
+        });
+        const second = mount({ recipe: PUBLIC_DRAFT }, undefined, port, undefined);
+        await settle();
+
+        expect(port.stateOf(refusedSeq)).toBeUndefined();
+        expect(second.result.current.parked).toBeUndefined();
+        expect(second.result.current.saveStatus.kind).not.toBe('syncFailed');
+        expect(second.result.current.lifecycle).not.toBe('published');
+
+        const seq = await publishRefusedInBy(second, port, (sent) => port.drop(sent, 400, REFUSED));
+
+        expect(seq).not.toBe(refusedSeq);
+        expectRefusalShown(second, port, seq);
+    });
+
+    it('⛔ a slots-full refusal of a Publish the closed editor sent lands on the reopened one: the ask, and the record dropped', async () => {
+        const PRIVATE_DRAFT = { ...PUBLIC_DRAFT, visibility: RecipeVisibility.PRIVATE };
+        const first = mount({ recipe: PRIVATE_DRAFT }, undefined, fakePort(), undefined);
+        act(() => {
+            first.result.current.publish('');
+        });
+        await settle();
+        const refusedSeq = first.port.lastSeq();
+        first.unmount();
+        const { port } = first;
+        const second = mount({ recipe: PRIVATE_DRAFT }, undefined, port, undefined);
+        await settle();
+
+        act(() => {
+            port.park(refusedSeq, 403, { kind: 'recipeSlotsFull', used: 50, limit: 50 });
+        });
+        await settle();
+        await settle();
+
+        expect(second.result.current.publishBlocked).toEqual({ kind: 'noSlot', total: 50 });
+        expect(port.withdrawn).toEqual([refusedSeq]);
+        expect(port.stateOf(refusedSeq)).toBeUndefined();
+        expect(second.result.current.parked).toBeUndefined();
+    });
+
+    it('a refusal for ANOTHER recipe is not this editor’s to show or drop', async () => {
+        const other = mount({ recipe: { ...PUBLIC_DRAFT, id: 'rec_other' } }, undefined, fakePort(), undefined);
+        act(() => {
+            other.result.current.publish('');
+        });
+        await settle();
+        const otherSeq = other.port.lastSeq();
+        other.unmount();
+        const { port } = other;
+        const second = mount({ recipe: PUBLIC_DRAFT }, undefined, port, undefined);
+        await settle();
+
+        act(() => {
+            port.park(otherSeq, 400, REFUSED);
+        });
+        await settle();
+        await settle();
+
+        expect(second.result.current.privateFoodRefusal).toBeUndefined();
+        expect(port.withdrawn).toEqual([]);
+        expect(port.stateOf(otherSeq)).toBe('parked');
+    });
+
+    it('the save still queued when the editor opened again with the kept draft', async () => {
+        const { port, memento } = await closedAfterRename();
+        const second = mount(
+            { recipe: PUBLIC_DRAFT, ...(memento === undefined ? {} : { memento }) },
+            undefined,
+            port,
+            undefined,
+        );
+
+        expectRefusalShown(second, port, await publishRefusedIn(second, port));
     });
 });

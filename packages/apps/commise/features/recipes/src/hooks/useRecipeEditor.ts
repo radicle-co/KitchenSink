@@ -1019,14 +1019,12 @@ function withdrawRefused(ctx: EditorContext, error: unknown, operation: 'recipeR
 /**
  * The server refused the Publish for want of a private slot the client did not know was gone (another device used the last
  * one). It is no failure to retry: the write is withdrawn, so no Try again stands for it, and the cook is asked what they
- * want (owner ruling 2026-10-26) with the server's own limit. A refusal that is not for a Publish with Private chosen is
- * left parked as any other.
+ * want (owner ruling 2026-10-26) with the server's own limit. The drain drops it already (ruling a369e1852); the
+ * withdrawal covers a record parked before that rule.
  *
  * @sideEffect Withdraws the parked record and opens the dialog.
  */
 function slotsRefusedByServer(ctx: EditorContext, seq: number, limit: number): void {
-    ctx.lane.dispatch({ type: 'deferredTaken' });
-
     void ctx.opts.port.withdraw(seq).then(
         () => {
             ctx.lane.dispatch({ type: 'withdrawn', seq });
@@ -1046,8 +1044,6 @@ function slotsRefusedByServer(ctx: EditorContext, seq: number, limit: number): v
  * @sideEffect Withdraws the parked record and records the refusal for the sheet.
  */
 function privateFoodsRefusedByServer(ctx: EditorContext, seq: number, lines: readonly PrivateFoodLine[]): void {
-    ctx.lane.dispatch({ type: 'deferredTaken' });
-
     void ctx.opts.port.withdraw(seq).then(
         () => {
             ctx.lane.dispatch({ type: 'withdrawn', seq });
@@ -1064,12 +1060,15 @@ function onParked(ctx: EditorContext, event: Settlement, pending: OutstandingWri
     ctx.lane.dispatch({ type: 'parked', seq: event.seq });
 
     if (event.answer?.kind === 'recipeSlotsFull') {
+        ctx.lane.dispatch({ type: 'deferredTaken' });
         slotsRefusedByServer(ctx, event.seq, event.answer.limit);
 
         return;
     }
 
     if (event.answer?.kind === 'recipePrivateFoods') {
+        // What waited behind the refused write is not sent past it.
+        ctx.lane.dispatch({ type: 'deferredTaken' });
         privateFoodsRefusedByServer(ctx, event.seq, event.answer.lines);
 
         return;
@@ -1100,6 +1099,20 @@ function onSettled(ctx: EditorContext, event: Settlement): void {
     const pending = ctx.lane.get().outstanding;
 
     if (pending === undefined || event.seq !== pending.seq) {
+        // ⛔ A refusal of THIS recipe that another editor of it sent (the cook closed it and opened it again before the
+        // answer landed). Only kept aside, it would stand as a parked save behind a Try again that can only be refused
+        // again. It is ALSO kept below: if it is this editor's own write whose number has not come back yet, the replay
+        // clears the lane (the second withdrawal finds nothing).
+        if (event.entity === 'recipe' && event.localId === ctx.core.get().server.ref) {
+            if (event.answer?.kind === 'recipePrivateFoods') {
+                privateFoodsRefusedByServer(ctx, event.seq, event.answer.lines);
+            }
+
+            if (event.answer?.kind === 'recipeSlotsFull') {
+                slotsRefusedByServer(ctx, event.seq, event.answer.limit);
+            }
+        }
+
         // ⛔ The outbox may answer before `submitExclusive` has told the editor this record's number.
         if (event.entity === 'recipe') {
             ctx.lane.keepEarly(event.seq, event);

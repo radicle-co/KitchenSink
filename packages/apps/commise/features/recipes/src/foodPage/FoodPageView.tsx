@@ -90,7 +90,7 @@ const FoodShown: FC<FoodPageViewProps & { readonly state: FoodShownState }> = ({
         copy.actions.length === 0 ? null : (
             <div
                 data-actions
-                className="order-[90] flex flex-col-reverse gap-3 sm:order-none sm:flex-row sm:flex-wrap sm:justify-end"
+                className="order-[90] flex flex-col-reverse gap-3 @regular/main:order-none @regular/main:flex-row @regular/main:flex-wrap @regular/main:justify-end"
             >
                 {copy.actions.map((action) => {
                     const common = {
@@ -104,7 +104,7 @@ const FoodShown: FC<FoodPageViewProps & { readonly state: FoodShownState }> = ({
                     const label = action.key === 'ask' && ask === 'busy' ? m.ask.busy : m.action[action.key];
 
                     return (
-                        <div key={action.key} data-action className="w-full sm:w-auto">
+                        <div key={action.key} data-action className="w-full @regular/main:w-auto">
                             {action.variant === 'primary' ? (
                                 <Button variant="primary" icon={ACTION_ICON[action.key]} {...common}>
                                     {label}
@@ -118,12 +118,12 @@ const FoodShown: FC<FoodPageViewProps & { readonly state: FoodShownState }> = ({
                     );
                 })}
                 {copy.actionsNote === undefined ? null : (
-                    <p aria-hidden className="text-meta text-ink-muted sm:w-full sm:text-end">
+                    <p aria-hidden className="text-meta text-ink-muted @regular/main:w-full @regular/main:text-end">
                         {copy.actionsNote}
                     </p>
                 )}
                 {ask === 'failed' ? (
-                    <p role="alert" className="text-meta text-danger-text sm:w-full sm:text-end">
+                    <p role="alert" className="text-meta text-danger-text @regular/main:w-full @regular/main:text-end">
                         {m.ask.failed}
                     </p>
                 ) : null}
@@ -144,9 +144,9 @@ const FoodShown: FC<FoodPageViewProps & { readonly state: FoodShownState }> = ({
                 the actions fall to the end of the page by `order` (where the thumb is). From 600 the panel is the card
                 and the actions sit inside it, under its text. */}
             {copy.statement === undefined && actions === null ? null : (
-                <section className="order-2 contents sm:flex sm:flex-col sm:gap-3 sm:rounded-lg sm:bg-paper sm:p-4">
+                <section className="order-2 contents @regular/main:flex @regular/main:flex-col @regular/main:gap-3 @regular/main:rounded-lg @regular/main:bg-paper @regular/main:p-4">
                     {copy.statement === undefined ? null : (
-                        <div className="order-2 flex flex-col gap-1 rounded-lg bg-paper p-4 sm:order-none sm:rounded-none sm:bg-transparent sm:p-0">
+                        <div className="order-2 flex flex-col gap-1 rounded-lg bg-paper p-4 @regular/main:order-none @regular/main:rounded-none @regular/main:bg-transparent @regular/main:p-0">
                             <p className="text-card-title text-ink" tabIndex={-1}>
                                 {copy.statement}
                             </p>

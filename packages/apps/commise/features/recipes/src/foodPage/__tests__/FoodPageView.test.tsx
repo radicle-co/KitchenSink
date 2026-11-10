@@ -193,13 +193,13 @@ describe('FoodPageView (web): where the actions sit (spec section 5.3)', () => {
         const classes = group().className;
 
         expect(classes).toContain('flex-col-reverse');
-        expect(classes).toContain('sm:flex-row');
-        expect(classes).toContain('sm:justify-end');
+        expect(classes).toContain('@regular/main:flex-row');
+        expect(classes).toContain('@regular/main:justify-end');
 
         // Each action is a full-width cell on a phone and its content's width from 600.
         for (const name of ['Edit', 'Ask to make public']) {
             expect(screen.getByRole('button', { name }).closest('[data-action]')?.className).toContain(
-                'w-full sm:w-auto',
+                'w-full @regular/main:w-auto',
             );
         }
     });
@@ -221,8 +221,22 @@ describe('FoodPageView (web): where the actions sit (spec section 5.3)', () => {
 
         // The order classes that move the actions to the end of a phone page are reset together from 600, so the DOM order
         // (statement, then actions) is the reading and the visual order in the panel.
-        expect(statement.className).toContain('sm:order-none');
-        expect(actions.className).toContain('sm:order-none');
+        expect(statement.className).toContain('@regular/main:order-none');
+        expect(actions.className).toContain('@regular/main:order-none');
         expect(statement.nextElementSibling).toBe(actions);
+    });
+});
+
+describe('FoodPageView (web): the phone and tablet split uses the house container variant', () => {
+    it('switches on @regular/main: (600 on the content width), never the viewport sm: (640)', () => {
+        const { container } = render(
+            <FoodPageView {...makeViewProps(makeOwnState('private', { request: undefined }))} />,
+        );
+        const classes = Array.from(container.querySelectorAll('[class]'))
+            .map((node) => node.getAttribute('class'))
+            .join(' ');
+
+        expect(classes).toContain('@regular/main:flex-row');
+        expect(classes).not.toMatch(/(^|\s)sm:/u);
     });
 });

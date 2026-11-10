@@ -1,7 +1,9 @@
 /**
  * The row editor's field layout on the web (spec 5.5.2): below 600 "Name on the recipe" and "Note" stack, each full
  * width, in lock step with the native leaf. The pair used to share a row from about 344 px of content, so on a 390 px
- * phone the two boxes sat side by side. jsdom has no media queries, so the contract is the classes.
+ * phone the two boxes sat side by side. jsdom has no media queries, so the contract is the classes: the house container variant (`@regular/main:`, 600 on the
+ * width the content gets), never the viewport's `sm:` (640). The phone sheet is portalled outside `<main>`, so it stays
+ * stacked, and the inline panel on a tablet sits inside it.
  */
 import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -63,7 +65,8 @@ describe('IngredientLineEditor (web): the Name and Note layout', () => {
 
         expect(pairOf(m.rowNoteLabel)).toBe(pair);
         expect(pair.className).toContain('flex-col');
-        expect(pair.className).toContain('sm:flex-row');
+        expect(pair.className).toContain('@regular/main:flex-row');
+        expect(pair.className).not.toMatch(/(^|\s)sm:/u);
         expect(pair.className).not.toMatch(/(^|\s)flex-wrap/u);
     });
 

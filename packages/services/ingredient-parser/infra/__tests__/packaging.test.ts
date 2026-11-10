@@ -51,6 +51,7 @@
  * predicate were `() => []` are marked, and each has a negative control beside it.
  */
 import { Architecture } from 'aws-cdk-lib/aws-lambda';
+import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
@@ -351,6 +352,18 @@ describe('the pip target and the deployed function describe the same machine', (
     // move together" is not a control; this is.
     it('builds wheels for the interpreter the pinned runtime provides', () => {
         expect(`python${PIP_TARGET.pythonVersion}`).toBe(PYTHON_LAMBDA_RUNTIME.name);
+    });
+
+    // CI's `actions/setup-python` reads `pythonVersion.txt` (`python-version-file`), so the runner that installs the
+    // engine, runs the handler tier and builds this asset is the Lambda's interpreter, not whatever `ubuntu-latest`
+    // ships (26.04's python3.14 cannot install the engine). One version line: setup-python installs every line it finds.
+    it('pins CI to the interpreter the pinned runtime provides', () => {
+        const versions = readFileSync(path.join(packageRoot, 'pythonVersion.txt'), 'utf8')
+            .split('\n')
+            .map((line) => line.trim())
+            .filter((line) => line !== '' && !line.startsWith('#'));
+
+        expect(versions).toEqual([PIP_TARGET.pythonVersion]);
     });
 
     it('builds wheels for the CPU the function is declared to run on', () => {

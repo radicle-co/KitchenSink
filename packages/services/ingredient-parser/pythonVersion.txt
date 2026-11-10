@@ -1,0 +1,5 @@
+# The Python CI runs the CRF engine on: the Lambda's own interpreter (PYTHON_LAMBDA_RUNTIME, ADR-0025).
+# Read by `actions/setup-python`'s `python-version-file` in every job that installs the engine or builds its
+# asset; `infra/__tests__/packaging.test.ts` holds it equal to the runtime pin, and
+# `repoGuards/__tests__/workflowPythonVersion.test.ts` holds every such job to it. Exactly one version line.
+3.13

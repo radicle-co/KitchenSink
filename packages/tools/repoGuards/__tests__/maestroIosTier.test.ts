@@ -527,14 +527,16 @@ describe('⛔ no secret reaches the build, and no unmasked log leaves the runner
      */
     it('the build preparation unsets the runner OIDC request token and URL', () => {
         const mobileDir = mkdtempSync(join(tmpdir(), 'test-app-prepare-'));
-        const script = readFileSync(BUILD_SCRIPT, 'utf8').replace(/^test_app_main "\$@"$/mu, '');
+        // SOURCES the real file, so its own path resolution runs as it does in CI. Inlining the text under `bash -c`
+        // left BASH_SOURCE empty: the paths fell back to the cwd on bash <= 5.2 and failed on 5.3 (`cd ""`).
         const result = spawnSync(
             'bash',
             [
                 '-c',
-                `${script}\nTEST_APP_MOBILE_DIR="$1"\ntest_app_prepare_build android\n` +
+                'source "$1"\nTEST_APP_MOBILE_DIR="$2"\ntest_app_prepare_build android\n' +
                     'echo "token=${ACTIONS_ID_TOKEN_REQUEST_TOKEN-unset} url=${ACTIONS_ID_TOKEN_REQUEST_URL-unset}"',
                 'prepare',
+                BUILD_SCRIPT,
                 mobileDir,
             ],
             {
@@ -554,6 +556,8 @@ describe('⛔ no secret reaches the build, and no unmasked log leaves the runner
         rmSync(mobileDir, { recursive: true, force: true });
 
         expect(result.status, result.stderr).toBe(0);
+        // Empty, not just a zero exit: the old inline form printed `BASH_SOURCE[0]: unbound variable` here and passed.
+        expect(result.stderr).toBe('');
         expect(result.stdout.trim()).toBe('token=unset url=unset');
     });
 

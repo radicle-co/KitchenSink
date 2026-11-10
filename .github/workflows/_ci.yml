@@ -790,6 +790,11 @@ jobs:
             - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
               with:
                   node-version: 24
+            # The Lambda's Python, never the image's: `ubuntu-latest` moved to 26.04 (python3.14), which the engine
+            # does not support (`workflowPythonVersion.test.ts` holds every Python job to this file).
+            - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+              with:
+                  python-version-file: packages/services/ingredient-parser/pythonVersion.txt
             - name: Install the pinned Python toolchain
               run: python3 -m pip install --user --disable-pip-version-check --requirement requirementsDev.txt
             # ⛔ Three SEPARATE steps, not one `&&` chain. A chain stops at the first failure, so a lint
@@ -1078,7 +1083,12 @@ jobs:
             #
             # So absence is made LOUD here rather than invisible. The install is derived from
             # `requirements.txt` (never a literal pin — see the cookbook-import step's note) and uses
-            # `python3 -m pip` so it lands in the interpreter the assertion then imports from.
+            # `python3 -m pip` so it lands in the interpreter the assertion then imports from, which is the
+            # Lambda's Python set up from the one version file, never the image's (`workflowPythonVersion.test.ts`).
+            - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+              if: matrix.group == 'services'
+              with:
+                  python-version-file: packages/services/ingredient-parser/pythonVersion.txt
             - name: Install the CRF ingredient parser (the engine the parity guard observes)
               if: matrix.group == 'services'
               run: python3 -m pip install --user --requirement packages/services/ingredient-parser/requirements.txt
@@ -1877,6 +1887,11 @@ jobs:
             # The CRF half of the parse comparison needs the Python model installed, or its tier resolves to
             # `describe.skip` and proves nothing — a tier CI calls but cannot run is a tier that does not
             # exist (§7.1). It is a pure pip install: no service, no Docker, no network at test time.
+            # On the Lambda's Python, never the image's, and the packaging tier below builds the asset on it too, so
+            # its stdlib check reads 3.13's module list (`workflowPythonVersion.test.ts`).
+            - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+              with:
+                  python-version-file: packages/services/ingredient-parser/pythonVersion.txt
             - name: Install the CRF ingredient parser (cookbook-import parse comparison)
               # ⚠️ PINNED to the version the comparison was measured against. The CRF model file ships with the
               # package, so an unpinned upgrade silently changes what "the CRF parser said" means and would

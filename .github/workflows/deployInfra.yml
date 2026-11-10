@@ -891,6 +891,11 @@ jobs:
                   account-id: ${{ vars.AWS_ACCOUNT_ID }}
                   region: ${{ vars.DEFAULT_AWS_REGION }}
                   session-minutes: '180'
+            # The synth builds the asset with the HOST python3 (pip, the NLTK download, and the handler-import
+            # check against `sys.stdlib_module_names`), so it must be the Lambda's Python, not the image's.
+            - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+              with:
+                  python-version-file: packages/services/ingredient-parser/pythonVersion.txt
             - uses: ./.github/actions/infra-package
               with:
                   directory: packages/services/ingredient-parser/infra

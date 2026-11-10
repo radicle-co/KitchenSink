@@ -61,7 +61,12 @@
 import type { ErrorReporter } from '@commise/features-core';
 import type { Locale } from '@commise/i18n';
 import { useMessages } from '@commise/i18n/react';
-import { RecipeVisibility, type RecipeDetail, type VersionConflictSide } from '@kitchensink/recipe-core';
+import {
+    RecipeVisibility,
+    type PrivateFoodLine,
+    type RecipeDetail,
+    type VersionConflictSide,
+} from '@kitchensink/recipe-core';
 import { isPrivateSlotsFullError, isVersionConflictError } from '@kitchensink/recipe-service-client';
 import {
     isLocalRef,
@@ -157,7 +162,16 @@ export type EditorWriteAnswer =
     | { readonly kind: 'recipeDeleted'; readonly id: string }
     | { readonly kind: 'recipeConflict'; readonly server: VersionConflictSide; readonly base?: VersionConflictSide }
     /** The server refused a Private for want of a slot (`403 PRIVATE_SLOTS_FULL`): what it counted, and the cook's limit. */
-    | { readonly kind: 'recipeSlotsFull'; readonly used: number; readonly limit: number };
+    | { readonly kind: 'recipeSlotsFull'; readonly used: number; readonly limit: number }
+    /** The server refused a public recipe that holds foods only its author can see (`400 PRIVATE_FOODS_ON_PUBLIC_RECIPE`): the lines. */
+    | { readonly kind: 'recipePrivateFoods'; readonly lines: readonly PrivateFoodLine[] };
+
+/** The server's refusal of a private food in a public recipe, as the editor holds it for its sheet. */
+export interface PrivateFoodRefusal {
+    readonly lines: readonly PrivateFoodLine[];
+    /** 1 for the first refusal, and one more for each after it. */
+    readonly count: number;
+}
 
 /** What `submitExclusive` did (the app's `ExclusiveSubmit`, structurally). */
 export type EditorSubmitOutcome =
@@ -310,6 +324,13 @@ export interface UseRecipeEditorResult {
      * ruling 2026-10-26). `undefined` while no ask stands. Raised by a Publish only, never by a save.
      */
     readonly publishBlocked: PublishBlocked | undefined;
+    /**
+     * The server's refusal of a public recipe that holds a private food (designAnswers 2026-11-09): the lines it named, and a
+     * count that is new for every refusal so a sheet the cook dismissed opens again for the next one. The refused write is
+     * dropped from the outbox as it lands, so nothing stands in the lane and no Try again is offered; the cook's next Publish
+     * or Save changes sends the current draft. `undefined` until the server has refused one.
+     */
+    readonly privateFoodRefusal: PrivateFoodRefusal | undefined;
     readonly lifecycle: RecipeLifecycle;
     /** The recipe's server id, once it has one. */
     readonly recipeId: string | undefined;
@@ -394,18 +415,13 @@ export interface UseRecipeEditorResult {
     };
 }
 
-/** Why a Private is refused for an imported public-web recipe: `premium` (Pro would allow it) or `final` (paid features hidden). */
-export type PublicOnlyRefusal = Exclude<PrivateRefusal, 'slots'>;
-
 /**
  * Why a Publish with Private chosen did not go out, and asks the cook what to do (owner ruling 2026-10-26): every private
- * slot is used (`noSlot`; `total` is the limit when the SERVER said it), or the recipe is an imported public-web one that
- * needs Pro and a change of the cook's own (`webImport`; `refusal` `final` is the paid-features-hidden variant, which sells
- * nothing). Nothing turns a private recipe public on its own, so a kept Private draft is asked about either way.
+ * slot is used (`noSlot`; `total` is the limit when the SERVER said it). Nothing turns a private recipe public on its own,
+ * so a kept Private draft is asked about. (An imported public-web recipe is no longer a second case: it uses a slot like
+ * any other, ADR-0077 section 6.)
  */
-export type PublishBlocked =
-    | { readonly kind: 'noSlot'; readonly total?: number }
-    | { readonly kind: 'webImport'; readonly refusal: PublicOnlyRefusal };
+export type PublishBlocked = { readonly kind: 'noSlot'; readonly total?: number };
 
 /** An answer on the settlement bus. */
 type Settlement = SettlementEvent<EditorWriteAnswer>;
@@ -445,6 +461,7 @@ interface EditorContext {
     /** The standing publish-as-public ask, if any (`writeVisibilityFirst` raises it). */
     readonly publishBlocked: PublishBlocked | undefined;
     readonly setPublishBlocked: Dispatch<SetStateAction<PublishBlocked | undefined>>;
+    readonly setPrivateFoodRefusal: Dispatch<SetStateAction<PrivateFoodRefusal | undefined>>;
     readonly clearResume: () => void;
 }
 
@@ -739,12 +756,8 @@ function stopVisibilityStep(ctx: EditorContext, error: unknown): void {
  * that fails sends no Publish and stops the save the way a failed held re-pick does (`drainFailed`: the alert with Try
  * again). A recipe the server does not hold yet needs none: its create carries the visibility.
  *
- * ⛔ THE SAME STEP OWNS THE LAST CASE OF "nothing turns a private recipe public on its own" (owner ruling 2026-10-26). A
- * Private the server is KNOWN to refuse for the Premium rule (`visibilityFollowUp` says `refused`: an imported public-web
- * recipe) is not sent, and the Publish does not go out public either: it STOPS and raises the ask
- * ({@link UseRecipeEditorResult.publishBlocked}). Nothing is sent until the cook answers: "Publish as public" moves the
- * draft to Public and runs the Publish again (the follow-up is then `none`), "Keep as draft" clears the ask. The slots
- * refusal is not asked here: the gate has already stopped that Publish (`slotsFull`).
+ * A Private the server is KNOWN to refuse (`visibilityFollowUp` says `refused`: every slot used) is not sent here: the
+ * gate has already stopped that Publish (`slotsFull`) and raised the ask ({@link UseRecipeEditorResult.publishBlocked}).
  *
  * @pattern Pipeline step — the first stage of a first Publish, holding the lane like the held re-picks' command queue
  * @returns Whether the step took over: the Publish runs again when it answers. @sideEffect Sends the visibility write.
@@ -757,14 +770,6 @@ function writeVisibilityFirst(ctx: EditorContext, trigger: CheckpointTrigger): b
     }
 
     const followUp = visibilityFollowUp(draft.visibility, server.recipe, ctx.opts.privateRefusal);
-
-    // Whether or not paid features are shown (`final` is the hidden variant): a kept Private is never published public
-    // without the cook's answer. A cook who moved the choice to Public themselves has no follow-up and is not asked.
-    if (followUp.kind === 'refused' && followUp.refusal !== 'slots') {
-        ctx.setPublishBlocked({ kind: 'webImport', refusal: followUp.refusal });
-
-        return true;
-    }
 
     if (followUp.kind !== 'send') {
         return false;
@@ -1012,33 +1017,81 @@ function withdrawRefused(ctx: EditorContext, error: unknown, operation: 'recipeR
 }
 
 /**
- * The server refused the Publish for want of a private slot the client did not know was gone (another device used the last
- * one). It is no failure to retry: the write is withdrawn, so no Try again stands for it, and the cook is asked what they
- * want (owner ruling 2026-10-26) with the server's own limit. A refusal that is not for a Publish with Private chosen is
- * left parked as any other.
+ * The refused write leaves the outbox, then `show` tells the cook. Try again would send the same refusal, so no Try again
+ * stands for it (a record may be dropped, never re-sent: ADR-0057). The drain drops such a refusal as it lands (ruling
+ * a369e1852), so a `dropped` record is already out of the log and nothing is withdrawn; a record parked before that rule
+ * is withdrawn first.
  *
- * @sideEffect Withdraws the parked record and opens the dialog.
+ * @sideEffect Withdraws a parked record; clears the lane; runs `show`.
  */
-function slotsRefusedByServer(ctx: EditorContext, seq: number, limit: number): void {
-    ctx.lane.dispatch({ type: 'deferredTaken' });
+function whenRefusedWriteLeaves(ctx: EditorContext, event: Settlement, show: () => void): void {
+    const left = (): void => {
+        ctx.lane.dispatch({ type: 'withdrawn', seq: event.seq });
+        show();
+    };
 
-    void ctx.opts.port.withdraw(seq).then(
-        () => {
-            ctx.lane.dispatch({ type: 'withdrawn', seq });
-            ctx.setPublishBlocked({ kind: 'noSlot', total: limit });
-        },
-        (error: unknown) => {
-            withdrawRefused(ctx, error, 'recipeRetry');
-        },
-    );
+    if (event.outcome === 'dropped') {
+        left();
+
+        return;
+    }
+
+    void ctx.opts.port.withdraw(event.seq).then(left, (error: unknown) => {
+        withdrawRefused(ctx, error, 'recipeRetry');
+    });
 }
 
-/** A parked answer for the outstanding write. @sideEffect */
-function onParked(ctx: EditorContext, event: Settlement, pending: OutstandingWrite): void {
-    ctx.lane.dispatch({ type: 'parked', seq: event.seq });
+/**
+ * The server refused the Publish for want of a private slot the client did not know was gone (another device used the last
+ * one). It is no failure to retry, so the cook is asked what they want (owner ruling 2026-10-26) with the server's own
+ * limit.
+ *
+ * @sideEffect The refused write leaves the outbox and the dialog opens.
+ */
+function slotsRefusedByServer(ctx: EditorContext, event: Settlement, limit: number): void {
+    whenRefusedWriteLeaves(ctx, event, () => {
+        ctx.setPublishBlocked({ kind: 'noSlot', total: limit });
+    });
+}
+
+/**
+ * The server refused a public recipe that holds a private food (designAnswers 2026-11-09, item 4), and the cook is shown the
+ * lines. The draft is untouched, so the next Publish or Save changes sends it as it is by then.
+ *
+ * @sideEffect The refused write leaves the outbox and the refusal is recorded for the sheet.
+ */
+function privateFoodsRefusedByServer(ctx: EditorContext, event: Settlement, lines: readonly PrivateFoodLine[]): void {
+    whenRefusedWriteLeaves(ctx, event, () => {
+        ctx.setPrivateFoodRefusal((previous) => ({ lines, count: (previous?.count ?? 0) + 1 }));
+    });
+}
+
+/** A parked or dropped answer for the outstanding write. @sideEffect */
+function onRefused(ctx: EditorContext, event: Settlement, pending: OutstandingWrite): void {
+    // A dropped record is already out of the log: it never waits for the cook.
+    if (event.outcome === 'parked') {
+        ctx.lane.dispatch({ type: 'parked', seq: event.seq });
+    }
 
     if (event.answer?.kind === 'recipeSlotsFull') {
-        slotsRefusedByServer(ctx, event.seq, event.answer.limit);
+        ctx.lane.dispatch({ type: 'deferredTaken' });
+        slotsRefusedByServer(ctx, event, event.answer.limit);
+
+        return;
+    }
+
+    if (event.answer?.kind === 'recipePrivateFoods') {
+        // What waited behind the refused write is not sent past it.
+        ctx.lane.dispatch({ type: 'deferredTaken' });
+        privateFoodsRefusedByServer(ctx, event, event.answer.lines);
+
+        return;
+    }
+
+    if (event.outcome === 'dropped') {
+        // Out of the log already, with an answer nothing above names: it waits for no one, and nothing sends past it.
+        ctx.lane.dispatch({ type: 'deferredTaken' });
+        ctx.lane.dispatch({ type: 'withdrawn', seq: event.seq });
 
         return;
     }
@@ -1068,6 +1121,20 @@ function onSettled(ctx: EditorContext, event: Settlement): void {
     const pending = ctx.lane.get().outstanding;
 
     if (pending === undefined || event.seq !== pending.seq) {
+        // ⛔ A refusal of THIS recipe that another editor of it sent (the cook closed it and opened it again before the
+        // answer landed). Only kept aside, it would stand as a parked save behind a Try again that can only be refused
+        // again. It is ALSO kept below: if it is this editor's own write whose number has not come back yet, the replay
+        // clears the lane (the second withdrawal finds nothing).
+        if (event.entity === 'recipe' && event.localId === ctx.core.get().server.ref) {
+            if (event.answer?.kind === 'recipePrivateFoods') {
+                privateFoodsRefusedByServer(ctx, event, event.answer.lines);
+            }
+
+            if (event.answer?.kind === 'recipeSlotsFull') {
+                slotsRefusedByServer(ctx, event, event.answer.limit);
+            }
+        }
+
         // ⛔ The outbox may answer before `submitExclusive` has told the editor this record's number.
         if (event.entity === 'recipe') {
             ctx.lane.keepEarly(event.seq, event);
@@ -1077,7 +1144,7 @@ function onSettled(ctx: EditorContext, event: Settlement): void {
     }
 
     if (event.outcome !== 'synced') {
-        onParked(ctx, event, pending);
+        onRefused(ctx, event, pending);
 
         return;
     }
@@ -1875,6 +1942,7 @@ export function useRecipeEditor(seed: EditorSeed, opts: UseRecipeEditorOptions):
         entryText: '',
     });
     const [publishBlocked, setPublishBlocked] = useState<PublishBlocked | undefined>(undefined);
+    const [privateFoodRefusal, setPrivateFoodRefusal] = useState<PrivateFoodRefusal | undefined>(undefined);
     const ctx: EditorContext = {
         core: stores.core,
         lane: stores.lane,
@@ -1888,6 +1956,7 @@ export function useRecipeEditor(seed: EditorSeed, opts: UseRecipeEditorOptions):
         setGate,
         publishBlocked,
         setPublishBlocked,
+        setPrivateFoodRefusal,
         clearResume: () => {
             setResume(undefined);
         },
@@ -1936,6 +2005,7 @@ export function useRecipeEditor(seed: EditorSeed, opts: UseRecipeEditorOptions):
         refusedFields: gate.refused,
         publishAttempted: gate.attempted,
         publishBlocked,
+        privateFoodRefusal,
         lifecycle: view.lifecycle,
         recipeId: view.serverId,
         saveStatus: view.saveStatus,

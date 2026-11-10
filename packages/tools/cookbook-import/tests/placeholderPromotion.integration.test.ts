@@ -132,7 +132,10 @@ function makeNamingEngines(): ParseEnginePorts {
             engineVersion: 'amazon.nova-micro-v1:0@v1',
             async parse(lines): Promise<readonly EngineAnswer[]> {
                 return lines.map((line) =>
-                    promoteLlmParse({ statedMeasure: '1 pound', foods: [{ name: nameFor(line), prep: null }] }, line),
+                    promoteLlmParse(
+                        { statedMeasure: '1 pound', foods: [{ name: nameFor(line), prep: null, display: 'food' }] },
+                        line,
+                    ),
                 );
             },
         },

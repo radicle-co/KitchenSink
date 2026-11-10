@@ -98,11 +98,15 @@ describe('toImportedIngredientLine', () => {
         expect(toImportedIngredientLine({ ...parsed, unit: null }, ingredient)).not.toHaveProperty('unit');
     });
 
-    it('keeps `notes` carrying the clause too — display and transcription are different jobs', () => {
-        // Migration 0024 calls `display_text` a display OVERRIDE and refuses it as a substitute for
-        // `source_line`. They hold the same string here and are not the same fact; changing what an
-        // imported line DISPLAYS is a separate decision from what the gate verifies against.
-        expect(toImportedIngredientLine(parsed, ingredient).notes).toBe('2 cups all-purpose flour, sifted');
+    it('sends the clause as `sourceLine` ONLY: no parse answered `display`, so the line shows its food’s name', () => {
+        // Migration 0024 refuses `display_text` as a substitute for `source_line`, and the owner ruling of 2026-11-08
+        // makes `displayText` the food words a parse chose to show. An importer with no such answer sends none,
+        // instead of the whole clause it used to send as `notes`.
+        const line = toImportedIngredientLine(parsed, ingredient);
+
+        expect(line).not.toHaveProperty('notes');
+        expect(line).not.toHaveProperty('displayText');
+        expect(line.sourceLine).toBe('2 cups all-purpose flour, sifted');
     });
 });
 
@@ -214,5 +218,60 @@ describe('⛔ a restated line carries what the source PRINTED', () => {
         // The committed copy of the service's authored zod (ADR-0014), not this tool's belief about it: a
         // `strictObject` member means a stated measure carrying a stray key would be refused at the boundary.
         expect(() => createRecipeIngredientInputSchema.parse(line)).not.toThrow();
+    });
+});
+
+/**
+ * Owner ruling 2026-11-08 (ruling 2): a dimension in parentheses is a note on the food and never the unit; a package
+ * size stays part of the unit, word for word. The importer applies the same rule as a paste, from the source's own words
+ * (`pastedLineRowOf`), so a book line and a pasted line cannot disagree.
+ */
+describe('toImportedIngredientLine: parentheticals (owner ruling 2026-11-08)', () => {
+    it('a dimension the parser read as the unit is not the unit', () => {
+        const line = toImportedIngredientLine(
+            {
+                raw: '1 (9 inch) double-crust pie pastry',
+                name: 'double-crust pie pastry',
+                quantity: { kind: 'exact', value: 1 },
+                unit: 'inch',
+            },
+            ingredient,
+        );
+
+        expect(line).not.toHaveProperty('unit');
+    });
+
+    it('a package size stays the unit, as the source printed it', () => {
+        const line = toImportedIngredientLine(
+            {
+                raw: '1 (28 ounce) can crushed tomatoes',
+                name: 'crushed tomatoes',
+                quantity: { kind: 'exact', value: 1 },
+                unit: 'ounce',
+            },
+            ingredient,
+        );
+
+        expect(line.unit).toBe('(28 ounce) can');
+    });
+
+    it('leaves a line with no parenthetical exactly as it was', () => {
+        expect(toImportedIngredientLine(parsed, ingredient).unit).toBe('cup');
+    });
+
+    it('reads the SOURCE words, not the normalized clause, when the scanner kept both', () => {
+        const line = toImportedIngredientLine(
+            {
+                raw: '1 (28 ounce) can crushed tomatoes',
+                sourceText: 'one (28 ounce) can crushed tomatoes',
+                name: 'crushed tomatoes',
+                quantity: { kind: 'exact', value: 1 },
+                unit: 'ounce',
+            },
+            ingredient,
+        );
+
+        // "one" is not a digit amount, so the printed source states no parenthetical this rule reads.
+        expect(line.unit).toBe('ounce');
     });
 });

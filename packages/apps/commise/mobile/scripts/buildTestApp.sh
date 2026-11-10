@@ -508,4 +508,9 @@ test_app_main() {
     esac
 }
 
-test_app_main "$@"
+# Run only when executed (`bash buildTestApp.sh …`, every caller). A test that sources the FILE gets the functions and a
+# real BASH_SOURCE, so the paths above resolve; one that inlined the text under `bash -c` had none, and bash 5.3 refuses
+# the resulting `cd ""` that older shells silently ran in the cwd.
+if [ "${BASH_SOURCE[0]}" = "$0" ]; then
+    test_app_main "$@"
+fi

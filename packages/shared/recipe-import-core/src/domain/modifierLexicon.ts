@@ -172,6 +172,10 @@ const ADJECTIVES: ReadonlySet<string> = new Set([
     // was never a claim about English grammar — a purchasable FORM is identity whatever its morphology.
     'candied',
     'canned',
+    // Part of the food's name, not a step the cook does: `black-eyed peas`, `corned beef` (dogfooding 2026-11-09).
+    // `black-eyed` is listed whole because `head()` would read it as `eyed`.
+    'black-eyed',
+    'corned',
     'granulated',
     'imported',
     'powdered',
@@ -219,6 +223,16 @@ const ADJECTIVES: ReadonlySet<string> = new Set([
     'wild',
     'young',
 ]);
+
+/**
+ * Nouns the `-ed` suffix rule would file as participles, matched as the END of a word so the compounds follow
+ * (`flaxseed`, `grapeseed`, `seaweed`, `dillweed`).
+ *
+ * ⛔ TRAP 3, found in production on 2026-11-08: `1/4 teaspoon celery seed` was stored as `celery` with the preparation
+ * `seed`. A rule of "`-eed` is not a participle" would be wrong: `pureed` and `sauteed` are participles (the NYT
+ * ingredient corpus has 100 and 9 of them). No participle ends in `seed` or `weed`.
+ */
+const NOUN_TAILS: readonly string[] = ['seed', 'weed'];
 
 /** Adverbs that qualify a modifier without being one. `-ly` catches the rest. */
 const QUALIFIERS: ReadonlySet<string> = new Set(['well']);
@@ -303,7 +317,7 @@ export function classifyModifier(word: string): ModifierRole {
         return 'qualifier';
     }
 
-    if (key.endsWith('ed') && key.length > 3) {
+    if (key.endsWith('ed') && key.length > 3 && !NOUN_TAILS.some((tail) => key.endsWith(tail))) {
         return 'preparation';
     }
 

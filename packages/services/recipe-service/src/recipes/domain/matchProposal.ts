@@ -8,7 +8,7 @@
  *  1. **Which judgement a proposal asks for** ({@link matchJudgementOf}). The key must equal what the save path computes
  *     if the cook keeps this food, so a kept line is never asked about twice. The measure is recipe-core's
  *     `pastedLineRowOf`, the rule the editor saves a pasted row with: the cook's own words (`2 tbsp` keys unit
- *     `tbsp`, not the parse's `tablespoon`), and only the FIRST food of a line carries it.
+ *     `tbsp`, not the parse's `tablespoon`), and only the FIRST food of a line carries an amount.
  *     The request itself ({@link proposalMessageOf}) is built from that judgement, and the key the row stores is the
  *     key of that MESSAGE ({@link proposalKeyOf}), the derivation the worker writes the verdict under.
  *  2. **Whether the gate may be asked** ({@link proposalVerificationDecision}). Identity is ALWAYS asked for a paste
@@ -74,7 +74,7 @@ export interface ParsedLineMeasure {
  * The judgement the proposal for one food of a parsed line asks for, keyed as the save path would key the kept line.
  *
  * @param line - The parsed line: its text and measure.
- * @param foodIndex - Which food of the line. Only the first carries the measure (`pastedLineRowOf`).
+ * @param foodIndex - Which food of the line. Only the first carries an amount (`pastedLineRowOf`).
  * @param phrase - That food's phrase, whose leading size word the editor saves as the unit.
  * @param foodRefId - The proposed food's id at its forward end (root or variant).
  * @returns The identity, or `undefined` for a blank line. Pure.
@@ -85,7 +85,8 @@ export function matchJudgementOf(
     phrase: string,
     foodRefId: string,
 ): VerifiedLineIdentity | undefined {
-    const saved = pastedLineRowOf(line, foodIndex, phrase);
+    // `display` only decides `displayText`; the key covers the quantity and unit, which it never changes.
+    const saved = pastedLineRowOf({ ...line, display: null }, foodIndex, phrase);
 
     return verifiedLineIdentity(
         {
@@ -139,7 +140,7 @@ export function matchJudgementDigestOf(
     },
     digest: HexDigest,
 ): string {
-    const measure = pastedLineRowOf(slot.line, slot.foodIndex, slot.phrase);
+    const measure = pastedLineRowOf({ ...slot.line, display: null }, slot.foodIndex, slot.phrase);
     const [low, high] = boundsOf(measure.quantity);
 
     return `${MATCH_JUDGEMENT_VERSION}:${digest(

@@ -9,6 +9,7 @@ import type {
     CreateAuthoredFoodRequest,
     FoodNutritionBatchResponse,
     FoodResponse,
+    UpdateAuthoredFoodRequest,
 } from '@kitchensink/schema-food';
 
 /** `GET /api/v1/foods/nutrition` — batch per-100g nutrition + normalized portions (plan U8). */
@@ -27,3 +28,14 @@ export type CreateAuthoredFoodResult =
 
 /** Outcome of `corroborateFood` (plan U19) — the food's (possibly unchanged) status after the trigger. */
 export type CorroboratedResult = CorroboratedResponse;
+
+/** Input to `updateAuthoredFood`: the service-published request type. */
+export type UpdateAuthoredFoodInput = UpdateAuthoredFoodRequest;
+
+/**
+ * Outcome of `updateAuthoredFood`: a private food's edit APPLIED at once (`200`), or a public food's edit was saved as a
+ * version that waits for staff (`202 editPending`, ADR-0029 section 7). Readers keep the approved version until then.
+ */
+export type UpdateAuthoredFoodResult =
+    | { readonly kind: 'applied'; readonly food: FoodResponse }
+    | { readonly kind: 'editPending'; readonly versionNumber: number };

@@ -134,6 +134,10 @@ describe('the local parse leg, from the offline substitute to the saved row', ()
         const [food] = proposal.foods;
 
         expect(food?.name).toBe(name);
-        expect(pastedLineRowOf(proposal, 0, food?.name ?? '')).toEqual({ quantity, unit: 'cups', name });
+        expect(pastedLineRowOf({ ...proposal, sourceLine: proposal.raw, display: null }, 0, food?.name ?? '')).toEqual({
+            quantity,
+            unit: 'cups',
+            name,
+        });
     });
 });

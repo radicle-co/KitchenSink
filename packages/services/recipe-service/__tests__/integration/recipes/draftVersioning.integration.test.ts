@@ -150,6 +150,8 @@ beforeAll(async () => {
                         visibility: stored.visibility as RecipeVisibility,
                         status: stored.status as RecipeStatus,
                     }),
+                    // ADR-0029 section 4: the database holds no private food in these suites.
+                    privateFoodLines: async () => [],
                     transaction: async (work: (tx: unknown) => Promise<unknown>) => work({ __tx: true }),
                 },
             },

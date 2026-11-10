@@ -51,17 +51,20 @@ vi.mock('react-native', async (importOriginal) => {
 });
 
 import type { PaidFeatureState } from '@commise/features-account';
-import type { RecipeVisibility } from '@kitchensink/recipe-core';
+import { RecipeSourceType, type RecipeVisibility } from '@kitchensink/recipe-core';
 import { heldVisibility } from '../../actions/privateGate.js';
-import { recipePrivateRefusalOf, type RecipePrivateFacts } from '../../actions/recipePrivateGate.js';
+import {
+    privateRuleForDraft,
+    recipePrivateRefusalOf,
+    type RecipePrivateFacts,
+} from '../../actions/recipePrivateGate.js';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { editorMessages } from '../../editor/messages.js';
 import { RecipeVisibilityField } from '../RecipeVisibilityField.native.js';
-import { recipeFormMessages } from '../messages.js';
 import { defaultRecipeFormValues, type RecipeFormValues } from '../values.js';
 
-const m = recipeFormMessages.en;
 const v = editorMessages.en.visibility;
+const PRO_BADGE = /^Pro$/u;
 
 afterEach(() => {
     handed.clear();
@@ -71,9 +74,9 @@ afterEach(() => {
 
 interface HarnessProps {
     readonly initial?: RecipeFormValues;
-    /** The paid-feature state. Without `facts`, the recipe is under the PREMIUM rule (an imported public-web recipe). */
+    /** The paid-feature state. Without `facts`, the recipe is under the SLOTS rule with an unknown standing. */
     readonly paidFeatures: PaidFeatureState;
-    /** The recipe's private facts, to exercise the SLOTS rule. */
+    /** The recipe's private facts, to exercise a given standing or rule. */
     readonly facts?: RecipePrivateFacts;
     /** What the server held when the editor opened; defaults to the initial draft's visibility. */
     readonly saved?: RecipeVisibility;
@@ -100,7 +103,7 @@ const Harness: FC<HarnessProps> = ({
     onFreeASlot,
 }) => {
     const facts: RecipePrivateFacts = givenFacts ?? {
-        rule: 'premium',
+        rule: 'slots',
         standing: { kind: 'unknown' },
         state: paidFeatures,
     };
@@ -165,46 +168,7 @@ describe('RecipeVisibilityField (native)', () => {
 
         fireEvent.click(radio(v.public));
         expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ visibility: 'public' }));
-        expect(screen.queryByText(m.premiumBadge)).toBeNull();
-    });
-
-    it('under upsell, Private shows Pro, asks for the upsell and leaves the value', () => {
-        const onChange = vi.fn();
-        const onPremiumRequired = vi.fn();
-        render(<Harness paidFeatures="upsell" onChange={onChange} onPremiumRequired={onPremiumRequired} />);
-
-        expect(
-            screen.getByRole('radio', {
-                name: new RegExp(`^${v.private}\\s*${v.privateHint}\\s*${v.webPrivate}\\s*${m.premiumBadge}$`, 'u'),
-            }),
-        ).toBeTruthy();
-
-        fireEvent.click(radio(v.private));
-
-        expect(onPremiumRequired).toHaveBeenCalledTimes(1);
-        expect(onChange).not.toHaveBeenCalled();
-        expect(radio(v.public).getAttribute('aria-checked')).toBe('true');
-    });
-
-    it('⛔ under upsell, a recipe already private stays private, and going public asks to confirm first', () => {
-        const onChange = vi.fn();
-        const onConfirmPublic = vi.fn();
-        render(
-            <Harness
-                initial={{ ...defaultRecipeFormValues(), visibility: 'private' }}
-                paidFeatures="upsell"
-                onChange={onChange}
-                onConfirmPublic={onConfirmPublic}
-            />,
-        );
-
-        expect(radio(v.private).getAttribute('aria-checked')).toBe('true');
-
-        fireEvent.click(radio(v.public));
-
-        expect(onConfirmPublic).toHaveBeenCalledTimes(1);
-        expect(onChange).not.toHaveBeenCalled();
-        expect(radio(v.private).getAttribute('aria-checked')).toBe('true');
+        expect(screen.queryByText(PRO_BADGE)).toBeNull();
     });
 
     it('a granted cook makes a private recipe public at once, with no confirm', () => {
@@ -225,20 +189,8 @@ describe('RecipeVisibilityField (native)', () => {
         expect(onConfirmPublic).not.toHaveBeenCalled();
     });
 
-    // WCAG 3.2.2: the Public card says what going public costs in every state in which the confirm can open. REWRITTEN for
-    // the owner ruling of 2026-10-26: public is NEVER final, so the hidden/loading notes are gone.
-    it("⛔ under the premium rule's upsell, the Public card of a private recipe says Pro is needed to return", () => {
-        render(<Harness initial={{ ...defaultRecipeFormValues(), visibility: 'private' }} paidFeatures="upsell" />);
-
-        expect(
-            screen.getByRole('radio', {
-                name: new RegExp(`^${v.public}\\s*${v.publicHint}\\s*${v.publicNeedsPremium}$`, 'u'),
-            }),
-        ).toBeTruthy();
-    });
-
     it.each(['hidden', 'loading'] as const)(
-        '⛔ under the premium rule with paid features %s, the Public card says nothing about cost',
+        '⛔ with paid features %s, the Public card says nothing about cost (public is never final)',
         (state) => {
             render(<Harness initial={{ ...defaultRecipeFormValues(), visibility: 'private' }} paidFeatures={state} />);
 
@@ -248,29 +200,15 @@ describe('RecipeVisibilityField (native)', () => {
         },
     );
 
-    it('⛔ a kept draft`s Private for a recipe not held private shows Public under upsell, and says why', () => {
-        render(
-            <Harness
-                initial={{ ...defaultRecipeFormValues(), visibility: 'private' }}
-                saved="public"
-                paidFeatures="upsell"
-            />,
-        );
-
-        expect(radio(v.public).getAttribute('aria-checked')).toBe('true');
-        expect(radio(v.private).getAttribute('aria-checked')).toBe('false');
-        expect(screen.getByText(v.privatePremiumOnly)).toBeTruthy();
-    });
-
     // ── Plan 2026-10-14-009 D14: the field under each paid-feature state.
-    it('under upsell, a recipe already private shows no Pro badge', () => {
+    it('under upsell, no card carries a Pro badge, a recipe already private included', () => {
         render(<Harness initial={{ ...defaultRecipeFormValues(), visibility: 'private' }} paidFeatures="upsell" />);
 
         expect(radio(v.private).getAttribute('aria-checked')).toBe('true');
-        expect(screen.queryByText(m.premiumBadge)).toBeNull();
+        expect(screen.queryByText(PRO_BADGE)).toBeNull();
     });
 
-    it('under hidden (premium rule), a recipe already private stays private; Public is at once, and Private then changes nothing', () => {
+    it('under hidden, a recipe already private stays private and Public is at once', () => {
         const onChange = vi.fn();
         render(
             <Harness
@@ -280,22 +218,16 @@ describe('RecipeVisibilityField (native)', () => {
             />,
         );
 
-        expect(screen.queryByText(m.premiumBadge)).toBeNull();
+        expect(screen.queryByText(PRO_BADGE)).toBeNull();
 
         fireEvent.click(radio(v.public));
         expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ visibility: 'public' }));
-        onChange.mockClear();
-
-        // The stuck-save defect: once Public is confirmed, Private changes nothing.
-        fireEvent.click(radio(v.private));
-        expect(onChange).not.toHaveBeenCalled();
     });
 
     it('under granted, no note says what going public costs', () => {
         render(<Harness initial={{ ...defaultRecipeFormValues(), visibility: 'private' }} paidFeatures="granted" />);
 
         expect(screen.queryByText(v.publicFrees)).toBeNull();
-        expect(screen.queryByText(v.publicNeedsPremium)).toBeNull();
     });
 });
 
@@ -308,11 +240,28 @@ describe('RecipeVisibilityField (native) - private slots (ADR-0073)', () => {
     ): RecipePrivateFacts => ({ rule: 'slots', standing, state });
     const PRIVATE_DRAFT = { ...defaultRecipeFormValues(), visibility: 'private' } as const;
 
+    it('REWRITTEN for ADR-0077 section 6: an imported public-web recipe gets the slots line and an offered Private, no Pro badge', () => {
+        const facts: RecipePrivateFacts = {
+            rule: privateRuleForDraft(RecipeSourceType.IMPORTED_PUBLIC),
+            standing: OPEN,
+            state: 'upsell',
+        };
+        render(<Harness paidFeatures="upsell" facts={facts} />);
+
+        expect(screen.getByText('12 of 50 private slots left')).toBeTruthy();
+        expect(handed.get('Private')?.disabled).not.toBe(true);
+        expect(screen.queryByText(PRO_BADGE)).toBeNull();
+
+        fireEvent.click(radio(v.private));
+
+        expect(radio(v.private).getAttribute('aria-checked')).toBe('true');
+    });
+
     it('shows "N of 50 private slots left" where Private is chosen from', () => {
         render(<Harness paidFeatures="upsell" facts={slots(OPEN)} />);
 
         expect(screen.getByText('12 of 50 private slots left')).toBeTruthy();
-        expect(screen.queryByText(m.premiumBadge)).toBeNull();
+        expect(screen.queryByText(PRO_BADGE)).toBeNull();
     });
 
     it('choosing Private applies it and then says it uses 1 slot, with what is left after it', () => {
@@ -516,46 +465,5 @@ describe('RecipeVisibilityField (native) - over the limit after a downgrade', ()
         render(<Harness paidFeatures="upsell" facts={slots(AT, 'upsell')} />);
 
         expect(screen.queryByText(/They stay private/u)).toBeNull();
-    });
-});
-
-describe('RecipeVisibilityField (native) - an imported public-web recipe with paid features hidden', () => {
-    const REASON = 'Not available. A recipe from a public web page can only be public.';
-    const facts: RecipePrivateFacts = { rule: 'premium', standing: { kind: 'unknown' }, state: 'hidden' };
-
-    it('⛔ hands a screen reader Private as refused, not natively disabled, described by the reason', () => {
-        render(<Harness paidFeatures="hidden" facts={facts} />);
-
-        expect(handed.get('Private')).toMatchObject({ disabled: true, nativelyDisabled: undefined, hint: REASON });
-        expect(within(radio(v.private)).getAllByText(REASON)).toHaveLength(1);
-    });
-
-    it('⛔ choosing the refused Private changes nothing and opens nothing', () => {
-        const onChange = vi.fn();
-        const onPremiumRequired = vi.fn();
-        render(
-            <Harness paidFeatures="hidden" facts={facts} onChange={onChange} onPremiumRequired={onPremiumRequired} />,
-        );
-
-        fireEvent.click(radio(v.private));
-
-        expect(onChange).not.toHaveBeenCalled();
-        expect(onPremiumRequired).not.toHaveBeenCalled();
-        expect(radio(v.public).getAttribute('aria-checked')).toBe('true');
-    });
-
-    it('⛔ a kept Private draft stays chosen but refused - never shown as Public - with the reason in its card', () => {
-        render(
-            <Harness
-                initial={{ ...defaultRecipeFormValues(), visibility: 'private' }}
-                paidFeatures="hidden"
-                facts={facts}
-                saved={'public'}
-            />,
-        );
-
-        expect(radio(v.private).getAttribute('aria-checked')).toBe('true');
-        expect(radio(v.public).getAttribute('aria-checked')).toBe('false');
-        expect(handed.get('Private')).toMatchObject({ disabled: true, hint: REASON });
     });
 });

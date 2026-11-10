@@ -207,6 +207,7 @@ const DETAILS_BY_CODE: Partial<Record<string, Record<string, unknown>>> = {
     [RecipeErrorCode.IMPORT_CURSOR_MOVED]: { cursorOrdinal: 4 },
     [RecipeErrorCode.IMPORT_ITEM_ALREADY_SAVED]: { ordinal: 4 },
     [RecipeErrorCode.PRIVATE_SLOTS_FULL]: { used: 50, limit: 50 },
+    [RecipeErrorCode.PRIVATE_FOODS_ON_PUBLIC_RECIPE]: { lines: [{ sortOrder: 1, foodId: 'f-1' }] },
 };
 
 /** The `details` a real `VERSION_CONFLICT` carries (W8-a.5: enough for a client-side 3-way merge). */

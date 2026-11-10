@@ -78,12 +78,12 @@ export interface RecipeFormIngredient {
     readonly quantityHigh?: number;
     readonly unit?: string;
     /**
-     * The free-form DISPLAY OVERRIDE (wire: `notes`, column `display_text`).
-     *
-     * ⛔ NOT the preparation, and no editor writes it — see {@link preparation}. It is carried here only so
-     * that opening an IMPORTED recipe and saving it does not destroy the clause the importer stored.
+     * The food text the line SHOWS (the cook's own words); absent shows the bound food's name (wire: `displayText`).
+     * ⛔ NOT the preparation (see {@link preparation}), and never a food name: the row editor's "Name on the recipe".
      */
-    readonly notes?: string;
+    readonly displayText?: string;
+    /** A dimension the cook wrote in parentheses after the amount ("9 inch"), shown beside the food (wire: `note`). */
+    readonly note?: string;
     /**
      * How this recipe prepares the food — `finely chopped`, `at room temperature` (plan U26).
      *
@@ -101,6 +101,12 @@ export interface RecipeFormIngredient {
      */
     readonly groupLabel?: string;
     readonly resolutionStatus?: FoodResolutionStatus;
+    /**
+     * Whether the line's food is private to its author or public, from food's LIVE answer (ADR-0029 section 4). Seeded by
+     * `toRecipeFormValues` and set on a pick or a created food; read only by `privateFoodRowIndexes`. Never sent: the
+     * server derives it. Absent when food could not be asked, and on a declared line.
+     */
+    readonly foodVisibility?: 'private' | 'public';
     /**
      * Why an unresolved line did not resolve, as the detail read reported it (plan 002 R1, R6). Seeded by
      * `toRecipeFormValues` and read only by `rowPresentationOf` (`./ingredientRowPolicy.ts`); never sent, because the

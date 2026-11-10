@@ -4,9 +4,9 @@
  * parse job and commits what this settles, in paste order.
  *
  * A parsed line becomes one row per proposed food: the NAME the host joins it by (bound to the food its match names, or
- * as written: ADR-0071), the measure, and the phrase the parse lifted out (the create's `sourcePhrase`). The first food
- * carries the line's measure, in the cook's own words (`statedMeasure`: "1 large", "a handful", "2 tbsp"); a second food on the
- * same line states none, because the line gave one amount.
+ * as written: ADR-0071), the measure, and the phrase the parse lifted out (the create's `sourcePhrase`). The measure is
+ * in the cook's own words (`statedMeasure`: "1 large", "a handful", "2 tbsp"), and `pastedLineRowOf` decides which foods
+ * of a line carry it.
  *
  * ⛔ THERE IS NO TIME LIMIT (owner ruling 2026-10-13: "it takes as long as it takes"; plan 2026-10-15-011). A pending line
  * reads with the phase the SERVER reports (`progress.phase`, computed by `lineProgressOf`). Two kinds of line wait on
@@ -41,6 +41,10 @@ export interface PastedRow {
     readonly measure: LineMeasure;
     /** The phrase the parse lifted out of the line, for the create (its `sourcePhrase`); absent for a reader row. */
     readonly sourcePhrase?: string;
+    /** The cook's own words for the food, when the parse chose to keep them; the draft line shows them (`displayText`). */
+    readonly displayText?: string;
+    /** A dimension the cook wrote in parentheses ("9 inch"), shown beside the food (`note`). */
+    readonly note?: string;
     /**
      * Which food of the line's proposal this row is, so the host can find its match (`${lineIndex}:${foodIndex}`). Absent
      * for a reader row: it has no proposal food, so no match, and it joins as written.
@@ -87,20 +91,46 @@ export interface PastedLinesInput {
     readonly typedByCook: ReadonlySet<number>;
 }
 
+/** The row recipe-core builds for one food of a parse answer: the one rule the saved line and the paste list share. Pure. */
+function pastedRowOf(proposal: ParseProposal, sourceLine: string, foodIndex: number) {
+    const food = proposal.foods[foodIndex];
+
+    return pastedLineRowOf({ ...proposal, sourceLine, display: food?.display ?? null }, foodIndex, food?.name ?? '');
+}
+
+/**
+ * The words the SAVED line shows for one food of a parse answer: the cook's words when the parse keeps them
+ * (`displayText`), else the proposal's food name. A paste row whose parse has answered and whose review is pending shows
+ * these, so it reads as the line will read once saved. Pure.
+ *
+ * @param proposal - The line's parse answer.
+ * @param sourceLine - The line as pasted.
+ * @param foodIndex - Which food of the proposal.
+ * @returns The words.
+ */
+export function savedWordsOf(proposal: ParseProposal, sourceLine: string, foodIndex: number): string {
+    const row = pastedRowOf(proposal, sourceLine, foodIndex);
+
+    return row.displayText ?? row.name;
+}
+
 /**
  * The rows a parsed proposal adds: one per food. Each row's measure and name are recipe-core's `pastedLineRowOf` (the
- * cook's own words, the first food only, a leading size word as the unit), the rule recipe-service's paste matcher keys
+ * cook's own words, an amount on the first food only, a leading size word as the unit), the rule recipe-service's paste matcher keys
  * its verdict with (ADR-0071). The phrase the parse lifted out stays whole, as the memo's key grain. Pure.
  */
-function proposedRowsOf(proposal: ParseProposal): readonly PastedRow[] {
+function proposedRowsOf(proposal: ParseProposal, sourceLine: string): readonly PastedRow[] {
     return proposal.foods.map((food, index) => {
-        const { name, quantity, unit } = pastedLineRowOf(proposal, index, food.name);
+        // `display` is the model's answer for THIS food (ADR-0026 §11); absent reads as no answer.
+        const { name, quantity, unit, displayText, note } = pastedRowOf(proposal, sourceLine, index);
 
         return {
             name,
             measure: { quantity, unit, preparation: food.prep ?? '' },
             sourcePhrase: food.name,
             foodIndex: index,
+            ...(displayText === undefined ? {} : { displayText }),
+            ...(note === undefined ? {} : { note }),
         };
     });
 }
@@ -138,7 +168,9 @@ function pastedLineOf(line: ParseJobLineView, stopped: boolean, typedByCook: boo
 
     switch (line.status) {
         case 'parsed':
-            return line.proposal === null ? settled(readerRowsOf(sourceLine)) : settled(proposedRowsOf(line.proposal));
+            return line.proposal === null
+                ? settled(readerRowsOf(sourceLine))
+                : settled(proposedRowsOf(line.proposal, sourceLine));
         // `withdrawn` on the server: the cook kept it as written, so no engine will answer — settle it the same way
         // even if this client no longer remembers the choice.
         case 'unparseable':

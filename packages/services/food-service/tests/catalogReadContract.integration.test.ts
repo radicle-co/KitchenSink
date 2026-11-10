@@ -115,6 +115,7 @@ describe('GET /{id} — the catalog read contract (booted Nest, DAOs doubled)', 
     beforeAll(async () => {
         api = await bootMockedFoodsApi({
             foodDao: { readGoldenRecord },
+            authored: { publicationStateFor: async () => 'private', markSeen: async () => undefined },
             variants: { listLive },
             searchDao: { search },
             sources: {

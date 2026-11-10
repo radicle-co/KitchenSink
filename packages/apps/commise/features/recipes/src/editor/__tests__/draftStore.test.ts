@@ -19,6 +19,7 @@ import { makeRecipeFormValues } from '../../__fixtures__/index.js';
 import { seedLineKey } from '../../form/lineKey.js';
 import type { RecipeFormValues } from '../../form/values.js';
 import {
+    DRAFT_FORMAT_VERSION,
     MAX_KEPT_DRAFTS,
     createDraftStore,
     draftStoreFor,
@@ -66,7 +67,7 @@ describe('the persisted format', () => {
     });
 
     it('⛔ namespaces the key by user and versions it', () => {
-        expect(draftStoreKeyFor('user_a')).toBe('editor.draft.v1.user_a');
+        expect(draftStoreKeyFor('user_a')).toBe(`editor.draft.v${String(DRAFT_FORMAT_VERSION)}.user_a`);
         expect(draftStoreKeyFor('user_a')).not.toBe(draftStoreKeyFor('user_b'));
     });
 });
@@ -100,6 +101,30 @@ describe('createDraftStore', () => {
         expect(loaded?.values.ingredients[0]?.quantity).toBeNaN();
         expect(loaded?.values.ingredients[0]?.quantityHigh).toBeNaN();
         expect(loaded).toEqual(amountless);
+    });
+
+    it('round-trips the food text a line shows and its note (owner ruling 2026-11-08)', async () => {
+        const drafts = createDraftStore(createMemoryOutboxStore(), 'user_a');
+        const base = makeRecipeFormValues();
+        const first = base.ingredients[0];
+
+        if (first === undefined) {
+            throw new Error('fixture has no ingredient');
+        }
+
+        const withWords = memento({
+            values: toDraftValues({
+                ...base,
+                ingredients: [{ ...first, displayText: 'double-crust pie pastry', note: '9 inch' }],
+            }),
+        });
+
+        await drafts.save(withWords);
+
+        expect((await drafts.load(LOCAL_REF))?.values.ingredients[0]).toMatchObject({
+            displayText: 'double-crust pie pastry',
+            note: '9 inch',
+        });
     });
 
     it('round-trips a memento, and answers nothing for a recipe it holds no draft for', async () => {
@@ -296,11 +321,29 @@ describe('createDraftStore', () => {
 describe('unreadable drafts', () => {
     it.each([
         ['bytes that are not JSON', '{ not json'],
-        ['a format this release does not write', JSON.stringify({ formatVersion: 2, drafts: {} })],
+        [
+            'a format this release does not write',
+            JSON.stringify({ formatVersion: DRAFT_FORMAT_VERSION + 1, drafts: {} }),
+        ],
+        [
+            'a line still carrying the retired `notes` field (format 1)',
+            JSON.stringify({
+                formatVersion: DRAFT_FORMAT_VERSION,
+                drafts: {
+                    [LOCAL_REF]: {
+                        ...memento(),
+                        values: {
+                            ...memento().values,
+                            ingredients: [{ ...memento().values.ingredients[0], notes: 'old' }],
+                        },
+                    },
+                },
+            }),
+        ],
         [
             'a memento carrying a field the format does not have',
             JSON.stringify({
-                formatVersion: 1,
+                formatVersion: DRAFT_FORMAT_VERSION,
                 drafts: {
                     [LOCAL_REF]: { ...memento(), values: { ...memento().values, photos: [] } },
                 },
@@ -324,7 +367,10 @@ describe('unreadable drafts', () => {
         const forged = { ...values, ingredients: [{ ...values.ingredients[0], key: 'not a key' }] };
         await store.setItem(
             draftStoreKeyFor('user_a'),
-            JSON.stringify({ formatVersion: 1, drafts: { [LOCAL_REF]: { ...memento(), values: forged } } }),
+            JSON.stringify({
+                formatVersion: DRAFT_FORMAT_VERSION,
+                drafts: { [LOCAL_REF]: { ...memento(), values: forged } },
+            }),
         );
 
         expect(await createDraftStore(store, 'user_a').load(LOCAL_REF)).toBeUndefined();

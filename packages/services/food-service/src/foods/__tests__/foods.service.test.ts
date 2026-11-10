@@ -258,6 +258,15 @@ describe('FoodsService.search — the FR-010a minimum (plan U37)', () => {
             expect(results[0]?.visibility).toBeUndefined();
         });
 
+        it("publishes NO 'private' flag for the caller's own PROMOTED food — it is public now (ADR-0029 §8)", async () => {
+            const { service, searchDao } = makeSearchService();
+            searchDao.search.mockResolvedValue([hit({ userId: CALLER, visibility: 'promoted' })]);
+
+            const { results } = await service.search('quinoa', CALLER);
+
+            expect(results[0] !== undefined && 'visibility' in results[0]).toBe(false);
+        });
+
         it('publishes NO flag for a plain catalog row — the common case is byte-identical to pre-U11', async () => {
             const { service, searchDao } = makeSearchService();
             searchDao.search.mockResolvedValue([hit()]);

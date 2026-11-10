@@ -66,7 +66,7 @@ function makeScalable(overrides: Partial<ScalableRecipe> = {}): ScalableRecipe {
                 name: 'Garlic',
                 quantity: exact(3),
                 unit: 'cloves',
-                notes: 'minced',
+                displayText: 'minced',
                 isUserEntered: true,
             },
         ],
@@ -269,7 +269,7 @@ describe('scaleRecipeForServings — quantities', () => {
                 name: 'Garlic',
                 quantity: exact(6),
                 unit: 'cloves',
-                notes: 'minced',
+                displayText: 'minced',
                 isUserEntered: true,
             },
         ]);

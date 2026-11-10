@@ -136,6 +136,29 @@ describe('pastedLinesOf', () => {
         ]);
     });
 
+    it('a line naming two foods and no amount: both carry its words ("salt and pepper to taste")', () => {
+        const job = makeParseJob({
+            lines: [
+                makeParseJobLine({
+                    sourceLine: 'salt and pepper to taste',
+                    status: 'parsed',
+                    proposal: makeParseProposal({
+                        quantity: ABSENT_QUANTITY,
+                        unit: 'to taste',
+                        statedMeasure: 'to taste',
+                        foods: [makeParseProposalFood({ name: 'salt' }), makeParseProposalFood({ name: 'pepper' })],
+                    }),
+                }),
+            ],
+        });
+        const [line] = pastedLinesOf(input({ job }));
+
+        expect(line?.kind === 'settled' ? line.rows.map((row) => [row.name, row.measure.unit]) : []).toEqual([
+            ['salt', 'to taste'],
+            ['pepper', 'to taste'],
+        ]);
+    });
+
     it('⛔ a reader row carries no foodIndex: it has no proposal food, so no match, and joins as written', () => {
         const job = makeParseJob({
             lines: [makeParseJobLine({ sourceLine: '2 tbsp olive oil', status: 'unparseable', proposal: null })],
@@ -566,5 +589,67 @@ describe('readerLinesOf (the lines of a paste the daily limit refused)', () => {
         const lines = readerLinesOf(['For the sauce:', '2 cups']);
 
         expect(lines.map((line) => (line.kind === 'settled' ? line.rows : undefined))).toEqual([[], []]);
+    });
+});
+
+describe('pastedLinesOf - the cook’s words and the note are carried, not dropped (design answers 2026-11-08)', () => {
+    const rowsOfLine = (
+        sourceLine: string,
+        display: 'written' | 'food' | null,
+        name: string,
+        prep: string | null = null,
+    ) => {
+        const job = makeParseJob({
+            lines: [
+                makeParseJobLine({
+                    sourceLine,
+                    status: 'parsed',
+                    proposal: makeParseProposal({
+                        raw: sourceLine,
+                        statedMeasure: null,
+                        quantity: { kind: 'exact', value: 1 },
+                        unit: null,
+                        foods: [makeParseProposalFood({ name, prep, ...(display === null ? {} : { display }) })],
+                    }),
+                }),
+            ],
+        });
+        const [line] = pastedLinesOf(input({ job }));
+
+        return line?.kind === 'settled' ? line.rows : [];
+    };
+
+    it('a food the parse answered "written" keeps the cook’s words as displayText', () => {
+        const [row] = rowsOfLine('1 pound sweet Italian sausage', 'written', 'sweet Italian sausage');
+
+        expect(row).toMatchObject({ name: 'sweet Italian sausage', displayText: 'sweet Italian sausage' });
+    });
+
+    it.each(['food', null] as const)('a food the parse answered %s has no displayText', (display) => {
+        const [row] = rowsOfLine('2 eggs', display, 'eggs');
+
+        expect(row).toBeDefined();
+        expect(row).not.toHaveProperty('displayText');
+    });
+
+    it('a dimension in parentheses is the row’s note, and is not the unit', () => {
+        const [row] = rowsOfLine('1 (9 inch) unbaked pie crust', 'food', 'unbaked pie crust');
+
+        expect(row).toMatchObject({ note: '9 inch' });
+        expect(row?.measure.unit).not.toContain('9 inch');
+    });
+
+    it('a package size stays in the unit as the cook wrote it, and is no note', () => {
+        const [row] = rowsOfLine('1 (28 ounce) can crushed tomatoes', 'food', 'crushed tomatoes');
+
+        expect(row?.measure.unit).toContain('(28 ounce) can');
+        expect(row).not.toHaveProperty('note');
+    });
+
+    it('a reader row (no parse) has neither', () => {
+        const [row] = readerLinesOf(['2 tbsp olive oil']).flatMap((line) => (line.kind === 'settled' ? line.rows : []));
+
+        expect(row).not.toHaveProperty('displayText');
+        expect(row).not.toHaveProperty('note');
     });
 });

@@ -75,6 +75,8 @@ function service(existing: RecipeAggregate): { svc: RecipesService; update: Retu
         update,
         softDelete: vi.fn(),
         setVisibility: vi.fn(),
+        // ADR-0029 section 4: no private foods in the database by default.
+        privateFoodLines: vi.fn(async () => []),
         transaction: vi.fn(async (fn: (tx: RecipeTx) => Promise<unknown>) => fn(FAKE_TX)),
     } as unknown as RecipesDal;
 

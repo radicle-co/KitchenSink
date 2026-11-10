@@ -28,12 +28,12 @@ appId: ${APP_ID}
 # --- Client-side search over "My recipes" ---------------------------------------------------------------
 # Baseline: the full seeded set is listed. The seed cards render a full-width 4:3 cover, so only ~1 fits the
 # viewport — asserting each row is VISIBLE would need scrolling and still can't put two on screen at once.
-# The COUNT label ("3 recipes"), rendered in the list header above the cards, is the fold-independent proof
-# the list loaded fully; the 3→1 transition after filtering is then the falsifiable core (a no-op filter
-# leaves it at "3 recipes" and fails). Anchored (`^…$`) because Maestro matches substrings.
+# The COUNT label ("4 recipes"), rendered in the list header above the cards, is the fold-independent proof
+# the list loaded fully; the 4→1 transition after filtering is then the falsifiable core (a no-op filter
+# leaves it at "4 recipes" and fails). Anchored (`^…$`) because Maestro matches substrings.
 - extendedWaitUntil:
       visible:
-          text: '^3 recipes$'
+          text: '^4 recipes$'
       timeout: 40000
 
 # Type a query that matches exactly ONE recipe.
@@ -42,7 +42,7 @@ appId: ${APP_ID}
 
 # The result set really narrowed to one row: the match is present and the count label now reads "1 recipe".
 # The non-match ("Lamb") is GONE from the DOM (assertNotVisible holds regardless of scroll position). The
-# count 3→1 is the falsifiable core — if the filter were a no-op the count would stay "3 recipes".
+# count 4→1 is the falsifiable core — if the filter were a no-op the count would stay "4 recipes".
 - assertVisible: '${E2E_RECIPE_ASPARAGUS}'
 - assertNotVisible: '${E2E_RECIPE_LAMB}'
 - assertVisible:
@@ -59,7 +59,7 @@ appId: ${APP_ID}
 - assertVisible: 'No recipes match'
 - assertNotVisible: 'Your recipe box is empty'
 
-# Clearing the query restores the full set — the count returns to "3 recipes", proving filtering is derived
+# Clearing the query restores the full set — the count returns to "4 recipes", proving filtering is derived
 # from the query and never destroys the underlying cache.
 # "Clear search", not a tap and `eraseText`: the tap puts the caret where it lands and `eraseText` deletes only what is
 # before it (`discoverRecentSearches.yaml`). The field's control and the no-match button share the name, and both set the
@@ -67,7 +67,7 @@ appId: ${APP_ID}
 - tapOn: 'Clear search'
 - extendedWaitUntil:
       visible:
-          text: '^3 recipes$'
+          text: '^4 recipes$'
       timeout: 20000
 # Close the keyboard before the tab bar: on iOS it covers the bar, and the Discover tap pressed the keyboard's own key
 # instead (run 38433716728). The search key on an empty field only blurs it.
@@ -254,7 +254,7 @@ appId: ${APP_ID}
 # ruling behind `maestroNoTimingCrutches` is that a flow waits on what the screen shows and never taps twice.
 - extendedWaitUntil:
       visible:
-          text: '^3 recipes$'
+          text: '^4 recipes$'
       timeout: 40000
 - tapOn: 'Collections'
 - extendedWaitUntil:

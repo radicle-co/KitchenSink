@@ -32,11 +32,13 @@ import { VariantPartsLine } from '@commise/ui/variant-parts-line';
 import { useRef, type FC, type ReactNode } from 'react';
 import { Pressable, StyleSheet, View, type LayoutChangeEvent } from 'react-native';
 
+import { AmountRun } from './AmountRun.native.js';
 import { PREP_JOINER } from '../format/prepJoiner.js';
 import { ingredientCommitFailureId, ingredientNoFoodNoteId, ingredientStandInId } from './fieldErrorIds.js';
 import { rowBadgeStatus } from './ingredientRowPolicy.js';
 import type { IngredientRowView } from './ingredientRowView.js';
 import type { RecipeFormMessages } from './messages.js';
+import { PrivateFoodNote } from './PrivateFoodNote.native.js';
 import { rowEntryFieldOf, type RowEntryFieldCopy } from './rowEntryField.js';
 import { usePressFill } from '@commise/ui/surface-tone';
 
@@ -100,6 +102,7 @@ const OpenControl: FC<{
             ref={node}
             accessibilityRole="button"
             accessibilityLabel={row.openLabel}
+            {...(row.countedAs === undefined ? {} : { accessibilityHint: row.countedAs })}
             {...(expanded === undefined ? {} : { 'aria-expanded': expanded })}
             onPress={row.onOpen}
             style={({ pressed }) => [styles.open, pressed && { backgroundColor: wash }]}
@@ -121,14 +124,15 @@ const OpenControl: FC<{
                         </View>
                     </>
                 ) : (
-                    <Text typeRole="body" color="$ink">
-                        {amount}
-                        {amount !== null && ' '}
+                    <AmountRun amount={row.amountText}>
                         {row.displayName}
+                        {row.noteText !== undefined && (
+                            <Text typeRole="body" color="$inkMuted">{`${PREP_JOINER}${row.noteText}`}</Text>
+                        )}
                         {row.prepText !== undefined && (
                             <Text typeRole="body" color="$inkMuted">{`${PREP_JOINER}${row.prepText}`}</Text>
                         )}
-                    </Text>
+                    </AmountRun>
                 )}
                 {row.variantParts !== undefined && <VariantPartsLine parts={row.variantParts} tone="secondary" />}
             </View>
@@ -243,6 +247,13 @@ export const IngredientRow: FC<IngredientRowProps> = ({
                         </Text>
                     </Pressable>
                 )}
+                {row.countedAs !== undefined && (
+                    // The matched food, for the editor only: the open control's hint (design answers 2026-11-08).
+                    <Text typeRole="caption" color="$inkMuted">
+                        {row.countedAs}
+                    </Text>
+                )}
+                {row.privateFood !== undefined && <PrivateFoodNote view={row.privateFood} />}
                 {row.amountInvalidNote !== undefined && (
                     <Text typeRole="caption" color="$dangerText">
                         {row.amountInvalidNote}

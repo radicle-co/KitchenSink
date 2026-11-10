@@ -6,6 +6,7 @@
  */
 import { SnackbarHost } from '@commise/ui/snackbar';
 import { NavigationContainer, useNavigation } from '@react-navigation/native';
+import { onlineManager } from '@tanstack/react-query';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { act, cleanup } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -14,7 +15,11 @@ import type { RootStackParamList } from '../../src/navigation/routes.js';
 import { render } from '@commise/ui/testing/tamagui';
 
 /** Every `subscribeToLeave` the stub was handed, one per render. */
-const handed = vi.hoisted(() => ({ leaves: [] as unknown[], setParams: undefined as (() => void) | undefined }));
+const handed = vi.hoisted(() => ({
+    leaves: [] as unknown[],
+    setParams: undefined as (() => void) | undefined,
+    foodPages: [] as { readonly foodId: string; readonly offline: boolean }[],
+}));
 
 vi.mock('../../src/screens/RecipeEditorScreen.js', () => ({
     RecipeEditorScreen: (props: { readonly subscribeToLeave?: unknown }) => {
@@ -27,11 +32,21 @@ vi.mock('../../src/screens/RecipeEditorScreen.js', () => ({
     },
 }));
 
+vi.mock('@commise/features-recipes/food-page/mobile', () => ({
+    FoodDetailScreen: (props: { readonly foodId: string; readonly offline: boolean }) => {
+        handed.foodPages.push({ foodId: props.foodId, offline: props.offline });
+
+        return null;
+    },
+}));
+
 const { taskScreens } = await import('../../src/navigation/tasks.js');
 
 afterEach(() => {
     cleanup();
     handed.leaves = [];
+    handed.foodPages = [];
+    onlineManager.setOnline(true);
 });
 
 describe('taskScreens', () => {
@@ -66,4 +81,29 @@ describe('taskScreens', () => {
             expect(typeof handed.leaves[0]).toBe('function');
         },
     );
+});
+
+describe('the food page route', () => {
+    it.each([
+        [false, true],
+        [true, false],
+    ])('hands the screen the app’s connectivity reading (offline: %s)', async (offline, online) => {
+        onlineManager.setOnline(online);
+        const Stack = createNativeStackNavigator<RootStackParamList>();
+
+        render(
+            <SnackbarHost>
+                <NavigationContainer
+                    initialState={{ routes: [{ name: 'FoodDetail', params: { foodId: 'food_1', from: 'editor' } }] }}
+                >
+                    <Stack.Navigator>{taskScreens(Stack)}</Stack.Navigator>
+                </NavigationContainer>
+            </SnackbarHost>,
+        );
+        await act(async () => {
+            await Promise.resolve();
+        });
+
+        expect(handed.foodPages.at(-1)).toEqual({ foodId: 'food_1', offline });
+    });
 });

@@ -36,6 +36,7 @@ import {
     UnexpectedResponseError,
     VersionConflictError,
     VersionLineUnrestorableError,
+    PrivateFoodsOnPublicRecipeError,
     PublishRequirementsUnmetError,
 } from '../errors.js';
 import { shouldRetryRecipeServiceFailure } from '../retryPolicy.js';
@@ -74,6 +75,10 @@ const CLASSIFICATION: Readonly<Record<string, { readonly error: RecipeServiceCli
         // Plan 002 R52 — the same restore fails the same way; the cook needs another version or an edit.
         VersionLineUnrestorableError: { error: new VersionLineUnrestorableError([0]), retry: false },
         // The same body meets the same refusal: terminal, through its BadRequestError base.
+        PrivateFoodsOnPublicRecipeError: {
+            error: new PrivateFoodsOnPublicRecipeError([{ sortOrder: 0, foodId: 'f' }]),
+            retry: false,
+        },
         PublishRequirementsUnmetError: { error: new PublishRequirementsUnmetError(['cuisine']), retry: false },
         // No status at all, and the opposite answer to `InvalidRequestError`'s absent status — which is
         // exactly why the policy dispatches on the TYPE and not on a status range.

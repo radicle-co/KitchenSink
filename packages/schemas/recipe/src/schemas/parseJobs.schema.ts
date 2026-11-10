@@ -204,6 +204,15 @@ export const parseProposalFoodSchema = z.object({
     /** What is done TO the food (`chopped`, `boiling`), or `null` when the line says nothing. */
     prep: z.string().nullable(),
     /**
+     * Whether the line shows the cook's own words for this food (`written`) or the app's food name (`food`), as the model
+     * answered (ADR-0026 §11, owner ruling 2026-11-08). `null` when no parse answered: the CRF alone, a refusal, a spent
+     * ceiling, or a row from before the answer existed. The line then shows its food's name.
+     *
+     * ⚠️ OPTIONAL as well as nullable, for the reason `match` is: a server older than this field sends no key, and a client
+     * reads that exactly as `null`. The server sends the key on every proposed food.
+     */
+    display: z.enum(['written', 'food']).nullable().optional(),
+    /**
      * The server's match for this food (ADR-0071), or `null` before it has one: the line is not matched yet, or food
      * could not be asked for names on this read. The client asks for matches when newly parsed lines appear.
      *

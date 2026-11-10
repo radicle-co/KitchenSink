@@ -29,7 +29,7 @@ function makeParsedLine(overrides: Partial<ParsedLine> = {}): ParsedLine {
         statedMeasure: '1 tablespoon',
         quantity: { kind: 'exact', value: 1 },
         unit: 'tablespoon',
-        foods: [{ name: 'butter', prep: 'melted' }],
+        foods: [{ name: 'butter', prep: 'melted', display: 'food' }],
         reviewReasons: [],
         provenance: { statedMeasure: 'crf', quantity: 'crf', unit: 'crf', foods: 'crf' },
         ...overrides,
@@ -42,7 +42,7 @@ function makeFactsPayload(overrides: Record<string, unknown> = {}): Record<strin
         statedMeasure: '1 tablespoon',
         quantity: { kind: 'exact', value: 1 },
         unit: 'tablespoon',
-        foods: [{ name: 'butter', prep: 'melted' }],
+        foods: [{ name: 'butter', prep: 'melted', display: 'food' }],
         reviewReasons: [],
         ...overrides,
     };
@@ -109,7 +109,7 @@ describe('readStoredParse', () => {
             statedMeasure: '1 tablespoon',
             quantity: { kind: 'exact', value: 1 },
             unit: 'tablespoon',
-            foods: [{ name: 'butter', prep: 'melted' }],
+            foods: [{ name: 'butter', prep: 'melted', display: 'food' }],
         });
     });
 
@@ -179,7 +179,7 @@ describe('rehydrateEngineParse', () => {
         statedMeasure: '1 tablespoon',
         quantity: { kind: 'exact', value: 1 },
         unit: 'tablespoon',
-        foods: [{ name: 'butter', prep: 'melted' }],
+        foods: [{ name: 'butter', prep: 'melted', display: 'food' }],
         reviewReasons: [],
     };
 
@@ -268,7 +268,7 @@ describe('the round trip — nothing derivable is stored, and nothing judged is 
     it('a promoted model reading survives the cache byte for byte', () => {
         for (const statedMeasure of ['1 tablespoon', null, 'one gill', 'the size of an egg', '2 to 3']) {
             const promoted = promoteLlmParse(
-                { statedMeasure, foods: [{ name: 'butter', prep: 'melted' }] },
+                { statedMeasure, foods: [{ name: 'butter', prep: 'melted', display: 'food' }] },
                 'the source line',
             );
 
@@ -278,7 +278,7 @@ describe('the round trip — nothing derivable is stored, and nothing judged is 
 
     it('a line a validator flagged survives the cache with its verdict', () => {
         const promoted = promoteLlmParse(
-            { statedMeasure: '1 tablespoon', foods: [{ name: 'butter', prep: 'melted' }] },
+            { statedMeasure: '1 tablespoon', foods: [{ name: 'butter', prep: 'melted', display: 'food' }] },
             'the source line',
         );
         const judged: ParsedLine = { ...promoted, reviewReasons: ['not_a_food', 'measurement_unverified'] };
@@ -297,5 +297,41 @@ describe('the round trip — nothing derivable is stored, and nothing judged is 
         }
 
         expect(rehydrateEngineParse(read, judged.raw, 'crf')).toEqual(judged);
+    });
+});
+
+describe('a stored parse and display (ADR-0026 section 11)', () => {
+    it('keeps the model’s display through the JSON column', () => {
+        const promoted = promoteLlmParse(
+            { statedMeasure: '1 pound', foods: [{ name: 'lean ground beef', prep: null, display: 'written' }] },
+            '1 pound lean ground beef',
+        );
+        const read = readStoredParse(JSON.parse(JSON.stringify(storedParseOf(promoted))));
+
+        expect(read?.foods).toEqual([{ name: 'lean ground beef', prep: null, display: 'written' }]);
+    });
+
+    it('still reads a payload written with no display (the CRF, and rows from before v3)', () => {
+        const read = readStoredParse({
+            statedMeasure: null,
+            quantity: { kind: 'absent' },
+            unit: null,
+            foods: [{ name: 'salt', prep: null }],
+            reviewReasons: [],
+        });
+
+        expect(read?.foods).toEqual([{ name: 'salt', prep: null }]);
+    });
+
+    it('refuses a display outside the two words', () => {
+        expect(
+            readStoredParse({
+                statedMeasure: null,
+                quantity: { kind: 'absent' },
+                unit: null,
+                foods: [{ name: 'salt', prep: null, display: 'both' }],
+                reviewReasons: [],
+            }),
+        ).toBeUndefined();
     });
 });

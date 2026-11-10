@@ -1,0 +1,51 @@
+appId: ${APP_ID}
+---
+# From a recipe line's ⋯ menu to the food page, then Ask to make public: the page moves to "Waiting for review"
+# (private foods spec section 5.8). Staff do not decide here: the staff door is API only.
+#
+# Same fixture as `publishRefusedForPrivateFood`: the signer's public draft whose line uses the signer's own private food.
+# ⚠️ Not run where it was written. The row's menu item "Open food" is offered once the editor passes `onOpenFood`; this flow
+# still opens the food from the refusal sheet's Open food, which both entries share.
+- runFlow: ../auth/signin.yaml
+
+- assertVisible: 'My recipes'
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: '^${E2E_RECIPE_PRIVATE_FOOD}$'
+          DIRECTION: DOWN
+          TIMEOUT: 30000
+- tapOn:
+      text: '^${E2E_RECIPE_PRIVATE_FOOD}$'
+# The same walk as `publishRefusedForPrivateFood`: the detail's Edit is above the fold after the page settles, and Publish is
+# below it, so each is scrolled to rather than tapped blind (a blind tap met whatever the page had drawn by then).
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Edit recipe'
+          DIRECTION: UP
+          TIMEOUT: 20000
+- tapOn: 'Edit recipe'
+- extendedWaitUntil:
+      visible: 'Close editor'
+      timeout: 40000
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Publish'
+          DIRECTION: DOWN
+          TIMEOUT: 30000
+- tapOn: 'Publish'
+# The refusal button's accessible name starts with its visible words: "Open food: {line}" (spec 7.2).
+- extendedWaitUntil:
+      visible: 'Open food: .*'
+      timeout: 20000
+- tapOn: 'Open food: .*'
+- extendedWaitUntil:
+      visible: 'Ask to make public'
+      timeout: 20000
+- tapOn: 'Ask to make public'
+- extendedWaitUntil:
+      visible: 'Waiting for review'
+      timeout: 20000
+- assertNotVisible: 'Ask to make public'

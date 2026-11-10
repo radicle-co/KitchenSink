@@ -48,12 +48,15 @@ async function insertReturningId(text: string, values: readonly unknown[]): Prom
     return row.id;
 }
 
-/** A public, published recipe owned by the author, with one line bound to `lookupId`. */
-async function recipeBoundTo(label: string, lookupId: string): Promise<string> {
+/**
+ * A published recipe owned by the author, with one line bound to `lookupId`. PUBLIC unless it holds the author's private
+ * food, which lives only in a private recipe (ADR-0029 section 4: the database refuses the other).
+ */
+async function recipeBoundTo(label: string, lookupId: string, visibility = 'public'): Promise<string> {
     const recipeId = await insertReturningId(
-        `INSERT INTO recipes (owner_id, title, prep_time_minutes, cook_time_minutes, total_time_minutes, servings)
-              VALUES ($1, $2, 5, 10, 15, 2) RETURNING id`,
-        [AUTHOR, `${SCOPE} ${label}`],
+        `INSERT INTO recipes (owner_id, title, prep_time_minutes, cook_time_minutes, total_time_minutes, servings, visibility)
+              VALUES ($1, $2, 5, 10, 15, 2, $3) RETURNING id`,
+        [AUTHOR, `${SCOPE} ${label}`, visibility],
     );
 
     await pool.query(`INSERT INTO ingredients (recipe_id, food_lookup_id, unit) VALUES ($1, $2, 'g')`, [
@@ -118,7 +121,7 @@ describe('SearchDal — the food filter (real Postgres)', () => {
 
         variantRecipe = await recipeBoundTo('variant', variantLookup);
         sharedRecipe = await recipeBoundTo('shared', sharedLookup);
-        privateRecipe = await recipeBoundTo('private', privateLookup);
+        privateRecipe = await recipeBoundTo('private', privateLookup, 'private');
         declaredRecipe = await recipeBoundTo('declared', declaredLookup);
     });
 

@@ -63,6 +63,7 @@ const DETAILS_BY_CODE: Readonly<Record<string, Record<string, unknown>>> = {
     IMPORT_CURSOR_MOVED: { cursorOrdinal: 4 },
     IMPORT_ITEM_ALREADY_SAVED: { ordinal: 4 },
     PRIVATE_SLOTS_FULL: { used: 50, limit: 50 },
+    PRIVATE_FOODS_ON_PUBLIC_RECIPE: { lines: [{ sortOrder: 1, foodId: 'f-1' }] },
 };
 
 /** A minimal valid body for a published code. */
@@ -342,6 +343,23 @@ describe('the bulk import codes (ADR-0072)', () => {
             expect(recipeApiErrorSchema.safeParse(body('IMPORT_ITEM_ALREADY_SAVED', { ordinal: null })).success).toBe(
                 false,
             );
+        });
+    });
+
+    describe('PRIVATE_FOODS_ON_PUBLIC_RECIPE — a public recipe holds a private food (ADR-0029 section 4)', () => {
+        it('is a 400 beside PUBLISH_REQUIREMENTS_UNMET, NOT a 409: a 409 is a version conflict to the outbox', () => {
+            expect(RECIPE_ERROR_STATUS.PRIVATE_FOODS_ON_PUBLIC_RECIPE).toBe(400);
+        });
+
+        it('REQUIRES at least one line, each with a position and a food id', () => {
+            const parse = (details?: Record<string, unknown>) =>
+                recipeApiErrorSchema.safeParse(body('PRIVATE_FOODS_ON_PUBLIC_RECIPE', details)).success;
+
+            expect(parse({ lines: [{ sortOrder: 0, foodId: 'f-1' }] })).toBe(true);
+            expect(parse({ lines: [] })).toBe(false);
+            expect(parse({ lines: [{ sortOrder: 0 }] })).toBe(false);
+            expect(parse({ lines: [{ foodId: 'f-1' }] })).toBe(false);
+            expect(parse()).toBe(false);
         });
     });
 

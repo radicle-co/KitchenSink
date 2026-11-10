@@ -65,6 +65,7 @@ import { RecipePhotoUploaderContainer } from '@/components/recipes/RecipePhotoUp
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { isRecipeRouteId } from '@/lib/recipeRouteId';
 import { reportErrorToSentry } from '@/lib/sentryErrorReporter';
+import { openFoodInNewTab } from '@/components/foods/foodHref';
 
 /** Props for {@link RecipeEditorContainer}. */
 export interface RecipeEditorContainerProps {
@@ -380,6 +381,10 @@ const RecipeEditorSession: FC<RecipeEditorSessionProps> = ({ locale, mode, draft
                 router.push((id === undefined ? `/${locale}/recipes` : `/${locale}/recipes/${id}`) as Route);
             }}
             onOpenMyRecipes={() => router.push(`/${locale}/recipes` as Route)}
+            // A new tab, so the draft stays where the cook left it (private foods spec D5, D6).
+            onOpenFood={(foodId) => {
+                openFoodInNewTab(locale, foodId);
+            }}
         />
     );
 };

@@ -32,6 +32,7 @@ import { FoodForwardDao } from './foodForward.dao.js';
 import { FoodItemDao } from './foodItem.dao.js';
 import type { FoodRef } from '../foods.schema.js';
 import { ADVISORY_LOCK_CLASSES } from '@kitchensink/db-schema-guard';
+import { PROMOTED_VISIBILITY } from '../domain/promotedIsPublic.js';
 
 /** The `food.status` lifecycle set (FR-028). */
 export type FoodStatus = (typeof foodStatusEnum.enumValues)[number];
@@ -884,11 +885,13 @@ export class FoodDao {
             this.db
                 .select({ id: food.id, status: food.status })
                 .from(food)
-                // ⛔ CATALOG rows ONLY (0013 U10; ADR-0036). This feeds the EDGE-CACHED nutrition
-                // endpoint, whose response must not vary by caller (ADR-0020) — an AUTHORED food is
-                // author-only and cannot appear here for ANYONE (its id lands in `unknownIds`; U18's
-                // cache split serves the author its own rows on the per-caller path).
-                .where(sql`${food.id} = ANY(${sql.param(ids)}) AND ${food.userId} IS NULL`),
+                // ⛔ WORLD-READABLE rows ONLY (0013 U10; ADR-0036; ADR-0029 §8): catalog and PROMOTED. This feeds
+                // the EDGE-CACHED nutrition endpoint, whose response must not vary by caller (ADR-0020) — a
+                // PRIVATE authored food is author-only and cannot appear here for ANYONE (its id lands in
+                // `unknownIds`; U18's cache split serves the author its own rows on the per-caller path).
+                .where(
+                    sql`${food.id} = ANY(${sql.param(ids)}) AND (${food.userId} IS NULL OR ${food.visibility} = ${PROMOTED_VISIBILITY})`,
+                ),
             this.rootNutrientRows(ids),
             this.rootPortionRows(ids),
         ]);

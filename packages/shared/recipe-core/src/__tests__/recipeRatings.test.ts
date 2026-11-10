@@ -110,16 +110,16 @@ describe('RecipeDifficulty', () => {
 });
 
 describe('usesPremiumCapability (the derived PRO rule)', () => {
-    // REWRITTEN for ADR-0073 section 10 / FR-003a. It used to say a private user_created recipe is PRO. A free cook may now
-    // keep 50 of them private, so privacy no longer means Premium for them; only a private imported_public recipe, the one
-    // kind of privacy that still needs Premium and a substantive edit, is badged.
-    it('is true ONLY for a private imported_public recipe', () => {
+    // REWRITTEN for ADR-0077 section 6. It used to say a private imported_public recipe is PRO, the one kind of privacy
+    // that still needed Premium and a substantive edit. A cook may now keep one private in a slot (owner ruling
+    // 2026-10-29), so no private recipe is badged.
+    it('is false for a private imported_public recipe: it uses a slot any cook has (ADR-0077 section 6)', () => {
         expect(
             usesPremiumCapability({
                 visibility: RecipeVisibility.PRIVATE,
                 sourceType: RecipeSourceType.IMPORTED_PUBLIC,
             }),
-        ).toBe(true);
+        ).toBe(false);
     });
 
     it('is false for a private user_created recipe: a free cook holds it in a private slot (ADR-0073)', () => {

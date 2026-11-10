@@ -30,6 +30,8 @@ export type PushedParamList = {
     Profile: undefined;
     /** Food data sources: a page pushed from Profile (A-026), not a modal over it. */
     DataSources: undefined;
+    /** The cook's own foods: a page pushed from Profile (private foods spec F19). */
+    YourFoods: undefined;
 };
 
 /** A place in the Recipes tab's segments. */
@@ -61,6 +63,11 @@ export type RootStackParamList = {
     RecipeCreate: { readonly section?: EditorSectionId; readonly paste?: boolean } | undefined;
     /** The one-page editor for a stored recipe. */
     RecipeEdit: { readonly recipeId: string; readonly section?: EditorSectionId };
+    /**
+     * The author's food page (ADR-0056 item 2). It opens ABOVE the editor from a refused publish or a row's menu, so Back
+     * returns to the editor exactly as it was; from Your foods Back returns there. `from` names where Back goes.
+     */
+    FoodDetail: { readonly foodId: string; readonly from: 'editor' | 'yourFoods' | 'recipe' };
 };
 
 /**

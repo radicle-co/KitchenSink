@@ -168,7 +168,6 @@ export { RecipeIngredientsFields } from './form/RecipeIngredientsFields.js';
 export { IngredientsNutritionFoot, type IngredientsNutritionFootProps } from './form/IngredientsNutritionFoot.js';
 export { RecipeInstructionsFields } from './form/RecipeInstructionsFields.js';
 export { RecipeVisibilityField } from './form/RecipeVisibilityField.js';
-export { RecipeVisibilityStatement } from './form/RecipeVisibilityStatement.js';
 export {
     pendingIngredientIds,
     settleIngredientLine,
@@ -509,8 +508,4 @@ export type {
 export { nextEditorOpening, useDeviceDraft } from './editor/useDeviceDraft.js';
 export type { DeviceDraftRead } from './editor/useDeviceDraft.js';
 export { splitPastedSteps } from './form/pasteSteps.js';
-export type {
-    RecipeEditorSectionProps,
-    RecipeVisibilityFieldProps,
-    RecipeVisibilityStatementProps,
-} from './form/props.js';
+export type { RecipeEditorSectionProps, RecipeVisibilityFieldProps } from './form/props.js';

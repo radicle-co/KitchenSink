@@ -68,6 +68,9 @@ function makeService(overrides: {
     const authored = {
         createAuthored: vi.fn().mockResolvedValue({ kind: 'created', id: FOOD_ID }),
         replaceAuthored: vi.fn().mockResolvedValue({ kind: 'replaced' }),
+        closePendingRequests: vi.fn().mockResolvedValue(undefined),
+        publicationStateFor: vi.fn().mockResolvedValue('asked'),
+        markSeen: vi.fn().mockResolvedValue(undefined),
         readAuthorshipFacts: vi.fn().mockResolvedValue({ userId: AUTHOR, visibility: 'private' }),
         ...overrides.authored,
     };
@@ -87,7 +90,7 @@ function makeService(overrides: {
 
     return {
         service,
-        authored: authored as Record<string, ReturnType<typeof vi.fn>>,
+        authored: authored as unknown as Record<string, ReturnType<typeof vi.fn>>,
         foodDao: foodDao as unknown as Record<string, ReturnType<typeof vi.fn>>,
     };
 }
@@ -178,6 +181,73 @@ describe('getFood — the read gate (plan U10)', () => {
         expect(response).toMatchObject({ id: FOOD_ID, visibility: 'private' });
     });
 
+    it('the AUTHOR reads their publication state, and opening the food marks the decision seen', async () => {
+        const { service, authored } = makeService({});
+
+        const response = await service.getFood(FOOD_ID, AUTHOR);
+
+        expect(response).toMatchObject({ publicationState: 'asked' });
+        expect(authored['markSeen']).toHaveBeenCalledWith(FOOD_ID, AUTHOR);
+    });
+
+    it('a stranger reading a PROMOTED food gets no publication state and marks nothing seen', async () => {
+        const { service, authored } = makeService({ record: makeRecord({ visibility: 'promoted' }) });
+
+        const response = await service.getFood(FOOD_ID, STRANGER);
+
+        expect('publicationState' in response).toBe(false);
+        expect(authored['markSeen']).not.toHaveBeenCalled();
+    });
+
+    describe('authoredMacros — the author’s own figures, as structured data (ADR-0029 §7)', () => {
+        const nutrient = (name: string, unit: string, amount: string) => ({
+            nutrientId: `n-${name}-${unit}`,
+            name,
+            unit,
+            infoodsTag: null,
+            amount,
+            basis: 'per_100g',
+            source: null,
+        });
+        const LIVE = [
+            nutrient('Energy', 'kcal', '380'),
+            nutrient('Protein', 'g', '70'),
+            nutrient('Carbohydrate, by difference', 'g', '12'),
+            nutrient('Total lipid (fat)', 'g', '6'),
+        ];
+
+        it('the AUTHOR reads the macros of the LIVE row, even while an edit waits for staff', async () => {
+            const { service } = makeService({
+                record: makeRecord({ visibility: 'promoted', nutrients: LIVE }),
+                authored: { publicationStateFor: vi.fn().mockResolvedValue('editWaiting') },
+            });
+
+            const response = await service.getFood(FOOD_ID, AUTHOR);
+
+            expect(response).toMatchObject({
+                publicationState: 'editWaiting',
+                authoredMacros: { calories: 380, proteinG: 70, carbsG: 12, fatG: 6 },
+            });
+        });
+
+        it('a stranger reading a PROMOTED food reads the same figures: they are its public nutrients already', async () => {
+            const { service } = makeService({ record: makeRecord({ visibility: 'promoted', nutrients: LIVE }) });
+
+            const response = await service.getFood(FOOD_ID, STRANGER);
+
+            expect(response).toMatchObject({ authoredMacros: { calories: 380, proteinG: 70, carbsG: 12, fatG: 6 } });
+            expect('publicationState' in response).toBe(false);
+        });
+
+        it('a catalog food carries none', async () => {
+            const { service } = makeService({
+                record: makeRecord({ userId: null, visibility: 'public', nutrients: LIVE }),
+            });
+
+            expect('authoredMacros' in (await service.getFood(FOOD_ID, STRANGER))).toBe(false);
+        });
+    });
+
     it('a catalog food publishes NO visibility field at all', async () => {
         const { service } = makeService({ record: makeRecord({ userId: null, visibility: 'public' }) });
 
@@ -201,7 +271,39 @@ describe('getFood — the read gate (plan U10)', () => {
  * replaces nor the authorization ordering it keeps. So these are not rewritten tests; they are the tests the
  * route was always owed.
  */
+describe('updateAuthored on a PROMOTED food — the edit goes to review (ADR-0029 §7)', () => {
+    it('answers the editPending body, not the food: readers keep the approved version', async () => {
+        const { service } = makeService({
+            authored: {
+                readAuthorshipFacts: vi.fn().mockResolvedValue({ userId: AUTHOR, visibility: 'promoted' }),
+                replaceAuthored: vi.fn().mockResolvedValue({ kind: 'proposed', versionNumber: 4 }),
+            } as Partial<AuthoredFoodsDao>,
+        });
+
+        await expect(service.updateAuthored(AUTHOR, FOOD_ID, CREATE_BODY)).resolves.toStrictEqual({
+            publication: { state: 'editPending', versionNumber: 4 },
+        });
+    });
+
+    it('answers a PRIVATE food`s edit with the updated food, as before', async () => {
+        const { service } = makeService({});
+
+        await expect(service.updateAuthored(AUTHOR, FOOD_ID, CREATE_BODY)).resolves.toMatchObject({ id: FOOD_ID });
+    });
+});
+
 describe('deleteAuthored — authorization first, then one guarded transition', () => {
+    it('closes the pending publication request once the food is withdrawn, and not before', async () => {
+        const { service, authored, foodDao } = makeService({});
+
+        await service.deleteAuthored(AUTHOR, FOOD_ID);
+
+        expect(authored['closePendingRequests']).toHaveBeenCalledExactlyOnceWith(FOOD_ID);
+        expect(authored['closePendingRequests']!.mock.invocationCallOrder[0]).toBeGreaterThan(
+            foodDao['setStatus']!.mock.invocationCallOrder[0]!,
+        );
+    });
+
     it('withdraws the author`s own food: RESOLVED → WITHDRAWN, and nothing else', async () => {
         const { service, foodDao } = makeService({});
 

@@ -2,13 +2,11 @@
 
 /**
  * @module @commise/features-recipes/actions — asking for Private, for any recipe surface that offers it (editor field,
- * recipe page ⋯ menu). A request applies at once, opens the Premium sheet, or does nothing, as {@link recipePrivateChoice}
- * decides (ADR-0073: a recipe is under the slots rule, or for an imported public-web recipe the Premium rule; owner ruling
- * 2026-10-13 for the latter).
+ * recipe page ⋯ menu). A request applies at once or shows the full refusal, as {@link recipePrivateChoice} decides
+ * (ADR-0073, ADR-0077 section 6: every recipe is under the slots rule, imported public-web recipes included).
  *
- * ⛔ UNDER THE PREMIUM RULE A LOADING STATE FAILS CLOSED, as it always did. Under the slots rule an unknown standing does
- * not: the write goes out and the server decides. A COLLECTION is not asked here (`useCollectionVisibility` asks
- * `privateChoice` directly).
+ * ⛔ An unknown standing does not withhold Private: the write goes out and the server decides. A COLLECTION is not asked
+ * here (`useCollectionVisibility` asks `privateChoice` directly).
  *
  * @pattern Policy — `recipePrivateChoice` decides WHAT a request does; this holds the sheet it may open
  */
@@ -16,7 +14,7 @@ import { RecipeVisibility } from '@kitchensink/recipe-core';
 import { useState } from 'react';
 
 import type { RecipeUpsellSheetProps, RecipeUpsellVariant } from './model.js';
-import { recipeOffersPrivate, recipePrivateChoice, usesSlots, type RecipePrivateFacts } from './recipePrivateGate.js';
+import { recipePrivateChoice, type RecipePrivateFacts } from './recipePrivateGate.js';
 
 /** Options for {@link useGatedPrivate}. */
 export interface UseGatedPrivateOptions {
@@ -36,8 +34,6 @@ export interface UseGatedPrivateOptions {
 
 /** What the host wires in. */
 export interface GatedPrivate {
-    /** Whether the surface offers Private at all (`recipeOffersPrivate`). */
-    readonly offersPrivate: boolean;
     /** The cook asked for Private. */
     readonly request: () => void;
     /** Open the Premium sheet directly (the refusal's "Get Premium"); nothing opens unless the upsell stands. */
@@ -59,15 +55,12 @@ export function useGatedPrivate(options: UseGatedPrivateOptions): GatedPrivate {
     const sheetVariant = sheetVariantOf(facts);
 
     return {
-        offersPrivate: recipeOffersPrivate(facts, saved),
         request: () => {
             const outcome = recipePrivateChoice(facts, saved, RecipeVisibility.PRIVATE);
 
-            if (outcome === 'upsell') {
-                setOpen(true);
-            } else if (outcome === 'apply') {
+            if (outcome === 'apply') {
                 apply();
-            } else if (outcome === 'slotsFull') {
+            } else {
                 whenFull?.();
             }
         },
@@ -76,30 +69,26 @@ export function useGatedPrivate(options: UseGatedPrivateOptions): GatedPrivate {
         // same render.
         sheet: {
             open: open && sheetVariant !== undefined,
-            variant: sheetVariant ?? WEB_IMPORT,
+            variant: sheetVariant ?? CLOSED_SHEET_VARIANT,
             onOpenChange: setOpen,
             onSeePremium: () => setOpen(false),
         },
     };
 }
 
-const WEB_IMPORT: RecipeUpsellVariant = { kind: 'webImport' };
-
 /**
  * Which fact the Premium sheet may state, or `undefined` when it may not open at all. Pure.
  *
- * ⛔ Only where paid features are shown (`upsell`), and only when it is TRUE: an imported public-web recipe needs Premium
- * (`webImport`); a slots-rule recipe needs it only with every slot KNOWN used (`noSlot`). A free cook with a slot free,
- * or whose count is unknown, is never shown it - Private just works for them.
+ * ⛔ Only where paid features are shown (`upsell`), and only when it is TRUE: Premium helps only with every slot KNOWN used
+ * (`noSlot`). A free cook with a slot free, or whose count is unknown, is never shown it - Private just works for them.
  */
 function sheetVariantOf(facts: RecipePrivateFacts): RecipeUpsellVariant | undefined {
     if (facts.state !== 'upsell') {
         return undefined;
     }
 
-    if (!usesSlots(facts.rule)) {
-        return WEB_IMPORT;
-    }
-
     return facts.standing.kind === 'full' ? { kind: 'noSlot', total: facts.standing.limit } : undefined;
 }
+
+/** What a CLOSED sheet carries: it renders nothing, so the figure is never read. */
+const CLOSED_SHEET_VARIANT: RecipeUpsellVariant = { kind: 'noSlot', total: 0 };

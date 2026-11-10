@@ -41,7 +41,7 @@ type Settlement = SettlementEvent<EditorWriteAnswer>;
 /**
  * Build a fake write port.
  *
- * @returns The port, with the test's handles: `claim`, `sync`, `park`, `parkEarlier`, `lastSeq`, `queued`, and what was
+ * @returns The port, with the test's handles: `claim`, `sync`, `drop`, `park`, `parkEarlier`, `lastSeq`, `queued`, and what was
  *   submitted, withdrawn or discarded.
  */
 export function makeFakeEditorWritePort() {
@@ -192,6 +192,21 @@ export function makeFakeEditorWritePort() {
         /** The drain parked the record in the log, but the editor has not heard yet: the breath before a Discard's bound. */
         parkUnannounced: (seq: number, status?: number) => {
             apply(settle(log, { seq, outcome: 'parked', ...(status === undefined ? {} : { status }) }));
+        },
+        /** The drain answered: refused for good, so the record left the log (`SendResult`'s `drop`). */
+        drop: (seq: number, status: number, answer: EditorWriteAnswer) => {
+            const record = recordAt(seq);
+
+            apply(settle(log, { seq, outcome: 'dropped' }));
+            announce({
+                seq,
+                entity: 'recipe',
+                localId: record.localId,
+                intentKind: record.intentKind,
+                outcome: 'dropped',
+                status,
+                answer,
+            });
         },
         /** The drain answered: parked. */
         park: (seq: number, status?: number, answer?: EditorWriteAnswer) => {

@@ -6,7 +6,7 @@ appId: ${APP_ID}
 # Playwright recipe-list/detail flow (cross-platform mandate).
 #
 # This flow is POPULATED-ONLY, deliberately: the per-flow reset (tests/e2e/runMaestroFlows.sh) hands it
-# the clean seed, whose FREE owner — the dev-bypass signer — has exactly 3 recipes. It used to claim it
+# the clean seed, whose FREE owner — the dev-bypass signer — has exactly 4 recipes (the three seeded and the public draft). It used to claim it
 # also tolerated an empty library; it never could (see below), and the genuinely-empty first-run state now
 # has its own flow, `recipes/emptyLibrary.yaml`.
 - runFlow: ../auth/signin.yaml
@@ -27,7 +27,7 @@ appId: ${APP_ID}
 # still not a settle signal, and the count label is still the assertion that makes this claim.
 - extendedWaitUntil:
       visible:
-          text: '^3 recipes$'
+          text: '^4 recipes$'
       timeout: 40000
 - assertNotVisible: 'Loading recipes'
 
@@ -193,4 +193,4 @@ appId: ${APP_ID}
 - extendedWaitUntil:
       notVisible: 'Back to My recipes'
       timeout: 20000
-- assertVisible: '^3 recipes$'
+- assertVisible: '^4 recipes$'

@@ -121,7 +121,10 @@ export function parkedOf(
     if (outstanding?.parked === true) {
         const record = failures.find((failure) => failure.seq === outstanding.seq);
 
-        return { failure: record === undefined ? 'unknown' : classifyFailure(record), kind: outstanding.kind };
+        return {
+            failure: record === undefined ? 'unknown' : classifyFailure(record),
+            kind: outstanding.kind,
+        };
     }
 
     return drainFailed ? { failure: 'transient', kind: 'update' } : undefined;

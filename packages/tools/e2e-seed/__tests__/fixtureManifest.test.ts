@@ -223,7 +223,7 @@ describe('deriveFixtureManifest', () => {
 });
 
 /**
- * `recipes/privateFoodStandIn.yaml` opens this recipe as the SIGNER and asserts the line reads "2 tbsp Private
+ * the private-food Maestro flows open this recipe as the SIGNER and assert the line reads "2 tbsp Private
  * ingredient" (plan 002 R9). Each rule below is one way that flow could pass or fail for a reason that is not the
  * one it tests.
  */
@@ -237,8 +237,16 @@ describe('the private-food recipe', () => {
         );
     });
 
-    it('is the co-author’s PUBLIC recipe — a public row the signer does not own, so the signer can open it', () => {
-        expect(manifest.privateFoodRecipe).toMatchObject({ owner: 'coAuthor', visibility: 'public' });
+    // REWRITTEN for ADR-0029 section 4 (owner rulings 2026-11-08, 2026-11-09): a private food cannot be in a PUBLISHED public
+    // recipe, and a public DRAFT may hold it. The fixture is the SIGNER's public draft with the signer's own private food:
+    // `publishRefusedForPrivateFood` opens it, presses Publish and meets the refusal. The co-author's private recipe the
+    // signer cannot read could not serve either flow.
+    it('is the signer’s public DRAFT, so the refusal flow can open it and press Publish', () => {
+        expect(manifest.privateFoodRecipe).toMatchObject({ owner: 'signer', visibility: 'public', status: 'draft' });
+        // The Maestro list flows wait for `^4 recipes$` on the signer's library: the three seeded and this public draft.
+        expect(
+            [...manifest.recipes, manifest.privateFoodRecipe].filter((recipe) => recipe.owner === 'signer'),
+        ).toHaveLength(4);
     });
 
     it('has exactly one line — 2 tbsp of the private food — which is the label the flow asserts', () => {
@@ -277,15 +285,10 @@ describe('the private-food recipe', () => {
         expect(PRIVATE_FOOD_NAME).toMatch(/^[A-Za-z ]+$/u);
     });
 
-    /**
-     * `recipes/accessibility.yaml` waits for the risotto in the Discover rails with no search, so the risotto must stay
-     * on the first screen of every rail. Provision publishes this recipe BEFORE the risotto (so "New", and "Trending"
-     * on a tie, put the risotto first); its longer total time keeps it behind the risotto in "Quick" as well.
-     */
-    it('sorts behind the co-author’s risotto in the Quick rail', () => {
-        const risotto = SEED_WORLD.find((recipe) => recipe.key === 'risotto');
-
-        expect(PRIVATE_FOOD_RECIPE.totalTimeMinutes).toBeGreaterThan(risotto?.totalTimeMinutes ?? Infinity);
+    // DELETED: "sorts behind the co-author's risotto in the Quick rail". The fixture is a signer-owned draft now, so it is in
+    // no Discover rail at all and cannot displace the risotto; the property holds trivially, by status.
+    it('is in no Discover rail: a draft is not published', () => {
+        expect(PRIVATE_FOOD_RECIPE.status).toBe('draft');
     });
 
     it('is a different food from the discovery probe, which must stay attached to nothing', () => {

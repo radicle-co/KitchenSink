@@ -708,11 +708,15 @@ export const eraseRecipeRows = async (
         `);
 
         // 1. Donate-flip (U3b): elected recipes → community-visible. BOTH columns; scoped to the owner.
+        //    ⛔ ONLY a recipe that holds no private food (ADR-0029 section 6): a public recipe may not hold one (migration
+        //    0064 would roll this whole transaction back, stranding the erasure), and a dead author's private foods must
+        //    stay unreferenced so they are deleted. Such an elected recipe is removed with the owner-only set below.
         await tx.execute(sql`
             UPDATE recipes
             SET visibility = 'public', status = 'published', updated_at = now()
             WHERE id IN (SELECT jsonb_array_elements_text(${publishElectionJson}::jsonb)::uuid)
               AND owner_id = ${ownerId}
+              AND NOT recipe_holds_private_food(id)
         `);
 
         // 2. The removed set = the owner's rows that are NOT truly-public (owner-only, non-donated). Captured
@@ -797,10 +801,10 @@ export const eraseRecipeRows = async (
         // 13. Private-food BINDINGS (plan U11/R20; the column moved from `ingredients` to `food_lookups`
         //     in migration 0051). A binding carries `food_owner_id` when the food it names is the dead
         //     author's PRIVATE authored one; it exists only so the author could reference that food.
-        //     Unreferenced ones are DELETED (nothing needs it any more); ones a KEPT public recipe still
-        //     lines against are RETAINED — the pseudonymous ULID beside a private food reference is the
-        //     recipes/owner_id posture, and the retrieval filter hides it from every living caller
-        //     regardless. Runs AFTER the recipe deletes above, so the erased recipes' own lines are gone.
+        //     Unreferenced ones are DELETED (nothing needs it any more). A kept public recipe holds no
+        //     private food (ADR-0029 section 4), so after the recipe deletes above every binding of the dead
+        //     author's is unreferenced; the NOT EXISTS stays as the guard that a line is never orphaned, and
+        //     a retained one is hidden from every living caller by the retrieval filter regardless.
         //
         //     ⚠️ `ingredients` is the RECIPE LINE since 0051, which is why the `NOT EXISTS` reads it: the
         //     subject of this DELETE is `food_lookups`, and the lines are what keep one alive.

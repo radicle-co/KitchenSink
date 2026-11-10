@@ -119,7 +119,7 @@ const CREATE_DTO: CreateRecipeDto = {
     prepTimeMinutes: 5,
     cookTimeMinutes: 10,
     totalTimeMinutes: 15,
-    ingredients: [{ ingredientId: ONION_ID, quantity: { kind: 'exact', value: 2 }, unit: 'cup', notes: 'diced' }],
+    ingredients: [{ ingredientId: ONION_ID, quantity: { kind: 'exact', value: 2 }, unit: 'cup', displayText: 'diced' }],
     steps: [{ instruction: 'Mix' }],
 };
 
@@ -130,9 +130,10 @@ const ONION_LINE = {
     foodId: ONION_FOOD_ID,
     quantity: { kind: 'exact', value: 2 },
     unit: 'cup',
-    notes: 'diced',
+    displayText: 'diced',
     // Curated U9: a root line says whether its root has a variant to pick; the nutrition double answers nothing.
     hasVariants: false,
+    foodVisibility: 'public',
     isUserEntered: false,
     resolutionStatus: FoodResolutionStatus.RESOLVED,
 };
@@ -212,7 +213,10 @@ describe('RecipesService.create — line composition (T043b)', () => {
 
         await service.create(OWNER_PRINCIPAL, CREATE_DTO, undefined);
 
-        expect(dal.create).toHaveBeenCalledWith(expect.objectContaining({ ingredientNamesText: 'Red onion' }), FAKE_TX);
+        expect(dal.create).toHaveBeenCalledWith(
+            expect.objectContaining({ ingredientNamesText: 'Red onion diced' }),
+            FAKE_TX,
+        );
     });
 
     it('rejects a line naming a binding that does not exist with UNKNOWN_INGREDIENT (not a raw FK error)', async () => {
@@ -263,7 +267,7 @@ describe('RecipesService.update — line composition (T043b)', () => {
         const patch: UpdateRecipeDto = {
             expectedVersion: 1,
             ingredients: [
-                { ingredientId: ONION_ID, quantity: { kind: 'exact', value: 2 }, unit: 'cup', notes: 'diced' },
+                { ingredientId: ONION_ID, quantity: { kind: 'exact', value: 2 }, unit: 'cup', displayText: 'diced' },
             ],
         };
         await service.update(OWNER_PRINCIPAL, 'r-1', patch, undefined);
@@ -272,7 +276,7 @@ describe('RecipesService.update — line composition (T043b)', () => {
         expect(dal.update).toHaveBeenCalledWith(
             'r-1',
             expect.objectContaining({
-                ingredientNamesText: 'Onion',
+                ingredientNamesText: 'Onion diced',
                 ingredients: [expect.objectContaining({ foodLookupId: ONION_ID })],
             }),
             FAKE_TX,

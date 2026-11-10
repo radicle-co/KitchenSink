@@ -238,6 +238,33 @@ describe('recipeVersionSchema — the version-history read contract', () => {
         expect(recipeVersionSchema.safeParse(wireVersion('cup', 2)).success).toBe(false);
     });
 
+    /**
+     * ⛔ A PARSE DROPS WHAT THE SCHEMA DOES NOT NAME. `aggregateToSnapshot` freezes the cook's own words
+     * (`displayText`) AND their `note` into every version, and the restorer puts both back, but the client reads a
+     * version through this schema, which strips an unnamed key in silence. With `note` missing, a version preview,
+     * a version diff and the conflict merge from a version all lost the note while the server still held it.
+     */
+    it('keeps a snapshot line`s displayText and note through the parse, as the server writes them', () => {
+        const wire = wireVersion('tbsp') as { snapshot: { ingredients: Record<string, unknown>[] } };
+        const line = wire.snapshot.ingredients[0] as Record<string, unknown>;
+        line['displayText'] = 'extra virgin olive oil';
+        line['note'] = 'flat half, select';
+
+        const parsed = recipeVersionSchema.parse(wire);
+
+        expect(parsed.snapshot.ingredients[0]).toMatchObject({
+            displayText: 'extra virgin olive oil',
+            note: 'flat half, select',
+        });
+    });
+
+    it('rejects an empty snapshot note, as it rejects an empty displayText', () => {
+        const wire = wireVersion('tbsp') as { snapshot: { ingredients: Record<string, unknown>[] } };
+        (wire.snapshot.ingredients[0] as Record<string, unknown>)['note'] = '';
+
+        expect(recipeVersionSchema.safeParse(wire).success).toBe(false);
+    });
+
     it('rejects a snapshot quantity that is not a well-formed value object', () => {
         expect(recipeVersionSchema.safeParse(wireVersion('cup', { kind: 'exact', value: 0 })).success).toBe(false);
         expect(recipeVersionSchema.safeParse(wireVersion('cup', '2')).success).toBe(false);

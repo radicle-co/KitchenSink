@@ -36,8 +36,10 @@ Those are history needs.
 1. **Use React Navigation 7.** The packages are `@react-navigation/native`, `@react-navigation/native-stack` and
    `@react-navigation/bottom-tabs`, with `react-native-screens` (`~4.26`, installed with `npx expo install`). The code
    is in `packages/apps/commise/mobile/src/navigation/`.
-2. **The root native stack holds `Tabs` and the focused tasks.** The one task is the one-page editor, registered as
-   `RecipeCreate` and `RecipeEdit` (`tasks.tsx`). A task sits above the tabs, so the tab bar hides by construction.
+2. **The root native stack holds `Tabs` and the focused tasks.** The tasks are the one-page editor, registered as
+   `RecipeCreate` and `RecipeEdit` (`tasks.tsx`), and the author's food page, `FoodDetail`, which opens above the editor
+   from a refused publish, so the editor stays where the cook left it. A task sits above the tabs, so the tab bar hides
+   by construction.
     - Tasks use `presentation: 'card'` with the edge swipe on.
     - The editor saves all the time, so the edge swipe, Android Back and × all leave it at once and lose nothing
       (build spec §3.5, §7.12). Its exit checkpoint runs from React Navigation's `beforeRemove`.

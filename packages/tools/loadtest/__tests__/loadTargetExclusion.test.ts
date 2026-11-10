@@ -20,6 +20,7 @@ import { excludedTargetsOf, parsePrintLoadTierArgs, scriptsInTier } from '@kitch
 
 const ANALYTICS = 'packages/services/recipe-service/tests/load/analyticsIngest.load.js';
 const REMOTE_SEARCH = 'packages/services/remote-search/tests/load/remoteSearch.load.js';
+const PUBLICATION = 'packages/services/food-service/tests/load/publicationRequests.load.js';
 
 describe('excludedTargetsOf', () => {
     it('reads a declared exclusion and its reason, in either comment style', () => {
@@ -56,11 +57,19 @@ describe('the tier list for a target', () => {
         expect(scriptsInTier('deployed-capable', 'sandbox')).toContain(REMOTE_SEARCH);
     });
 
+    // It opens publication requests, which land in staff's review queue, as its header declares.
+    it('⛔ keeps the food publication scenario OFF production and ON the sandbox', () => {
+        expect(scriptsInTier('deployed-capable', 'prod')).not.toContain(PUBLICATION);
+        expect(scriptsInTier('deployed-capable', 'sandbox')).toContain(PUBLICATION);
+    });
+
     it('excludes nothing else from production that it does not declare', () => {
         const sandbox = scriptsInTier('deployed-capable', 'sandbox');
         const prod = scriptsInTier('deployed-capable', 'prod');
 
-        expect(sandbox.filter((script) => !prod.includes(script)).sort()).toEqual([ANALYTICS, REMOTE_SEARCH].sort());
+        expect(sandbox.filter((script) => !prod.includes(script)).sort()).toEqual(
+            [ANALYTICS, PUBLICATION, REMOTE_SEARCH].sort(),
+        );
     });
 });
 

@@ -861,3 +861,58 @@ describe('drain — a duplicated tab', () => {
         expect(sender).toHaveBeenCalledTimes(1);
     });
 });
+
+/**
+ * Ruling a369e1852 at the one writer (ADR-0057): a refusal the sender marks `drop` can never succeed when re-sent and
+ * left nothing unknown, so the record leaves the log as it settles instead of parking behind a Try again. The answer
+ * still reaches whoever listens, so an open editor can show it; with nobody listening, nothing stands in the way of the
+ * cook's next write.
+ */
+describe('drain — a refusal the sender drops', () => {
+    const refusal: SendResult = { outcome: 'failed', status: 400, answer: { kind: 'refused' }, drop: true };
+
+    it('⛔ removes the record, reports it to the listener as dropped with its answer, and parks nothing', async () => {
+        const log = appendIntent(EMPTY, intent({ entity: 'recipe', intentKind: 'update', localId: 'r1' }));
+        const settled: unknown[] = [];
+        const journal: DrainJournal = {
+            claim: async () => true,
+            settle: async (settlement) => {
+                settled.push(settlement);
+            },
+        };
+        const events: SettlementEvent[] = [];
+
+        const report = await drain(log, scripted(refusal), {
+            ...noSleep,
+            journal,
+            onSettled: (event) => events.push(event),
+        });
+
+        expect(report.log.records).toStrictEqual([]);
+        expect(report.failed).toStrictEqual([]);
+        expect(settled).toStrictEqual([{ seq: 1, outcome: 'dropped' }]);
+        expect(events).toStrictEqual([
+            {
+                seq: 1,
+                entity: 'recipe',
+                localId: 'r1',
+                intentKind: 'update',
+                outcome: 'dropped',
+                status: 400,
+                answer: { kind: 'refused' },
+            },
+        ]);
+    });
+
+    it('the same refusal WITHOUT `drop` still parks, as every terminal refusal did', async () => {
+        const log = appendIntent(EMPTY, intent({ entity: 'recipe', intentKind: 'update', localId: 'r1' }));
+
+        const report = await drain(
+            log,
+            scripted({ outcome: 'failed', status: 400, answer: { kind: 'refused' } }),
+            noSleep,
+        );
+
+        expect(report.log.records.map((record) => record.state)).toStrictEqual(['parked']);
+    });
+});

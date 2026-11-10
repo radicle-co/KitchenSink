@@ -406,3 +406,57 @@ line.
 The sticky sections bar under the editor header is chrome, like the tab bar and the segmented tabs. Its label,
 suffix and count grow to 1.5x at most (`chromeCap`), so the bar never draws larger than the page title. The open
 list's rows are content and keep their roles' 2x cap. Chrome text is never larger than the page title, on any page.
+
+## 2026-11-08: the cook's own words on an ingredient line (asked by Nova Squad)
+
+These follow the owner's rulings of 2026-11-08: a line shows the cook's words (`display_text`) when the parse keeps
+them, and a dimension such as "9 inch" is a `note`, never the unit. They hold on web and native.
+
+1. The matched food on the recipe page. A reader sees only the line: "1 pound sweet Italian sausage". No second name,
+   no badge and no link. Two names on one line is noise while cooking, and the food only drives nutrition. The
+   matched food shows in the editor only. There, a line whose shown words are the cook's words has a quiet second
+   line in `caption` `inkMuted`: "Counted as {food}", for example "Counted as pork sausage". It uses the row's existing
+   second-line slot, at the start edge (#144 item 6), and an attention, working or failure line takes its place. The
+   row's control name keeps only the visible run (#144), and "Counted as {food}" is its description
+   (`aria-describedby` on web, `accessibilityHint` on native). With `display_text` NULL, the row shows the food's name
+   and no "Counted as" line.
+2. The note. It is the first item of the muted tail after the food, before the preparation, joined by " · ": "1 pie
+   crust · 9 inch · unbaked". It uses the preparation's style (`inkMuted`) and the same no-break space before each
+   "·" (2026-11-06 item 6). It is spoken "pie crust, 9 inch, unbaked". The note keeps the cook's text, with a
+   no-break space between a number and its unit word ("9 inch"). A package size stays in the amount run as the cook
+   wrote it: "**1 (28 ounce) can** crushed tomatoes". No line ever shows the note in parentheses.
+3. Editing. The open row editor gets two optional text fields, after the food picker and before Preparation:
+    - "Name on the recipe" (`display_text`). Empty means the line shows the matched food's name, and the field's
+      placeholder is that name. Typing sets it, and clearing it sets it to NULL. A new pick does not change it.
+    - "Note" (`note`), with the placeholder "For example, 9 inch".
+      The food picker's label becomes "Counted as". The fields use the existing text field, labels and lengths of the
+      Preparation field, with i18n keys. A typed line that the cook commits without a pick keeps their words as
+      `display_text`, and a pick from the list clears it, as the blueprint says.
+4. A matched food that is removed, or private to someone else. Keep the R9 stand-in until the owner answers Q2.
+   The UI Designer's recommendation to the owner: when `display_text` holds the author's words, show them, because they
+   are the author's own text and reveal nothing about another cook's private food. Add the "Private ingredient" chip
+   under them only in the editor, with "Not counted" in place of "Counted as". When `display_text` is NULL, show the
+   stand-in as now.
+5. Paste lines that wait for the review. No new copy. They use the existing checking state: the row shows the line's
+   shown words (the cook's words when the parse keeps them), with the existing "Checking…" status and no tick. The
+   publish sheet keeps "We’re still checking {names}…", and `{names}` uses the shown words. The settle announcement is
+   unchanged (2026-11-06 item 4): it counts ingredients once the checks end, and a line still checking announces
+   nothing of its own.
+6. Amends item 4 (2026-11-09). An editor row whose food was removed shows its attention line, "Food no longer
+   listed", in the second-line slot, because the cook must act on it. "Not counted" shows only on the quiet stand-in
+   rows (an outage, or a private food), where the cook has nothing to fix.
+
+## 2026-11-09: the editor after a private-food refusal (found in Nova Squad's web shots)
+
+The spec did not say what the editor shows behind and after the refusal sheet. The build shows the general save
+failure: "Couldn't save" in the header and a "We couldn't save your latest changes" notice with "Try again". That is
+wrong, because Try again sends the same publish and gets the same refusal.
+
+1. A refusal is not a save failure. The header keeps the device state ("Saved in this tab" on web, the native
+   equivalent on a phone). No save-failure notice and no Try again.
+2. The problem stays visible in the places the spec already gives it: the sections bar "⚠ 1" and the row's attention
+   line "Private food. A public recipe can't use it." Nothing new is added.
+3. Publish and Save changes stay enabled. Pressing either again opens the refusal sheet again.
+4. A refused write that waits in the outbox is never offered again with Try again. When the cook changes the draft
+   (for example, removes the private line), the next Publish or Save changes sends the current draft, and the refused
+   write is dropped. A refusal never leads to the general save-failure notice, in any order of steps.

@@ -27,6 +27,7 @@ import type { FC } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { ACCOUNT_ERASURE_CONFIRMATION_PHRASE, confirmsErasurePhrase } from '../erasure.js';
+import { ErasePrivateFoodsNotice } from './ErasePrivateFoodsNotice.native.js';
 import { accountDangerMessages } from './messages.js';
 import type { AccountEraseDialogProps } from './model.js';
 
@@ -36,6 +37,7 @@ const ignoreDismissal = (): void => undefined;
 export const AccountEraseDialog: FC<AccountEraseDialogProps> = ({
     open,
     donatableRecipes,
+    blockedRecipes = [],
     recipesLoading = false,
     recipesError = false,
     selectedRecipeIds,
@@ -105,6 +107,8 @@ export const AccountEraseDialog: FC<AccountEraseDialogProps> = ({
                     );
                 })
             )}
+
+            <ErasePrivateFoodsNotice recipes={blockedRecipes} />
 
             <Text style={body}>{erase.phrasePrompt.replace('{phrase}', ACCOUNT_ERASURE_CONFIRMATION_PHRASE)}</Text>
             <TextInput

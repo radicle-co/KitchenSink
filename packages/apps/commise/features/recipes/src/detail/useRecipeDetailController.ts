@@ -18,9 +18,10 @@
  *     profile read, the session claims and a navigation port (`RecipeDetailNav`) instead of this module importing a router.
  */
 import { knownPaidFeaturesOf, paidFeatureStateOf, type ProfileQueryState } from '@commise/features-account';
-import { useMessages } from '@commise/i18n/react';
+import { useLocale, useMessages } from '@commise/i18n/react';
 import type { ActionMenuItem, ActionMenuProps } from '@commise/ui/action-menu';
 import { RecipeVisibility, canClone, isOwner, makeViewer, type RecipeDetail } from '@kitchensink/recipe-core';
+import { isPrivateFoodsOnPublicRecipeError } from '@kitchensink/recipe-service-client';
 import {
     useCloneRecipe,
     useDeleteRecipe,
@@ -37,6 +38,7 @@ import { useMakePublicConfirm } from '../actions/useMakePublicConfirm.js';
 import { useRecipePrivate } from '../actions/useRecipePrivate.js';
 import { useServerRefusedPrivate } from '../actions/useServerRefusedPrivate.js';
 import { visibilityNoticeOf } from '../actions/visibilityNotice.js';
+import { refusedLinesOf } from '../editor/refusedLinesOf.js';
 import { useLeaveWhenClosed } from '../hooks/useLeaveWhenClosed.js';
 import { ratingModeFor } from '../rating/model.js';
 import { detailMenuOf, type DetailMenuItem } from './detailMenu.js';
@@ -65,6 +67,8 @@ export interface RecipeDetailNav {
     readonly onCloned: (createdId: string) => void;
     /** The recipe was deleted: leave. How the cook is told (an address flag, a snackbar) is the app's. */
     readonly onDeleted: () => void;
+    /** Open a food's page (the make-public refusal's Open food). Absent when the app has none. */
+    readonly onOpenFood?: (foodId: string) => void;
 }
 
 /** Input to {@link useRecipeDetailController}. */
@@ -123,6 +127,7 @@ export function useRecipeDetailController(input: RecipeDetailControllerInput): R
     const { id, recipe, sessionClaims, profile, finishRefused, refusalArrived, onFinishRefusalSeen, nav, saving } =
         input;
     const { detailActions, moreMenu, visibility: visibilityCopy } = useMessages(recipeActionMessages);
+    const locale = useLocale();
     const deleteRecipe = useDeleteRecipe();
     const setVisibility = useSetRecipeVisibility();
     const cloneRecipe = useCloneRecipe();
@@ -166,6 +171,9 @@ export function useRecipeDetailController(input: RecipeDetailControllerInput): R
     const knownStanding = recipePrivate.standing;
     // The confirm's words say what is KNOWN, and public is never final: it frees a slot, or (an imported public-web recipe,
     // upsell only) Premium is needed to return.
+    // F3: a Make public the server refused because a line uses a food only the cook can see. It is its own sheet with the lines
+    // named, never the confirm's generic "try again".
+    const refusedFoods = isPrivateFoodsOnPublicRecipeError(setVisibility.error) ? setVisibility.error.lines : undefined;
     const makePublic = useMakePublicConfirm({
         consequence: recipeMakePublicConsequence(
             { rule: recipePrivate.rule, standing: recipePrivate.standing, state: knownPaidFeatures ?? 'loading' },
@@ -188,7 +196,7 @@ export function useRecipeDetailController(input: RecipeDetailControllerInput): R
             serverRefusal: serverRefusedPrivate?.reason,
             finishRefused,
             knownRefusal: recipePrivate.refusal,
-            writeFailed: setVisibility.error !== null && !makePublic.dialog.open,
+            writeFailed: setVisibility.error !== null && !makePublic.dialog.open && refusedFoods === undefined,
             // The number is the SERVER's: the 403's own `limit`, else the standing it last answered.
             slotLimit:
                 serverRefusedPrivate?.slotLimit ?? (knownStanding.kind === 'full' ? knownStanding.limit : undefined),
@@ -204,7 +212,7 @@ export function useRecipeDetailController(input: RecipeDetailControllerInput): R
         owner: viewerIsOwner,
         isPublic,
         hasMarks: marks.hasMarks,
-        offersPrivate: privateGate.offersPrivate,
+        offersPrivate: true,
         mayBePublic: mayBePublic(recipePrivate.rule),
     });
 
@@ -285,7 +293,20 @@ export function useRecipeDetailController(input: RecipeDetailControllerInput): R
             viewerIsOwner,
             recipeTitle: recipe.title,
             upsell: privateGate.sheet,
-            makePublic: { ...makePublic.dialog, busy: setVisibility.isPending, error: setVisibility.error !== null },
+            makePublic: {
+                ...makePublic.dialog,
+                busy: setVisibility.isPending,
+                error: setVisibility.error !== null && refusedFoods === undefined,
+            },
+            ...(refusedFoods === undefined
+                ? {}
+                : {
+                      privateFoods: {
+                          lines: refusedLinesOf(recipe.ingredients, refusedFoods, locale),
+                          onOpenFood: (foodId: string) => nav.onOpenFood?.(foodId),
+                          onClose: setVisibility.reset,
+                      },
+                  }),
             delete: {
                 open: deleteOpen,
                 deleting: deleteRecipe.isPending,

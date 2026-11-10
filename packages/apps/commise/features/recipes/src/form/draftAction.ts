@@ -60,10 +60,12 @@ export type DraftAction =
           readonly kind: 'updateIngredientAt';
           readonly index: number;
           /**
-           * Only the four fields the cook edits on the row (§4a). The binding is not a key here, so no patch can unbind a
+           * Only the fields the cook edits on the row (§4a): the amount, unit, the cook's own words, the note, preparation and group. The binding is not a key here, so no patch can unbind a
            * line; re-pointing one is {@link DraftAction} `rebindIngredient`.
            */
-          readonly patch: Partial<Pick<RecipeFormIngredient, 'quantity' | 'unit' | 'preparation' | 'groupLabel'>>;
+          readonly patch: Partial<
+              Pick<RecipeFormIngredient, 'quantity' | 'unit' | 'displayText' | 'note' | 'preparation' | 'groupLabel'>
+          >;
       }
     | {
           /**

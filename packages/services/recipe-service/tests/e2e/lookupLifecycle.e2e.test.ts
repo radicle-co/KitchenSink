@@ -55,9 +55,15 @@ async function json<T>(userId: string, method: string, path: string, expected: n
 
 const idOf = async (promise: Promise<{ id: string }>): Promise<string> => (await promise).id;
 
-async function recipeOn(userId: string, label: string, lookupIds: readonly string[]): Promise<RecipeBody> {
+async function recipeOn(
+    userId: string,
+    label: string,
+    lookupIds: readonly string[],
+    visibility: 'public' | 'private' = 'public',
+): Promise<RecipeBody> {
     return json<RecipeBody>(userId, 'POST', '/api/v1/recipes', 201, {
         title: `${SCOPE} ${label}`,
+        visibility,
         servings: 2,
         prepTimeMinutes: 5,
         cookTimeMinutes: 10,
@@ -247,7 +253,7 @@ describe('the life of a line binding (e2e, assembled app + food fake)', () => {
         food.foods.set(`${SCOPE}-a-own`, { name: 'A’s thingummy', status: 'RESOLVED', ownerId: COOK_A });
 
         const failure = await idOf(json(COOK_A, 'POST', '/api/v1/ingredients/by-name', 202, { name: phrase }));
-        const recipeA = await recipeOn(COOK_A, 'thingummy A', [failure]);
+        const recipeA = await recipeOn(COOK_A, 'thingummy A', [failure], 'private');
         const recipeB = await recipeOn(COOK_B, 'thingummy B', [failure]);
 
         await json(COOK_A, 'POST', `/api/v1/recipes/${recipeA.id}/ingredients/0/rebind`, 200, {

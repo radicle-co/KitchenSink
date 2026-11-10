@@ -75,9 +75,14 @@ async function unmatched(phrase: string): Promise<string> {
 }
 
 /** A recipe whose line 0 is `first` (with a transcription) and line 1 is the brisket (with its own). */
-async function recipeWith(first: string, phrase: string): Promise<RecipeBody> {
+async function recipeWith(
+    first: string,
+    phrase: string,
+    visibility: 'public' | 'private' = 'public',
+): Promise<RecipeBody> {
     return json<RecipeBody>('POST', '/api/v1/recipes', 201, {
         title: `${SCOPE} ${phrase}`,
+        visibility,
         servings: 2,
         prepTimeMinutes: 5,
         cookTimeMinutes: 10,
@@ -244,7 +249,8 @@ describe('rebinding a recipe line (e2e, assembled app + food fake)', () => {
 
     it('⛔ keeps a correction to the cook’s OWN private food personal — never shared', async () => {
         const phrase = `${SCOPE} secret blend`;
-        const recipe = await recipeWith(await unmatched(phrase), phrase);
+        // The cook's own private food can be on a PRIVATE recipe only (ADR-0029 section 4).
+        const recipe = await recipeWith(await unmatched(phrase), phrase, 'private');
 
         await json<RecipeBody>('POST', `/api/v1/recipes/${recipe.id}/ingredients/0/rebind`, 200, {
             expectedVersion: recipe.currentVersion,

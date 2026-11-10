@@ -336,10 +336,11 @@ describe('Free-tier private slots (ADR-0073)', () => {
             expect(await privateCount(cook)).toBe(50);
         });
 
-        // ADDED after review. A downgraded cook keeps a private web-import they made while Premium; a clone of it is a private
-        // DRAFT. Publishing it private needs Premium and a substantive edit (ADR-0073 section 6), whatever the slot count: the
-        // old clone check counted this label, and the publish path must not let the cook walk round that rule.
-        it('⛔ a downgraded cook cannot publish a private clone of a web import: 400 INVALID_VISIBILITY, and it stays a draft', async () => {
+        // REWRITTEN for ADR-0077 section 6 (owner ruling 2026-10-29, "Any cook, using a slot"). It said a downgraded cook
+        // cannot publish a private clone of a web import: 400 INVALID_VISIBILITY, whatever the slot count. A web import is
+        // now private within a slot like every other label, so the publish takes a slot, and at 50 it is the slot
+        // refusal (403 PRIVATE_SLOTS_FULL), never a Premium refusal.
+        it('⛔ a cook at 50 cannot publish a private clone of a web import: 403 PRIVATE_SLOTS_FULL, and it stays a draft', async () => {
             const cook = newCook();
             await seed(cook, 49);
             const webId = await seedComplete(cook, { sourceType: 'imported_public' });
@@ -356,8 +357,8 @@ describe('Free-tier private slots (ADR-0073)', () => {
                 steps: [{ instruction: 'A substantive change' }],
             });
 
-            expect(refused.status).toBe(400);
-            expect(((await refused.json()) as ErrorBody).code).toBe('INVALID_VISIBILITY');
+            expect(refused.status).toBe(403);
+            expect(((await refused.json()) as ErrorBody).code).toBe('PRIVATE_SLOTS_FULL');
             const [row] = await db
                 .select({ status: recipes.status })
                 .from(recipes)
@@ -505,14 +506,20 @@ describe('Free-tier private slots (ADR-0073)', () => {
             expect((await patchVisibility(paid as string, 'private')).status).toBe(403);
         });
 
-        it('an imported_public recipe is still refused a free cook for want of Premium (400), with slots to spare', async () => {
+        // REWRITTEN for ADR-0077 section 6: it used to be refused 400 for want of Premium with slots to spare.
+        it('an imported_public recipe goes private in a free slot (200), and is refused only when none is left', async () => {
             const cook = newCook();
             const [webId] = await seed(cook, 1, { visibility: 'public', sourceType: 'imported_public' });
 
-            const res = await patchVisibility(webId as string, 'private');
+            expect((await patchVisibility(webId as string, 'private')).status).toBe(200);
 
-            expect(res.status).toBe(400);
-            expect(((await res.json()) as ErrorBody).code).toBe('INVALID_VISIBILITY');
+            const full = newCook();
+            await seed(full, 50);
+            const [web] = await seed(full, 1, { visibility: 'public', sourceType: 'imported_public' });
+            const refused = await patchVisibility(web as string, 'private');
+
+            expect(refused.status).toBe(403);
+            expect(((await refused.json()) as ErrorBody).code).toBe('PRIVATE_SLOTS_FULL');
         });
 
         it('making a private recipe public frees its slot, so a new private one then fits', async () => {
@@ -584,9 +591,9 @@ describe('Free-tier private slots (ADR-0073)', () => {
             expect((await postRecipe('private')).status).toBe(403);
 
             // 2. Asking for private on a recipe that is already private changes nothing: a success, except for a
-            //    web-imported one, where a free cook is refused (400) for want of Premium - and it stays private.
-            for (const [index, id] of complete.entries()) {
-                expect((await patchVisibility(id, 'private')).status).toBe(index === 1 ? 400 : 200);
+            //    web-imported one (ADR-0077 section 6: it is a slot like the rest, so it is a success too).
+            for (const id of complete) {
+                expect((await patchVisibility(id, 'private')).status).toBe(200);
             }
 
             // 3. A SUBSTANTIVE edit (new steps and ingredients) of each: the update path carries no visibility, and the

@@ -42,12 +42,15 @@ export interface RecipeIngredientResponse {
     variant?: IngredientVariant;
     /** Whether the line's root has a live variant — present exactly on a line that shows a root and no variant. */
     hasVariants?: boolean;
+    /** Whether the line's food is private or public, from food's live answer (ADR-0029 section 4). */
+    foodVisibility?: 'private' | 'public';
     /** Why an unresolved line did not resolve (plan 002 R1, R6). */
     unresolvedReason?: UnresolvedFoodReasonCode;
     /** What the source stated — one value, two bounds, or nothing (U8/KTD-6). Never a bare number. */
     quantity: IngredientQuantity;
     unit?: string;
-    notes?: string;
+    displayText?: string;
+    note?: string;
     /** How THIS recipe prepares the food (plan U26). ⛔ Never part of {@link name}. */
     preparation?: string;
     /** The section this line belongs to (plan U27). Absent means ungrouped, which is most lines. */
@@ -135,6 +138,8 @@ export interface RecipeResponse {
      * the recipe has no photos. NOTE: full-size original until FOLLOW-UP-CR-001-A lands (no thumbnails).
      */
     coverPhotoUrl?: string;
+    /** Whether any line is bound to a private food - the cook's own list only (ADR-0029 section 4). */
+    holdsPrivateFood?: boolean;
     createdAt: string;
     updatedAt: string;
     /** Soft-delete tombstone (C-007); present only when deleted, absent otherwise (never `null`). */

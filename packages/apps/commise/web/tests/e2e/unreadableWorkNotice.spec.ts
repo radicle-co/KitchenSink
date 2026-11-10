@@ -31,7 +31,7 @@ const DRAFT_ID = 'ec000000-0000-4000-8000-0000000000d1';
 const STORES = [
     {
         name: 'the outbox',
-        storeKey: (subject: string) => `sync.outbox.v1.${subject}`,
+        storeKey: (subject: string) => `sync.outbox.v2.${subject}`,
         quarantineKey: (subject: string) => `sync.outbox.quarantine.${subject}`,
         open: async (page: Page) => {
             await page.goto(route('/'));
@@ -40,7 +40,7 @@ const STORES = [
     },
     {
         name: 'the editor draft store',
-        storeKey: (subject: string) => `editor.draft.v1.${subject}`,
+        storeKey: (subject: string) => `editor.draft.v2.${subject}`,
         quarantineKey: (subject: string) => `editor.draft.quarantine.${subject}`,
         open: async (page: Page) => {
             await openRecipeEditor(page, DRAFT_ID);

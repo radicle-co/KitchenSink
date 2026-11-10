@@ -177,7 +177,7 @@ function makeEngines(): {
                 // `null`, which contributed no measure — harmless while the pipeline was observe-only, and a
                 // fabricated value the moment its reading reaches the wire. The food NAME stays deliberately
                 // crude (the whole line): a stub must not pretend to segment.
-                promoteLlmParse({ statedMeasure: line, foods: [{ name: line, prep: null }] }, line),
+                promoteLlmParse({ statedMeasure: line, foods: [{ name: line, prep: null, display: 'food' }] }, line),
             );
         },
     };

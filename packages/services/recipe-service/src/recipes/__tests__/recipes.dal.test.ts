@@ -195,7 +195,11 @@ describe('RecipesDal.findAll', () => {
         expect(result.total).toBe(7);
         // ⛔ The list item carries neither steps nor lines (plan 002): a line's name costs a food call, so loading
         // lines for a list would pay for fields no client receives.
-        expect(result.rows).toStrictEqual([{ recipe: rowA }, { recipe: rowB }]);
+        // The page is asked once which recipes hold a private food; the fake answers none (ADR-0029 section 4).
+        expect(result.rows).toStrictEqual([
+            { recipe: rowA, holdsPrivateFood: false },
+            { recipe: rowB, holdsPrivateFood: false },
+        ]);
         expect(control.calls.filter((call) => call.method === 'select')).toHaveLength(2);
 
         const offsetCall = control.calls.find((call) => call.method === 'offset');

@@ -16,13 +16,18 @@
  *  2b. **A spent AI budget** (owner ruling 2026-10-26): `needsChoice` with reason `reviewBudgetSpent`, ahead of
  *     everything below, unless a verdict that asked identity is on record. Curated, remembered and exact-name
  *     proposals included: nothing reviewed the parse or the match.
- *  3. **A curated mapping**: `confident`. A gate contradiction keeps it confident, because a person decided and the model
- *     has an error rate, and adds the review note `reviewDisagreed` so curation can be reviewed.
+ *  3. **The saved line's question (owner ruling 2026-11-08, Q1)**: a verdict on record that `savedLineAsks` (a saved line
+ *     would badge AMBIGUOUS) is `needsChoice` for EVERY tier, curated included, and a review owed with NO verdict is
+ *     `checking` for every tier, because the verdict that lands can turn a shown match into that choice after the cook saw it
+ *     matched. So a line the review shows as matched never saves as AMBIGUOUS.
+ *  3b. **A curated mapping** otherwise: `confident`. A gate contradiction (`contradict`) adds the review note
+ *     `reviewDisagreed` to whatever state the mapping gets, so curation can be reviewed: a person decided and the model has
+ *     an error rate.
  *  4. **A memo or lexical proposal the gate contradicted, or doubted, on IDENTITY**: `needsChoice`.
  *  5. **A memo**: `confident`.
  *  6. **A lexical proposal**: `confident` once the gate verified identity, `needsChoice` when it abstained or hedged.
  *     With no readable verdict: an exact-name rung is `confident` (ruling 3, whether the review was refused, gave up,
- *     was never sent for a contained test principal, or came back unreadable); a review the gate could not take
+ *     or was never sent for a contained test principal, or came back unreadable); a review the gate could not take
  *     (`refused`), gave up on (`exhausted`, or an unreadable reply) or was never sent (`notAsked`, ADR-0040) is
  *     `needsChoice`; otherwise `checking`. Only a review that DISAGREES overrides an exact name.
  *
@@ -40,7 +45,7 @@ import type { RankTier } from '@kitchensink/recipe-core/resolution/ranking-tiers
 
 import type { MatchProposingTier } from '../../database/schema/parseJobMatches.js';
 import { parseProposalMatchStateSchema } from '../parseJobs.schema.js';
-import { identityReadingOf, type VerificationBand } from './lineVerification.js';
+import { identityReadingOf, savedLineAsks, type VerificationBand } from './lineVerification.js';
 
 /** The rung of a name-exact proposal (ruling 3): a `RankTier` member, so a misspelling is a compile error. */
 const EXACT_RUNG: RankTier = 'exact';
@@ -161,11 +166,29 @@ export function matchStateOf(facts: MatchFacts): MatchStateAnswer {
         return { state: 'needsChoice', reason: REVIEW_BUDGET_SPENT_REASON };
     }
 
+    // ⛔ THE REVIEW MAY NEVER SHOW A MATCH THAT THE SAVED LINE WOULD BADGE AMBIGUOUS (ADR-0071 §9, owner ruling
+    // 2026-11-08). A verdict a saved line asks about asks here for every non-curated tier, memo and exact name included;
+    // and while a review is owed with no verdict, no such tier is confident, because the verdict that lands can turn it
+    // into the first case after the cook saw it matched.
+    // A curated mapping is a person's decision and the model has an error rate, so only its STRONGEST claim adds the
+    // review note, on the answer it gets (owner ruling 2026-11-08, Q1: a curated mapping asks like the rest).
+    const curatedNote =
+        proposal.matchedBy === 'curated' && reading === 'contradict' ? { reviewNote: 'reviewDisagreed' as const } : {};
+
+    if (verdict !== undefined && savedLineAsks(verdict)) {
+        return {
+            state: 'needsChoice',
+            reason: reading === 'contradict' ? 'reviewContradicted' : 'reviewAbstained',
+            ...curatedNote,
+        };
+    }
+
+    if (verdict === undefined && facts.review === 'asked') {
+        return { state: 'checking', reason: 'awaitingReview' };
+    }
+
     if (proposal.matchedBy === 'curated') {
-        // A person decided, and the model has an error rate: only its STRONGEST claim adds the review note.
-        return reading === 'contradict'
-            ? { state: 'confident', reason: 'curatedMapping', reviewNote: 'reviewDisagreed' }
-            : { state: 'confident', reason: 'curatedMapping' };
+        return { state: 'confident', reason: 'curatedMapping', ...curatedNote };
     }
 
     if (reading === 'contradict' || reading === 'doubt') {

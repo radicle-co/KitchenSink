@@ -110,6 +110,9 @@ export const ingredientQuantityDescribedBy = (
 /** The id of one row's pending sentence: text a save refused (§4b; `docs/design/rowEditorOpenDecisions.md` item 4). */
 export const ingredientPendingTextId = (key: string): string => `recipe-ingredient-${key}-pending-text`;
 
+/** The id of one row's "Counted as {food}" line, which describes the row's open control. */
+export const ingredientCountedAsId = (key: string): string => `recipe-ingredient-${key}-counted-as`;
+
 /** The id of one row's failed pick or refused details write (items 1 and 4; `ingredientSpecialization.md` §S8.9). */
 export const ingredientCommitFailureId = (key: string): string => `recipe-ingredient-${key}-commit-failure`;
 

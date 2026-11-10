@@ -1,0 +1,72 @@
+appId: ${APP_ID}
+---
+# A public recipe cannot hold a food only its author can see (ADR-0029 section 4; private foods spec section 7). The signer
+# has a public DRAFT whose one line uses the signer's own PRIVATE food. Publish is refused by the server; the refusal
+# sheet names the line, and Open food pushes the food page ABOVE the editor. Back returns to the editor exactly as it was,
+# with the draft intact and no leave prompt (spec F15).
+#
+# Replaces `privateFoodStandIn`: that flow saved a copy of a public recipe holding ANOTHER cook's private food, and
+# such a recipe can no longer exist.
+#
+# Fixture: `e2e-seed` makes the signer's public DRAFT `${E2E_RECIPE_PRIVATE_FOOD}` bound to the signer's own private food
+# `${E2E_PRIVATE_FOOD_NAME}` (`ensurePrivateFoodRecipe`), and the per-flow reset spares it. ⚠️ Not run where it was written
+# (no Maestro runs there): the steps are written from the screens and may need their selectors adjusted on a first run.
+- runFlow: ../auth/signin.yaml
+
+- assertVisible: 'My recipes'
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: '^${E2E_RECIPE_PRIVATE_FOOD}$'
+          DIRECTION: DOWN
+          TIMEOUT: 30000
+- tapOn:
+      text: '^${E2E_RECIPE_PRIVATE_FOOD}$'
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Edit recipe'
+          DIRECTION: UP
+          TIMEOUT: 20000
+- tapOn: 'Edit recipe'
+- extendedWaitUntil:
+      visible: 'Close editor'
+      timeout: 40000
+
+# Publish with Public chosen: the server refuses, and the sheet opens.
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Publish'
+          DIRECTION: DOWN
+          TIMEOUT: 30000
+- tapOn: 'Publish'
+- extendedWaitUntil:
+      visible: 'This recipe can’t be public yet'
+      timeout: 20000
+- assertVisible: '.*1 ingredient uses a food only you can see.*'
+# The button's accessible name starts with its visible words: "Open food: {line}" (spec 7.2). A full-text selector on the
+# bare words no longer matches it on iOS, where the label replaces the text, so the name is matched as a pattern.
+- assertVisible: 'Open food: .*'
+
+# Open food pushes the food page above the editor.
+- tapOn: 'Open food: .*'
+- extendedWaitUntil:
+      visible: '${E2E_PRIVATE_FOOD_NAME}'
+      timeout: 20000
+- assertVisible: 'Private'
+
+# Back returns to the editor with the draft intact and no leave prompt.
+- tapOn: 'Back to Edit recipe'
+- extendedWaitUntil:
+      visible: 'Close editor'
+      timeout: 20000
+- assertNotVisible: 'Discard'
+
+# ⛔ LEAVE THE EDITOR, so the next flow does not start on this one's open editor. The flows launch the app WITHOUT clearing
+# its state (`signinHome.yaml`), so whatever this flow leaves open or unsaved is what `askToMakeFoodPublic` meets. Closing
+# the editor checkpoints the exit and returns to the recipe; the draft stays on the device, as it does for any cook.
+- tapOn: 'Close editor'
+- extendedWaitUntil:
+      notVisible: 'Close editor'
+      timeout: 20000

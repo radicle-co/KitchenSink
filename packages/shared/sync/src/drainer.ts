@@ -49,6 +49,12 @@ export type SendResult<A = unknown> =
            */
           readonly retryAfterSeconds?: number;
           readonly answer?: A;
+          /**
+           * The server refused this write for good and nothing about it is unknown: sent again it meets the same refusal,
+           * and only a change to the draft helps. The record leaves the log instead of parking behind a Try again
+           * (ruling a369e1852); its answer still reaches the listener.
+           */
+          readonly drop?: true;
       };
 
 /**
@@ -72,9 +78,10 @@ export interface SettlementEvent<A = unknown> {
     readonly entity: SyncEntity;
     readonly localId: string;
     readonly intentKind: IntentKind;
-    readonly outcome: 'synced' | 'parked';
+    /** `dropped`: refused for good and already out of the log (`SendResult`'s `drop`). */
+    readonly outcome: 'synced' | 'parked' | 'dropped';
     readonly serverId?: string;
-    /** The HTTP status a parked record was refused with; absent for an unknown outcome. */
+    /** The HTTP status a parked or dropped record was refused with; absent for an unknown outcome. */
     readonly status?: number;
     readonly answer?: A;
 }
@@ -338,6 +345,22 @@ export async function drain<A = unknown>(
 
         const status = result?.outcome === 'failed' ? result.status : undefined;
 
+        if (queued.produces !== undefined) {
+            parkedRefs.add(queued.produces);
+        }
+
+        if (result?.outcome === 'failed' && result.drop === true) {
+            await record({ seq: queued.seq, outcome: 'dropped' });
+            options.onSettled?.({
+                ...identityOf(queued),
+                outcome: 'dropped',
+                ...statusOf(status),
+                ...answerOf(result),
+            });
+
+            continue;
+        }
+
         failed.push({
             entity: queued.entity,
             intentKind: queued.intentKind,
@@ -351,10 +374,6 @@ export async function drain<A = unknown>(
             ...statusOf(status),
             ...(result === undefined ? {} : answerOf(result)),
         });
-
-        if (queued.produces !== undefined) {
-            parkedRefs.add(queued.produces);
-        }
     }
 
     return { log: current, synced, failed };

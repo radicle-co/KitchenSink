@@ -229,23 +229,31 @@ describe('RecipesService.create - private slots (ADR-0073)', () => {
         expect(create).not.toHaveBeenCalled();
     });
 
-    it('imported_public chosen private by a free cook stays INVALID_VISIBILITY (Premium + edit), whatever the count; no count is taken', async () => {
+    // REWRITTEN for ADR-0077 section 6 (owner ruling 2026-10-29, "Any cook, using a slot"). It used to say an imported_public
+    // recipe chosen private by a free cook is refused for want of Premium and a substantive edit, whatever the count.
+    const IMPORTED_PUBLIC_DTO = {
+        ...CREATE_DTO,
+        visibility: 'private',
+        source: { sourceType: 'imported_public', sourceUrl: 'https://example.com/r' },
+    } as CreateRecipeDto;
+
+    it('imported_public chosen private by a free cook with a slot free is allowed, and counted like any private recipe', async () => {
         const { dal, lockAndCountPrivateSlots, create } = dalHolding(0);
 
+        await serviceOver(dal).create(principal({ scopes: [CURATOR_IMPORT_SCOPE] }), IMPORTED_PUBLIC_DTO, undefined);
+
+        expect(lockAndCountPrivateSlots).toHaveBeenCalledWith(FAKE_TX, OWNER);
+        expect(create).toHaveBeenCalledTimes(1);
+    });
+
+    it('imported_public chosen private by a free cook at 50 is PRIVATE_SLOTS_FULL, not INVALID_VISIBILITY', async () => {
+        const { dal, create } = dalHolding(50);
+
         const error = await refusalOf(
-            serviceOver(dal).create(
-                principal({ scopes: [CURATOR_IMPORT_SCOPE] }),
-                {
-                    ...CREATE_DTO,
-                    visibility: 'private',
-                    source: { sourceType: 'imported_public', sourceUrl: 'https://example.com/r' },
-                } as CreateRecipeDto,
-                undefined,
-            ),
+            serviceOver(dal).create(principal({ scopes: [CURATOR_IMPORT_SCOPE] }), IMPORTED_PUBLIC_DTO, undefined),
         );
 
-        expect(error.code).toBe(RecipeErrorCode.INVALID_VISIBILITY);
-        expect(lockAndCountPrivateSlots).not.toHaveBeenCalled();
+        expect(error.code).toBe(RecipeErrorCode.PRIVATE_SLOTS_FULL);
         expect(create).not.toHaveBeenCalled();
     });
 
@@ -405,15 +413,24 @@ describe('RecipesService.setVisibility - private slots (ADR-0073)', () => {
         expect(lockAndCountPrivateSlots).not.toHaveBeenCalled();
     });
 
-    it('an imported_public recipe is refused for want of Premium, never for want of a slot', async () => {
+    // REWRITTEN for ADR-0077 section 6: an imported_public recipe is private within a slot like any other.
+    it('an imported_public recipe goes private in a free slot, and is counted', async () => {
         const { dal, lockAndCountPrivateSlots } = holding(0, 'public', 'imported_public');
+
+        await expect(
+            serviceOver(dal).setVisibility(principal(), 'r-1', RecipeVisibility.PRIVATE, undefined),
+        ).resolves.toBeDefined();
+        expect(lockAndCountPrivateSlots).toHaveBeenCalled();
+    });
+
+    it('an imported_public recipe is refused for want of a slot at 50, never for want of Premium', async () => {
+        const { dal } = holding(50, 'public', 'imported_public');
 
         const error = await refusalOf(
             serviceOver(dal).setVisibility(principal(), 'r-1', RecipeVisibility.PRIVATE, undefined),
         );
 
-        expect(error.code).toBe(RecipeErrorCode.INVALID_VISIBILITY);
-        expect(lockAndCountPrivateSlots).not.toHaveBeenCalled();
+        expect(error.code).toBe(RecipeErrorCode.PRIVATE_SLOTS_FULL);
     });
 });
 
@@ -571,39 +588,35 @@ describe('RecipesService.update - publishing a private draft takes a slot (ADR-0
         expect(update).not.toHaveBeenCalled();
     });
 
-    // ADDED after review: the old clone check counted EVERY label, imported_public included, and publishing a private draft
-    // is now where that slot is taken - but `imported_public` goes private only with Premium AND a substantive edit (ADR-0073
-    // section 6), a rule the publish path must still run, or a downgraded cook could publish a private web-import for free.
-    it('⛔ refuses a free cook publishing a private imported_public draft with INVALID_VISIBILITY, writing nothing', async () => {
-        const { dal, update, lockAndCountPrivateSlots } = draftHolding(
-            0,
-            { visibility: 'private', status: 'draft' },
-            'imported_public',
-        );
+    // REWRITTEN for ADR-0077 section 6. These pinned the old rule: a free cook publishing a private imported_public draft was
+    // refused for want of Premium, and Premium needed a substantive edit. Now it takes a slot like every other label.
+    it('a free cook publishing a private imported_public draft takes a slot, and is refused only when none is left', async () => {
+        const free = draftHolding(0, { visibility: 'private', status: 'draft' }, 'imported_public');
 
-        const error = await refusalOf(serviceOver(dal).update(principal(), 'r-1', PATCH, undefined));
+        await expect(serviceOver(free.dal).update(principal(), 'r-1', PATCH, undefined)).resolves.toBeDefined();
+        expect(free.lockAndCountPrivateSlots).toHaveBeenCalled();
 
-        expect(error.code).toBe(RecipeErrorCode.INVALID_VISIBILITY);
-        expect(update).not.toHaveBeenCalled();
-        // A slot never makes an imported public-web recipe private: nothing is counted for it.
-        expect(lockAndCountPrivateSlots).not.toHaveBeenCalled();
+        const full = draftHolding(50, { visibility: 'private', status: 'draft' }, 'imported_public');
+        const error = await refusalOf(serviceOver(full.dal).update(principal(), 'r-1', PATCH, undefined));
+
+        expect(error.code).toBe(RecipeErrorCode.PRIVATE_SLOTS_FULL);
+        expect(full.update).not.toHaveBeenCalled();
     });
 
-    it('Premium publishes a private imported_public draft that carries a substantive edit', async () => {
-        const { dal, update } = draftHolding(0, { visibility: 'private', status: 'draft' }, 'imported_public', true);
+    it.each([true, false])(
+        'Premium publishes a private imported_public draft whatever its edit state (substantive edit: %s)',
+        async (substantive) => {
+            const { dal, update } = draftHolding(
+                0,
+                { visibility: 'private', status: 'draft' },
+                'imported_public',
+                substantive,
+            );
 
-        await expect(serviceOver(dal).update(premium(), 'r-1', PATCH, undefined)).resolves.toBeDefined();
-        expect(update).toHaveBeenCalledOnce();
-    });
-
-    it('Premium is refused a private imported_public draft with NO substantive edit yet (FR-005b)', async () => {
-        const { dal, update } = draftHolding(0, { visibility: 'private', status: 'draft' }, 'imported_public', false);
-
-        const error = await refusalOf(serviceOver(dal).update(premium(), 'r-1', PATCH, undefined));
-
-        expect(error.code).toBe(RecipeErrorCode.INVALID_VISIBILITY);
-        expect(update).not.toHaveBeenCalled();
-    });
+            await expect(serviceOver(dal).update(premium(), 'r-1', PATCH, undefined)).resolves.toBeDefined();
+            expect(update).toHaveBeenCalledOnce();
+        },
+    );
 
     it('Premium publishes a private draft with no lock and no count', async () => {
         const { dal, lockAndCountPrivateSlots } = draftHolding(5_000, { visibility: 'private', status: 'draft' });

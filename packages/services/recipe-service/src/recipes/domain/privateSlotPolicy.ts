@@ -19,7 +19,7 @@
  * The limit is resolved in ONE place, {@link privateSlotAllowanceOf}. 015's earned slots will add to the base there and
  * nowhere else; the policy's input does not change.
  */
-import { RecipeStatus, RecipeVisibility, privateRuleOf } from '@kitchensink/recipe-core';
+import { RecipeStatus, RecipeVisibility } from '@kitchensink/recipe-core';
 import type { RecipeSourceType } from '@kitchensink/recipe-core';
 
 /**
@@ -75,16 +75,12 @@ export function holdsPrivateSlot(facts: SlotFacts): boolean {
  * Whether the slot rule can apply to this cook and this label at all. Pure.
  *
  *  - Premium never counts slots.
- *  - `imported_public` goes private only with Premium and a substantive edit (ADR-0073 section 6): a free cook is refused
- *    for want of Premium before slots are looked at, so a slot never makes one private.
+ *  - Every label counts them, `imported_public` included (ADR-0077 section 6): any cook may keep one private, using a slot.
  *
  * It is the cheap gate in front of the per-user lock, for a write whose recipe facts are only known under that lock.
  */
-export function slotRuleApplies(input: {
-    readonly sourceType: RecipeSourceType;
-    readonly isPremium: boolean;
-}): boolean {
-    return !input.isPremium && privateRuleOf(input.sourceType) !== 'premium';
+export function slotRuleApplies(input: { readonly isPremium: boolean }): boolean {
+    return !input.isPremium;
 }
 
 /**

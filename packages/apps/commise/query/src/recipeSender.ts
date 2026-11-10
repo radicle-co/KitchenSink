@@ -24,6 +24,7 @@
 import { isSessionSubjectChangedError, isTokenMintFailedError } from '@commise/features-account';
 import {
     isInvalidRequestError,
+    isPrivateFoodsOnPublicRecipeError,
     isPrivateSlotsFullError,
     isRecipeNotFoundError,
     isRecipeServiceClientError,
@@ -173,12 +174,24 @@ function failureFor(error: unknown): RecipeSendResult {
     }
 
     // ⛔ A PRIVATE SLOT THE SERVER FOUND GONE travels as data too: the editor asks the cook what to do and names the limit,
-    // where a bare 403 would park behind a Try again that cannot succeed. Still terminal, never re-sent by the drain.
+    // where a bare 403 would park behind a Try again that cannot succeed. Dropped, never parked (ruling a369e1852).
     if (isPrivateSlotsFullError(error)) {
         return {
             outcome: 'failed',
             status: 403,
             answer: { kind: 'recipeSlotsFull', used: error.used, limit: error.limit },
+            drop: true,
+        };
+    }
+
+    // ⛔ A PRIVATE FOOD IN A PUBLIC RECIPE travels as data too: the editor names the lines and drops the refused write, where
+    // a bare 400 would park behind a Try again that sends the same refusal. Dropped, never parked (ruling a369e1852).
+    if (isPrivateFoodsOnPublicRecipeError(error)) {
+        return {
+            outcome: 'failed',
+            status: 400,
+            answer: { kind: 'recipePrivateFoods', lines: error.lines },
+            drop: true,
         };
     }
 

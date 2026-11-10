@@ -20,6 +20,7 @@ export function makeEditorResult(over: Partial<UseRecipeEditorResult> = {}): Use
         refusedFields: new Set(),
         publishAttempted: false,
         publishBlocked: undefined,
+        privateFoodRefusal: undefined,
         lifecycle: 'unsaved',
         recipeId: undefined,
         saveStatus: { kind: 'unsaved' },

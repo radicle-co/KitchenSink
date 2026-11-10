@@ -42,8 +42,12 @@ import {
     createAuthoredFoodRequestSchema,
     dataSourcesResponseSchema,
     foodErrorSchema,
+    editPendingResponseSchema,
     foodResponseSchema,
+    ownFoodListSchema,
     pendingResponseSchema,
+    publicationRequestDetailSchema,
+    updateAuthoredFoodRequestSchema,
     resolveFoodRefsRequestSchema,
     resolveFoodRefsResponseSchema,
     resolveFoodRequestSchema,
@@ -56,6 +60,8 @@ import {
     statusResponseSchema,
 } from '@kitchensink/schema-food';
 import type {
+    OwnFoodList,
+    PublicationRequestDetail,
     AddResponse,
     AdoptRemoteFoodResponse,
     AuthoredFoodSearchResponse,
@@ -85,6 +91,9 @@ import {
     InvalidRequestError,
     NotFoundError,
     RateLimitedError,
+    PublicationNotApprovableError,
+    PublicationNotRequestableError,
+    PublicationRequestNotFoundError,
     RemoteFoodGoneError,
     RequesterLimitReachedError,
     SearchRateLimitedError,
@@ -99,6 +108,8 @@ import type {
     CorroboratedResult,
     CreateAuthoredFoodInput,
     CreateAuthoredFoodResult,
+    UpdateAuthoredFoodInput,
+    UpdateAuthoredFoodResult,
     FoodNutritionBatchResult,
 } from './types.js';
 
@@ -408,6 +419,78 @@ export class FoodServiceClient {
         const res = await this.send('POST', '/api/v1/foods/authored/test-purge');
 
         return this.expect(res, 200, authoredFoodTestPurgeResponseSchema);
+    }
+
+    /**
+     * `GET /api/v1/foods/authored?cursor=` (revision 4, F19): the caller's OWN foods, newest edit first, each with the
+     * one `publicationState` word, and the count of decisions the cook has not yet opened.
+     *
+     * @param cursor - The previous page's `nextCursor`; absent for the first page.
+     * @returns One page.
+     * @sideEffect Performs an authenticated HTTP request.
+     */
+    public async listOwnFoods(cursor?: string): Promise<OwnFoodList> {
+        const query = cursor === undefined ? '' : `?cursor=${encodeURIComponent(cursor)}`;
+        const res = await this.send('GET', `/api/v1/foods/authored${query}`);
+
+        return this.expect(res, 200, ownFoodListSchema);
+    }
+
+    /**
+     * `POST /api/v1/foods/authored/{id}/publication-request` (ADR-0029 section 5): the author asks staff to make a
+     * private food public. An ask already open answers `200` with it, so a double press is harmless.
+     *
+     * @throws {PublicationNotRequestableError} (`409`) when the food is withdrawn, not private, or declined at this version.
+     * @sideEffect Performs an authenticated HTTP request that opens a request.
+     */
+    public async requestPublication(id: string): Promise<PublicationRequestDetail> {
+        const res = await this.send('POST', `/api/v1/foods/authored/${encodeURIComponent(id)}/publication-request`);
+
+        if (res.status === 200 || res.status === 201) {
+            return publicationRequestDetailSchema.parse(res.body);
+        }
+
+        throw this.toError(res, id);
+    }
+
+    /**
+     * `GET /api/v1/foods/authored/{id}/publication-request` (revision 4, F8): the NEWEST request whatever its status,
+     * with its decline reason and the version it points at.
+     *
+     * @throws {PublicationRequestNotFoundError} (`404`) when the food was never asked for.
+     * @sideEffect Performs an authenticated HTTP request.
+     */
+    public async getPublicationRequest(id: string): Promise<PublicationRequestDetail> {
+        const res = await this.send('GET', `/api/v1/foods/authored/${encodeURIComponent(id)}/publication-request`);
+
+        return this.expect(res, 200, publicationRequestDetailSchema, id);
+    }
+
+    /**
+     * `PUT /api/v1/foods/{id}` (ADR-0029 section 7): edit one of the caller's own foods. A private food applies at once
+     * (`200`); a public food answers `202 editPending`, because the edit waits for staff.
+     *
+     * @sideEffect Performs an authenticated HTTP request that writes the edit.
+     */
+    public async updateAuthoredFood(id: string, input: UpdateAuthoredFoodInput): Promise<UpdateAuthoredFoodResult> {
+        const res = await this.send(
+            'PUT',
+            `/api/v1/foods/${encodeURIComponent(id)}`,
+            this.request('updateAuthoredFood', updateAuthoredFoodRequestSchema, input),
+        );
+
+        if (res.status === 200) {
+            return { kind: 'applied', food: foodResponseSchema.parse(res.body) };
+        }
+
+        if (res.status === 202) {
+            return {
+                kind: 'editPending',
+                versionNumber: editPendingResponseSchema.parse(res.body).publication.versionNumber,
+            };
+        }
+
+        throw this.toError(res, id);
     }
 
     /**
@@ -1355,6 +1438,14 @@ export class FoodServiceClient {
             case 'FOOD_PENDING':
             case 'INTERNAL_ERROR':
                 return new UnexpectedResponseError(res.status, body.message);
+
+            // The publication codes (ADR-0029 section 5): each is its own typed error, so a screen can branch on the reason.
+            case 'PUBLICATION_NOT_REQUESTABLE':
+                return new PublicationNotRequestableError(body.details.id, body.details.reason, body.message);
+            case 'PUBLICATION_REQUEST_NOT_FOUND':
+                return new PublicationRequestNotFoundError(body.details.id, body.message);
+            case 'PUBLICATION_NOT_APPROVABLE':
+                return new PublicationNotApprovableError(body.details.id, body.details.reason, body.message);
 
             default: {
                 // EXHAUSTIVENESS GATE (§15.1: drift must fail at `typecheck`, not in e2e). Adding a code to the

@@ -460,5 +460,389 @@
         "w": 1280,
         "h": 800,
         "title": "Cooking mode, done (web)"
+    },
+    "FoodPagePrivateMobile": {
+        "after": "RecipeEditorFoodDetailsStatesMobile",
+        "w": 390,
+        "h": 888,
+        "title": "Food page, private (phone)"
+    },
+    "FoodPagePrivate320Mobile": {
+        "after": "FoodPagePrivateMobile",
+        "w": 320,
+        "h": 908,
+        "title": "Food page, private (phone 320 px)"
+    },
+    "FoodPagePrivate820Mobile": {
+        "after": "FoodPagePrivate320Mobile",
+        "w": 820,
+        "h": 1180,
+        "title": "Food page, private (tablet 820 px)"
+    },
+    "FoodPagePrivate": {
+        "after": "RecipeEditorFoodDetailsStates",
+        "w": 1280,
+        "h": 860,
+        "title": "Food page, private (web)"
+    },
+    "FoodPageAskedMobile": {
+        "after": "FoodPagePrivate820Mobile",
+        "w": 390,
+        "h": 844,
+        "title": "Food page, asked to make public (phone)"
+    },
+    "FoodPageAsked320Mobile": {
+        "after": "FoodPageAskedMobile",
+        "w": 320,
+        "h": 844,
+        "title": "Food page, asked to make public (phone 320 px)"
+    },
+    "FoodPageAsked820Mobile": {
+        "after": "FoodPageAsked320Mobile",
+        "w": 820,
+        "h": 1180,
+        "title": "Food page, asked to make public (tablet 820 px)"
+    },
+    "FoodPageAsked": {
+        "after": "FoodPagePrivate",
+        "w": 1280,
+        "h": 860,
+        "title": "Food page, asked to make public (web)"
+    },
+    "FoodPageNotApprovedMobile": {
+        "after": "FoodPageAsked820Mobile",
+        "w": 390,
+        "h": 884,
+        "title": "Food page, not approved (phone)"
+    },
+    "FoodPageNotApproved320Mobile": {
+        "after": "FoodPageNotApprovedMobile",
+        "w": 320,
+        "h": 904,
+        "title": "Food page, not approved (phone 320 px)"
+    },
+    "FoodPageNotApproved820Mobile": {
+        "after": "FoodPageNotApproved320Mobile",
+        "w": 820,
+        "h": 1180,
+        "title": "Food page, not approved (tablet 820 px)"
+    },
+    "FoodPageNotApproved": {
+        "after": "FoodPageAsked",
+        "w": 1280,
+        "h": 860,
+        "title": "Food page, not approved (web)"
+    },
+    "FoodPagePublicEditWaitingMobile": {
+        "after": "FoodPageNotApproved820Mobile",
+        "w": 390,
+        "h": 1020,
+        "title": "Food page, public with an edit waiting (phone)"
+    },
+    "FoodPagePublicEditWaiting320Mobile": {
+        "after": "FoodPagePublicEditWaitingMobile",
+        "w": 320,
+        "h": 1040,
+        "title": "Food page, public with an edit waiting (phone 320 px)"
+    },
+    "FoodPagePublicEditWaiting820Mobile": {
+        "after": "FoodPagePublicEditWaiting320Mobile",
+        "w": 820,
+        "h": 1180,
+        "title": "Food page, public with an edit waiting (tablet 820 px)"
+    },
+    "FoodPagePublicEditWaiting": {
+        "after": "FoodPageNotApproved",
+        "w": 1280,
+        "h": 948,
+        "title": "Food page, public with an edit waiting (web)"
+    },
+    "FoodPageEditNotApprovedMobile": {
+        "after": "FoodPagePublicEditWaiting820Mobile",
+        "w": 390,
+        "h": 880,
+        "title": "Food page, edit not approved (phone)"
+    },
+    "FoodPageEditNotApproved320Mobile": {
+        "after": "FoodPageEditNotApprovedMobile",
+        "w": 320,
+        "h": 880,
+        "title": "Food page, edit not approved (phone 320 px)"
+    },
+    "FoodPageEditNotApproved820Mobile": {
+        "after": "FoodPageEditNotApproved320Mobile",
+        "w": 820,
+        "h": 1180,
+        "title": "Food page, edit not approved (tablet 820 px)"
+    },
+    "FoodPageEditNotApproved": {
+        "after": "FoodPagePublicEditWaiting",
+        "w": 1280,
+        "h": 860,
+        "title": "Food page, edit not approved (web)"
+    },
+    "FoodPageWithdrawnMobile": {
+        "after": "FoodPageEditNotApproved820Mobile",
+        "w": 390,
+        "h": 844,
+        "title": "Food page, withdrawn (phone)"
+    },
+    "FoodPageWithdrawn320Mobile": {
+        "after": "FoodPageWithdrawnMobile",
+        "w": 320,
+        "h": 844,
+        "title": "Food page, withdrawn (phone 320 px)"
+    },
+    "FoodPageWithdrawn820Mobile": {
+        "after": "FoodPageWithdrawn320Mobile",
+        "w": 820,
+        "h": 1180,
+        "title": "Food page, withdrawn (tablet 820 px)"
+    },
+    "FoodPageWithdrawn": {
+        "after": "FoodPageEditNotApproved",
+        "w": 1280,
+        "h": 860,
+        "title": "Food page, withdrawn (web)"
+    },
+    "FoodPageWithdrawConfirmMobile": {
+        "after": "FoodPageWithdrawn820Mobile",
+        "w": 390,
+        "h": 1020,
+        "title": "Food page, withdraw confirmation (phone)"
+    },
+    "FoodPageWithdrawConfirm320Mobile": {
+        "after": "FoodPageWithdrawConfirmMobile",
+        "w": 320,
+        "h": 1040,
+        "title": "Food page, withdraw confirmation (phone 320 px)"
+    },
+    "FoodPageWithdrawConfirm820Mobile": {
+        "after": "FoodPageWithdrawConfirm320Mobile",
+        "w": 820,
+        "h": 1180,
+        "title": "Food page, withdraw confirmation (tablet 820 px)"
+    },
+    "FoodPageWithdrawConfirm": {
+        "after": "FoodPageWithdrawn",
+        "w": 1280,
+        "h": 948,
+        "title": "Food page, withdraw confirmation (web)"
+    },
+    "FoodEditPublicMobile": {
+        "after": "FoodPageWithdrawConfirm820Mobile",
+        "w": 390,
+        "h": 876,
+        "title": "Edit a public food, before save (phone)"
+    },
+    "FoodEditPublic320Mobile": {
+        "after": "FoodEditPublicMobile",
+        "w": 320,
+        "h": 896,
+        "title": "Edit a public food, before save (phone 320 px)"
+    },
+    "FoodEditPublic820Mobile": {
+        "after": "FoodEditPublic320Mobile",
+        "w": 820,
+        "h": 1180,
+        "title": "Edit a public food, before save (tablet 820 px)"
+    },
+    "FoodEditPublic": {
+        "after": "FoodPageWithdrawConfirm",
+        "w": 1280,
+        "h": 860,
+        "title": "Edit a public food, before save (web)"
+    },
+    "FoodEditSentForReviewMobile": {
+        "after": "FoodEditPublic820Mobile",
+        "w": 390,
+        "h": 1020,
+        "title": "Edit a public food, sent for review (phone)"
+    },
+    "FoodEditSentForReview320Mobile": {
+        "after": "FoodEditSentForReviewMobile",
+        "w": 320,
+        "h": 1040,
+        "title": "Edit a public food, sent for review (phone 320 px)"
+    },
+    "FoodEditSentForReview820Mobile": {
+        "after": "FoodEditSentForReview320Mobile",
+        "w": 820,
+        "h": 1180,
+        "title": "Edit a public food, sent for review (tablet 820 px)"
+    },
+    "FoodEditSentForReview": {
+        "after": "FoodEditPublic",
+        "w": 1280,
+        "h": 948,
+        "title": "Edit a public food, sent for review (web)"
+    },
+    "RecipeEditorPrivateFoodPublicRecipeMobile": {
+        "after": "RecipeEditorIngredientRowStatesMobile",
+        "w": 390,
+        "h": 844,
+        "title": "Recipe editor, private food in a public recipe (phone)"
+    },
+    "RecipeEditorPrivateFoodPublicRecipe320Mobile": {
+        "after": "RecipeEditorPrivateFoodPublicRecipeMobile",
+        "w": 320,
+        "h": 844,
+        "title": "Recipe editor, private food in a public recipe (phone 320 px)"
+    },
+    "RecipeEditorPrivateFoodPublicRecipe820Mobile": {
+        "after": "RecipeEditorPrivateFoodPublicRecipe320Mobile",
+        "w": 820,
+        "h": 1180,
+        "title": "Recipe editor, private food in a public recipe (tablet 820 px)"
+    },
+    "RecipeEditorPrivateFoodPublicRecipe": {
+        "after": "RecipeEditorIngredientRowStates",
+        "w": 1280,
+        "h": 860,
+        "title": "Recipe editor, private food in a public recipe (web)"
+    },
+    "RecipeEditorPrivateFoodPrivateRecipeMobile": {
+        "after": "RecipeEditorPrivateFoodPublicRecipe820Mobile",
+        "w": 390,
+        "h": 844,
+        "title": "Recipe editor, private food in a private recipe (phone)"
+    },
+    "RecipeEditorPrivateFoodPrivateRecipe320Mobile": {
+        "after": "RecipeEditorPrivateFoodPrivateRecipeMobile",
+        "w": 320,
+        "h": 844,
+        "title": "Recipe editor, private food in a private recipe (phone 320 px)"
+    },
+    "RecipeEditorPrivateFoodPrivateRecipe820Mobile": {
+        "after": "RecipeEditorPrivateFoodPrivateRecipe320Mobile",
+        "w": 820,
+        "h": 1180,
+        "title": "Recipe editor, private food in a private recipe (tablet 820 px)"
+    },
+    "RecipeEditorPrivateFoodPrivateRecipe": {
+        "after": "RecipeEditorPrivateFoodPublicRecipe",
+        "w": 1280,
+        "h": 860,
+        "title": "Recipe editor, private food in a private recipe (web)"
+    },
+    "RecipeEditorPublishRefusedCanGoPrivateMobile": {
+        "after": "RecipeEditorFixToPublishMobile",
+        "w": 390,
+        "h": 900,
+        "title": "Recipe editor, publish refused, can go private (phone)"
+    },
+    "RecipeEditorPublishRefusedCanGoPrivate320Mobile": {
+        "after": "RecipeEditorPublishRefusedCanGoPrivateMobile",
+        "w": 320,
+        "h": 900,
+        "title": "Recipe editor, publish refused, can go private (phone 320 px)"
+    },
+    "RecipeEditorPublishRefusedCanGoPrivate820Mobile": {
+        "after": "RecipeEditorPublishRefusedCanGoPrivate320Mobile",
+        "w": 820,
+        "h": 1180,
+        "title": "Recipe editor, publish refused, can go private (tablet 820 px)"
+    },
+    "RecipeEditorPublishRefusedCanGoPrivate": {
+        "after": "RecipeEditorFixToPublish",
+        "w": 1280,
+        "h": 860,
+        "title": "Recipe editor, publish refused, can go private (web)"
+    },
+    "RecipeEditorPublishRefusedCannotGoPrivateMobile": {
+        "after": "RecipeEditorPublishRefusedCanGoPrivate820Mobile",
+        "w": 390,
+        "h": 880,
+        "title": "Recipe editor, publish refused, cannot go private (phone)"
+    },
+    "RecipeEditorPublishRefusedCannotGoPrivate320Mobile": {
+        "after": "RecipeEditorPublishRefusedCannotGoPrivateMobile",
+        "w": 320,
+        "h": 880,
+        "title": "Recipe editor, publish refused, cannot go private (phone 320 px)"
+    },
+    "RecipeEditorPublishRefusedCannotGoPrivate820Mobile": {
+        "after": "RecipeEditorPublishRefusedCannotGoPrivate320Mobile",
+        "w": 820,
+        "h": 1180,
+        "title": "Recipe editor, publish refused, cannot go private (tablet 820 px)"
+    },
+    "RecipeEditorPublishRefusedCannotGoPrivate": {
+        "after": "RecipeEditorPublishRefusedCanGoPrivate",
+        "w": 1280,
+        "h": 860,
+        "title": "Recipe editor, publish refused, cannot go private (web)"
+    },
+    "AccountEraseDialogPrivateFoodsMobile": {
+        "after": "AccountEraseDialogStatesMobile",
+        "w": 390,
+        "h": 1100,
+        "title": "Erase my data, recipes with private foods (phone)"
+    },
+    "AccountEraseDialogPrivateFoods320Mobile": {
+        "after": "AccountEraseDialogPrivateFoodsMobile",
+        "w": 320,
+        "h": 1256,
+        "title": "Erase my data, recipes with private foods (phone 320 px)"
+    },
+    "AccountEraseDialogPrivateFoods820Mobile": {
+        "after": "AccountEraseDialogPrivateFoods320Mobile",
+        "w": 820,
+        "h": 1180,
+        "title": "Erase my data, recipes with private foods (tablet 820 px)"
+    },
+    "AccountEraseDialogPrivateFoods": {
+        "after": "AccountEraseDialogStates",
+        "w": 1280,
+        "h": 1044,
+        "title": "Erase my data, recipes with private foods (web)"
+    },
+    "ProfileYourFoodsMobile": {
+        "after": "ProfileMobile",
+        "w": 390,
+        "h": 1100,
+        "title": "Profile, Your foods row (phone)"
+    },
+    "ProfileYourFoods320Mobile": {
+        "after": "ProfileYourFoodsMobile",
+        "w": 320,
+        "h": 1140,
+        "title": "Profile, Your foods row (phone 320 px)"
+    },
+    "ProfileYourFoods820Mobile": {
+        "after": "ProfileYourFoods320Mobile",
+        "w": 820,
+        "h": 1180,
+        "title": "Profile, Your foods row (tablet 820 px)"
+    },
+    "ProfileYourFoods": {
+        "after": "Profile",
+        "w": 1280,
+        "h": 1044,
+        "title": "Profile, Your foods row (web)"
+    },
+    "YourFoodsListMobile": {
+        "after": "ProfileYourFoods820Mobile",
+        "w": 390,
+        "h": 844,
+        "title": "Your foods, one row per state (phone)"
+    },
+    "YourFoodsList320Mobile": {
+        "after": "YourFoodsListMobile",
+        "w": 320,
+        "h": 892,
+        "title": "Your foods, one row per state (phone 320 px)"
+    },
+    "YourFoodsList820Mobile": {
+        "after": "YourFoodsList320Mobile",
+        "w": 820,
+        "h": 1180,
+        "title": "Your foods, one row per state (tablet 820 px)"
+    },
+    "YourFoodsList": {
+        "after": "ProfileYourFoods",
+        "w": 1280,
+        "h": 860,
+        "title": "Your foods, one row per state (web)"
     }
 }

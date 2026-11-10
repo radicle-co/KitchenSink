@@ -138,7 +138,7 @@ describe('IngredientLinePlanner.plan', () => {
         const { planner } = build([ROOT, DECLARED], { 'food-1': 'beef brisket' });
 
         const plan = await planner.plan(undefined, [
-            line('l-root', { notes: 'trimmed', preparation: 'sliced', groupLabel: 'Meat' }),
+            line('l-root', { displayText: 'trimmed', note: '9 inch', preparation: 'sliced', groupLabel: 'Meat' }),
             line('l-declared', { unit: undefined, userCalories: 40 }),
         ]);
 
@@ -148,6 +148,7 @@ describe('IngredientLinePlanner.plan', () => {
                 quantity: { kind: 'exact', value: 2 },
                 unit: 'cup',
                 displayText: 'trimmed',
+                note: '9 inch',
                 preparation: 'sliced',
                 groupLabel: 'Meat',
                 sortOrder: 0,
@@ -171,6 +172,14 @@ describe('IngredientLinePlanner.plan', () => {
         expect(plan.identities.get('l-root')?.name).toBe('beef brisket');
         expect(plan.identities.get('l-declared')?.name).toBe('grandma’s spice mix');
         expect(plan.namesText).toBe('beef brisket grandma’s spice mix');
+    });
+
+    it('adds the words the cook wrote on a line to the search text, after its name', async () => {
+        const { planner } = build([ROOT, DECLARED], { 'food-1': 'beef brisket' });
+
+        const plan = await planner.plan(undefined, [line('l-root', { displayText: 'point cut' }), line('l-declared')]);
+
+        expect(plan.namesText).toBe('beef brisket point cut grandma’s spice mix');
     });
 
     it('⛔ leaves a bound line nameless — and out of the search text — when food cannot be asked', async () => {

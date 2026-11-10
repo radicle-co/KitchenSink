@@ -35,6 +35,7 @@
  * @pattern Policy — a pure projection of the validator's output and the row policy into one status per section
  */
 import { rowPresentationOf, type RowFacts, type RowPolicyLine } from '../form/ingredientRowPolicy.js';
+import { privateFoodRowIndexes } from '../form/privateFoodLines.js';
 import { draftQuantityVerdict } from '../form/quantity.js';
 import {
     draftFloorErrors,
@@ -56,7 +57,8 @@ export type AttentionReason =
     | 'timesNonNegative'
     | 'ingredientsUnresolved'
     | 'ingredientsQuantityInvalid'
-    | 'ingredientsNeedYou';
+    | 'ingredientsNeedYou'
+    | 'ingredientsPrivateFood';
 
 /** Something entered, but a field Publish needs is missing. */
 export type InProgressReason =
@@ -236,11 +238,18 @@ function detailsEntered(values: RecipeFormValues): boolean {
 function ingredientsStatus(input: SectionStatusInput, errors: RecipeFormErrors): SectionStatus {
     const { ingredients: lines } = input.values;
     const needMatch = lines.filter(lineNeedsAttention).length;
-    const needsMatch: SectionStatus = { kind: 'attention', reason: 'ingredientsUnresolved', count: needMatch };
+    // A private food in a PUBLIC recipe is an attention item of the same rank (private foods spec section 16): the server
+    // would refuse it, so the section is not done, and it never becomes "Fix" because Publish stays enabled.
+    const privateFood = privateFoodRowIndexes(input.values).length;
+    const needsMatch: SectionStatus = {
+        kind: 'attention',
+        reason: needMatch > 0 ? 'ingredientsUnresolved' : 'ingredientsPrivateFood',
+        count: needMatch + privateFood,
+    };
 
     if (errors.ingredients === undefined) {
-        // Publishable, but not done while a row asks for a match (F4).
-        return needMatch > 0 ? needsMatch : COMPLETE;
+        // Publishable, but not done while a row asks for a match (F4) or holds a private food.
+        return needMatch + privateFood > 0 ? needsMatch : COMPLETE;
     }
 
     const unresolved = lines.filter((line) => !isResolvedIngredientId(line.ingredientId)).length;
@@ -261,7 +270,7 @@ function ingredientsStatus(input: SectionStatusInput, errors: RecipeFormErrors):
         return { kind: 'attention', reason: 'ingredientsQuantityInvalid', count: invalid };
     }
 
-    if (needMatch > 0) {
+    if (needMatch + privateFood > 0) {
         return needsMatch;
     }
 

@@ -17,17 +17,16 @@
  * @pattern State — the dialog's phrase and election as one headless hook, with `onConfirm` as its one Command over
  *     `useErasureSequence`
  */
-import type { Recipe } from '@kitchensink/recipe-core';
 import { useState } from 'react';
 
-import { selectDonatableRecipes } from '../erasure.js';
+import { selectBlockedRecipes, selectDonatableRecipes, type ErasureElectionRecipe } from '../erasure.js';
 import { isErasureStepError, useErasureSequence, type ErasureSteps } from '../erasureSequence.js';
 import type { AccountEraseDialogProps, DonatableRecipe } from './model.js';
 
 /** The viewer's recipes as the app's read reports them: what the election needs, and the read's own state. */
 export interface EraseFlowRecipes {
     /** The recipes the viewer owns. */
-    readonly recipes: readonly (Pick<Recipe, 'visibility' | 'status'> & DonatableRecipe)[];
+    readonly recipes: readonly (ErasureElectionRecipe & DonatableRecipe)[];
     /** Whether the read is still loading. */
     readonly isLoading: boolean;
     /** Whether the read FAILED. */
@@ -63,10 +62,10 @@ export function useAccountEraseFlow({
     const [phrase, setPhrase] = useState('');
     const [selectedRecipeIds, setSelectedRecipeIds] = useState<readonly string[]>([]);
 
-    const donatableRecipes = selectDonatableRecipes(recipes.recipes).map((recipe) => ({
-        id: recipe.id,
-        title: recipe.title,
-    }));
+    const listed = (rows: readonly DonatableRecipe[]): readonly DonatableRecipe[] =>
+        rows.map((recipe) => ({ id: recipe.id, title: recipe.title }));
+    const donatableRecipes = listed(selectDonatableRecipes(recipes.recipes));
+    const blockedRecipes = listed(selectBlockedRecipes(recipes.recipes));
 
     const onToggleRecipe = (recipeId: string): void => {
         setSelectedRecipeIds((current) =>
@@ -92,6 +91,7 @@ export function useAccountEraseFlow({
     return {
         open: true,
         donatableRecipes,
+        blockedRecipes,
         recipesLoading: recipes.isLoading,
         recipesError: recipes.isError,
         selectedRecipeIds,

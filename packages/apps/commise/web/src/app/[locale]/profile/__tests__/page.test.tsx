@@ -36,6 +36,10 @@ vi.mock('@/hooks/useUserProfile', () => ({
 vi.mock('@/components/auth/AccountStateGate', () => ({
     AccountStateGate: ({ children }: { children: ReactNode }) => <>{children}</>,
 }));
+// Profile's Your foods row reads the cook's own foods for the new-decision dot; none is the quiet case.
+vi.mock('@kitchensink/food-service-client/hooks', () => ({
+    useOwnFoods: () => ({ data: { pages: [{ items: [], unseenDecisions: 0 }] } }),
+}));
 vi.mock('@/components/auth/LogoutButton', () => ({
     LogoutButton: () => <button type="button">Sign out</button>,
 }));

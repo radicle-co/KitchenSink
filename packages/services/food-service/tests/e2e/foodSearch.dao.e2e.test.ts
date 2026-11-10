@@ -430,17 +430,20 @@ describe('U11/R20 — a private authored food is retrievable ONLY by its author'
         });
     });
 
-    it("⛔ a stranger's search sees CATALOG rows only — never any authored row (ADR-0036)", async () => {
-        // ⚠️ REVERSES half of what this case used to assert. It read "sees the catalog and PROMOTED rows",
-        // because promotion was the event that made an authored food everybody's. Promotion is removed
-        // (owner ruling, 2026-09-07) and an authored food is now AUTHOR-ONLY, so `f_promoted` — which is
-        // still seeded carrying the `promoted` VALUE, deliberately, because the value remains admissible on
-        // the column — must be as invisible to a stranger as the private one. If a partial revert ever
-        // re-adds `OR visibility = 'promoted'` to the predicate, this is the line that catches it.
+    it("⛔ a stranger's search sees catalog and PROMOTED rows — never a private authored row (ADR-0029 §8)", async () => {
+        // The 2026-09-07 "promotion is removed" reading is superseded by the private-food rulings of
+        // 2026-11-08: a promoted food is world-readable, a private one is its author's alone.
         const ids = (await dao.search('quinoa', STRANGER)).map((hit) => hit.id);
 
         expect(ids).toContain('f_catalog');
-        expect(ids).not.toContain('f_promoted');
+        expect(ids).toContain('f_promoted');
+        expect(ids).not.toContain('f_private');
+    });
+
+    it('the shared catalog search admits the promoted row and still hides the private one', async () => {
+        const ids = (await dao.searchCatalog('quinoa')).map((hit) => hit.id);
+
+        expect(ids).toContain('f_promoted');
         expect(ids).not.toContain('f_private');
     });
 
@@ -461,7 +464,7 @@ describe('U11/R20 — a private authored food is retrievable ONLY by its author'
         const strangerHits = await dao.search('quinoa', STRANGER);
 
         expect(strangerHits.find((hit) => hit.id === 'f_catalog')?.visibility).toBe('public');
-        expect(strangerHits.every((hit) => hit.userId === null)).toBe(true);
+        expect(strangerHits.every((hit) => hit.userId === null || hit.visibility === 'promoted')).toBe(true);
 
         const authorHits = await dao.search('quinoa', AUTHOR);
 

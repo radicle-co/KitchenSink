@@ -533,7 +533,7 @@ describe('VersionPreviewModal (web) — a variant-bound line (curated U15)', () 
                     ingredientId: 'ing_control',
                     sortOrder: 3,
                     ingredientName: 'Butter',
-                    displayText: 'flat half, separable lean and fat',
+                    note: 'flat half, separable lean and fat',
                 }),
             ],
         }),
@@ -574,7 +574,7 @@ describe('VersionPreviewModal (web) — a variant-bound line (curated U15)', () 
     it('finds a comma-joined label in the cook’s own words (the control), and none from the dotted line', () => {
         render(<VersionPreviewModal {...baseProps({ version: variantVersion })} />);
 
-        expect(commaJoinedTexts(itemOf('200 g Butter (flat half, separable lean and fat)'), parts)).toHaveLength(1);
+        expect(commaJoinedTexts(itemOf('200 g Butter, flat half, separable lean and fat'), parts)).toHaveLength(1);
         expect(commaJoinedTexts(itemOf('2 lb beef brisket'), parts)).toEqual([]);
     });
 

@@ -22,7 +22,7 @@ import type { Locale } from '@commise/i18n';
 import type { ActionMenuItem } from '@commise/ui/action-menu';
 
 import { isStandInName, lineAmountName } from '../detail/lineName.js';
-import { formatQuantity, lineSummary } from '../detail/model.js';
+import { formatQuantity, lineSummary, lineTailOf } from '../detail/model.js';
 import type { LineCommitTarget } from '../hooks/lineCommit.js';
 import type { IngredientRowEditor } from '../hooks/useIngredientRowEditor.js';
 import { controlName } from '../format/cookAmount.js';
@@ -34,6 +34,7 @@ import {
     ingredientQuantityDescribedBy,
     ingredientsErrorId,
     ingredientUnitNoteId,
+    ingredientCountedAsId,
 } from './fieldErrorIds.js';
 import { ingredientEditorFieldId, type IngredientEditorField } from './fieldIds.js';
 import { canMoveIngredient, groupLabelOf } from './ingredientGroups.js';
@@ -57,6 +58,7 @@ import { draftQuantity, draftQuantityVerdict } from './quantity.js';
 import { removalFocusTarget } from './removalFocusTarget.js';
 import { rowBusyText, rowPendingSentence, type RowCommitCopy } from './rowCommitMessage.js';
 import type { RowEntryFieldInput } from './rowEntryField.js';
+import { privateFoodRowIndexes } from './privateFoodLines.js';
 import { rowMenuOf, type RowMenuAction } from './rowMenu.js';
 import { rowSecondLineOf } from './rowSecondLine.js';
 import { shortlistSettledAt, type ShortlistPanelProps } from './shortlistPanel.model.js';
@@ -110,6 +112,8 @@ export interface IngredientRowContext {
     readonly openMoveToGroup: (key: IngredientLineKey) => void;
     /** How many named groups the list has: its lines' and the cook's new, empty ones. */
     readonly groupCount: number;
+    /** Open a food's page (`⋯` Open food); absent when the host offers none. */
+    readonly openFood?: (foodId: string) => void;
 }
 
 /**
@@ -160,9 +164,15 @@ export interface IngredientRowEdits {
     readonly quantityHigh: (text: string) => void;
     readonly unit: (text: string) => void;
     readonly preparation: (text: string) => void;
+    readonly displayText: (text: string) => void;
+    readonly note: (text: string) => void;
 }
 
 /** A read row's second line, worded (`rowSecondLineOf`). */
+/** What the row says of a private food. */
+export type RowPrivateFoodView =
+    { readonly kind: 'attention'; readonly text: string } | { readonly kind: 'badge'; readonly text: string };
+
 export type RowSecondLineView =
     | { readonly kind: 'none' }
     | { readonly kind: 'working'; readonly text: string }
@@ -192,6 +202,12 @@ export interface RowLineEditorView {
     /** "Check the amount", while a bound holds text that states no amount; each bound is described by it. */
     readonly amountNote: { readonly id: string; readonly text: string } | undefined;
     readonly unit: string;
+    /** "Name on the recipe": the line's `displayText` as typed; empty shows the matched food's name. */
+    readonly displayText: string;
+    /** The Name field's placeholder: the matched food's name, which an empty field shows. */
+    readonly displayTextPlaceholder: string;
+    /** "Note": the line's `note` as typed. */
+    readonly note: string;
     readonly unitSuggestions: readonly string[];
     /** U25: the unit is not one the vocabulary knows; text that describes the field, never an invalid mark. */
     readonly unitNote: string | undefined;
@@ -206,6 +222,8 @@ export interface RowLineEditorView {
     readonly onRemoveRange: () => void;
     readonly onUnit: (text: string) => void;
     readonly onPrep: (text: string) => void;
+    readonly onDisplayText: (text: string) => void;
+    readonly onNote: (text: string) => void;
     /** Change, beside the food; absent where the row's state forbids it (a shortlist row's panel is the remedy). */
     readonly onChangeFood: (() => void) | undefined;
     readonly onToggleDetails: () => void;
@@ -235,12 +253,26 @@ export interface IngredientRowView {
     readonly changing: boolean;
     /** The amount's text ("2–2.5 kg"); `''` for no amount, never an invented "1" (F5). */
     readonly amountText: string;
-    /** The preparation after the name, or `undefined` when there is none. */
+    /** The note after the name ("9 inch", with a no-break space inside), or `undefined` when there is none. */
+    readonly noteText: string | undefined;
+    /** The preparation after the note, or `undefined` when there is none. */
     readonly prepText: string | undefined;
+    /**
+     * "Counted as {food}": the row's quiet second line when it shows the cook's own words. `undefined` when the row shows
+     * the food's name, and whenever an attention, working, failure or pending line takes the slot.
+     */
+    readonly countedAs: string | undefined;
+    /** The id of the {@link countedAs} line, which describes the open control. */
+    readonly countedAsId: string;
     /** The open control's name: "Edit {amount} {food}" (§7.5.1). */
     readonly openLabel: string;
     /** The second line: none for a healthy row (§7.5.1). */
     readonly secondLine: RowSecondLineView;
+    /**
+     * A private food: in a PUBLIC recipe an attention line ("Private food. A public recipe can't use it."), in a private one a
+     * quiet badge. It is not the second line, which is a control: this one is read and opens nothing (private foods spec D3).
+     */
+    readonly privateFood: RowPrivateFoodView | undefined;
     /** U9: the submit refused this row's amounts; the list's error says the rule. */
     readonly amountInvalidNote: string | undefined;
     /** The row's food search is open: the name is the entry field (Change food, Find a food, no food). */
@@ -377,6 +409,8 @@ const rowEditsOf = (line: RecipeFormIngredient, index: number, ctx: IngredientRo
         quantityHigh: (text) => amount('high', text),
         unit: (text) => dispatch({ kind: 'updateIngredientAt', index, patch: { unit: text } }),
         preparation: (text) => dispatch({ kind: 'updateIngredientAt', index, patch: { preparation: text } }),
+        displayText: (text) => dispatch({ kind: 'updateIngredientAt', index, patch: { displayText: text } }),
+        note: (text) => dispatch({ kind: 'updateIngredientAt', index, patch: { note: text } }),
     };
 };
 
@@ -420,6 +454,16 @@ const actionItemOf = (action: RowMenuAction, row: RowActionTarget, ctx: Ingredie
             return { id: action, label: m.rowEdit, onSelect: () => ctx.lineEditor.open(line.key) };
         case 'foodDetails':
             return { id: action, label: m.rowFoodDetails, onSelect: () => ctx.openFoodDetails(line.key) };
+        case 'openFood':
+            return {
+                id: action,
+                label: m.rowOpenFood,
+                onSelect: () => {
+                    if (line.foodId !== undefined) {
+                        ctx.openFood?.(line.foodId);
+                    }
+                },
+            };
         case 'moveToGroup':
             return { id: action, label: m.rowMoveToGroup, onSelect: () => ctx.openMoveToGroup(line.key) };
         case 'moveUp':
@@ -476,6 +520,7 @@ const rowMenuActionsOf = (
 
     return rowMenuOf(slot2.kind === 'menu' ? slot2.actions : [slot2.action], {
         foodDetails,
+        openFood: line.foodVisibility === 'private' && line.foodId !== undefined && ctx.openFood !== undefined,
         canMoveUp: canMoveIngredient(ctx.values, line.key, 'up'),
         canMoveDown: canMoveIngredient(ctx.values, line.key, 'down'),
         canMoveToGroup: ctx.groupCount > 0 || groupLabelOf(line) !== undefined,
@@ -483,14 +528,14 @@ const rowMenuActionsOf = (
 };
 
 /** The food as the row editor names it: with its calories per 100 g when food publishes them. Pure. */
-const editorFoodLine = (line: RecipeFormIngredient, displayName: string, ctx: IngredientRowContext): string => {
+const editorFoodLine = (line: RecipeFormIngredient, foodName: string, ctx: IngredientRowContext): string => {
     const panel = nutritionPanelOf(line, ctx.nutrition.lookup);
     const calories = panel.kind === 'figures' ? panel.figures.calories : undefined;
 
     return calories === undefined
-        ? displayName
+        ? foodName
         : fillTemplate(ctx.m.rowFoodCalories, {
-              food: displayName,
+              food: foodName,
               cal: new Intl.NumberFormat(ctx.locale, { maximumFractionDigits: 0 }).format(calories),
           });
 };
@@ -500,6 +545,8 @@ interface LineEditorInput {
     readonly line: RecipeFormIngredient;
     readonly index: number;
     readonly displayName: string;
+    /** The matched food's name, which the cook's own words (`displayText`) do not replace. */
+    readonly foodName: string;
     readonly marks: ReturnType<typeof rowMarksOf>;
     readonly detailsOffered: boolean;
     readonly onChangeFood: (() => void) | undefined;
@@ -540,7 +587,7 @@ const describedWith = (ids: string | undefined, id: string | undefined): string 
 
 /** The row editor's view (build spec §7.5.2). Pure: its handlers run only when a control calls them. */
 const lineEditorOf = (input: LineEditorInput, ctx: IngredientRowContext): RowLineEditorView => {
-    const { line, index, displayName, marks } = input;
+    const { line, index, displayName, foodName, marks } = input;
     const { m, lineEditor, focus } = ctx;
     const edit = rowEditsOf(line, index, ctx);
     const unit = line.unit ?? '';
@@ -553,11 +600,13 @@ const lineEditorOf = (input: LineEditorInput, ctx: IngredientRowContext): RowLin
     return {
         title: displayName,
         closeLabel: fillTemplate(m.rowEditorClose, { food: displayName }),
-        food: editorFoodLine(line, displayName, ctx),
+        food: editorFoodLine(line, foodName, ctx),
         ids: {
             amount: ingredientEditorFieldId(line.key, 'amount'),
             amountHigh: ingredientEditorFieldId(line.key, 'amountHigh'),
             unit: ingredientEditorFieldId(line.key, 'unit'),
+            displayText: ingredientEditorFieldId(line.key, 'displayText'),
+            note: ingredientEditorFieldId(line.key, 'note'),
             prep: ingredientEditorFieldId(line.key, 'prep'),
         },
         amountLow: low.text,
@@ -568,6 +617,9 @@ const lineEditorOf = (input: LineEditorInput, ctx: IngredientRowContext): RowLin
         unit,
         unitSuggestions: unitSuggestionsOf(unit),
         unitNote: marks.unitNote,
+        displayText: line.displayText ?? '',
+        displayTextPlaceholder: foodName,
+        note: line.note ?? '',
         prep: line.preparation ?? '',
         describedBy: {
             ...marks.describedBy,
@@ -589,6 +641,8 @@ const lineEditorOf = (input: LineEditorInput, ctx: IngredientRowContext): RowLin
         },
         onUnit: edit.unit,
         onPrep: edit.preparation,
+        onDisplayText: edit.displayText,
+        onNote: edit.note,
         onChangeFood: input.onChangeFood,
         onToggleDetails: lineEditor.toggleDetails,
         onDone: () => {
@@ -596,6 +650,21 @@ const lineEditorOf = (input: LineEditorInput, ctx: IngredientRowContext): RowLin
             focus.request(line.key, 'open');
         },
     };
+};
+
+/** What the row says of a private food: attention in a public recipe, a badge in a private one. Pure. */
+const privateFoodViewOf = (
+    line: RecipeFormIngredient,
+    index: number,
+    ctx: IngredientRowContext,
+): RowPrivateFoodView | undefined => {
+    if (line.foodVisibility !== 'private') {
+        return undefined;
+    }
+
+    return privateFoodRowIndexes(ctx.values).includes(index)
+        ? { kind: 'attention', text: ctx.m.rowPrivateFoodInPublic }
+        : { kind: 'badge', text: ctx.m.rowPrivateFoodBadge };
 };
 
 /** The second line, worded. Pure. */
@@ -621,6 +690,35 @@ const secondLineViewOf = (
                 opens: second.opens,
             };
     }
+};
+
+/**
+ * The row's quiet "Counted as {food}" line, or "Not counted" for a stand-in row that holds the cook's words. Pure.
+ *
+ * @param facts - Whether the row shows the cook's words, whether it is a stand-in holding them, whether the slot is free.
+ * @param m - The form's copy.
+ * @returns The line, or `undefined` when the slot stays empty.
+ */
+const countedAsLineOf = (
+    facts: {
+        readonly writtenWords: boolean;
+        readonly standInWords: boolean;
+        readonly quiet: boolean;
+        readonly foodName: string;
+    },
+    m: RecipeFormMessages,
+): string | undefined => {
+    if (!facts.quiet) {
+        return undefined;
+    }
+
+    if (facts.standInWords) {
+        return m.rowNotCounted;
+    }
+
+    return facts.writtenWords && facts.foodName !== ''
+        ? fillTemplate(m.rowCountedAs, { food: facts.foodName })
+        : undefined;
 };
 
 /**
@@ -656,7 +754,19 @@ export const ingredientRowViewOf = (
     const retrying = line.ingredientId !== null && lookupRetry.retrying.has(line.ingredientId);
     const quantity = draftQuantity(line);
     // D21: a count of one reads in the singular. DISPLAY only; `line` keeps the name as stored.
-    const displayName = lineAmountName(line, quantity, line.unit, ctx.shared.ingredientLineName);
+    const foodName = lineAmountName(
+        { ...line, displayText: undefined },
+        quantity,
+        line.unit,
+        ctx.shared.ingredientLineName,
+    );
+    // The row shows the cook's own words when the line has them, else the food's name. A stand-in row keeps its stand-in.
+    const displayName = presentation.standIn
+        ? foodName
+        : lineAmountName(line, quantity, line.unit, ctx.shared.ingredientLineName);
+    const writtenWords = !presentation.standIn && displayName !== foodName;
+    // A stand-in row (a food the cook may not see) that holds the cook's words: the chip stays, and nothing is counted.
+    const standInWords = presentation.standIn && (line.displayText ?? '').trim() !== '';
     const amountText = formatQuantity(quantity, ctx.locale, line.unit);
     // A stand-in row is named by its amount too, as the row shows it (WCAG 2.5.3, option C).
     const triggerFood = presentation.standIn
@@ -678,7 +788,19 @@ export const ingredientRowViewOf = (
     const foodDetails = secondLine.kind === 'none' && !changing && facts.figures !== 'unpublished';
     const stateActions: readonly IngredientRowAction[] =
         presentation.slot2.kind === 'menu' ? presentation.slot2.actions : [presentation.slot2.action];
+    const busyText = rowBusyText(inFlight, ctx.commitCopy, rowEditor.naming);
+    // "Counted as" takes the second line only when nothing needs the cook: an attention, working, failure, pending or
+    // refused-amount line takes its place (design answers 2026-11-08 item 1).
+    const quiet =
+        secondLine.kind === 'none' &&
+        !changing &&
+        !marks.quantityInvalid &&
+        busyText === undefined &&
+        pendingText === undefined &&
+        failure === undefined;
     const prep = line.preparation?.trim();
+    const note = line.note?.trim();
+    const tail = lineTailOf({ note, preparation: prep });
 
     const onRemove = (): void => {
         if (busy) {
@@ -727,12 +849,23 @@ export const ingredientRowViewOf = (
         variantParts,
         changing,
         amountText,
+        noteText: lineTailOf({ note, preparation: undefined })[0],
         prepText: prep === undefined || prep === '' ? undefined : prep,
-        // A stand-in row shows no preparation (the leaves draw it only beside a real name), so its name carries none.
+        countedAs: countedAsLineOf({ writtenWords, standInWords, quiet, foodName }, m),
+        countedAsId: ingredientCountedAsId(line.key),
+        // A stand-in row shows no note or preparation (the leaves draw them only beside a real name), so its name carries
+        // none. "Counted as" is the control's description, never part of its name (#144).
         openLabel: presentation.standIn
             ? rowOpenLabelOf(m, triggerFood, undefined)
-            : controlName(rowOpenLabelOf(m, `${amountText} ${displayName}`.trim(), prep === '' ? undefined : prep)),
+            : controlName(
+                  rowOpenLabelOf(
+                      m,
+                      `${amountText} ${displayName}`.trim(),
+                      tail.length === 0 ? undefined : tail.join(', '),
+                  ),
+              ),
         secondLine,
+        privateFood: privateFoodViewOf(line, index, ctx),
         amountInvalidNote: marks.quantityInvalid ? m.rowAmountInvalid : undefined,
         inEntry: changing,
         editorOpen: ctx.lineEditor.openKey === line.key,
@@ -741,6 +874,7 @@ export const ingredientRowViewOf = (
                 line,
                 index,
                 displayName,
+                foodName,
                 marks,
                 detailsOffered: foodDetails,
                 onChangeFood: canChangeFood
@@ -758,7 +892,7 @@ export const ingredientRowViewOf = (
         describedBy: marks.describedBy,
         pendingText,
         failure,
-        busyText: rowBusyText(inFlight, ctx.commitCopy, rowEditor.naming),
+        busyText,
         busy,
         retrying,
         labels: rowLabelsOf(m, variantParts, triggerFood, displayName),

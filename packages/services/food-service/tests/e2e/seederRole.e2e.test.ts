@@ -395,6 +395,10 @@ describe("the seed's root delete cascades into the live path's tables", () => {
                 "INSERT INTO food_versions (food_id, version_number, snapshot) VALUES ($1, 1, '{}'::jsonb)",
                 [foodId],
             );
+            // The publication request names the version just written (0028); it goes with its root like the version does.
+            await client.query('INSERT INTO food_publication_requests (food_id, food_version_number) VALUES ($1, 1)', [
+                foodId,
+            ]);
             await client.query(
                 "INSERT INTO search_gap (query, source, external_key, food_id, remote_name) VALUES ($1, 'usda', '1', $2, 'x')",
                 [`query ${randomUUID()}`, foodId],

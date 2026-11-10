@@ -230,6 +230,7 @@ export function useIngredientsFields(props: RecipeIngredientsFieldsProps): Ingre
         openFoodDetails: setFoodDetailsKey,
         openMoveToGroup: groups.openMoveToGroup,
         groupCount: groups.groupCount,
+        ...(props.onOpenFood === undefined ? {} : { openFood: props.onOpenFood }),
     };
     const trailingPending = rowPendingSentence(
         {

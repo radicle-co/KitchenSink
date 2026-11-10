@@ -77,6 +77,19 @@ import {
     foodServiceErasureRequestSchema,
     foodServiceErasureAcceptedResponseSchema,
 } from '../src/foods/dto/serviceErasure.schema.js';
+import {
+    adminPublicationRequestListSchema,
+    ownFoodListQuerySchema,
+    ownFoodListSchema,
+    ownFoodListItemSchema,
+    adminPublicationRequestSchema,
+    editPendingResponseSchema,
+    publicationDecisionRequestSchema,
+    publicationRequestDetailSchema,
+    publicationRequestSchema,
+    publicationRequestsQuerySchema,
+    publicationSnapshotSchema,
+} from '../src/foods/publication.schema.js';
 import { healthStatusSchema } from '../src/health/health.schema.js';
 import { dataSourcesResponseSchema, dataSourceViewSchema } from '../src/foods/dataSources.schema.js';
 import { progressiveSearchFrameSchema, remoteFoodViewSchema } from '../src/foods/progressiveSearch.schema.js';
@@ -140,6 +153,16 @@ export const openApiComponents = {
     FoodServiceErasureAcceptedResponse: foodServiceErasureAcceptedResponseSchema,
     FoodServiceErasureBeginResponse: foodServiceErasureBeginResponseSchema,
     FoodServiceErasureRequest: foodServiceErasureRequestSchema,
+    // ADR-0029 §5, §7: the author's request to publish a food, and staff's decision.
+    PublicationRequest: publicationRequestSchema,
+    PublicationSnapshot: publicationSnapshotSchema,
+    PublicationRequestDetail: publicationRequestDetailSchema,
+    AdminPublicationRequest: adminPublicationRequestSchema,
+    AdminPublicationRequestList: adminPublicationRequestListSchema,
+    PublicationDecisionRequest: publicationDecisionRequestSchema,
+    EditPendingResponse: editPendingResponseSchema,
+    OwnFoodListItem: ownFoodListItemSchema,
+    OwnFoodList: ownFoodListSchema,
     HealthStatus: healthStatusSchema,
     // ADR-0055 point 9: the progressive search's frames, one per line of its body.
     ProgressiveSearchFrame: progressiveSearchFrameSchema,
@@ -361,6 +384,28 @@ const foodOpenApiSpec: OpenApiSpec<typeof openApiComponents> = {
             },
         },
         '/api/v1/foods/authored': {
+            get: {
+                operationId: 'listOwnFoods',
+                summary: "List the caller's own authored foods with where each one's publication stands",
+                description:
+                    'Newest edit first, 50 a page. `publicationState` is derived on the service, so a client never ' +
+                    'works it out. `unseenDecisions` counts foods whose newest request was decided and not yet opened. ' +
+                    'Always `private, no-store`.',
+                parameters: [
+                    {
+                        name: 'cursor',
+                        in: 'query',
+                        description: 'The previous page’s `nextCursor`.',
+                        schema: ownFoodListQuerySchema.shape.cursor,
+                    },
+                ],
+                responses: {
+                    '200': { description: 'The page.', schema: 'OwnFoodList' },
+                    '400': badRequest,
+                    '401': unauthorized,
+                    '403': { description: 'A service (`svc_*`) principal.', schema: 'ApiError' },
+                },
+            },
             post: {
                 operationId: 'createAuthoredFood',
                 summary: 'Create a user-authored food',
@@ -385,6 +430,58 @@ const foodOpenApiSpec: OpenApiSpec<typeof openApiComponents> = {
                         description:
                             'The caller already authored a food with this normalized name — ' +
                             '`code: DUPLICATE_AUTHORED_NAME`, with the colliding id in `details.existingId`.',
+                        schema: 'ApiError',
+                    },
+                },
+            },
+        },
+        '/api/v1/foods/authored/{id}/publication-request': {
+            post: {
+                operationId: 'requestFoodPublication',
+                summary: "Ask to make the caller's private food public",
+                description:
+                    'The author asks; staff decide (ADR-0029 §5). The request names the food’s newest version. `201` with ' +
+                    'the new request, `200` with the one already pending. A declined version cannot be asked again: ' +
+                    'edit the food first. Always `private, no-store`.',
+                parameters: [idParameter],
+                responses: {
+                    '200': {
+                        description: 'A request was already pending; it is returned.',
+                        schema: 'PublicationRequestDetail',
+                    },
+                    '201': {
+                        description: 'The new request and the version it names.',
+                        schema: 'PublicationRequestDetail',
+                    },
+                    '400': badRequest,
+                    '401': unauthorized,
+                    '403': { description: 'A service (`svc_*`) principal.', schema: 'ApiError' },
+                    '404': {
+                        description: 'No such food, or one the caller does not own (`code: FOOD_NOT_FOUND`).',
+                        schema: 'ApiError',
+                    },
+                    '409': {
+                        description:
+                            '`code: PUBLICATION_NOT_REQUESTABLE`; `details.reason` is `withdrawn`, `notPrivate` or `declined`.',
+                        schema: 'ApiError',
+                    },
+                },
+            },
+            get: {
+                operationId: 'getFoodPublicationRequest',
+                summary: 'Read where the food’s publication request stands',
+                description:
+                    'The latest request for the food and the version it names, whatever its status: a pending one is ' +
+                    'waiting for staff, a declined one carries the reason. Always `private, no-store`.',
+                parameters: [idParameter],
+                responses: {
+                    '200': { description: 'The latest request and its version.', schema: 'PublicationRequestDetail' },
+                    '400': badRequest,
+                    '401': unauthorized,
+                    '403': { description: 'A service (`svc_*`) principal.', schema: 'ApiError' },
+                    '404': {
+                        description:
+                            'The food has no request, or is not the caller’s (`code: PUBLICATION_REQUEST_NOT_FOUND`).',
                         schema: 'ApiError',
                     },
                 },
@@ -658,7 +755,16 @@ const foodOpenApiSpec: OpenApiSpec<typeof openApiComponents> = {
                 parameters: [idParameter],
                 requestBody: { description: 'The full replacement body.', schema: 'UpdateAuthoredFoodRequest' },
                 responses: {
-                    '200': { description: 'The updated food.', schema: 'FoodResponse' },
+                    '200': {
+                        description: 'The updated food (a PRIVATE food: the edit applies at once).',
+                        schema: 'FoodResponse',
+                    },
+                    '202': {
+                        description:
+                            'The food is PUBLIC (ADR-0029 §7): the edit is saved as the next version and waits for ' +
+                            'staff. The live food is unchanged for every reader, the author’s own recipes included.',
+                        schema: 'EditPendingResponse',
+                    },
                     '400': badRequest,
                     '401': unauthorized,
                     '403': {
@@ -856,6 +962,66 @@ const foodOpenApiSpec: OpenApiSpec<typeof openApiComponents> = {
                             'The food is not blackholed — a `RESOLVED`/`UNRESOLVED` food has nothing to clear. ' +
                             '`code: NOT_REQUEUEABLE`, with the observed status in `details.status` and the ' +
                             'route that IS applicable (`POST /api/v1/foods/{id}/refetch`) named in the message.',
+                        schema: 'ApiError',
+                    },
+                },
+            },
+        },
+        '/api/v1/foods/admin/publication-requests': {
+            get: {
+                operationId: 'listPublicationRequests',
+                summary: 'List the pending publication requests (admin)',
+                description:
+                    'Staff’s queue, oldest first: each request with the version it names and the name readers see today. ' +
+                    'Requires `food:admin`.',
+                parameters: [
+                    {
+                        name: 'status',
+                        in: 'query',
+                        description: 'Only `pending` is served.',
+                        schema: publicationRequestsQuerySchema.shape.status,
+                    },
+                ],
+                responses: {
+                    '200': { description: 'The pending requests.', schema: 'AdminPublicationRequestList' },
+                    '400': badRequest,
+                    '401': unauthorized,
+                    '403': forbidden,
+                },
+            },
+        },
+        '/api/v1/foods/admin/publication-requests/{id}/decision': {
+            post: {
+                operationId: 'decidePublicationRequest',
+                summary: 'Approve or decline a publication request (admin)',
+                description:
+                    'Approval applies the requested version to the live food and makes it public, in one transaction. ' +
+                    'Decline carries the reason the author reads. Requires `food:admin`, checked BEFORE the id and body.',
+                parameters: [
+                    {
+                        name: 'id',
+                        in: 'path',
+                        description: 'The publication request id (a UUID).',
+                        schema: z.string(),
+                    },
+                ],
+                requestBody: {
+                    description: 'Approve, or decline with a reason.',
+                    schema: 'PublicationDecisionRequest',
+                },
+                responses: {
+                    '200': { description: 'The decided request.', schema: 'PublicationRequest' },
+                    '400': badRequest,
+                    '401': unauthorized,
+                    '403': forbidden,
+                    '404': {
+                        description: 'No such request (`code: PUBLICATION_REQUEST_NOT_FOUND`).',
+                        schema: 'ApiError',
+                    },
+                    '409': {
+                        description:
+                            '`code: PUBLICATION_NOT_APPROVABLE` (`details.reason`: `closed`, `withdrawn`, `notNewest`), or ' +
+                            '`code: DUPLICATE_AUTHORED_NAME` when the approved name now collides; the request stays pending.',
                         schema: 'ApiError',
                     },
                 },

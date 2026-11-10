@@ -413,7 +413,10 @@ function detailToConflictSnapshot(detail: RecipeDetail, version: number): Recipe
             // Curated U9: the variant's parts, frozen beside the name as `aggregateToSnapshot` freezes them.
             ...(ingredient.variant === undefined ? {} : { variantParts: ingredient.variant.parts }),
             isUserEntered: ingredient.isUserEntered,
-            ...(ingredient.notes === undefined || ingredient.notes === '' ? {} : { displayText: ingredient.notes }),
+            ...(ingredient.displayText === undefined || ingredient.displayText === ''
+                ? {}
+                : { displayText: ingredient.displayText }),
+            ...(ingredient.note === undefined || ingredient.note === '' ? {} : { note: ingredient.note }),
             // U26/U27 — carried onto the version-conflict side too, so a conflict can actually differ on them.
             ...(ingredient.preparation === undefined ? {} : { preparation: ingredient.preparation }),
             ...(ingredient.groupLabel === undefined ? {} : { groupLabel: ingredient.groupLabel }),

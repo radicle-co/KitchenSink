@@ -208,3 +208,40 @@ describe('a binding the review offers (a checking line that read confident)', ()
         expect(state.ledger.size).toBe(0);
     });
 });
+
+describe('an offer the server stopped showing (offerWithdrawn)', () => {
+    const OFFERED: PasteMatchHostEvent = {
+        type: 'reviewAdmitted',
+        jobId: 'job-1',
+        key: '0:0',
+        binding: { boundBy: 'server', pick: { kind: 'food', foodId: 'whole', name: 'Whole milk' } },
+        draft: DRAFT,
+    };
+    const AS_WRITTEN: DraftBinding = { ingredientId: 'free', isUserEntered: true, name: 'milk' };
+    const WITHDRAWN: PasteMatchHostEvent = { type: 'offerWithdrawn', jobId: 'job-1', key: '0:0', draft: AS_WRITTEN };
+
+    it('removes the binding and asks the host to put the draft line back as written', () => {
+        const state = run(STARTED, JOINED, OFFERED, { type: 'rebindApplied', key: '0:0' }, WITHDRAWN);
+
+        expect(state.session.bindings.has('0:0')).toBe(false);
+        expect(state.rebinds.get('0:0')).toEqual(AS_WRITTEN);
+    });
+
+    it('⛔ leaves the cook’s pick and the draft line alone', () => {
+        const picked = run(STARTED, JOINED, {
+            type: 'pickSaved',
+            jobId: 'job-1',
+            key: '0:0',
+            attempt: { kind: 'pick', pick: PICK },
+            tag: undefined,
+        });
+
+        expect(reducePasteMatchHost(picked, WITHDRAWN)).toBe(picked);
+    });
+
+    it('an answer for an earlier job is dropped', () => {
+        const state = run(STARTED, JOINED, OFFERED);
+
+        expect(reducePasteMatchHost(state, { ...WITHDRAWN, jobId: 'job-0' })).toBe(state);
+    });
+});

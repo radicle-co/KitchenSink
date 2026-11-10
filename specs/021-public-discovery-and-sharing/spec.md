@@ -9,7 +9,9 @@ can be open to the web (FR-002), and the licence panel's ownership line (FR-040)
 the owner's ruling on [026](../026-chef-spaces/spec.md) Q2. Amended 2026-11-03 for the open library (owner rulings,
 ADR-0082). Facts cards open signed out (FR-003, FR-004, FR-014 to FR-014h). Family and gated public domain text open
 to the web (FR-002, FR-006). Cooks get a CC BY choice (FR-040a, FR-040b). The counsel list grows (FR-095). See
-Session 2026-11-03
+Session 2026-11-03. Amended 2026-11-09 for the owner's answers to feature 003A's questions: recipes left public at
+erasure (FR-002 rule 7), the page language and the cache key (FR-062), comments (FR-070), and the `noindex` 003A ships
+with (FR-020a). See Session 2026-11-09
 **Input**: Owner, 2026-10-27: "Let's add a feature and spec for indexing and sharing as you note." And: "Include the
 other recommendations in either new features or expanding existing features." Mindset, same day: "assume that we can do
 this and figure out how." Owner, 2026-10-28: "Let's also do the pages for AI recommendation."
@@ -98,6 +100,14 @@ Unit and integration tests of the gate on the door come first. Then a row in 020
   `noindex` rule 6 is removed. Tests: unit (each FR-020 rule), component, Playwright (robots and header).
 - **P082-10**: no public bulk download and no public API route (FR-060, FR-103, `001` T195). Tests: unit (guard),
   integration.
+
+_(Added 2026-11-09, owner ruling on 003A Q7.)_ Feature 003A ships every public page with `noindex`
+([`003A-FR-017`](../003A-signed-out-reading/spec.md)). This feature's search-engine work owes its removal:
+
+- **P003A-01**: when the sitemap (FR-027) and the fast removal path (FR-074) ship, remove the `noindex` that
+  `003A-FR-017` sets, so a page that meets FR-020 is indexable (FR-020a). Tests: unit (the robots decision follows
+  FR-020 alone, with no 003A override left), component (the page's robots meta), Playwright (a page that meets FR-020
+  sends no `noindex` in the page or the `X-Robots-Tag` header, and a page that fails it still does).
 
 ## Overview
 
@@ -645,6 +655,20 @@ creator page.
     - O8: a full page shown under its own stated licence is indexable, and so are public domain pages (FR-014f, FR-020).
     - O12: no public bulk download and no public API of the open layers for now (FR-060, FR-103, `016-FR-033`).
 
+### Session 2026-11-09
+
+The owner answered feature 003A's eight questions ([003A spec, Clarifications](../003A-signed-out-reading/spec.md)).
+Four of the answers change this spec:
+
+- **Recipes left public at erasure stay open** (003A Q8). They are shown with no author name. FR-002 rule 7 is amended
+  for that case only.
+- **The page's own words follow the browser language** (003A Q3), with English as the fallback. FR-062's cache key
+  becomes the path plus that language.
+- **Comments show on public pages** (003A Q6). The owner, verbatim: "by commenting they are agreeing to leave their name
+  and words public - this is normal everywhere. If we need to, update the terms of service feature to make sure that is
+  noted." FR-070 is amended, the Out of Scope line is changed, and `016-FR-012c` puts it in the terms.
+- **003A ships `noindex`, and this feature removes it** (003A Q7). FR-020a and task P003A-01.
+
 ### Session 2026-11-04
 
 - **Facts card rating.** The founder ruled on 2026-11-04 that the facts card shows Commise's own rating and rating
@@ -704,6 +728,9 @@ creator page.
 
     6. Its owner accepted the licence version that covers showing it on the web (FR-040, FR-041).
     7. Its owner's account is active: not suspended, not terminated (`016-FR-020`), not closed and not erased.
+       _(Amended 2026-11-09, owner ruling on 003A Q8.)_ One exception: a recipe the cook left public when they erased
+       their account. Rule 7 does not apply to it. It stays open, and every public surface shows it with no author
+       name and no pseudonym. Suspended, terminated and closed accounts still close their recipes.
     8. No decision under 016 removed or restricted it.
 - **FR-003** _(amended 2026-10-29, owner ruling, ADR-0077, and 2026-11-03, owner rulings, ADR-0082)_: A public
   recipe with the label "Copied from a public web page" MUST NOT be open to the web in full and MUST NOT be indexed.
@@ -1039,6 +1066,11 @@ creator page.
     2026-11-03, owner ruling O8, ADR-0082.)_ Public domain pages and pages under their own stated licence are indexable.
     This is decided and is no longer the founder's open choice. Counsel review is owed before launch (`016-FR-050`).
 
+- **FR-020a** _(added 2026-11-09, owner ruling on 003A Q7)_: Feature 003A ships every public page with `noindex`
+  ([`003A-FR-017`](../003A-signed-out-reading/spec.md)), because a page must not be indexable before the sitemap
+  (FR-027) and the fast removal path (FR-074) exist. This section is not done until it removes that `noindex`, so that
+  FR-020 alone decides whether a page is indexable. The removal ships in the same release as the sitemap and FR-074,
+  never before them. Task P003A-01 carries it. `003A-FR-017` names this requirement, so the two cannot drift.
 - **FR-021**: A **thin** recipe has fewer than two ingredient lines, or no step.
 - **FR-022**: The **settle period** MUST be 72 hours, from the moment a recipe first becomes open, and again from each
   time it becomes open after its checked content changed. It gives a notice, a correction or a takedown time to land
@@ -1314,7 +1346,10 @@ creator page.
   exit event, every one MUST answer not available, or
   show the new content. It MUST do so within 5 minutes for 95% of events, and within 15 minutes for all. An event that the purge cannot confirm MUST raise an alarm.
 - **FR-062**: Public pages MUST be served from a CDN. The cache key MUST be the path alone. It MUST ignore query
-  parameters (the share mark included), cookies and the `Authorization` header. This is safe only because the response
+  parameters (the share mark included), cookies and the `Authorization` header. _(Amended 2026-11-09, owner ruling on
+  003A Q3.)_ The page's own words follow the reader's browser language, so the key is the path plus the page language,
+  chosen from the closed set of supported locales, and never the raw `Accept-Language` header (`003A-FR-015`,
+  `003A-FR-015a`). The address carries no locale. This is safe only because the response
   does not depend on who asked (FR-012, FR-101).
 - **FR-063**: Each client address MUST be rate-limited at the edge, where the real address is visible, never from a
   header a client can set. A person reading and sharing MUST never reach the limit. A client past it gets `429` with
@@ -1331,14 +1366,17 @@ creator page.
 
 #### H. Privacy and erasure
 
-- **FR-070**: A public page, a public view, a preview card and structured data MUST carry only three things:
+- **FR-070**: A public page, a public view, a preview card and structured data MUST carry only these things:
     - the recipe's content. For a facts card that is only FR-014a's fields (amended 2026-11-03, ADR-0082). For public
       domain text it includes the basis line from its record (FR-006). A family recipe names its giver only with the
       giver's permission.
     - the creator profile fields the cook set, if they have an active profile
     - the rating total and count
+    - _(added 2026-11-09, owner ruling on 003A Q6)_ on a full public page and public view, the recipe's comments, each
+      with its commenter's display name, as a signed-in reader sees them. A commenter agrees that the comment and the
+      name are public (`016-FR-012c`). A facts card still shows no comments (Session 2026-11-04)
 
-    So they MUST NOT carry the cook's email, the name from the sign-in provider, any internal user id, or a location.
+    So, apart from a commenter's display name, they MUST NOT carry the cook's email, the name from the sign-in provider, any internal user id, or a location.
     They MUST NOT carry followers, who rated or cloned the recipe, version history, private collections, or any other
     recipe that is not open.
 
@@ -1603,6 +1641,7 @@ creator page.
 - Per-sharer referral rewards, and any reward for sharing.
 - Carrying a link through an install on iOS.
 - Translated pages and alternate-language tags.
-- Ads, video structured data and comments.
+- Ads and video structured data. _(Amended 2026-11-09.)_ Comments are no longer out of scope: once comments exist,
+  full public pages show them (FR-070).
 - A per-recipe search opt-out. The search setting is per account.
 - The marketing site and the waitlist (`specs/022-marketing-site-and-waitlist`).

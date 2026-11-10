@@ -14,6 +14,7 @@
  */
 import type { FC } from 'react';
 
+import { PrivateFoodsRefusalSheet } from '../editor/PrivateFoodsRefusalSheet.js';
 import { RecipeVersionList } from './RecipeVersionList.js';
 import { useRecipeVersions } from './useRecipeVersions.js';
 import { VersionCompareView } from './VersionCompareView.js';
@@ -27,10 +28,15 @@ export interface RecipeVersionsViewProps {
     readonly onBack?: () => void;
     /** Web: the recipe's address, so a modified click on Back still works. */
     readonly backHref?: string;
+    /** Open a food's page, from the refusal a restore can meet. Web opens a new tab; native pushes the page. */
+    readonly onOpenFood?: (foodId: string) => void;
 }
 
-export const RecipeVersionsView: FC<RecipeVersionsViewProps> = ({ recipeId, onBack, backHref }) => {
-    const { list, preview, compare } = useRecipeVersions({ recipeId });
+export const RecipeVersionsView: FC<RecipeVersionsViewProps> = ({ recipeId, onBack, backHref, onOpenFood }) => {
+    const { list, preview, compare, privateFoods } = useRecipeVersions({
+        recipeId,
+        ...(onOpenFood === undefined ? {} : { onOpenFood }),
+    });
 
     return (
         <>
@@ -41,6 +47,15 @@ export const RecipeVersionsView: FC<RecipeVersionsViewProps> = ({ recipeId, onBa
             />
             <VersionPreviewModal {...preview} />
             <VersionCompareView {...compare} />
+            {privateFoods === undefined ? null : (
+                <PrivateFoodsRefusalSheet
+                    open
+                    door="restore"
+                    canGoPrivate={false}
+                    onSendAsPrivate={() => undefined}
+                    {...privateFoods}
+                />
+            )}
         </>
     );
 };

@@ -4,14 +4,14 @@
     "packageName": "@commise/features-account",
     "layer": "feature",
     "coverage": {
-        "components": 9,
-        "implementations": 17,
-        "props": 94,
-        "documentedComponents": 9,
-        "implementationsWithModuleDoc": 17,
-        "implementationsWithComponentDoc": 15,
-        "documentedProps": 72,
-        "classifiedComponents": 7,
+        "components": 10,
+        "implementations": 18,
+        "props": 97,
+        "documentedComponents": 10,
+        "implementationsWithModuleDoc": 18,
+        "implementationsWithComponentDoc": 16,
+        "documentedProps": 74,
+        "classifiedComponents": 8,
         "componentsWithPatternTag": 4,
         "crossPlatformComponents": 8
     },
@@ -63,6 +63,15 @@
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
                     "props": [
+                        {
+                            "name": "blockedRecipes",
+                            "type": "readonly DonatableRecipe[]",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "[]",
+                            "description": "The owner-only recipes the erasure DELETES because a line uses a food only the owner can see (ADR-0029 section 6).\nListed under \"These will be deleted\" before the phrase, with no way to keep them. Absent is none.",
+                            "declaredIn": "packages/apps/commise/features/account/src/danger/model.ts"
+                        },
                         {
                             "name": "donatableRecipes",
                             "type": "readonly DonatableRecipe[]",
@@ -208,6 +217,15 @@
                     "exportKind": "named",
                     "props": [
                         {
+                            "name": "blockedRecipes",
+                            "type": "readonly DonatableRecipe[]",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "[]",
+                            "description": "The owner-only recipes the erasure DELETES because a line uses a food only the owner can see (ADR-0029 section 6).\nListed under \"These will be deleted\" before the phrase, with no way to keep them. Absent is none.",
+                            "declaredIn": "packages/apps/commise/features/account/src/danger/model.ts"
+                        },
+                        {
                             "name": "donatableRecipes",
                             "type": "readonly DonatableRecipe[]",
                             "typeDetail": null,
@@ -321,6 +339,58 @@
                         "recipesError",
                         "recipesLoading"
                     ],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "featuresAccount/danger/ErasePrivateFoodsNotice",
+            "name": "ErasePrivateFoodsNotice",
+            "group": "featuresAccount",
+            "packageName": "@commise/features-account",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/account/src/danger",
+            "kind": "presentational",
+            "patterns": [],
+            "platforms": [
+                "native"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "ErasePrivateFoodsNotice",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/features/account/src/danger/ErasePrivateFoodsNotice.native.tsx",
+                    "dir": "packages/apps/commise/features/account/src/danger",
+                    "moduleDoc": "@commise/features-account/danger — `ErasePrivateFoodsNotice` (native): the \"These will be deleted\" block of the\nerasure dialog (private foods spec section 8): owner-only recipes that use a food only the owner can see, which the\nerasure deletes whatever is elected. Plain text, nothing focusable, stated before the phrase is typed. Its own file\nand Tamagui only, because `AccountEraseDialog.native.tsx` is still React Native `StyleSheet` styling that only falls.\n\nPresentational: `props → JSX`. Draws nothing for an empty list.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-account/danger — `ErasePrivateFoodsNotice` (native): the \"These will be deleted\" block of the"
+                        }
+                    ],
+                    "description": "The block.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "recipes",
+                            "type": "readonly DonatableRecipe[]",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": null
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
                     "docSignals": {
                         "presentational": true,
                         "orchestration": false

@@ -741,11 +741,12 @@ describe('RecipeDetailContainer', () => {
             expect(screen.queryByText(/couldn't be made private|part of Pro/iu)).not.toBeInTheDocument();
         });
 
+        // REWRITTEN for ADR-0077 section 6: the page's only inline refusal is now "every private slot is used". The `.final`
+        // claim and the Pro sentence ("needs Pro and a change of your own") belonged to the rule that an imported public-web
+        // recipe needed Pro; that rule is gone, so those cases were deleted and the surviving ones prove the slots sentence.
         describe('the refused Private, said inline on the page (§6.4)', () => {
-            const FINAL = 'This recipe is still public: it couldn’t be made private.';
-            const PREMIUM =
-                'This recipe stays public. A recipe from a public web page needs Pro and a change of your own to be private.';
             const SLOTS = 'Not available. All 50 of your private slots are in use.';
+            const FULL = { used: 50, limit: 50 };
 
             /** The recipe page for `ownerId` with `visibility`, arrived at through the editor's hand-off. */
             const renderArrival = async (
@@ -754,11 +755,6 @@ describe('RecipeDetailContainer', () => {
                     paidFeatures?: 'granted' | 'upsell' | 'hidden';
                     ownerId?: string;
                     visibility?: RecipeVisibility;
-                    /**
-                     * REWRITTEN for ADR-0073: a page's refusal depends on the recipe's rule. The Pro sentences are the
-                     * rule of an imported public-web recipe (the default here); a recipe the cook wrote is refused only for
-                     * every slot used (`slots`).
-                     */
                     sourceType?: 'user_created' | 'imported_public';
                     slots?: { used: number; limit: number };
                 } = {},
@@ -767,7 +763,7 @@ describe('RecipeDetailContainer', () => {
                     paidFeatures = 'hidden',
                     ownerId = OWNER_ID,
                     visibility = RecipeVisibility.PUBLIC,
-                    sourceType = 'imported_public',
+                    sourceType = 'user_created',
                     slots = { used: 3, limit: 50 },
                 } = options;
                 useUserProfileMock.mockReturnValue(profileWith(paidFeatures));
@@ -781,10 +777,10 @@ describe('RecipeDetailContainer', () => {
                 await screen.findByRole('heading', { level: 1, name: 'Lamb' });
             };
 
-            it('⛔ says the recipe is still public, in the header, as a visible assertive alert', async () => {
-                await renderArrival('done=changesSaved.final');
+            it('⛔ says every slot is used, in the header, as a visible assertive alert', async () => {
+                await renderArrival('done=changesSaved.slots', { slots: FULL });
 
-                const notice = await screen.findByText(FINAL);
+                const notice = await screen.findByText(SLOTS);
 
                 expect(notice.closest('[role="alert"]')).not.toBeNull();
                 expect(notice.closest('header')).not.toBeNull();
@@ -792,69 +788,55 @@ describe('RecipeDetailContainer', () => {
             });
 
             it('does not move focus', async () => {
-                await renderArrival('done=changesSaved.final');
-                await screen.findByText(FINAL);
+                await renderArrival('done=changesSaved.slots', { slots: FULL });
+                await screen.findByText(SLOTS);
 
                 expect(document.activeElement).toBe(document.body);
             });
 
-            it('takes the words from the PROFILE, never from the link', async () => {
-                // The link says `.final`; the profile says the upsell, so the Pro sentence is the true one.
-                await renderArrival('done=changesSaved.final', { paidFeatures: 'upsell' });
-
-                expect(await screen.findByText(PREMIUM)).toBeInTheDocument();
-                expect(screen.queryByText(FINAL)).not.toBeInTheDocument();
-            });
-
-            it('⛔ says the slots sentence for a recipe the cook wrote when every slot is known used', async () => {
+            it('⛔ says the same for an imported public-web recipe: it is a slot like any other, never a Pro sentence', async () => {
                 await renderArrival('done=changesSaved.slots', {
                     paidFeatures: 'upsell',
-                    sourceType: 'user_created',
-                    slots: { used: 50, limit: 50 },
+                    sourceType: 'imported_public',
+                    slots: FULL,
                 });
 
                 expect(await screen.findByText(SLOTS)).toBeInTheDocument();
+                expect(screen.queryByText(/needs Pro and a change of your own/u)).not.toBeInTheDocument();
             });
 
             it('⛔ says nothing to a cook with a slot free who follows a forged slots link', async () => {
-                await renderArrival('done=changesSaved.slots', { paidFeatures: 'upsell', sourceType: 'user_created' });
+                await renderArrival('done=changesSaved.slots', { paidFeatures: 'upsell' });
                 await screen.findByText('Changes saved.');
 
                 expect(screen.queryByText(SLOTS)).not.toBeInTheDocument();
-                expect(screen.queryByText(PREMIUM)).not.toBeInTheDocument();
             });
 
             it('keeps saying it while the recipe is shown and public, after the parameter has gone', async () => {
-                await renderArrival('done=changesSaved.final');
-                await screen.findByText(FINAL);
+                await renderArrival('done=changesSaved.slots', { slots: FULL });
+                await screen.findByText(SLOTS);
                 await vi.waitFor(() => expect(window.location.search).toBe(''));
 
-                expect(screen.getByText(FINAL)).toBeInTheDocument();
+                expect(screen.getByText(SLOTS)).toBeInTheDocument();
             });
 
-            // The tracker item: a forged `?done=published.final` link shows the refusal sentence on any recipe page.
-            // Case (1) has no server answer to carry (the client withheld the Private), so the sentence is confirmed
-            // against what the page holds from the server: the owner, a public recipe, a profile that refuses Private.
+            // A forged `?done=published.slots` link must not show the sentence on any recipe page: it is confirmed against what
+            // the page holds from the server (the owner, a public recipe, every slot known used).
             it.each([
-                ['a cook who does not own the recipe', 'hidden', 'usr_other', RecipeVisibility.PUBLIC],
-                ['the owner of a PRIVATE recipe', 'hidden', OWNER_ID, RecipeVisibility.PRIVATE],
-                ['an owner who may make recipes private', 'granted', OWNER_ID, RecipeVisibility.PUBLIC],
+                ['a cook who does not own the recipe', 'usr_other', RecipeVisibility.PUBLIC, FULL],
+                ['the owner of a PRIVATE recipe', OWNER_ID, RecipeVisibility.PRIVATE, FULL],
+                ['an owner with a slot free', OWNER_ID, RecipeVisibility.PUBLIC, { used: 3, limit: 50 }],
             ] as const)(
-                '⛔ says nothing on a forged “?done=published.final” link for %s',
-                async (_who, paid, owner, vis) => {
+                '⛔ says nothing on a forged “?done=published.slots” link for %s',
+                async (_who, owner, vis, slots) => {
                     if (owner !== OWNER_ID) {
                         useAuthMock.mockReturnValue({ sessionClaims: { external_id: owner } });
                     }
 
-                    await renderArrival('done=published.final', {
-                        paidFeatures: paid,
-                        ownerId: OWNER_ID,
-                        visibility: vis,
-                    });
+                    await renderArrival('done=published.slots', { ownerId: OWNER_ID, visibility: vis, slots });
                     await screen.findByText('Recipe published.');
 
-                    expect(screen.queryByText(FINAL)).not.toBeInTheDocument();
-                    expect(screen.queryByText(PREMIUM)).not.toBeInTheDocument();
+                    expect(screen.queryByText(SLOTS)).not.toBeInTheDocument();
                 },
             );
 
@@ -862,7 +844,7 @@ describe('RecipeDetailContainer', () => {
                 await renderArrival('done=published');
                 await screen.findByText('Recipe published.');
 
-                expect(screen.queryByText(FINAL)).not.toBeInTheDocument();
+                expect(screen.queryByText(SLOTS)).not.toBeInTheDocument();
             });
 
             it('mounts an empty alert region for the owner when there is nothing to say', async () => {
@@ -1272,7 +1254,7 @@ describe('RecipeDetailContainer', () => {
         /**
          * Plan 2026-10-14-009 Q5 (UX SPECIFY 2026-10-15), REWRITTEN for ADR-0073 and the owner ruling of 2026-10-26: public is
          * NEVER final. A cook with private slots is asked first and told it frees one; an imported public-web recipe under
-         * the upsell is told Pro is needed to return; every other case goes public at once. Nothing is sent until the
+         * a slot like any other (ADR-0077 section 6). Nothing is sent until the
          * cook confirms.
          */
         it.each([
@@ -1292,7 +1274,7 @@ describe('RecipeDetailContainer', () => {
                 'an imported public-web recipe, under the upsell',
                 'upsell',
                 'imported_public',
-                "Anyone can see a public recipe and save a copy. To make this one private again, you'll need Pro.",
+                'Anyone can see a public recipe and save a copy. It frees one of your private slots, and you can make it private again while you have a free slot.',
             ],
         ] as const)(
             '⛔ for %s, Make public asks first and sends nothing until confirmed',
@@ -1324,27 +1306,8 @@ describe('RecipeDetailContainer', () => {
             },
         );
 
-        it.each(['hidden', 'granted'] as const)(
-            '⛔ for an imported public-web recipe under %s, Make public goes at once: there is no cost to confirm and public is never final',
-            async (state) => {
-                const user = userEvent.setup();
-                useUserProfileMock.mockReturnValue(profileWith(state));
-                const client = renderOwnerDetail(RecipeVisibility.PRIVATE, { sourceType: 'imported_public' });
-                const setVisibilitySpy = vi
-                    .spyOn(client, 'setRecipeVisibility')
-                    .mockResolvedValue(
-                        makeRecipeDetail({ id: 'rec_1', ownerId: OWNER_ID, visibility: RecipeVisibility.PUBLIC }),
-                    );
-
-                await user.click(
-                    (await screen.findAllByRole('button', { name: /^More actions for /u }))[0] as HTMLElement,
-                );
-                await user.click(screen.getByRole('menuitem', { name: 'Make public' }));
-
-                expect(setVisibilitySpy).toHaveBeenCalledWith('rec_1', RecipeVisibility.PUBLIC);
-                expect(screen.queryByRole('alertdialog')).toBeNull();
-            },
-        );
+        // DELETED with ADR-0077 section 6: "an imported public-web recipe goes public at once because Private costs Pro" tested the
+        // removed Pro rule. Its replacement is the third row of the table above (the slots words for that recipe).
 
         it('Pro (no slots to free) makes a private recipe public at once', async () => {
             const user = userEvent.setup();
@@ -1501,25 +1464,22 @@ describe('RecipeDetailContainer', () => {
             },
         );
 
+        // REWRITTEN for ADR-0077 section 6: Make private is offered on an imported public-web recipe whatever the paid-feature
+        // state, a failed profile read and a profile still loading included, because the rule is a slot, not Pro.
         it.each([
             ['hidden', profileWith('hidden')],
             ['a failed profile read', { status: 'error', data: undefined }],
             ['a profile still loading', { status: 'pending', data: undefined }],
-        ] as const)(
-            '⛔ under %s, an imported public-web recipe offers no Make private (and still offers the rest of the menu)',
-            async (_label, stub) => {
-                const user = userEvent.setup();
-                useUserProfileMock.mockReturnValue(stub);
-                renderOwnerDetail(RecipeVisibility.PUBLIC, { sourceType: 'imported_public' });
+        ] as const)('⛔ under %s, an imported public-web recipe still offers Make private', async (_label, stub) => {
+            const user = userEvent.setup();
+            useUserProfileMock.mockReturnValue(stub);
+            renderOwnerDetail(RecipeVisibility.PUBLIC, { sourceType: 'imported_public' });
 
-                await user.click(
-                    (await screen.findAllByRole('button', { name: /^More actions for /u }))[0] as HTMLElement,
-                );
+            await user.click((await screen.findAllByRole('button', { name: /^More actions for /u }))[0] as HTMLElement);
 
-                expect(screen.queryByRole('menuitem', { name: 'Make private' })).toBeNull();
-                expect(screen.getByRole('menuitem', { name: 'Version history' })).toBeInTheDocument();
-            },
-        );
+            expect(screen.getByRole('menuitem', { name: 'Make private' })).toBeInTheDocument();
+            expect(screen.getByRole('menuitem', { name: 'Version history' })).toBeInTheDocument();
+        });
 
         it('under hidden, a private recipe still offers Make public', async () => {
             const user = userEvent.setup();
@@ -1531,19 +1491,21 @@ describe('RecipeDetailContainer', () => {
             expect(screen.getByRole('menuitem', { name: 'Make public' })).toBeInTheDocument();
         });
 
-        it('⛔ under upsell, an owner who taps Make private on an imported public-web recipe meets the Pro sheet, and nothing is sent', async () => {
+        // REWRITTEN for ADR-0077 section 6: this proved "an imported public-web recipe meets the Pro sheet". It now proves it goes
+        // private on a free slot like any other, with no sheet.
+        it('⛔ under upsell, an owner who taps Make private on an imported public-web recipe with a slot free makes it private, with no sheet', async () => {
             const user = userEvent.setup();
             useUserProfileMock.mockReturnValue(profileWith('upsell'));
             const client = renderOwnerDetail(RecipeVisibility.PUBLIC, { sourceType: 'imported_public' });
-            const setVisibilitySpy = vi.spyOn(client, 'setRecipeVisibility');
+            const setVisibilitySpy = vi
+                .spyOn(client, 'setRecipeVisibility')
+                .mockResolvedValue(makeRecipeDetail({ id: 'rec_1', visibility: RecipeVisibility.PRIVATE }));
 
             await user.click((await screen.findAllByRole('button', { name: /^More actions for /u }))[0] as HTMLElement);
             await user.click(screen.getByRole('menuitem', { name: 'Make private' }));
 
-            const sheet = await screen.findByRole('dialog', { name: 'Private needs Pro for this recipe' });
-            expect(sheet).toBeInTheDocument();
-            await user.click(within(sheet).getByRole('button', { name: 'Not now' }));
-            expect(setVisibilitySpy).not.toHaveBeenCalled();
+            expect(setVisibilitySpy).toHaveBeenCalledWith('rec_1', RecipeVisibility.PRIVATE);
+            expect(screen.queryByRole('dialog', { name: 'Private needs Pro for this recipe' })).toBeNull();
         });
 
         it('a free cook who taps Make private on a recipe they wrote with a slot free makes it private, with no sheet', async () => {

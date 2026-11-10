@@ -26,7 +26,7 @@ import { promoteLlmParse } from '../promoteLlmParse.js';
 function makeLlmParse(overrides: Partial<LlmParse> = {}): LlmParse {
     // ⚠️ PHRASE-ONLY on purpose: no split, so `promoteLlmParse` derives from the phrase. That is what every
     // pre-v5 caller does and what these tests exercise. The split-supplied path has its own describe block.
-    return { statedMeasure: '1 tablespoon', foods: [{ name: 'butter', prep: null }], ...overrides };
+    return { statedMeasure: '1 tablespoon', foods: [{ name: 'butter', prep: null, display: 'food' }], ...overrides };
 }
 
 describe('promoteLlmParse', () => {
@@ -54,7 +54,10 @@ describe('promoteLlmParse', () => {
 
         it('reads a stated measure no number can hold as absent, keeping the words', () => {
             const promoted = promoteLlmParse(
-                makeLlmParse({ statedMeasure: 'the size of an egg', foods: [{ name: 'butter', prep: null }] }),
+                makeLlmParse({
+                    statedMeasure: 'the size of an egg',
+                    foods: [{ name: 'butter', prep: null, display: 'food' }],
+                }),
                 'butter the size of an egg',
             );
 
@@ -92,29 +95,29 @@ describe('promoteLlmParse', () => {
             const promoted = promoteLlmParse(
                 makeLlmParse({
                     foods: [
-                        { name: 'onion', prep: 'chopped' },
-                        { name: 'sweet celery', prep: null },
+                        { name: 'onion', prep: 'chopped', display: 'food' },
+                        { name: 'sweet celery', prep: null, display: 'written' },
                     ],
                 }),
                 'chopped onion and sweet celery',
             );
 
             expect(promoted.foods).toEqual([
-                { name: 'onion', prep: 'chopped' },
-                { name: 'sweet celery', prep: null },
+                { name: 'onion', prep: 'chopped', display: 'food' },
+                { name: 'sweet celery', prep: null, display: 'written' },
             ]);
         });
 
         it('does NOT move a misplaced modifier, leaving that to the comparator', () => {
             const promoted = promoteLlmParse(
-                makeLlmParse({ foods: [{ name: 'chopped onion', prep: null }] }),
+                makeLlmParse({ foods: [{ name: 'chopped onion', prep: null, display: 'food' }] }),
                 'chopped onion',
             );
 
-            expect(promoted.foods).toEqual([{ name: 'chopped onion', prep: null }]);
+            expect(promoted.foods).toEqual([{ name: 'chopped onion', prep: null, display: 'food' }]);
             // The pair: the comparator DOES move it, so the assertion above is about layering, not inertia.
             expect(compareParses({ crf: { unavailable: true }, llm: promoted }).merged?.foods).toEqual([
-                { name: 'onion', prep: 'chopped' },
+                { name: 'onion', prep: 'chopped', display: 'food' },
             ]);
         });
 
@@ -150,7 +153,10 @@ describe('promoteLlmParse', () => {
                     line,
                 );
                 const llm = promoteLlmParse(
-                    { statedMeasure: measure === '' ? null : measure, foods: [{ name: 'flour', prep: null }] },
+                    {
+                        statedMeasure: measure === '' ? null : measure,
+                        foods: [{ name: 'flour', prep: null, display: 'food' }],
+                    },
                     line,
                 );
 
@@ -163,7 +169,7 @@ describe('promoteLlmParse', () => {
 
     describe('purity', () => {
         it('does not mutate the answer it was handed', () => {
-            const parse = makeLlmParse({ foods: [{ name: 'onion', prep: 'chopped' }] });
+            const parse = makeLlmParse({ foods: [{ name: 'onion', prep: 'chopped', display: 'food' }] });
             const before = structuredClone(parse);
 
             promoteLlmParse(parse, 'chopped onion');
@@ -180,7 +186,7 @@ describe('the model own split reaches the canonical facts — owner ruling 2026-
                 statedMeasure: [statedQuantity ?? '', statedUnit ?? ''].filter((x) => x !== '').join(' ') || null,
                 statedQuantity,
                 statedUnit,
-                foods: [{ name: 'flour', prep: null }],
+                foods: [{ name: 'flour', prep: null, display: 'food' }],
             },
             'some line',
         );
@@ -227,6 +233,62 @@ describe('promoteLlmParse — a form the cook buys', () => {
         ['1 cup frozen peas, thawed', '1 cup', 'frozen peas', 'thawed'],
         ['2 cups canned tomatoes', '2 cups', 'canned tomatoes', null],
     ] as const)('%j keeps its food %j whole', (line, statedMeasure, name, prep) => {
-        expect(promoteLlmParse({ statedMeasure, foods: [{ name, prep }] }, line).foods).toEqual([{ name, prep }]);
+        expect(promoteLlmParse({ statedMeasure, foods: [{ name, prep, display: 'written' }] }, line).foods).toEqual([
+            { name, prep, display: 'written' },
+        ]);
+    });
+});
+
+/**
+ * ADR-0026 §11 (owner ruling 2026-11-08): the model's `display` answer rides on its foods through promotion and the merge,
+ * and a line the model did not answer (the CRF alone, a refusal, a spent ceiling) carries none.
+ */
+describe('display: the cook’s words or the food’s name', () => {
+    const line = 'lasagna noodles';
+    const llm = promoteLlmParse(
+        { statedMeasure: '1 pound', foods: [{ name: 'lasagna noodles', prep: null, display: 'written' }] },
+        line,
+    );
+    const crf = promoteCrfReading(
+        {
+            sentence: line,
+            measure: '1 pound',
+            names: ['lasagna noodles'],
+            size: null,
+            preparation: null,
+            comment: null,
+        },
+        line,
+    );
+
+    it('promotion copies the answer onto each food', () => {
+        expect(llm.foods).toEqual([{ name: 'lasagna noodles', prep: null, display: 'written' }]);
+    });
+
+    it('the merge carries it: the foods come from the model', () => {
+        expect(compareParses({ crf, llm }).merged?.foods).toEqual([
+            { name: 'lasagna noodles', prep: null, display: 'written' },
+        ]);
+    });
+
+    it('a CRF-only line carries none: absence is silence', () => {
+        const only = compareParses({ crf, llm: { unavailable: true } }).merged?.foods ?? [];
+
+        expect(only.length).toBeGreaterThan(0);
+
+        for (const food of only) {
+            expect(food.display ?? null).toBeNull();
+        }
+    });
+
+    it('foods the CRF rescued (the model named none) carry none', () => {
+        const silent = promoteLlmParse({ statedMeasure: '1 pound', foods: [] }, line);
+        const merged = compareParses({ crf, llm: silent }).merged?.foods ?? [];
+
+        expect(merged.length).toBeGreaterThan(0);
+
+        for (const food of merged) {
+            expect(food.display ?? null).toBeNull();
+        }
     });
 });

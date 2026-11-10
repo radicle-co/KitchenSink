@@ -22,13 +22,12 @@ import type { PublishBlockedSheetProps } from './publishBlockedSheetProps.js';
 /** The blocked-publish sheet. */
 export const PublishBlockedSheet: FC<PublishBlockedSheetProps> = ({
     open,
-    ask,
     slotTotal,
     onKeepDraft,
     onPublishPublic,
 }) => {
     const { publishBlocked: m } = useMessages(editorMessages);
-    const copy = publishBlockedCopyOf(ask, slotTotal, m, SUBSCRIPTION_ENTRY_POINTS_ON);
+    const copy = publishBlockedCopyOf(slotTotal, m, SUBSCRIPTION_ENTRY_POINTS_ON);
     const { colors } = useTheme();
 
     return (

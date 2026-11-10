@@ -54,7 +54,10 @@ const engines: ParseEnginePorts = {
         async parse(lines): Promise<readonly EngineAnswer[]> {
             return lines.map((line) =>
                 promoteLlmParse(
-                    { statedMeasure: '2 tablespoons', foods: [{ name: 'unsalted butter', prep: 'melted' }] },
+                    {
+                        statedMeasure: '2 tablespoons',
+                        foods: [{ name: 'unsalted butter', prep: 'melted', display: 'food' }],
+                    },
                     line,
                 ),
             );
@@ -72,7 +75,7 @@ describe('a purchasable form survives the parse pipeline', () => {
         );
 
         expect(outcome?.tier).toBe('parse');
-        expect(outcome?.parsed?.foods).toEqual([{ name: 'unsalted butter', prep: 'melted' }]);
+        expect(outcome?.parsed?.foods).toEqual([{ name: 'unsalted butter', prep: 'melted', display: 'food' }]);
         expect(outcome !== undefined && 'agreement' in outcome ? outcome.agreement : undefined).toEqual({
             kind: 'agree',
         });
@@ -84,7 +87,7 @@ describe('a purchasable form survives the parse pipeline', () => {
  * the engine's real answer (`ingredient-parser-nlp` 2.3.0, run 2026-11-06); each LLM answer is what the parse prompt's
  * rule 7 tells the model to give ("ONLY these product descriptors stay in the name: dried, canned, … frozen").
  */
-describe('dried, frozen and canned survive the parse pipeline', () => {
+describe('dried, frozen, canned, black-eyed and corned survive the parse pipeline', () => {
     const cases: readonly {
         line: string;
         crf: CrfReading;
@@ -126,6 +129,32 @@ describe('dried, frozen and canned survive the parse pipeline', () => {
             },
             llm: { statedMeasure: '2 cups', name: 'canned tomatoes', prep: null },
         },
+        // Dogfooding 2026-11-09: the `-ed` rule filed these as preparation, but they are part of the food's identity.
+        // The CRF rows are the shape the engine gives a name-only line; they were not re-measured against the engine.
+        {
+            line: '1 can black-eyed peas',
+            crf: {
+                sentence: '1 can black-eyed peas',
+                measure: '1 can',
+                names: ['black-eyed peas'],
+                size: null,
+                preparation: null,
+                comment: null,
+            },
+            llm: { statedMeasure: '1 can', name: 'black-eyed peas', prep: null },
+        },
+        {
+            line: '12 ounces corned beef',
+            crf: {
+                sentence: '12 ounces corned beef',
+                measure: '12 ounces',
+                names: ['corned beef'],
+                size: null,
+                preparation: null,
+                comment: null,
+            },
+            llm: { statedMeasure: '12 ounces', name: 'corned beef', prep: null },
+        },
     ];
 
     it.each(cases)('$line keeps the word in the food’s name', async ({ line, crf, llm }) => {
@@ -143,7 +172,10 @@ describe('dried, frozen and canned survive the parse pipeline', () => {
                 async parse(lines): Promise<readonly EngineAnswer[]> {
                     return lines.map((sourceLine) =>
                         promoteLlmParse(
-                            { statedMeasure: llm.statedMeasure, foods: [{ name: llm.name, prep: llm.prep }] },
+                            {
+                                statedMeasure: llm.statedMeasure,
+                                foods: [{ name: llm.name, prep: llm.prep, display: 'food' }],
+                            },
                             sourceLine,
                         ),
                     );
@@ -157,7 +189,7 @@ describe('dried, frozen and canned survive the parse pipeline', () => {
             { onTierFailure: () => undefined, onUnreadablePayload: () => undefined },
         );
 
-        expect(outcome?.parsed?.foods).toEqual([{ name: llm.name, prep: llm.prep }]);
+        expect(outcome?.parsed?.foods).toEqual([{ name: llm.name, prep: llm.prep, display: 'food' }]);
     });
 });
 
@@ -214,7 +246,10 @@ describe('whipped survives the parse pipeline where the cook wrote it', () => {
                 async parse(lines): Promise<readonly EngineAnswer[]> {
                     return lines.map((sourceLine) =>
                         promoteLlmParse(
-                            { statedMeasure: llm.statedMeasure, foods: [{ name: llm.name, prep: llm.prep }] },
+                            {
+                                statedMeasure: llm.statedMeasure,
+                                foods: [{ name: llm.name, prep: llm.prep, display: 'food' }],
+                            },
                             sourceLine,
                         ),
                     );
@@ -228,7 +263,7 @@ describe('whipped survives the parse pipeline where the cook wrote it', () => {
             { onTierFailure: () => undefined, onUnreadablePayload: () => undefined },
         );
 
-        expect(outcome?.parsed?.foods).toEqual([{ name: llm.name, prep: llm.prep }]);
+        expect(outcome?.parsed?.foods).toEqual([{ name: llm.name, prep: llm.prep, display: 'food' }]);
         expect(outcome !== undefined && 'agreement' in outcome ? outcome.agreement : undefined).toEqual({
             kind: 'agree',
         });

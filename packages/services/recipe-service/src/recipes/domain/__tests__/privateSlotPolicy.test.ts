@@ -145,30 +145,16 @@ describe('requiresPrivateSlotCheck - the check runs when a recipe comes to hold 
         }
     });
 
-    it('is false for imported_public: it needs Premium first and a slot never helps it', () => {
+    it.each(Object.values(RecipeSourceType))('is true for a free cook publishing a private %s recipe', (sourceType) => {
         expect(
             requiresPrivateSlotCheck({
-                sourceType: RecipeSourceType.IMPORTED_PUBLIC,
+                sourceType,
                 isPremium: false,
                 before: undefined,
                 after: { visibility: PRIVATE, status: PUBLISHED },
             }),
-        ).toBe(false);
+        ).toBe(true);
     });
-
-    it.each([RecipeSourceType.USER_CREATED, RecipeSourceType.IMPORTED_PHYSICAL, RecipeSourceType.IMPORTED_PAID])(
-        'is true for a free cook publishing a private %s recipe',
-        (sourceType) => {
-            expect(
-                requiresPrivateSlotCheck({
-                    sourceType,
-                    isPremium: false,
-                    before: undefined,
-                    after: { visibility: PRIVATE, status: PUBLISHED },
-                }),
-            ).toBe(true);
-        },
-    );
 });
 
 describe('privateSlotStandingOf - the verdict a write is judged on, with the numbers a refusal states', () => {

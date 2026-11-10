@@ -50,6 +50,10 @@ export interface AccountEraseMessages {
     readonly donateHelp: string;
     /** Shown when the owner has no owner-only recipes to offer for donation. */
     readonly donateEmpty: string;
+    /** Heading of the list of recipes the erasure deletes because they hold a private food. */
+    readonly privateFoodsHeading: string;
+    /** Why those recipes cannot be shared. */
+    readonly privateFoodsHelp: string;
     /** Accessible label for the "loading your recipes" status. */
     readonly recipesLoadingLabel: string;
     /** Shown when the recipe list failed to load — erasure still proceeds; nothing is published (B17). */
@@ -116,6 +120,8 @@ export const accountDangerMessages: LocalizedMessages<AccountDangerMessages> = {
                 'Recipes you choose here become public and are permanently unremovable by you once your ' +
                 'account is erased. Everything you don’t choose is deleted.',
             donateEmpty: 'You have no private recipes to publish. Everything will be deleted.',
+            privateFoodsHeading: 'These will be deleted',
+            privateFoodsHelp: 'They use foods only you can see, so they can’t be shared.',
             recipesLoadingLabel: 'Loading your recipes',
             recipesError:
                 'We couldn’t load your recipes, so none are listed to keep. You can still erase your data — ' +

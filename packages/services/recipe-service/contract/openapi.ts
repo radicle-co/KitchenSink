@@ -293,7 +293,10 @@ function sharedErrorResponses(): Readonly<Record<string, OpenApiResponse<Compone
             description:
                 'The request body, query or path was rejected. `code` says by what: `VALIDATION_FAILED` from ' +
                 'the boundary parser (with `details.fields` naming each offending field, including a rejected ' +
-                'unknown key), or a domain code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`.',
+                'unknown key), or a domain code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`. A write that would ' +
+                'leave a published, public recipe holding a line bound to a food only its author can see is ' +
+                '`PRIVATE_FOODS_ON_PUBLIC_RECIPE`, with every refused line in `details.lines` (`sortOrder`, `foodId`); ' +
+                'make the food public or keep the recipe private (ADR-0029 section 4).',
             schema: 'ErrorResponse',
         },
         '401': {
@@ -543,7 +546,7 @@ const paths: Readonly<Record<string, Partial<Record<HttpMethod, Operation>>>> = 
             operationId: 'rebindRecipeIngredientLine',
             summary: 'Move one line of the caller’s recipe to another food (plan 002 U5).',
             description:
-                'The line keeps its amount, unit, notes, preparation and section, and the recipe gets a new version. A target that is already the line’s food changes nothing.',
+                'The line keeps its amount, unit, displayText, note, preparation and section, and the recipe gets a new version. A target that is already the line’s food changes nothing.',
             parameters: [
                 uuidPathParam('id', 'The recipe id.'),
                 {

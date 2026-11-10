@@ -10,6 +10,9 @@ import { DatabaseError } from 'pg';
 import type { RecipeDrizzle } from '../../../database/client.js';
 import { makeFakeDrizzle } from '../../../__testing__/makeFakeDrizzle.js';
 import { FoodLookupsDal } from '../foodLookups.dal.js';
+import { canonicalIngredientName } from '../../domain/ingredientName.js';
+import { admitResolvedRef, isAdmission } from '../../domain/foodAdmission.js';
+import { PrivateFoodSettleError } from '../foodLookups.errors.js';
 
 const AT = new Date('2026-09-30T00:00:00.000Z');
 
@@ -79,5 +82,82 @@ describe('FoodLookupsDal.deleteIfOrphanedFailure — a concurrent reference is a
 
         expect(await dal.deleteIfOrphanedFailure('l1')).toBe(false);
         expect(fake.calls.filter((call) => call.method === 'delete')).toHaveLength(1);
+    });
+});
+
+describe('FoodLookupsDal.settleFailure - a shared failure binds a shared food only (ADR-0029 section 4)', () => {
+    const handle = { unresolvedFoodId: 'u1', lookupId: 'l-failure' } as never;
+    const root = (foodOwnerId: string | null) =>
+        ({ kind: 'root', lookupId: 'l-bound', foodId: 'food-1', foodOwnerId, createdAt: AT }) as never;
+
+    it('refuses to move lines onto a PRIVATE root, touching nothing', async () => {
+        const fake = makeFakeDrizzle<RecipeDrizzle>();
+        const dal = new FoodLookupsDal(fake.db);
+
+        await expect(dal.settleFailure(handle, root('01JAUTHOR'))).rejects.toBeInstanceOf(PrivateFoodSettleError);
+        expect(fake.calls).toHaveLength(0);
+    });
+
+    it('does not refuse a shared root (the guard stops at the transaction, which a fake db cannot open)', async () => {
+        const fake = makeFakeDrizzle<RecipeDrizzle>();
+        const dal = new FoodLookupsDal(fake.db);
+
+        await expect(dal.settleFailure(handle, root(null))).rejects.not.toBeInstanceOf(PrivateFoodSettleError);
+    });
+});
+
+describe('FoodLookupsDal.findOrCreateBound - a promoted food is handed back public', () => {
+    const admission = (ownerId: string | undefined) => {
+        const decision = admitResolvedRef(
+            {
+                outcome: 'found',
+                name: canonicalIngredientName('grandma blend'),
+                status: 'RESOLVED',
+                isPrivate: ownerId !== undefined,
+                rootId: 'food-1',
+            },
+            ownerId,
+        );
+
+        if (!isAdmission(decision)) {
+            throw new Error('fixture admission refused');
+        }
+
+        return decision;
+    };
+
+    const row = (foodOwnerId: string | null) => ({
+        id: 'l1',
+        foodId: 'food-1',
+        foodVariantId: null,
+        unresolvedFoodId: null,
+        foodOwnerId,
+        createdAt: AT,
+    });
+
+    it('clears the stale captured owner when a PUBLIC admission finds a row still marked private', async () => {
+        const fake = makeFakeDrizzle<RecipeDrizzle>();
+        const dal = new FoodLookupsDal(fake.db);
+        fake.enqueue([], [row('01JAUTHOR')], [row(null)]);
+
+        const bound = await dal.findOrCreateBound(admission(undefined));
+
+        expect(bound).toMatchObject({ lookupId: 'l1', foodOwnerId: null });
+        expect(fake.calls.filter((call) => call.method === 'update')).toHaveLength(1);
+    });
+
+    it('writes nothing for a public admission that finds a public row, or a private admission of any row', async () => {
+        const publicFake = makeFakeDrizzle<RecipeDrizzle>();
+        publicFake.enqueue([], [row(null)]);
+        await new FoodLookupsDal(publicFake.db).findOrCreateBound(admission(undefined));
+
+        const privateFake = makeFakeDrizzle<RecipeDrizzle>();
+        privateFake.enqueue([], [row(null)]);
+        const kept = await new FoodLookupsDal(privateFake.db).findOrCreateBound(admission('01JAUTHOR'));
+
+        expect(publicFake.calls.filter((call) => call.method === 'update')).toHaveLength(0);
+        expect(privateFake.calls.filter((call) => call.method === 'update')).toHaveLength(0);
+        // A found row is returned as it stands: a later private bind never makes a public row private.
+        expect(kept).toMatchObject({ foodOwnerId: null });
     });
 });

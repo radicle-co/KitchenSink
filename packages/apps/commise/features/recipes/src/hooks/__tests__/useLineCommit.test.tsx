@@ -267,6 +267,63 @@ describe('useLineCommit — the draft strategy (create form, and lines the edit 
         expect(dispatch.mock.calls[0]?.[0]).toMatchObject({ kind: 'appendResolvedIngredient', placement });
     });
 
+    /**
+     * Design answers 2026-11-08 item 3 (blueprint "Typed line"): a typed line the cook commits WITHOUT a pick keeps their
+     * words as `displayText`; a pick from the list sets none; a re-pick of a line never changes it.
+     */
+    it.each([
+        {
+            pick: { kind: 'name', text: '  Granny Smith apples ' },
+            request: () => mocks.byName,
+            words: 'Granny Smith apples',
+        },
+        {
+            pick: { kind: 'declared', text: 'my spice mix' },
+            request: () => mocks.createFreeform,
+            words: 'my spice mix',
+        },
+    ] as const)(
+        '⛔ a typed $pick.kind on the trailing row keeps the cook’s words as displayText',
+        async ({ pick, request, words }) => {
+            request().mockResolvedValue(CHICKPEAS);
+            const dispatch = vi.fn<(action: DraftAction) => void>();
+            const { result } = render({ kind: 'createForm', dispatch });
+
+            await commitThrough(result, pick, NEW_LINE);
+
+            expect(dispatch.mock.calls[0]?.[0]).toMatchObject({
+                kind: 'appendResolvedIngredient',
+                line: { displayText: words },
+            });
+        },
+    );
+
+    it('⛔ a pick from the list sets no displayText', async () => {
+        mocks.byFood.mockResolvedValue(CHICKPEAS);
+        const dispatch = vi.fn<(action: DraftAction) => void>();
+        const { result } = render({ kind: 'createForm', dispatch });
+
+        await commitThrough(result, { kind: 'catalogFood', foodId: 'food_chickpea', name: 'Chickpeas' }, NEW_LINE);
+
+        const [action] = dispatch.mock.calls[0] ?? [];
+
+        expect(action?.kind === 'appendResolvedIngredient' ? action.line : undefined).not.toHaveProperty('displayText');
+    });
+
+    it('⛔ a typed re-pick of a stored line never changes its displayText: the rebind carries the binding only', async () => {
+        mocks.createFreeform.mockResolvedValue(CHICKPEAS);
+        const dispatch = vi.fn<(action: DraftAction) => void>();
+        const { result } = render({ kind: 'createForm', dispatch });
+
+        await commitThrough(result, { kind: 'declared', text: 'my spice mix' }, STORED);
+
+        expect(dispatch.mock.calls[0]?.[0]).toEqual({
+            kind: 'rebindIngredient',
+            key: STORED_KEY,
+            binding: bindingOf(CHICKPEAS),
+        });
+    });
+
     it('a trailing row with no placement appends with none, so the line joins the group being built (U27)', async () => {
         mocks.byFood.mockResolvedValue(CHICKPEAS);
         const dispatch = vi.fn<(action: DraftAction) => void>();

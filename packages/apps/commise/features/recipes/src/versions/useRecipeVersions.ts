@@ -21,11 +21,17 @@
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { useSnackbar } from '@commise/ui/snackbar';
-import { isVersionConflictError, recipeQueries } from '@kitchensink/recipe-service-client';
+import {
+    isPrivateFoodsOnPublicRecipeError,
+    isVersionConflictError,
+    recipeQueries,
+} from '@kitchensink/recipe-service-client';
 import { useRecipeServiceClient, useRestoreRecipeVersion } from '@kitchensink/recipe-service-client/hooks';
 import { useSuspenseQueries } from '@tanstack/react-query';
 import { useState } from 'react';
 
+import { refusedLinesOf } from '../editor/refusedLinesOf.js';
+import type { PrivateFoodsRefusalSheetProps } from '../editor/privateFoodsRefusalSheetProps.js';
 import { fillTemplate } from '../format/fillTemplate.js';
 import { recipeMessages } from '../messages.js';
 import { compareWithCurrent, type VersionCompareViewProps } from './compare.js';
@@ -37,6 +43,8 @@ import { resolveVersionPreview, type VersionPreviewModalProps } from './preview.
 export interface RecipeVersionsInput {
     /** The recipe whose history to show. */
     readonly recipeId: string;
+    /** Open a food's page. Absent where the host has none; the refusal then lists the lines without the button's effect. */
+    readonly onOpenFood?: (foodId: string) => void;
 }
 
 /** What a restore does beyond restoring. */
@@ -53,6 +61,12 @@ export interface RecipeVersionsSession {
     readonly list: Omit<RecipeVersionListProps, 'onBack' | 'backHref'>;
     readonly preview: VersionPreviewModalProps;
     readonly compare: VersionCompareViewProps;
+    /**
+     * A restore the server refused because a line of that version uses a food only the cook can see (private foods spec
+     * section 7): the lines named from the version's own lines, since the refusal carries only ids and positions. Absent
+     * when nothing was refused.
+     */
+    readonly privateFoods?: Pick<PrivateFoodsRefusalSheetProps, 'lines' | 'onOpenFood' | 'onClose'>;
 }
 
 /**
@@ -64,7 +78,7 @@ export interface RecipeVersionsSession {
  *   request for `''` (B21: never a permanent spinner).
  * @sideEffect Sends the restore request; shows a snackbar; refetches both reads after a conflict.
  */
-export function useRecipeVersions({ recipeId }: RecipeVersionsInput): RecipeVersionsSession {
+export function useRecipeVersions({ recipeId, onOpenFood }: RecipeVersionsInput): RecipeVersionsSession {
     if (recipeId.length === 0) {
         throw new Error('A recipe version history needs a recipe id.');
     }
@@ -92,7 +106,11 @@ export function useRecipeVersions({ recipeId }: RecipeVersionsInput): RecipeVers
     // B17 — a failed restore must never silently no-op. The shared classifier maps the mutation's error to an honest
     // code for the version it targeted: a 409 conflict, a refusal naming the lines it cannot restore (plan 002 R52), or
     // generic. The banner clears on the next restore attempt.
-    const restoreError = classifyRestoreError(restore.error, restore.variables?.versionNumber);
+    // A refusal for a private food has its own sheet, so the list and the preview do not also show a generic error.
+    const refusedFoods = isPrivateFoodsOnPublicRecipeError(restore.error) ? restore.error.lines : undefined;
+    const restoreError =
+        refusedFoods === undefined ? classifyRestoreError(restore.error, restore.variables?.versionNumber) : undefined;
+    const refusedVersion = versions.find((version) => version.versionNumber === restore.variables?.versionNumber);
 
     const restoreVersion = (versionNumber: number, options: RestoreOptions = {}): void => {
         const { onRestored, undoable = true } = options;
@@ -171,5 +189,24 @@ export function useRecipeVersions({ recipeId }: RecipeVersionsInput): RecipeVers
             ...(compareDiff === undefined ? {} : { diff: compareDiff }),
             onClose: () => setCompareTarget(null),
         },
+        ...(refusedFoods === undefined || refusedVersion === undefined
+            ? {}
+            : {
+                  privateFoods: {
+                      // A saved line carries no food id, only its place, and the refusal names that place: the line
+                      // at `sortOrder` is the one refused, and it is the version's own words that name it.
+                      lines: refusedLinesOf(
+                          refusedVersion.snapshot.ingredients.map((line, index) => ({
+                              ...line,
+                              name: line.ingredientName,
+                              foodId: refusedFoods.find((refused) => refused.sortOrder === index)?.foodId,
+                          })),
+                          refusedFoods,
+                          locale,
+                      ),
+                      onOpenFood: (foodId: string) => onOpenFood?.(foodId),
+                      onClose: restore.reset,
+                  },
+              }),
     };
 }

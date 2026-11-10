@@ -104,6 +104,8 @@ export interface FixtureRecipeDefinition {
     readonly cuisine: string;
     readonly description: string;
     readonly visibility: 'public' | 'private';
+    /** `draft` for a recipe that must not be published (a public draft holding a private food); absent publishes. */
+    readonly status?: 'draft';
     readonly servings: number;
     readonly prepTimeMinutes: number;
     readonly cookTimeMinutes: number;
@@ -123,7 +125,7 @@ export type FixtureRecipeKey =
  * `discoverDetailSaveCopy` saves a copy of it and then lands in the COPY's editor, which only its owner can open, and
  * `rating`'s docblock says it uses a recipe the signer does not own "so the own-recipe gate, Sc8, is NOT
  * engaged". No amount of seeding under one identity produces "a recipe you do not own". The other three are
- * the signer's, which is what makes `searchNavigation`'s "3 recipes" true.
+ * the signer's, which, with the signer's public draft (`PRIVATE_FOOD_RECIPE`), is what makes `searchNavigation`'s "4 recipes" true.
  */
 export const SEED_WORLD: readonly FixtureRecipeDefinition[] = [
     {
@@ -270,35 +272,33 @@ export const SEED_WORLD: readonly FixtureRecipeDefinition[] = [
 /**
  * The co-author's PRIVATE food. The one line of {@link PRIVATE_FOOD_RECIPE} is bound to it.
  *
- * An authored food is private to its author until a human promotes it (ADR-0029), and a pool slot cannot promote.
- * So when the SIGNER reads the co-author's recipe, this line reaches them with no name and the status
- * `RESOLVED_UNAVAILABLE` (plan 002 R9), and the app shows its stand-in in the name's place.
+ * An authored food is private to its author until staff approve publishing it (ADR-0029 section 5), and a pool slot
+ * cannot ask. It lives only in the co-author's private recipe, which the signer cannot read.
  *
- * `recipes/privateFoodStandIn.yaml` also checks that this name never appears on the signer's screen. So it must not
- * appear in the recipe's own title, description or steps, and it must be plain letters, because the flow puts it
- * inside a Maestro pattern.
+ * The name must not appear in the recipe's own title, description or steps, and it must be plain letters, because a
+ * flow puts it inside a Maestro pattern.
  */
 export const PRIVATE_FOOD_NAME = 'Smoked Chili Oil';
 
 /**
- * The co-author's PUBLIC recipe whose one line — 2 tbsp — is bound to {@link PRIVATE_FOOD_NAME}.
+ * The SIGNER's public DRAFT whose one line — 2 tbsp — is bound to {@link PRIVATE_FOOD_NAME}, the signer's own private food. A
+ * private food cannot be in a PUBLISHED public recipe (ADR-0029 section 4: the recipe database refuses it), but a draft may
+ * hold one, which is exactly the state `publishRefusedForPrivateFood` needs: open it, press Publish, meet the refusal.
  *
- * ⛔ NOT IN {@link SEED_WORLD}. Everything there is either reconciled by the signer's per-flow reset or created by
- * `provision`'s DECLARED-name loop. A declared name has no food, so that loop would publish a line every viewer can
- * read — the opposite of what this recipe exists to show. `ensurePrivateFoodRecipe` creates it instead, together
- * with its food, and the line's `name` here is the FOOD's name, which is how `toCreateRequest` finds its binding.
+ * ⛔ NOT IN {@link SEED_WORLD}. `provision`'s declared-name loop would publish a line with no food; `ensurePrivateFoodRecipe`
+ * creates this one with its food, and the line's `name` is the FOOD's name, which is how `toCreateRequest` finds its binding.
+ * The per-flow reset SPARES it (`planWorldReset`) and re-makes it (`reset.ts`), so it survives every flow.
  *
- * ⚠️ Its times are longer than the risotto's on purpose. `recipes/accessibility.yaml` waits for the risotto in the
- * Discover rails with no search, so this recipe must sort behind it in every rail: behind it in "Quick" by total
- * time, and in "New" (and "Trending" on a tie) because `provision` publishes this recipe first.
+ * A draft is in no Discover rail, so it cannot displace the risotto `recipes/accessibility.yaml` waits for.
  */
 export const PRIVATE_FOOD_RECIPE: FixtureRecipeDefinition = {
     key: 'privateFood',
-    owner: 'coAuthor',
+    owner: 'signer',
     baseTitle: 'Secret Recipe Crostini',
     cuisine: 'Italian',
     description: 'Toasted bread with a drizzle.',
     visibility: 'public',
+    status: 'draft',
     servings: 2,
     prepTimeMinutes: 10,
     cookTimeMinutes: 30,
@@ -365,7 +365,7 @@ export const AMBIGUITY_GATE_MEASUREMENT = Object.freeze({
  * lists are held off those words by `remoteProbeWords.test.ts`. ⛔ Nor may a line name what a candidate is MADE of:
  * `2 tbsp olive oil` read RESOLVED against `tzatziki`. Every pair is one {@link AMBIGUITY_GATE_MEASUREMENT} measured.
  *
- * ⛔ NOT IN {@link SEED_WORLD}, and not in `manifest.recipes`. Every other flow asserts `^3 recipes$` on the signer's
+ * ⛔ NOT IN {@link SEED_WORLD}, and not in `manifest.recipes`. Every other flow asserts `^4 recipes$` on the signer's
  * library. `planWorldReset` therefore treats the probe as residue in every mode, BY ITS TITLE, which is why the title is
  * the manifest's and never carries the word. `reset --mode ambiguity` creates it AFTER the reconcile, for the one flow
  * that opens it. The pick is a real write (a new version with the line re-pointed), so the probe cannot be kept between
@@ -440,7 +440,7 @@ const TALL_RECIPE_STEPS: readonly string[] = [
 /**
  * The signer's filler recipes, for `reset --mode library` and `recipes/headerScrollsAway` alone.
  *
- * ⛔ NOT IN {@link SEED_WORLD}, and not in `manifest.recipes`. Every other flow asserts `^3 recipes$` on the signer's
+ * ⛔ NOT IN {@link SEED_WORLD}, and not in `manifest.recipes`. Every other flow asserts `^4 recipes$` on the signer's
  * library, so `planWorldReset` treats the fillers as residue in every mode but `library`, BY THEIR TITLES.
  *
  * Private, so none shows in a Discover rail, and one line each over a food the lamb already authors.

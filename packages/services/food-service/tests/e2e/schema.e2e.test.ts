@@ -48,8 +48,8 @@ const EXPECTED_TABLES = [
     'source_sync_metadata',
     // U18 (0014): authored-food version history — the recipe versioning pattern's table half.
     'food_versions',
-    // U12 (0015): the promotion moderation queue — corroboration triggers, a human publishes.
-    'food_promotions',
+    // 0028: the publication request — the author asks, staff approve (ADR-0029 §5).
+    'food_publication_requests',
     // Curated catalog U4 (0018): the item-keyed catalog, the nutrition aggregate, forwards and the seed ledger.
     'food_item',
     'food_variant',

@@ -1,14 +1,10 @@
 /**
  * @module @commise/features-recipes/editor — the contract `PublishBlockedSheet`'s web and native leaves share.
  */
-import type { PublishBlocked } from '../hooks/useRecipeEditor.js';
-
 /** Props for `PublishBlockedSheet`. */
 export interface PublishBlockedSheetProps {
     /** Whether the sheet is shown; closed, it renders nothing. */
     readonly open: boolean;
-    /** Which case blocked the Publish, which decides the words (`publishBlockedCopyOf`). */
-    readonly ask: PublishBlocked;
     /** The cook's private-slot limit, for the `noSlot` words; `undefined` when not known (the words then say no number). */
     readonly slotTotal: number | undefined;
     /**

@@ -117,10 +117,10 @@ export const IngredientCheckRow: FC<IngredientCheckRowProps> = ({
                                     )}
                                 </Text>
                                 {parts === undefined &&
-                                    notes.map((note, index) => (
+                                    notes.map((note) => (
                                         <Fragment key={note}>
                                             <Text typeRole="body" color="$inkMuted">
-                                                {index === 0 ? PREP_JOINER : ' '}
+                                                {PREP_JOINER}
                                             </Text>
                                             <Text typeRole="body" color="$inkMuted">
                                                 {note}
@@ -132,10 +132,16 @@ export const IngredientCheckRow: FC<IngredientCheckRowProps> = ({
                             {parts !== undefined && notes.length > 0 && (
                                 <Text typeRole="body" color="$inkMuted">
                                     {notes.map((note, index) => (
-                                        <Text key={note} typeRole="body" color="$inkMuted">
-                                            {index > 0 ? ' ' : ''}
-                                            {note}
-                                        </Text>
+                                        <Fragment key={note}>
+                                            {index > 0 && (
+                                                <Text typeRole="body" color="$inkMuted">
+                                                    {PREP_JOINER}
+                                                </Text>
+                                            )}
+                                            <Text typeRole="body" color="$inkMuted">
+                                                {note}
+                                            </Text>
+                                        </Fragment>
                                     ))}
                                 </Text>
                             )}

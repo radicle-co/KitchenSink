@@ -208,19 +208,62 @@ describe('planWorldReset — empty mode', () => {
 });
 
 /**
- * The co-author's private-food recipe is judged as a PAIR with its food. The binding id passed in is the one the
+ * The signer's private-food draft survives every per-flow reset: `publishRefusedForPrivateFood` needs it and nothing else
+ * makes it. The planner SPARES it when present and never plans to create it (its line is bound to a food, which the applier
+ * cannot name); `reset.ts` makes it again through `ensurePrivateFoodRecipe`, which judges it as a pair with its food.
+ */
+describe('planWorldReset — the signer’s private-food draft', () => {
+    const fixture = manifest.privateFoodRecipe;
+    const kept = (): WorldSnapshot =>
+        snapshot({
+            recipes: [
+                ...signerTitles.map((title, index) => row(`r${index}`, title)),
+                { id: 'pf', title: fixture.title, visibility: fixture.visibility },
+            ],
+        });
+
+    it.each(['seeded', 'ambiguity', 'library'] as const)('%s: leaves it alone and plans nothing', (mode) => {
+        const plan = planWorldReset(kept(), manifest, mode);
+
+        expect(plan.deleteRecipeIds).not.toContain('pf');
+        expect(plan.create.map((recipe) => recipe.title)).not.toContain(fixture.title);
+    });
+
+    it('⛔ never plans to create it when it is missing: the applier cannot bind its food', () => {
+        const plan = planWorldReset(snapshot(), manifest, 'seeded');
+
+        expect(plan.create.map((recipe) => recipe.title)).not.toContain(fixture.title);
+    });
+
+    it('empty mode deletes it: the library must be genuinely empty', () => {
+        expect(planWorldReset(kept(), manifest, 'empty').deleteRecipeIds).toContain('pf');
+    });
+
+    it('deletes a copy of it at the wrong visibility, as it does any manifest title', () => {
+        const plan = planWorldReset(
+            snapshot({ recipes: [{ id: 'bad', title: fixture.title, visibility: 'private' }] }),
+            manifest,
+            'seeded',
+        );
+
+        expect(plan.deleteRecipeIds).toEqual(['bad']);
+    });
+});
+
+/**
+ * The signer's private-food recipe is judged as a PAIR with its food. The binding id passed in is the one the
  * food has NOW — `ensurePrivateFoodRecipe` authors or re-binds the food first — so "the row points at this binding"
  * is exactly "the row points at a food that still exists".
  */
 describe('planPrivateFoodRecipe', () => {
     const BINDING = 'binding-now';
-    /** The fixture the rows are judged against: public, one line. */
+    /** The fixture the rows are judged against: PRIVATE (a private food lives only in a private recipe), one line. */
     const FIXTURE = manifest.privateFoodRecipe;
 
-    /** A row as the co-author reads it: public, one line bound to the food's current binding. */
+    /** A row as the co-author reads it: private, one line bound to the food's current binding. */
     const intact = (id: string, over: Partial<PrivateFoodRecipeRow> = {}): PrivateFoodRecipeRow => ({
         id,
-        visibility: 'public',
+        visibility: FIXTURE.visibility,
         lineBindingIds: [BINDING],
         ...over,
     });
@@ -248,10 +291,11 @@ describe('planPrivateFoodRecipe', () => {
         ).toEqual({ action: 'create', deleteRecipeIds: ['stale'] });
     });
 
-    it('replaces a row at the wrong visibility — a private row is one the signer cannot open', () => {
-        expect(planPrivateFoodRecipe([intact('hidden', { visibility: 'private' })], FIXTURE, BINDING)).toEqual({
+    // REWRITTEN for the signer-owned fixture: it is a PUBLIC draft, so the wrong visibility is a private row.
+    it('replaces a row at the wrong visibility', () => {
+        expect(planPrivateFoodRecipe([intact('open', { visibility: 'private' })], FIXTURE, BINDING)).toEqual({
             action: 'create',
-            deleteRecipeIds: ['hidden'],
+            deleteRecipeIds: ['open'],
         });
     });
 

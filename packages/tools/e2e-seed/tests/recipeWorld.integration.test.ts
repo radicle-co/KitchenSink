@@ -680,7 +680,7 @@ describe('the cap foods over a real wire', () => {
 });
 
 /**
- * ⛔ THE CO-AUTHOR'S PRIVATE-FOOD RECIPE IS ONE FIXTURE WITH ITS FOOD. `recipes/privateFoodStandIn.yaml` needs a
+ * ⛔ THE CO-AUTHOR'S PRIVATE-FOOD RECIPE IS ONE FIXTURE WITH ITS FOOD. the private-food Maestro flows need a
  * public recipe whose line is bound to a food the signer may not see. What only this tier proves: the create body
  * passes the SHIPPED contract, the read-back crosses the real client, and a recipe that outlived its food is
  * replaced — found by the binding its line points at, which a title check cannot see.

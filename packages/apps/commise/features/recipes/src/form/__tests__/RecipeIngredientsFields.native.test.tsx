@@ -75,6 +75,7 @@ import type { LookupRetry } from '../ingredientStatus.js';
 import type { IngredientNutrition, LookupEntry } from '../nutritionLookup.js';
 import type { DraftAction } from '../draftAction.js';
 import { applyDraftAction } from '../props.js';
+import { toCreateRecipeInput } from '../wire.js';
 import type { IngredientsPasteView } from '../props.js';
 import type { IngredientRowEditor } from '../../hooks/useIngredientRowEditor.js';
 
@@ -971,5 +972,101 @@ describe('RecipeIngredientsFields (native) — the pick-a-food notice', () => {
 
     it.each(['light', 'dark'] as const)('paints it in dangerText in the %s scheme', (scheme) => {
         expect(resolvedColour(submitWithoutChoice(scheme), 'color')).toBe(rgb(rolesFor(scheme).dangerText));
+    });
+});
+
+describe('RecipeIngredientsFields (native) — the cook’s own words and the note (design answers 2026-11-08)', () => {
+    const SAUSAGE: UnkeyedFormIngredient = { ...RICE, displayText: 'sweet Italian sausage' };
+
+    it('a row with displayText reads the cook’s words, and a quiet second line says "Counted as {food}"', () => {
+        render(<StatefulLeaf initial={[SAUSAGE]} seen={[]} />);
+
+        expect(screen.getByRole('button', { name: /^Edit 300 g sweet Italian sausage/u })).toBeTruthy();
+        expect(screen.getByText('Counted as Arborio rice')).toBeTruthy();
+    });
+
+    it('⛔ "Counted as" is the open control’s hint and is not part of its name', () => {
+        render(<StatefulLeaf initial={[SAUSAGE]} seen={[]} />);
+
+        const open = screen.getByRole('button', { name: 'Edit 300 g sweet Italian sausage' });
+
+        // react-native-web drops `accessibilityHint` (the suite records text inputs for that reason), so the name is
+        // what jsdom can see: it is the visible run only, and the hint is wired in the leaf.
+        expect(open.getAttribute('aria-label')).not.toContain('Counted as');
+    });
+
+    it('a row with displayText NULL shows the food’s name and no "Counted as" line', () => {
+        render(<StatefulLeaf initial={[RICE]} seen={[]} />);
+
+        expect(screen.queryByText(/Counted as/u)).toBeNull();
+    });
+
+    it('an attention line takes the second line’s place', () => {
+        render(<StatefulLeaf initial={[{ ...SAUSAGE, resolutionStatus: FoodResolutionStatus.AMBIGUOUS }]} seen={[]} />);
+
+        expect(screen.queryByText(/Counted as/u)).toBeNull();
+        expect(screen.getByText(en.rowStateChooseMatch)).toBeTruthy();
+    });
+
+    it('the note leads the muted tail, then the preparation', () => {
+        render(<StatefulLeaf initial={[{ ...RICE, note: '9 inch', preparation: 'rinsed' }]} seen={[]} />);
+
+        const open = screen.getByRole('button', { name: /^Edit 300 g Arborio rice, 9\s+inch, rinsed$/u });
+        const text = open.textContent ?? '';
+
+        expect(text.indexOf('9\u00A0inch')).toBeGreaterThan(text.indexOf('Arborio rice'));
+        expect(text.indexOf('rinsed')).toBeGreaterThan(text.indexOf('9\u00A0inch'));
+        expect(text).not.toContain('(');
+    });
+
+    it('the row editor offers "Counted as", then "Name on the recipe" and "Note" before Preparation', () => {
+        render(<StatefulLeaf initial={[{ ...SAUSAGE, note: '9 inch' }]} seen={[]} />);
+
+        press(/^Edit 300 g sweet Italian sausage/u);
+        const sheet = dialogTitled('sweet Italian sausage');
+        const name = within(sheet).getByLabelText(en.rowDisplayTextLabel) as HTMLInputElement;
+        const note = within(sheet).getByLabelText(en.rowNoteLabel) as HTMLInputElement;
+        const prep = within(sheet).getByLabelText(en.rowPrepLabel);
+        const follows = (a: Element, b: Element): boolean =>
+            Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+
+        expect(name.value).toBe('sweet Italian sausage');
+        expect(note.value).toBe('9 inch');
+        expect(recordedTextInputLabelled(en.rowNoteLabel).placeholder).toBe(en.rowNotePlaceholder);
+        expect(recordedTextInputLabelled(en.rowDisplayTextLabel).placeholder).toBe('Arborio rice');
+        expect(follows(name, note)).toBe(true);
+        expect(follows(note, prep)).toBe(true);
+        expect(follows(within(sheet).getByText(en.rowCountedAsLabel), name)).toBe(true);
+    });
+
+    it('typing in the two fields reaches the draft, and clearing the name leaves it empty (NULL on the wire)', () => {
+        const seen: RecipeFormValues[] = [];
+        render(<StatefulLeaf initial={[SAUSAGE]} seen={seen} />);
+
+        press(/^Edit 300 g sweet Italian sausage/u);
+        const sheet = dialogTitled('sweet Italian sausage');
+
+        type(within(sheet).getByLabelText(en.rowNoteLabel), '9 inch');
+        type(within(sheet).getByLabelText(en.rowDisplayTextLabel), '');
+
+        expect(seen.at(-1)?.ingredients[0]).toMatchObject({ note: '9 inch', displayText: '' });
+        expect(toCreateRecipeInput(seen.at(-1) as RecipeFormValues).ingredients[0]).not.toHaveProperty('displayText');
+    });
+});
+
+describe('RecipeIngredientsFields (native) — a stand-in row that holds the cook’s words', () => {
+    const HIDDEN: UnkeyedFormIngredient = {
+        ...RICE,
+        name: undefined,
+        resolutionStatus: FoodResolutionStatus.RESOLVED_UNAVAILABLE,
+        displayText: 'my secret blend',
+    };
+
+    it('keeps the stand-in chip and says "Not counted" in place of "Counted as"', () => {
+        render(<StatefulLeaf initial={[HIDDEN]} seen={[]} />);
+
+        expect(screen.getByText(standIns.privateFood)).toBeTruthy();
+        expect(screen.getByText(en.rowNotCounted)).toBeTruthy();
+        expect(screen.queryByText(/Counted as/u)).toBeNull();
     });
 });

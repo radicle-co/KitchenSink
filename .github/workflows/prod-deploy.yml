@@ -573,13 +573,19 @@ jobs:
             # The package ITSELF is built too (not only its `^...` imports, as before): its `dist/` now
             # carries the compiled deploy smoke that the post-prune step runs under plain `node`.
             #
-            # The pip install cross-stages arm64 / CPython 3.13 wheels and never executes them, so the
-            # runner's own Python major does not matter. `buildAsset.ts` verifies the tree it produced and
-            # exits non-zero on any finding, so a broken asset fails here rather than on a cold start.
+            # The pip install cross-stages arm64 / CPython 3.13 wheels and never executes them, but the build
+            # also runs the HOST python3 (the NLTK download, and the handler-import check that subtracts
+            # `sys.stdlib_module_names`), so the runner gets the Lambda's Python from the one version file
+            # (`workflowPythonVersion.test.ts`). `buildAsset.ts` verifies the tree it produced and exits
+            # non-zero on any finding, so a broken asset fails here rather than on a cold start.
             - name: Build the ingredient-parser package and the workspace packages its app imports
               if: steps.flags.outputs.deploy_recipe == 'true'
               run: npx turbo run build --filter=@kitchensink/ingredient-parser
 
+            - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+              if: steps.flags.outputs.deploy_recipe == 'true'
+              with:
+                  python-version-file: packages/services/ingredient-parser/pythonVersion.txt
             - name: Stage the CRF Lambda asset (pip, arm64 / CPython 3.13)
               if: steps.flags.outputs.deploy_recipe == 'true'
               run: npm run bundle:lambda --workspace=packages/services/ingredient-parser

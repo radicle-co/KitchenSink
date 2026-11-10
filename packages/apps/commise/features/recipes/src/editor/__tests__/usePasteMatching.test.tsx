@@ -33,6 +33,7 @@ import {
 import type { DraftAction } from '../../form/draftAction.js';
 import { mintLineKey } from '../../form/mintLineKey.js';
 import type { LineCommitOutcome, IngredientPick } from '../../hooks/lineCommit.js';
+import { MAX_MATCH_ATTEMPTS } from '../matchRequests.js';
 import { pastedLinesOf } from '../pastedLines.js';
 
 const mocks = vi.hoisted(() => ({
@@ -280,6 +281,39 @@ describe('usePasteMatching — joining in paste order', () => {
         ]);
     });
 
+    it('the draft line carries the cook’s words (displayText) and the note the parse kept, and the food it is bound to', async () => {
+        const job = jobOf(
+            makeParseJobLine({
+                lineIndex: 0,
+                sourceLine: '1 (9 inch) double-crust pie pastry',
+                status: 'parsed',
+                proposal: makeParseProposal({
+                    raw: '1 (9 inch) double-crust pie pastry',
+                    statedMeasure: null,
+                    quantity: { kind: 'exact', value: 1 },
+                    unit: null,
+                    foods: [
+                        makeParseProposalFood({
+                            name: 'double-crust pie pastry',
+                            display: 'written',
+                            match: makeParseMatch({ candidates: [OAT] }),
+                        }),
+                    ],
+                }),
+            }),
+        );
+        const { dispatch } = setup(job);
+        await settle();
+
+        const [line] = appended(dispatch);
+
+        expect(line?.line).toMatchObject({
+            ingredientId: 'whole',
+            displayText: 'double-crust pie pastry',
+            note: '9 inch',
+        });
+    });
+
     it('a proposed VARIANT binds through the variant admission', async () => {
         setup(
             jobOf(
@@ -412,6 +446,78 @@ describe('usePasteMatching — a checking line that is later reviewed', () => {
 
         expect(dispatch.mock.calls.filter(([action]) => action.kind === 'rebindIngredient')).toEqual([]);
         expect(result.current.lines[0]).toMatchObject({ state: 'needsChoice', binding: undefined });
+    });
+});
+
+describe('usePasteMatching — an offer the server stops showing is withdrawn', () => {
+    const confident = () => milkLine(makeParseMatch({ reason: 'exactName', candidates: [OAT] }));
+    const asks = () =>
+        milkLine(
+            makeParseMatch({ state: 'needsChoice', reason: 'reviewContradicted', proposed: null, candidates: [OAT] }),
+        );
+    const rebinds = (dispatch: Harness['dispatch']) =>
+        dispatch.mock.calls.flatMap(([action]) => (action.kind === 'rebindIngredient' ? [action] : []));
+
+    it('⛔ unbinds a line the server bound once the wire reads needsChoice, and puts the draft line back as written', async () => {
+        const { read, dispatch, result } = setup(jobOf(confident()));
+        await settle();
+        expect(result.current.lines[0]).toMatchObject({ state: 'confident', binding: { boundBy: 'server' } });
+        dispatch.mockClear();
+
+        read(jobOf(asks()));
+        await settle();
+
+        expect(mocks.create).toHaveBeenCalledWith('milk');
+        expect(rebinds(dispatch)).toHaveLength(1);
+        expect(rebinds(dispatch)[0]?.binding).toMatchObject({ ingredientId: 'free_milk' });
+        expect(result.current.lines[0]).toMatchObject({ state: 'needsChoice', binding: undefined });
+    });
+
+    it.each([false, true])(
+        '⛔ a withdrawal that failed is tried again in the same session, and the line goes back (strict: %s)',
+        async (strict) => {
+            const { read, dispatch, result } = setup(jobOf(confident()), {}, strict);
+            await settle();
+            dispatch.mockClear();
+            mocks.create.mockRejectedValueOnce(new Error('recipe-service unreachable'));
+
+            read(jobOf(asks()));
+            await settle();
+
+            expect(mocks.create).toHaveBeenCalledTimes(2);
+            expect(rebinds(dispatch)).toHaveLength(1);
+            expect(result.current.lines[0]).toMatchObject({ state: 'needsChoice', binding: undefined });
+        },
+    );
+
+    it('⛔ a withdrawal that keeps failing is tried at most MAX_MATCH_ATTEMPTS times: a down service is not a storm', async () => {
+        const { read, dispatch } = setup(jobOf(confident()));
+        await settle();
+        dispatch.mockClear();
+        mocks.create.mockRejectedValue(new Error('recipe-service unreachable'));
+
+        read(jobOf(asks()));
+        await settle();
+        await settle();
+
+        expect(mocks.create).toHaveBeenCalledTimes(MAX_MATCH_ATTEMPTS);
+        expect(rebinds(dispatch)).toEqual([]);
+    });
+
+    it('⛔ never touches the cook’s own pick', async () => {
+        const { read, dispatch, result } = setup(jobOf(confident()));
+        await settle();
+        act(() => result.current.pick('0:0', { kind: 'food', foodId: 'oat', name: 'Oat milk' }));
+        await settle();
+        dispatch.mockClear();
+        mocks.create.mockClear();
+
+        read(jobOf(asks()));
+        await settle();
+
+        expect(mocks.create).not.toHaveBeenCalled();
+        expect(rebinds(dispatch)).toEqual([]);
+        expect(result.current.lines[0]?.binding).toMatchObject({ boundBy: 'cook', pick: { foodId: 'oat' } });
     });
 });
 

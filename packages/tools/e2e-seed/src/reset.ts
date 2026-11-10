@@ -22,7 +22,7 @@
 import { clientFor, foodClientFor } from './client.js';
 import { readFoodOrigin, readIdentityOrigin, readSeedEnvironment } from './env.js';
 import { deriveAmbiguityProbe, deriveFixtureManifest } from './fixtureManifest.js';
-import { applyPlan, ensureAmbiguityProbe, readWorld } from './recipeWorld.js';
+import { applyPlan, ensureAmbiguityProbe, ensurePrivateFoodRecipe, readWorld } from './recipeWorld.js';
 import { readSessionState, sessionStatePath } from './sessionState.js';
 import { settingsResetVia } from './settingsReset.js';
 import { assertPlatformsAgree } from './shard.js';
@@ -68,6 +68,16 @@ if (mode === 'ambiguity') {
     );
     console.error(
         `e2e-seed reset (ambiguity): "${probe.title}" is ${probeId}, both "${state.ambiguityWord}" lines AMBIGUOUS`,
+    );
+}
+
+if (mode !== 'empty') {
+    // The signer's private-food draft: spared by the plan when intact, made here when missing or when its food was purged.
+    // Idempotent, so the settled case writes nothing.
+    await ensurePrivateFoodRecipe(
+        { food: foodClientFor(readFoodOrigin(process.env), state.signer), recipe: client },
+        manifest.privateFoodRecipe,
+        manifest.privateFoodName,
     );
 }
 

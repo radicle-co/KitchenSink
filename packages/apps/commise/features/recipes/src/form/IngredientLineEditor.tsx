@@ -2,7 +2,7 @@
 
 /**
  * @module @commise/features-recipes/form — `IngredientLineEditor` (web): the row editor's fields (build spec §7.5.2),
- * drawn inside either frame, the phone sheet or the inline panel. Top to bottom: the food as one line with Change, then
+ * drawn inside either frame, the phone sheet or the inline panel. Top to bottom: "Counted as" and the food as one line with Change, the cook's own words and the note, then
  * Amount (with "+ Add a range"), Unit and Preparation, then Food details. The fields wrap by width: from 600 px they
  * share one line, and in the phone sheet Amount and Unit take line 1 and Preparation line 2. No group field: groups are
  * set at the section level.
@@ -63,13 +63,40 @@ const AmountField: FC<{
 /** The row editor's fields. */
 export const IngredientLineEditor: FC<IngredientLineEditorProps> = ({ view, index, m, details }) => (
     <div className="flex flex-col gap-4">
-        <div className="flex min-w-0 flex-wrap items-center gap-2">
-            <p className="min-w-0 flex-1 break-words text-body-md text-ink">{view.food}</p>
-            {view.onChangeFood !== undefined && (
-                <Button variant="ghost" onPress={view.onChangeFood}>
-                    {m.rowChange}
-                </Button>
-            )}
+        <div className="flex flex-col gap-1">
+            <span className="text-caption text-ink-muted">{m.rowCountedAsLabel}</span>
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+                <p className="min-w-0 flex-1 break-words text-body-md text-ink">{view.food}</p>
+                {view.onChangeFood !== undefined && (
+                    <Button variant="ghost" onPress={view.onChangeFood}>
+                        {m.rowChange}
+                    </Button>
+                )}
+            </div>
+        </div>
+        <div className="flex flex-col gap-4 @regular/main:flex-row @regular/main:flex-wrap @regular/main:items-end @regular/main:gap-x-3">
+            <div className="flex min-w-40 flex-1 flex-col gap-1">
+                <FieldLabel forId={view.ids.displayText} label={m.rowDisplayTextLabel} />
+                <input
+                    id={view.ids.displayText}
+                    type="text"
+                    value={view.displayText}
+                    placeholder={view.displayTextPlaceholder}
+                    onChange={(event) => view.onDisplayText(event.target.value)}
+                    className={`block w-full text-ink ${FIELD_CLASS}`}
+                />
+            </div>
+            <div className="flex min-w-40 flex-1 flex-col gap-1">
+                <FieldLabel forId={view.ids.note} label={m.rowNoteLabel} />
+                <input
+                    id={view.ids.note}
+                    type="text"
+                    value={view.note}
+                    placeholder={m.rowNotePlaceholder}
+                    onChange={(event) => view.onNote(event.target.value)}
+                    className={`block w-full text-ink ${FIELD_CLASS}`}
+                />
+            </div>
         </div>
         <div className="flex flex-wrap items-end gap-x-3 gap-y-4">
             <div className="flex flex-col gap-1">

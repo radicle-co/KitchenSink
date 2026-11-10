@@ -10,24 +10,23 @@
  * Private, choosing it again is a change to private like any other. Leaving it is confirmed first for a downgraded
  * owner, who cannot simply come back (`useMakePublicConfirm`, UX SPECIFY 2026-10-15).
  *
- * The host picks the leaf: `offersPrivate` → `RecipeVisibilityField` (Public and Private); otherwise
- * `RecipeVisibilityStatement` (a plain "Who can see it: Public"). Never a mode prop on one leaf.
+ * Every recipe offers Private (ADR-0073, ADR-0077 section 6): the only refusal left is the slots one, which
+ * `RecipeVisibilityField` shows with its ways forward, so there is no Private-less leaf to choose.
  *
  * @pattern Adapter — {@link useGatedPrivate} to the visibility leaves' props
  */
 import type { PaidFeatureState } from '@commise/features-account';
 import { RecipeVisibility } from '@kitchensink/recipe-core';
 
-import type { RecipeVisibilityFieldProps, RecipeVisibilityStatementProps } from '../form/props.js';
+import type { RecipeVisibilityFieldProps } from '../form/props.js';
 import type { RecipeFormValues } from '../form/values.js';
 import type { RecipeMakePublicDialogProps, RecipeUpsellSheetProps } from './model.js';
-import { effectiveVisibility, heldVisibility } from './privateGate.js';
+import { heldVisibility } from './privateGate.js';
 import {
     recipeMakePublicConsequence,
     recipePrivateRefusalOf,
     refusalWhileDrafting,
     slotStandingForRecipe,
-    usesSlots,
     type PrivateRule,
     type RecipePrivateFacts,
     type SlotStanding,
@@ -61,8 +60,6 @@ export interface UsePrivateChoiceOptions {
 
 /** What the host wires into the visibility leaves and the sheet. */
 export interface PrivateChoice {
-    /** Render `RecipeVisibilityField` when true, `RecipeVisibilityStatement` when false. */
-    readonly offersPrivate: boolean;
     /** The facts `RecipeVisibilityField` decides its badge, hint, count and choices from (`heldVisibility` is the held one). */
     readonly field: Pick<RecipeVisibilityFieldProps, 'facts' | 'heldVisibility' | 'privateRefusal'>;
     /** For `RecipeVisibilityField.onPremiumRequired`: open the Premium sheet (only while the upsell stands). */
@@ -71,11 +68,6 @@ export interface PrivateChoice {
     readonly onConfirmPublic: () => void;
     /** For `RecipeMakePublicDialog`. Confirming changes the draft only, so it is never busy and never fails. */
     readonly confirm: Pick<RecipeMakePublicDialogProps, 'open' | 'consequence' | 'onConfirm' | 'onKeep'>;
-    /**
-     * For `RecipeVisibilityStatement`: a kept draft's Private the server will refuse (`refusedDraftPrivate`), and
-     * whether the cook confirmed Public here, so the statement replaces the field they used and takes its focus.
-     */
-    readonly statement: RecipeVisibilityStatementProps;
     /** For `RecipeUpsellSheet`. */
     readonly sheet: RecipeUpsellSheetProps;
 }
@@ -103,7 +95,7 @@ export function usePrivateChoice(options: UsePrivateChoiceOptions): PrivateChoic
     // ⛔ Not `options.saved`: a cook who has moved the draft off Private has given up the free return to it. And under the
     // slots rule a recipe that is not published holds no slot whatever it is stored as (a private DRAFT is stored Private),
     // so there is nothing held to return to: Publish is what takes the slot.
-    const heldByTheServer = usesSlots(rule) && !publication.published ? RecipeVisibility.PUBLIC : options.saved;
+    const heldByTheServer = !publication.published ? RecipeVisibility.PUBLIC : options.saved;
     const saved = heldVisibility(heldByTheServer, values.visibility);
     const gate = useGatedPrivate({
         facts: shown,
@@ -121,25 +113,11 @@ export function usePrivateChoice(options: UsePrivateChoiceOptions): PrivateChoic
         },
     });
 
-    // A draft whose Private will be SENT (no known refusal) shows as Private, whatever the display state: a statement
-    // saying "Public" over a write that sends Private would be false. (Under the slots rule the gate always offers it, so a
-    // kept Private the slots refuse still shows the field - where the refusal and its ways forward are.)
-    // Owner ruling 2026-10-26: an imported public-web recipe with paid features KNOWN to be hidden (a failed read is not) shows the field too, with Private
-    // REFUSED and the reason as its description, rather than a statement with no Private card.
-    const offersPrivate =
-        gate.offersPrivate ||
-        effectiveVisibility(refusal, saved, values.visibility) === RecipeVisibility.PRIVATE ||
-        (rule === 'premium' && known.state === 'hidden');
-
     return {
-        offersPrivate,
         field: { facts: known, heldVisibility: saved, privateRefusal: refusal },
         onPremiumRequired: gate.showPremium,
         onConfirmPublic: makePublic.request,
         confirm: makePublic.dialog,
-        statement: {
-            focusOnMount: makePublic.confirmed,
-        },
         sheet: gate.sheet,
     };
 }

@@ -41,7 +41,7 @@ const CRF_READING: ParsedLine = {
 };
 
 const LLM_TEXT =
-    '[{"food_items":["all-purpose flour"],"measurement":{"quantity":"2","unit":"cups","unit_type":"volume"},"preparations":null,"equipment":null}]';
+    '[{"food_items":["all-purpose flour"],"display":"food","measurement":{"quantity":"2","unit":"cups","unit_type":"volume"},"preparations":null,"equipment":null}]';
 
 /** An in-memory stand-in for the parse cache and the job line, answering the handler's statements by shape. */
 function world() {

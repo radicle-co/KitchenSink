@@ -15,10 +15,11 @@ import {
     normalizeUnit,
     RECIPE_MEAL_TYPES,
     RecipeDifficulty,
+    RecipeSourceType,
     RecipeVisibility,
 } from '@kitchensink/recipe-core';
 
-import type { RecipePrivateFacts } from '../../actions/recipePrivateGate.js';
+import { privateRuleForDraft, type RecipePrivateFacts } from '../../actions/recipePrivateGate.js';
 import { editorMessages } from '../../editor/messages.js';
 
 import { mintedLineKey, seedLineKey } from '../lineKey.js';
@@ -539,7 +540,7 @@ describe('U27 — moving a line between sections preserves everything else', () 
             quantity: 2,
             quantityHigh: 3,
             unit: 'cup',
-            notes: 'a note',
+            displayText: 'a note',
             preparation: 'finely chopped',
             groupLabel: 'For the marinade',
             userCalories: 40,
@@ -930,14 +931,17 @@ describe('applyDraftAction — one entry point, every draft transition', () => {
     });
 
     /**
-     * `docs/design/ingredientStatusExplanation.md` §4a: the patch reaches only quantity, unit, preparation and section.
+     * `docs/design/ingredientStatusExplanation.md` §4a: the patch reaches only the fields the cook edits on a row: quantity, unit, the cook's own words, the note,
+     * preparation and section (the words and the note joined 2026-11-08).
      * A patch that could set `ingredientId: null` is exactly the row U28 exists to prevent, so the binding is not a
      * key of the patch at all; re-pointing a line is `rebindIngredient`.
      */
     it('⛔ the field patch cannot name the binding (§4a)', () => {
         type Patch = Extract<DraftAction, { kind: 'updateIngredientAt' }>['patch'];
 
-        expectTypeOf<keyof Patch>().toEqualTypeOf<'quantity' | 'unit' | 'preparation' | 'groupLabel'>();
+        expectTypeOf<keyof Patch>().toEqualTypeOf<
+            'quantity' | 'unit' | 'displayText' | 'note' | 'preparation' | 'groupLabel'
+        >();
     });
 
     it('patches one step at an index', () => {
@@ -1013,7 +1017,8 @@ describe('rebindIngredient (§4a)', () => {
             quantity: 2,
             quantityHigh: 3,
             unit: 'lb',
-            notes: 'trimmed',
+            displayText: 'trimmed',
+            note: '9 inch',
             preparation: 'sliced',
             groupLabel: 'For the braise',
             isUserEntered: false,
@@ -1040,7 +1045,8 @@ describe('rebindIngredient (§4a)', () => {
             quantity: 2,
             quantityHigh: 3,
             unit: 'lb',
-            notes: 'trimmed',
+            displayText: 'trimmed',
+            note: '9 inch',
             preparation: 'sliced',
             groupLabel: 'For the braise',
             userCalories: 0,
@@ -1208,17 +1214,12 @@ describe('splitAtCommas / addChips', () => {
 });
 
 /**
- * The "Who can see it" rule, REWRITTEN for ADR-0073 / the owner ruling of 2026-10-26. It was the paid-feature rule alone
- * (Private under `upsell` asks for the upsell, `hidden` and `loading` change nothing, leaving a held Private asks to confirm
- * unless granted). A recipe is now under one of two rules: a free cook's private SLOTS, or (imported public-web recipes only)
- * Pro. Public is never final, so leaving a held Private asks to confirm only where there is a cost worth stating.
+ * The "Who can see it" rule, REWRITTEN for ADR-0073 / the owner ruling of 2026-10-26, then for ADR-0077 section 6 ("Any
+ * cook, using a slot"): the premium rule is gone, so every recipe, an imported public-web one included, is under a free
+ * cook's private SLOTS (or `privateOnly` for a book or paid-site recipe). Public is never final, so leaving a held Private
+ * asks to confirm only where there is a cost worth stating.
  */
 describe('visibilityChoice', () => {
-    const premium = (state: PaidFeatureState): RecipePrivateFacts => ({
-        rule: 'premium',
-        standing: { kind: 'unknown' },
-        state,
-    });
     const slots = (standing: RecipePrivateFacts['standing']): RecipePrivateFacts => ({
         rule: 'slots',
         standing,
@@ -1229,57 +1230,6 @@ describe('visibilityChoice', () => {
 
     it.each([
         // current, chosen, saved, facts, expected
-        [
-            'premium rule: public to private, granted',
-            'public',
-            'private',
-            'public',
-            premium('granted'),
-            { visibility: 'private' },
-        ],
-        [
-            'premium rule: public to private, upsell',
-            'public',
-            'private',
-            'public',
-            premium('upsell'),
-            'premiumRequired',
-        ],
-        ['premium rule: public to private, hidden', 'public', 'private', 'public', premium('hidden'), undefined],
-        ['premium rule: public to private, loading', 'public', 'private', 'public', premium('loading'), undefined],
-        // Leaving a held Private under the premium rule: only the upsell has a cost to state (public is never final).
-        [
-            'premium rule: leave held Private, upsell',
-            'private',
-            'public',
-            'private',
-            premium('upsell'),
-            'confirmPublic',
-        ],
-        [
-            'premium rule: leave held Private, hidden',
-            'private',
-            'public',
-            'private',
-            premium('hidden'),
-            { visibility: 'public' },
-        ],
-        [
-            'premium rule: leave held Private, loading',
-            'private',
-            'public',
-            'private',
-            premium('loading'),
-            { visibility: 'public' },
-        ],
-        [
-            'premium rule: leave held Private, granted',
-            'private',
-            'public',
-            'private',
-            premium('granted'),
-            { visibility: 'public' },
-        ],
         // Slots rule.
         [
             'slots: public to private with a slot free',
@@ -1335,18 +1285,21 @@ describe('visibilityChoice', () => {
             slots(FULL),
             { visibility: 'private' },
         ],
-        [
-            'premium rule: back to a held Private, hidden',
-            'public',
-            'private',
-            'private',
-            premium('hidden'),
-            { visibility: 'private' },
-        ],
-        ['no change: public stays public', 'public', 'public', 'public', premium('upsell'), undefined],
-        ['no change: private stays private', 'private', 'private', 'private', premium('granted'), undefined],
+        ['no change: public stays public', 'public', 'public', 'public', slots(OPEN), undefined],
+        ['no change: private stays private', 'private', 'private', 'private', slots(OPEN), undefined],
     ] as const)('%s', (_label, current, chosen, saved, facts, expected) => {
         expect(visibilityChoice(current, chosen, saved, facts)).toEqual(expected);
+    });
+
+    it('REWRITTEN for ADR-0077 section 6: an imported public-web recipe takes the slots path (applies with a slot free, refuses none when unknown)', () => {
+        const rule = privateRuleForDraft(RecipeSourceType.IMPORTED_PUBLIC);
+
+        expect(visibilityChoice('public', 'private', 'public', { rule, standing: OPEN, state: 'upsell' })).toEqual({
+            visibility: 'private',
+        });
+        expect(
+            visibilityChoice('public', 'private', 'public', { rule, standing: FULL, state: 'upsell' }),
+        ).toBeUndefined();
     });
 });
 
@@ -1370,7 +1323,19 @@ describe('visibilityFieldOf', () => {
         const model = visibilityFieldOf({ ...base, facts: slots(OPEN) });
 
         expect(privateCard(model).note).toBe('12 of 50 private slots left');
-        expect(privateCard(model).premium).toBe(false);
+        expect(model.slotsFull).toBeUndefined();
+    });
+
+    it('REWRITTEN for ADR-0077 section 6: an imported public-web recipe shows the slots line, an offered Private and no Pro way', () => {
+        const facts: RecipePrivateFacts = {
+            rule: privateRuleForDraft(RecipeSourceType.IMPORTED_PUBLIC),
+            standing: OPEN,
+            state: 'upsell',
+        };
+        const model = visibilityFieldOf({ ...base, facts });
+
+        expect(privateCard(model).note).toBe('12 of 50 private slots left');
+        expect(privateCard(model).refused).toBe(false);
         expect(model.slotsFull).toBeUndefined();
     });
 
@@ -1495,27 +1460,6 @@ describe('visibilityFieldOf', () => {
         expect(publicCard(model).note).not.toMatch(/won.t be able|may not be able/u);
     });
 
-    it('an imported public-web recipe under the upsell says Pro and a change of their own are needed', () => {
-        const facts: RecipePrivateFacts = { rule: 'premium', standing: { kind: 'unknown' }, state: 'upsell' };
-        const model = visibilityFieldOf({ ...base, facts });
-
-        expect(privateCard(model).note).toBe(v.webPrivate);
-        expect(privateCard(model).premium).toBe(true);
-        expect(model.slotsFull).toBeUndefined();
-    });
-
-    it('the Pro rule keeps its own make-public cost: Pro, only under the upsell', () => {
-        const held = { ...base, saved: RecipeVisibility.PRIVATE, draft: RecipeVisibility.PRIVATE };
-        const costOf = (state: PaidFeatureState) =>
-            publicCard(visibilityFieldOf({ ...held, facts: { rule: 'premium', standing: { kind: 'unknown' }, state } }))
-                .note;
-
-        expect(costOf('upsell')).toBe("To make it private again, you'll need Pro.");
-        expect(costOf('hidden')).toBeUndefined();
-        expect(costOf('loading')).toBeUndefined();
-        expect(costOf('granted')).toBeUndefined();
-    });
-
     // REWRITTEN: this pinned "the card says nothing and Public applies". A book or paid-site recipe can never be public
     // (004 FR-014a; the server refuses it), so the card now says WHY it is refused and choosing it applies nothing.
     it('⛔ a book or paid-site recipe: the Public card is refused with the reason, and choosing it applies nothing', () => {
@@ -1534,8 +1478,12 @@ describe('visibilityFieldOf', () => {
         expect(visibilityChoice('private', 'public', 'private', facts)).toBeUndefined();
     });
 
-    it.each(['slots', 'premium'] as const)('the Public card is never refused under the %s rule', (rule) => {
-        const facts: RecipePrivateFacts = { rule, standing: OPEN, state: 'upsell' };
+    it('the Public card is never refused under the slots rule, an imported public-web recipe included', () => {
+        const facts: RecipePrivateFacts = {
+            rule: privateRuleForDraft(RecipeSourceType.IMPORTED_PUBLIC),
+            standing: OPEN,
+            state: 'upsell',
+        };
         const model = visibilityFieldOf({
             ...base,
             saved: RecipeVisibility.PRIVATE,
@@ -1583,57 +1531,6 @@ describe('visibilityFieldOf', () => {
 
         expect(model.shown).toBe(RecipeVisibility.PUBLIC);
         expect(publicCard(model).note).toBe('Not available. All 50 of your private slots are in use.');
-    });
-
-    /**
-     * Owner ruling 2026-10-26 (design): with paid features HIDDEN an imported public-web recipe can never be private, so
-     * Private is shown REFUSED - the card stays, the reason describes it - rather than offered and asked about at Publish.
-     */
-    describe('an imported public-web recipe with paid features hidden', () => {
-        const premiumRule = (state: PaidFeatureState): RecipePrivateFacts => ({
-            rule: 'premium',
-            standing: { kind: 'unknown' },
-            state,
-        });
-        const REASON = 'Not available. A recipe from a public web page can only be public.';
-
-        it('⛔ refuses the Private card and gives the reason as its note', () => {
-            const model = visibilityFieldOf({ ...base, facts: premiumRule('hidden'), refusal: 'final' });
-
-            expect(privateCard(model).refused).toBe(true);
-            expect(privateCard(model).note).toBe(REASON);
-        });
-
-        it('⛔ a kept Private draft is NOT shown as Public: Private stays chosen, refused, with the reason on its card', () => {
-            const model = visibilityFieldOf({
-                ...base,
-                draft: RecipeVisibility.PRIVATE,
-                facts: premiumRule('hidden'),
-                refusal: 'final',
-            });
-
-            expect(model.shown).toBe(RecipeVisibility.PRIVATE);
-            expect(publicCard(model).note).toBeUndefined();
-            expect(privateCard(model).refused).toBe(true);
-            expect(privateCard(model).note).toBe(REASON);
-        });
-
-        it('does not refuse Private under the upsell (it opens the Pro sheet), for a cook-written recipe, or for one already private', () => {
-            expect(
-                privateCard(visibilityFieldOf({ ...base, facts: premiumRule('upsell'), refusal: 'premium' })).refused,
-            ).toBe(false);
-            expect(privateCard(visibilityFieldOf({ ...base, facts: slots(OPEN, 'hidden') })).refused).toBe(false);
-            expect(
-                privateCard(
-                    visibilityFieldOf({
-                        ...base,
-                        saved: RecipeVisibility.PRIVATE,
-                        draft: RecipeVisibility.PRIVATE,
-                        facts: premiumRule('hidden'),
-                    }),
-                ).refused,
-            ).toBe(false);
-        });
     });
 });
 

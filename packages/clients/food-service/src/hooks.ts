@@ -7,6 +7,11 @@
 export { FoodServiceProvider, useFoodServiceClient } from './hooks/foodServiceProvider.js';
 export type { FoodServiceProviderProps } from './hooks/foodServiceProvider.js';
 export { useAdoptRemoteFood } from './hooks/useAdoptRemoteFood.js';
+export { useRequestFoodPublication } from './hooks/useRequestFoodPublication.js';
+export { useUpdateAuthoredFood } from './hooks/useUpdateAuthoredFood.js';
+export { useWithdrawFood } from './hooks/useWithdrawFood.js';
+export { useOwnFoods } from './hooks/useOwnFoods.js';
+export { usePublicationRequest } from './hooks/usePublicationRequest.js';
 export { useCreateAuthoredFood } from './hooks/useCreateAuthoredFood.js';
 export { useDataSources } from './hooks/useDataSources.js';
 export { useFood } from './hooks/useFood.js';

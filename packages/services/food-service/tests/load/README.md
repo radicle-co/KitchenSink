@@ -47,16 +47,17 @@ this `tests/load/` directory (vitest's `include` matches only `*.test.ts`).
 > deleting the scripts would remove the record, not the gap. Read a green run as an algorithmic regression
 > check (a dropped index shows as a large multiple on any substrate), never as evidence of capacity.
 
-| Script                         | Requirement     | Asserts (via `options.thresholds`)                                                                       |
-| ------------------------------ | --------------- | -------------------------------------------------------------------------------------------------------- |
-| `localStoreRead.load.js`       | SC-001 + SC-004 | `GET /foods/{id}` for a `RESOLVED` food p95 ≤ 50ms; local-store serve rate > 80% over a mixed id set     |
-| `localStoreThroughput.load.js` | SC-005          | sustained served reads/sec > the SC-005 bar **and** > 85% of the offered arrival rate, p95 still ≤ 50ms  |
-| `search.load.js`               | SC-007          | `GET /foods/search` p95 ≤ 500ms at 50,000 foods, gated **per query shape** (7 shapes)                    |
-| `drainDemotion.perf.ts`        | SC-003 + DSN-11 | `FetchQueueDao.leaseNext()` claim p95 ≤ 60ms +15% = **69ms** at depth 100 / 1,000 / 10,000, two profiles |
-| `serviceErasure.load.js`       | CR-002 / U4b    | internal EdDSA-guarded erasure POST p95 ≤ 500ms (200) + expired → 401 under load                         |
-| `catalogResolve.load.js`       | curated U8      | `POST /foods/refs/resolve` answers complete + correct (every profile); p95 ≤ 50ms (substrate)            |
-| `catalogSearch.load.js`        | curated U8, S3  | `GET /foods/catalog/search`: AE2/AE3 per shape, no caller field (every profile); p95 ≤ 500ms (substrate) |
-| `authoredSearch.load.js`       | plan 002 S3     | `GET /foods/authored/search`: private, own foods only (every profile); p95 ≤ 500ms (substrate)           |
+| Script                         | Requirement     | Asserts (via `options.thresholds`)                                                                              |
+| ------------------------------ | --------------- | --------------------------------------------------------------------------------------------------------------- |
+| `localStoreRead.load.js`       | SC-001 + SC-004 | `GET /foods/{id}` for a `RESOLVED` food p95 ≤ 50ms; local-store serve rate > 80% over a mixed id set            |
+| `localStoreThroughput.load.js` | SC-005          | sustained served reads/sec > the SC-005 bar **and** > 85% of the offered arrival rate, p95 still ≤ 50ms         |
+| `search.load.js`               | SC-007          | `GET /foods/search` p95 ≤ 500ms at 50,000 foods, gated **per query shape** (7 shapes)                           |
+| `drainDemotion.perf.ts`        | SC-003 + DSN-11 | `FetchQueueDao.leaseNext()` claim p95 ≤ 60ms +15% = **69ms** at depth 100 / 1,000 / 10,000, two profiles        |
+| `serviceErasure.load.js`       | CR-002 / U4b    | internal EdDSA-guarded erasure POST p95 ≤ 500ms (200) + expired → 401 under load                                |
+| `catalogResolve.load.js`       | curated U8      | `POST /foods/refs/resolve` answers complete + correct (every profile); p95 ≤ 50ms (substrate)                   |
+| `catalogSearch.load.js`        | curated U8, S3  | `GET /foods/catalog/search`: AE2/AE3 per shape, no caller field (every profile); p95 ≤ 500ms (substrate)        |
+| `authoredSearch.load.js`       | plan 002 S3     | `GET /foods/authored/search`: private, own foods only (every profile); p95 ≤ 500ms (substrate)                  |
+| `publicationRequests.load.js`  | ADR-0029 §5, §7 | create, ask, list, read the ask, edit and withdraw an own food: statuses + `private, no-store`; no latency gate |
 
 A threshold breach makes `k6 run` (or the probe) exit non-zero, which fails the invoking CI job. There is
 no `|| true`, no `continue-on-error` and no skip-on-missing-fixture anywhere in this tier: every prepare

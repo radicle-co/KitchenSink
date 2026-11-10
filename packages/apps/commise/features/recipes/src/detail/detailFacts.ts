@@ -23,6 +23,7 @@ import {
     isLineAmbiguous,
     isLineFoodRemoved,
     isLineNeedsReview,
+    lineTailOf,
     needsReviewNotice,
     rangeDerivedNotice,
     staleNutritionNotice,
@@ -199,10 +200,9 @@ export function ingredientRowName(
     labels: IngredientLineNameMessages,
     withDetails: string,
 ): string {
-    const preparation = line.preparation?.trim() ?? '';
     const name = ingredientCheckLabel(line, locale, labels, withDetails);
 
-    return controlName(preparation === '' ? name : `${name}, ${preparation}`);
+    return controlName([name, ...lineTailOf(line).map((words) => words.trim())].join(', '));
 }
 
 /** One consecutive run of ingredient lines under one group label. */

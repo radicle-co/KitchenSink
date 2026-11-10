@@ -20,7 +20,7 @@ import { RecipeErrorCode } from '@kitchensink/recipe-core';
 import type { ParseLineJobMessage } from '@kitchensink/recipe-core/parsing/parse-job-message';
 
 import { BatchEnqueueError } from '../../common/batchEnqueueError.js';
-import { ParseJobsService, PARSE_JOB_TTL_HOURS } from '../parseJobs.service.js';
+import { ParseJobsService, PARSE_JOB_TTL_HOURS, projectProposal } from '../parseJobs.service.js';
 import { RecipeDomainError } from '../recipe.error.js';
 import { sha256Hex } from '../../common/sha256.js';
 import { lineDigest } from '@kitchensink/recipe-core/parsing/parse-key';
@@ -400,7 +400,7 @@ describe('get', () => {
             quantity: { kind: 'exact', value: 2 },
             unit: 'cup',
             statedMeasure: '2 cups',
-            foods: [{ name: 'flour', prep: 'sifted' }],
+            foods: [{ name: 'flour', prep: 'sifted', display: null }],
             reviewReasons: [],
         });
     });
@@ -600,5 +600,46 @@ describe('withdrawLines', () => {
         await new ParseJobsService(dal, makeQueue()).withdrawLines(OWNER, JOB_ID, [2, 0, 2]);
 
         expect(dal.withdrawLines).toHaveBeenCalledWith(OWNER, JOB_ID, [0, 2]);
+    });
+});
+
+/**
+ * ADR-0026 §11 (owner ruling 2026-11-08): each proposed food says whether the line shows the cook's words or the food's
+ * name. A stored parse with no answer (the CRF alone, a refusal, a spent ceiling, a row from before v3) reads `null`.
+ */
+describe('projectProposal — display', () => {
+    const stored = (foods: unknown) => ({
+        raw: '1 pound lean beef',
+        quantity: { kind: 'exact', value: 1 },
+        unit: 'pound',
+        statedMeasure: '1 pound',
+        foods,
+        reviewReasons: [],
+    });
+
+    it('carries each food’s own answer onto the wire', () => {
+        const projected = projectProposal(
+            stored([
+                { name: 'lean beef', prep: null, display: 'written' },
+                { name: 'salt', prep: null, display: 'food' },
+            ]),
+        );
+
+        expect(projected.foods.map((food) => food.display)).toEqual(['written', 'food']);
+    });
+
+    it('reads a food the model never answered for as null, never as a guess', () => {
+        const projected = projectProposal(
+            stored([
+                { name: 'flour', prep: null },
+                { name: 'sugar', prep: null, display: null },
+            ]),
+        );
+
+        expect(projected.foods.map((food) => food.display)).toEqual([null, null]);
+    });
+
+    it('does not let an unknown stored word onto the wire', () => {
+        expect(() => projectProposal(stored([{ name: 'flour', prep: null, display: 'both' }]))).toThrow();
     });
 });

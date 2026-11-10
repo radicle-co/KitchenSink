@@ -61,27 +61,13 @@ describe('RecipeUpsellSheet (web)', () => {
         expect(screen.getByText(/^All 75 of your private slots are in use\./u)).toBeTruthy();
     });
 
-    it('webImport: is titled for a recipe from a public web page', () => {
-        upsell({ variant: { kind: 'webImport' } });
+    it('⛔ noSlot never uses the retired Pro lines', () => {
+        upsell({ variant: { kind: 'noSlot', total: 50 } });
 
-        expect(screen.getByRole('dialog', { name: 'Private needs Pro for this recipe' })).toBeTruthy();
-        expect(
-            screen.getByText(
-                'This recipe is from a public web page. To keep it private, you need Pro and a change of your own to the recipe.',
-            ),
-        ).toBeTruthy();
+        expect(screen.queryByText(/part of Pro/u)).toBeNull();
+        expect(screen.queryByText(/keep a recipe to yourself/u)).toBeNull();
+        expect(screen.queryByText(/Public recipes are free/u)).toBeNull();
     });
-
-    it.each([{ kind: 'noSlot', total: 50 } as const, { kind: 'webImport' } as const])(
-        '⛔ %o never uses the retired Pro lines',
-        (variant) => {
-            upsell({ variant });
-
-            expect(screen.queryByText(/part of Pro/u)).toBeNull();
-            expect(screen.queryByText(/keep a recipe to yourself/u)).toBeNull();
-            expect(screen.queryByText(/Public recipes are free/u)).toBeNull();
-        },
-    );
 
     it('offers See Pro and Not now as equals: the same tier, side by side, neither the primary', () => {
         entryPoints.on = true;

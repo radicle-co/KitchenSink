@@ -39,7 +39,7 @@ import type { RecipeFormValues } from '../form/values.js';
 import type { PendingRebind } from '../hooks/lineCommit.js';
 
 /** The format this release writes. Hand-bumped: a bump is a decision, recorded in ADR-0057. */
-export const DRAFT_FORMAT_VERSION = 1;
+export const DRAFT_FORMAT_VERSION = 2;
 
 /** The most drafts kept per user on one device. */
 export const MAX_KEPT_DRAFTS = 20;
@@ -64,8 +64,19 @@ export function draftQuarantineKeyFor(subject: string): string {
     return `editor.draft.quarantine.${subject}`;
 }
 
-/** The form's values as the draft keeps them: everything but the photo picks, whose bytes are not in the form. */
-export type DraftValues = Omit<RecipeFormValues, 'photos'>;
+/**
+ * The form's values as the draft keeps them: everything but the photo picks, whose bytes are not in the form, and each
+ * line's `foodVisibility`, which is food's LIVE answer and goes stale the moment staff approve a food. A draft that kept it
+ * would go on calling an approved food private.
+ */
+export type DraftValues = Flat<
+    Omit<RecipeFormValues, 'photos' | 'ingredients'> & {
+        readonly ingredients: readonly Flat<Omit<RecipeFormValues['ingredients'][number], 'foodVisibility'>>[];
+    }
+>;
+
+/** An intersection written out as one object type, so the compile-time identity with the schema's output holds. */
+type Flat<T> = { [K in keyof T]: T[K] };
 
 /** One recipe's device draft. */
 export interface DraftMemento {
@@ -103,7 +114,8 @@ const draftIngredientSchema = z
         quantity: draftAmountSchema,
         quantityHigh: draftAmountSchema.optional(),
         unit: z.string().optional(),
-        notes: z.string().optional(),
+        displayText: z.string().optional(),
+        note: z.string().optional(),
         preparation: z.string().optional(),
         groupLabel: z.string().optional(),
         // ⚠️ The LINE vocabulary, not the catalog one: a line read as `NEEDS_REVIEW` or `FOOD_UNREACHABLE` is a normal
@@ -170,7 +182,9 @@ type Drafts = Readonly<Record<string, DraftMemento>>;
 export function toDraftValues(values: RecipeFormValues): DraftValues {
     const { photos: _photos, ...kept } = values;
 
-    return kept;
+    // `kept` still holds `ingredients`, so overriding it leaves its key where it was: the discard guard compares by
+    // `JSON.stringify`, which reads key order.
+    return { ...kept, ingredients: kept.ingredients.map(({ foodVisibility: _live, ...line }) => line) };
 }
 
 /** What a server write answered, as the draft records it. */

@@ -28,8 +28,6 @@ import {
     mayBePublic,
     recipeMakePublicConsequence,
     recipePrivateChoice,
-    showsRecipePremiumBadge,
-    usesSlots,
     type RecipePrivateFacts,
 } from '../actions/recipePrivateGate.js';
 import { fillTemplate } from '../format/fillTemplate.js';
@@ -85,13 +83,12 @@ export interface RecipeEditorSectionProps extends RecipeFormSectionProps {
 
 /**
  * Props for the "Who can see it" field (`docs/design/uiOverhaul/buildSpec.md` §7.7 item 2): the draft's slice, and the
- * facts the paid-feature rule decides from (owner ruling 2026-10-13; plan 2026-10-14-009 D14). The host renders this
- * leaf only when Private is offered (`offersPrivate`), and `RecipeVisibilityStatement` otherwise.
+ * facts the paid-feature rule decides from (owner ruling 2026-10-13; plan 2026-10-14-009 D14).
  */
 export interface RecipeVisibilityFieldProps extends Omit<RecipeFormSectionProps, 'errors'> {
     /**
      * What Private is decided from (`recipePrivateGate`): the recipe's rule, the cook's slot standing and their
-     * paid-feature state. Under the premium rule's `upsell`, Private carries the Premium badge.
+     * paid-feature state.
      */
     readonly facts: RecipePrivateFacts;
     /**
@@ -105,7 +102,7 @@ export interface RecipeVisibilityFieldProps extends Omit<RecipeFormSectionProps,
      * profile's own answer). REQUIRED: a kept draft's Private is shown as Public, and why, only under a known refusal.
      */
     readonly privateRefusal: PrivateRefusal | undefined;
-    /** Choosing Private under `upsell`, and the full refusal's "Get Premium": open the upsell. The value never changes for it. */
+    /** The full refusal's "Get Premium": open the upsell. The value never changes for it. */
     readonly onPremiumRequired?: () => void;
     /**
      * Choosing Public when it costs the cook something (`recipeMakePublicConsequence`): open the make-public confirm. The
@@ -119,12 +116,6 @@ export interface RecipeVisibilityFieldProps extends Omit<RecipeFormSectionProps,
     readonly onFreeASlot: () => void;
 }
 
-/** Props for `RecipeVisibilityStatement`, both platform leaves (`usePrivateChoice().statement`). */
-export interface RecipeVisibilityStatementProps {
-    /** It replaces the field the cook just used: take the focus that field had (web: only if focus is lost). */
-    readonly focusOnMount: boolean;
-}
-
 /** One card of the "Who can see it" field. */
 export interface VisibilityOption {
     readonly value: RecipeVisibility;
@@ -132,8 +123,6 @@ export interface VisibilityOption {
     readonly hint: string;
     /** Under the card: what choosing Public costs, or why a kept Private will not be kept. */
     readonly note: string | undefined;
-    /** Whether the card carries the Premium badge. */
-    readonly premium: boolean;
     /**
      * Whether the card is shown but refused (Public on a book or paid-site recipe): `aria-disabled`, never natively
      * disabled, so it stays focusable, and `note` is the reason it is described by.
@@ -174,7 +163,7 @@ export interface VisibilityFieldModel {
  * - A draft's Private the server will refuse (`refusedDraftPrivate`) is shown as Public, with a note saying why.
  * - Otherwise the Public card says what choosing it costs whenever that opens the make-public confirm
  *   (`recipeMakePublicConsequence`): WCAG 3.2.2 asks that the cook be told before the radio is used. Public is never
- *   final, so what it says is "this frees one of your private slots", or (an imported public-web recipe) Premium.
+ *   final, so what it says is "this frees one of your private slots".
  * - The Private card carries the slot line (ADR-0073): how many are left, what choosing it uses, "checking", or the
  *   refusal with its ways forward. Premium shows no count. The numbers are the server's; nothing here states a limit.
  *
@@ -198,27 +187,18 @@ export function visibilityFieldOf(input: {
     const costNote = {
         none: undefined,
         frees: v.publicFrees,
-        premium: v.publicNeedsPremium,
     }[recipeMakePublicConsequence(facts, saved)];
-    // Paid features hidden: the reason is on the Private card (shown refused), not repeated on Public.
-    const refusedNote =
-        refused === undefined || refused === 'final'
-            ? undefined
-            : { premium: v.privatePremiumOnly, slots: slotsFullNote }[refused];
-    const privateNeverOffered =
-        facts.rule === 'premium' && facts.state === 'hidden' && saved !== RecipeVisibility.PRIVATE;
+    // The only refusal a recipe meets is the slots one (ADR-0077 section 6).
+    const refusedNote = refused === 'slots' ? slotsFullNote : undefined;
 
     return {
-        // A kept Private under `final` (paid features hidden) stays shown as chosen, on its refused card: swapping it for Public
-        // would show a public recipe the cook never chose. The Publish asks instead (`writeVisibilityFirst`).
-        shown: refusal === 'final' ? draft : effectiveVisibility(refusal, saved, draft),
+        shown: effectiveVisibility(refusal, saved, draft),
         options: [
             {
                 value: RecipeVisibility.PUBLIC,
                 title: v.public,
                 hint: v.publicHint,
                 note: mayBePublic(facts.rule) ? (refusedNote ?? costNote) : v.publicRefused,
-                premium: false,
                 refused: !mayBePublic(facts.rule),
             },
             {
@@ -226,14 +206,11 @@ export function visibilityFieldOf(input: {
                 title: v.private,
                 hint: v.privateHint,
                 note: privateNoteOf(facts, saved, draft, v),
-                premium: showsRecipePremiumBadge(facts, saved),
-                // Owner ruling 2026-10-26: with paid features hidden an imported public-web recipe can never be private, so the
-                // card is shown REFUSED (aria-disabled, still focusable) with its reason, and Publish never has to ask.
-                refused: privateNeverOffered,
+                refused: false,
             },
         ],
         slotsFull:
-            usesSlots(facts.rule) && standing.kind === 'full' && !holdsItsSlot
+            standing.kind === 'full' && !holdsItsSlot
                 ? {
                       title: v.waysTitle,
                       ways: [
@@ -259,9 +236,8 @@ export function visibilityFieldOf(input: {
 /**
  * The line under the Private card. Pure.
  *
- * @returns Under the slots rule: how many slots are left, what Private uses once chosen, "checking", or (every slot used,
- *   a recipe not already private) the refusal; Premium and a failed read say nothing. Under the premium rule: why a free
- *   cook cannot, while the upsell stands.
+ * @returns How many slots are left, what Private uses once chosen, "checking", or (every slot used, a recipe not already
+ *   private) the refusal; Premium and a failed read say nothing.
  */
 function privateNoteOf(
     facts: RecipePrivateFacts,
@@ -270,16 +246,6 @@ function privateNoteOf(
     v: EditorMessages['visibility'],
 ): string | undefined {
     const { standing } = facts;
-
-    if (facts.rule === 'premium') {
-        if (saved === RecipeVisibility.PRIVATE) {
-            return undefined;
-        }
-
-        return { upsell: v.webPrivate, hidden: v.privateUnavailable, granted: undefined, loading: undefined }[
-            facts.state
-        ];
-    }
 
     switch (standing.kind) {
         case 'loading':
@@ -308,22 +274,21 @@ function privateNoteOf(
 
 /**
  * The visibility a choice in the "Who can see it" field leads to, or `undefined` when it changes nothing - the choice
- * already made, or a Private the rule refuses (the field already shows why). Private under `upsell` (the premium rule)
- * asks for the upsell instead, and Public that costs the cook something (`recipeMakePublicConsequence`) asks to confirm
- * instead. Pure.
+ * already made, or a Private the rule refuses (the field already shows why). Public that costs the cook something
+ * (`recipeMakePublicConsequence`) asks to confirm instead. Pure.
  *
  * @param current - The visibility the field shows as chosen.
  * @param chosen - The choice the cook made.
  * @param saved - The visibility the cook may keep without an entitlement (`heldVisibility`).
  * @param facts - The recipe's rule, slot standing and paid-feature state.
- * @returns `{ visibility }` to apply, `'premiumRequired'`, `'confirmPublic'`, or `undefined`.
+ * @returns `{ visibility }` to apply, `'confirmPublic'`, or `undefined`.
  */
 export const visibilityChoice = (
     current: RecipeVisibility,
     chosen: RecipeVisibility,
     saved: RecipeVisibility,
     facts: RecipePrivateFacts,
-): { readonly visibility: RecipeVisibility } | 'premiumRequired' | 'confirmPublic' | undefined => {
+): { readonly visibility: RecipeVisibility } | 'confirmPublic' | undefined => {
     if (chosen === current) {
         return undefined;
     }
@@ -340,10 +305,7 @@ export const visibilityChoice = (
     switch (recipePrivateChoice(facts, saved, chosen)) {
         case 'apply':
             return { visibility: chosen };
-        case 'upsell':
-            return 'premiumRequired';
         case 'slotsFull':
-        case 'none':
             return undefined;
     }
 };
@@ -354,6 +316,12 @@ export const visibilityChoice = (
  * request to add.
  */
 export interface RecipeIngredientsFieldsProps extends RecipeFormSectionProps {
+    /**
+     * Open a food's page: the row's `⋯ Open food` for a line that uses a food only the cook can see (private foods spec
+     * D6). Web opens a new tab (the draft stays here); native pushes the food page above the editor. Absent when the host
+     * has no such page, and the item is then not offered.
+     */
+    readonly onOpenFood?: (foodId: string) => void;
     /**
      * The editor's ONE background nutrition read (plan 002 V1 B5, `useLineNutrition`): every row's panel and the
      * running total read it, so nutrition never enters the draft. REQUIRED, so a host cannot ship a total without it.

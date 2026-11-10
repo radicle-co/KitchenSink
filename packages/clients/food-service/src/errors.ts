@@ -14,7 +14,11 @@
  *
  * @implements FR-047
  */
-import type { TerminalFoodStatus } from '@kitchensink/schema-food';
+import type {
+    PublicationNotApprovableReason,
+    PublicationNotRequestableReason,
+    TerminalFoodStatus,
+} from '@kitchensink/schema-food';
 
 /** Base class for all food-service client errors. Carries the originating HTTP status. */
 export class FoodServiceClientError extends Error {
@@ -342,4 +346,70 @@ export class UnexpectedResponseError extends FoodServiceClientError {
 /** Type guard for {@link UnexpectedResponseError}. */
 export function isUnexpectedResponseError(error: unknown): error is UnexpectedResponseError {
     return error instanceof UnexpectedResponseError;
+}
+
+/**
+ * `409 PUBLICATION_NOT_REQUESTABLE` (ADR-0029 section 5): the author cannot ask for this food now. `reason` says why:
+ * the food is withdrawn, is already public, or the newest version was declined (edit it to ask again).
+ */
+export class PublicationNotRequestableError extends FoodServiceClientError {
+    /** The food id. */
+    public readonly id: string;
+    /** Why the ask is refused. */
+    public readonly reason: PublicationNotRequestableReason;
+
+    public constructor(id: string, reason: PublicationNotRequestableReason, message?: string) {
+        super(message ?? `Food '${id}' cannot be asked for publication (${reason})`, 409);
+        this.name = 'PublicationNotRequestableError';
+        this.id = id;
+        this.reason = reason;
+        Object.setPrototypeOf(this, PublicationNotRequestableError.prototype);
+    }
+}
+
+/** Type guard for {@link PublicationNotRequestableError}. */
+export function isPublicationNotRequestableError(error: unknown): error is PublicationNotRequestableError {
+    return error instanceof PublicationNotRequestableError;
+}
+
+/** `404 PUBLICATION_REQUEST_NOT_FOUND`: the food has never been asked for publication. */
+export class PublicationRequestNotFoundError extends FoodServiceClientError {
+    /** The food id. */
+    public readonly id: string;
+
+    public constructor(id: string, message?: string) {
+        super(message ?? `Food '${id}' has no publication request`, 404);
+        this.name = 'PublicationRequestNotFoundError';
+        this.id = id;
+        Object.setPrototypeOf(this, PublicationRequestNotFoundError.prototype);
+    }
+}
+
+/** Type guard for {@link PublicationRequestNotFoundError}. */
+export function isPublicationRequestNotFoundError(error: unknown): error is PublicationRequestNotFoundError {
+    return error instanceof PublicationRequestNotFoundError;
+}
+
+/**
+ * `409 PUBLICATION_NOT_APPROVABLE`: a STAFF decision refused (the request is closed, the food withdrawn, or a newer
+ * version exists). No author door raises it; it is mapped so the code is not a generic failure.
+ */
+export class PublicationNotApprovableError extends FoodServiceClientError {
+    /** The food id. */
+    public readonly id: string;
+    /** Why the decision is refused. */
+    public readonly reason: PublicationNotApprovableReason;
+
+    public constructor(id: string, reason: PublicationNotApprovableReason, message?: string) {
+        super(message ?? `Food '${id}' publication cannot be approved (${reason})`, 409);
+        this.name = 'PublicationNotApprovableError';
+        this.id = id;
+        this.reason = reason;
+        Object.setPrototypeOf(this, PublicationNotApprovableError.prototype);
+    }
+}
+
+/** Type guard for {@link PublicationNotApprovableError}. */
+export function isPublicationNotApprovableError(error: unknown): error is PublicationNotApprovableError {
+    return error instanceof PublicationNotApprovableError;
 }

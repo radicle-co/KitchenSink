@@ -19,7 +19,7 @@ export { foodVariantAttributeEnum } from './catalogItems.js';
 export { citationDatasetEnum, citationMatchEnum } from './foodNutrition.js';
 
 // Roots, dictionaries and authored-food history.
-export { food, nutrient, foodCategory, foodVersions, foodPromotions } from './food.js';
+export { food, nutrient, foodCategory, foodVersions, foodPublicationRequests } from './food.js';
 
 // The item-keyed catalog (0018, KTD-6).
 export {

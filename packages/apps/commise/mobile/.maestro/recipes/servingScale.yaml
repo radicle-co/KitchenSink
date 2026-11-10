@@ -27,7 +27,7 @@ appId: ${APP_ID}
 - assertVisible: 'My recipes'
 - extendedWaitUntil:
       visible:
-          text: '^3 recipes$'
+          text: '^4 recipes$'
       timeout: 40000
 
 - runFlow:

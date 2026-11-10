@@ -349,6 +349,25 @@ export function withLineMeasure(
 }
 
 /**
+ * A NEW line the cook committed from their own text (Enter, "Find nutrition for X", keep as written) keeps their words as
+ * `displayText`; a pick from the list or a suggestion sets none (design answers 2026-11-08 item 3). A re-pick of a line
+ * never reaches this: the rebind carries the binding only. Pure.
+ *
+ * @param line - The new line.
+ * @param pick - What the cook chose.
+ * @returns The line, with the trimmed typed text as its `displayText` when the cook typed it.
+ */
+export function withTypedWords(line: ResolvedRecipeFormIngredient, pick: BoundPick): ResolvedRecipeFormIngredient {
+    if (pick.kind !== 'name' && pick.kind !== 'declared') {
+        return line;
+    }
+
+    const words = pick.text.trim();
+
+    return words === '' ? line : { ...line, displayText: words };
+}
+
+/**
  * The binding half of a resolved line (`LineBinding`): what a re-point carries, and nothing the cook wrote. Absent
  * facts stay absent rather than becoming `undefined` keys. Pure.
  *

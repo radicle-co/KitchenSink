@@ -139,6 +139,9 @@ function fakeRecipesDal(overrides: Partial<RecipesDal> = {}): RecipesDal {
         update: vi.fn(),
         softDelete: vi.fn(),
         ...overrides,
+        // ADR-0073: a cook with no private recipes. ADR-0029 section 4: no private foods in the database by default.
+        lockAndCountPrivateSlots: vi.fn(async () => 0),
+        privateFoodLines: vi.fn(async () => []),
         transaction: vi.fn(async (fn: (tx: RecipeTx) => Promise<unknown>) => fn(FAKE_TX)),
     } as unknown as RecipesDal;
 }
@@ -198,12 +201,13 @@ const createDto = (sourceLine: string | null = SOURCE_LINE): CreateRecipeDto => 
 describe('RecipesService.create — the verification producer', () => {
     it('U11/R20: stamps privateFood on the message when the line is bound to a PRIVATE food', async () => {
         // The owner is on the binding (plan 002), so the privacy fact can no longer fail to be read.
+        // A private food lives only in a PRIVATE recipe (ADR-0029 section 4), so the recipe is private.
         const queue = fakeVerificationQueue();
 
         await makeService(fakeRecipesDal(), queue, {
             arm: { ...FLOUR, foodOwnerId: OWNER },
             answer: { ...FLOUR_NAMED, isPrivate: true } as FoodRefAnswer,
-        }).create(OWNER_PRINCIPAL, createDto(), undefined);
+        }).create(OWNER_PRINCIPAL, { ...createDto(), visibility: 'private' }, undefined);
 
         expect(queue.enqueue).toHaveBeenCalledTimes(1);
         expect(queue.enqueue.mock.calls[0]?.[0]?.[0]?.privateFood).toBe(true);

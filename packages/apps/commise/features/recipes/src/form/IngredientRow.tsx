@@ -3,7 +3,7 @@
 /**
  * @module @commise/features-recipes/form — `IngredientRow` (web): one ingredient row (build spec §7.5.1). At rest it
  * READS as one text run (#144): the amount in the strong weight, an ordinary space, then the name in `ink` and " · "
- * the preparation in `inkMuted`, wrapping only between words, then its `⋯`. The amount and name together are the row's open
+ * the note and the preparation in `inkMuted`, wrapping only between words, then its `⋯`. The amount and name together are the row's open
  * control, "Edit {amount} {food}". A healthy row is quiet; a row that needs the cook adds a second line in `attention`,
  * which opens the row's panel (or, for a line with no food, its food search). While its food search is open (Change
  * food, Find a food, a line with no food), the name is the entry combobox instead. Its inline editor (from 600) sits
@@ -27,6 +27,8 @@ import { FOCUS_RING_CLASS } from '@commise/ui/focus-ring';
 import { PRESS_FILL_CLASS } from '@commise/ui/surface-tone';
 import { useRef, type FC, type ReactNode } from 'react';
 
+import { AmountRun } from './AmountRun.js';
+
 import {
     ingredientCommitFailureId,
     ingredientNoFoodNoteId,
@@ -36,6 +38,7 @@ import {
 import { PrepJoin } from '../format/PrepJoin.js';
 import { ingredientRowId } from './fieldIds.js';
 import { rowBadgeStatus } from './ingredientRowPolicy.js';
+import { PrivateFoodNote } from './PrivateFoodNote.js';
 import type { IngredientRowView } from './ingredientRowView.js';
 import { errorText } from './formSectionStyles.js';
 import { withRefusalFocus } from './refusalFocus.js';
@@ -74,6 +77,7 @@ const OpenControl: FC<{ readonly row: IngredientRowView; readonly expanded: bool
             ref={node}
             type="button"
             aria-label={row.openLabel}
+            aria-describedby={row.countedAs === undefined ? undefined : row.countedAsId}
             aria-expanded={expanded}
             onClick={row.onOpen}
             className={`flex min-h-12 min-w-0 flex-1 items-start rounded-md py-3 text-left transition ${PRESS_FILL_CLASS.pointer} ${FOCUS_RING_CLASS.offset}`}
@@ -95,15 +99,11 @@ const OpenControl: FC<{ readonly row: IngredientRowView; readonly expanded: bool
                         </span>
                     </>
                 ) : (
-                    <span className="break-words text-body-md text-ink">
-                        {row.amountText !== '' && (
-                            <>
-                                <span className="text-figure-inline font-semibold">{row.amountText}</span>{' '}
-                            </>
-                        )}
+                    <AmountRun amount={row.amountText}>
                         {row.displayName}
+                        {row.noteText !== undefined && <PrepJoin>{row.noteText}</PrepJoin>}
                         {row.prepText !== undefined && <PrepJoin>{row.prepText}</PrepJoin>}
-                    </span>
+                    </AmountRun>
                 )}
                 {row.variantParts !== undefined && <VariantPartsLine parts={row.variantParts} tone="secondary" />}
             </span>
@@ -210,6 +210,13 @@ export const IngredientRow: FC<IngredientRowProps> = ({
                         {secondLine.text}
                     </button>
                 )}
+                {row.countedAs !== undefined && (
+                    // The matched food, for the editor only: the open control's description (design answers 2026-11-08).
+                    <span id={row.countedAsId} className="text-caption text-ink-muted">
+                        {row.countedAs}
+                    </span>
+                )}
+                {row.privateFood !== undefined && <PrivateFoodNote view={row.privateFood} />}
                 {row.amountInvalidNote !== undefined && <span className={errorText}>{row.amountInvalidNote}</span>}
                 {row.busyText !== undefined && <span className="text-caption text-ink-muted">{row.busyText}</span>}
                 {row.pendingText !== undefined && (

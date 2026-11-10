@@ -13,6 +13,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
     EMPTY_OUTBOX,
+    LOCAL_SCHEMA_VERSION,
     appendIntent,
     appendToQuarantine,
     claimForSending,
@@ -239,7 +240,8 @@ describe('SyncProvider', () => {
         const store = {
             getItem: async () =>
                 JSON.stringify({
-                    schemaVersion: 1,
+                    // The current format: a record set saved under an older one is quarantined, not drained (ADR-0057).
+                    schemaVersion: LOCAL_SCHEMA_VERSION,
                     nextSeq: 3,
                     resolutions: {},
                     records: [sent.length === 0 ? record('R1', 1) : record('R2', 2)],

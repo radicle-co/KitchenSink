@@ -10,7 +10,7 @@
  * (§6c and §7), and the resolution plan's U25 and U28. The row policy, the copy builders and the focus levels have
  * their own suites; this one holds what the row view wires them to.
  */
-import { FoodResolutionStatus, type IngredientVariant } from '@kitchensink/recipe-core';
+import { FoodResolutionStatus, RecipeVisibility, type IngredientVariant } from '@kitchensink/recipe-core';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
@@ -113,11 +113,18 @@ interface Setup {
     readonly groupCount?: number;
     /** The text the cook typed in each amount bound while the editor is open (`LineEditorState.amountText`). */
     readonly typed?: { readonly low?: string; readonly high?: string };
+    /** The draft's visibility; absent keeps the fixture's default. */
+    readonly visibility?: RecipeVisibility;
+    /** Open a food's page (`⋯` Open food); absent means the host offers none. */
+    readonly openFood?: (foodId: string) => void;
 }
 
 /** Every row of a draft, with the spies a test reads. */
 const rowsOf = (setup: Setup) => {
-    const values = makeRecipeFormValues({ ingredients: withLineKeys(setup.lines) });
+    const values = makeRecipeFormValues({
+        ingredients: withLineKeys(setup.lines),
+        ...(setup.visibility === undefined ? {} : { visibility: setup.visibility }),
+    });
     const focus = makeFocus(setup.refusal);
     const retry = vi.fn<(ingredientId: string, key: string) => void>();
     const moveOn = vi.fn<() => void>();
@@ -163,6 +170,7 @@ const rowsOf = (setup: Setup) => {
         openFoodDetails,
         openMoveToGroup,
         groupCount: setup.groupCount ?? 0,
+        ...(setup.openFood === undefined ? {} : { openFood: setup.openFood }),
     };
     const rows: readonly IngredientRowView[] = values.ingredients.map((line, index) =>
         ingredientRowViewOf(line, index, ctx),
@@ -1154,6 +1162,192 @@ describe('ingredientRowViewOf — the row editor (build spec §7.5.2)', () => {
         const [first, second] = rows;
 
         expect(first?.lineEditor.ids.amount).not.toBe(second?.lineEditor.ids.amount);
-        expect(new Set(Object.values(first?.lineEditor.ids ?? {})).size).toBe(4);
+        expect(new Set(Object.values(first?.lineEditor.ids ?? {})).size).toBe(6);
+    });
+});
+
+/**
+ * The cook's own words on a row (design answers 2026-11-08, "the cook's own words"): the row shows `displayText` when set,
+ * else the food's name; "Counted as {food}" is the row's quiet second line and the open control's description; the
+ * note leads the muted tail; the editor gets "Name on the recipe" and "Note" before Preparation, and its food picker is
+ * "Counted as". A new pick never changes the words.
+ */
+describe('ingredientRowViewOf — the cook’s own words (displayText) and the note', () => {
+    const words = { displayText: 'my sweet brisket' } as const;
+
+    it('shows displayText as the row’s name and says "Counted as {food}" on the quiet second line', () => {
+        const { row } = onlyRow({ lines: [bound(words)] });
+
+        expect(row.displayName).toBe('my sweet brisket');
+        expect(row.countedAs).toBe('Counted as beef brisket');
+    });
+
+    it('⛔ names the open control by the visible run only; "Counted as" is its description, not its name', () => {
+        const { row } = onlyRow({ lines: [bound(words)] });
+
+        expect(row.openLabel).toBe('Edit 1 lb my sweet brisket');
+        expect(row.openLabel).not.toContain('Counted as');
+        expect(row.countedAsId).toEqual(expect.any(String));
+    });
+
+    it('with displayText NULL (or blank) the row shows the food’s name and no "Counted as" line', () => {
+        for (const displayText of [undefined, '', '   ']) {
+            const { row } = onlyRow({ lines: [bound(displayText === undefined ? {} : { displayText })] });
+
+            expect(row.displayName).toBe(BRISKET);
+            expect(row.countedAs).toBeUndefined();
+        }
+    });
+
+    it.each([
+        ['an attention line', { resolutionStatus: FoodResolutionStatus.AMBIGUOUS }, {}],
+        ['a working line', { resolutionStatus: FoodResolutionStatus.PENDING }, {}],
+        ['a failure', {}, { failure: 'We could not save that.' }],
+    ] as const)('%s takes the second line’s place', (_name, over, setup) => {
+        const { row } = onlyRow({ lines: [bound({ ...words, ...over })], ...setup });
+
+        expect(row.countedAs).toBeUndefined();
+    });
+
+    it('a row in its food search shows no "Counted as" line', () => {
+        const { row } = onlyRow({
+            lines: [bound(words)],
+            entry: { changing: { has: () => true } as unknown as IngredientEntry['changing'] },
+        });
+
+        expect(row.countedAs).toBeUndefined();
+    });
+
+    it('the note leads the muted tail and is spoken before the preparation', () => {
+        const { row } = onlyRow({ lines: [bound({ note: '9 inch', preparation: 'trimmed' })] });
+
+        expect(row.noteText).toBe('9\u00A0inch');
+        expect(row.prepText).toBe('trimmed');
+        expect(row.openLabel).toBe('Edit 1 lb beef brisket, 9 inch, trimmed');
+    });
+
+    it('a blank note is no note', () => {
+        expect(onlyRow({ lines: [bound({ note: '  ' })] }).row.noteText).toBeUndefined();
+    });
+
+    it('the editor’s food line names the MATCHED food, not the cook’s words, and its picker is "Counted as"', () => {
+        const { row } = onlyRow({ lines: [bound(words)] });
+
+        expect(row.lineEditor.food).toBe(BRISKET);
+        expect(row.lineEditor.title).toBe('my sweet brisket');
+    });
+
+    it('the editor holds both fields as typed; the name’s placeholder is the food’s name', () => {
+        const { row } = onlyRow({ lines: [bound({ ...words, note: '9 inch' })] });
+
+        expect(row.lineEditor).toMatchObject({
+            displayText: 'my sweet brisket',
+            note: '9 inch',
+            displayTextPlaceholder: BRISKET,
+        });
+        expect(row.lineEditor.ids.displayText).not.toBe(row.lineEditor.ids.note);
+    });
+
+    it('with no words the editor’s name field is empty', () => {
+        expect(onlyRow({ lines: [bound()] }).row.lineEditor).toMatchObject({ displayText: '', note: '' });
+    });
+
+    it.each([
+        ['displayText', 'sweet brisket', { displayText: 'sweet brisket' }],
+        ['displayText', '', { displayText: '' }],
+        ['note', '9 inch', { note: '9 inch' }],
+    ] as const)('the %s field (%j) edits its own line only', (field, text, patch) => {
+        const { rows, dispatch } = rowsOf({ lines: [bound({ name: 'flour' }), bound({ name: 'sugar' })] });
+
+        rows[1]?.edit[field](text);
+
+        expect(dispatch).toHaveBeenCalledExactlyOnceWith({ kind: 'updateIngredientAt', index: 1, patch });
+    });
+
+    it('⛔ a new pick leaves the words alone (the binding carries no displayText)', () => {
+        const { values } = onlyRow({ lines: [bound(words)] });
+        const line = values.ingredients[0] as RecipeFormIngredient;
+        const next = applyDraftAction(values, {
+            kind: 'rebindIngredient',
+            key: line.key,
+            binding: { ingredientId: 'ing_other', isUserEntered: false, name: 'beef chuck', foodId: 'food_chuck' },
+        }).ingredients[0];
+
+        expect(next).toMatchObject({ displayText: 'my sweet brisket', name: 'beef chuck' });
+    });
+});
+
+/** Designer ruling 2026-11-08 (spec item 4): a food the cook may not see counts nothing, so its quiet second line says so. */
+describe('ingredientRowViewOf — a stand-in row that holds the cook’s words says "Not counted"', () => {
+    const hidden = (over: Partial<UnkeyedFormIngredient> = {}) =>
+        bound({
+            name: undefined,
+            resolutionStatus: FoodResolutionStatus.RESOLVED_UNAVAILABLE,
+            displayText: 'my secret blend',
+            ...over,
+        });
+
+    it('keeps the stand-in chip and reads "Not counted" where "Counted as" would be', () => {
+        const { row } = onlyRow({ lines: [hidden()] });
+
+        expect(row.standIn).toBe(true);
+        expect(row.displayName).toBe(shared.ingredientLineName.privateFood);
+        expect(row.countedAs).toBe(m.rowNotCounted);
+    });
+
+    it('without the cook’s words the row has no such line', () => {
+        expect(onlyRow({ lines: [hidden({ displayText: undefined })] }).row.countedAs).toBeUndefined();
+    });
+
+    it('an attention line takes its place, as it does for "Counted as"', () => {
+        const { row } = onlyRow({ lines: [hidden({ resolutionStatus: FoodResolutionStatus.FOOD_REMOVED })] });
+
+        expect(row.secondLine.kind).toBe('attention');
+        expect(row.countedAs).toBeUndefined();
+    });
+});
+
+describe('a private food on the row (private foods spec D2, D3, D6)', () => {
+    const privateLine = (over: Partial<UnkeyedFormIngredient> = {}) =>
+        bound({ name: 'My spice mix', foodVisibility: 'private', ...over });
+
+    it('⛔ in a PUBLIC recipe the row says so as an attention item', () => {
+        const { row } = onlyRow({ lines: [privateLine()], visibility: RecipeVisibility.PUBLIC });
+
+        expect(row.privateFood).toEqual({ kind: 'attention', text: 'Private food. A public recipe can’t use it.' });
+    });
+
+    it('in a PRIVATE recipe the row carries the quiet "Private food" badge instead', () => {
+        const { row } = onlyRow({ lines: [privateLine()], visibility: RecipeVisibility.PRIVATE });
+
+        expect(row.privateFood).toEqual({ kind: 'badge', text: 'Private food' });
+    });
+
+    it.each([RecipeVisibility.PUBLIC, RecipeVisibility.PRIVATE])('says nothing of a public food (%s)', (visibility) => {
+        const { row } = onlyRow({ lines: [privateLine({ foodVisibility: 'public' })], visibility });
+
+        expect(row.privateFood).toBeUndefined();
+    });
+
+    it('says nothing of a line that does not say', () => {
+        expect(onlyRow({ lines: [bound()], visibility: RecipeVisibility.PUBLIC }).row.privateFood).toBeUndefined();
+    });
+
+    it('⋯ offers Open food on a private-food line when the host can open a food, and it opens that food', () => {
+        const openFood = vi.fn<(foodId: string) => void>();
+        const { row } = onlyRow({ lines: [privateLine()], visibility: RecipeVisibility.PUBLIC, openFood });
+
+        actionOf(row, 'openFood').onSelect();
+
+        expect(actionOf(row, 'openFood').label).toBe('Open food');
+        expect(openFood).toHaveBeenCalledWith('food_brisket');
+    });
+
+    it('⋯ offers no Open food without a host that can open one, or on a line that is not a private food', () => {
+        const noHost = onlyRow({ lines: [privateLine()], visibility: RecipeVisibility.PUBLIC }).row;
+        const notPrivate = onlyRow({ lines: [bound()], openFood: vi.fn() }).row;
+
+        expect(noHost.actions.some((action) => action.id === 'openFood')).toBe(false);
+        expect(notPrivate.actions.some((action) => action.id === 'openFood')).toBe(false);
     });
 });

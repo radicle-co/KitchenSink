@@ -74,6 +74,8 @@ export interface RecipeDetailScreenProps {
     readonly onEdit?: (recipeId: string) => void;
     /** Invoked with the recipe id when the owner opens the version history. */
     readonly onViewVersions?: (recipeId: string) => void;
+    /** Open a food's page (the make-public refusal's Open food). */
+    readonly onOpenFood?: (foodId: string) => void;
     /** Invoked after the recipe is successfully deleted. */
     readonly onDeleted?: () => void;
     /** Invoked with the copy's id after Save a copy; the navigator opens it in the editor (FR-005b). */
@@ -187,6 +189,7 @@ function SettledRecipeDetail({
     onBack,
     onEdit,
     onViewVersions,
+    onOpenFood,
     onDeleted,
     onCloned,
     refusalArrived,
@@ -229,6 +232,7 @@ function SettledRecipeDetail({
         ...(onFinishRefusalSeen === undefined ? {} : { onFinishRefusalSeen }),
         nav: {
             onVersions: () => onViewVersions?.(recipeId),
+            ...(onOpenFood === undefined ? {} : { onOpenFood }),
             onCloned: (createdId) => onCloned?.(createdId),
             onDeleted: () => {
                 // The snackbar host sits above the navigator, so this outlives the screen we leave.

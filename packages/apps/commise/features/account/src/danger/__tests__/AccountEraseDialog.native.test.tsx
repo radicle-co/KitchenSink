@@ -303,3 +303,31 @@ describe.each(['light', 'dark'] as const)('AccountEraseDialog (native) — the %
         expect(style(screen.getByText(e.error)).color).toBe(rgb(colours.dangerText));
     });
 });
+
+describe('AccountEraseDialog (native) — recipes that hold a private food (private foods spec section 8)', () => {
+    it('lists them under "These will be deleted" with no control to keep them', () => {
+        renderDialog({
+            donatableRecipes: [makeDonatableRecipe({ id: 'a', title: 'Soup' })],
+            blockedRecipes: [makeDonatableRecipe({ id: 'b', title: 'My oat bake' })],
+        });
+
+        expect(screen.getByText('These will be deleted')).toBeTruthy();
+        expect(screen.getByText('They use foods only you can see, so they can’t be shared.')).toBeTruthy();
+        expect(screen.getByText('My oat bake')).toBeTruthy();
+        expect(screen.queryByRole('checkbox', { name: 'My oat bake' })).toBeNull();
+        expect(screen.getByRole('checkbox', { name: 'Soup' })).toBeTruthy();
+    });
+
+    it('with every private recipe blocked, the "everything will be deleted" line stands', () => {
+        renderDialog({ blockedRecipes: [makeDonatableRecipe({ id: 'b', title: 'My oat bake' })] });
+
+        expect(screen.getByText('You have no private recipes to publish. Everything will be deleted.')).toBeTruthy();
+        expect(screen.queryByRole('checkbox')).toBeNull();
+    });
+
+    it('adds nothing when no recipe holds a private food', () => {
+        renderDialog({ donatableRecipes: [makeDonatableRecipe()] });
+
+        expect(screen.queryByText('These will be deleted')).toBeNull();
+    });
+});

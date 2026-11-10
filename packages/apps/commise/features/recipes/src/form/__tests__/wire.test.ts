@@ -413,6 +413,47 @@ describe('toRecipeFormValues + validate + submit — the quantity round-trip (U9
  * against: a mapper that drops a field lets a cook open a recipe, change nothing, press save, and lose the
  * preparation — with every assertion about "the recipe was saved" still passing.
  */
+/**
+ * Owner ruling 2026-11-08: a line carries the food text it shows (`displayText`) and a dimension (`note`). A load then a
+ * save with no edit must keep both, or opening a recipe in the editor and saving it would silently erase them.
+ */
+describe('displayText + note survive the draft round trip', () => {
+    const detail = makeRecipeDetail({
+        ingredients: [
+            makeIngredientView({
+                ingredientId: 'ing-1',
+                name: 'Pie pastry',
+                quantity: { kind: 'exact', value: 1 },
+                displayText: 'double-crust pie pastry',
+                note: '9 inch',
+            }),
+        ],
+    });
+
+    it('seeds both from a loaded recipe, and sends both on create and on update', () => {
+        const values = toRecipeFormValues(detail);
+
+        expect(values.ingredients[0]).toMatchObject({ displayText: 'double-crust pie pastry', note: '9 inch' });
+        expect(toCreateRecipeInput(values).ingredients[0]).toMatchObject({
+            displayText: 'double-crust pie pastry',
+            note: '9 inch',
+        });
+        expect(toCreateRecipeInput(values).ingredients[0]).not.toHaveProperty('notes');
+    });
+
+    it('omits a blank value rather than sending it, and trims what it sends', () => {
+        const values = toRecipeFormValues(detail);
+        const edited = {
+            ...values,
+            ingredients: values.ingredients.map((line) => ({ ...line, displayText: '   ', note: '  9 inch  ' })),
+        };
+        const line = toCreateRecipeInput(edited).ingredients[0];
+
+        expect(line).not.toHaveProperty('displayText');
+        expect(line).toMatchObject({ note: '9 inch' });
+    });
+});
+
 describe('U26/U27 — preparation + groupLabel survive the draft round trip', () => {
     const detailWith = (over: Partial<RecipeIngredientView>): RecipeDetail =>
         makeRecipeDetail({
@@ -677,5 +718,71 @@ describe('plan 002 V1 B5 / curated U15 — the seed carries the line’s FOOD, n
         expect(body.ingredients[0]).not.toHaveProperty('foodId');
         expect(body.ingredients[0]).not.toHaveProperty('variant');
         expect(body.ingredients).toHaveLength(1);
+    });
+});
+
+/**
+ * ADR-0029 section 4 from the client's side: the row editor's Name is the line's `displayText`, so renaming a line bound
+ * to the cook's private food never moves its binding. The save and the Publish both name the private food, which is
+ * what lets the server refuse the Publish (`PRIVATE_FOODS_ON_PUBLIC_RECIPE`).
+ */
+describe('a line bound to a private food, renamed in the row editor', () => {
+    const PRIVATE_LOOKUP = '00000000-0000-4000-8000-0000000000aa';
+    const detail = makeRecipeDetail({
+        visibility: 'public',
+        ingredients: [
+            makeIngredientView({
+                ingredientId: PRIVATE_LOOKUP,
+                name: 'Smoked Chili Oil',
+                foodId: 'private-food',
+                foodVisibility: 'private',
+            }),
+        ],
+    });
+    const edits: readonly Parameters<typeof applyDraftAction>[1][] = [
+        { kind: 'setIngredientQuantityLow', index: 0 },
+        { kind: 'updateIngredientAt', index: 0, patch: { unit: '' } },
+        { kind: 'updateIngredientAt', index: 0, patch: { displayText: '' } },
+        { kind: 'updateIngredientAt', index: 0, patch: { displayText: 'pie crust' } },
+        { kind: 'updateIngredientAt', index: 0, patch: { note: '9 inch' } },
+        { kind: 'updateIngredientAt', index: 0, patch: { preparation: 'unbaked' } },
+    ];
+    const edited = edits.reduce(applyDraftAction, toRecipeFormValues(detail));
+
+    it('saves the SAME private binding with the cook’s words', () => {
+        expect(toUpdateRecipeInput(edited).ingredients).toEqual([
+            {
+                ingredientId: PRIVATE_LOOKUP,
+                quantity: { kind: 'absent' },
+                displayText: 'pie crust',
+                note: '9 inch',
+                preparation: 'unbaked',
+            },
+        ]);
+    });
+
+    it('publishes the same private binding after the editor is reopened from the saved recipe', () => {
+        const reopened = toRecipeFormValues(
+            makeRecipeDetail({
+                ...detail,
+                ingredients: [
+                    makeIngredientView({
+                        ingredientId: PRIVATE_LOOKUP,
+                        name: 'Smoked Chili Oil',
+                        foodId: 'private-food',
+                        foodVisibility: 'private',
+                        quantity: { kind: 'absent' },
+                        unit: undefined,
+                        displayText: 'pie crust',
+                        note: '9 inch',
+                        preparation: 'unbaked',
+                    }),
+                ],
+            }),
+        );
+        const body = toUpdateRecipeInput(reopened, 'published');
+
+        expect(body.status).toBe('published');
+        expect(body.ingredients?.map((line) => line.ingredientId)).toEqual([PRIVATE_LOOKUP]);
     });
 });

@@ -2,16 +2,13 @@
  * @module @commise/features-recipes/actions - THE client rule for "Private" on a RECIPE (ADR-0073; owner ruling
  * 2026-10-26), read by the editor's visibility field and the recipe page's menu.
  *
- * A free cook keeps up to the server's limit of recipes private, in slots (every private recipe uses one, books and paid
- * sites included); Premium has no limit; an imported public-web recipe is the one kind of privacy that still needs
- * Premium (and a substantive edit, which the server judges). So a recipe is under one of two rules:
- *
- * - `slots` - Private works while a slot is free. Paid features play no part: they cannot hide Private, and they only
- *   decide whether the refusal also offers Premium.
- * - `premium` - the paid-feature rule that `privateGate.ts` states for collections, unchanged.
+ * A free cook keeps up to the server's limit of recipes private, in slots (every private recipe uses one, books, paid
+ * sites and imported public-web recipes included: ADR-0077 section 6, owner ruling 2026-10-29, "Any cook, using a slot");
+ * Premium has no limit. Private on a recipe works while a slot is free. Paid features play no part: they cannot hide
+ * Private, and they only decide whether the refusal also offers Premium.
  *
  * ⛔ A COLLECTION IS NOT UNDER THIS MODULE. `privateGate.ts` still decides collections (their privacy is still a Premium
- * feature), and this module reuses its pieces for the `premium` rule rather than restating them.
+ * feature).
  *
  * ⛔ THE COUNT IS A DISPLAY FACT. The server decides every private write under its own lock, so an `unknown` standing
  * (loading, or the read failed) never withholds a Private: the write goes out and the server answers. Only a KNOWN full
@@ -38,13 +35,7 @@ import {
 } from '@kitchensink/recipe-core';
 import type { PrivateSlotUsage } from '@kitchensink/schema-recipe';
 
-import {
-    offersPrivate,
-    privateChoice,
-    privateRefusalOf,
-    showsPremiumBadge,
-    type PrivateRefusal,
-} from './privateGate.js';
+import type { PrivateRefusal } from './privateGate.js';
 
 /**
  * Where the cook stands on private slots, from the server's read (`GET /api/v1/recipes/private-slots`).
@@ -123,11 +114,6 @@ export function refusalWhileDrafting(refusal: PrivateRefusal | undefined): Priva
 
 export type { PrivateRule };
 
-/** Whether the rule is a slot rule (counted against the cook's private slots), as opposed to Premium's. Pure. */
-export function usesSlots(rule: PrivateRule): boolean {
-    return rule !== 'premium';
-}
-
 /**
  * The rule for a recipe. Pure. The label-to-rule table is recipe-core's `privateRuleOf` (ADR-0073 section 10), which the
  * server's policies read too; this only supplies the label of a recipe never saved, which is `user_created`.
@@ -160,23 +146,12 @@ export function isOverLimit(standing: SlotStanding): standing is Extract<SlotSta
 export interface RecipePrivateFacts {
     readonly rule: PrivateRule;
     readonly standing: SlotStanding;
-    /** The viewer's paid-feature state: under `premium` it is the rule; under `slots` it only gates offering Premium. */
+    /** The viewer's paid-feature state: it only gates offering Premium in a refusal. */
     readonly state: PaidFeatureState;
 }
 
-/** What choosing a visibility does on a recipe: apply it, open the Premium sheet, show the full refusal, or nothing. */
-export type RecipePrivateOutcome = 'apply' | 'upsell' | 'slotsFull' | 'none';
-
-/**
- * Whether Private is offered at all. Pure.
- *
- * @param facts - The rule, standing and paid-feature state.
- * @param saved - The visibility the server holds (or the cook may keep).
- * @returns `true` under the slots rule always; under the premium rule as `offersPrivate` decides.
- */
-export function recipeOffersPrivate(facts: RecipePrivateFacts, saved: RecipeVisibility): boolean {
-    return usesSlots(facts.rule) || offersPrivate(facts.state, saved);
-}
+/** What choosing a visibility does on a recipe: apply it, or show the full refusal. */
+export type RecipePrivateOutcome = 'apply' | 'slotsFull';
 
 /**
  * What choosing `target` does. Pure.
@@ -185,7 +160,7 @@ export function recipeOffersPrivate(facts: RecipePrivateFacts, saved: RecipeVisi
  * @param saved - The visibility the server holds (or the cook may keep).
  * @param target - The visibility being chosen.
  * @returns `apply` for Public, for a Private the recipe already holds, and for Private while a slot may be free
- *   (an `unknown` standing included); `slotsFull` for Private with none left; under the premium rule as `privateChoice`.
+ *   (an `unknown` standing included); `slotsFull` for Private with none left.
  */
 export function recipePrivateChoice(
     facts: RecipePrivateFacts,
@@ -196,23 +171,19 @@ export function recipePrivateChoice(
         return 'apply';
     }
 
-    if (usesSlots(facts.rule)) {
-        return facts.standing.kind === 'full' ? 'slotsFull' : 'apply';
-    }
-
-    return privateChoice({ target, saved, state: facts.state });
+    return facts.standing.kind === 'full' ? 'slotsFull' : 'apply';
 }
 
-/** What going public from private costs the cook: nothing to say, a slot freed, or (premium rule) Premium to return. */
-export type RecipeMakePublicConsequence = 'none' | 'frees' | 'premium';
+/** What going public from private costs the cook: nothing to say, or a slot freed. */
+export type RecipeMakePublicConsequence = 'none' | 'frees';
 
 /**
  * What making a private recipe public says. Pure.
  *
  * @param facts - The rule, standing and paid-feature state.
  * @param saved - The visibility the cook may keep (the editor's `heldVisibility`; the server's elsewhere).
- * @returns `frees` under the slots rule for a cook with slots (it frees one, and a free slot is all it takes to come
- *   back); `premium` under the premium rule's upsell; otherwise `none`. Never a claim that public is final.
+ * @returns `frees` for a cook with slots (it frees one, and a free slot is all it takes to come back); otherwise
+ *   `none`. Never a claim that public is final.
  */
 export function recipeMakePublicConsequence(
     facts: RecipePrivateFacts,
@@ -220,10 +191,6 @@ export function recipeMakePublicConsequence(
 ): RecipeMakePublicConsequence {
     if (saved !== RecipeVisibility.PRIVATE) {
         return 'none';
-    }
-
-    if (facts.rule === 'premium') {
-        return facts.state === 'upsell' ? 'premium' : 'none';
     }
 
     // A book or paid-site recipe cannot go public (the server refuses), so nothing is promised about coming back.
@@ -238,24 +205,8 @@ export function recipeMakePublicConsequence(
  * Why the server is KNOWN to refuse a change to private. Pure.
  *
  * @param facts - The rule, standing and paid-feature state (the profile's own answer, for what will be SENT).
- * @returns `slots` under the slots rule with every slot used; under the premium rule `final` or `premium` as
- *   `privateRefusalOf` decides; otherwise `undefined` (an unknown standing never refuses).
+ * @returns `slots` with every slot used; otherwise `undefined` (an unknown standing never refuses).
  */
 export function recipePrivateRefusalOf(facts: RecipePrivateFacts): PrivateRefusal | undefined {
-    if (usesSlots(facts.rule)) {
-        return facts.standing.kind === 'full' ? 'slots' : undefined;
-    }
-
-    return privateRefusalOf(facts.state);
-}
-
-/**
- * Whether the Private option carries the Premium badge. Pure.
- *
- * @param facts - The rule, standing and paid-feature state.
- * @param saved - The visibility the server holds.
- * @returns `true` only under the premium rule's upsell: within the slots Private is free.
- */
-export function showsRecipePremiumBadge(facts: RecipePrivateFacts, saved: RecipeVisibility): boolean {
-    return facts.rule === 'premium' && showsPremiumBadge(facts.state, saved);
+    return facts.standing.kind === 'full' ? 'slots' : undefined;
 }

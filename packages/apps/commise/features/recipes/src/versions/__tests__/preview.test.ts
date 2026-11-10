@@ -167,7 +167,7 @@ describe('toVersionPreviewIngredientLines (W6 Task 3)', () => {
         expect(line?.calories).toBeUndefined();
     });
 
-    it('appends displayText as a parenthesized suffix to the ingredient name', () => {
+    it('shows displayText as the line’s name, with no parentheses', () => {
         const [line] = toVersionPreviewIngredientLines(
             [
                 makeIngredient({
@@ -183,7 +183,7 @@ describe('toVersionPreviewIngredientLines (W6 Task 3)', () => {
             [],
         );
 
-        expect(line?.text).toBe('2\u00A0tbsp Olive oil (extra virgin)');
+        expect(line?.text).toBe('2\u00A0tbsp extra virgin');
     });
 
     it('renders the bare ingredient name when displayText is absent', () => {

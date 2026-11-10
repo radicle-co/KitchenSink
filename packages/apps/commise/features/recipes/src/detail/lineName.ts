@@ -11,7 +11,8 @@
  * ⛔ The stand-in is DISPLAY text only. It is never written into form values, a merge projection or anything a save
  * or a diff reads, or a save would send a food called "Private ingredient".
  *
- * ⛔ No fallback of any kind: nothing here reads a line's notes or preparation to stand in for its food.
+ * ⛔ No fallback of any kind: nothing here reads a line's note or preparation to stand in for its food. The cook's own
+ * words (`displayText`) are not a fallback: they are what the line SHOWS when it has them (design answers 2026-11-08).
  *
  * ⛔ D21 (owner, 2026-10-10): the catalog names countable foods in the plural ("onions"), and a count of one reads
  * "1 large onion". {@link nameForQuantity} is that rule, DISPLAY only, applied where a surface composes an amount with
@@ -40,6 +41,8 @@ import type { IngredientLineNameMessages } from '../messages.js';
 /** What naming a live line reads: its name, when it has one, and its status. The editor's lines fit it too. */
 export interface NameableLine {
     readonly name?: string | undefined;
+    /** The cook's own words for the food: the line shows them first (design answers 2026-11-08). */
+    readonly displayText?: string | undefined;
     readonly resolutionStatus?: FoodResolutionStatus | undefined;
 }
 
@@ -58,7 +61,17 @@ const isNamelessStatus = (status: FoodResolutionStatus | undefined): status is N
     NAMELESS_LINE_STATUSES.some((nameless) => nameless === status);
 
 /**
- * The text that names a line: its own name, or the stand-in for the status that left it without one. Pure.
+ * The cook's own words the line shows, if any. A food the viewer may not see keeps the stand-in whatever `displayText`
+ * holds: that rule is a separate plan's to change (owner question Q2), so it is left exactly as it was. Pure.
+ */
+const writtenWordsOf = (line: NameableLine): string | undefined =>
+    line.resolutionStatus === FoodResolutionStatus.RESOLVED_UNAVAILABLE || (line.displayText ?? '').trim() === ''
+        ? undefined
+        : line.displayText;
+
+/**
+ * The text that names a line: the cook's own words (`displayText`), else its food's name, else the stand-in for the
+ * status that left it without one. Pure.
  *
  * A name wins whatever the status, so a withdrawn food that kept its name shows that name.
  *
@@ -67,6 +80,12 @@ const isNamelessStatus = (status: FoodResolutionStatus | undefined): status is N
  * @returns The name or stand-in. The empty string for a draft line that has no name yet and no nameless status.
  */
 export const lineDisplayName = (line: NameableLine, labels: IngredientLineNameMessages): string => {
+    const written = writtenWordsOf(line);
+
+    if (written !== undefined) {
+        return written;
+    }
+
     if (line.name !== undefined && line.name.length > 0) {
         return line.name;
     }
@@ -81,7 +100,9 @@ export const lineDisplayName = (line: NameableLine, labels: IngredientLineNameMe
  * @returns `true` when {@link lineDisplayName} answers with a stand-in.
  */
 export const isStandInName = (line: NameableLine): boolean =>
-    (line.name === undefined || line.name.length === 0) && isNamelessStatus(line.resolutionStatus);
+    writtenWordsOf(line) === undefined &&
+    (line.name === undefined || line.name.length === 0) &&
+    isNamelessStatus(line.resolutionStatus);
 
 /**
  * The text that names a VERSION SNAPSHOT line: the name the version froze, or the stand-in saying it froze none.
@@ -92,9 +113,11 @@ export const isStandInName = (line: NameableLine): boolean =>
  * @returns The frozen name, or {@link IngredientLineNameMessages.notSavedInVersion}.
  */
 export const snapshotLineName = (line: RecipeIngredient, labels: IngredientLineNameMessages): string =>
-    line.ingredientName !== undefined && line.ingredientName.length > 0
-        ? line.ingredientName
-        : labels.notSavedInVersion;
+    line.displayText !== undefined && line.displayText.length > 0
+        ? line.displayText
+        : line.ingredientName !== undefined && line.ingredientName.length > 0
+          ? line.ingredientName
+          : labels.notSavedInVersion;
 
 /**
  * A variant's parts as `VariantPartsLine` takes them: their display text in wire order, never empty. Pure.
@@ -219,7 +242,7 @@ export const lineAmountName = (
 export const snapshotLineAmountName = (line: RecipeIngredient, labels: IngredientLineNameMessages): string => {
     const name = snapshotLineName(line, labels);
 
-    return line.ingredientName !== undefined && line.ingredientName.length > 0
-        ? nameForQuantity(name, line.quantity, line.unit)
-        : name;
+    const shown = (line.displayText ?? '') !== '' || (line.ingredientName ?? '') !== '';
+
+    return shown ? nameForQuantity(name, line.quantity, line.unit) : name;
 };

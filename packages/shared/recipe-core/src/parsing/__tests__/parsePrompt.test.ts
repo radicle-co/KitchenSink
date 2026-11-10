@@ -17,8 +17,12 @@ import { createHash } from 'node:crypto';
 
 import { describe, expect, it } from 'vitest';
 
+import { inputTokenCeiling } from '../../spend/spendArithmetic.js';
+import { modelParseAnswerSchema } from '../parseAnswer.js';
+
 import {
     MAX_PARSE_PROMPT_CHARS,
+    PARSE_INPUT_TOKEN_CEILING,
     PARSE_MAX_OUTPUT_TOKENS,
     PARSE_PROMPT_SHA256,
     PARSE_PROMPT_VERSION,
@@ -45,7 +49,7 @@ describe('PARSE_SYSTEM_PROMPT — the measured artifact', () => {
     it('is byte-for-byte the text the model comparison was run against', () => {
         // Both, deliberately. Length alone cannot see a same-length reword, and the digest alone would not
         // say WHICH way the text moved when it fails.
-        expect(Buffer.byteLength(PARSE_SYSTEM_PROMPT, 'utf8')).toBe(19_925);
+        expect(Buffer.byteLength(PARSE_SYSTEM_PROMPT, 'utf8')).toBe(21_752);
         expect(createHash('sha256').update(PARSE_SYSTEM_PROMPT, 'utf8').digest('hex')).toBe(PARSE_PROMPT_SHA256);
     });
 
@@ -81,6 +85,76 @@ describe('PARSE_SYSTEM_PROMPT — the measured artifact', () => {
 
     it('is versioned, so a text change can partition the parse cache U20 keys on it', () => {
         expect(PARSE_PROMPT_VERSION).toMatch(/^v\d+$/u);
+    });
+});
+
+/**
+ * ADR-0026 §11 (owner ruling 2026-11-08): the LLM leg answers `display` per record, so the line shows the cook's own
+ * words ("lean ground beef") or the app's food name. This is the one deliberate change to the measured artifact since
+ * the comparison, so rule 11 is pinned word for word and the five-key schema and every example are pinned beside it.
+ */
+describe('PARSE_SYSTEM_PROMPT: rule 11, DISPLAY (ADR-0026 section 11)', () => {
+    const RULE_11 = `11. DISPLAY. For each record with food_items, set display to "written" or "food": whether the app shows the cook's words for the food or its own food name.
+   - "written" when the food words name WHICH KIND of the food in a way a plain food name leaves out: a variety or cultivar ("Granny Smith apples", "roma tomatoes"), a cut, fat or leanness ("lean ground beef", "skinless, boneless chicken breast halves"), a flavour or style ("sweet Italian sausage", "semisweet chocolate chips"), a form made for a dish ("lasagna noodles", "double-crust pie pastry", "panko bread crumbs"), or a product form ("dried bread crumbs", "prepared mustard").
+   - "food" when the words are the plain food ("flour", "eggs", "milk", "white sugar", "salt"), or differ from it only by size ("large"), ripeness or freshness ("ripe", "overripe", "fresh"), or a word the unit already says ("canned" with "cans"), or when they read poorly: abbreviated ("AP flour", "evoo"), misspelt, in capitals, or not a food ("ingredients", "mixture").
+   - Preparations are not part of this decision. No food_items -> null.`;
+
+    it('carries rule 11 exactly as the owner ruled it, directly after rule 10', () => {
+        expect(PARSE_SYSTEM_PROMPT).toContain(RULE_11);
+        expect(PARSE_SYSTEM_PROMPT.indexOf('10. EQUIPMENT')).toBeLessThan(PARSE_SYSTEM_PROMPT.indexOf(RULE_11));
+        expect(PARSE_SYSTEM_PROMPT.indexOf(RULE_11)).toBeLessThan(PARSE_SYSTEM_PROMPT.indexOf('## Response Schema'));
+    });
+
+    it('declares five keys, display second, and says when it is null', () => {
+        expect(PARSE_SYSTEM_PROMPT).toContain('Each record has exactly these five keys in this order:');
+        expect(PARSE_SYSTEM_PROMPT).toContain('{"food_items": [...] or null, "display": "written" or "food" or null, ');
+        expect(PARSE_SYSTEM_PROMPT).not.toContain('exactly these four keys');
+    });
+
+    it('is version v3: the parse cache keys on the wording, and the wording moved', () => {
+        expect(PARSE_PROMPT_VERSION).toBe('v3');
+    });
+
+    /**
+     * ⛔ Every example is parsed with the REAL answer schema. An example the prompt's own reader would refuse teaches the
+     * model a shape the system rejects, and the failure is invisible until a model copies it.
+     */
+    it('every example output has the five keys and passes the strict answer schema', () => {
+        const examples = [...PARSE_SYSTEM_PROMPT.matchAll(/<input>(.*)<\/input>\n(\[.*\])\n/gu)];
+
+        expect(examples.length).toBeGreaterThanOrEqual(30);
+
+        for (const [, line, output] of examples) {
+            const records = JSON.parse(output ?? '[]') as Record<string, unknown>[];
+
+            for (const record of records) {
+                expect(Object.keys(record), String(line)).toEqual([
+                    'food_items',
+                    'display',
+                    'measurement',
+                    'preparations',
+                    'equipment',
+                ]);
+            }
+
+            expect(modelParseAnswerSchema.safeParse(records).success, String(line)).toBe(true);
+        }
+    });
+
+    it('teaches both answers: the examples include a written and a food', () => {
+        expect(PARSE_SYSTEM_PROMPT).toContain('"display":"written"');
+        expect(PARSE_SYSTEM_PROMPT).toContain('"display":"food"');
+    });
+});
+
+describe('MAX_PARSE_PROMPT_CHARS: the input cap after prompt v3 (owner ruling 2026-11-08)', () => {
+    it('is 24,000 code points, which keeps a line about 2,250 characters of room beside the v3 prompt', () => {
+        expect(MAX_PARSE_PROMPT_CHARS).toBe(24_000);
+        expect(roomForLine()).toBeGreaterThanOrEqual(2_250);
+    });
+
+    it('is the one constant ADR-0024 layer 1 reserves from: the token ceiling is derived from it', () => {
+        expect(PARSE_INPUT_TOKEN_CEILING).toBe(inputTokenCeiling(MAX_PARSE_PROMPT_CHARS, 2));
     });
 });
 
@@ -164,13 +238,15 @@ describe('the input cap — REJECTED, never truncated (ADR-0024 layer 1)', () =>
 });
 
 describe('the call parameters the measurement was denominated in', () => {
-    it('caps output where a well-formed answer has better than 3x headroom', () => {
+    it('caps output with room for the longest realistic multi-record answer', () => {
         // ⛔ RAISED from 200 with the prompt swap. The relational document is an ARRAY of records carrying a
         // nested measurement, so it is far more verbose than v1's flat shape: measured 35-43 output tokens on
         // ingredient lines but multi-record instruction lines run longer, and 200 would CLIP them — reporting
         // our own ceiling as the model's contract failure. 900 is the value the 84%/53% gold-set result was
-        // measured at, and a truncation count is still reported so the headroom stays observable.
-        expect(PARSE_MAX_OUTPUT_TOKENS).toBe(900);
+        // measured at; prompt v3's fifth key (`display`) pushed the longest realistic answer (about 720-800 tokens by
+        // estimate) inside 20% of it, so the cap is 1,100. It only truncates, so the measured rates stand, and a
+        // truncation count is still reported so the headroom stays observable.
+        expect(PARSE_MAX_OUTPUT_TOKENS).toBe(1100);
     });
 
     it('pins temperature to the value the comparison was run at', () => {

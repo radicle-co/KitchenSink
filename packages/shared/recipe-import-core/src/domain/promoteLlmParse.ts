@@ -85,7 +85,11 @@ export function promoteLlmParse(parse: LlmParse, sourceLine: string): ParsedLine
         parse.statedQuantity === undefined
             ? readStatedMeasure(statedMeasure)
             : readStatedMeasure(stated(parse.statedQuantity));
-    const foods: readonly ParsedFood[] = parse.foods.map((food) => ({ name: food.name, prep: food.prep }));
+    const foods: readonly ParsedFood[] = parse.foods.map((food) => ({
+        name: food.name,
+        prep: food.prep,
+        display: food.display,
+    }));
 
     return {
         raw: sourceLine,

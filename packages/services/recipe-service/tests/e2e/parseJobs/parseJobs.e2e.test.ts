@@ -222,10 +222,12 @@ describe('recipe parse jobs (integration)', () => {
         const view = (await poll.json()) as JobView;
 
         expect(view.status).toBe('complete');
-        // ADR-0071: every proposed food carries `match`, `null` until the job's matches are requested.
+        // ADR-0071: every proposed food carries `match`, `null` until the job's matches are requested. ADR-0026 §11:
+        // it carries `display` too, and a landed proposal that states none (this fixture predates prompt v3) reads as
+        // `null` — the cook's words are shown only when the engine said `'written'`.
         expect(view.lines[1]?.proposal).toEqual({
             ...PROPOSAL,
-            foods: PROPOSAL.foods.map((food) => ({ ...food, match: null })),
+            foods: PROPOSAL.foods.map((food) => ({ ...food, display: null, match: null })),
         });
     });
 

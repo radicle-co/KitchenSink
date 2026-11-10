@@ -80,19 +80,19 @@ describe('RecipeDetailView (web) — a variant-bound line (F1/AE1 display, R25)'
         ).toBeTruthy();
     });
 
-    it('puts the dotted line under the name and BEFORE the cook’s own preparation and notes (§S5)', () => {
+    it('puts the dotted line under the name and BEFORE the cook’s own note and preparation (§S5)', () => {
         render(
             <RecipeDetailView
                 dataSourcesHref="/en/legal/sources"
                 unreachableRetry={idleUnreachableRetry}
                 recipe={makeRecipeDetail({
-                    ingredients: [makeVariantBoundLine({ preparation: 'sliced thin', notes: 'trim the cap' })],
+                    ingredients: [makeVariantBoundLine({ preparation: 'sliced thin', note: 'trim the cap' })],
                 })}
             />,
         );
 
         // The row's name is the whole line, so it ends with the cook's preparation.
-        const item = lineItem(`2 lb beef brisket, ${BRISKET_FLAT_HALF_SPOKEN}, sliced thin`);
+        const item = lineItem(`2 lb beef brisket, ${BRISKET_FLAT_HALF_SPOKEN}, trim the cap, sliced thin`);
         const name = within(item).getByText('beef brisket');
         const firstPart = item.querySelector('[lang="en"]');
         const preparation = within(item).getByText('sliced thin');
@@ -100,8 +100,8 @@ describe('RecipeDetailView (web) — a variant-bound line (F1/AE1 display, R25)'
 
         expect(firstPart).not.toBeNull();
         expect(name.compareDocumentPosition(firstPart as Node) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-        expect(firstPart?.compareDocumentPosition(preparation) ?? 0).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
-        expect(preparation.compareDocumentPosition(notes)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+        expect(firstPart?.compareDocumentPosition(notes) ?? 0).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+        expect(notes.compareDocumentPosition(preparation)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
         // "Under": the dotted line takes a line of its own inside the row's text block.
         expect(firstPart?.closest('.block')).not.toBeNull();
     });
@@ -271,13 +271,13 @@ describe('RecipeDetailView (web) — no comma-joined variant label (origin Succe
                     ingredients: [
                         makeVariantBoundLine(),
                         // The cook's own words: the detector must find these, or it finds nothing anywhere.
-                        makeRootBoundLine({ notes: 'flat half, separable lean and fat' }),
+                        makeRootBoundLine({ note: 'flat half, separable lean and fat' }),
                     ],
                 })}
             />,
         );
 
-        const control = lineItem('1 lb beef brisket');
+        const control = lineItem('1 lb beef brisket, flat half, separable lean and fat');
         const variant = lineItem(`2 lb beef brisket, ${BRISKET_FLAT_HALF_SPOKEN}`);
 
         expect(commaJoinedTexts(control, BRISKET_FLAT_HALF_PARTS)).toEqual(['flat half, separable lean and fat']);

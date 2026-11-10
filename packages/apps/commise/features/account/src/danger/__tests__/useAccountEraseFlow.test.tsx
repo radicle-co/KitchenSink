@@ -23,8 +23,12 @@ const wrapper = ({ children }: { children: ReactNode }) => (
     </QueryClientProvider>
 );
 
-const recipe = (id: string, over: { visibility?: RecipeVisibility; status?: RecipeStatus } = {}) => ({
+const recipe = (
+    id: string,
+    over: { visibility?: RecipeVisibility; status?: RecipeStatus; holdsPrivateFood?: boolean } = {},
+) => ({
     id,
+    ...(over.holdsPrivateFood === undefined ? {} : { holdsPrivateFood: over.holdsPrivateFood }),
     title: `Recipe ${id}`,
     visibility: over.visibility ?? RecipeVisibility.PRIVATE,
     status: over.status ?? RecipeStatus.PUBLISHED,
@@ -65,6 +69,15 @@ function setup(
 }
 
 describe('useAccountEraseFlow', () => {
+    it('⛔ splits owner-only recipes: those holding a private food are listed as deleted, never offered to keep', () => {
+        const { result } = setup({
+            recipes: { recipes: [recipe('a'), recipe('b', { holdsPrivateFood: true })] },
+        });
+
+        expect(result.current.donatableRecipes).toEqual([{ id: 'a', title: 'Recipe a' }]);
+        expect(result.current.blockedRecipes).toEqual([{ id: 'b', title: 'Recipe b' }]);
+    });
+
     it('is an open dialog offering only the donation-eligible recipes, as id and title', () => {
         const { result } = setup();
 

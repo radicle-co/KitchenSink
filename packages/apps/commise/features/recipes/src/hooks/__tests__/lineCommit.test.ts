@@ -98,7 +98,7 @@ describe('lineBindingOf', () => {
             quantity: 2,
             quantityHigh: 3,
             unit: 'lb',
-            notes: 'trimmed',
+            displayText: 'trimmed',
             preparation: 'cubed',
             groupLabel: 'For the braise',
             userCalories: 400,

@@ -153,10 +153,10 @@ APK="${MAESTRO_ANDROID_APK:-packages/apps/commise/mobile/android/app/build/outpu
 #     by-name line and a remote pick from its glyph's list; it saves one draft, which the next flow's reset deletes.
 #   - `recipes/ingredientRemoteFoods` (plan 002 S7.8, which replaced `ingredientUsdaSearch`) follows them: remote
 #     foods flowing into the add row's list and Change food's, two remote picks, and a publish the next reset deletes.
-#   - `recipes/privateFoodStandIn` sits right after `discoverDetailSaveCopy`: it reaches the co-author's recipe the same
-#     way and saves a copy, so it leaves one copy in the signer's library, which the next flow's reset deletes. It is
-#     labelled `recipes`, not `discovery`, because what it tests — the nameless line and the copy banner — lives
-#     in `features/recipes/src/detail/**`, which the `recipes` path filter owns.
+#   - `recipes/publishRefusedForPrivateFood` and `recipes/askToMakeFoodPublic` sit right after `discoverDetailSaveCopy`
+#     (they replaced `privateFoodStandIn`, whose public recipe holding another cook's private food can no longer exist).
+#     They open the SIGNER's own draft and leave nothing behind but a pending ask on the signer's own food. They are
+#     labelled `recipes` because what they test lives in `features/recipes/src/{editor,foodPage}/**`.
 #   - `recipes/quantityRange` sits with the other CREATE-editor flows and immediately after `create`: it
 #     publishes (twice), so it mutates the library, and it shares `create`'s "as written" prelude.
 #   - `recipes/preparationGroups` (U26/U27) sits immediately after `quantityRange`, for the same three
@@ -247,7 +247,8 @@ discovery:recipes/discoverRecentSearches
 discovery:recipes/discoverIngredientCap
 discovery:recipes/discoverSaveCopy
 discovery:recipes/discoverDetailSaveCopy
-recipes:recipes/privateFoodStandIn
+recipes:recipes/publishRefusedForPrivateFood
+recipes:recipes/askToMakeFoodPublic
 recipes:recipes/conflictMerge
 collections:recipes/collections
 collections:recipes/collectionAddRemoveUndo
@@ -533,10 +534,10 @@ MAESTRO_DRIVER_PACKAGE="dev.mobile.maestro"
 
 EMPTY_LIBRARY_FLOWS=" recipes/emptyLibrary "
 # The flows whose reset also seeds the gate-AMBIGUOUS probe recipe (`reset.ts --mode ambiguity`). Only these hold it, so
-# every other flow's `^3 recipes$` count stays true (plan 013 C3, owner decision 2026-10-19).
+# every other flow's `^4 recipes$` count stays true (plan 013 C3, owner decision 2026-10-19).
 AMBIGUITY_FLOWS=" recipes/ambiguityReview "
 # The flows whose reset adds the signer's filler recipes AND the tall recipe (`reset.ts --mode library`): the flow that needs a
-# Recipes list longer than a screen, and the flow that needs a recipe page longer than a screen. Only these hold them, so every other flow's `^3 recipes$` count stays true.
+# Recipes list longer than a screen, and the flow that needs a recipe page longer than a screen. Only these hold them, so every other flow's `^4 recipes$` count stays true.
 LONG_LIBRARY_FLOWS=" recipes/headerScrollsAway recipes/pinnedIngredients "
 
 # Where `e2e-seed provision` writes this run's fixture MANIFEST, and how it reaches the flows.

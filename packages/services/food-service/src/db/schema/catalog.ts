@@ -30,7 +30,7 @@ import {
     foodVariant,
     foodVariantPart,
 } from './catalogItems.js';
-import { food, foodCategory, foodPromotions, foodVersions, nutrient } from './food.js';
+import { food, foodCategory, foodPublicationRequests, foodVersions, nutrient } from './food.js';
 import { foodCandidates } from './foodCandidates.js';
 import { foodNutrition, foodNutritionCitation, foodNutritionValue } from './foodNutrition.js';
 import {
@@ -81,7 +81,10 @@ const NON_CATALOG_TABLES: readonly (readonly [PgTable, string])[] = [
     [fetchRequesters, 'who asked for a food: personal data the erasure sweep deletes, never written for a seed root'],
     [foodCandidates, 'the live disambiguation set of an unresolved food, which a seed root never is'],
     [foodVersions, "an authored food's edit history, and a seed root is never authored"],
-    [foodPromotions, 'the moderation queue for authored foods, written by the service'],
+    [
+        foodPublicationRequests,
+        "an author's request to publish a food or an edit of one: no person column, and it goes with its food",
+    ],
     [sourceCallLog, 'the live source calls the rate limiter counts'],
     [sourceBackoff, 'the live block a source response earned, which admission reads'],
     [

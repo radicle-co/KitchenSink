@@ -324,6 +324,12 @@ export interface Recipe {
      */
     coverPhotoUrl?: string;
     /**
+     * Whether any line is bound to a food its author keeps private (ADR-0029 section 4): the recipe is private-only
+     * until the food is made public. Present on the cook's OWN list (`GET /api/v1/recipes`) and absent elsewhere
+     * (Discover and search do not ask), so a client may use it only on its own list.
+     */
+    holdsPrivateFood?: boolean;
+    /**
      * Soft-delete tombstone (C-007). When set, the recipe is excluded from every
      * production read path. Hard removal happens only via the user-initiated
      * GDPR erasure flow.
@@ -334,51 +340,49 @@ export interface Recipe {
 }
 
 /**
- * Which rule a recipe's Private is under (ADR-0073 section 10). The ONE statement of which provenance labels can go
- * private and how; the server's visibility and slot policies, the PRO badge and the client's Private gate all read it.
+ * Which rule a recipe's Private is under (ADR-0073 section 10, amended by ADR-0077 section 6). The ONE statement of which
+ * provenance labels can go private and how; the server's visibility and slot policies, and the client's Private gate,
+ * all read it.
  *
- * - `slots`: private within the cook's slots, and it can go public (a recipe the cook wrote).
+ * - `slots`: private within the cook's slots, and it can go public (a recipe the cook wrote, or an imported public-web
+ *   recipe: owner ruling 2026-10-29, "Any cook, using a slot").
  * - `privateOnly`: private within the cook's slots, and it can NEVER go public (a book or paid-site recipe, 004 FR-014a).
- * - `premium`: an imported public-web recipe, where Premium (and a substantive edit) is still the rule.
+ *
+ * There is no Premium-only rule. A rule that was is the exhaustive switch the compiler now checks.
  */
-export type PrivateRule = 'slots' | 'privateOnly' | 'premium';
+export type PrivateRule = 'slots' | 'privateOnly';
 
 /**
  * The rule a recipe's label puts its Private under. Exhaustive: a new {@link RecipeSourceType} is a compile error here.
  *
  * @param sourceType - The recipe's provenance label.
- * @returns `premium` for an imported public-web recipe, `privateOnly` for a book or paid-site one, else `slots`. Pure.
+ * @returns `privateOnly` for a book or paid-site recipe, else `slots`. Pure.
  */
 export function privateRuleOf(sourceType: RecipeSourceType): PrivateRule {
     switch (sourceType) {
-        case RecipeSourceType.IMPORTED_PUBLIC:
-            return 'premium';
         case RecipeSourceType.IMPORTED_PHYSICAL:
         case RecipeSourceType.IMPORTED_PAID:
             return 'privateOnly';
+        case RecipeSourceType.IMPORTED_PUBLIC:
         case RecipeSourceType.USER_CREATED:
             return 'slots';
     }
 }
 
 /**
- * The single authoritative derivation of the "PRO" badge (FR-003a) — whether a recipe uses a
- * capability only a premium user has. Called by BOTH the list and the detail projection so they can
- * never disagree; never inlined or re-implemented elsewhere.
+ * The single authoritative derivation of the "PRO" badge (FR-003a) - whether a recipe uses a capability only a premium
+ * user has. Called by BOTH the list and the detail projection so they can never disagree; never inlined elsewhere.
  *
- * The only premium-gated recipe capability today is keeping an IMPORTED PUBLIC-WEB recipe private (ADR-0073 section 10):
- * that still needs Premium and a substantive edit. A free cook can hold a private `user_created` recipe in one of their
- * 50 private slots, and a book or paid-site recipe (`imported_physical`, `imported_paid`) is private for every tier and
- * uses a slot too, so none of those three is a premium capability. Badging them PRO would mark a free cook's own
- * recipes as premium content. This is deliberately NOT `visibility === 'private'`.
+ * Since ADR-0077 section 6 no recipe capability is Premium-only: every private recipe, an imported public-web one
+ * included, uses a slot any cook has. So this is `false` for every recipe, and the field stays on the wire because
+ * released clients read it. When a real entitlement returns (010), this function is the one place the rule changes.
+ * This is deliberately NOT `visibility === 'private'`.
  *
- * When 010 ships real entitlements, this function is the one place the rule changes.
- *
- * @param recipe - The recipe's visibility and source type.
- * @returns True when the recipe uses a premium-only capability. Pure.
+ * @param _recipe - The recipe's visibility and source type (unused until a Premium-only capability exists).
+ * @returns Always `false`. Pure.
  */
-export function usesPremiumCapability(recipe: Pick<Recipe, 'visibility' | 'sourceType'>): boolean {
-    return recipe.visibility === RecipeVisibility.PRIVATE && privateRuleOf(recipe.sourceType) === 'premium';
+export function usesPremiumCapability(_recipe: Pick<Recipe, 'visibility' | 'sourceType'>): boolean {
+    return false;
 }
 
 /**
@@ -418,6 +422,7 @@ export const recipeSchema = z.object({
     ratingCount: nonNegativeIntSchema,
     usesPremiumCapability: z.boolean(),
     coverPhotoUrl: z.string().url().optional(),
+    holdsPrivateFood: z.boolean().optional(),
     deletedAt: isoDateTimeStringSchema.optional(),
     createdAt: isoDateTimeStringSchema,
     updatedAt: isoDateTimeStringSchema,
@@ -484,7 +489,7 @@ export const ingredientVariantSchema = z.object({
 /**
  * A recipe ingredient line as returned on the wire (the read projection of {@link RecipeIngredient}). It
  * carries exactly what the recipe-detail UI renders: the line's `name`, the `quantity`/`unit`, an optional
- * free-form `notes` override, and `isUserEntered` (the "user-entered" badge — a line whose name the cook
+ * `displayText` (the food words the line shows) and `note`, and `isUserEntered` (the "user-entered" badge — a line whose name the cook
  * declared). Per-line nutrition and persistence ids stay server-side.
  */
 export interface RecipeIngredientView {
@@ -520,6 +525,12 @@ export interface RecipeIngredientView {
      */
     hasVariants?: boolean;
     /**
+     * Whether the line's food is private to its author or public, from food's LIVE answer on this read (ADR-0029
+     * section 4) - not the capture made at bind time, which goes stale when a food is promoted. Absent on a line the
+     * viewer may not see, on a declared line, and when food could not be asked.
+     */
+    foodVisibility?: 'private' | 'public';
+    /**
      * Why an unresolved line did not resolve (plan 002 R1, R6): a machine-readable code the client renders
      * localised copy for. Present only on an unresolved line; the server never sends its own message.
      */
@@ -527,7 +538,10 @@ export interface RecipeIngredientView {
     /** What the source stated: one value, two bounds, or nothing (U8/KTD-6). Never a bare number. */
     quantity: IngredientQuantity;
     unit?: string;
-    notes?: string;
+    /** The food text this line SHOWS (the cook's own words); absent shows the bound food's name. Never a food name. */
+    displayText?: string;
+    /** A dimension the cook wrote in parentheses after the amount ("9 inch"), shown beside the food. */
+    note?: string;
     /**
      * How this recipe prepares the food (plan U26) — `finely chopped`, `at room temperature`.
      *
@@ -581,13 +595,15 @@ export const recipeIngredientViewSchema = z.object({
     foodId: idSchema.optional(),
     variant: ingredientVariantSchema.optional(),
     hasVariants: z.boolean().optional(),
+    foodVisibility: z.enum(['private', 'public']).optional(),
     unresolvedReason: unresolvedFoodReasonSchema.optional(),
     quantity: ingredientQuantitySchema,
     unit: z.string().min(1).optional(),
-    notes: z.string().min(1).optional(),
-    // U26/U27 — `.min(1)` and NO maximum, matching `notes` above and for the same two reasons: `''` would be
+    displayText: z.string().min(1).optional(),
+    note: z.string().min(1).optional(),
+    // U26/U27 — `.min(1)` and NO maximum, matching `displayText` above and for the same two reasons: `''` would be
     // a response no client can read back, and a response must be able to carry a value persisted before the
-    // request-side bound existed (the `recipeIngredientNotesSchema` precedent). The bounds live on the
+    // request-side bound existed (the `recipeIngredientDisplayTextSchema` precedent). The bounds live on the
     // REQUEST schemas in `recipeRequestBounds.ts`.
     preparation: z.string().min(1).optional(),
     groupLabel: z.string().min(1).optional(),
@@ -858,7 +874,7 @@ export const ingredientSchema = z.object({
  * These are the canonical DOMAIN field names. The REST wire schema
  * (`RecipeIngredient` in `api.openapi.yaml`) exposes a subset under shorter
  * names — the mapping is: domain `ingredientName` ↔ wire `name`, domain
- * `displayText` ↔ wire `notes`. `quantity`/`unit`/`ingredientId` are shared.
+ * `displayText` ↔ wire `displayText`. `quantity`/`unit`/`ingredientId` are shared.
  */
 export interface RecipeIngredient {
     id: string;
@@ -867,8 +883,10 @@ export interface RecipeIngredient {
     /** What the source stated: one value, two bounds, or nothing (U8/KTD-6). Never a bare number. */
     quantity: IngredientQuantity;
     unit: string;
-    /** Free-form display override (wire field: `notes`). ⛔ Not a preparation — see {@link preparation}. */
+    /** The food text this line shows (wire field + column: `displayText` / `display_text`). ⛔ Not a preparation — see {@link preparation}. */
     displayText?: string;
+    /** A dimension the cook wrote in parentheses after the amount (wire field + column: `note`). Shown beside the food. */
+    note?: string;
     /**
      * How this recipe prepares the food (plan U26; wire field: `preparation`, column `preparation`).
      *
@@ -915,6 +933,8 @@ export const recipeIngredientSchema = z.object({
     // any recipe carrying a unitless line — see `recipe.types.test.ts`'s version-contract suite.
     unit: z.string(),
     displayText: z.string().min(1).optional(),
+    // `aggregateToSnapshot` freezes the note and the restorer reads it back; unnamed here, a parse strips it.
+    note: z.string().min(1).optional(),
     // U26/U27 — same `.min(1)`, no-maximum reasoning as the view schema above.
     preparation: z.string().min(1).optional(),
     groupLabel: z.string().min(1).optional(),
@@ -1535,6 +1555,13 @@ export const RecipeErrorCode = {
      * can hold more than the limit, and `used` says so).
      */
     PRIVATE_SLOTS_FULL: 'PRIVATE_SLOTS_FULL',
+    /**
+     * A write that would leave a recipe PUBLISHED and PUBLIC while a line is bound to a food its author keeps private
+     * (ADR-0029 section 4; owner rulings 2026-11-08). A 400, beside `PUBLISH_REQUIREMENTS_UNMET` and not a 409: a 409
+     * is a version conflict to the outbox. `details.lines` names EVERY such line by `sortOrder` and `foodId`
+     * (`privateFoodLinesDetailsSchema`); a client matches by `foodId` and breaks ties by `sortOrder`.
+     */
+    PRIVATE_FOODS_ON_PUBLIC_RECIPE: 'PRIVATE_FOODS_ON_PUBLIC_RECIPE',
 } as const;
 
 /**
@@ -1581,6 +1608,7 @@ export const recipeErrorCodeSchema = z.enum([
     RecipeErrorCode.IMPORT_CURSOR_MOVED,
     RecipeErrorCode.IMPORT_ITEM_ALREADY_SAVED,
     RecipeErrorCode.PRIVATE_SLOTS_FULL,
+    RecipeErrorCode.PRIVATE_FOODS_ON_PUBLIC_RECIPE,
 ]);
 
 /**

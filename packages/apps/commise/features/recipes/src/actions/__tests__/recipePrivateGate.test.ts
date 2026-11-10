@@ -1,6 +1,7 @@
 /**
  * THE client rule for "Private" on a RECIPE (ADR-0073; owner ruling 2026-10-26): a free cook keeps up to the server's
- * limit of recipes private, in slots; Pro has no limit; only an imported public-web recipe still needs Pro.
+ * limit of recipes private, in slots; Pro has no limit. REWRITTEN for ADR-0077 section 6 ("Any cook, using a slot"): an
+ * imported public-web recipe is under the same slots rule, so there is no premium rule left.
  *
  * Written before `recipePrivateGate.ts`. Collections keep `privateGate.ts` unchanged (their own tests pin it), so nothing
  * here may be read as a rule for a collection.
@@ -9,8 +10,8 @@
  * the out-of-slots refusal and publishing it does. The draft/published cases are the last describe blocks; the earlier ones
  * are about a recipe that is published (its standing is the server's count, unchanged).
  *
- * The cases are the rule's whole truth table: two rules (slots, premium) x the standing (unknown, unlimited, open, full)
- * x the paid-feature state, for the five questions a surface asks.
+ * The cases are the rule's truth table: two rules (slots, privateOnly) x the standing (unknown, unlimited, open, full)
+ * x the paid-feature state, for the questions a surface asks.
  */
 import { RecipeSourceType, RecipeStatus, RecipeVisibility } from '@kitchensink/recipe-core';
 import { describe, expect, it } from 'vitest';
@@ -21,10 +22,8 @@ import {
     slotStandingForRecipe,
     privateRuleForDraft,
     recipeMakePublicConsequence,
-    recipeOffersPrivate,
     recipePrivateChoice,
     recipePrivateRefusalOf,
-    showsRecipePremiumBadge,
     slotStandingOf,
     type RecipePrivateFacts,
 } from '../recipePrivateGate.js';
@@ -41,8 +40,6 @@ const UNLIMITED = { kind: 'unlimited' } as const;
 
 const slots = (standing: RecipePrivateFacts['standing'], state: RecipePrivateFacts['state'] = 'hidden') =>
     ({ rule: 'slots', standing, state }) as const satisfies RecipePrivateFacts;
-const premium = (state: RecipePrivateFacts['state']) =>
-    ({ rule: 'premium', standing: UNKNOWN, state }) as const satisfies RecipePrivateFacts;
 
 describe('slotStandingOf - the server states the number, the client never does', () => {
     it('is unknown when the read FAILED: the client does not guess a count', () => {
@@ -85,8 +82,8 @@ describe('slotStandingOf - the server states the number, the client never does',
 });
 
 describe('privateRuleForDraft - which rule a recipe is under', () => {
-    it('imported public-web recipes still need Pro (and a substantive edit, which the server judges)', () => {
-        expect(privateRuleForDraft(RecipeSourceType.IMPORTED_PUBLIC)).toBe('premium');
+    it('REWRITTEN for ADR-0077 section 6: an imported public-web recipe uses a slot like any other, no Pro needed', () => {
+        expect(privateRuleForDraft(RecipeSourceType.IMPORTED_PUBLIC)).toBe('slots');
     });
 
     it('a recipe the cook wrote uses a slot, and can go public', () => {
@@ -114,7 +111,6 @@ describe('privateOnly: a book or paid-site recipe is counted exactly as a slot r
 
     it('offers Private whatever the paid features say, and refuses it only when every slot is KNOWN used', () => {
         for (const state of STATES) {
-            expect(recipeOffersPrivate(privateOnly(OPEN, state), PUBLIC)).toBe(true);
             expect(recipePrivateChoice(privateOnly(OPEN, state), PUBLIC, PRIVATE)).toBe('apply');
             expect(recipePrivateChoice(privateOnly(UNKNOWN, state), PUBLIC, PRIVATE)).toBe('apply');
             expect(recipePrivateChoice(privateOnly(FULL, state), PUBLIC, PRIVATE)).toBe('slotsFull');
@@ -122,7 +118,6 @@ describe('privateOnly: a book or paid-site recipe is counted exactly as a slot r
 
         expect(recipePrivateRefusalOf(privateOnly(FULL))).toBe('slots');
         expect(recipePrivateRefusalOf(privateOnly(OPEN))).toBeUndefined();
-        expect(showsRecipePremiumBadge(privateOnly(FULL), PUBLIC)).toBe(false);
     });
 
     it('⛔ never promises a way back: it cannot go public, so going public frees nothing to promise', () => {
@@ -132,36 +127,9 @@ describe('privateOnly: a book or paid-site recipe is counted exactly as a slot r
     });
 });
 
-describe('recipeOffersPrivate', () => {
-    it.each(STATES.map((state) => [state]))(
-        'under the slots rule Private is ALWAYS offered, paid features or not (%s)',
-        (state) => {
-            expect(recipeOffersPrivate(slots(OPEN, state), PUBLIC)).toBe(true);
-            expect(recipeOffersPrivate(slots(FULL, state), PUBLIC)).toBe(true);
-            expect(recipeOffersPrivate(slots(UNKNOWN, state), PUBLIC)).toBe(true);
-            expect(recipeOffersPrivate(slots(LOADING, state), PUBLIC)).toBe(true);
-        },
-    );
-
-    it.each([
-        ['loading', false],
-        ['granted', true],
-        ['upsell', true],
-        ['hidden', false],
-    ] as const)('under the premium rule, for a public recipe, %s -> %s', (state, expected) => {
-        expect(recipeOffersPrivate(premium(state), PUBLIC)).toBe(expected);
-    });
-
-    it('a recipe that is already private always shows so', () => {
-        for (const state of STATES) {
-            expect(recipeOffersPrivate(premium(state), PRIVATE)).toBe(true);
-        }
-    });
-});
-
 describe('recipePrivateChoice - what choosing a visibility does', () => {
     it('Public always applies', () => {
-        for (const facts of [slots(OPEN), slots(FULL), premium('hidden'), premium('upsell')]) {
+        for (const facts of [slots(OPEN), slots(FULL)]) {
             expect(recipePrivateChoice(facts, PRIVATE, PUBLIC)).toBe('apply');
             expect(recipePrivateChoice(facts, PUBLIC, PUBLIC)).toBe('apply');
         }
@@ -183,15 +151,6 @@ describe('recipePrivateChoice - what choosing a visibility does', () => {
         expect(recipePrivateChoice(slots(OVER), PRIVATE, PRIVATE)).toBe('apply');
     });
 
-    it.each([
-        ['granted', 'apply'],
-        ['upsell', 'upsell'],
-        ['hidden', 'none'],
-        ['loading', 'none'],
-    ] as const)('Private from public under the premium rule, %s -> %s', (state, expected) => {
-        expect(recipePrivateChoice(premium(state), PUBLIC, PRIVATE)).toBe(expected);
-    });
-
     it('the paid-feature state plays no part under the slots rule', () => {
         for (const state of STATES) {
             expect(recipePrivateChoice(slots(OPEN, state), PUBLIC, PRIVATE)).toBe('apply');
@@ -202,7 +161,7 @@ describe('recipePrivateChoice - what choosing a visibility does', () => {
 
 describe('recipeMakePublicConsequence - public is NEVER final (owner ruling 2026-10-26)', () => {
     it('is none for a recipe that is not private', () => {
-        for (const facts of [slots(OPEN), slots(FULL), premium('upsell')]) {
+        for (const facts of [slots(OPEN), slots(FULL)]) {
             expect(recipeMakePublicConsequence(facts, PUBLIC)).toBe('none');
         }
     });
@@ -220,13 +179,6 @@ describe('recipeMakePublicConsequence - public is NEVER final (owner ruling 2026
         expect(recipeMakePublicConsequence(slots(UNKNOWN), PRIVATE)).toBe('none');
         expect(recipeMakePublicConsequence(slots(LOADING), PRIVATE)).toBe('none');
     });
-
-    it('under the premium rule only the upsell has a cost to state; no state ever claims it is final or unknown', () => {
-        expect(recipeMakePublicConsequence(premium('upsell'), PRIVATE)).toBe('premium');
-        expect(recipeMakePublicConsequence(premium('granted'), PRIVATE)).toBe('none');
-        expect(recipeMakePublicConsequence(premium('hidden'), PRIVATE)).toBe('none');
-        expect(recipeMakePublicConsequence(premium('loading'), PRIVATE)).toBe('none');
-    });
 });
 
 describe('recipePrivateRefusalOf - a Private the server is KNOWN to refuse', () => {
@@ -239,25 +191,16 @@ describe('recipePrivateRefusalOf - a Private the server is KNOWN to refuse', () 
         expect(recipePrivateRefusalOf(slots(LOADING))).toBeUndefined();
     });
 
-    it('under the premium rule it is the paid-feature refusal, as before', () => {
-        expect(recipePrivateRefusalOf(premium('hidden'))).toBe('final');
-        expect(recipePrivateRefusalOf(premium('upsell'))).toBe('premium');
-        expect(recipePrivateRefusalOf(premium('granted'))).toBeUndefined();
-        expect(recipePrivateRefusalOf(premium('loading'))).toBeUndefined();
-    });
-});
+    it('ADR-0077 section 6: an imported public-web recipe (rule from recipe-core) takes the slots path', () => {
+        const facts: RecipePrivateFacts = {
+            rule: privateRuleForDraft(RecipeSourceType.IMPORTED_PUBLIC),
+            standing: FULL,
+            state: 'hidden',
+        };
 
-describe('showsRecipePremiumBadge', () => {
-    it('only the premium rule under the upsell, for a recipe not already private', () => {
-        expect(showsRecipePremiumBadge(premium('upsell'), PUBLIC)).toBe(true);
-        expect(showsRecipePremiumBadge(premium('upsell'), PRIVATE)).toBe(false);
-        expect(showsRecipePremiumBadge(premium('granted'), PUBLIC)).toBe(false);
-    });
-
-    it('never under the slots rule: Private is free within the slots', () => {
-        for (const state of STATES) {
-            expect(showsRecipePremiumBadge(slots(FULL, state), PUBLIC)).toBe(false);
-        }
+        expect(recipePrivateRefusalOf(facts)).toBe('slots');
+        expect(recipePrivateChoice(facts, PUBLIC, PRIVATE)).toBe('slotsFull');
+        expect(recipePrivateChoice({ ...facts, standing: OPEN }, PUBLIC, PRIVATE)).toBe('apply');
     });
 });
 
@@ -308,12 +251,6 @@ describe('a private DRAFT never meets the out-of-slots refusal; publishing it do
 
         expect(recipePrivateRefusalOf(publishing)).toBe('slots');
         expect(recipePrivateChoice(publishing, PUBLIC, PRIVATE)).toBe('slotsFull');
-    });
-
-    it('the premium rule is not a slot rule: a draft is still refused Private for want of Pro', () => {
-        expect(recipePrivateRefusalOf({ rule: 'premium', standing: { kind: 'draft' }, state: 'upsell' })).toBe(
-            'premium',
-        );
     });
 });
 

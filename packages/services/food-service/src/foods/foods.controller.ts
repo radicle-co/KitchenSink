@@ -48,7 +48,6 @@ import {
     Query,
     Req,
     Res,
-    UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { Response } from 'express';
@@ -57,12 +56,11 @@ import { sanitizeFoodName } from '@kitchensink/recipe-core/food-name';
 import {
     FOOD_ADMIN_SCOPE,
     hasScope,
-    IDENTITY_SYNC_PENDING_CODE,
     isServicePrincipalSub,
-    resolveRequesterId,
-    type AuthenticatedPrincipal,
     type AuthenticatedRequest,
 } from '../auth/authenticatedPrincipal.js';
+import type { EditPendingResponse } from './publication.schema.js';
+import { requireId, requirePrincipal, requireRequesterId, requireUserUlid } from '../auth/requireCaller.js';
 import { apiError } from '../common/apiError.js';
 import { AdoptRateLimit, ResolveRateLimit, SearchRateLimit } from '../common/throttle/throttle.decorators.js';
 import {
@@ -72,7 +70,6 @@ import {
     type FoodNutritionBatchResponse,
 } from './foods.schema.js';
 import type { Environment } from '../config/env.schema.js';
-import { isFoodId } from '../db/ulid.js';
 import { AnsweredRoots } from './answeredRoots.js';
 import { CitedSourcesService } from './citedSources.service.js';
 import type { DataSourcesResponse } from './dataSources.schema.js';
@@ -173,12 +170,12 @@ export class FoodsController {
         // pure catalog, which is exactly right for machine callers.
         const answer = await this.foodsService.search(
             query.query,
-            this.requireRequesterId(req),
+            requireRequesterId(req),
             query.withNutrition === 'true',
         );
 
         await this.answered.hold(
-            this.requirePrincipal(req),
+            requirePrincipal(req),
             answer.results.map((hit) => hit.id),
         );
 
@@ -224,11 +221,11 @@ export class FoodsController {
         @Query() query: SearchTermQueryDto,
         @Req() req: AuthenticatedRequest,
     ): Promise<AuthoredFoodSearchResponse> {
-        if (isServicePrincipalSub(this.requirePrincipal(req).sub)) {
+        if (isServicePrincipalSub(requirePrincipal(req).sub)) {
             return { results: [] };
         }
 
-        return this.foodsService.searchAuthored(query.query, this.requireUserUlid(req));
+        return this.foodsService.searchAuthored(query.query, requireUserUlid(req));
     }
 
     /**
@@ -260,8 +257,8 @@ export class FoodsController {
         @Req() req: AuthenticatedRequest,
         @Res() res: Response,
     ): Promise<void> {
-        const requesterId = this.requireRequesterId(req);
-        const authorId = isServicePrincipalSub(this.requirePrincipal(req).sub) ? undefined : requesterId;
+        const requesterId = requireRequesterId(req);
+        const authorId = isServicePrincipalSub(requirePrincipal(req).sub) ? undefined : requesterId;
         const caller = new AbortController();
 
         res.on('close', () => {
@@ -276,7 +273,7 @@ export class FoodsController {
                     term: query.query,
                     requesterId,
                     authorId,
-                    audience: this.requirePrincipal(req),
+                    audience: requirePrincipal(req),
                     signal: caller.signal,
                 },
                 {
@@ -330,7 +327,7 @@ export class FoodsController {
         @Req() req: AuthenticatedRequest,
         @Res({ passthrough: true }) res: Response,
     ): Promise<FoodResponse> {
-        const result = await this.foodsService.createAuthored(this.requireUserUlid(req), body);
+        const result = await this.foodsService.createAuthored(requireUserUlid(req), body);
         res.status(HttpStatus.CREATED);
 
         return result;
@@ -367,7 +364,7 @@ export class FoodsController {
     @Post('authored/test-purge')
     @HttpCode(HttpStatus.OK)
     public async purgeTestPrincipalFoods(@Req() req: AuthenticatedRequest): Promise<AuthoredFoodTestPurgeResponse> {
-        const verdict = evaluateTestPurgeAccess(this.requirePrincipal(req));
+        const verdict = evaluateTestPurgeAccess(requirePrincipal(req));
 
         if (verdict.kind === 'not-found') {
             throw unroutedNotFound(req);
@@ -383,9 +380,9 @@ export class FoodsController {
         @Req() req: AuthenticatedRequest,
         @Res({ passthrough: true }) res: Response,
     ): Promise<AddResponse> {
-        const result = await this.foodsService.addByName(this.visibleName(body.name), this.requireRequesterId(req));
+        const result = await this.foodsService.addByName(this.visibleName(body.name), requireRequesterId(req));
 
-        await this.answered.hold(this.requirePrincipal(req), idsOfAdd(result));
+        await this.answered.hold(requirePrincipal(req), idsOfAdd(result));
         res.status(HttpStatus.ACCEPTED);
 
         return result;
@@ -396,9 +393,9 @@ export class FoodsController {
     public async batch(@Body() body: BatchAddFoodBodyDto, @Req() req: AuthenticatedRequest): Promise<BatchResponse> {
         const names = this.boundedNames(body.names);
 
-        const answer = await this.foodsService.batchAdd(names, this.requireRequesterId(req));
+        const answer = await this.foodsService.batchAdd(names, requireRequesterId(req));
 
-        await this.answered.hold(this.requirePrincipal(req), idsOfBatch(answer));
+        await this.answered.hold(requirePrincipal(req), idsOfBatch(answer));
 
         return answer;
     }
@@ -428,8 +425,8 @@ export class FoodsController {
         @Body() body: ResolveFoodRefsBodyDto,
         @Req() req: AuthenticatedRequest,
     ): Promise<ResolveFoodRefsResponse> {
-        const requesterId = this.requireRequesterId(req);
-        const principal = this.requirePrincipal(req);
+        const requesterId = requireRequesterId(req);
+        const principal = requirePrincipal(req);
 
         // The refs are what a recipe line binds, so they are held BEFORE the read: a root the purge already took is then
         // answered `absent`, and one it has not is held for good. What the read adds (a forward target) is held after.
@@ -471,7 +468,7 @@ export class FoodsController {
         @Body() body: AdoptRemoteFoodBodyDto,
         @Req() req: AuthenticatedRequest,
     ): Promise<AdoptRemoteFoodResponse> {
-        const { sub, userId, testPrincipal } = this.requirePrincipal(req);
+        const { sub, userId, testPrincipal } = requirePrincipal(req);
 
         return this.adoptRemote.execute(body.reference, { sub, userId, testPrincipal });
     }
@@ -505,10 +502,7 @@ export class FoodsController {
         @Query() query: FoodNutritionQueryDto,
         @Req() req: AuthenticatedRequest,
     ): Promise<FoodNutritionBatchResponse> {
-        return this.foodsService.getAuthoredNutritionBatch(
-            this.requireNutritionIds(query.ids),
-            this.requireUserUlid(req),
-        );
+        return this.foodsService.getAuthoredNutritionBatch(this.requireNutritionIds(query.ids), requireUserUlid(req));
     }
 
     @Get('nutrition')
@@ -525,10 +519,10 @@ export class FoodsController {
     @Get(':id/status')
     @Header('Cache-Control', 'private, no-store')
     public async getStatus(@Param('id') id: string, @Req() req: AuthenticatedRequest): Promise<StatusResponse> {
-        this.requireId(id);
-        const requesterId = this.requireRequesterId(req);
+        requireId(id);
+        const requesterId = requireRequesterId(req);
 
-        await this.answered.hold(this.requirePrincipal(req), [id]);
+        await this.answered.hold(requirePrincipal(req), [id]);
 
         const answer = await this.foodsService.getStatus(id, requesterId);
 
@@ -545,10 +539,10 @@ export class FoodsController {
     @Get(':id/candidates')
     @Header('Cache-Control', 'private, no-store')
     public async getCandidates(@Param('id') id: string, @Req() req: AuthenticatedRequest): Promise<CandidatesResponse> {
-        this.requireId(id);
-        const requesterId = this.requireRequesterId(req);
+        requireId(id);
+        const requesterId = requireRequesterId(req);
 
-        await this.answered.hold(this.requirePrincipal(req), [id]);
+        await this.answered.hold(requirePrincipal(req), [id]);
 
         return this.foodsService.getCandidates(id, requesterId);
     }
@@ -562,7 +556,7 @@ export class FoodsController {
     @Post(':id/corroborated')
     @HttpCode(HttpStatus.OK)
     public async corroborated(@Param('id') id: string): Promise<CorroboratedResponse> {
-        this.requireId(id);
+        requireId(id);
 
         return this.foodsService.corroborateFood(id);
     }
@@ -579,9 +573,9 @@ export class FoodsController {
             throw apiError('FORBIDDEN', 'Operation requires elevated scope');
         }
 
-        this.requireId(id);
+        requireId(id);
 
-        const result = await this.foodsService.refetch(id, this.requireRequesterId(req));
+        const result = await this.foodsService.refetch(id, requireRequesterId(req));
         res.status(HttpStatus.ACCEPTED);
 
         return result;
@@ -606,7 +600,7 @@ export class FoodsController {
         @Body() body: ResolveFoodBodyDto,
         @Res({ passthrough: true }) res: Response,
     ): Promise<ResolveResponse> {
-        this.requireId(id);
+        requireId(id);
 
         const result = await this.foodsService.patchResolve(id, body.candidateIds);
         res.status(HttpStatus.OK);
@@ -618,17 +612,24 @@ export class FoodsController {
     /**
      * `PUT /api/v1/foods/{id}` — full replacement of an AUTHORED food (plan U10). Authorization is the
      * pure `authorshipPolicy`, evaluated in the service BEFORE anything else touches the row: stranger +
-     * private → 404, stranger + promoted → 403, pipeline food → 409 `NOT_EDITABLE`.
+     * private → 404, stranger + promoted → 403, pipeline food → 409 `NOT_EDITABLE`. A PRIVATE food answers `200`
+     * with the food; a PUBLIC food answers `202 { publication: { state: 'editPending', versionNumber } }` (ADR-0029 §7).
      */
     @Put(':id')
     public async updateAuthored(
         @Param('id') id: string,
         @Body() body: UpdateAuthoredFoodBodyDto,
         @Req() req: AuthenticatedRequest,
-    ): Promise<FoodResponse> {
-        this.requireId(id);
+        @Res({ passthrough: true }) res: Response,
+    ): Promise<FoodResponse | EditPendingResponse> {
+        requireId(id);
 
-        return this.foodsService.updateAuthored(this.requireUserUlid(req), id, body);
+        const result = await this.foodsService.updateAuthored(requireUserUlid(req), id, body);
+
+        // ADR-0029 §7: an edit of a PUBLIC food is accepted, not applied — `202`, and the live food is unchanged.
+        res.status(isEditPending(result) ? HttpStatus.ACCEPTED : HttpStatus.OK);
+
+        return result;
     }
 
     /**
@@ -641,8 +642,8 @@ export class FoodsController {
     @Delete(':id')
     @HttpCode(HttpStatus.NO_CONTENT)
     public async deleteAuthored(@Param('id') id: string, @Req() req: AuthenticatedRequest): Promise<void> {
-        this.requireId(id);
-        await this.foodsService.deleteAuthored(this.requireUserUlid(req), id);
+        requireId(id);
+        await this.foodsService.deleteAuthored(requireUserUlid(req), id);
     }
 
     @Get(':id')
@@ -652,12 +653,12 @@ export class FoodsController {
         @Req() req: AuthenticatedRequest,
         @Res({ passthrough: true }) res: Response,
     ): Promise<FoodResponse | PendingResponse> {
-        this.requireId(id);
-        const requesterId = this.requireRequesterId(req);
+        requireId(id);
+        const requesterId = requireRequesterId(req);
 
         // Held BEFORE the read (ADR-0040): a root the purge already took then reads as missing, and one it has not is
         // held for good, so no answer, `202` included, leaves an id the purge can still delete.
-        await this.answered.hold(this.requirePrincipal(req), [id]);
+        await this.answered.hold(requirePrincipal(req), [id]);
 
         try {
             // The requester key feeds the authorship gate (plan U10): a stranger reading a PRIVATE
@@ -696,71 +697,7 @@ export class FoodsController {
         answered: readonly string[],
     ): Promise<void> {
         if (answered.some((answeredId) => answeredId !== requestedId)) {
-            await this.answered.hold(this.requirePrincipal(req), [...answered]);
-        }
-    }
-
-    /**
-     * Resolve the requester key to record in `fetch_requesters` for an enqueue path (CR-002/U1/R5): the
-     * app-user ULID for a user principal, or the `svc_*` id for a service principal. DEFERS with a
-     * `401 { code: IDENTITY_SYNC_PENDING }` when a user token's `external_id` has not synced yet — the
-     * caller MUST retry with a refreshed token, and we NEVER fall back to the raw Clerk `sub` (which
-     * would re-introduce the pre-U1 keying and fail provenance downstream anyway).
-     *
-     * @param req - The guard-authenticated request.
-     * @returns The resolved requester key.
-     * @throws (→ 401) when `req.user` is absent (defensive) or the app-user ULID is not yet available (the
-     *   first-token sync race, `IDENTITY_SYNC_PENDING`).
-     */
-    private requireRequesterId(req: AuthenticatedRequest): string {
-        const principal = this.requirePrincipal(req);
-        const resolution = resolveRequesterId(principal);
-
-        if (resolution.status === IDENTITY_SYNC_PENDING_CODE) {
-            // `IDENTITY_SYNC_PENDING_CODE` is `auth/authenticatedPrincipal.ts`'s constant and `apiError` takes a
-            // PUBLISHED `FoodErrorCode`, so the two agreeing is a `typecheck` obligation rather than a
-            // convention: change the auth constant's string and this line stops compiling.
-            throw apiError(
-                IDENTITY_SYNC_PENDING_CODE,
-                'App-user identity (external_id) not yet available; retry with a refreshed token.',
-            );
-        }
-
-        return resolution.requesterId;
-    }
-
-    /**
-     * The requester key, narrowed to a PERSON (plan U10): the authored-food routes take a user's app ULID
-     * and refuse a `svc_*` service principal with `403` — authored rows belong to people, and a service
-     * writing one would put un-attributable content behind a person-shaped column.
-     *
-     * @param req - The guard-authenticated request.
-     * @returns The caller's app-user ULID.
-     * @throws (→ 401) the {@link requireRequesterId} cases; (→ 403) for a service principal.
-     */
-    private requireUserUlid(req: AuthenticatedRequest): string {
-        const requesterId = this.requireRequesterId(req);
-
-        if (requesterId.startsWith('svc_')) {
-            throw apiError('FORBIDDEN', 'Authored foods belong to user accounts, not service principals.');
-        }
-
-        return requesterId;
-    }
-
-    /** Narrow the guard-populated principal, failing closed with `401` if somehow absent. */
-    private requirePrincipal(req: AuthenticatedRequest): AuthenticatedPrincipal {
-        if (!req.user) {
-            throw new UnauthorizedException('Valid Clerk session or M2M token required');
-        }
-
-        return req.user;
-    }
-
-    /** Validate the `id` path param is a structurally valid ULID (FR-006) → else `400`. */
-    private requireId(id: string): void {
-        if (!isFoodId(id)) {
-            throw apiError('INVALID_ID', 'The id is not a valid food (ingredient) ULID');
+            await this.answered.hold(requirePrincipal(req), [...answered]);
         }
     }
 
@@ -854,4 +791,9 @@ export class FoodsController {
 
         return name;
     }
+}
+
+/** Is this the `202` body of an edit that waits for staff, rather than the food? Pure. */
+function isEditPending(result: FoodResponse | EditPendingResponse): result is EditPendingResponse {
+    return 'publication' in result;
 }

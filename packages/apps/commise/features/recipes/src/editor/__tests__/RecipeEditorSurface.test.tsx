@@ -13,7 +13,7 @@
 import { LocaleProvider } from '@commise/i18n/react';
 import { makeQuietFoodClient } from '@commise/test-utils';
 import { FoodServiceProvider } from '@kitchensink/food-service-client/hooks';
-import { RecipeStatus } from '@kitchensink/recipe-core';
+import { RecipeStatus, RecipeVisibility } from '@kitchensink/recipe-core';
 import { RecipeServiceProvider } from '@kitchensink/recipe-service-client/hooks';
 import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-client/testing';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -25,9 +25,14 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { PaidFeatureState } from '@commise/features-account';
 
 import { makeFakeEditorWritePort } from '../../__fixtures__/editorWritePort.js';
-import { makeIngredientView, makeRecipeDetail } from '../../__fixtures__/index.js';
+import {
+    makeFilledRecipeFormValues,
+    makeIngredientView,
+    makeRecipeDetail,
+    withLineKeys,
+} from '../../__fixtures__/index.js';
 import { recipeFormMessages } from '../../form/messages.js';
-import type { EditorSeed, PublishBlocked } from '../../hooks/useRecipeEditor.js';
+import type { EditorSeed, PublishBlocked, UseRecipeEditorResult } from '../../hooks/useRecipeEditor.js';
 import type { DraftStore } from '../draftStore.js';
 import type { IngredientsPaste } from '../useIngredientsPaste.js';
 import { RecipeEditorSurface } from '../RecipeEditorSurface.js';
@@ -59,6 +64,10 @@ interface HarnessProps {
         readonly keepAsDraft: () => void;
         readonly publishAsPublic: () => void;
     };
+    /** Fields of the editor result the session would otherwise compute (a parked write, the draft). */
+    readonly editorOver?: Partial<UseRecipeEditorResult>;
+    /** The app's way to open a food's page (private foods spec D6). */
+    readonly onOpenFood?: (foodId: string) => void;
 }
 
 /** The surface over a real session, as an app's container mounts it. */
@@ -85,6 +94,7 @@ function Harness(props: HarnessProps): ReactElement {
                 ...(props.openChoices === undefined
                     ? {}
                     : { paste: { ...session.paste, openChoices: props.openChoices } }),
+                ...(props.editorOver === undefined ? {} : { editor: { ...session.editor, ...props.editorOver } }),
                 ...(props.publishBlocked === undefined
                     ? {}
                     : {
@@ -106,6 +116,7 @@ function Harness(props: HarnessProps): ReactElement {
             renderPhotos={renderPhotos}
             onClose={onClose}
             onOpenMyRecipes={onOpenMyRecipes}
+            {...(props.onOpenFood === undefined ? {} : { onOpenFood: props.onOpenFood })}
         />
     );
 }
@@ -230,22 +241,17 @@ describe('RecipeEditorSurface — the Private choice', () => {
         expect(screen.getByRole('radio', { name: /private/i })).toBeTruthy();
     });
 
-    // REWRITTEN for the owner ruling of 2026-10-26: an imported public-web recipe with paid features hidden shows Private
-    // REFUSED (aria-disabled, still focusable, the reason as its description) instead of leaving the card out, so the
-    // publish-time ask never has to appear for it.
-    it('⛔ shows Private refused, with the reason, for an imported public-web recipe when paid features are hidden', () => {
+    // REWRITTEN for ADR-0077 section 6: an imported public-web recipe is under the slots rule, so with paid features hidden
+    // Private is OFFERED, not refused (it used to be aria-disabled with "can only be public").
+    it('⛔ offers Private, not refused, for an imported public-web recipe when paid features are hidden', () => {
         const recipe = makeRecipeDetail({ sourceType: 'imported_public', visibility: 'public' });
 
         mount({ seed: { recipe }, paidFeatures: 'hidden', knownPaidFeatures: 'hidden' });
 
         const card = screen.getByRole('radio', { name: /private/i });
 
-        expect(card.getAttribute('aria-disabled')).toBe('true');
-        expect(card.hasAttribute('disabled')).toBe(false);
-        expect(screen.getAllByText('Not available. A recipe from a public web page can only be public.').length).toBe(
-            1,
-        );
-        expect(screen.queryByRole('dialog', { name: /can.t be private yet/u })).toBeNull();
+        expect(card.getAttribute('aria-disabled')).toBeNull();
+        expect(screen.queryByText('Not available. A recipe from a public web page can only be public.')).toBeNull();
     });
 
     // REWRITTEN for the owner ruling of 2026-10-26 (ADR-0073 section 12): a DRAFT holds no slot. These two cases used a new
@@ -417,10 +423,10 @@ describe('RecipeEditorSurface — Publish asks about the paste’s open lines (R
 });
 
 describe('RecipeEditorSurface — the blocked-publish dialog', () => {
-    it.each([
-        [{ kind: 'noSlot' }, 'Your private slots are full'],
-        [{ kind: 'webImport', refusal: 'premium' }, 'This recipe can’t be private yet'],
-    ] as const)('shows %j while the editor stands it, wired to the editor’s two answers', async (ask, title) => {
+    // REWRITTEN for ADR-0077 section 6: the `webImport` ask is gone; only the slots ask remains.
+    it('shows the slots ask while the editor stands it, wired to the editor’s two answers', async () => {
+        const ask = { kind: 'noSlot' } as const;
+        const title = 'Your private slots are full';
         const user = userEvent.setup();
         const keepAsDraft = vi.fn();
         const publishAsPublic = vi.fn();
@@ -441,5 +447,99 @@ describe('RecipeEditorSurface — the blocked-publish dialog', () => {
         mount();
 
         expect(screen.queryByRole('dialog', { name: /private slots are full|can.t be private yet/u })).toBeNull();
+    });
+});
+
+describe('RecipeEditorSurface — the refusal of a private food in a public recipe (F6, revision 4)', () => {
+    const LINE = {
+        isUserEntered: false,
+        ingredientId: '00000000-0000-4000-8000-000000000001',
+        foodId: 'food_spice',
+        name: 'My spice mix',
+        quantity: 2,
+        unit: 'tbsp',
+        foodVisibility: 'private' as const,
+    };
+    const publicDraft = (visibility: RecipeVisibility = RecipeVisibility.PUBLIC) =>
+        makeFilledRecipeFormValues({ visibility, ingredients: withLineKeys([LINE]) });
+    // What `useRecipeEditor` holds once the server refused the write: the write is already dropped, so nothing is parked.
+    const refusal = { lines: [{ sortOrder: 0, foodId: 'food_spice' }], count: 1 } as const;
+
+    const open = (over: Partial<HarnessProps> = {}) => {
+        const setValues = vi.fn();
+        const retry = vi.fn();
+        const publish = vi.fn();
+        const onOpenFood = vi.fn();
+        const view = mount({
+            editorOver: { values: publicDraft(), privateFoodRefusal: refusal, setValues, retry, publish },
+            onOpenFood,
+            ...over,
+        });
+
+        return { ...view, setValues, retry, publish, onOpenFood };
+    };
+
+    const sheetName = 'This recipe can’t be public yet';
+
+    it('⛔ a refusal of a private food opens the sheet, naming the line', () => {
+        open();
+        const dialog = screen.getByRole('dialog', { name: sheetName });
+
+        expect(within(dialog).getByText(/1 ingredient uses a food only you can see/u)).toBeTruthy();
+        expect(within(dialog).getByText('2 tbsp')).toBeTruthy();
+        expect(within(dialog).getByText('My spice mix')).toBeTruthy();
+    });
+
+    it('⛔ shows no save-failure notice and no Try again: the refused write is dropped, not parked', () => {
+        open();
+
+        expect(screen.queryByText(/We couldn.t save your latest changes/u)).toBeNull();
+        expect(screen.queryByRole('button', { name: 'Try again', hidden: true })).toBeNull();
+    });
+
+    it('Open food opens that food through the app, and the sheet stays', async () => {
+        const { onOpenFood } = open();
+
+        await userEvent.click(
+            screen.getByRole('button', { name: /^Open food: .*My spice mix.*, opens in a new tab$/u }),
+        );
+
+        expect(onOpenFood).toHaveBeenCalledExactlyOnceWith('food_spice');
+        expect(screen.getByRole('dialog', { name: sheetName })).toBeTruthy();
+    });
+
+    it('Publish as private moves the draft to Private and sends the draft as it now is, in one step', async () => {
+        const { setValues, publish, retry } = open();
+
+        await userEvent.click(screen.getByRole('button', { name: 'Publish as private' }));
+
+        expect(setValues).toHaveBeenCalledWith(expect.objectContaining({ visibility: RecipeVisibility.PRIVATE }));
+        expect(publish).toHaveBeenCalledOnce();
+        expect(retry).not.toHaveBeenCalled();
+    });
+
+    it('Back to editor closes the sheet and sends nothing', async () => {
+        const { setValues, publish, retry } = open();
+
+        await userEvent.click(screen.getByRole('button', { name: 'Back to editor' }));
+
+        await waitFor(() => expect(screen.queryByRole('dialog', { name: sheetName })).toBeNull());
+        expect(setValues).not.toHaveBeenCalled();
+        expect(publish).not.toHaveBeenCalled();
+        expect(retry).not.toHaveBeenCalled();
+    });
+
+    it('opens nothing without a refusal, and nothing once the refused food is out of the draft', () => {
+        mount({ editorOver: { values: publicDraft() } });
+        expect(screen.queryByRole('dialog', { name: sheetName })).toBeNull();
+        cleanup();
+
+        mount({
+            editorOver: {
+                values: makeFilledRecipeFormValues({ ingredients: [] }),
+                privateFoodRefusal: refusal,
+            },
+        });
+        expect(screen.queryByRole('dialog', { name: sheetName })).toBeNull();
     });
 });

@@ -77,11 +77,11 @@ const accounts: readonly ColumnAccount[] = [
             'the erasure sweep on kept foods; never a wire field.',
     },
     {
-        table: 'food_promotions',
-        column: 'data_fingerprint',
+        table: 'food_publication_requests',
+        column: 'food_version_number',
         why:
-            'A server-computed SHA-256 hex (0015, plan U12) — `promotionFingerprint` derives it from the ' +
-            'contributing foods; exactly 64 chars by construction, never a wire field.',
+            'Names an existing food_versions row (0028): the service reads it from the food, never from a wire ' +
+            'field, and a composite FK rejects a version the food never had.',
     },
     {
         table: 'catalog_seed_ledger',

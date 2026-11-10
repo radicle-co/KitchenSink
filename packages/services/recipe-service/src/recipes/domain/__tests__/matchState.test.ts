@@ -123,8 +123,8 @@ describe('matchStateOf: a spent AI budget surfaces every food', () => {
             { state: 'confident', reason: 'reviewVerified' },
         ],
         [
-            'the control: the same exact-name proposal with the budget NOT spent is confident',
-            facts({ proposal: { matchedBy: 'lexical', rung: 'exact' } }),
+            'the control: the same exact-name proposal with the budget NOT spent, its review given up on, is confident',
+            facts({ proposal: { matchedBy: 'lexical', rung: 'exact' }, review: 'exhausted' }),
             { state: 'confident', reason: 'exactName' },
         ],
     ])('%s', (_label, input, expected) => {
@@ -162,17 +162,27 @@ describe('matchStateOf — the truth table', () => {
         ],
         [
             'a CURATED mapping is a match, so it wins over the default (owner ruling 5)',
-            facts({ proposal: { matchedBy: 'curated', rung: null }, defaultApplies: true }),
+            facts({ proposal: { matchedBy: 'curated', rung: null }, defaultApplies: true, verdict: VERIFIED }),
             { state: 'confident', reason: 'curatedMapping' },
         ],
         [
             "a CURATED mapping that names the default food is still a person's decision",
-            facts({ proposal: { matchedBy: 'curated', rung: null }, defaultApplies: true, proposalIsDefault: true }),
+            facts({
+                proposal: { matchedBy: 'curated', rung: null },
+                defaultApplies: true,
+                proposalIsDefault: true,
+                verdict: VERIFIED,
+            }),
             { state: 'confident', reason: 'curatedMapping' },
         ],
         [
             'a MEMO of another food is a match, so it wins over the default (owner ruling 5)',
-            facts({ proposal: { matchedBy: 'memo', rung: null }, defaultApplies: true, proposalIsDefault: false }),
+            facts({
+                proposal: { matchedBy: 'memo', rung: null },
+                defaultApplies: true,
+                proposalIsDefault: false,
+                verdict: VERIFIED,
+            }),
             { state: 'confident', reason: 'rememberedMatch' },
         ],
         [
@@ -192,25 +202,35 @@ describe('matchStateOf — the truth table', () => {
         ],
         // 3. Curated.
         [
-            'a curated mapping',
+            'a curated mapping the gate verified',
+            facts({ proposal: { matchedBy: 'curated', rung: null }, verdict: VERIFIED }),
+            { state: 'confident', reason: 'curatedMapping' },
+        ],
+        [
+            '⛔ a curated mapping whose review is still owed is CHECKING (owner ruling 2026-11-08, Q1)',
             facts({ proposal: { matchedBy: 'curated', rung: null } }),
-            { state: 'confident', reason: 'curatedMapping' },
+            { state: 'checking', reason: 'awaitingReview' },
         ],
         [
-            '⛔ a curated mapping the gate CONTRADICTED stays confident, with a review note',
+            '⛔ a curated mapping the gate CONTRADICTED needs a choice, and keeps the review note for curation',
             facts({ proposal: { matchedBy: 'curated', rung: null }, verdict: CONTRADICTED }),
-            { state: 'confident', reason: 'curatedMapping', reviewNote: 'reviewDisagreed' },
+            { state: 'needsChoice', reason: 'reviewContradicted', reviewNote: 'reviewDisagreed' },
         ],
         [
-            'a curated mapping the gate abstained on stays confident, with no note',
+            'a curated mapping the gate abstained on needs a choice, with no note',
             facts({ proposal: { matchedBy: 'curated', rung: null }, verdict: ABSTAINED }),
-            { state: 'confident', reason: 'curatedMapping' },
+            { state: 'needsChoice', reason: 'reviewAbstained' },
         ],
         // 4 and 5. Memo.
         [
-            'a memo',
-            facts({ proposal: { matchedBy: 'memo', rung: null } }),
+            'a memo the gate verified',
+            facts({ proposal: { matchedBy: 'memo', rung: null }, verdict: VERIFIED }),
             { state: 'confident', reason: 'rememberedMatch' },
+        ],
+        [
+            '⛔ a memo whose review is still owed is CHECKING: the verdict that lands can turn it into a choice (2026-11-08)',
+            facts({ proposal: { matchedBy: 'memo', rung: null } }),
+            { state: 'checking', reason: 'awaitingReview' },
         ],
         [
             '⛔ a memo the gate CONTRADICTED needs a choice',
@@ -218,9 +238,9 @@ describe('matchStateOf — the truth table', () => {
             { state: 'needsChoice', reason: 'reviewContradicted' },
         ],
         [
-            'a memo the gate abstained on stays confident',
+            '⛔ a memo the gate abstained on needs a choice: a saved line would badge AMBIGUOUS (2026-11-08)',
             facts({ proposal: { matchedBy: 'memo', rung: null }, verdict: ABSTAINED }),
-            { state: 'confident', reason: 'rememberedMatch' },
+            { state: 'needsChoice', reason: 'reviewAbstained' },
         ],
         // 6. Lexical, with a verdict.
         [
@@ -310,9 +330,9 @@ describe('matchStateOf — the truth table', () => {
             { state: 'needsChoice', reason: 'reviewUnchecked' },
         ],
         [
-            'an EXACT-name proposal awaiting the gate is confident (ruling 3)',
+            '⛔ an EXACT-name proposal awaiting the gate is CHECKING, not confident (2026-11-08; ruling 3 still holds once the review is refused, gave up or was never sent)',
             facts({ proposal: { matchedBy: 'lexical', rung: 'exact' } }),
-            { state: 'confident', reason: 'exactName' },
+            { state: 'checking', reason: 'awaitingReview' },
         ],
         [
             'Q: an EXACT-name proposal whose review the gate GAVE UP on is still confident (owner: an exact name is)',

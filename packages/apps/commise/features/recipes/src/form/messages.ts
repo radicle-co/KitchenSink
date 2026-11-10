@@ -111,8 +111,6 @@ export interface RecipeFormMessages {
         readonly kindOfDish: string;
         readonly dietAndTags: string;
     };
-    /** The badge on the Private choice for a cook whose plan does not include private recipes. */
-    readonly premiumBadge: string;
     /** The Paste steps sheet's close control (house form "Close {thing}"); the sheet's other copy is `editorMessages.steps`. */
     readonly pasteStepsClose: string;
     /** Label for the read-only computed total-time value. */
@@ -266,10 +264,28 @@ export interface RecipeFormMessages {
     readonly rowUnitListLabel: string;
     /** `row.prepLabel`. */
     readonly rowPrepLabel: string;
+    /** The row editor's "Name on the recipe" (the line's `displayText`): empty shows the matched food's name. */
+    readonly rowDisplayTextLabel: string;
+    /** The row editor's "Note" (the line's `note`). */
+    readonly rowNoteLabel: string;
+    /** The Note field's placeholder: an example of a dimension. */
+    readonly rowNotePlaceholder: string;
+    /** The row editor's label for the matched food, above the food line and Change. */
+    readonly rowCountedAsLabel: string;
+    /** A row's quiet second line when it shows the cook's own words. Holds `{food}`. */
+    readonly rowCountedAs: string;
+    /** The same slot's line when the matched food counts nothing (a food the cook may not see). */
+    readonly rowNotCounted: string;
     /** `row.change`: the row editor's Change, beside the food. */
     readonly rowChange: string;
     /** `row.foodDetails`, in the `⋯` and in the row editor. */
     readonly rowFoodDetails: string;
+    /** `⋯` Open food: the page of a food only the cook can see (private foods spec D6). */
+    readonly rowOpenFood: string;
+    /** The quiet badge of a private food in a private recipe. */
+    readonly rowPrivateFoodBadge: string;
+    /** The attention line of a private food in a PUBLIC recipe. */
+    readonly rowPrivateFoodInPublic: string;
     /** The food line in the row editor when food publishes calories. Holds `{food}` and `{cal}`. */
     readonly rowFoodCalories: string;
     /** The Food details sheet's close control. Holds `{food}`. */
@@ -681,7 +697,6 @@ export const recipeFormMessages: LocalizedMessages<RecipeFormMessages> = {
             kindOfDish: 'Kind of dish',
             dietAndTags: 'Diet and tags',
         },
-        premiumBadge: 'Pro',
         pasteStepsClose: 'Close paste steps',
         totalTimeLabel: 'Total time',
         durationMinutes: '{minutes} min',
@@ -745,8 +760,17 @@ export const recipeFormMessages: LocalizedMessages<RecipeFormMessages> = {
         rowUnitLabel: 'Unit',
         rowUnitListLabel: 'Units',
         rowPrepLabel: 'Preparation',
+        rowDisplayTextLabel: 'Name on the recipe',
+        rowNoteLabel: 'Note',
+        rowNotePlaceholder: 'For example, 9 inch',
+        rowCountedAsLabel: 'Counted as',
+        rowCountedAs: 'Counted as {food}',
+        rowNotCounted: 'Not counted',
         rowChange: 'Change',
         rowFoodDetails: 'Food details',
+        rowOpenFood: 'Open food',
+        rowPrivateFoodBadge: 'Private food',
+        rowPrivateFoodInPublic: 'Private food. A public recipe can’t use it.',
         rowFoodCalories: '{food} · {cal} cal per 100 g',
         rowFoodDetailsClose: 'Close food details for {food}',
         rowMoveToGroup: 'Move to group…',

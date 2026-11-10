@@ -3,7 +3,7 @@
  *
  * A deployed Maestro run creates `SEED_WORLD` (`@kitchensink/e2e-seed`) over HTTP, but the flows were written against
  * recipe-service's `seed.ts` and cite it as the authority for what they assert: `servingScale.yaml`'s 2 servings and
- * 10/10/20 minutes, `listDetail.yaml`'s lamb, the "3 recipes" several flows wait for. So this asserts two things:
+ * 10/10/20 minutes, `listDetail.yaml`'s lamb, the "4 recipes" several flows wait for. So this asserts two things:
  *
  *   - every `SEED_WORLD` recipe agrees with the `seed.ts` recipe of the same title on every field its definition
  *     declares. The compared set is that TYPE's fields, not a list kept here: the fixture world's reason to change is

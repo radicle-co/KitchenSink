@@ -29,6 +29,8 @@ const CHROME = {
         collectionDetail: 'Collection',
         profile: 'Profile',
         dataSources: 'Data sources',
+        food: 'Food',
+        yourFoods: 'Your foods',
         notFound: 'Page not found',
     },
 };

@@ -56,7 +56,7 @@ interface ShellRoute {
     /** The page's own arguments (Next passes promises). */
     readonly props: () => unknown;
     /** The destination the shell must highlight. */
-    readonly activeId: HomeNavItemId;
+    readonly activeId: HomeNavItemId | null;
     /** The surface the top bar must name (never the hard-coded 'Home' this replaced). */
     readonly titleId: ShellSurfaceId;
 }
@@ -105,6 +105,20 @@ const shellRoutes: readonly ShellRoute[] = [
         props: idParams,
         activeId: 'recipes',
         titleId: 'recipeVersions',
+    },
+    {
+        path: '/[locale]/foods',
+        load: () => import('../[locale]/foods/page'),
+        props: localeParams,
+        activeId: null,
+        titleId: 'yourFoods',
+    },
+    {
+        path: '/[locale]/foods/[foodId]',
+        load: () => import('../[locale]/foods/[foodId]/page'),
+        props: () => ({ params: Promise.resolve({ locale: 'en', foodId: '01JFOOD0000000000000000001' }) }),
+        activeId: null,
+        titleId: 'food',
     },
     {
         path: '/[locale]/discover',

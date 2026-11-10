@@ -524,11 +524,14 @@ describe('FoodSearchDao.searchCatalog / searchAuthored — the split statements 
         expectTypeOf<keyof CatalogSearchHit>().toEqualTypeOf<'id' | 'name' | 'aliases' | 'score' | 'rung'>();
     });
 
-    it('⛔ reads catalog rows only: `user_id IS NULL`, live, RESOLVED — and no author branch', async () => {
+    it('⛔ reads world-readable rows only (catalog + promoted): live, RESOLVED — and no author branch', async () => {
         const [statement, ...rest] = await statementsOf((dao) => dao.searchCatalog('chicken breast'));
 
         expect(rest).toHaveLength(0);
-        expect(scopeOf(statement!)).toBe(" WHERE status = 'RESOLVED' AND food.retired_at IS NULL AND user_id IS NULL");
+        expect(scopeOf(statement!)).toMatch(
+            /^ WHERE status = 'RESOLVED' AND food\.retired_at IS NULL AND \(user_id IS NULL OR visibility = \$\d+\)$/,
+        );
+        expect(statement!.params).toContain('promoted');
         expect(statement!.text).not.toMatch(/user_id =/);
     });
 
@@ -537,7 +540,12 @@ describe('FoodSearchDao.searchCatalog / searchAuthored — the split statements 
         const [perCaller] = await statementsOf((dao) => dao.search('chicken breast', CALLER));
 
         expect(stringParams(perCaller!)).toContain(CALLER);
-        expect(stringParams(catalog!).every((param) => param.includes('chicken') || param === 'breast')).toBe(true);
+        // `promoted` is the one constant the world-readable scope binds; every other value derives from the query.
+        expect(
+            stringParams(catalog!).every(
+                (param) => param.includes('chicken') || param === 'breast' || param === 'promoted',
+            ),
+        ).toBe(true);
     });
 
     it('ranks with the very sort key the per-caller search uses, so the two lists merge by score', async () => {
@@ -558,15 +566,15 @@ describe('FoodSearchDao.searchCatalog / searchAuthored — the split statements 
         expect(scopeOf(statement!)).toMatch(
             /^ WHERE status = 'RESOLVED' AND food\.retired_at IS NULL AND user_id = \$\d+$/,
         );
-        expect(statement!.text).not.toMatch(/user_id IS NULL/);
+        expect(statement!.text).not.toMatch(/user_id IS NULL|promoted/);
         expect(stringParams(statement!)).toContain(CALLER);
     });
 
-    it("keeps the per-caller search exactly as it was: catalog rows plus the caller's own", async () => {
+    it("reads catalog rows, promoted rows and the caller's own", async () => {
         const [statement] = await statementsOf((dao) => dao.search('chicken breast', CALLER));
 
         expect(scopeOf(statement!)).toMatch(
-            /^ WHERE status = 'RESOLVED' AND food\.retired_at IS NULL AND \(user_id IS NULL OR user_id = \$\d+\)$/,
+            /^ WHERE status = 'RESOLVED' AND food\.retired_at IS NULL AND \(user_id IS NULL OR visibility = \$\d+ OR user_id = \$\d+\)$/,
         );
     });
 

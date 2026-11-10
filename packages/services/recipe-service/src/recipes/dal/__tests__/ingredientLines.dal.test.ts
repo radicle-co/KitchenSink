@@ -58,6 +58,7 @@ describe('IngredientLinesDal.replaceForRecipe', () => {
             quantityHigh: null,
             unit: 'cup',
             displayText: 'diced',
+            note: null,
             sourceLine: null,
             sourcePhrase: null,
             statedQuantity: null,

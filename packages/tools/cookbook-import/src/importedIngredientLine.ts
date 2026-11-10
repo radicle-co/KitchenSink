@@ -27,6 +27,7 @@
  * nothing caught it, same fix: the field is asserted PRESENT for a restated line and ABSENT otherwise.
  */
 import type { IngredientQuantity } from '@kitchensink/recipe-core';
+import { pastedLineRowOf } from '@kitchensink/recipe-core/parsing/pasted-line-measure';
 
 import type { CreateRecipeBody } from './RecipeApiClient.js';
 import type { HistoricalUnitConversion } from './unitEquivalence.js';
@@ -93,20 +94,30 @@ export interface ResolvedCatalogRow {
  * @returns The line to send. Pure.
  */
 export function toImportedIngredientLine(parsed: ParsedClause, ingredient: ResolvedCatalogRow): ImportedIngredientLine {
+    // The same rule a paste applies (owner ruling 2026-11-08): a dimension in parentheses is not the unit and a package
+    // size is, read from the source's own words. No parse here answers `display`, so the line shows its food's name.
+    const measure = pastedLineRowOf(
+        { quantity: parsed.quantity, unit: parsed.unit, sourceLine: parsed.sourceText ?? parsed.raw, display: null },
+        0,
+        parsed.name,
+    );
+
     return {
         ingredientId: ingredient.id,
         quantity: parsed.quantity,
         // Omitted, never `null` or `''`: on this wire "the clause stated no unit" has exactly one
         // representation, and it is the absent key.
-        ...(parsed.unit === null ? {} : { unit: parsed.unit }),
+        ...(measure.unit === '' ? {} : { unit: measure.unit }),
         ...(parsed.preparation === undefined ? {} : { preparation: parsed.preparation }),
-        // The source's own words, kept verbatim beside the structured values, for a reader.
-        notes: parsed.raw,
+        // The food words the line shows and the dimension the cook wrote, from the same rule a paste applies (owner ruling
+        // 2026-11-08). The source's whole clause is `sourceLine` below, never a display text.
+        ...(measure.displayText === undefined ? {} : { displayText: measure.displayText }),
+        ...(measure.note === undefined ? {} : { note: measure.note }),
         // ⛔ The field the GATE reads, and it must be the SOURCE's words. `raw` is only byte-identical to
         // what the parser received, and the scanner normalizes first (`dropPartitiveOf` → `normalizeQuantity`
         // → `one` becomes `1`), so sending `raw` would verify our parse against a string we produced from
         // that parse — "a gate that reports success by construction", in the schema's own words. Not a
-        // duplicate of `notes` in meaning either: one is a display override, the other is the transcription
+        // duplicate of `displayText` in meaning either: one is the shown food text, the other is the transcription
         // a verdict is keyed on.
         sourceLine: parsed.sourceText ?? parsed.raw,
         // ⛔ The memo tier's KEY GRAIN (migration 0041, owner ruling 2026-08-31): the phrase the parser

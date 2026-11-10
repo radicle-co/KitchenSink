@@ -164,9 +164,11 @@ function parseAnswerFor(line: string): string {
 
     return JSON.stringify([
         {
-            // ⚠️ An empty array, never `[""]` — `normalizeParseAnswer` drops a nameless food, and a line that
-            // named none is a fact rather than a fault.
-            food_items: food === '' ? [] : [food],
+            // ⚠️ `null`, never `[""]` — `normalizeParseAnswer` drops a nameless food, and a line that named none is a
+            // fact rather than a fault. `display` is null exactly when `food_items` is (ADR-0026 §11), and a local run
+            // always answers `food`: this fake reads no variety or cut, so the line shows its food's name.
+            food_items: food === '' ? null : [food],
+            display: food === '' ? null : 'food',
             measurement: quantity === null ? null : { quantity, unit, unit_type: null },
             preparations: prep === '' ? [] : [prep],
             equipment: [],

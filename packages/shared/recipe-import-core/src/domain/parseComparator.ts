@@ -291,7 +291,9 @@ export function canonicaliseFood(food: ParsedFood): ParsedFood {
         ...movedToPrep.filter((token) => !alreadyPrepared.has(fold(token))).map(unseparated),
     ]);
 
-    return { name, prep: prep === '' ? null : prep };
+    // `...food` carries `display` (ADR-0026 §11): re-placing words between the name and the preparation changes neither
+    // the food nor the answer about how to show it.
+    return { ...food, name, prep: prep === '' ? null : prep };
 }
 
 /**

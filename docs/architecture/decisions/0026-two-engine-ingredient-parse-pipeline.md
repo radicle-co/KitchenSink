@@ -1149,6 +1149,24 @@ reasons (costing the "nothing derivable is stored" invariant) or a validator-ter
 precisely the question that instrument answers — and precisely how defect 2 above would have surfaced as a
 count rather than needing a code read.
 
+### 11. THE PARSE ANSWER DECIDES WHICH NAME A LINE SHOWS
+
+Owner ruling 2026-11-08. The LLM leg answers `display` per record. The rule is rule 11 of the prompt. This deliberately
+overrides the "do not add a field" note: `PARSE_SYSTEM_PROMPT`, its byte length, `PARSE_PROMPT_SHA256` and
+`PARSE_PROMPT_VERSION` (v3) move together in one commit. The comparison corpus is measured again, and earlier rates are
+denominated in v2. `buildParsePrompt` still takes the line alone; the `Exact<..., [string]>` pin is untouched. The
+decision is stored on the line, not shared. A line the LLM did not answer (CRF only, a refusal, a spent ceiling) has
+`display: null` and shows the food's name: absence is silence, section 3. Parenthesised dimensions and package sizes are
+read from the source line after the merge (`parentheticalMeasure.ts`), not by the prompt, so CRF-only lines obey ruling 2
+too.
+
+The answer's `display` is strict and required: `"written"` or `"food"` for a record that names foods, and `null` exactly
+when `food_items` is `null`. It rides on each food of its record through promotion, the merge (the foods come from the
+model) and the stored parse, and reaches the wire as `foods[].display`. The prompt grew, so `MAX_PARSE_PROMPT_CHARS` rose from 22,000 to 24,000 (owner ruling 2026-11-08) to keep the room a line
+had before v3; the reservation ceiling is derived from that one constant (ADR-0024 layer 1). A line over the cap is still
+rejected, never truncated. `PARSE_MAX_OUTPUT_TOKENS` is unchanged: the answer gains one short key per
+record.
+
 ## Consequences
 
 **Accepted:**

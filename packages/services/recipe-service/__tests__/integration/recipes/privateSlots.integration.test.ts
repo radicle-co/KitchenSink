@@ -154,6 +154,8 @@ beforeAll(async () => {
                     countPrivateSlots,
                     lockSlotFacts: async () => ({ visibility: stored.visibility, status: stored.status }),
                     findById: async (id: string) => (id === stored.id ? aggregateOf(stored) : undefined),
+                    // ADR-0029 section 4: the database holds no private food in these suites.
+                    privateFoodLines: async () => [],
                     transaction: async (work: (tx: unknown) => Promise<unknown>) => work({ __tx: true }),
                 },
             },
@@ -320,7 +322,9 @@ describe('PATCH /api/v1/recipes/{id}/visibility', () => {
         expect(response.status).toBe(200);
     });
 
-    it('an imported public-web recipe is refused 400 INVALID_VISIBILITY (Premium), with slots to spare', async () => {
+    // REWRITTEN for ADR-0077 section 6: it was refused 400 INVALID_VISIBILITY for want of Premium, with slots to spare.
+    // It is a slot like any other label now, so a free slot lets it go private and the count is taken.
+    it('an imported public-web recipe goes private in a free slot, and is counted (ADR-0077 section 6)', async () => {
         held = 0;
         stored = makeRecipeRow({
             id: RECIPE_ID,
@@ -333,8 +337,8 @@ describe('PATCH /api/v1/recipes/{id}/visibility', () => {
             visibility: 'private',
         });
 
-        expect(response.status).toBe(400);
-        expect(lockAndCountPrivateSlots).not.toHaveBeenCalled();
+        expect(response.status).toBe(200);
+        expect(lockAndCountPrivateSlots).toHaveBeenCalled();
     });
 });
 

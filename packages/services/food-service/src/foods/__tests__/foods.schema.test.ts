@@ -323,6 +323,21 @@ describe('foodErrorSchema', () => {
             details: { existingId: 'f1' },
         },
         REMOTE_FOOD_GONE: { code: 'REMOTE_FOOD_GONE', message: 'This remote food can no longer be picked' },
+        PUBLICATION_NOT_REQUESTABLE: {
+            code: 'PUBLICATION_NOT_REQUESTABLE',
+            message: 'This food cannot be sent for publication',
+            details: { id: 'f1', reason: 'declined' },
+        },
+        PUBLICATION_REQUEST_NOT_FOUND: {
+            code: 'PUBLICATION_REQUEST_NOT_FOUND',
+            message: 'No publication request',
+            details: { id: 'f1' },
+        },
+        PUBLICATION_NOT_APPROVABLE: {
+            code: 'PUBLICATION_NOT_APPROVABLE',
+            message: 'This request cannot be decided',
+            details: { id: 'r1', reason: 'notNewest' },
+        },
     };
 
     // Exhaustiveness in the direction that matters: a code added to the enum without an arm (or a fixture)

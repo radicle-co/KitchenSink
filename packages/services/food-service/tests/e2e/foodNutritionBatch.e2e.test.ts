@@ -348,27 +348,18 @@ describe('batched nutrition read (integration)', () => {
             expect(batched?.portions.map((portion) => portion.label)).toStrictEqual(expected);
         });
 
-        it('⛔ NO authored food enters the shared batch — catalog rows only (ADR-0036)', async () => {
-            // ⚠️ This REVERSES what the case here used to assert. It read "a PROMOTED authored food ENTERS
-            // the batch", on the reasoning that a promoted food is world-readable and its nutrition does not
-            // vary by caller, so ADR-0020's objection to authored rows in a URL-keyed shared cache did not
-            // apply. Promotion is removed (owner ruling, 2026-09-07): an authored food is AUTHOR-ONLY, so
-            // there is no longer any authored row whose nutrition is caller-invariant, and the predicate is
-            // now simply `user_id IS NULL`.
-            //
-            // Both rows are seeded with the `promoted` visibility VALUE on purpose. It is still admissible
-            // on the column (Postgres cannot remove an enum value, and leaving it valid keeps the door open
-            // to lifting the restriction without a migration), so the value existing must NOT be enough to
-            // re-admit a row to the shared cache. This is the assertion that catches a partial revert.
+        it('⛔ a PRIVATE authored food never enters the shared batch; a PROMOTED one does (ADR-0029 section 8)', async () => {
+            // ⚠️ REWRITTEN for the private-food rulings of 2026-11-08. The ADR-0036 reading ("no authored food enters
+            // the shared batch") followed from removing promotion. Promotion is back, and a promoted food is
+            // world-readable with caller-invariant nutrition, so ADR-0020's objection to authored rows in a URL-keyed
+            // shared cache no longer applies to it. A PRIVATE one still must not appear for anyone.
             // Authored at insert: `user_id` is fixed after it (0018).
-            const stillMarkedPromoted = await seedFood({
-                name: 'promoted blend',
-                userId: 'author-a',
-                visibility: 'promoted',
-            });
+            const promoted = await seedFood({ name: 'promoted blend', userId: 'author-a', visibility: 'promoted' });
             const privateFood = await seedFood({ name: 'private blend', userId: 'author-a', visibility: 'private' });
 
-            expect(await dao.readNutritionBatch([stillMarkedPromoted, privateFood])).toStrictEqual([]);
+            const records = await dao.readNutritionBatch([promoted, privateFood]);
+
+            expect(records.map((record) => record.id)).toStrictEqual([promoted]);
         });
 
         it('omits an id that names no food, and returns a food that has no nutrition at all', async () => {

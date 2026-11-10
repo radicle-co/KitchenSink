@@ -2,16 +2,16 @@
  * T048 — the pure C-004 visibility-policy evaluator.
  *
  * The single source of truth for "may this recipe hold this visibility?", driven ONLY by its inputs
- * (`sourceType`, `isPremium`, `hasSubstantiveEdit`, `hasAvailablePrivateSlot`, `requested`) — no DB, no principal,
+ * (`sourceType`, `isPremium`, `hasAvailablePrivateSlot`, `requested`) — no DB, no principal,
  * no I/O — so it is trivially testable and reused unchanged by create, update, clone-default, and the set-visibility
  * endpoint.
  *
- * C-004 matrix (amended 2026-10-26 by ADR-0073):
+ * C-004 matrix (amended 2026-10-26 by ADR-0073, and by ADR-0077 section 6 for `imported_public`):
  * - requested `public`:  ALLOW for `user_created` + `imported_public`; DENY for `imported_physical` +
  *   `imported_paid` (both are private-only; `imported_paid` may NEVER be public).
  * - requested `private`:
  *     - `user_created`     → ALLOW iff `isPremium` OR `hasAvailablePrivateSlot`
- *     - `imported_public`  → ALLOW iff (`isPremium` AND `hasSubstantiveEdit`); else DENY. Slots never apply.
+ *     - `imported_public`  → ALLOW iff `isPremium` OR `hasAvailablePrivateSlot` (owner ruling 2026-10-29: any cook, using a slot)
  *     - `imported_physical`→ ALLOW iff `isPremium` OR `hasAvailablePrivateSlot`
  *     - `imported_paid`    → ALLOW iff `isPremium` OR `hasAvailablePrivateSlot`
  *
@@ -19,7 +19,7 @@
  * (with a default, a site could keep the old behaviour and nobody would notice). The fact is only trustworthy when
  * the CALLER resolved it under the per-user lock, in the same transaction as the write (`privateSlots.dal.ts`); this
  * module cannot tell, which is why it is documented here and enforced by the service. A caller for which no slot can
- * matter (a public request, Premium, `imported_public`) passes `true`: no slot is needed, so none is lacking.
+ * matter (a public request, Premium) passes `true`: no slot is needed, so none is lacking.
  *
  * Premium lapse: this gates the *transition to* private, never existing state — a currently-private
  * recipe is never force-flipped; a lapsed (free) user simply cannot set NEW recipes to private until they are
@@ -41,14 +41,12 @@ export interface VisibilityPolicyInput extends ContainmentSubject {
     readonly sourceType: RecipeSourceType;
     /** Whether the acting principal currently holds the premium entitlement. */
     readonly isPremium: boolean;
-    /** Whether the recipe carries a substantive (ingredients/steps) edit since import. */
-    readonly hasSubstantiveEdit: boolean;
     /** The visibility the caller is requesting the recipe transition to. */
     readonly requested: RecipeVisibility;
     /**
      * Whether the cook may hold one more private recipe: their live private count, read under the per-user lock in the
      * write's own transaction, is below their limit (ADR-0073). REQUIRED, never defaulted. Consulted only where a slot
-     * can matter (a free cook's `user_created`/`imported_physical`/`imported_paid` request for private); `true` where
+     * can matter (a free cook's request for private); `true` where
      * none is needed.
      */
     readonly hasAvailablePrivateSlot: boolean;
@@ -87,7 +85,7 @@ function denyNoSlot(reason: string): VisibilityDecision {
  * Evaluate the C-004 visibility policy for a requested transition. Pure — inputs only.
  */
 export function evaluateVisibility(input: VisibilityPolicyInput): VisibilityDecision {
-    const { sourceType, isPremium, hasSubstantiveEdit, hasAvailablePrivateSlot, requested } = input;
+    const { sourceType, isPremium, hasAvailablePrivateSlot, requested } = input;
 
     if (requested === RecipeVisibility.PUBLIC) {
         const containment = evaluateContainment({
@@ -121,16 +119,6 @@ export function evaluateVisibility(input: VisibilityPolicyInput): VisibilityDeci
             return hasAvailablePrivateSlot
                 ? allow('A free-tier user may keep their own recipe private in a free private slot.')
                 : denyNoSlot('All of your private slots are in use.');
-        case 'premium':
-            if (!isPremium) {
-                return deny('Premium is required to make an imported public recipe private.');
-            }
-
-            if (!hasSubstantiveEdit) {
-                return deny('An imported public recipe needs a substantive edit before it can be made private.');
-            }
-
-            return allow('A substantively-edited imported public recipe may be made private by a premium user.');
         case 'privateOnly':
             // Private-only labels (they can never be public), and since ADR-0073 they use a slot like any other
             // private recipe: Premium is no longer needed, and a free cook with no slot cannot keep a new one.

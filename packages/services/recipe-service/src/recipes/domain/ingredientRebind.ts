@@ -44,7 +44,8 @@ export function toLineRequest(row: IngredientRow): RecipeIngredientInput {
         quantity: quantityFromColumns(row),
         // `''` is the column's "unitless"; the request spells it by omitting the key.
         ...(row.unit.length > 0 ? { unit: row.unit } : {}),
-        ...(row.displayText !== null ? { notes: row.displayText } : {}),
+        ...(row.displayText !== null ? { displayText: row.displayText } : {}),
+        ...(row.note !== null ? { note: row.note } : {}),
         ...(row.preparation !== null ? { preparation: row.preparation } : {}),
         ...(row.groupLabel !== null ? { groupLabel: row.groupLabel } : {}),
         ...userNutritionFromColumns(row),

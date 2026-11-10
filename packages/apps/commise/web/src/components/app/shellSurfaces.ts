@@ -29,6 +29,8 @@ export const SHELL_SURFACE_IDS = [
     'collectionDetail',
     'profile',
     'dataSources',
+    'food',
+    'yourFoods',
     'notFound',
 ] as const;
 

@@ -33,7 +33,10 @@ import {
     profileMessages,
     useProfileScreen,
 } from '@commise/features-account/profile';
+import { foodPageMessages } from '@commise/features-recipes/food-page';
+import { YourFoodsRow } from '@commise/features-recipes/food-page/mobile';
 import { useMessages } from '@commise/i18n/react';
+import { useOwnFoods } from '@kitchensink/food-service-client/hooks';
 import { LargeTitleHeader } from '@commise/ui/large-title-header';
 import { nativeTokens } from '@commise/ui/native';
 import { PushedPageFrame, type PushedPageInset } from '@commise/ui/pushed-page';
@@ -56,6 +59,7 @@ export interface ProfileScreenProps {
     readonly onBack: () => void;
     /** Open Food data sources: the navigator pushes it as a page, so this screen mounts nothing for it (A-026). */
     readonly onOpenDataSources: () => void;
+    readonly onOpenYourFoods: () => void;
 }
 
 /** Props for the page inside the frame. */
@@ -68,6 +72,7 @@ interface ProfileSurfaceProps {
     readonly headingId: string;
     /** Open Food data sources. */
     readonly onOpenDataSources: () => void;
+    readonly onOpenYourFoods: () => void;
 }
 
 /**
@@ -77,7 +82,7 @@ interface ProfileSurfaceProps {
  * @param props - The way back, and the way to Data sources.
  * @returns The page.
  */
-export function ProfileScreen({ onBack, onOpenDataSources }: ProfileScreenProps): JSX.Element {
+export function ProfileScreen({ onBack, onOpenDataSources, onOpenYourFoods }: ProfileScreenProps): JSX.Element {
     useScreenTrace('profile');
     const t = useMessages(profileMessages);
     const headingId = useId();
@@ -91,6 +96,7 @@ export function ProfileScreen({ onBack, onOpenDataSources }: ProfileScreenProps)
                     inset={inset}
                     headingId={headingId}
                     onOpenDataSources={onOpenDataSources}
+                    onOpenYourFoods={onOpenYourFoods}
                 />
             )}
         </PushedPageFrame>
@@ -98,8 +104,16 @@ export function ProfileScreen({ onBack, onOpenDataSources }: ProfileScreenProps)
 }
 
 /** The page. */
-function ProfileSurface({ scrollBind, inset, headingId, onOpenDataSources }: ProfileSurfaceProps): JSX.Element {
+function ProfileSurface({
+    scrollBind,
+    inset,
+    headingId,
+    onOpenDataSources,
+    onOpenYourFoods,
+}: ProfileSurfaceProps): JSX.Element {
     const t = useMessages(profileMessages);
+    const foodsT = useMessages(foodPageMessages);
+    const ownFoods = useOwnFoods();
     const query = useUserProfile();
     const { user: clerkUser } = useUser();
     // The name and the photo are two mutations, so a photo upload never reads as the name saving, and back.
@@ -160,6 +174,12 @@ function ProfileSurface({ scrollBind, inset, headingId, onOpenDataSources }: Pro
                     ) : null}
                     <ProfileGroup heading={t.preferences}>
                         <ProfileRow label={t.dataSources} tone="ink" chevron onPress={onOpenDataSources} />
+                    </ProfileGroup>
+                    <ProfileGroup label={foodsT.yourFoods.title}>
+                        <YourFoodsRow
+                            unseenDecisions={ownFoods.data?.pages[0]?.unseenDecisions ?? 0}
+                            onPress={onOpenYourFoods}
+                        />
                     </ProfileGroup>
                     <ProfileGroup label={t.signOut}>
                         <SignOutButton />

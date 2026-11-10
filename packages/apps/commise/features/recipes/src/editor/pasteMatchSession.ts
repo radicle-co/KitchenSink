@@ -44,6 +44,8 @@ export type PasteMatchEvent =
     | { readonly type: 'bindingSet'; readonly key: string; readonly binding: LineBinding }
     /** A binding the SERVER or the review offers (a checking line that read confident): taken only by a line with none. */
     | { readonly type: 'bindingOffered'; readonly key: string; readonly binding: LineBinding }
+    /** The server stopped showing a binding it offered: removed unless the cook made it. */
+    | { readonly type: 'offerWithdrawn'; readonly key: string }
     | { readonly type: 'draftLineRemoved'; readonly draftKey: string }
     | { readonly type: 'expanded'; readonly key: string | undefined }
     | { readonly type: 'paneMoved'; readonly key: string | undefined };
@@ -165,6 +167,20 @@ export function reducePasteMatchSession(session: PasteMatchSession, event: Paste
             return draftKeyOf(session, event.key) === undefined || session.bindings.has(event.key)
                 ? session
                 : { ...session, bindings: withEntry(session.bindings, event.key, event.binding) };
+
+        case 'offerWithdrawn': {
+            const held = session.bindings.get(event.key);
+
+            if (held === undefined || held.boundBy === 'cook') {
+                return session;
+            }
+
+            const bindings = new Map(session.bindings);
+
+            bindings.delete(event.key);
+
+            return { ...session, bindings };
+        }
 
         case 'draftLineRemoved':
             return removeDraftLine(session, event.draftKey);

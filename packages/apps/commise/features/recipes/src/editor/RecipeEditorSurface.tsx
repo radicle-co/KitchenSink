@@ -19,10 +19,10 @@
  * @pattern Composition — the editor's leaves arranged over one session; the app supplies the one leaf that differs
  */
 import type { PaidFeatureState } from '@commise/features-account';
-import { useMessages } from '@commise/i18n/react';
+import { useLocale, useMessages } from '@commise/i18n/react';
 import { Button } from '@commise/ui/button';
 import { RecipeVisibility } from '@kitchensink/recipe-core';
-import type { FC, ReactNode } from 'react';
+import { useState, type FC, type ReactNode } from 'react';
 
 import { recipeIsPublished, type PrivateRule, type SlotStanding } from '../actions/recipePrivateGate.js';
 import { usePrivateChoice } from '../actions/usePrivateChoice.js';
@@ -35,15 +35,18 @@ import { RecipeBasicsFields } from '../form/RecipeBasicsFields.js';
 import { RecipeIngredientsFields } from '../form/RecipeIngredientsFields.js';
 import { RecipeInstructionsFields } from '../form/RecipeInstructionsFields.js';
 import { RecipeVisibilityField } from '../form/RecipeVisibilityField.js';
-import { RecipeVisibilityStatement } from '../form/RecipeVisibilityStatement.js';
 import { entryFieldIdOf } from '../form/fieldIds.js';
 import { pendingIngredientIds } from '../form/ingredientStatus.js';
 import type { EditorSeed } from '../hooks/useRecipeEditor.js';
 import { useLastDefined } from '../hooks/useLastDefined.js';
 import type { RecipeEditorViewProps } from './frameProps.js';
+import { refusedRowsOf } from '../foodPage/privateFoodsRefusal.js';
 import { IngredientStatusPoller } from './IngredientStatusPoller.js';
 import { editorMessages } from './messages.js';
+import { PrivateFoodsRefusalSheet } from './PrivateFoodsRefusalSheet.js';
 import { PublishBlockedSheet } from './PublishBlockedSheet.js';
+import { draftQuantity } from '../form/quantity.js';
+import { refusedLineParts } from './refusedLineText.js';
 import { RecipeEditorView } from './RecipeEditorView.js';
 import { RecipePreviewSheet } from './RecipePreviewSheet.js';
 import { errorsStillHolding } from './gate.js';
@@ -82,6 +85,13 @@ export interface RecipeEditorSurfaceProps {
     readonly onClose: () => void;
     /** "Check My recipes": from an unknown create's alert, and after a Discard. */
     readonly onOpenMyRecipes: () => void;
+    /**
+     * Open a food's page (the row's `⋯ Open food`, and the refusal's Open food). Web opens a new tab so the draft stays here;
+     * native pushes the page above the editor. Absent when the app has no such page.
+     */
+    readonly onOpenFood?: (foodId: string) => void;
+    /** The app leaves this editor in place when it opens a food (native pushes a screen over it): the refusal then closes first. */
+    readonly foodOpensOverEditor?: boolean;
 }
 
 /** The editor page over its session. */
@@ -98,6 +108,8 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
     initialSection,
     onClose,
     onOpenMyRecipes,
+    onOpenFood,
+    foodOpensOverEditor = false,
 }) => {
     const { editor, paste } = session;
     // ⛔ READ FROM THE ENTRY AS IT IS NOW: the editor learns the entry's text only at a press (`errorsStillHolding`).
@@ -105,6 +117,7 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
     const pendingFieldId = pending === undefined ? undefined : entryFieldIdOf(pending.target);
     const errors = errorsStillHolding(editor.refusedFields, editor.values, session.rowEditor.entry.pendingEntryText);
     const { ingredients: ingredientsCopy } = useMessages(editorMessages);
+    const locale = useLocale();
     // Kept while the sheet closes, so its words do not change under its own animation.
     const blocked = useLastDefined(editor.publishBlocked);
     // E1 + plan 2026-10-14-009 D14, amended by ADR-0073: Private within the cook's slots (the count is the server's, shown
@@ -124,6 +137,28 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
         saved: seed.recipe?.visibility ?? RecipeVisibility.PUBLIC,
         values: editor.values,
         onChange: editor.setValues,
+    });
+
+    // F6: the server's refusal of a public recipe that holds a private food. The refused write is already dropped from the
+    // outbox (`useRecipeEditor`), so the lines come from the editor and name the draft's rows by food. Each refusal has its own
+    // count, so a sheet the cook dismissed opens again when the next Publish is refused.
+    const refusal = editor.privateFoodRefusal;
+    const refusedRows = refusal === undefined ? [] : refusedRowsOf(refusal.lines, editor.values);
+    const [dismissedCount, setDismissedCount] = useState<number | undefined>(undefined);
+    const refusalOpen = refusal !== undefined && refusedRows.length > 0 && dismissedCount !== refusal.count;
+    const dismissRefusal = (): void => setDismissedCount(refusal?.count);
+    const refusedLines = refusedRows.flatMap((index) => {
+        const line = editor.values.ingredients[index];
+
+        return line?.foodId === undefined
+            ? []
+            : [
+                  {
+                      rowId: line.key,
+                      foodId: line.foodId,
+                      ...refusedLineParts({ ...line, quantity: draftQuantity(line) }, locale),
+                  },
+              ];
     });
 
     const sections: Readonly<Record<EditorSectionId, ReactNode>> = {
@@ -148,6 +183,7 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
                     lookupRetry={session.lookupRetry}
                     rowEditor={session.rowEditor}
                     paste={paste.view}
+                    {...(onOpenFood === undefined ? {} : { onOpenFood })}
                 />
                 <PasteListSheet sheet={paste.sheet} submitting={paste.submitting} failed={paste.failed} />
             </>
@@ -169,20 +205,16 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
                           title: editor.values.title,
                           cuisine: editor.values.cuisine,
                       })}
-                {privateChoice.offersPrivate ? (
-                    <RecipeVisibilityField
-                        values={editor.values}
-                        onChange={editor.setValues}
-                        {...privateChoice.field}
-                        onPremiumRequired={privateChoice.onPremiumRequired}
-                        onConfirmPublic={privateChoice.onConfirmPublic}
-                        // The refusal's "Make a private recipe public" and "Delete a private recipe": either frees a slot
-                        // in the cook's recipes (the session checkpoints the draft as the cook leaves).
-                        onFreeASlot={onOpenMyRecipes}
-                    />
-                ) : (
-                    <RecipeVisibilityStatement {...privateChoice.statement} />
-                )}
+                <RecipeVisibilityField
+                    values={editor.values}
+                    onChange={editor.setValues}
+                    {...privateChoice.field}
+                    onPremiumRequired={privateChoice.onPremiumRequired}
+                    onConfirmPublic={privateChoice.onConfirmPublic}
+                    // The refusal's "Make a private recipe public" and "Delete a private recipe": either frees a slot
+                    // in the cook's recipes (the session checkpoints the draft as the cook leaves).
+                    onFreeASlot={onOpenMyRecipes}
+                />
             </>
         ),
     };
@@ -228,12 +260,38 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
             />
             <RecipeUpsellSheet {...privateChoice.sheet} />
             <RecipeMakePublicDialog {...privateChoice.confirm} />
+            {refusedLines.length === 0 ? null : (
+                <PrivateFoodsRefusalSheet
+                    open={refusalOpen}
+                    door={recipeIsPublished(seed.recipe) ? 'save' : 'publish'}
+                    canGoPrivate={privateChoice.field.privateRefusal === undefined}
+                    lines={refusedLines}
+                    onOpenFood={(foodId) => {
+                        if (foodOpensOverEditor) {
+                            dismissRefusal();
+                        }
+
+                        onOpenFood?.(foodId);
+                    }}
+                    onSendAsPrivate={() => {
+                        dismissRefusal();
+                        editor.setValues({ ...editor.values, visibility: RecipeVisibility.PRIVATE });
+
+                        // The refused write is gone, so this sends the draft as it now is.
+                        if (recipeIsPublished(seed.recipe)) {
+                            editor.saveChanges(session.rowEditor.entry.pendingEntryText);
+                        } else {
+                            editor.publish(session.rowEditor.entry.pendingEntryText);
+                        }
+                    }}
+                    onClose={dismissRefusal}
+                />
+            )}
             {blocked === undefined ? null : (
                 <PublishBlockedSheet
                     open={editor.publishBlocked !== undefined}
-                    ask={blocked}
                     slotTotal={
-                        blocked.kind === 'noSlot' && blocked.total !== undefined
+                        blocked.total !== undefined
                             ? blocked.total
                             : slotStanding.kind === 'full' || slotStanding.kind === 'open'
                               ? slotStanding.limit

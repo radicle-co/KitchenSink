@@ -96,16 +96,9 @@ export const IngredientCheckRow: FC<IngredientCheckRowProps> = ({
                             <VariantPartsLine parts={parts} tone="secondary" />
                         </span>
                     )}
-                    {tail.map((part, index) =>
-                        index === 0 ? (
-                            <PrepJoin key={part}>{part}</PrepJoin>
-                        ) : (
-                            <span key={part}>
-                                {' '}
-                                <span className="text-ink-muted">{part}</span>
-                            </span>
-                        ),
-                    )}
+                    {tail.map((part) => (
+                        <PrepJoin key={part}>{part}</PrepJoin>
+                    ))}
                     {statuses.length > 0 && (
                         <span id={statusId}>
                             {statuses.map((status) => (

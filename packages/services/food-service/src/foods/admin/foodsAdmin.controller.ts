@@ -13,11 +13,15 @@
  *
  * @implements FR-039 FR-051
  */
-import { Controller, Get, HttpCode, HttpStatus, Param, Post, Req } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Inject, Param, Post, Query, Req } from '@nestjs/common';
 
 import { FOOD_ADMIN_SCOPE, hasScope, type AuthenticatedRequest } from '../../auth/authenticatedPrincipal.js';
 import { apiError } from '../../common/apiError.js';
-import { isFoodId } from '../../db/ulid.js';
+import { requireId } from '../../auth/requireCaller.js';
+import { FoodPublicationService } from '../publication.service.js';
+import { PublicationDecisionBodyDto } from '../dto/publicationDecision.dto.js';
+import { PublicationRequestsQueryDto } from '../dto/publicationRequestsQuery.dto.js';
+import type { AdminPublicationRequestList, PublicationRequest } from '../publication.schema.js';
 import { AdminMetricsService, type OperationalMetrics } from './adminMetrics.service.js';
 import { FoodRecoveryService, type RequeueResponse } from './foodRecovery.service.js';
 import type { QueueDepthMetrics } from './adminMetrics.dao.js';
@@ -31,6 +35,7 @@ export class FoodsAdminController {
     public constructor(
         private readonly metrics: AdminMetricsService,
         private readonly recovery: FoodRecoveryService,
+        @Inject(FoodPublicationService) private readonly publications: FoodPublicationService,
     ) {}
 
     /** `GET /api/v1/foods/admin/metrics` — full operational dashboard signals (admin-scoped, FR-039). */
@@ -69,12 +74,10 @@ export class FoodsAdminController {
     public async requeueFood(@Param('id') id: string, @Req() req: AuthenticatedRequest): Promise<RequeueResponse> {
         this.requireAdmin(req);
 
-        // Same guard every other `:id` route applies. Without it a malformed id reaches two DAO writes and
+        // The same guard every other `:id` route applies. Without it a malformed id reaches two DAO writes and
         // fails as a 500 rather than the 400 the caller can act on — and the route-input inventory in
         // `routeValidation.test.ts` requires every raw param to name the validator that covers it.
-        if (!isFoodId(id)) {
-            throw apiError('INVALID_ID', 'The id is not a valid food (ingredient) ULID');
-        }
+        requireId(id);
 
         // The verified `sub` — documented on `AuthenticatedPrincipal` as the trace/audit identity — is the
         // accountable principal behind the source calls this requeue authorises (FR-048). `requireAdmin`
@@ -84,10 +87,53 @@ export class FoodsAdminController {
         return this.recovery.requeueFood(id, req.user?.sub ?? '');
     }
 
+    /**
+     * `GET /api/v1/foods/admin/publication-requests?status=pending` — staff's queue: every pending request with the
+     * version it names and the name readers see today (ADR-0029 §5). Admin-scoped, so `403` precedes everything.
+     */
+    @Get('publication-requests')
+    public async listPublicationRequests(
+        @Req() req: AuthenticatedRequest,
+        @Query() _query: PublicationRequestsQueryDto,
+    ): Promise<AdminPublicationRequestList> {
+        this.requireAdmin(req);
+
+        return this.publications.listPending();
+    }
+
+    /**
+     * `POST /api/v1/foods/admin/publication-requests/{id}/decision` — approve (the version is applied to the live
+     * row and the food becomes public) or decline with the reason the author reads. A stale request is a `409`.
+     * Admin-scoped, so `403` precedes the id check and the body.
+     *
+     * The staff member's identity is not recorded here: the table has no person column, and the audit log is the
+     * request log (the requeue precedent).
+     */
+    @Post('publication-requests/:id/decision')
+    @HttpCode(HttpStatus.OK)
+    public async decidePublicationRequest(
+        @Param('id') id: string,
+        @Body() body: PublicationDecisionBodyDto,
+        @Req() req: AuthenticatedRequest,
+    ): Promise<PublicationRequest> {
+        this.requireAdmin(req);
+
+        if (!isUuid(id)) {
+            throw apiError('INVALID_ID', 'The id is not a valid publication request id');
+        }
+
+        return this.publications.decide(id, body);
+    }
+
     /** Require the `food:admin` scope from the verified token, else `403` (FR-039/FR-051). */
     private requireAdmin(req: AuthenticatedRequest): void {
         if (!hasScope(req.user, FOOD_ADMIN_SCOPE)) {
             throw apiError('FORBIDDEN', 'Operation requires elevated scope');
         }
     }
+}
+
+/** A request id is a UUID (`gen_random_uuid()`); anything else never reaches the database. Pure. */
+function isUuid(value: string): boolean {
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 }

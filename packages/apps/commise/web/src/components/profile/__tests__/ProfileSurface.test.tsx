@@ -12,6 +12,8 @@
  * nav:inline-flex`, from 840). jsdom applies no stylesheet, so both are in its tree and the breakpoint is asserted through
  * those classes; a browser shows exactly one at each width (`tests/e2e/profile.spec.ts`).
  */
+import { FoodServiceProvider } from '@kitchensink/food-service-client/hooks';
+import type { FoodServiceClient } from '@kitchensink/food-service-client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SnackbarHost } from '@commise/ui/snackbar';
 import { cleanup, screen, waitFor } from '@testing-library/react';
@@ -58,12 +60,20 @@ const ready = (displayName: string, username: string | null = 'braise') => ({
     data: { user: { displayName, email: 'eliza@example.com', username } },
 });
 
+/** How many staff decisions the cook has not opened, as food-service's own-food list answers it. */
+const unseenDecisions = { current: 0 };
+
 const mount = (): void => {
+    const foodClient = {
+        listOwnFoods: async () => ({ items: [], unseenDecisions: unseenDecisions.current }),
+    } as unknown as FoodServiceClient;
     const ui: ReactElement = (
         <QueryClientProvider client={new QueryClient({ defaultOptions: { mutations: { retry: false } } })}>
-            <SnackbarHost>
-                <ProfileSurface />
-            </SnackbarHost>
+            <FoodServiceProvider client={foodClient} subject="user_a">
+                <SnackbarHost>
+                    <ProfileSurface />
+                </SnackbarHost>
+            </FoodServiceProvider>
         </QueryClientProvider>
     );
 
@@ -71,6 +81,7 @@ const mount = (): void => {
 };
 
 beforeEach(() => {
+    unseenDecisions.current = 0;
     patchMe.mockReset().mockResolvedValue({});
     getSettings.mockReset().mockResolvedValue({ searchShortcut: true });
     patchSettings.mockReset().mockImplementation(async (body: { searchShortcut: boolean }) => body);
@@ -175,14 +186,14 @@ describe('ProfileSurface — the page', () => {
         expect(push).toHaveBeenCalledWith('/en/legal/sources');
     });
 
-    it('lays the groups out in order: account, preferences, sign out, danger zone', () => {
+    it('lays the groups out in order: account, preferences, your foods (its own group, after preferences), sign out, danger zone', () => {
         mount();
 
         const names = screen
             .getAllByRole('region')
             .map((region) => region.getAttribute('aria-label') ?? region.querySelector('h2')?.textContent);
 
-        expect(names).toEqual(['Account', 'Preferences', 'Sign out', 'Danger zone']);
+        expect(names).toEqual(['Account', 'Preferences', 'Your foods', 'Sign out', 'Danger zone']);
     });
 
     it('keeps the danger zone and sign out in the page', () => {
@@ -378,5 +389,20 @@ describe('ProfileSurface — keyboard shortcuts (a setting on the server, D19 / 
         await userEvent.click(toggle());
 
         await waitFor(() => expect(screen.queryByRole('alert')).toBeNull());
+    });
+
+    it('has a Your foods row in its own group that opens the cook’s foods', async () => {
+        mount();
+
+        await userEvent.click(await screen.findByRole('link', { name: 'Your foods' }));
+
+        expect(push).toHaveBeenCalledWith('/en/foods');
+    });
+
+    it('⛔ names the row for the new decisions and draws the dot only when there are some', async () => {
+        unseenDecisions.current = 1;
+        mount();
+
+        expect(await screen.findByRole('link', { name: 'Your foods, 1 new decision' })).toBeTruthy();
     });
 });

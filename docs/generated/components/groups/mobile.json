@@ -6,11 +6,11 @@
     "coverage": {
         "components": 55,
         "implementations": 55,
-        "props": 155,
+        "props": 159,
         "documentedComponents": 54,
         "implementationsWithModuleDoc": 53,
         "implementationsWithComponentDoc": 40,
-        "documentedProps": 149,
+        "documentedProps": 152,
         "classifiedComponents": 40,
         "componentsWithPatternTag": 26,
         "crossPlatformComponents": 0
@@ -3690,6 +3690,15 @@
                             "defaultValue": null,
                             "description": "Open Food data sources: the navigator pushes it as a page, so this screen mounts nothing for it (A-026).",
                             "declaredIn": "packages/apps/commise/mobile/src/screens/profile.tsx"
+                        },
+                        {
+                            "name": "onOpenYourFoods",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/mobile/src/screens/profile.tsx"
                         }
                     ],
                     "usesRefApi": [],
@@ -3790,6 +3799,15 @@
                             "required": false,
                             "defaultValue": null,
                             "description": "Called once the BODY has mounted with the claim waiting, never while the skeleton shows: the live region must\nexist, empty, before its text arrives, because Android does not reliably speak a region that mounts with its text.\nThe route keeps the claim and clears its param.",
+                            "declaredIn": "packages/apps/commise/mobile/src/screens/RecipeDetailScreen.tsx"
+                        },
+                        {
+                            "name": "onOpenFood",
+                            "type": "((foodId: string) => void)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Open a food's page (the make-public refusal's Open food).",
                             "declaredIn": "packages/apps/commise/mobile/src/screens/RecipeDetailScreen.tsx"
                         },
                         {
@@ -4005,6 +4023,15 @@
                             "declaredIn": "packages/apps/commise/mobile/src/screens/RecipeEditorScreen.tsx"
                         },
                         {
+                            "name": "onOpenFood",
+                            "type": "((foodId: string) => void)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Open a food's page above the editor (the refusal's Open food and a row's `⋯ Open food`).",
+                            "declaredIn": "packages/apps/commise/mobile/src/screens/RecipeEditorScreen.tsx"
+                        },
+                        {
                             "name": "openPaste",
                             "type": "boolean",
                             "typeDetail": null,
@@ -4214,6 +4241,15 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "Invoked when the back affordance is activated.",
+                            "declaredIn": "packages/apps/commise/mobile/src/screens/RecipeVersionsScreen.tsx"
+                        },
+                        {
+                            "name": "onOpenFood",
+                            "type": "((foodId: string) => void)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Opens a food's page, from the refusal a restore can meet.",
                             "declaredIn": "packages/apps/commise/mobile/src/screens/RecipeVersionsScreen.tsx"
                         },
                         {

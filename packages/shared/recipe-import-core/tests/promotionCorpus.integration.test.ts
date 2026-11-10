@@ -104,7 +104,10 @@ function promoteBoth(golden: GoldenIngredient): { readonly crf: ParsedLine; read
     return {
         crf: promoteCrfReading(asCrfRow(golden), line),
         llm: promoteLlmParse(
-            { statedMeasure: measure === '' ? null : measure, foods: [{ name: golden.name, prep: null }] },
+            {
+                statedMeasure: measure === '' ? null : measure,
+                foods: [{ name: golden.name, prep: null, display: 'food' }],
+            },
             line,
         ),
     };

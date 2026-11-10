@@ -51,8 +51,11 @@ recipes 1 ── 1..* ingredients ──NOT NULL──> food_lookups ──> a r
 - **`food_lookups` IS THE BINDING.** It replaces the old shared catalog minus its `name`, and holds
   `food_id` and `food_variant_id` (opaque, may dangle), `unresolved_food_id`, `food_owner_id` and
   `created_at`. `food_owner_id` belongs to the root arm only (`food_lookups_owner_needs_a_root`), because only
-  a root food can be a cook's private food. The old catalog's `prior_fraction` did not move: its only reader
-  was the recipe-side name ranker, which the name's removal removes.
+  a root food can be a cook's private food. A found binding is returned as it stands, with one exception: a
+  public root admission clears a stale `food_owner_id`. Food answered that the food is public now, and a
+  promotion is one-way, so a binding still marked private is stale; leaving it would hand a promoted food back as
+  private to the next cook and hide it from every cook but its author. The old catalog's `prior_fraction` did not
+  move: its only reader was the recipe-side name ranker, which the name's removal removes.
 - **`unresolved_foods` IS THE FAILURE RECORD** — the name that failed, the phrase it came from, the
   normalized key, a status, a reason code, the tiers consulted and unavailable, an attempt count, and
   operator-only detail.
@@ -74,8 +77,9 @@ variant chose that exact food, and the binding must say so for as long as the li
 
 There is **no `kind` column**, no `food_resolution_status` and no `is_user_entered`. A discriminator is a
 second statement of a fact the two reference columns already make, and a second statement can disagree
-with the first — which is precisely how illegal states 1 and 2 above came to exist. The name a line
-displays and whether it is user-entered are both read by FOLLOWING the binding.
+with the first — which is precisely how illegal states 1 and 2 above came to exist. The food a line is
+bound to, and whether it is user-entered, are read by FOLLOWING the binding. The words a line shows are
+`ingredients.display_text` when it holds them.
 
 ### `RESOLVED` is unrepresentable
 
@@ -229,11 +233,16 @@ service is a separate unit of work, and the wire contract it touches is governed
 
 ### A line's name is read, never stored
 
-The recipe database holds no food names. A bound line's name comes from food-service at READ, through one
-reader of line names, and an unresolved line's from `unresolved_foods.name`. There is no fallback of any
-kind: when the viewer may not see the food the line reads `RESOLVED_UNAVAILABLE` with no name; when the food
-is gone it reads `FOOD_REMOVED`, with a name only while food can still read it; and when food could not be
-asked it reads `FOOD_UNREACHABLE` with no name. `FOOD_UNREACHABLE` is never collapsed into `FOOD_REMOVED`,
+The recipe database holds no food names. A line SHOWS `ingredients.display_text` when it holds one: the cook's
+own words for the food. They are chosen once, when the line is written (the parse answer's `display`, ADR-0026
+section 11, or the cook's own committed text), and never recomputed. They are not a food name. Nothing resolves
+against them, nothing copies them to `food_lookups`, a memo, a correction or another cook's recipe, and a re-pick
+leaves them as they are. A clone and a restore copy them word for word. When `display_text` is NULL, a bound line
+shows its food's name, read from food-service at READ through the one reader of line names, and an unresolved
+line shows `unresolved_foods.name`. There is no fallback of any kind beyond that: a line whose food the viewer
+may not see reads `RESOLVED_UNAVAILABLE` and shows the stand-in, whatever `display_text` holds; when the food is
+gone it reads `FOOD_REMOVED`, with a name only while food can still read it; and when food could not be asked it
+reads `FOOD_UNREACHABLE` with no name. `FOOD_UNREACHABLE` is never collapsed into `FOOD_REMOVED`,
 because an outage must not read as a permanent fact about a cook's recipe. Clients render a stand-in for a
 line with no name and never invent one.
 

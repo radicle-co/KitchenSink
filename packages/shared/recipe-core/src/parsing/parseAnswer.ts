@@ -42,6 +42,12 @@
  */
 import { z } from 'zod';
 
+/** The two words the model may answer for `display` (rule 11 of the prompt). */
+const DISPLAY_CHOICES = ['written', 'food'] as const;
+
+/** Whether a food shows the cook's own words (`'written'`) or the app's food name (`'food'`). */
+export type FoodDisplay = (typeof DISPLAY_CHOICES)[number];
+
 /**
  * The answer shape, as the model is permitted to send it.
  *
@@ -54,22 +60,33 @@ import { z } from 'zod';
  * WORDS, and a numeric measure is a reading of them — the reading is `quantity`'s job, downstream, where
  * `absent` is representable and a fabricated `1` is not (R40).
  */
-const modelParseRecordSchema = z.strictObject({
-    food_items: z.array(z.string()).nullable(),
-    measurement: z
-        .strictObject({
-            quantity: z.string().nullable(),
-            unit: z.string().nullable(),
-            // ⚠️ ANY string, not the prompt's six-value enum, and that is a DECISION. The projection DISCARDS
-            // this field, so enum-validating it would turn a usable parse into a contract failure over a value
-            // nothing reads. `strictObject` exists to refuse an EXTRA key — an injected instruction's echo
-            // riding in a field nothing reads — not to narrow a discarded one.
-            unit_type: z.string().nullable(),
-        })
-        .nullable(),
-    preparations: z.array(z.string()).nullable(),
-    equipment: z.array(z.string()).nullable(),
-});
+const modelParseRecordSchema = z
+    .strictObject({
+        food_items: z.array(z.string()).nullable(),
+        // ADR-0026 §11 (owner ruling 2026-11-08): whether the app shows the cook's words for the food or its own food name.
+        // REQUIRED and exactly these two words: an answer that omits it, or says anything else, is not the document the
+        // prompt asked for, and a guess here would put words on a published recipe.
+        display: z.enum(DISPLAY_CHOICES).nullable(),
+        measurement: z
+            .strictObject({
+                quantity: z.string().nullable(),
+                unit: z.string().nullable(),
+                // ⚠️ ANY string, not the prompt's six-value enum, and that is a DECISION. The projection DISCARDS
+                // this field, so enum-validating it would turn a usable parse into a contract failure over a value
+                // nothing reads. `strictObject` exists to refuse an EXTRA key — an injected instruction's echo
+                // riding in a field nothing reads — not to narrow a discarded one.
+                unit_type: z.string().nullable(),
+            })
+            .nullable(),
+        preparations: z.array(z.string()).nullable(),
+        equipment: z.array(z.string()).nullable(),
+    })
+    // ⛔ NULL EXACTLY WHEN `food_items` IS NULL (rule 11: "No food_items -> null"). A display with no food shows nothing, and a
+    // food with no display has no instruction, so either is a malformed record rather than a value to repair.
+    .refine((record) => (record.food_items === null) === (record.display === null), {
+        message: 'display must be null exactly when food_items is null',
+        path: ['display'],
+    });
 
 /**
  * The answer shape, as the model is permitted to send it: a ROOT ARRAY of relational records.
@@ -89,6 +106,11 @@ export interface LlmParsedFood {
     readonly name: string;
     /** What the line says to do to it, trimmed, or `null` when the line says nothing. Never `''`. */
     readonly prep: string | null;
+    /**
+     * Whether the line shows the cook's own words for this food or the app's food name (ADR-0026 §11), copied from the
+     * record that named it. Never `null` here: a record that names foods always carries one (see the answer schema).
+     */
+    readonly display: FoodDisplay;
 }
 
 /**
@@ -190,7 +212,7 @@ export function normalizeParseAnswer(answer: ModelParseAnswer): LlmParse {
             return (record.food_items ?? []).flatMap((item) => {
                 const name = item.trim();
 
-                return name === '' ? [] : [{ name, prep }];
+                return name === '' || record.display === null ? [] : [{ name, prep, display: record.display }];
             });
         }),
     };

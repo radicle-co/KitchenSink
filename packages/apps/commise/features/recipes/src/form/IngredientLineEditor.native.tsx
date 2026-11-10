@@ -1,7 +1,7 @@
 /**
  * @module @commise/features-recipes/form — `IngredientLineEditor` (native): the row editor's fields (build spec §7.5.2),
  * drawn inside either frame, the phone sheet or the tablet's inline panel. The React Native leaf of
- * `./IngredientLineEditor.tsx`: the food with Change, Amount (with "+ Add a range"), Unit and Preparation, then Food
+ * `./IngredientLineEditor.tsx`: "Counted as" and the food with Change, the cook's own words and the note, Amount (with "+ Add a range"), Unit and Preparation, then Food
  * details. The fields wrap by width: in the sheet Amount and Unit share line 1 and Preparation takes line 2.
  *
  * Presentational: `props → JSX` over the row editor's view (`RowLineEditorView`); every edit is the view's.
@@ -10,13 +10,12 @@
  */
 import { Button } from '@commise/ui/button';
 import { Combobox } from '@commise/ui/combobox';
-import { useRevealedField } from '@commise/ui/field-reveal';
-import { FieldLabel, Input, fieldGeometry, fieldLabelId, fieldPaint } from '@commise/ui/input';
-import { nativeTokens } from '@commise/ui/native';
-import { TextInput } from '@commise/ui/text-input';
-import { useTheme } from '@commise/ui/theme';
+import { FieldLabel, Input } from '@commise/ui/input';
+import { PressScale } from '@commise/ui/press-scale';
+import { Text as DesignText } from '@commise/ui/text';
 import type { FC } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useWindowDimensions } from 'react-native';
+import { XStack, YStack } from 'tamagui';
 
 import { ingredientUnitNoteId } from './fieldErrorIds.js';
 import type { IngredientLineEditorProps } from './IngredientLineEditor.js';
@@ -26,7 +25,8 @@ import type { IngredientLineEditorProps } from './IngredientLineEditor.js';
  * which keeps what the cook typed, so "1." is not rewritten to "1" on the way to "1.5".
  *
  * PLATFORM-FORK: native has no `aria-describedby` or `aria-invalid`, so the amount note is the field's accessibility
- * hint. `aria-labelledby` is Android-only, so the visible label is repeated as the `accessibilityLabel` iOS reads.
+ * hint (the design-system `Input`'s `error`, which also draws the danger edge). The field holds itself in view while
+ * the cook types in it.
  */
 const AmountField: FC<{
     readonly id: string;
@@ -35,47 +35,83 @@ const AmountField: FC<{
     readonly note: string | undefined;
     readonly onChange: (text: string) => void;
     readonly accessibleName: string;
-}> = ({ id, value, invalid, note, onChange, accessibleName }) => {
-    const theme = useTheme();
-    // Held in view while the cook types in it, so the keyboard cannot cover it.
-    const reveal = useRevealedField();
-
-    return (
-        <TextInput
-            {...reveal}
-            nativeID={id}
-            aria-labelledby={fieldLabelId(id)}
-            accessibilityLabel={accessibleName}
-            {...(note === undefined ? {} : { accessibilityHint: note })}
+}> = ({ id, value, invalid, note, onChange, accessibleName }) => (
+    <YStack width={64}>
+        <Input
+            id={id}
+            label={accessibleName}
             inputMode="decimal"
             value={value}
             onChangeText={onChange}
-            style={[styles.field, styles.amount, fieldPaint(theme, invalid)]}
+            invalid={invalid}
+            {...(note === undefined ? {} : { error: note })}
         />
-    );
-};
+    </YStack>
+);
+
+/** The width from which "Name on the recipe" and "Note" share a row (a tablet). */
+const TABLET_WIDTH = 600;
 
 /** The row editor's fields. */
 export const IngredientLineEditor: FC<IngredientLineEditorProps> = ({ view, index, m, details }) => {
-    const { colors } = useTheme();
+    // On a phone Name and Note stack full width: side by side the name box showed a few letters at the largest text size
+    // and its label wrapped. Each is its own field, so a tablet keeps them in one row.
+    const stacked = useWindowDimensions().width < TABLET_WIDTH;
+    const pairedField = stacked ? { alignSelf: 'stretch' } : { minWidth: 160, flexGrow: 1, flexBasis: 160 };
+
     // A refused amount that was not mistyped here (the form's refusal) has no note of its own, but an invalid field
     // still has to say why to a screen reader: the sentence the row shows for it.
     const amountHint = view.amountNote?.text ?? (view.amountInvalid ? m.rowAmountInvalid : undefined);
 
     return (
-        <View style={styles.stack}>
-            <View style={styles.foodLine}>
-                <Text style={[styles.food, { color: colors.ink }]}>{view.food}</Text>
-                {view.onChangeFood !== undefined && (
-                    <Button variant="ghost" onPress={view.onChangeFood}>
-                        {m.rowChange}
-                    </Button>
-                )}
-            </View>
-            <View style={styles.fields}>
-                <View style={styles.cell}>
+        <YStack gap="$3">
+            <YStack gap="$1">
+                <DesignText typeRole="caption" color="$inkMuted">
+                    {m.rowCountedAsLabel}
+                </DesignText>
+                <XStack flexWrap="wrap" alignItems="center" gap="$2">
+                    <DesignText typeRole="body" color="$ink" flexShrink={1} flexGrow={1}>
+                        {view.food}
+                    </DesignText>
+                    {view.onChangeFood !== undefined && (
+                        <Button variant="ghost" onPress={view.onChangeFood}>
+                            {m.rowChange}
+                        </Button>
+                    )}
+                </XStack>
+            </YStack>
+            <XStack
+                flexDirection={stacked ? 'column' : 'row'}
+                flexWrap={stacked ? 'nowrap' : 'wrap'}
+                alignItems={stacked ? 'stretch' : 'flex-end'}
+                columnGap="$3"
+                rowGap="$4"
+            >
+                <YStack gap="$1" {...pairedField}>
+                    <FieldLabel forId={view.ids.displayText} label={m.rowDisplayTextLabel} />
+                    <Input
+                        id={view.ids.displayText}
+                        label={m.rowDisplayTextLabel}
+                        value={view.displayText}
+                        placeholder={view.displayTextPlaceholder}
+                        onChangeText={view.onDisplayText}
+                    />
+                </YStack>
+                <YStack gap="$1" {...pairedField}>
+                    <FieldLabel forId={view.ids.note} label={m.rowNoteLabel} />
+                    <Input
+                        id={view.ids.note}
+                        label={m.rowNoteLabel}
+                        value={view.note}
+                        placeholder={m.rowNotePlaceholder}
+                        onChangeText={view.onNote}
+                    />
+                </YStack>
+            </XStack>
+            <XStack flexWrap="wrap" alignItems="flex-end" columnGap="$3" rowGap="$4">
+                <YStack gap="$1">
                     <FieldLabel forId={view.ids.amount} label={m.rowAmountLabel} />
-                    <View style={styles.amounts}>
+                    <XStack alignItems="center" gap="$2">
                         <AmountField
                             id={view.ids.amount}
                             value={view.amountLow}
@@ -86,9 +122,9 @@ export const IngredientLineEditor: FC<IngredientLineEditorProps> = ({ view, inde
                         />
                         {view.rangeShown && (
                             <>
-                                <Text aria-hidden style={[styles.to, { color: colors.inkMuted }]}>
+                                <DesignText aria-hidden typeRole="body" color="$inkMuted">
                                     {m.rowAmountTo}
-                                </Text>
+                                </DesignText>
                                 <AmountField
                                     id={view.ids.amountHigh}
                                     value={view.amountHigh}
@@ -99,9 +135,9 @@ export const IngredientLineEditor: FC<IngredientLineEditorProps> = ({ view, inde
                                 />
                             </>
                         )}
-                    </View>
-                </View>
-                <View style={[styles.cell, styles.unit]}>
+                    </XStack>
+                </YStack>
+                <YStack gap="$1" width={112}>
                     <Combobox
                         id={view.ids.unit}
                         label={m.rowUnitLabel}
@@ -114,13 +150,13 @@ export const IngredientLineEditor: FC<IngredientLineEditorProps> = ({ view, inde
                         onSelect={view.onUnit}
                         countAnnouncement=""
                     />
-                </View>
-                <View style={[styles.cell, styles.prep]}>
+                </YStack>
+                <YStack gap="$1" minWidth={160} flexGrow={1} flexBasis={160}>
                     <FieldLabel forId={view.ids.prep} label={m.rowPrepLabel} />
                     <Input id={view.ids.prep} label={m.rowPrepLabel} value={view.prep} onChangeText={view.onPrep} />
-                </View>
-            </View>
-            <View style={styles.row}>
+                </YStack>
+            </XStack>
+            <XStack flexWrap="wrap">
                 {view.rangeShown ? (
                     <Button variant="ghost" onPress={view.onRemoveRange}>
                         {m.rowRemoveRange}
@@ -130,55 +166,29 @@ export const IngredientLineEditor: FC<IngredientLineEditorProps> = ({ view, inde
                         {m.rowAddRange}
                     </Button>
                 )}
-            </View>
+            </XStack>
             {view.amountNote !== undefined && (
-                <Text nativeID={view.amountNote.id} style={[styles.caption, { color: colors.dangerText }]}>
+                <DesignText nativeID={view.amountNote.id} typeRole="caption" color="$dangerText">
                     {view.amountNote.text}
-                </Text>
+                </DesignText>
             )}
             {view.unitNote !== undefined && (
-                <Text nativeID={ingredientUnitNoteId(index)} style={[styles.caption, { color: colors.inkMuted }]}>
+                <DesignText nativeID={ingredientUnitNoteId(index)} typeRole="caption" color="$inkMuted">
                     {view.unitNote}
-                </Text>
+                </DesignText>
             )}
             {view.detailsOffered && (
-                <View style={styles.stack}>
-                    <Pressable
-                        accessibilityRole="button"
-                        aria-expanded={view.detailsOpen}
-                        onPress={view.onToggleDetails}
-                        style={styles.disclosure}
-                    >
-                        <Text style={[styles.disclosureText, { color: colors.actionText }]}>{m.rowFoodDetails}</Text>
-                    </Pressable>
+                <YStack gap="$3">
+                    <PressScale accessibilityRole="button" expanded={view.detailsOpen} onPress={view.onToggleDetails}>
+                        <YStack minHeight={48} justifyContent="center" alignSelf="flex-start">
+                            <DesignText typeRole="label" color="$actionText">
+                                {m.rowFoodDetails}
+                            </DesignText>
+                        </YStack>
+                    </PressScale>
                     {view.detailsOpen && details}
-                </View>
+                </YStack>
             )}
-        </View>
+        </YStack>
     );
 };
-
-const styles = StyleSheet.create({
-    stack: { gap: nativeTokens.spacing[3] },
-    foodLine: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: nativeTokens.spacing[2] },
-    food: { ...nativeTokens.type.body, flexShrink: 1, flexGrow: 1 },
-    fields: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        alignItems: 'flex-end',
-        columnGap: nativeTokens.spacing[3],
-        rowGap: nativeTokens.spacing[4],
-    },
-    cell: { gap: nativeTokens.spacing[1] },
-    amounts: { flexDirection: 'row', alignItems: 'center', gap: nativeTokens.spacing[2] },
-    field: fieldGeometry,
-    // §7.5.2: a 64 pt number field, a 112 pt unit, and the preparation filling the rest at 160 pt or more.
-    amount: { width: 64, fontVariant: ['tabular-nums'] },
-    unit: { width: 112 },
-    prep: { minWidth: 160, flexGrow: 1, flexBasis: 160 },
-    to: { ...nativeTokens.type.body },
-    row: { flexDirection: 'row', flexWrap: 'wrap' },
-    caption: { ...nativeTokens.type.caption },
-    disclosure: { minHeight: 48, justifyContent: 'center', alignSelf: 'flex-start' },
-    disclosureText: { ...nativeTokens.type.label },
-});

@@ -11,7 +11,10 @@
  * @pattern Adapter — route params and navigator intents → each screen's callback props
  */
 import { editorMessages, finishedNoticeOf, type EditorFinish, type PrivateRefusal } from '@commise/features-recipes';
+import { foodPageMessages } from '@commise/features-recipes/food-page';
+import { FoodDetailScreen } from '@commise/features-recipes/food-page/mobile';
 import { useMessages } from '@commise/i18n/react';
+import { useIsOffline } from '@commise/query';
 import { useSnackbar } from '@commise/ui/snackbar';
 import type { NativeStackScreenProps, createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useCallback, type JSX } from 'react';
@@ -86,6 +89,7 @@ function RecipeCreateRoute({ navigation, route }: TaskProps<'RecipeCreate'>): JS
             onClose={() => navigation.goBack()}
             onDiscarded={toRecipes}
             subscribeToLeave={subscribeToLeave}
+            onOpenFood={(foodId) => navigation.push('FoodDetail', { foodId, from: 'editor' })}
         />
     );
 }
@@ -118,6 +122,34 @@ function RecipeEditRoute({ navigation, route }: TaskProps<'RecipeEdit'>): JSX.El
                 navigation.popTo('Tabs', { screen: 'recipes', params: { screen: 'RecipesRoot', pop: true } })
             }
             subscribeToLeave={subscribeToLeave}
+            onOpenFood={(foodId) => navigation.push('FoodDetail', { foodId, from: 'editor' })}
+        />
+    );
+}
+
+/**
+ * The author's food page, above the editor or Your foods (ADR-0056 item 2). Back pops it, so the screen beneath is exactly
+ * as the cook left it, and no editor leave, checkpoint or discard fires: this route is pushed on the root stack, which the
+ * editor does not own. Edit opens the same edit sheet as the editor (a follow-up: see `useFoodPage`'s host).
+ */
+function FoodDetailRoute({ navigation, route }: TaskProps<'FoodDetail'>): JSX.Element {
+    const m = useMessages(foodPageMessages);
+    const back =
+        route.params.from === 'editor'
+            ? m.backToEditor
+            : route.params.from === 'recipe'
+              ? m.backToRecipe
+              : { label: m.yourFoods.title, parent: m.yourFoods.title };
+    const goBack = (): void => navigation.goBack();
+    const offline = useIsOffline();
+
+    return (
+        <FoodDetailScreen
+            foodId={route.params.foodId}
+            back={{ label: back.label, parent: back.parent, onPress: goBack }}
+            leaveLabel={back.label}
+            onLeave={goBack}
+            offline={offline}
         />
     );
 }
@@ -136,6 +168,7 @@ export function taskScreens(Stack: RootStack): JSX.Element {
         <>
             <Stack.Screen name="RecipeCreate" component={RecipeCreateRoute} />
             <Stack.Screen name="RecipeEdit" component={RecipeEditRoute} />
+            <Stack.Screen name="FoodDetail" component={FoodDetailRoute} />
         </>
     );
 }

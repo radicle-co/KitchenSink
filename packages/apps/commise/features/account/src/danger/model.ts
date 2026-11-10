@@ -31,6 +31,11 @@ export interface AccountEraseDialogProps {
     readonly open: boolean;
     /** The owner-only recipes offered for donation (already filtered to eligible; may be empty). */
     readonly donatableRecipes: readonly DonatableRecipe[];
+    /**
+     * The owner-only recipes the erasure DELETES because a line uses a food only the owner can see (ADR-0029 section 6).
+     * Listed under "These will be deleted" before the phrase, with no way to keep them. Absent is none.
+     */
+    readonly blockedRecipes?: readonly DonatableRecipe[];
     /** Whether the owner's recipes are still loading (show a status, not the election yet). */
     readonly recipesLoading?: boolean;
     /**

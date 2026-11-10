@@ -37,6 +37,8 @@ export interface EditorMessages {
      * allowed, and those lines count as zero toward nutrition.
      */
     readonly readyUnmatched: PluralText;
+    /** The ready line while a public draft holds private foods (private foods spec D2). */
+    readonly readyPrivateFood: PluralText;
     readonly published: string;
     readonly addToCollection: string;
     readonly changesSaved: string;
@@ -60,10 +62,18 @@ export interface EditorMessages {
         };
         /** Needs attention (counted) and in-progress reasons, by the reason the status names. */
         readonly reason: Readonly<
-            Record<Exclude<AttentionReason, 'ingredientsUnresolved' | 'ingredientsQuantityInvalid'>, string>
+            Record<
+                Exclude<
+                    AttentionReason,
+                    'ingredientsUnresolved' | 'ingredientsQuantityInvalid' | 'ingredientsPrivateFood'
+                >,
+                string
+            >
         > & {
             readonly ingredientsUnresolved: PluralText;
             readonly ingredientsQuantityInvalid: PluralText;
+            /** A private food in a public recipe. */
+            readonly ingredientsPrivateFood: PluralText;
         } & Readonly<Record<InProgressReason, string>>;
         /** The phone bar's accessible name: "Sections. Current: {current}." */
         readonly barName: string;
@@ -192,10 +202,35 @@ export interface EditorMessages {
     };
 
     /**
+     * The refusal when a public recipe holds a food only its author can see (ADR-0029 section 4; private foods spec
+     * section 7). `why` is a count text; `{line}` in the open-food names is the line as the editor shows it.
+     */
+    readonly publishRefused: {
+        readonly title: string;
+        readonly why: PluralText;
+        readonly newTab: string;
+        readonly waysHeading: string;
+        readonly wayChange: string;
+        readonly wayAsk: string;
+        readonly wayPrivatePublish: string;
+        readonly wayPrivateSave: string;
+        /** One line for a cook whose private recipes are full. Never an upsell. */
+        readonly slotsFull: string;
+        readonly draftKept: string;
+        readonly changesKept: string;
+        readonly publishPrivate: string;
+        readonly savePrivate: string;
+        readonly back: string;
+        readonly close: string;
+        readonly openFood: string;
+        readonly openFoodName: string;
+        readonly openFoodNameWeb: string;
+        readonly closeLabel: string;
+    };
+    /**
      * The dialog (web) or bottom sheet (native) a Publish opens when the cook chose Private and cannot keep it (owner
-     * ruling 2026-10-26, replacing the earlier stop-and-ask): `noSlot` when every private slot is used, `webImport` for an
-     * imported public-web recipe (Premium and a change of the cook's own). The spec's `recipe.publish.noSlot.*`,
-     * `recipe.publish.webImport.*` and `recipe.publish.blocked.*`. The two actions carry EQUAL weight.
+     * ruling 2026-10-26, replacing the earlier stop-and-ask): every private slot is used. The spec's
+     * `recipe.publish.noSlot.*` and `recipe.publish.blocked.*`. The two actions carry EQUAL weight.
      *
      * The `upsell` lines and `seePremium` exist for when there is a subscription page to go to (feature 010) and are
      * unused until `PUBLISH_BLOCKED_PREMIUM_UPSELL` is turned on (`publishBlockedCopy.ts`).
@@ -208,13 +243,6 @@ export interface EditorMessages {
             /** The same, said when the limit is not known: never a count the client does not have. */
             readonly bodyNoCount: string;
             /** `{premiumFeatures}` is the list of what Premium adds. */
-            readonly upsell: string;
-        };
-        readonly webImport: {
-            readonly title: string;
-            readonly body: string;
-            /** Paid features hidden: the Premium sentence is gone. */
-            readonly bodyNoPaid: string;
             readonly upsell: string;
         };
         readonly publishPublic: string;
@@ -252,19 +280,11 @@ export interface EditorMessages {
         /**
          * Under the Public card of a private recipe, whenever choosing it opens the make-public confirm
          * (`recipeMakePublicConsequence`; WCAG 3.2.2 asks that the cook be told before using it): `publicFrees` for a
-         * cook with private slots, `publicNeedsPremium` only for an imported public-web recipe, where Premium is still the
-         * rule.
+         * cook with private slots.
          *
          * ⛔ PUBLIC IS NEVER FINAL (owner ruling 2026-10-26): there is no "you won't be able to make it private again".
          */
         readonly publicFrees: string;
-        readonly publicNeedsPremium: string;
-        /**
-         * A draft kept from before the cook lost the paid features still says Private, for a recipe not held private
-         * (`refusedDraftPrivate`): on the statement under hidden, on the Public card under the upsell.
-         */
-        readonly privateUnavailable: string;
-        readonly privatePremiumOnly: string;
         readonly private: string;
         readonly privateHint: string;
         /** Private's line while a slot is free: `{left}` and `{total}` come from the server. */
@@ -286,8 +306,6 @@ export interface EditorMessages {
         readonly overLimit: string;
         /** The link under `overLimit`, where paid features are shown: opens the Premium sheet. */
         readonly aboutPremium: string;
-        /** An imported public-web recipe a free cook cannot make private (Premium and a change of their own). */
-        readonly webPrivate: string;
         /** The title over the ways forward from a full set of slots. */
         readonly waysTitle: string;
         readonly wayMakePublic: string;
@@ -312,6 +330,10 @@ export const editorMessages: LocalizedMessages<EditorMessages> = {
         saveChanges: 'Save changes',
         fixCount: { one: 'Fix {count} thing to publish', other: 'Fix {count} things to publish' },
         ready: 'Ready to publish.',
+        readyPrivateFood: {
+            one: '{count} ingredient uses your private food, so this recipe can’t be public yet.',
+            other: '{count} ingredients use your private foods, so this recipe can’t be public yet.',
+        },
         readyUnmatched: {
             one: 'Ready to publish. {count} ingredient has no match, so its nutrition is left out.',
             other: 'Ready to publish. {count} ingredients have no match, so their nutrition is left out.',
@@ -352,6 +374,7 @@ export const editorMessages: LocalizedMessages<EditorMessages> = {
                 ingredientsNeedYou: 'Needs you',
                 ingredientsUnresolved: { one: '{count} needs a match', other: '{count} need a match' },
                 ingredientsQuantityInvalid: { one: '{count} amount to fix', other: '{count} amounts to fix' },
+                ingredientsPrivateFood: { one: '{count} uses a private food', other: '{count} use private foods' },
                 stepBlank: 'Fill in or remove the empty step',
                 servingsPositive: 'Servings must be more than 0',
                 timesNonNegative: "Times can't be negative",
@@ -466,6 +489,30 @@ export const editorMessages: LocalizedMessages<EditorMessages> = {
             close: 'Close',
         },
 
+        publishRefused: {
+            title: 'This recipe can’t be public yet',
+            why: {
+                one: '{count} ingredient uses a food only you can see. A public recipe can use only public foods, so every reader sees each ingredient and its nutrition.',
+                other: '{count} ingredients use foods only you can see. A public recipe can use only public foods, so every reader sees each ingredient and its nutrition.',
+            },
+            newTab: 'Each food opens in a new tab, so your recipe stays here.',
+            waysHeading: 'To go on',
+            wayChange: 'Change or remove these ingredients in the editor.',
+            wayAsk: 'Ask to make each food public from its page. Once staff approve it, you can make this recipe public.',
+            wayPrivatePublish: 'Or publish this recipe as private.',
+            wayPrivateSave: 'Or make this recipe private. Other cooks won’t be able to see it anymore.',
+            slotsFull: 'Your private recipes are full, so this recipe can’t be made private right now.',
+            draftKept: 'Your recipe is saved as a draft.',
+            changesKept: 'Your changes are kept on this device. The public recipe hasn’t changed.',
+            publishPrivate: 'Publish as private',
+            savePrivate: 'Make private and save',
+            back: 'Back to editor',
+            close: 'Close',
+            openFood: 'Open food',
+            openFoodName: 'Open food: {line}',
+            openFoodNameWeb: 'Open food: {line}, opens in a new tab',
+            closeLabel: 'Close this message',
+        },
         publishBlocked: {
             noSlot: {
                 title: 'Your private slots are full',
@@ -473,13 +520,6 @@ export const editorMessages: LocalizedMessages<EditorMessages> = {
                 bodyNoCount:
                     'Your private slots are all in use, so this recipe can’t be private right now. You can publish it as public, or keep it as a draft. Nothing is lost either way.',
                 upsell: 'Pro gives you unlimited private recipes, plus {premiumFeatures}.',
-            },
-            webImport: {
-                title: 'This recipe can’t be private yet',
-                body: 'A recipe from a public web page can be private with Pro, once you have changed it yourself. You can publish it as public, or keep it as a draft. Nothing is lost either way.',
-                bodyNoPaid:
-                    'A recipe from a public web page can only be public. You can publish it as public, or keep it as a draft.',
-                upsell: 'Pro gives you unlimited private recipes, plus {premiumFeatures}. This one also needs a change of your own.',
             },
             publishPublic: 'Publish as public',
             keepDraft: 'Keep as draft',
@@ -518,12 +558,6 @@ export const editorMessages: LocalizedMessages<EditorMessages> = {
             public: 'Public',
             publicHint: 'Anyone can find it in Discover',
             publicFrees: 'This frees one of your private slots. To make it private again, you need a free slot.',
-            publicNeedsPremium: "To make it private again, you'll need Pro.",
-            // Paid features hidden: the Private card is shown refused, and this is its reason (`publicRefused`'s pattern).
-            privateUnavailable: 'Not available. A recipe from a public web page can only be public.',
-            // The owner's design wording of 2026-10-26 (`editor privatePremiumOnly`).
-            privatePremiumOnly:
-                'A recipe from a public web page needs Pro and a change of your own to be private. If it still can’t be private when you publish, we will ask what you want to do.',
             private: 'Private',
             privateHint: 'Only you can see it',
             slotsLeft: '{left} of {total} private slots left',
@@ -535,8 +569,6 @@ export const editorMessages: LocalizedMessages<EditorMessages> = {
             overLimit:
                 'You have {count} private recipes and {total} private slots. They stay private. To make another recipe private, first bring your private recipes under {total}.',
             aboutPremium: 'About Pro',
-            webPrivate:
-                'Not available. A recipe from a public web page needs Pro and a change of your own to be private.',
             waysTitle: 'To keep this recipe private',
             wayMakePublic: 'Make a private recipe public',
             wayMakePublicDetail: 'It frees its slot',

@@ -225,7 +225,13 @@ describe('authored foods HTTP API (booted Nest + real Postgres, U10)', () => {
             body: { ...CREATE_BODY, name: 'Promoted Blend' },
         });
 
-        expect(edited.status).toBe(200);
+        // ADR-0029 section 7: a PUBLIC food's edit is accepted, not applied. It is the next version, waiting for staff.
+        expect(edited.status).toBe(202);
+        expect(edited.body).toEqual({ publication: { state: 'editPending', versionNumber: 2 } });
+
+        const live = await pool.query(`SELECT name FROM food WHERE id = $1`, [id]);
+
+        expect(live.rows[0]).toEqual({ name: 'My Protein Blend' });
 
         const versions = await pool.query(
             `SELECT version_number, snapshot->>'name' AS name FROM food_versions WHERE food_id = $1 ORDER BY version_number`,

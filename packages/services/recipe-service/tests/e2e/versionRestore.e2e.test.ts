@@ -74,9 +74,14 @@ async function byFood(foodId: string): Promise<string> {
 const line = (ingredientId: string) => ({ ingredientId, quantity: { kind: 'exact', value: 1 }, unit: 'cup' });
 
 /** Save version 1 with `lookupId` on its only line, then move the line to the spare binding (version 2). */
-async function savedThenMoved(label: string, lookupId: string): Promise<RecipeBody> {
+async function savedThenMoved(
+    label: string,
+    lookupId: string,
+    visibility: 'public' | 'private' = 'public',
+): Promise<RecipeBody> {
     const created = await json<RecipeBody>('POST', '/api/v1/recipes', 201, {
         title: `${SCOPE} ${label}`,
+        visibility,
         servings: 2,
         prepTimeMinutes: 5,
         cookTimeMinutes: 10,
@@ -156,10 +161,10 @@ describe('restoring a version (e2e, assembled app + food fake)', () => {
     });
 
     it('keeps a gone food’s binding when nothing was frozen to find it by, and shows it removed', async () => {
-        // The cook's own private food: its name is never frozen into a version, which every reader can see.
+        // The cook's own private food, so a PRIVATE recipe (ADR-0029 section 4): its name is never frozen into a version.
         food.foods.set(`${SCOPE}-own`, { name: `${SCOPE} My blend`, status: 'RESOLVED', ownerId: AUTHOR });
         const lookup = await byFood(`${SCOPE}-own`);
-        const recipe = await savedThenMoved('gone, nameless', lookup);
+        const recipe = await savedThenMoved('gone, nameless', lookup, 'private');
 
         food.foods.delete(`${SCOPE}-own`);
 
@@ -209,7 +214,7 @@ describe('restoring a version (e2e, assembled app + food fake)', () => {
     it('⛔ refuses the whole restore (409) when a line has no binding and no name — and changes nothing', async () => {
         food.foods.set(`${SCOPE}-own-2`, { name: `${SCOPE} Another blend`, status: 'RESOLVED', ownerId: AUTHOR });
         const lookup = await byFood(`${SCOPE}-own-2`);
-        const recipe = await savedThenMoved('gone, nameless, unbound', lookup);
+        const recipe = await savedThenMoved('gone, nameless, unbound', lookup, 'private');
 
         await deleteBinding(lookup);
 

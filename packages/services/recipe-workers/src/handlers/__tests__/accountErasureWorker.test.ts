@@ -338,6 +338,19 @@ describe('eraseRecipeRows (CR-002 / U3 — SCOPED, owner-only erasure)', () => {
         expect(flip?.params).toEqual([JSON.stringify([DONATE_1]), OWNER]);
     });
 
+    it('⛔ donates an elected recipe ONLY if it holds no private food: a dead author’s private foods stay unreferenced (ADR-0029 section 6)', async () => {
+        const control = createFakeDb();
+        seedRemoved(control, REMOVED_A);
+
+        await eraseRecipeRows(control.db, OWNER, [DONATE_1]);
+
+        const flip = control.statements().find((s) => /update recipes set visibility/i.test(s.text));
+
+        // The database's own rule (migration 0064), not a second copy of it: an elected recipe that holds a private
+        // food is not flipped, so it joins the removed set and the author's private foods are deleted with it.
+        expect(flip?.text).toMatch(/and not recipe_holds_private_food\(id\)/i);
+    });
+
     it('computes the removed set on BOTH axes — owner AND NOT (public AND published)', async () => {
         const control = createFakeDb();
         seedRemoved(control, REMOVED_A);

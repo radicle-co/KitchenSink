@@ -6,6 +6,7 @@
  * a create or update returned (its `currentVersion` is the next update's `expectedVersion`), the id a delete removed,
  * a 409's two sides, or a 403's slot count.
  */
+import type { PrivateFoodLine } from '@kitchensink/recipe-core';
 import type { RecipeDetail, VersionConflictError } from '@kitchensink/recipe-service-client';
 
 /** One side of a version conflict, as the client's error carries it. */
@@ -20,4 +21,6 @@ export type SyncAnswer =
     /** A version conflict: the winning side, and the base the edit started from when the server still has it. */
     | { readonly kind: 'recipeConflict'; readonly server: VersionConflictSide; readonly base?: VersionConflictSide }
     /** A write the server refused for want of a private slot (`403 PRIVATE_SLOTS_FULL`): what it counted, and the limit. */
-    | { readonly kind: 'recipeSlotsFull'; readonly used: number; readonly limit: number };
+    | { readonly kind: 'recipeSlotsFull'; readonly used: number; readonly limit: number }
+    /** A write the server refused because a public recipe would hold foods only its author can see (`400 PRIVATE_FOODS_ON_PUBLIC_RECIPE`): the refused lines. */
+    | { readonly kind: 'recipePrivateFoods'; readonly lines: readonly PrivateFoodLine[] };

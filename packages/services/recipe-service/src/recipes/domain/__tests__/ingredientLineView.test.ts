@@ -154,6 +154,9 @@ describe('composeIngredientLineView', () => {
     });
 });
 
+/** Lines with no words of their own, one per binding id. */
+const lines = (...ids: string[]) => ids.map((foodLookupId) => ({ foodLookupId }));
+
 describe('ingredientNamesText — the search column, from the names the lines have', () => {
     const SHARED: FoodLookupArm = { kind: 'root', lookupId: 'l3', foodId: 'food-3', foodOwnerId: null, createdAt: AT };
     const brisket: IngredientLineIdentity = {
@@ -176,25 +179,87 @@ describe('ingredientNamesText — the search column, from the names the lines ha
     ]);
 
     it('joins the named lines in order and skips a nameless one — with the positive control on the same call', () => {
-        expect(ingredientNamesText(['brisket', 'nameless', 'yeast'], identities)).toBe(
+        expect(ingredientNamesText(lines('brisket', 'nameless', 'yeast'), identities)).toBe(
             'beef brisket nutritional yeast',
         );
     });
 
     it('follows the lines’ order, not the identities’', () => {
-        expect(ingredientNamesText(['yeast', 'brisket'], identities)).toBe('nutritional yeast beef brisket');
+        expect(ingredientNamesText(lines('yeast', 'brisket'), identities)).toBe('nutritional yeast beef brisket');
     });
 
     it('skips a line whose binding has no identity', () => {
-        expect(ingredientNamesText(['brisket', 'unknown-binding'], identities)).toBe('beef brisket');
+        expect(ingredientNamesText(lines('brisket', 'unknown-binding'), identities)).toBe('beef brisket');
     });
 
     it('⛔ leaves out a PRIVATE food’s name, which only its author may see — even when the author is saving', () => {
         // `named` is bound to a food private to `author-1`, and the saving author's own read names it.
-        expect(ingredientNamesText(['private', 'brisket'], identities)).toBe('beef brisket');
+        expect(ingredientNamesText(lines('private', 'brisket'), identities)).toBe('beef brisket');
+    });
+
+    it('adds the cook’s own words on a line, after that line’s name', () => {
+        expect(
+            ingredientNamesText(
+                [
+                    { foodLookupId: 'brisket', displayText: ' point cut, trimmed ' },
+                    { foodLookupId: 'yeast', displayText: null },
+                    { foodLookupId: 'nameless', displayText: 'my secret thing' },
+                    { foodLookupId: 'brisket', displayText: '   ' },
+                ],
+                identities,
+            ),
+        ).toBe('beef brisket point cut, trimmed nutritional yeast my secret thing beef brisket');
+    });
+
+    it('⛔ still leaves a private food’s NAME out while the line’s own words go in', () => {
+        const text = ingredientNamesText([{ foodLookupId: 'private', displayText: 'a pinch' }], identities);
+
+        expect(text).toBe('a pinch');
+        expect(text).not.toContain(String(named.name));
     });
 
     it('is empty for no lines', () => {
         expect(ingredientNamesText([], identities)).toBe('');
+    });
+});
+
+describe('composeIngredientLineView - foodVisibility (revision 4, F4)', () => {
+    const shown = (isPrivate: boolean | undefined): IngredientLineIdentity => ({
+        arm: ROOT,
+        name: 'grandma blend',
+        presence: 'present',
+        food: { rootId: 'food-1', ...(isPrivate === undefined ? {} : { isPrivate }) },
+    });
+
+    it('says private when food’s live answer says the food is private, whatever the captured owner says', () => {
+        expect(composeIngredientLineView(shown(true), FoodResolutionStatus.RESOLVED).foodVisibility).toBe('private');
+        expect(
+            composeIngredientLineView(
+                { ...shown(true), arm: { ...ROOT, foodOwnerId: null } as FoodLookupArm },
+                FoodResolutionStatus.RESOLVED,
+            ).foodVisibility,
+        ).toBe('private');
+    });
+
+    it('says public when food’s live answer says the food is public, even if the captured owner is stale', () => {
+        expect(composeIngredientLineView(shown(false), FoodResolutionStatus.RESOLVED).foodVisibility).toBe('public');
+    });
+
+    it('is absent when food was not asked or gave no visibility, and on a hidden line', () => {
+        expect(composeIngredientLineView(shown(undefined), FoodResolutionStatus.RESOLVED)).not.toHaveProperty(
+            'foodVisibility',
+        );
+        expect(composeIngredientLineView(shown(true), FoodResolutionStatus.RESOLVED_UNAVAILABLE)).not.toHaveProperty(
+            'foodVisibility',
+        );
+    });
+
+    it('is absent on an unbound (declared) line', () => {
+        expect(
+            composeIngredientLineView(
+                { arm: unresolvedArm('author_declared'), name: 'yeast', presence: 'none' } as never,
+                FoodResolutionStatus.UNRESOLVED,
+            ),
+        ).not.toHaveProperty('foodVisibility');
     });
 });

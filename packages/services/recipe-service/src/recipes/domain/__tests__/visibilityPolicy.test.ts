@@ -1,7 +1,7 @@
 /**
  * T048-test — unit tests for the pure C-004 visibility-policy evaluator.
  *
- * Pins EVERY row of the C-004 allow/deny matrix over `(sourceType, isPremium, hasSubstantiveEdit,
+ * Pins EVERY row of the C-004 allow/deny matrix over `(sourceType, isPremium, hasAvailablePrivateSlot,
  * requested)`, plus the premium-lapse transition semantics (the evaluator gates the *transition to
  * private*, not existing state) and the clone default-visibility derivation. The evaluator is pure —
  * inputs only, boolean + reason out — so no DB, DI, or fixtures are involved.
@@ -40,7 +40,6 @@ describe('evaluateVisibility — requested public', () => {
                     ...REAL_ENFORCING,
                     sourceType: RecipeSourceType.USER_CREATED,
                     isPremium,
-                    hasSubstantiveEdit: false,
                     requested: PUBLIC,
                     hasAvailablePrivateSlot: true,
                 }),
@@ -55,7 +54,6 @@ describe('evaluateVisibility — requested public', () => {
                 ...REAL_ENFORCING,
                 sourceType: RecipeSourceType.IMPORTED_PUBLIC,
                 isPremium: false,
-                hasSubstantiveEdit: false,
                 requested: PUBLIC,
                 hasAvailablePrivateSlot: true,
             }),
@@ -68,7 +66,6 @@ describe('evaluateVisibility — requested public', () => {
             ...REAL_ENFORCING,
             sourceType: RecipeSourceType.IMPORTED_PHYSICAL,
             isPremium: true,
-            hasSubstantiveEdit: true,
             requested: PUBLIC,
             hasAvailablePrivateSlot: true,
         });
@@ -76,7 +73,6 @@ describe('evaluateVisibility — requested public', () => {
             ...REAL_ENFORCING,
             sourceType: RecipeSourceType.IMPORTED_PAID,
             isPremium: true,
-            hasSubstantiveEdit: true,
             requested: PUBLIC,
             hasAvailablePrivateSlot: true,
         });
@@ -90,104 +86,34 @@ describe('evaluateVisibility — requested public', () => {
     });
 });
 
-describe('evaluateVisibility — requested private (ADR-0073 §6 truth table)', () => {
+describe('evaluateVisibility — requested private (ADR-0073 §6, amended by ADR-0077 §6)', () => {
     /**
-     * REWRITTEN for ADR-0073. It used to assert that a free user_created private request is denied outright and that
-     * imported_physical/imported_paid are always allowed. It now proves the §6 matrix cell by cell, against a LITERAL
-     * table (not a re-implementation of the rule), over every source type x tier x slot fact x substantive edit.
+     * REWRITTEN for ADR-0077 section 6 (owner ruling 2026-10-29, "Any cook, using a slot"). An imported public-web
+     * recipe used to need Premium AND a substantive edit, and a slot never helped. It is now private within the cook's
+     * slots like every other label, so all four labels share one truth table. The table is LITERAL, not a
+     * re-implementation of the rule, over every source type x tier x slot fact.
      */
     interface Row {
         readonly sourceType: RecipeSourceType;
         readonly isPremium: boolean;
         readonly hasAvailablePrivateSlot: boolean;
-        readonly hasSubstantiveEdit: boolean;
         readonly allowed: boolean;
-        /** For a refusal: whether it is the slot refusal (`privateSlots`) or an ordinary policy refusal. */
-        readonly denial?: 'policy' | 'privateSlots';
+        /** For a refusal: the slot refusal (`privateSlots`). No other refusal exists for a private request. */
+        readonly denial?: 'privateSlots';
     }
 
-    const UC = RecipeSourceType.USER_CREATED;
-    const IP = RecipeSourceType.IMPORTED_PUBLIC;
-    const PH = RecipeSourceType.IMPORTED_PHYSICAL;
-    const PD = RecipeSourceType.IMPORTED_PAID;
-
-    const TABLE: readonly Row[] = [
-        // user_created / imported_physical / imported_paid: Premium, or a free slot. The edit flag never matters.
-        ...[UC, PH, PD].flatMap((sourceType): Row[] =>
-            [false, true].flatMap((hasSubstantiveEdit): Row[] => [
-                { sourceType, isPremium: true, hasAvailablePrivateSlot: true, hasSubstantiveEdit, allowed: true },
-                { sourceType, isPremium: true, hasAvailablePrivateSlot: false, hasSubstantiveEdit, allowed: true },
-                { sourceType, isPremium: false, hasAvailablePrivateSlot: true, hasSubstantiveEdit, allowed: true },
-                {
-                    sourceType,
-                    isPremium: false,
-                    hasAvailablePrivateSlot: false,
-                    hasSubstantiveEdit,
-                    allowed: false,
-                    denial: 'privateSlots',
-                },
-            ]),
-        ),
-        // imported_public: Premium AND a substantive edit. A slot never helps, and a missing one is never the reason.
-        { sourceType: IP, isPremium: true, hasAvailablePrivateSlot: true, hasSubstantiveEdit: true, allowed: true },
-        { sourceType: IP, isPremium: true, hasAvailablePrivateSlot: false, hasSubstantiveEdit: true, allowed: true },
-        {
-            sourceType: IP,
-            isPremium: true,
-            hasAvailablePrivateSlot: true,
-            hasSubstantiveEdit: false,
-            allowed: false,
-            denial: 'policy',
-        },
-        {
-            sourceType: IP,
-            isPremium: true,
-            hasAvailablePrivateSlot: false,
-            hasSubstantiveEdit: false,
-            allowed: false,
-            denial: 'policy',
-        },
-        {
-            sourceType: IP,
-            isPremium: false,
-            hasAvailablePrivateSlot: true,
-            hasSubstantiveEdit: true,
-            allowed: false,
-            denial: 'policy',
-        },
-        {
-            sourceType: IP,
-            isPremium: false,
-            hasAvailablePrivateSlot: true,
-            hasSubstantiveEdit: false,
-            allowed: false,
-            denial: 'policy',
-        },
-        {
-            sourceType: IP,
-            isPremium: false,
-            hasAvailablePrivateSlot: false,
-            hasSubstantiveEdit: true,
-            allowed: false,
-            denial: 'policy',
-        },
-        {
-            sourceType: IP,
-            isPremium: false,
-            hasAvailablePrivateSlot: false,
-            hasSubstantiveEdit: false,
-            allowed: false,
-            denial: 'policy',
-        },
-    ];
+    const TABLE: readonly Row[] = Object.values(RecipeSourceType).flatMap((sourceType): Row[] => [
+        { sourceType, isPremium: true, hasAvailablePrivateSlot: true, allowed: true },
+        { sourceType, isPremium: true, hasAvailablePrivateSlot: false, allowed: true },
+        { sourceType, isPremium: false, hasAvailablePrivateSlot: true, allowed: true },
+        { sourceType, isPremium: false, hasAvailablePrivateSlot: false, allowed: false, denial: 'privateSlots' },
+    ]);
 
     it('covers every cell of the matrix exactly once', () => {
-        expect(TABLE).toHaveLength(4 * 2 * 2 * 2);
-        expect(
-            new Set(
-                TABLE.map((r) => `${r.sourceType}|${r.isPremium}|${r.hasAvailablePrivateSlot}|${r.hasSubstantiveEdit}`),
-            ).size,
-        ).toBe(TABLE.length);
+        expect(TABLE).toHaveLength(4 * 2 * 2);
+        expect(new Set(TABLE.map((r) => `${r.sourceType}|${r.isPremium}|${r.hasAvailablePrivateSlot}`)).size).toBe(
+            TABLE.length,
+        );
     });
 
     it.each(TABLE)('%j', (row) => {
@@ -195,7 +121,6 @@ describe('evaluateVisibility — requested private (ADR-0073 §6 truth table)', 
             ...REAL_ENFORCING,
             sourceType: row.sourceType,
             isPremium: row.isPremium,
-            hasSubstantiveEdit: row.hasSubstantiveEdit,
             requested: PRIVATE,
             hasAvailablePrivateSlot: row.hasAvailablePrivateSlot,
         });
@@ -209,25 +134,17 @@ describe('evaluateVisibility — requested private (ADR-0073 §6 truth table)', 
         }
     });
 
-    it('the slot refusal and the Premium refusal explain themselves differently', () => {
-        const noSlot = evaluateVisibility({
-            ...REAL_ENFORCING,
-            sourceType: UC,
-            isPremium: false,
-            hasSubstantiveEdit: false,
-            requested: PRIVATE,
-            hasAvailablePrivateSlot: false,
-        });
-        const noPremium = evaluateVisibility({
-            ...REAL_ENFORCING,
-            sourceType: IP,
-            isPremium: false,
-            hasSubstantiveEdit: true,
-            requested: PRIVATE,
-            hasAvailablePrivateSlot: true,
-        });
-
-        expect(noSlot.reason).not.toBe(noPremium.reason);
+    it('an imported public recipe needs no Premium and no substantive edit: a free cook with a slot may keep it private', () => {
+        expectDecision(
+            evaluateVisibility({
+                ...REAL_ENFORCING,
+                sourceType: RecipeSourceType.IMPORTED_PUBLIC,
+                isPremium: false,
+                requested: PRIVATE,
+                hasAvailablePrivateSlot: true,
+            }),
+            true,
+        );
     });
 });
 
@@ -259,7 +176,6 @@ describe('evaluateVisibility — test-principal containment (ADR-0040)', () => {
                 containment: 'enforce',
                 sourceType,
                 isPremium: true,
-                hasSubstantiveEdit: true,
                 requested: PUBLIC,
                 hasAvailablePrivateSlot: true,
             });
@@ -276,7 +192,6 @@ describe('evaluateVisibility — test-principal containment (ADR-0040)', () => {
             principalKind: 'test',
             containment: 'enforce',
             sourceType: RecipeSourceType.USER_CREATED,
-            hasSubstantiveEdit: false,
             requested: PRIVATE,
         } as const;
         const premium = evaluateVisibility({ ...base, isPremium: true, hasAvailablePrivateSlot: false });
@@ -296,7 +211,6 @@ describe('evaluateVisibility — test-principal containment (ADR-0040)', () => {
                 containment: 'off',
                 sourceType: RecipeSourceType.USER_CREATED,
                 isPremium: false,
-                hasSubstantiveEdit: false,
                 requested: PUBLIC,
                 hasAvailablePrivateSlot: true,
             }),
@@ -309,7 +223,6 @@ describe('evaluateVisibility — test-principal containment (ADR-0040)', () => {
             ...REAL_ENFORCING,
             sourceType: RecipeSourceType.IMPORTED_PAID,
             isPremium: true,
-            hasSubstantiveEdit: true,
             requested: PUBLIC,
             hasAvailablePrivateSlot: true,
         });

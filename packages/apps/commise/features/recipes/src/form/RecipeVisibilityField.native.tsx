@@ -3,10 +3,7 @@
  * (`docs/design/uiOverhaul/buildSpec.md` §7.7 item 2), the React Native leaf of `./RecipeVisibilityField.tsx`, on the
  * same props and the same rule (`visibilityChoice`): a radio group of two 56 pt cards; under `upsell` Private asks for
  * the upsell instead of changing the value, and for a downgraded owner Public on a private recipe asks to confirm
- * (`onConfirmPublic`), its card saying beforehand what it costs (`visibilityFieldOf`; plan 2026-10-14-009 D14, Q5). The
- * host renders `RecipeVisibilityStatement` instead when Private is not offered.
- *
- * A card is named by its whole text, so the Premium badge is read with it (an `aria-label` would replace it).
+ * (`onConfirmPublic`), its card saying beforehand what it costs (`visibilityFieldOf`; plan 2026-10-14-009 D14, Q5).
  *
  * Colours come from the theme at render, so both colour schemes paint (owner D15).
  *
@@ -15,7 +12,6 @@
  */
 import { useMessages } from '@commise/i18n/react';
 import { nativeTokens } from '@commise/ui/native';
-import { StatusBadge } from '@commise/ui/status-badge';
 import { useTheme } from '@commise/ui/theme';
 import { touchFloor } from '@commise/ui/layout';
 import type { RecipeVisibility } from '@kitchensink/recipe-core';
@@ -24,7 +20,6 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { heldVisibility } from '../actions/privateGate.js';
 import { editorMessages } from '../editor/messages.js';
-import { recipeFormMessages } from './messages.js';
 import { visibilityChoice, visibilityFieldOf, type RecipeVisibilityFieldProps } from './props.js';
 
 /** "Who can see it": Public or Private. */
@@ -38,7 +33,6 @@ export const RecipeVisibilityField: FC<RecipeVisibilityFieldProps> = ({
     onConfirmPublic,
     onFreeASlot,
 }) => {
-    const m = useMessages(recipeFormMessages);
     const { visibility: v } = useMessages(editorMessages);
     const { colors } = useTheme();
     // Idempotent over a host that already passes the held value: the field enforces the rule rather than trusting it.
@@ -54,9 +48,7 @@ export const RecipeVisibilityField: FC<RecipeVisibilityFieldProps> = ({
     const choose = (chosen: RecipeVisibility): void => {
         const next = visibilityChoice(shown, chosen, savedVisibility, facts);
 
-        if (next === 'premiumRequired') {
-            onPremiumRequired?.();
-        } else if (next === 'confirmPublic') {
+        if (next === 'confirmPublic') {
             onConfirmPublic();
         } else if (next !== undefined) {
             onChange({ ...values, ...next });
@@ -102,7 +94,6 @@ export const RecipeVisibilityField: FC<RecipeVisibilityFieldProps> = ({
                                     <Text style={[styles.hint, { color: colors.inkMuted }]}>{option.note}</Text>
                                 )}
                             </View>
-                            {option.premium ? <StatusBadge status="pro">{m.premiumBadge}</StatusBadge> : null}
                         </Pressable>
                     );
                 })}

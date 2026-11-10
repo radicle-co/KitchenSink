@@ -33,6 +33,14 @@ import { z } from 'zod';
  */
 export const MAX_FOOD_NAME_LENGTH = 200;
 
+/** Why an author's publication request is refused (`409 PUBLICATION_NOT_REQUESTABLE`). The one statement of the set. */
+export const publicationNotRequestableReasonSchema = z.enum(['withdrawn', 'notPrivate', 'declined']);
+export type PublicationNotRequestableReason = z.infer<typeof publicationNotRequestableReasonSchema>;
+
+/** Why staff cannot approve a request (`409 PUBLICATION_NOT_APPROVABLE`). The one statement of the set. */
+export const publicationNotApprovableReasonSchema = z.enum(['closed', 'withdrawn', 'notNewest']);
+export type PublicationNotApprovableReason = z.infer<typeof publicationNotApprovableReasonSchema>;
+
 /**
  * Food lifecycle status — the service's canonical set (FR-002/FR-003/FR-004).
  *
@@ -388,6 +396,40 @@ export type FoodRef = z.infer<typeof foodRefSchema>;
  */
 const foodRefViewSchema = z.object(foodRefSchema.shape);
 
+/**
+ * What the author reads about a food they wrote (ADR-0029 §5, §7): the one word the list, the food page and the badge
+ * all show. Derived on the service by `publicationStateOf`; a client never reconstructs it.
+ */
+export const publicationStateSchema = z.enum([
+    'private',
+    'asked',
+    'notApproved',
+    'public',
+    'editWaiting',
+    'editNotApproved',
+    'withdrawn',
+]);
+
+export type PublicationStateValue = z.infer<typeof publicationStateSchema>;
+
+/**
+ * The macros an authored food declares, PER 100g (Q3a: macros-only at launch; feature 009 owns the
+ * additive expansion to full nutrient rows). Bounds are physical sanity, not nutrition science: no macro
+ * gram figure can exceed 100 in 100g, and energy tops out below 900 kcal/100g (pure fat).
+ */
+export const authoredMacrosSchema = z.strictObject({
+    /** Energy, kcal per 100g. */
+    calories: z.number().min(0).max(900),
+    /** Protein, g per 100g. */
+    proteinG: z.number().min(0).max(100),
+    /** Carbohydrate, g per 100g. */
+    carbsG: z.number().min(0).max(100),
+    /** Total fat, g per 100g. */
+    fatG: z.number().min(0).max(100),
+});
+
+export type AuthoredMacros = z.infer<typeof authoredMacrosSchema>;
+
 /** The full golden record returned for a `RESOLVED` food (FR-002). */
 export const foodResponseSchema = z.object({
     /** Internal food id (ULID). */
@@ -413,6 +455,18 @@ export const foodResponseSchema = z.object({
      * publishing it would invite exactly that).
      */
     visibility: z.literal('private').optional(),
+    /**
+     * Present ONLY when the AUTHOR reads their own food: where its publication stands (revision 4, F19). Never
+     * published to another reader.
+     */
+    publicationState: publicationStateSchema.optional(),
+    /**
+     * Present ONLY for a user-authored food: the four macros its LIVE (approved) version declares, per 100g, as the
+     * author wrote them. An edit waiting for staff does not change them. They are the figures `nutrients` already
+     * carries, by identity rather than by name, so the food page shows them and compares them with a waiting edit's
+     * `PublicationSnapshot.macros` figure to figure. Absent for a catalog food.
+     */
+    authoredMacros: authoredMacrosSchema.optional(),
     /**
      * Curated U8 (R17): the root's LIVE variants, in the order the variant picker lists them. `[]` for a root with
      * none and for an authored food, which never has any.
@@ -868,24 +922,6 @@ export const MAX_AUTHORED_PORTION_LABEL = 80;
 /** Most portions one authored food may declare. */
 export const MAX_AUTHORED_PORTIONS = 10;
 
-/**
- * The macros an authored food declares, PER 100g (Q3a: macros-only at launch; feature 009 owns the
- * additive expansion to full nutrient rows). Bounds are physical sanity, not nutrition science: no macro
- * gram figure can exceed 100 in 100g, and energy tops out below 900 kcal/100g (pure fat).
- */
-export const authoredMacrosSchema = z.strictObject({
-    /** Energy, kcal per 100g. */
-    calories: z.number().min(0).max(900),
-    /** Protein, g per 100g. */
-    proteinG: z.number().min(0).max(100),
-    /** Carbohydrate, g per 100g. */
-    carbsG: z.number().min(0).max(100),
-    /** Total fat, g per 100g. */
-    fatG: z.number().min(0).max(100),
-});
-
-export type AuthoredMacros = z.infer<typeof authoredMacrosSchema>;
-
 /** One household-measure portion an authored food declares. */
 export const authoredPortionInputSchema = z.strictObject({
     /** The household label (`1 cup`, `1 scoop`). */
@@ -1086,6 +1122,18 @@ export const foodErrorCodeSchema = z.enum([
      * the source no longer has it, or its reference is not one this service can open. Search again for a fresh answer.
      */
     'REMOTE_FOOD_GONE',
+    /**
+     * The author cannot ask to publish this food (`409`, ADR-0029 §5): it is withdrawn, it is not private, or staff
+     * already declined this version. `details.reason` says which; an edit makes a new version that can be asked.
+     */
+    'PUBLICATION_NOT_REQUESTABLE',
+    /** No publication request with that id, or none for that food (`404`). */
+    'PUBLICATION_REQUEST_NOT_FOUND',
+    /**
+     * Staff cannot decide this request (`409`): it is already decided or closed, its food was withdrawn, or a newer
+     * version replaced it. `details.reason` says which. A decision on a stale request changes nothing.
+     */
+    'PUBLICATION_NOT_APPROVABLE',
     /** An unmapped server fault. The body carries no internal detail, by design. */
     'INTERNAL_ERROR',
 ]);
@@ -1214,6 +1262,27 @@ export const foodErrorSchema = z.discriminatedUnion('code', [
         })
         .loose(),
     z.object({ code: z.literal('REMOTE_FOOD_GONE'), message: z.string() }).loose(),
+    z
+        .object({
+            code: z.literal('PUBLICATION_NOT_REQUESTABLE'),
+            message: z.string(),
+            details: z.object({ id: z.string(), reason: publicationNotRequestableReasonSchema }).loose(),
+        })
+        .loose(),
+    z
+        .object({
+            code: z.literal('PUBLICATION_REQUEST_NOT_FOUND'),
+            message: z.string(),
+            details: z.object({ id: z.string() }).loose(),
+        })
+        .loose(),
+    z
+        .object({
+            code: z.literal('PUBLICATION_NOT_APPROVABLE'),
+            message: z.string(),
+            details: z.object({ id: z.string(), reason: publicationNotApprovableReasonSchema }).loose(),
+        })
+        .loose(),
     z
         .object({
             code: z.literal('FETCH_UNAVAILABLE'),

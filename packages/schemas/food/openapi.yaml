@@ -202,6 +202,49 @@ paths:
             maxLength: 200
             pattern: ^\s*[^\s\0][^\0]*$
   /api/v1/foods/authored:
+    get:
+      operationId: listOwnFoods
+      summary: List the caller's own authored foods with where each one's publication stands
+      security:
+        - clerkSession: []
+      responses:
+        "200":
+          description: The page.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OwnFoodList"
+        "400":
+          description: "Malformed id — `code: INVALID_ID` (FR-006)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "401":
+          description: "No valid Clerk session or M2M token — `code: UNAUTHORIZED`, or `IDENTITY_SYNC_PENDING` when the token is
+            valid but its `external_id` has not synced yet (retry with a refreshed token, FR-051/CR-002)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: "A service (`svc_*`) principal. Or: The token is genuine but its account is suspended: `code:
+            ACCOUNT_SUSPENDED` (ADR-0081). Answered before the route runs, so it belongs to every operation a Clerk
+            session reaches."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+      description: Newest edit first, 50 a page. `publicationState` is derived on the service, so a client never works it out.
+        `unseenDecisions` counts foods whose newest request was decided and not yet opened. Always `private, no-store`.
+      parameters:
+        - name: cursor
+          in: query
+          required: false
+          description: The previous page’s `nextCursor`.
+          schema:
+            type: string
+            maxLength: 512
     post:
       operationId: createAuthoredFood
       summary: Create a user-authored food
@@ -253,6 +296,116 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/CreateAuthoredFoodRequest"
+  /api/v1/foods/authored/{id}/publication-request:
+    post:
+      operationId: requestFoodPublication
+      summary: Ask to make the caller's private food public
+      security:
+        - clerkSession: []
+      responses:
+        "200":
+          description: A request was already pending; it is returned.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublicationRequestDetail"
+        "201":
+          description: The new request and the version it names.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublicationRequestDetail"
+        "400":
+          description: "Malformed id — `code: INVALID_ID` (FR-006)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "401":
+          description: "No valid Clerk session or M2M token — `code: UNAUTHORIZED`, or `IDENTITY_SYNC_PENDING` when the token is
+            valid but its `external_id` has not synced yet (retry with a refreshed token, FR-051/CR-002)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: "A service (`svc_*`) principal. Or: The token is genuine but its account is suspended: `code:
+            ACCOUNT_SUSPENDED` (ADR-0081). Answered before the route runs, so it belongs to every operation a Clerk
+            session reaches."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: "No such food, or one the caller does not own (`code: FOOD_NOT_FOUND`)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: "`code: PUBLICATION_NOT_REQUESTABLE`; `details.reason` is `withdrawn`, `notPrivate` or `declined`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+      description: "The author asks; staff decide (ADR-0029 §5). The request names the food’s newest version. `201` with the
+        new request, `200` with the one already pending. A declined version cannot be asked again: edit the food first.
+        Always `private, no-store`."
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The internal food (ingredient) ULID. NEVER a source-native key such as a USDA `fdcId`.
+          schema:
+            type: string
+    get:
+      operationId: getFoodPublicationRequest
+      summary: Read where the food’s publication request stands
+      security:
+        - clerkSession: []
+      responses:
+        "200":
+          description: The latest request and its version.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublicationRequestDetail"
+        "400":
+          description: "Malformed id — `code: INVALID_ID` (FR-006)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "401":
+          description: "No valid Clerk session or M2M token — `code: UNAUTHORIZED`, or `IDENTITY_SYNC_PENDING` when the token is
+            valid but its `external_id` has not synced yet (retry with a refreshed token, FR-051/CR-002)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: "A service (`svc_*`) principal. Or: The token is genuine but its account is suspended: `code:
+            ACCOUNT_SUSPENDED` (ADR-0081). Answered before the route runs, so it belongs to every operation a Clerk
+            session reaches."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: "The food has no request, or is not the caller’s (`code: PUBLICATION_REQUEST_NOT_FOUND`)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+      description: "The latest request for the food and the version it names, whatever its status: a pending one is waiting
+        for staff, a declined one carries the reason. Always `private, no-store`."
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The internal food (ingredient) ULID. NEVER a source-native key such as a USDA `fdcId`.
+          schema:
+            type: string
   /api/v1/foods/authored/test-purge:
     post:
       operationId: purgeTestPrincipalAuthoredFoods
@@ -762,11 +915,18 @@ paths:
         - clerkSession: []
       responses:
         "200":
-          description: The updated food.
+          description: "The updated food (a PRIVATE food: the edit applies at once)."
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/FoodResponse"
+        "202":
+          description: "The food is PUBLIC (ADR-0029 §7): the edit is saved as the next version and waits for staff. The live food
+            is unchanged for every reader, the author’s own recipes included."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EditPendingResponse"
         "400":
           description: "Malformed id — `code: INVALID_ID` (FR-006)."
           content:
@@ -1285,6 +1445,114 @@ paths:
           description: The internal food (ingredient) ULID. NEVER a source-native key such as a USDA `fdcId`.
           schema:
             type: string
+  /api/v1/foods/admin/publication-requests:
+    get:
+      operationId: listPublicationRequests
+      summary: List the pending publication requests (admin)
+      security:
+        - clerkSession: []
+      responses:
+        "200":
+          description: The pending requests.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminPublicationRequestList"
+        "400":
+          description: "Malformed id — `code: INVALID_ID` (FR-006)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "401":
+          description: "No valid Clerk session or M2M token — `code: UNAUTHORIZED`, or `IDENTITY_SYNC_PENDING` when the token is
+            valid but its `external_id` has not synced yet (retry with a refreshed token, FR-051/CR-002)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: "Authenticated but lacking the `food:admin` scope — `code: FORBIDDEN` (FR-039). Or: The token is genuine
+            but its account is suspended: `code: ACCOUNT_SUSPENDED` (ADR-0081). Answered before the route runs, so it
+            belongs to every operation a Clerk session reaches."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+      description: "Staff’s queue, oldest first: each request with the version it names and the name readers see today.
+        Requires `food:admin`."
+      parameters:
+        - name: status
+          in: query
+          required: false
+          description: Only `pending` is served.
+          schema:
+            type: string
+            enum:
+              - pending
+  /api/v1/foods/admin/publication-requests/{id}/decision:
+    post:
+      operationId: decidePublicationRequest
+      summary: Approve or decline a publication request (admin)
+      security:
+        - clerkSession: []
+      responses:
+        "200":
+          description: The decided request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublicationRequest"
+        "400":
+          description: "Malformed id — `code: INVALID_ID` (FR-006)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "401":
+          description: "No valid Clerk session or M2M token — `code: UNAUTHORIZED`, or `IDENTITY_SYNC_PENDING` when the token is
+            valid but its `external_id` has not synced yet (retry with a refreshed token, FR-051/CR-002)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: "Authenticated but lacking the `food:admin` scope — `code: FORBIDDEN` (FR-039). Or: The token is genuine
+            but its account is suspended: `code: ACCOUNT_SUSPENDED` (ADR-0081). Answered before the route runs, so it
+            belongs to every operation a Clerk session reaches."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: "No such request (`code: PUBLICATION_REQUEST_NOT_FOUND`)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: "`code: PUBLICATION_NOT_APPROVABLE` (`details.reason`: `closed`, `withdrawn`, `notNewest`), or `code:
+            DUPLICATE_AUTHORED_NAME` when the approved name now collides; the request stays pending."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+      description: Approval applies the requested version to the live food and makes it public, in one transaction. Decline
+        carries the reason the author reads. Requires `food:admin`, checked BEFORE the id and body.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The publication request id (a UUID).
+          schema:
+            type: string
+      requestBody:
+        description: Approve, or decline with a reason.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PublicationDecisionRequest"
   /api/v1/internal/account/erasure:
     post:
       operationId: eraseAccountFootprint
@@ -1707,6 +1975,83 @@ components:
             code:
               type: string
               enum:
+                - PUBLICATION_NOT_REQUESTABLE
+            message:
+              type: string
+            details:
+              type: object
+              properties:
+                id:
+                  type: string
+                reason:
+                  type: string
+                  enum:
+                    - withdrawn
+                    - notPrivate
+                    - declined
+              required:
+                - id
+                - reason
+              additionalProperties: {}
+          required:
+            - code
+            - message
+            - details
+          additionalProperties: {}
+        - type: object
+          properties:
+            code:
+              type: string
+              enum:
+                - PUBLICATION_REQUEST_NOT_FOUND
+            message:
+              type: string
+            details:
+              type: object
+              properties:
+                id:
+                  type: string
+              required:
+                - id
+              additionalProperties: {}
+          required:
+            - code
+            - message
+            - details
+          additionalProperties: {}
+        - type: object
+          properties:
+            code:
+              type: string
+              enum:
+                - PUBLICATION_NOT_APPROVABLE
+            message:
+              type: string
+            details:
+              type: object
+              properties:
+                id:
+                  type: string
+                reason:
+                  type: string
+                  enum:
+                    - closed
+                    - withdrawn
+                    - notNewest
+              required:
+                - id
+                - reason
+              additionalProperties: {}
+          required:
+            - code
+            - message
+            - details
+          additionalProperties: {}
+        - type: object
+          properties:
+            code:
+              type: string
+              enum:
                 - FETCH_UNAVAILABLE
             message:
               type: string
@@ -1879,6 +2224,19 @@ components:
           type: string
           enum:
             - private
+        publicationState:
+          type: string
+          enum:
+            - private
+            - asked
+            - notApproved
+            - public
+            - editWaiting
+            - editNotApproved
+            - withdrawn
+        authoredMacros:
+          allOf:
+            - $ref: "#/components/schemas/AuthoredMacros"
         variants:
           type: array
           items:
@@ -2632,6 +2990,162 @@ components:
           items:
             type: string
       additionalProperties: false
+    PublicationRequest:
+      type: object
+      properties:
+        id:
+          type: string
+        foodId:
+          type: string
+        versionNumber:
+          type: integer
+          minimum: 0
+          exclusiveMinimum: true
+        status:
+          type: string
+          enum:
+            - pending
+            - approved
+            - declined
+            - closed
+        declineReason:
+          nullable: true
+          type: string
+        createdAt:
+          type: string
+        decidedAt:
+          nullable: true
+          type: string
+      required:
+        - id
+        - foodId
+        - versionNumber
+        - status
+        - declineReason
+        - createdAt
+        - decidedAt
+    PublicationSnapshot:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          nullable: true
+          type: string
+        macros:
+          $ref: "#/components/schemas/AuthoredMacros"
+        portions:
+          type: array
+          items:
+            $ref: "#/components/schemas/AuthoredPortionInput"
+      required:
+        - name
+        - description
+        - macros
+        - portions
+    PublicationRequestDetail:
+      type: object
+      properties:
+        request:
+          $ref: "#/components/schemas/PublicationRequest"
+        snapshot:
+          $ref: "#/components/schemas/PublicationSnapshot"
+      required:
+        - request
+        - snapshot
+    AdminPublicationRequest:
+      type: object
+      properties:
+        request:
+          $ref: "#/components/schemas/PublicationRequest"
+        snapshot:
+          $ref: "#/components/schemas/PublicationSnapshot"
+        liveName:
+          type: string
+      required:
+        - request
+        - snapshot
+        - liveName
+    AdminPublicationRequestList:
+      type: object
+      properties:
+        requests:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminPublicationRequest"
+      required:
+        - requests
+    PublicationDecisionRequest:
+      type: object
+      properties:
+        approve:
+          type: boolean
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 500
+          pattern: \S
+      required:
+        - approve
+      additionalProperties: false
+    EditPendingResponse:
+      type: object
+      properties:
+        publication:
+          type: object
+          properties:
+            state:
+              type: string
+              enum:
+                - editPending
+            versionNumber:
+              type: integer
+              minimum: 0
+              exclusiveMinimum: true
+          required:
+            - state
+            - versionNumber
+      required:
+        - publication
+    OwnFoodListItem:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        publicationState:
+          type: string
+          enum:
+            - private
+            - asked
+            - notApproved
+            - public
+            - editWaiting
+            - editNotApproved
+            - withdrawn
+        updatedAt:
+          type: string
+      required:
+        - id
+        - name
+        - publicationState
+        - updatedAt
+    OwnFoodList:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/OwnFoodListItem"
+        nextCursor:
+          type: string
+        unseenDecisions:
+          type: integer
+          minimum: 0
+      required:
+        - items
+        - unseenDecisions
     HealthStatus:
       type: object
       properties:

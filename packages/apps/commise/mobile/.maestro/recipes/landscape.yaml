@@ -37,7 +37,7 @@ onFlowComplete:
 # The list settled, populated (the count label renders only in the populated branch; see listDetail.yaml).
 - extendedWaitUntil:
       visible:
-          text: '^3 recipes$'
+          text: '^4 recipes$'
       timeout: 40000
 
 # ── The list's search, typed sideways. In compact height the heading shares a row with the field. ──
@@ -88,7 +88,7 @@ onFlowComplete:
 - tapOn: 'Clear search'
 - extendedWaitUntil:
       visible:
-          text: '^3 recipes$'
+          text: '^4 recipes$'
       timeout: 20000
 
 # ── The filter sheet, typed into sideways: the "Show {n} recipes" button must stay reachable with the keyboard up. ──

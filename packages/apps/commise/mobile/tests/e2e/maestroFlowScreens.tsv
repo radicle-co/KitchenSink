@@ -55,7 +55,8 @@ recipes/discoverRecentSearches	HomeScreen, profile, RecipeDetailScreen, RecipeDi
 recipes/discoverIngredientCap	HomeScreen, RecipeDiscoveryScreen, RecipeListScreen
 recipes/discoverSaveCopy	HomeScreen, RecipeDiscoveryScreen, RecipeEditorScreen, RecipeListScreen
 recipes/discoverDetailSaveCopy	HomeScreen, RecipeDetailScreen, RecipeDiscoveryScreen, RecipeEditorScreen, RecipeListScreen
-recipes/privateFoodStandIn	HomeScreen, RecipeDetailScreen, RecipeDiscoveryScreen, RecipeEditorScreen, RecipeListScreen, RecipeVersionsScreen
+recipes/publishRefusedForPrivateFood	HomeScreen, RecipeDetailScreen, RecipeDiscoveryScreen, RecipeEditorScreen, RecipeListScreen, RecipeVersionsScreen
+recipes/askToMakeFoodPublic	HomeScreen, RecipeDetailScreen, RecipeDiscoveryScreen, RecipeEditorScreen, RecipeListScreen, RecipeVersionsScreen
 recipes/conflictMerge	HomeScreen, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen, RecipeVersionsScreen
 recipes/collections	CollectionDetailScreen, CollectionsScreen, HomeScreen, RecipeListScreen
 recipes/collectionAddRemoveUndo	CollectionDetailScreen, CollectionsScreen, HomeScreen, RecipeListScreen

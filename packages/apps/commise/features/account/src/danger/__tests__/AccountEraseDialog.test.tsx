@@ -286,3 +286,32 @@ describe('AccountEraseDialog (web) — the shared dialog frame and type roles (W
         expect(screen.getByRole('button', { name: 'Erase my data' }).className).toContain('bg-danger');
     });
 });
+
+describe('AccountEraseDialog (web) — recipes that hold a private food (private foods spec section 8)', () => {
+    it('lists them under "These will be deleted", before the phrase, with no control to keep them', () => {
+        renderDialog({
+            donatableRecipes: [makeDonatableRecipe({ id: 'a', title: 'Soup' })],
+            blockedRecipes: [makeDonatableRecipe({ id: 'b', title: 'My oat bake' })],
+        });
+
+        expect(screen.getByRole('heading', { name: 'These will be deleted' })).toBeTruthy();
+        expect(screen.getByText('They use foods only you can see, so they can’t be shared.')).toBeTruthy();
+        expect(screen.getByText('My oat bake')).toBeTruthy();
+        expect(screen.queryByRole('checkbox', { name: 'My oat bake' })).toBeNull();
+        expect(screen.getByRole('checkbox', { name: 'Soup' })).toBeTruthy();
+    });
+
+    it('with every private recipe blocked, the existing "everything will be deleted" line stands and the block lists them', () => {
+        renderDialog({ blockedRecipes: [makeDonatableRecipe({ id: 'b', title: 'My oat bake' })] });
+
+        expect(screen.getByText('You have no private recipes to publish. Everything will be deleted.')).toBeTruthy();
+        expect(screen.getByText('My oat bake')).toBeTruthy();
+        expect(screen.queryByRole('checkbox')).toBeNull();
+    });
+
+    it('adds nothing when no recipe holds a private food', () => {
+        renderDialog({ donatableRecipes: [makeDonatableRecipe()] });
+
+        expect(screen.queryByText('These will be deleted')).toBeNull();
+    });
+});

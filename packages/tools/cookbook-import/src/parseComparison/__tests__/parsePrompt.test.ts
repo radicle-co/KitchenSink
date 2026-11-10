@@ -23,7 +23,7 @@ import {
 
 describe('PARSE_SYSTEM_PROMPT', () => {
     it('is the 511-byte prompt the run was briefed with, byte for byte', () => {
-        expect(Buffer.byteLength(PARSE_SYSTEM_PROMPT, 'utf8')).toBe(19_925);
+        expect(Buffer.byteLength(PARSE_SYSTEM_PROMPT, 'utf8')).toBe(21_752);
     });
 
     it('opens on the instruction and closes on the answer shape', () => {

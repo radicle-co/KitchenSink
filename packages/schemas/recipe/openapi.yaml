@@ -80,7 +80,10 @@ paths:
         "400":
           description: "The request body, query or path was rejected. `code` says by what: `VALIDATION_FAILED` from the boundary
             parser (with `details.fields` naming each offending field, including a rejected unknown key), or a domain
-            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`."
+            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`. A write that would leave a published, public
+            recipe holding a line bound to a food only its author can see is `PRIVATE_FOODS_ON_PUBLIC_RECIPE`, with
+            every refused line in `details.lines` (`sortOrder`, `foodId`); make the food public or keep the recipe
+            private (ADR-0029 section 4)."
           content:
             application/json:
               schema:
@@ -148,7 +151,10 @@ paths:
         "400":
           description: "The request body, query or path was rejected. `code` says by what: `VALIDATION_FAILED` from the boundary
             parser (with `details.fields` naming each offending field, including a rejected unknown key), or a domain
-            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`."
+            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`. A write that would leave a published, public
+            recipe holding a line bound to a food only its author can see is `PRIVATE_FOODS_ON_PUBLIC_RECIPE`, with
+            every refused line in `details.lines` (`sortOrder`, `foodId`); make the food public or keep the recipe
+            private (ADR-0029 section 4)."
           content:
             application/json:
               schema:
@@ -237,7 +243,10 @@ paths:
         "400":
           description: "The request body, query or path was rejected. `code` says by what: `VALIDATION_FAILED` from the boundary
             parser (with `details.fields` naming each offending field, including a rejected unknown key), or a domain
-            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`."
+            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`. A write that would leave a published, public
+            recipe holding a line bound to a food only its author can see is `PRIVATE_FOODS_ON_PUBLIC_RECIPE`, with
+            every refused line in `details.lines` (`sortOrder`, `foodId`); make the food public or keep the recipe
+            private (ADR-0029 section 4)."
           content:
             application/json:
               schema:
@@ -302,7 +311,10 @@ paths:
         "400":
           description: "The request body, query or path was rejected. `code` says by what: `VALIDATION_FAILED` from the boundary
             parser (with `details.fields` naming each offending field, including a rejected unknown key), or a domain
-            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`."
+            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`. A write that would leave a published, public
+            recipe holding a line bound to a food only its author can see is `PRIVATE_FOODS_ON_PUBLIC_RECIPE`, with
+            every refused line in `details.lines` (`sortOrder`, `foodId`); make the food public or keep the recipe
+            private (ADR-0029 section 4)."
           content:
             application/json:
               schema:
@@ -379,7 +391,10 @@ paths:
         "400":
           description: "The request body, query or path was rejected. `code` says by what: `VALIDATION_FAILED` from the boundary
             parser (with `details.fields` naming each offending field, including a rejected unknown key), or a domain
-            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`."
+            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`. A write that would leave a published, public
+            recipe holding a line bound to a food only its author can see is `PRIVATE_FOODS_ON_PUBLIC_RECIPE`, with
+            every refused line in `details.lines` (`sortOrder`, `foodId`); make the food public or keep the recipe
+            private (ADR-0029 section 4)."
           content:
             application/json:
               schema:
@@ -459,7 +474,10 @@ paths:
         "400":
           description: "The request body, query or path was rejected. `code` says by what: `VALIDATION_FAILED` from the boundary
             parser (with `details.fields` naming each offending field, including a rejected unknown key), or a domain
-            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`."
+            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`. A write that would leave a published, public
+            recipe holding a line bound to a food only its author can see is `PRIVATE_FOODS_ON_PUBLIC_RECIPE`, with
+            every refused line in `details.lines` (`sortOrder`, `foodId`); make the food public or keep the recipe
+            private (ADR-0029 section 4)."
           content:
             application/json:
               schema:
@@ -544,7 +562,10 @@ paths:
         "400":
           description: "The request body, query or path was rejected. `code` says by what: `VALIDATION_FAILED` from the boundary
             parser (with `details.fields` naming each offending field, including a rejected unknown key), or a domain
-            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`."
+            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`. A write that would leave a published, public
+            recipe holding a line bound to a food only its author can see is `PRIVATE_FOODS_ON_PUBLIC_RECIPE`, with
+            every refused line in `details.lines` (`sortOrder`, `foodId`); make the food public or keep the recipe
+            private (ADR-0029 section 4)."
           content:
             application/json:
               schema:
@@ -619,7 +640,10 @@ paths:
         "400":
           description: "The request body, query or path was rejected. `code` says by what: `VALIDATION_FAILED` from the boundary
             parser (with `details.fields` naming each offending field, including a rejected unknown key), or a domain
-            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`."
+            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`. A write that would leave a published, public
+            recipe holding a line bound to a food only its author can see is `PRIVATE_FOODS_ON_PUBLIC_RECIPE`, with
+            every refused line in `details.lines` (`sortOrder`, `foodId`); make the food public or keep the recipe
+            private (ADR-0029 section 4)."
           content:
             application/json:
               schema:
@@ -696,7 +720,10 @@ paths:
         "400":
           description: "The request body, query or path was rejected. `code` says by what: `VALIDATION_FAILED` from the boundary
             parser (with `details.fields` naming each offending field, including a rejected unknown key), or a domain
-            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`."
+            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`. A write that would leave a published, public
+            recipe holding a line bound to a food only its author can see is `PRIVATE_FOODS_ON_PUBLIC_RECIPE`, with
+            every refused line in `details.lines` (`sortOrder`, `foodId`); make the food public or keep the recipe
+            private (ADR-0029 section 4)."
           content:
             application/json:
               schema:
@@ -758,8 +785,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
-      description: The line keeps its amount, unit, notes, preparation and section, and the recipe gets a new version. A
-        target that is already the line’s food changes nothing.
+      description: The line keeps its amount, unit, displayText, note, preparation and section, and the recipe gets a new
+        version. A target that is already the line’s food changes nothing.
       parameters:
         - name: id
           in: path
@@ -799,7 +826,10 @@ paths:
         "400":
           description: "The request body, query or path was rejected. `code` says by what: `VALIDATION_FAILED` from the boundary
             parser (with `details.fields` naming each offending field, including a rejected unknown key), or a domain
-            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`."
+            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`. A write that would leave a published, public
+            recipe holding a line bound to a food only its author can see is `PRIVATE_FOODS_ON_PUBLIC_RECIPE`, with
+            every refused line in `details.lines` (`sortOrder`, `foodId`); make the food public or keep the recipe
+            private (ADR-0029 section 4)."
           content:
             application/json:
               schema:
@@ -887,7 +917,10 @@ paths:
         "400":
           description: "The request body, query or path was rejected. `code` says by what: `VALIDATION_FAILED` from the boundary
             parser (with `details.fields` naming each offending field, including a rejected unknown key), or a domain
-            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`."
+            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`. A write that would leave a published, public
+            recipe holding a line bound to a food only its author can see is `PRIVATE_FOODS_ON_PUBLIC_RECIPE`, with
+            every refused line in `details.lines` (`sortOrder`, `foodId`); make the food public or keep the recipe
+            private (ADR-0029 section 4)."
           content:
             application/json:
               schema:
@@ -967,7 +1000,10 @@ paths:
         "400":
           description: "The request body, query or path was rejected. `code` says by what: `VALIDATION_FAILED` from the boundary
             parser (with `details.fields` naming each offending field, including a rejected unknown key), or a domain
-            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`."
+            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`. A write that would leave a published, public
+            recipe holding a line bound to a food only its author can see is `PRIVATE_FOODS_ON_PUBLIC_RECIPE`, with
+            every refused line in `details.lines` (`sortOrder`, `foodId`); make the food public or keep the recipe
+            private (ADR-0029 section 4)."
           content:
             application/json:
               schema:
@@ -1042,7 +1078,10 @@ paths:
         "400":
           description: "The request body, query or path was rejected. `code` says by what: `VALIDATION_FAILED` from the boundary
             parser (with `details.fields` naming each offending field, including a rejected unknown key), or a domain
-            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`."
+            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`. A write that would leave a published, public
+            recipe holding a line bound to a food only its author can see is `PRIVATE_FOODS_ON_PUBLIC_RECIPE`, with
+            every refused line in `details.lines` (`sortOrder`, `foodId`); make the food public or keep the recipe
+            private (ADR-0029 section 4)."
           content:
             application/json:
               schema:
@@ -1117,7 +1156,10 @@ paths:
         "400":
           description: "The request body, query or path was rejected. `code` says by what: `VALIDATION_FAILED` from the boundary
             parser (with `details.fields` naming each offending field, including a rejected unknown key), or a domain
-            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`."
+            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`. A write that would leave a published, public
+            recipe holding a line bound to a food only its author can see is `PRIVATE_FOODS_ON_PUBLIC_RECIPE`, with
+            every refused line in `details.lines` (`sortOrder`, `foodId`); make the food public or keep the recipe
+            private (ADR-0029 section 4)."
           content:
             application/json:
               schema:
@@ -1213,7 +1255,10 @@ paths:
         "400":
           description: "The request body, query or path was rejected. `code` says by what: `VALIDATION_FAILED` from the boundary
             parser (with `details.fields` naming each offending field, including a rejected unknown key), or a domain
-            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`."
+            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`. A write that would leave a published, public
+            recipe holding a line bound to a food only its author can see is `PRIVATE_FOODS_ON_PUBLIC_RECIPE`, with
+            every refused line in `details.lines` (`sortOrder`, `foodId`); make the food public or keep the recipe
+            private (ADR-0029 section 4)."
           content:
             application/json:
               schema:
@@ -1313,7 +1358,10 @@ paths:
         "400":
           description: "The request body, query or path was rejected. `code` says by what: `VALIDATION_FAILED` from the boundary
             parser (with `details.fields` naming each offending field, including a rejected unknown key), or a domain
-            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`."
+            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`. A write that would leave a published, public
+            recipe holding a line bound to a food only its author can see is `PRIVATE_FOODS_ON_PUBLIC_RECIPE`, with
+            every refused line in `details.lines` (`sortOrder`, `foodId`); make the food public or keep the recipe
+            private (ADR-0029 section 4)."
           content:
             application/json:
               schema:
@@ -1391,7 +1439,10 @@ paths:
         "400":
           description: "The request body, query or path was rejected. `code` says by what: `VALIDATION_FAILED` from the boundary
             parser (with `details.fields` naming each offending field, including a rejected unknown key), or a domain
-            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`."
+            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`. A write that would leave a published, public
+            recipe holding a line bound to a food only its author can see is `PRIVATE_FOODS_ON_PUBLIC_RECIPE`, with
+            every refused line in `details.lines` (`sortOrder`, `foodId`); make the food public or keep the recipe
+            private (ADR-0029 section 4)."
           content:
             application/json:
               schema:
@@ -1474,7 +1525,10 @@ paths:
         "400":
           description: "The request body, query or path was rejected. `code` says by what: `VALIDATION_FAILED` from the boundary
             parser (with `details.fields` naming each offending field, including a rejected unknown key), or a domain
-            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`."
+            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`. A write that would leave a published, public
+            recipe holding a line bound to a food only its author can see is `PRIVATE_FOODS_ON_PUBLIC_RECIPE`, with
+            every refused line in `details.lines` (`sortOrder`, `foodId`); make the food public or keep the recipe
+            private (ADR-0029 section 4)."
           content:
             application/json:
               schema:
@@ -1549,7 +1603,10 @@ paths:
         "400":
           description: "The request body, query or path was rejected. `code` says by what: `VALIDATION_FAILED` from the boundary
             parser (with `details.fields` naming each offending field, including a rejected unknown key), or a domain
-            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`."
+            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`. A write that would leave a published, public
+            recipe holding a line bound to a food only its author can see is `PRIVATE_FOODS_ON_PUBLIC_RECIPE`, with
+            every refused line in `details.lines` (`sortOrder`, `foodId`); make the food public or keep the recipe
+            private (ADR-0029 section 4)."
           content:
             application/json:
               schema:
@@ -1632,7 +1689,10 @@ paths:
         "400":
           description: "The request body, query or path was rejected. `code` says by what: `VALIDATION_FAILED` from the boundary
             parser (with `details.fields` naming each offending field, including a rejected unknown key), or a domain
-            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`."
+            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`. A write that would leave a published, public
+            recipe holding a line bound to a food only its author can see is `PRIVATE_FOODS_ON_PUBLIC_RECIPE`, with
+            every refused line in `details.lines` (`sortOrder`, `foodId`); make the food public or keep the recipe
+            private (ADR-0029 section 4)."
           content:
             application/json:
               schema:
@@ -1729,7 +1789,10 @@ paths:
         "400":
           description: "The request body, query or path was rejected. `code` says by what: `VALIDATION_FAILED` from the boundary
             parser (with `details.fields` naming each offending field, including a rejected unknown key), or a domain
-            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`."
+            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`. A write that would leave a published, public
+            recipe holding a line bound to a food only its author can see is `PRIVATE_FOODS_ON_PUBLIC_RECIPE`, with
+            every refused line in `details.lines` (`sortOrder`, `foodId`); make the food public or keep the recipe
+            private (ADR-0029 section 4)."
           content:
             application/json:
               schema:
@@ -1796,7 +1859,10 @@ paths:
         "400":
           description: "The request body, query or path was rejected. `code` says by what: `VALIDATION_FAILED` from the boundary
             parser (with `details.fields` naming each offending field, including a rejected unknown key), or a domain
-            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`."
+            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`. A write that would leave a published, public
+            recipe holding a line bound to a food only its author can see is `PRIVATE_FOODS_ON_PUBLIC_RECIPE`, with
+            every refused line in `details.lines` (`sortOrder`, `foodId`); make the food public or keep the recipe
+            private (ADR-0029 section 4)."
           content:
             application/json:
               schema:
@@ -1871,7 +1937,10 @@ paths:
         "400":
           description: "The request body, query or path was rejected. `code` says by what: `VALIDATION_FAILED` from the boundary
             parser (with `details.fields` naming each offending field, including a rejected unknown key), or a domain
-            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`."
+            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`. A write that would leave a published, public
+            recipe holding a line bound to a food only its author can see is `PRIVATE_FOODS_ON_PUBLIC_RECIPE`, with
+            every refused line in `details.lines` (`sortOrder`, `foodId`); make the food public or keep the recipe
+            private (ADR-0029 section 4)."
           content:
             application/json:
               schema:
@@ -1952,7 +2021,10 @@ paths:
         "400":
           description: "The request body, query or path was rejected. `code` says by what: `VALIDATION_FAILED` from the boundary
             parser (with `details.fields` naming each offending field, including a rejected unknown key), or a domain
-            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`."
+            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`. A write that would leave a published, public
+            recipe holding a line bound to a food only its author can see is `PRIVATE_FOODS_ON_PUBLIC_RECIPE`, with
+            every refused line in `details.lines` (`sortOrder`, `foodId`); make the food public or keep the recipe
+            private (ADR-0029 section 4)."
           content:
             application/json:
               schema:
@@ -2036,7 +2108,10 @@ paths:
         "400":
           description: "The request body, query or path was rejected. `code` says by what: `VALIDATION_FAILED` from the boundary
             parser (with `details.fields` naming each offending field, including a rejected unknown key), or a domain
-            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`."
+            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`. A write that would leave a published, public
+            recipe holding a line bound to a food only its author can see is `PRIVATE_FOODS_ON_PUBLIC_RECIPE`, with
+            every refused line in `details.lines` (`sortOrder`, `foodId`); make the food public or keep the recipe
+            private (ADR-0029 section 4)."
           content:
             application/json:
               schema:
@@ -2127,7 +2202,10 @@ paths:
         "400":
           description: "The request body, query or path was rejected. `code` says by what: `VALIDATION_FAILED` from the boundary
             parser (with `details.fields` naming each offending field, including a rejected unknown key), or a domain
-            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`."
+            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`. A write that would leave a published, public
+            recipe holding a line bound to a food only its author can see is `PRIVATE_FOODS_ON_PUBLIC_RECIPE`, with
+            every refused line in `details.lines` (`sortOrder`, `foodId`); make the food public or keep the recipe
+            private (ADR-0029 section 4)."
           content:
             application/json:
               schema:
@@ -2222,7 +2300,10 @@ paths:
         "400":
           description: "The request body, query or path was rejected. `code` says by what: `VALIDATION_FAILED` from the boundary
             parser (with `details.fields` naming each offending field, including a rejected unknown key), or a domain
-            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`."
+            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`. A write that would leave a published, public
+            recipe holding a line bound to a food only its author can see is `PRIVATE_FOODS_ON_PUBLIC_RECIPE`, with
+            every refused line in `details.lines` (`sortOrder`, `foodId`); make the food public or keep the recipe
+            private (ADR-0029 section 4)."
           content:
             application/json:
               schema:
@@ -2385,7 +2466,10 @@ paths:
         "400":
           description: "The request body, query or path was rejected. `code` says by what: `VALIDATION_FAILED` from the boundary
             parser (with `details.fields` naming each offending field, including a rejected unknown key), or a domain
-            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`."
+            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`. A write that would leave a published, public
+            recipe holding a line bound to a food only its author can see is `PRIVATE_FOODS_ON_PUBLIC_RECIPE`, with
+            every refused line in `details.lines` (`sortOrder`, `foodId`); make the food public or keep the recipe
+            private (ADR-0029 section 4)."
           content:
             application/json:
               schema:
@@ -2469,7 +2553,10 @@ paths:
         "400":
           description: "The request body, query or path was rejected. `code` says by what: `VALIDATION_FAILED` from the boundary
             parser (with `details.fields` naming each offending field, including a rejected unknown key), or a domain
-            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`."
+            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`. A write that would leave a published, public
+            recipe holding a line bound to a food only its author can see is `PRIVATE_FOODS_ON_PUBLIC_RECIPE`, with
+            every refused line in `details.lines` (`sortOrder`, `foodId`); make the food public or keep the recipe
+            private (ADR-0029 section 4)."
           content:
             application/json:
               schema:
@@ -2536,7 +2623,10 @@ paths:
         "400":
           description: "The request body, query or path was rejected. `code` says by what: `VALIDATION_FAILED` from the boundary
             parser (with `details.fields` naming each offending field, including a rejected unknown key), or a domain
-            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`."
+            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`. A write that would leave a published, public
+            recipe holding a line bound to a food only its author can see is `PRIVATE_FOODS_ON_PUBLIC_RECIPE`, with
+            every refused line in `details.lines` (`sortOrder`, `foodId`); make the food public or keep the recipe
+            private (ADR-0029 section 4)."
           content:
             application/json:
               schema:
@@ -2603,7 +2693,10 @@ paths:
         "400":
           description: "The request body, query or path was rejected. `code` says by what: `VALIDATION_FAILED` from the boundary
             parser (with `details.fields` naming each offending field, including a rejected unknown key), or a domain
-            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`."
+            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`. A write that would leave a published, public
+            recipe holding a line bound to a food only its author can see is `PRIVATE_FOODS_ON_PUBLIC_RECIPE`, with
+            every refused line in `details.lines` (`sortOrder`, `foodId`); make the food public or keep the recipe
+            private (ADR-0029 section 4)."
           content:
             application/json:
               schema:
@@ -2678,7 +2771,10 @@ paths:
         "400":
           description: "The request body, query or path was rejected. `code` says by what: `VALIDATION_FAILED` from the boundary
             parser (with `details.fields` naming each offending field, including a rejected unknown key), or a domain
-            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`."
+            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`. A write that would leave a published, public
+            recipe holding a line bound to a food only its author can see is `PRIVATE_FOODS_ON_PUBLIC_RECIPE`, with
+            every refused line in `details.lines` (`sortOrder`, `foodId`); make the food public or keep the recipe
+            private (ADR-0029 section 4)."
           content:
             application/json:
               schema:
@@ -2753,7 +2849,10 @@ paths:
         "400":
           description: "The request body, query or path was rejected. `code` says by what: `VALIDATION_FAILED` from the boundary
             parser (with `details.fields` naming each offending field, including a rejected unknown key), or a domain
-            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`."
+            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`. A write that would leave a published, public
+            recipe holding a line bound to a food only its author can see is `PRIVATE_FOODS_ON_PUBLIC_RECIPE`, with
+            every refused line in `details.lines` (`sortOrder`, `foodId`); make the food public or keep the recipe
+            private (ADR-0029 section 4)."
           content:
             application/json:
               schema:
@@ -2826,7 +2925,10 @@ paths:
         "400":
           description: "The request body, query or path was rejected. `code` says by what: `VALIDATION_FAILED` from the boundary
             parser (with `details.fields` naming each offending field, including a rejected unknown key), or a domain
-            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`."
+            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`. A write that would leave a published, public
+            recipe holding a line bound to a food only its author can see is `PRIVATE_FOODS_ON_PUBLIC_RECIPE`, with
+            every refused line in `details.lines` (`sortOrder`, `foodId`); make the food public or keep the recipe
+            private (ADR-0029 section 4)."
           content:
             application/json:
               schema:
@@ -2902,7 +3004,10 @@ paths:
         "400":
           description: "The request body, query or path was rejected. `code` says by what: `VALIDATION_FAILED` from the boundary
             parser (with `details.fields` naming each offending field, including a rejected unknown key), or a domain
-            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`."
+            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`. A write that would leave a published, public
+            recipe holding a line bound to a food only its author can see is `PRIVATE_FOODS_ON_PUBLIC_RECIPE`, with
+            every refused line in `details.lines` (`sortOrder`, `foodId`); make the food public or keep the recipe
+            private (ADR-0029 section 4)."
           content:
             application/json:
               schema:
@@ -2975,7 +3080,10 @@ paths:
         "400":
           description: "The request body, query or path was rejected. `code` says by what: `VALIDATION_FAILED` from the boundary
             parser (with `details.fields` naming each offending field, including a rejected unknown key), or a domain
-            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`."
+            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`. A write that would leave a published, public
+            recipe holding a line bound to a food only its author can see is `PRIVATE_FOODS_ON_PUBLIC_RECIPE`, with
+            every refused line in `details.lines` (`sortOrder`, `foodId`); make the food public or keep the recipe
+            private (ADR-0029 section 4)."
           content:
             application/json:
               schema:
@@ -3056,7 +3164,10 @@ paths:
         "400":
           description: "The request body, query or path was rejected. `code` says by what: `VALIDATION_FAILED` from the boundary
             parser (with `details.fields` naming each offending field, including a rejected unknown key), or a domain
-            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`."
+            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`. A write that would leave a published, public
+            recipe holding a line bound to a food only its author can see is `PRIVATE_FOODS_ON_PUBLIC_RECIPE`, with
+            every refused line in `details.lines` (`sortOrder`, `foodId`); make the food public or keep the recipe
+            private (ADR-0029 section 4)."
           content:
             application/json:
               schema:
@@ -3133,7 +3244,10 @@ paths:
         "400":
           description: "The request body, query or path was rejected. `code` says by what: `VALIDATION_FAILED` from the boundary
             parser (with `details.fields` naming each offending field, including a rejected unknown key), or a domain
-            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`."
+            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`. A write that would leave a published, public
+            recipe holding a line bound to a food only its author can see is `PRIVATE_FOODS_ON_PUBLIC_RECIPE`, with
+            every refused line in `details.lines` (`sortOrder`, `foodId`); make the food public or keep the recipe
+            private (ADR-0029 section 4)."
           content:
             application/json:
               schema:
@@ -3211,7 +3325,10 @@ paths:
         "400":
           description: "The request body, query or path was rejected. `code` says by what: `VALIDATION_FAILED` from the boundary
             parser (with `details.fields` naming each offending field, including a rejected unknown key), or a domain
-            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`."
+            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`. A write that would leave a published, public
+            recipe holding a line bound to a food only its author can see is `PRIVATE_FOODS_ON_PUBLIC_RECIPE`, with
+            every refused line in `details.lines` (`sortOrder`, `foodId`); make the food public or keep the recipe
+            private (ADR-0029 section 4)."
           content:
             application/json:
               schema:
@@ -3288,7 +3405,10 @@ paths:
         "400":
           description: "The request body, query or path was rejected. `code` says by what: `VALIDATION_FAILED` from the boundary
             parser (with `details.fields` naming each offending field, including a rejected unknown key), or a domain
-            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`."
+            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`. A write that would leave a published, public
+            recipe holding a line bound to a food only its author can see is `PRIVATE_FOODS_ON_PUBLIC_RECIPE`, with
+            every refused line in `details.lines` (`sortOrder`, `foodId`); make the food public or keep the recipe
+            private (ADR-0029 section 4)."
           content:
             application/json:
               schema:
@@ -3369,7 +3489,10 @@ paths:
         "400":
           description: "The request body, query or path was rejected. `code` says by what: `VALIDATION_FAILED` from the boundary
             parser (with `details.fields` naming each offending field, including a rejected unknown key), or a domain
-            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`."
+            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`. A write that would leave a published, public
+            recipe holding a line bound to a food only its author can see is `PRIVATE_FOODS_ON_PUBLIC_RECIPE`, with
+            every refused line in `details.lines` (`sortOrder`, `foodId`); make the food public or keep the recipe
+            private (ADR-0029 section 4)."
           content:
             application/json:
               schema:
@@ -3444,7 +3567,10 @@ paths:
         "400":
           description: "The request body, query or path was rejected. `code` says by what: `VALIDATION_FAILED` from the boundary
             parser (with `details.fields` naming each offending field, including a rejected unknown key), or a domain
-            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`."
+            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`. A write that would leave a published, public
+            recipe holding a line bound to a food only its author can see is `PRIVATE_FOODS_ON_PUBLIC_RECIPE`, with
+            every refused line in `details.lines` (`sortOrder`, `foodId`); make the food public or keep the recipe
+            private (ADR-0029 section 4)."
           content:
             application/json:
               schema:
@@ -3525,7 +3651,10 @@ paths:
         "400":
           description: "The request body, query or path was rejected. `code` says by what: `VALIDATION_FAILED` from the boundary
             parser (with `details.fields` naming each offending field, including a rejected unknown key), or a domain
-            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`."
+            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`. A write that would leave a published, public
+            recipe holding a line bound to a food only its author can see is `PRIVATE_FOODS_ON_PUBLIC_RECIPE`, with
+            every refused line in `details.lines` (`sortOrder`, `foodId`); make the food public or keep the recipe
+            private (ADR-0029 section 4)."
           content:
             application/json:
               schema:
@@ -3608,7 +3737,10 @@ paths:
         "400":
           description: "The request body, query or path was rejected. `code` says by what: `VALIDATION_FAILED` from the boundary
             parser (with `details.fields` naming each offending field, including a rejected unknown key), or a domain
-            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`."
+            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`. A write that would leave a published, public
+            recipe holding a line bound to a food only its author can see is `PRIVATE_FOODS_ON_PUBLIC_RECIPE`, with
+            every refused line in `details.lines` (`sortOrder`, `foodId`); make the food public or keep the recipe
+            private (ADR-0029 section 4)."
           content:
             application/json:
               schema:
@@ -3701,7 +3833,10 @@ paths:
         "400":
           description: "The request body, query or path was rejected. `code` says by what: `VALIDATION_FAILED` from the boundary
             parser (with `details.fields` naming each offending field, including a rejected unknown key), or a domain
-            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`."
+            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`. A write that would leave a published, public
+            recipe holding a line bound to a food only its author can see is `PRIVATE_FOODS_ON_PUBLIC_RECIPE`, with
+            every refused line in `details.lines` (`sortOrder`, `foodId`); make the food public or keep the recipe
+            private (ADR-0029 section 4)."
           content:
             application/json:
               schema:
@@ -3779,7 +3914,10 @@ paths:
         "400":
           description: "The request body, query or path was rejected. `code` says by what: `VALIDATION_FAILED` from the boundary
             parser (with `details.fields` naming each offending field, including a rejected unknown key), or a domain
-            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`."
+            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`. A write that would leave a published, public
+            recipe holding a line bound to a food only its author can see is `PRIVATE_FOODS_ON_PUBLIC_RECIPE`, with
+            every refused line in `details.lines` (`sortOrder`, `foodId`); make the food public or keep the recipe
+            private (ADR-0029 section 4)."
           content:
             application/json:
               schema:
@@ -3870,7 +4008,10 @@ paths:
         "400":
           description: "The request body, query or path was rejected. `code` says by what: `VALIDATION_FAILED` from the boundary
             parser (with `details.fields` naming each offending field, including a rejected unknown key), or a domain
-            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`."
+            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`. A write that would leave a published, public
+            recipe holding a line bound to a food only its author can see is `PRIVATE_FOODS_ON_PUBLIC_RECIPE`, with
+            every refused line in `details.lines` (`sortOrder`, `foodId`); make the food public or keep the recipe
+            private (ADR-0029 section 4)."
           content:
             application/json:
               schema:
@@ -3936,7 +4077,10 @@ paths:
         "400":
           description: "The request body, query or path was rejected. `code` says by what: `VALIDATION_FAILED` from the boundary
             parser (with `details.fields` naming each offending field, including a rejected unknown key), or a domain
-            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`."
+            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`. A write that would leave a published, public
+            recipe holding a line bound to a food only its author can see is `PRIVATE_FOODS_ON_PUBLIC_RECIPE`, with
+            every refused line in `details.lines` (`sortOrder`, `foodId`); make the food public or keep the recipe
+            private (ADR-0029 section 4)."
           content:
             application/json:
               schema:
@@ -4020,7 +4164,10 @@ paths:
         "400":
           description: "The request body, query or path was rejected. `code` says by what: `VALIDATION_FAILED` from the boundary
             parser (with `details.fields` naming each offending field, including a rejected unknown key), or a domain
-            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`."
+            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`. A write that would leave a published, public
+            recipe holding a line bound to a food only its author can see is `PRIVATE_FOODS_ON_PUBLIC_RECIPE`, with
+            every refused line in `details.lines` (`sortOrder`, `foodId`); make the food public or keep the recipe
+            private (ADR-0029 section 4)."
           content:
             application/json:
               schema:
@@ -4092,7 +4239,10 @@ paths:
         "400":
           description: "The request body, query or path was rejected. `code` says by what: `VALIDATION_FAILED` from the boundary
             parser (with `details.fields` naming each offending field, including a rejected unknown key), or a domain
-            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`."
+            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`. A write that would leave a published, public
+            recipe holding a line bound to a food only its author can see is `PRIVATE_FOODS_ON_PUBLIC_RECIPE`, with
+            every refused line in `details.lines` (`sortOrder`, `foodId`); make the food public or keep the recipe
+            private (ADR-0029 section 4)."
           content:
             application/json:
               schema:
@@ -4200,7 +4350,10 @@ paths:
         "400":
           description: "The request body, query or path was rejected. `code` says by what: `VALIDATION_FAILED` from the boundary
             parser (with `details.fields` naming each offending field, including a rejected unknown key), or a domain
-            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`."
+            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`. A write that would leave a published, public
+            recipe holding a line bound to a food only its author can see is `PRIVATE_FOODS_ON_PUBLIC_RECIPE`, with
+            every refused line in `details.lines` (`sortOrder`, `foodId`); make the food public or keep the recipe
+            private (ADR-0029 section 4)."
           content:
             application/json:
               schema:
@@ -4424,6 +4577,9 @@ components:
                               displayText:
                                 type: string
                                 minLength: 1
+                              note:
+                                type: string
+                                minLength: 1
                               preparation:
                                 type: string
                                 minLength: 1
@@ -4609,6 +4765,9 @@ components:
                               displayText:
                                 type: string
                                 minLength: 1
+                              note:
+                                type: string
+                                minLength: 1
                               preparation:
                                 type: string
                                 minLength: 1
@@ -4777,6 +4936,40 @@ components:
                       - steps
               required:
                 - missing
+              additionalProperties: {}
+          required:
+            - code
+            - message
+            - details
+          additionalProperties: {}
+        - type: object
+          properties:
+            code:
+              type: string
+              enum:
+                - PRIVATE_FOODS_ON_PUBLIC_RECIPE
+            message:
+              type: string
+            details:
+              type: object
+              properties:
+                lines:
+                  minItems: 1
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      sortOrder:
+                        type: integer
+                        minimum: 0
+                      foodId:
+                        type: string
+                        minLength: 1
+                    required:
+                      - sortOrder
+                      - foodId
+              required:
+                - lines
               additionalProperties: {}
           required:
             - code
@@ -5377,6 +5570,8 @@ components:
         coverPhotoUrl:
           type: string
           format: uri
+        holdsPrivateFood:
+          type: boolean
         deletedAt:
           type: string
           format: date-time
@@ -5520,6 +5715,8 @@ components:
         coverPhotoUrl:
           type: string
           format: uri
+        holdsPrivateFood:
+          type: boolean
         deletedAt:
           type: string
           format: date-time
@@ -5572,6 +5769,11 @@ components:
                   - parts
               hasVariants:
                 type: boolean
+              foodVisibility:
+                type: string
+                enum:
+                  - private
+                  - public
               unresolvedReason:
                 type: string
                 enum:
@@ -5630,7 +5832,10 @@ components:
               unit:
                 type: string
                 minLength: 1
-              notes:
+              displayText:
+                type: string
+                minLength: 1
+              note:
                 type: string
                 minLength: 1
               preparation:
@@ -5890,9 +6095,14 @@ components:
               unit:
                 type: string
                 minLength: 1
-              notes:
+              displayText:
                 type: string
                 minLength: 1
+                pattern: \S
+              note:
+                type: string
+                minLength: 1
+                pattern: \S
               preparation:
                 type: string
                 minLength: 1
@@ -6152,9 +6362,14 @@ components:
               unit:
                 type: string
                 minLength: 1
-              notes:
+              displayText:
                 type: string
                 minLength: 1
+                pattern: \S
+              note:
+                type: string
+                minLength: 1
+                pattern: \S
               preparation:
                 type: string
                 minLength: 1
@@ -6455,6 +6670,12 @@ components:
               prep:
                 nullable: true
                 type: string
+              display:
+                nullable: true
+                type: string
+                enum:
+                  - written
+                  - food
               match:
                 nullable: true
                 type: object
@@ -7233,6 +7454,9 @@ components:
                   displayText:
                     type: string
                     minLength: 1
+                  note:
+                    type: string
+                    minLength: 1
                   preparation:
                     type: string
                     minLength: 1
@@ -7701,6 +7925,8 @@ components:
         coverPhotoUrl:
           type: string
           format: uri
+        holdsPrivateFood:
+          type: boolean
         deletedAt:
           type: string
           format: date-time

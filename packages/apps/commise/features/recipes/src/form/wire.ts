@@ -55,7 +55,12 @@ export const toCreateRecipeInput = (values: RecipeFormValues, status?: RecipeSta
         ingredientId: line.ingredientId,
         quantity: draftQuantity(line),
         ...(line.unit === undefined || line.unit === '' ? {} : { unit: line.unit }),
-        ...(line.notes === undefined || line.notes === '' ? {} : { notes: line.notes }),
+        // Both are TRIMMED and omitted when blank, like the section label below: the wire refuses a blank, and `''` is
+        // never sent.
+        ...(line.displayText === undefined || line.displayText.trim() === ''
+            ? {}
+            : { displayText: line.displayText.trim() }),
+        ...(line.note === undefined || line.note.trim() === '' ? {} : { note: line.note.trim() }),
         // U26/U27 — TRIMMED here, then omitted when nothing is left. The wire trims too
         // (`recipeIngredientGroupLabelSchema`), but a draft holding `'  '` would otherwise be SENT and
         // `400` the whole save over a field the cook thinks is empty. `''` is never sent: absence has
@@ -202,10 +207,12 @@ export const toRecipeFormValues = (detail: RecipeDetail): RecipeFormValues => ({
         // parts. Never figures: nutrition does not enter the draft, and `foodRefOf` derives what the read asks for.
         ...(line.foodId === undefined ? {} : { foodId: line.foodId }),
         ...(line.variant === undefined ? {} : { variant: line.variant }),
+        ...(line.foodVisibility === undefined ? {} : { foodVisibility: line.foodVisibility }),
         // Plan 002 R6 — the reason the row policy reads to choose the row's remedies. Omitted when the read reports none.
         ...(line.unresolvedReason === undefined ? {} : { unresolvedReason: line.unresolvedReason }),
         ...(line.unit === undefined ? {} : { unit: line.unit }),
-        ...(line.notes === undefined ? {} : { notes: line.notes }),
+        ...(line.displayText === undefined ? {} : { displayText: line.displayText }),
+        ...(line.note === undefined ? {} : { note: line.note }),
         // U26/U27 — OMITTED rather than seeded as `''`, so the draft distinguishes "this line states no
         // preparation" from "the cook cleared it", and so the round trip is byte-identical: a recipe opened
         // and saved unchanged must not acquire two keys it never had.

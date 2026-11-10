@@ -48,7 +48,8 @@ function toLineInput(line: PlannedLine, index: number): IngredientLineInput {
         foodLookupId: line.ingredientId,
         quantity: line.quantity,
         unit: line.unit ?? '',
-        ...(line.notes !== undefined ? { displayText: line.notes } : {}),
+        ...(line.displayText !== undefined ? { displayText: line.displayText } : {}),
+        ...(line.note !== undefined ? { note: line.note } : {}),
         ...(line.preparation !== undefined ? { preparation: line.preparation } : {}),
         ...(line.groupLabel !== undefined ? { groupLabel: line.groupLabel } : {}),
         // Create-only: an update's lines arrive without these and inherit the stored transcription afterwards
@@ -126,7 +127,10 @@ export class IngredientLinePlanner {
         return {
             inputs: forwarded.map(toLineInput),
             identities,
-            namesText: ingredientNamesText(lookupIds, identities),
+            namesText: ingredientNamesText(
+                forwarded.map((line) => ({ foodLookupId: line.ingredientId, displayText: line.displayText })),
+                identities,
+            ),
         };
     }
 }

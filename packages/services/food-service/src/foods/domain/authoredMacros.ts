@@ -30,17 +30,20 @@ export interface StoredNutrientValue {
  * @returns The macros, or `undefined` when any of the four is missing (an authored food always writes all four).
  */
 export function authoredMacrosOf(nutrients: readonly StoredNutrientValue[]): AuthoredMacros | undefined {
-    const found: Partial<Record<keyof AuthoredMacros, number>> = {};
+    const valueOf = (key: keyof AuthoredMacros): number | undefined => {
+        const identity = AUTHORED_MACRO_IDENTITIES.find((entry) => entry.key === key)?.identity;
+        const row =
+            identity === undefined
+                ? undefined
+                : nutrients.find((candidate) => candidate.name === identity.name && candidate.unit === identity.unit);
 
-    for (const { key, identity } of AUTHORED_MACRO_IDENTITIES) {
-        const row = nutrients.find((candidate) => candidate.name === identity.name && candidate.unit === identity.unit);
+        return row === undefined ? undefined : Number(row.amount);
+    };
 
-        if (row !== undefined) {
-            found[key] = Number(row.amount);
-        }
-    }
-
-    const { calories, proteinG, carbsG, fatG } = found;
+    const calories = valueOf('calories');
+    const proteinG = valueOf('proteinG');
+    const carbsG = valueOf('carbsG');
+    const fatG = valueOf('fatG');
 
     return calories === undefined || proteinG === undefined || carbsG === undefined || fatG === undefined
         ? undefined

@@ -20,10 +20,10 @@ import { useMessages } from '@commise/i18n/react';
 import { useParams } from 'next/navigation';
 import type { FC } from 'react';
 
-import { withBasePath } from '@/lib/basePath';
 import { ClientQueryBoundary } from '@/components/app/ClientQueryBoundary';
 import { RecipeVersionsFrame, useRecipeVersionsNav } from '@/components/recipes/RecipeVersionsFrame';
 import { RecipeVersionsRouteLoading } from '@/components/recipes/RecipeVersionsRouteLoading';
+import { openFoodInNewTab } from '@/components/foods/foodHref';
 
 /** Props for {@link RecipeVersionsContainer}. */
 export interface RecipeVersionsContainerProps {
@@ -68,9 +68,7 @@ const SettledVersions: FC<RecipeVersionsContainerProps> = ({ recipeId }) => {
                 onBack={goToRecipe}
                 backHref={recipeHref}
                 // The refused restore's Open food: a new tab, so this page stays where the cook is (private foods spec D5).
-                onOpenFood={(foodId) =>
-                    window.open(withBasePath(`/${locale}/foods/${encodeURIComponent(foodId)}`), '_blank', 'noopener')
-                }
+                onOpenFood={(foodId) => openFoodInNewTab(locale, foodId)}
             />
         </RecipeVersionsFrame>
     );

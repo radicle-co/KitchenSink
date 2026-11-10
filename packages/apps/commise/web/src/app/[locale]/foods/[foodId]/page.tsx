@@ -1,6 +1,7 @@
 import { requireSignedIn } from '@/lib/requireSignedIn';
 import { AppShell } from '@/components/app/AppShell';
 import { FoodPageContainer } from '@/components/foods/FoodPageContainer';
+import { foodHref } from '@/components/foods/foodHref';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,7 +21,7 @@ export default async function FoodPage({
 }): Promise<React.ReactElement> {
     const { locale, foodId } = await params;
 
-    await requireSignedIn(locale, `/${locale}/foods/${encodeURIComponent(foodId)}`);
+    await requireSignedIn(locale, foodHref(locale, foodId));
 
     return (
         <AppShell activeId={null} titleId="food">

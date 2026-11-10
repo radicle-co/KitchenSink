@@ -1,0 +1,1188 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Induction: Heat Signatures</title>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link
+            href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Sora:wght@300;400;600&display=swap"
+            rel="stylesheet"
+        />
+        <style>
+            *,
+            *::before,
+            *::after {
+                box-sizing: border-box;
+            }
+            :root {
+                --sora: 'Sora', system-ui, sans-serif;
+                --inter: 'Inter', system-ui, sans-serif;
+            }
+            body {
+                margin: 0;
+                background: #1a1d24;
+                color: #eceff4;
+                font: 400 16px/1.5 var(--inter);
+            }
+            .intro {
+                max-width: 880px;
+                margin: 0 auto;
+                padding: 40px 16px 8px;
+            }
+            .intro h1 {
+                font: 300 34px/1.15 var(--sora);
+                margin: 0 0 12px;
+                letter-spacing: -0.01em;
+            }
+            .intro h1 b {
+                font-weight: 600;
+            }
+            .intro p {
+                margin: 0;
+                color: #b9c0cc;
+                font-size: 17px;
+                max-width: 68ch;
+            }
+            .board {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 40px;
+                justify-content: center;
+                align-items: flex-start;
+                padding: 32px 16px 64px;
+            }
+            .cap {
+                font: 500 13px/1.4 var(--inter);
+                color: #a3acbb;
+                text-align: center;
+                margin-top: 12px;
+            }
+
+            /* ---------- themes ---------- */
+            .dark {
+                --ground: #0b0d12;
+                --raised: #141821;
+                --ink: #eceff4;
+                --muted: #a3acbb;
+                --line: #262c38;
+                --track: #1c212b;
+                --zone: rgba(255, 255, 255, 0.07);
+                --prep: #5b8cff;
+                --warm: #ffb547;
+                --sear: #ff7a45;
+                --roast: #e5484d;
+                --rest: #a77bff;
+                --ember: #ff8a50;
+                --on-ember: #140c08;
+                --glow: 0.75;
+                --link: #8fb0ff;
+            }
+            .light {
+                --ground: #f3f5f8;
+                --raised: #ffffff;
+                --ink: #11141b;
+                --muted: #4d5666;
+                --line: #dce1e8;
+                --track: #e4e8ee;
+                --zone: rgba(17, 20, 27, 0.09);
+                --prep: #2f63e0;
+                --warm: #b86e00;
+                --sear: #d9501a;
+                --roast: #c62a30;
+                --rest: #7a4fe0;
+                --ember: #c2410c;
+                --on-ember: #ffffff;
+                --glow: 0.42;
+                --link: #2a55c4;
+            }
+
+            /* ---------- phone ---------- */
+            .phone {
+                width: 390px;
+                border-radius: 48px;
+                overflow: hidden;
+                position: relative;
+                background: var(--ground);
+                color: var(--ink);
+                box-shadow:
+                    0 0 0 10px #05060a,
+                    0 30px 80px rgba(0, 0, 0, 0.5);
+            }
+            .phone.light {
+                box-shadow:
+                    0 0 0 10px #05060a,
+                    0 30px 80px rgba(0, 0, 0, 0.35);
+            }
+            .status {
+                height: 50px;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                padding: 0 30px;
+                font: 600 15px var(--inter);
+            }
+            .status .isl {
+                width: 120px;
+                height: 34px;
+                border-radius: 20px;
+                background: #000;
+            }
+            .status svg {
+                fill: currentColor;
+            }
+            .pad {
+                padding: 0 20px;
+            }
+
+            /* the glass: faint printed cooking zones */
+            .glass {
+                position: relative;
+            }
+            .glass::before {
+                content: '';
+                position: absolute;
+                inset: 0;
+                pointer-events: none;
+                background: radial-gradient(circle at 50% 0, var(--zone) 0 1px, transparent 1.5px) 0 0/14px 14px;
+                opacity: 0.5;
+                -webkit-mask: linear-gradient(#000, transparent 70%);
+                mask: linear-gradient(#000, transparent 70%);
+            }
+
+            /* ---------- the heat-signature ring ---------- */
+            .ring {
+                --s: 96px;
+                --w: 8px;
+                width: var(--s);
+                height: var(--s);
+                position: relative;
+                flex: none;
+            }
+            .ring .trk,
+            .ring .arc,
+            .ring .glow > span {
+                position: absolute;
+                inset: 0;
+                border-radius: 50%;
+                -webkit-mask: radial-gradient(
+                    farthest-side,
+                    transparent calc(100% - var(--w)),
+                    #000 calc(100% - var(--w) + 0.5px)
+                );
+                mask: radial-gradient(
+                    farthest-side,
+                    transparent calc(100% - var(--w)),
+                    #000 calc(100% - var(--w) + 0.5px)
+                );
+            }
+            .ring .trk {
+                background: var(--track);
+            }
+            .ring .arc,
+            .ring .glow > span {
+                background: var(--sig);
+            }
+            .ring .glow {
+                position: absolute;
+                inset: -6%;
+                filter: blur(calc(var(--w) * 1.6));
+                opacity: var(--glow);
+                animation: simmer 6s ease-in-out infinite;
+            }
+            .ring .glow > span {
+                inset: 6%;
+            }
+            .ring .zone {
+                position: absolute;
+                inset: calc(var(--w) + 10%);
+                border-radius: 50%;
+                border: 1px dashed var(--zone);
+            }
+            .ring .mid {
+                position: absolute;
+                inset: 0;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                text-align: center;
+            }
+            @keyframes simmer {
+                0%,
+                100% {
+                    opacity: calc(var(--glow) * 0.7);
+                }
+                50% {
+                    opacity: var(--glow);
+                }
+            }
+            @media (prefers-reduced-motion: reduce) {
+                .ring .glow {
+                    animation: none;
+                }
+            }
+
+            /* signatures: arcs are step durations, colour is heat */
+            .r-ribs {
+                --sig: conic-gradient(
+                    var(--prep) 0 10.5%,
+                    transparent 0 11.1%,
+                    var(--sear) 0 18.8%,
+                    transparent 0 19.4%,
+                    var(--warm) 0 24.4%,
+                    transparent 0 25%,
+                    var(--roast) 0 91.1%,
+                    transparent 0 91.7%,
+                    var(--rest) 0 99.4%,
+                    transparent 0
+                );
+            }
+            .r-peas {
+                --sig: conic-gradient(var(--prep) 0 78%, transparent 0 80%, var(--warm) 0 98%, transparent 0);
+            }
+            .r-dal {
+                --sig: conic-gradient(
+                    var(--prep) 0 14%,
+                    transparent 0 16%,
+                    var(--warm) 0 34%,
+                    transparent 0 36%,
+                    var(--roast) 0 82%,
+                    transparent 0 84%,
+                    var(--rest) 0 98%,
+                    transparent 0
+                );
+            }
+            .r-foc {
+                --sig: conic-gradient(
+                    var(--prep) 0 6%,
+                    transparent 0 7%,
+                    var(--rest) 0 80%,
+                    transparent 0 81%,
+                    var(--roast) 0 94%,
+                    transparent 0 95%,
+                    var(--rest) 0 99%,
+                    transparent 0
+                );
+            }
+
+            /* ---------- type ---------- */
+            .date {
+                font: 500 13px/1.4 var(--inter);
+                color: var(--muted);
+                letter-spacing: 0.02em;
+            }
+            .hello {
+                font: 300 30px/1.15 var(--sora);
+                margin: 4px 0 0;
+                letter-spacing: -0.015em;
+            }
+            .hello b {
+                font-weight: 600;
+            }
+            .sec {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                margin: 28px 0 4px;
+            }
+            .sec h2 {
+                margin: 0;
+                font: 600 17px/1.3 var(--inter);
+            }
+            .link {
+                min-height: 44px;
+                display: inline-flex;
+                align-items: center;
+                padding: 0 4px;
+                color: var(--link);
+                font: 600 14px var(--inter);
+                text-decoration: none;
+            }
+            .lead {
+                margin: 0;
+                color: var(--muted);
+                font-size: 15px;
+            }
+            .num {
+                font-family: var(--sora);
+                font-variant-numeric: tabular-nums;
+            }
+
+            /* ---------- home ---------- */
+            .feature {
+                display: flex;
+                align-items: center;
+                gap: 18px;
+                padding: 16px 0 6px;
+            }
+            .feature .t {
+                font: 600 22px/1.2 var(--sora);
+                margin: 0 0 6px;
+                letter-spacing: -0.01em;
+            }
+            .meta {
+                font: 400 14px/1.45 var(--inter);
+                color: var(--muted);
+            }
+            .heat {
+                display: flex;
+                gap: 4px;
+                margin-top: 12px;
+                height: 6px;
+                border-radius: 3px;
+                overflow: hidden;
+                width: 150px;
+            }
+            .heat i {
+                display: block;
+                border-radius: 3px;
+            }
+            .hob {
+                display: flex;
+                justify-content: space-between;
+                padding: 14px 0 2px;
+            }
+            .burner {
+                width: 104px;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 10px;
+                text-align: center;
+                text-decoration: none;
+                color: inherit;
+            }
+            .burner .n {
+                font: 500 14px/1.3 var(--inter);
+            }
+            .burner .d {
+                font: 400 12px/1.3 var(--inter);
+                color: var(--muted);
+            }
+            .unlit .mid {
+                gap: 2px;
+            }
+            .soon {
+                font: 600 11px/1 var(--inter);
+                letter-spacing: 0.08em;
+                text-transform: uppercase;
+                color: var(--muted);
+                border: 1px solid var(--line);
+                border-radius: 999px;
+                padding: 4px 8px;
+            }
+            .unlit svg {
+                stroke: var(--muted);
+                fill: none;
+                stroke-width: 1.6;
+            }
+
+            /* ---------- tab bar ---------- */
+            .tabs {
+                position: sticky;
+                bottom: 0;
+                margin-top: 28px;
+                display: flex;
+                justify-content: space-around;
+                padding: 8px 8px 28px;
+                border-top: 1px solid var(--line);
+                background: color-mix(in srgb, var(--ground) 88%, transparent);
+                backdrop-filter: blur(16px);
+            }
+            .tab {
+                width: 66px;
+                min-height: 48px;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 4px;
+                font: 500 11px/1 var(--inter);
+                color: var(--muted);
+            }
+            .tab svg {
+                width: 24px;
+                height: 24px;
+                stroke: currentColor;
+                fill: none;
+                stroke-width: 1.6;
+            }
+            .tab.on {
+                color: var(--ink);
+            }
+            .tab.on::before {
+                content: '';
+                width: 22px;
+                height: 3px;
+                border-radius: 2px;
+                background: var(--ember);
+                box-shadow: 0 0 10px var(--ember);
+                margin: -8px 0 2px;
+            }
+
+            /* ---------- recipe detail ---------- */
+            .bar {
+                display: flex;
+                justify-content: space-between;
+                padding: 0 8px;
+            }
+            .iconbtn {
+                width: 48px;
+                height: 48px;
+                display: grid;
+                place-items: center;
+                border-radius: 50%;
+                color: var(--ink);
+            }
+            .iconbtn svg {
+                width: 24px;
+                height: 24px;
+                stroke: currentColor;
+                fill: none;
+                stroke-width: 1.8;
+            }
+            .over {
+                font: 600 12px/1.4 var(--inter);
+                letter-spacing: 0.08em;
+                text-transform: uppercase;
+                color: var(--muted);
+            }
+            .title {
+                font: 600 30px/1.12 var(--sora);
+                margin: 6px 0 0;
+                letter-spacing: -0.02em;
+            }
+            .hero {
+                display: grid;
+                place-items: center;
+                padding: 26px 0 8px;
+            }
+            .hero .big {
+                font: 300 64px/1 var(--sora);
+                letter-spacing: -0.03em;
+            }
+            .hero .big small {
+                font-size: 26px;
+                font-weight: 300;
+                margin-left: 2px;
+            }
+            .hero .sub {
+                font: 500 14px/1.4 var(--inter);
+                color: var(--muted);
+                margin-top: 6px;
+            }
+            .legend {
+                display: flex;
+                flex-wrap: wrap;
+                justify-content: center;
+                gap: 6px 16px;
+                margin: 10px 0 0;
+                padding: 0;
+                list-style: none;
+                font: 400 13px/1.4 var(--inter);
+                color: var(--muted);
+            }
+            .legend li {
+                display: flex;
+                align-items: center;
+                gap: 6px;
+            }
+            .legend i {
+                width: 14px;
+                height: 4px;
+                border-radius: 2px;
+                display: block;
+            }
+            .facts {
+                display: flex;
+                margin: 24px 0 0;
+                border-top: 1px solid var(--line);
+                border-bottom: 1px solid var(--line);
+            }
+            .fact {
+                flex: 1;
+                padding: 14px 0;
+                display: flex;
+                flex-direction: column;
+                gap: 2px;
+            }
+            .fact + .fact {
+                padding-left: 16px;
+                border-left: 1px solid var(--line);
+            }
+            .fact b {
+                font: 400 20px/1.2 var(--sora);
+                font-variant-numeric: tabular-nums;
+            }
+            .fact span {
+                font: 500 12px/1.3 var(--inter);
+                color: var(--muted);
+            }
+            .stepper {
+                display: flex;
+                align-items: center;
+                gap: 2px;
+            }
+            .stepper button {
+                width: 44px;
+                height: 44px;
+                margin: -8px 0;
+                border: 0;
+                border-radius: 50%;
+                background: transparent;
+                color: var(--ink);
+                font: 400 20px var(--sora);
+            }
+            .desc {
+                font: 400 17px/1.6 var(--inter);
+                margin: 20px 0 0;
+            }
+            .cook {
+                margin: 22px 0 0;
+                width: 100%;
+                min-height: 56px;
+                border: 0;
+                border-radius: 28px;
+                background: var(--ember);
+                color: var(--on-ember);
+                font: 600 17px var(--inter);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 10px;
+                box-shadow:
+                    0 0 0 1px color-mix(in srgb, var(--ember) 60%, transparent),
+                    0 10px 34px -6px color-mix(in srgb, var(--ember) 70%, transparent);
+            }
+            .cook svg {
+                width: 20px;
+                height: 20px;
+                fill: currentColor;
+            }
+            .h2 {
+                font: 600 20px/1.25 var(--sora);
+                margin: 36px 0 6px;
+                display: flex;
+                align-items: baseline;
+                gap: 10px;
+            }
+            .h2 span {
+                font: 500 14px var(--inter);
+                color: var(--muted);
+            }
+            .ing {
+                list-style: none;
+                margin: 0;
+                padding: 0;
+            }
+            .ing li {
+                display: grid;
+                grid-template-columns: 96px 1fr;
+                gap: 12px;
+                padding: 12px 0;
+                border-bottom: 1px solid var(--line);
+                font-size: 16px;
+            }
+            .ing li:last-child {
+                border: 0;
+            }
+            .ing .q {
+                font: 400 16px/1.5 var(--sora);
+                font-variant-numeric: tabular-nums;
+                color: var(--muted);
+            }
+            .grp {
+                font: 600 12px/1.4 var(--inter);
+                letter-spacing: 0.08em;
+                text-transform: uppercase;
+                color: var(--muted);
+                padding: 16px 0 2px;
+            }
+            .steps {
+                list-style: none;
+                margin: 0;
+                padding: 0;
+            }
+            .steps li {
+                display: grid;
+                grid-template-columns: 40px 1fr;
+                gap: 14px;
+                padding: 16px 0;
+                border-bottom: 1px solid var(--line);
+            }
+            .steps li:last-child {
+                border: 0;
+            }
+            .steps .ring {
+                --s: 40px;
+                --w: 4px;
+            }
+            .steps .ring .glow {
+                filter: blur(4px);
+            }
+            .steps .mid {
+                font: 600 13px var(--sora);
+            }
+            .steps p {
+                margin: 0;
+                font-size: 16px;
+                line-height: 1.55;
+            }
+            .steps .dur {
+                display: block;
+                margin-top: 6px;
+                font: 500 13px var(--inter);
+                color: var(--muted);
+            }
+            .steps .dur b {
+                font-weight: 600;
+                color: var(--ink);
+            }
+            .steps .dur b::before {
+                content: '';
+                display: inline-block;
+                width: 8px;
+                height: 8px;
+                border-radius: 50%;
+                background: var(--c);
+                margin-right: 6px;
+                vertical-align: 1px;
+            }
+        </style>
+    </head>
+    <body>
+        <header class="intro">
+            <h1><b>Induction.</b> A recipe is a heat signature.</h1>
+            <p>
+                The app is a sheet of hob glass, and every recipe is drawn as its own ring of light: each arc is one
+                step, as long as that step takes, coloured by how hot it runs. You recognise a recipe by the shape of
+                its time and heat, read it from across the counter, and the only colour on screen is where the heat is.
+            </p>
+        </header>
+
+        <main class="board">
+            <!-- ================= HOME · DARK ================= -->
+            <figure style="margin: 0">
+                <div class="phone dark glass" role="img" aria-label="Home screen, dark theme">
+                    <div class="status">
+                        <span class="num">9:41</span><span class="isl"></span
+                        ><svg width="54" height="12" viewBox="0 0 54 12" aria-hidden="true">
+                            <rect x="0" y="7" width="3" height="5" rx="1" />
+                            <rect x="5" y="5" width="3" height="7" rx="1" />
+                            <rect x="10" y="2" width="3" height="10" rx="1" />
+                            <rect x="15" y="0" width="3" height="12" rx="1" />
+                            <rect x="28" y="1" width="22" height="10" rx="3" fill="none" stroke="currentColor" />
+                            <rect x="30" y="3" width="15" height="6" rx="1.5" />
+                        </svg>
+                    </div>
+                    <div class="pad">
+                        <div class="date">Friday, October 16, 2026</div>
+                        <h1 class="hello">Good morning,<br /><b>Eliza Ramirez</b></h1>
+
+                        <div class="sec">
+                            <h2>Recent recipes</h2>
+                            <a class="link" href="#">See all</a>
+                        </div>
+
+                        <a class="feature" href="#" style="text-decoration: none; color: inherit">
+                            <div class="ring r-ribs" style="--s: 150px; --w: 11px">
+                                <div class="trk"></div>
+                                <div class="glow"><span></span></div>
+                                <div class="arc"></div>
+                                <div class="zone"></div>
+                                <div class="mid">
+                                    <span class="num" style="font: 300 36px/1 var(--sora)"
+                                        >3<small style="font-size: 16px"> h</small></span
+                                    ><span class="meta" style="font-size: 12px">5 steps</span>
+                                </div>
+                            </div>
+                            <div>
+                                <p class="t">Miso-braised short ribs</p>
+                                <div class="meta">Opened yesterday<br />Serves 4</div>
+                                <div class="heat" aria-hidden="true">
+                                    <i style="flex: 11; background: var(--prep)"></i
+                                    ><i style="flex: 8; background: var(--sear)"></i
+                                    ><i style="flex: 6; background: var(--warm)"></i
+                                    ><i style="flex: 66; background: var(--roast)"></i
+                                    ><i style="flex: 8; background: var(--rest)"></i>
+                                </div>
+                            </div>
+                        </a>
+
+                        <div class="hob">
+                            <a class="burner" href="#"
+                                ><div class="ring r-peas" style="--s: 84px; --w: 7px">
+                                    <div class="trk"></div>
+                                    <div class="glow"><span></span></div>
+                                    <div class="arc"></div>
+                                    <div class="mid num" style="font-size: 17px">
+                                        15<small style="font-size: 11px">m</small>
+                                    </div>
+                                </div>
+                                <span class="n">Spring pea salad</span></a
+                            >
+                            <a class="burner" href="#"
+                                ><div class="ring r-dal" style="--s: 84px; --w: 7px">
+                                    <div class="trk"></div>
+                                    <div class="glow"><span></span></div>
+                                    <div class="arc"></div>
+                                    <div class="mid num" style="font-size: 17px">
+                                        40<small style="font-size: 11px">m</small>
+                                    </div>
+                                </div>
+                                <span class="n">Weeknight red lentil dal</span></a
+                            >
+                            <a class="burner" href="#"
+                                ><div class="ring r-foc" style="--s: 84px; --w: 7px">
+                                    <div class="trk"></div>
+                                    <div class="glow"><span></span></div>
+                                    <div class="arc"></div>
+                                    <div class="mid num" style="font-size: 17px">
+                                        18<small style="font-size: 11px">h</small>
+                                    </div>
+                                </div>
+                                <span class="n">Overnight focaccia</span></a
+                            >
+                        </div>
+
+                        <div class="sec" style="margin-top: 34px"><h2>Coming soon</h2></div>
+                        <p class="lead">Meal plans, a grocery list and daily nutrition are on the way.</p>
+                        <div class="hob unlit" style="padding-top: 18px">
+                            <div class="burner">
+                                <div class="ring" style="--s: 84px; --w: 2px">
+                                    <div class="trk"></div>
+                                    <div class="zone" style="inset: 14px"></div>
+                                    <div class="mid">
+                                        <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
+                                            <rect x="4" y="5" width="16" height="15" rx="3" />
+                                            <path d="M4 10h16M9 3v4M15 3v4" />
+                                        </svg>
+                                    </div>
+                                </div>
+                                <span class="n">Meal plans</span><span class="soon">Soon</span>
+                            </div>
+                            <div class="burner">
+                                <div class="ring" style="--s: 84px; --w: 2px">
+                                    <div class="trk"></div>
+                                    <div class="zone" style="inset: 14px"></div>
+                                    <div class="mid">
+                                        <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
+                                            <path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01" />
+                                        </svg>
+                                    </div>
+                                </div>
+                                <span class="n">Grocery list</span><span class="soon">Soon</span>
+                            </div>
+                            <div class="burner">
+                                <div class="ring" style="--s: 84px; --w: 2px">
+                                    <div class="trk"></div>
+                                    <div class="zone" style="inset: 14px"></div>
+                                    <div class="mid">
+                                        <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
+                                            <path d="M12 3a9 9 0 1 0 9 9h-9z" />
+                                            <path d="M15 3.5A9 9 0 0 1 20.5 9H15z" />
+                                        </svg>
+                                    </div>
+                                </div>
+                                <span class="n">Today’s nutrition</span><span class="soon">Soon</span>
+                            </div>
+                        </div>
+                    </div>
+                    <nav class="tabs" aria-label="Main">
+                        <div class="tab on">
+                            <svg viewBox="0 0 24 24"><path d="M4 11l8-7 8 7v9H4z" /></svg>Home
+                        </div>
+                        <div class="tab">
+                            <svg viewBox="0 0 24 24">
+                                <circle cx="12" cy="12" r="8" />
+                                <path d="M15 9l-2 4-4 2 2-4z" /></svg
+                            >Discover
+                        </div>
+                        <div class="tab">
+                            <svg viewBox="0 0 24 24">
+                                <circle cx="12" cy="12" r="8" />
+                                <circle cx="12" cy="12" r="3" /></svg
+                            >Recipes
+                        </div>
+                        <div class="tab">
+                            <svg viewBox="0 0 24 24">
+                                <rect x="4" y="4" width="7" height="7" rx="2" />
+                                <rect x="13" y="4" width="7" height="7" rx="2" />
+                                <rect x="4" y="13" width="7" height="7" rx="2" />
+                                <rect x="13" y="13" width="7" height="7" rx="2" /></svg
+                            >Collections
+                        </div>
+                        <div class="tab">
+                            <svg viewBox="0 0 24 24">
+                                <circle cx="12" cy="8" r="4" />
+                                <path d="M4 20c1.5-4 4.5-6 8-6s6.5 2 8 6" /></svg
+                            >Profile
+                        </div>
+                    </nav>
+                </div>
+                <figcaption class="cap">
+                    Home · dark (hob glass). Recent recipes are lit burners; what’s coming is unlit.
+                </figcaption>
+            </figure>
+
+            <!-- ================= RECIPE DETAIL · DARK ================= -->
+            <figure style="margin: 0">
+                <div class="phone dark glass" role="img" aria-label="Recipe detail, dark theme">
+                    <div class="status">
+                        <span class="num">9:41</span><span class="isl"></span
+                        ><svg width="54" height="12" viewBox="0 0 54 12" aria-hidden="true">
+                            <rect x="0" y="7" width="3" height="5" rx="1" />
+                            <rect x="5" y="5" width="3" height="7" rx="1" />
+                            <rect x="10" y="2" width="3" height="10" rx="1" />
+                            <rect x="15" y="0" width="3" height="12" rx="1" />
+                            <rect x="28" y="1" width="22" height="10" rx="3" fill="none" stroke="currentColor" />
+                            <rect x="30" y="3" width="15" height="6" rx="1.5" />
+                        </svg>
+                    </div>
+                    <div class="bar">
+                        <span class="iconbtn" aria-label="Back"
+                            ><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7" /></svg
+                        ></span>
+                        <span style="display: flex"
+                            ><span class="iconbtn" aria-label="Save to collection"
+                                ><svg viewBox="0 0 24 24"><path d="M6 4h12v16l-6-4-6 4z" /></svg></span
+                            ><span class="iconbtn" aria-label="More"
+                                ><svg viewBox="0 0 24 24">
+                                    <circle cx="5" cy="12" r="1" />
+                                    <circle cx="12" cy="12" r="1" />
+                                    <circle cx="19" cy="12" r="1" /></svg></span
+                        ></span>
+                    </div>
+                    <div class="pad">
+                        <div class="over">Your recipe · Japanese</div>
+                        <h1 class="title">Miso-braised short ribs</h1>
+
+                        <div class="hero">
+                            <div class="ring r-ribs" style="--s: 286px; --w: 18px">
+                                <div class="trk"></div>
+                                <div class="glow"><span></span></div>
+                                <div class="arc"></div>
+                                <div class="zone"></div>
+                                <div class="mid">
+                                    <div class="big">3<small>h</small></div>
+                                    <div class="sub">total · 5 steps</div>
+                                </div>
+                            </div>
+                            <ul class="legend" aria-label="Heat by step">
+                                <li><i style="background: var(--prep)"></i>Prep</li>
+                                <li><i style="background: var(--sear)"></i>Sear</li>
+                                <li><i style="background: var(--warm)"></i>Sauté</li>
+                                <li><i style="background: var(--roast)"></i>Braise 150°C</li>
+                                <li><i style="background: var(--rest)"></i>Rest</li>
+                            </ul>
+                        </div>
+
+                        <div class="facts">
+                            <div class="fact">
+                                <b>45<small style="font-size: 13px"> min</small></b
+                                ><span>Prep</span>
+                            </div>
+                            <div class="fact">
+                                <b>2<small style="font-size: 13px"> h </small>15</b><span>Cook</span>
+                            </div>
+                            <div class="fact">
+                                <div class="stepper">
+                                    <button aria-label="Fewer servings">−</button><b>4</b
+                                    ><button aria-label="More servings">+</button>
+                                </div>
+                                <span>Servings</span>
+                            </div>
+                        </div>
+
+                        <p class="desc">
+                            Bone-in ribs seared hard, then braised low in white miso, mirin and ginger until they give
+                            way to a spoon.
+                        </p>
+
+                        <button class="cook">
+                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z" /></svg>Start cooking
+                        </button>
+
+                        <h2 class="h2">Ingredients <span>9</span></h2>
+                        <ul class="ing">
+                            <li><span class="q">1.5 kg</span>bone-in beef short ribs</li>
+                            <li><span class="q">1 tsp</span>flaky salt</li>
+                            <li><span class="q">2 tbsp</span>neutral oil</li>
+                            <li><span class="q">1</span>onion, sliced</li>
+                            <li><span class="q">30 g</span>ginger, sliced into coins</li>
+                        </ul>
+                        <div class="grp">Braising liquid</div>
+                        <ul class="ing">
+                            <li><span class="q">80 g</span>white miso</li>
+                            <li><span class="q">60 ml</span>mirin</li>
+                            <li><span class="q">500 ml</span>beef stock</li>
+                            <li><span class="q">2</span>spring onions, to finish</li>
+                        </ul>
+
+                        <h2 class="h2">Steps <span>5</span></h2>
+                        <ol class="steps">
+                            <li>
+                                <div class="ring" style="--sig: conic-gradient(var(--prep) 0 10.5%, transparent 0)">
+                                    <div class="trk"></div>
+                                    <div class="arc"></div>
+                                    <div class="mid">1</div>
+                                </div>
+                                <p>
+                                    Pat the ribs dry and season all over with salt. Leave at room temperature.<span
+                                        class="dur"
+                                        style="--c: var(--prep)"
+                                        ><b>20 min</b> · prep</span
+                                    >
+                                </p>
+                            </li>
+                            <li>
+                                <div
+                                    class="ring"
+                                    style="
+                                        --sig: conic-gradient(transparent 0 11.1%, var(--sear) 0 18.8%, transparent 0);
+                                    "
+                                >
+                                    <div class="trk"></div>
+                                    <div class="glow"><span></span></div>
+                                    <div class="arc"></div>
+                                    <div class="mid">2</div>
+                                </div>
+                                <p>
+                                    Sear the ribs in oil over high heat until deeply browned on every side.<span
+                                        class="dur"
+                                        style="--c: var(--sear)"
+                                        ><b>15 min</b> · high heat</span
+                                    >
+                                </p>
+                            </li>
+                            <li>
+                                <div
+                                    class="ring"
+                                    style="
+                                        --sig: conic-gradient(transparent 0 19.4%, var(--warm) 0 24.4%, transparent 0);
+                                    "
+                                >
+                                    <div class="trk"></div>
+                                    <div class="arc"></div>
+                                    <div class="mid">3</div>
+                                </div>
+                                <p>
+                                    Soften the onion and ginger in the same pot, then whisk in the miso, mirin and
+                                    stock.<span class="dur" style="--c: var(--warm)"><b>10 min</b> · medium heat</span>
+                                </p>
+                            </li>
+                            <li>
+                                <div
+                                    class="ring"
+                                    style="
+                                        --sig: conic-gradient(transparent 0 25%, var(--roast) 0 91.1%, transparent 0);
+                                    "
+                                >
+                                    <div class="trk"></div>
+                                    <div class="glow"><span></span></div>
+                                    <div class="arc"></div>
+                                    <div class="mid">4</div>
+                                </div>
+                                <p>
+                                    Return the ribs, cover and braise in the oven until tender.<span
+                                        class="dur"
+                                        style="--c: var(--roast)"
+                                        ><b>2 h</b> · oven 150°C</span
+                                    >
+                                </p>
+                            </li>
+                            <li>
+                                <div
+                                    class="ring"
+                                    style="
+                                        --sig: conic-gradient(transparent 0 91.7%, var(--rest) 0 99.4%, transparent 0);
+                                    "
+                                >
+                                    <div class="trk"></div>
+                                    <div class="arc"></div>
+                                    <div class="mid">5</div>
+                                </div>
+                                <p>
+                                    Rest in the liquid, then scatter with spring onions.<span
+                                        class="dur"
+                                        style="--c: var(--rest)"
+                                        ><b>15 min</b> · rest</span
+                                    >
+                                </p>
+                            </li>
+                        </ol>
+                        <div style="height: 40px"></div>
+                    </div>
+                </div>
+                <figcaption class="cap">
+                    Recipe detail · dark. The hero is the recipe’s own ring; each step shows where it sits on it.
+                </figcaption>
+            </figure>
+
+            <!-- ================= HOME · LIGHT ================= -->
+            <figure style="margin: 0">
+                <div class="phone light glass" role="img" aria-label="Home screen, light theme">
+                    <div class="status">
+                        <span class="num">9:41</span><span class="isl"></span
+                        ><svg width="54" height="12" viewBox="0 0 54 12" aria-hidden="true">
+                            <rect x="0" y="7" width="3" height="5" rx="1" />
+                            <rect x="5" y="5" width="3" height="7" rx="1" />
+                            <rect x="10" y="2" width="3" height="10" rx="1" />
+                            <rect x="15" y="0" width="3" height="12" rx="1" />
+                            <rect x="28" y="1" width="22" height="10" rx="3" fill="none" stroke="currentColor" />
+                            <rect x="30" y="3" width="15" height="6" rx="1.5" />
+                        </svg>
+                    </div>
+                    <div class="pad">
+                        <div class="date">Friday, October 16, 2026</div>
+                        <h1 class="hello">Good morning,<br /><b>Eliza Ramirez</b></h1>
+
+                        <div class="sec">
+                            <h2>Recent recipes</h2>
+                            <a class="link" href="#">See all</a>
+                        </div>
+
+                        <a class="feature" href="#" style="text-decoration: none; color: inherit">
+                            <div class="ring r-ribs" style="--s: 150px; --w: 11px">
+                                <div class="trk"></div>
+                                <div class="glow"><span></span></div>
+                                <div class="arc"></div>
+                                <div class="zone"></div>
+                                <div class="mid">
+                                    <span class="num" style="font: 300 36px/1 var(--sora)"
+                                        >3<small style="font-size: 16px"> h</small></span
+                                    ><span class="meta" style="font-size: 12px">5 steps</span>
+                                </div>
+                            </div>
+                            <div>
+                                <p class="t">Miso-braised short ribs</p>
+                                <div class="meta">Opened yesterday<br />Serves 4</div>
+                                <div class="heat" aria-hidden="true">
+                                    <i style="flex: 11; background: var(--prep)"></i
+                                    ><i style="flex: 8; background: var(--sear)"></i
+                                    ><i style="flex: 6; background: var(--warm)"></i
+                                    ><i style="flex: 66; background: var(--roast)"></i
+                                    ><i style="flex: 8; background: var(--rest)"></i>
+                                </div>
+                            </div>
+                        </a>
+
+                        <div class="hob">
+                            <a class="burner" href="#"
+                                ><div class="ring r-peas" style="--s: 84px; --w: 7px">
+                                    <div class="trk"></div>
+                                    <div class="glow"><span></span></div>
+                                    <div class="arc"></div>
+                                    <div class="mid num" style="font-size: 17px">
+                                        15<small style="font-size: 11px">m</small>
+                                    </div>
+                                </div>
+                                <span class="n">Spring pea salad</span></a
+                            >
+                            <a class="burner" href="#"
+                                ><div class="ring r-dal" style="--s: 84px; --w: 7px">
+                                    <div class="trk"></div>
+                                    <div class="glow"><span></span></div>
+                                    <div class="arc"></div>
+                                    <div class="mid num" style="font-size: 17px">
+                                        40<small style="font-size: 11px">m</small>
+                                    </div>
+                                </div>
+                                <span class="n">Weeknight red lentil dal</span></a
+                            >
+                            <a class="burner" href="#"
+                                ><div class="ring r-foc" style="--s: 84px; --w: 7px">
+                                    <div class="trk"></div>
+                                    <div class="glow"><span></span></div>
+                                    <div class="arc"></div>
+                                    <div class="mid num" style="font-size: 17px">
+                                        18<small style="font-size: 11px">h</small>
+                                    </div>
+                                </div>
+                                <span class="n">Overnight focaccia</span></a
+                            >
+                        </div>
+
+                        <div class="sec" style="margin-top: 34px"><h2>Coming soon</h2></div>
+                        <p class="lead">Meal plans, a grocery list and daily nutrition are on the way.</p>
+                        <div class="hob unlit" style="padding-top: 18px">
+                            <div class="burner">
+                                <div class="ring" style="--s: 84px; --w: 2px">
+                                    <div class="trk"></div>
+                                    <div class="zone" style="inset: 14px"></div>
+                                    <div class="mid">
+                                        <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
+                                            <rect x="4" y="5" width="16" height="15" rx="3" />
+                                            <path d="M4 10h16M9 3v4M15 3v4" />
+                                        </svg>
+                                    </div>
+                                </div>
+                                <span class="n">Meal plans</span><span class="soon">Soon</span>
+                            </div>
+                            <div class="burner">
+                                <div class="ring" style="--s: 84px; --w: 2px">
+                                    <div class="trk"></div>
+                                    <div class="zone" style="inset: 14px"></div>
+                                    <div class="mid">
+                                        <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
+                                            <path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01" />
+                                        </svg>
+                                    </div>
+                                </div>
+                                <span class="n">Grocery list</span><span class="soon">Soon</span>
+                            </div>
+                            <div class="burner">
+                                <div class="ring" style="--s: 84px; --w: 2px">
+                                    <div class="trk"></div>
+                                    <div class="zone" style="inset: 14px"></div>
+                                    <div class="mid">
+                                        <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
+                                            <path d="M12 3a9 9 0 1 0 9 9h-9z" />
+                                            <path d="M15 3.5A9 9 0 0 1 20.5 9H15z" />
+                                        </svg>
+                                    </div>
+                                </div>
+                                <span class="n">Today’s nutrition</span><span class="soon">Soon</span>
+                            </div>
+                        </div>
+                    </div>
+                    <nav class="tabs" aria-label="Main">
+                        <div class="tab on">
+                            <svg viewBox="0 0 24 24"><path d="M4 11l8-7 8 7v9H4z" /></svg>Home
+                        </div>
+                        <div class="tab">
+                            <svg viewBox="0 0 24 24">
+                                <circle cx="12" cy="12" r="8" />
+                                <path d="M15 9l-2 4-4 2 2-4z" /></svg
+                            >Discover
+                        </div>
+                        <div class="tab">
+                            <svg viewBox="0 0 24 24">
+                                <circle cx="12" cy="12" r="8" />
+                                <circle cx="12" cy="12" r="3" /></svg
+                            >Recipes
+                        </div>
+                        <div class="tab">
+                            <svg viewBox="0 0 24 24">
+                                <rect x="4" y="4" width="7" height="7" rx="2" />
+                                <rect x="13" y="4" width="7" height="7" rx="2" />
+                                <rect x="4" y="13" width="7" height="7" rx="2" />
+                                <rect x="13" y="13" width="7" height="7" rx="2" /></svg
+                            >Collections
+                        </div>
+                        <div class="tab">
+                            <svg viewBox="0 0 24 24">
+                                <circle cx="12" cy="8" r="4" />
+                                <path d="M4 20c1.5-4 4.5-6 8-6s6.5 2 8 6" /></svg
+                            >Profile
+                        </div>
+                    </nav>
+                </div>
+                <figcaption class="cap">
+                    Home · light (white ceramic hob, cool not cream). Arcs step one shade deeper to hold 3:1.
+                </figcaption>
+            </figure>
+        </main>
+    </body>
+</html>

@@ -1,0 +1,1785 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width,initial-scale=1" />
+        <title>Food Edge</title>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@400;500;600&display=swap" rel="stylesheet" />
+        <style>
+            :root,
+            .lt {
+                --g: #e4e7ea;
+                --s: #ffffff;
+                --k: #d6dade;
+                --e: #69717a;
+                --i: #121518;
+                --m: #454c54;
+                --a: #864a00;
+                --f: #f8ac5e;
+                --o: #121518;
+                --w: #fce6cc;
+                --wr: #5f5a00;
+                --dg: #b0123f;
+                --h: #d0d5da;
+            }
+            .dk {
+                --g: #101214;
+                --s: #1a1d21;
+                --k: #252a2f;
+                --e: #858d96;
+                --i: #eef1f3;
+                --m: #b5bcc3;
+                --a: #f8ac5e;
+                --f: #f8ac5e;
+                --o: #1a1206;
+                --w: #33261a;
+                --wr: #d8cc6e;
+                --dg: #ff9db4;
+                --h: #2c3237;
+            }
+            @media (prefers-color-scheme: dark) {
+                :root:not([data-theme='light']) {
+                    --g: #101214;
+                    --s: #1a1d21;
+                    --k: #252a2f;
+                    --e: #858d96;
+                    --i: #eef1f3;
+                    --m: #b5bcc3;
+                    --a: #f8ac5e;
+                    --f: #f8ac5e;
+                    --o: #1a1206;
+                    --w: #33261a;
+                    --wr: #d8cc6e;
+                    --dg: #ff9db4;
+                    --h: #2c3237;
+                }
+            }
+            :root[data-theme='dark'] {
+                --g: #101214;
+                --s: #1a1d21;
+                --k: #252a2f;
+                --e: #858d96;
+                --i: #eef1f3;
+                --m: #b5bcc3;
+                --a: #f8ac5e;
+                --f: #f8ac5e;
+                --o: #1a1206;
+                --w: #33261a;
+                --wr: #d8cc6e;
+                --dg: #ff9db4;
+                --h: #2c3237;
+            }
+            :root .lt {
+                --g: #e4e7ea;
+                --s: #ffffff;
+                --k: #d6dade;
+                --e: #69717a;
+                --i: #121518;
+                --m: #454c54;
+                --a: #864a00;
+                --f: #f8ac5e;
+                --o: #121518;
+                --w: #fce6cc;
+                --wr: #5f5a00;
+                --dg: #b0123f;
+                --h: #d0d5da;
+            }
+            * {
+                box-sizing: border-box;
+                margin: 0;
+                padding: 0;
+            }
+            body {
+                background: var(--g);
+                color: var(--i);
+                font:
+                    400 1rem/1.5 Lexend,
+                    system-ui,
+                    sans-serif;
+                -webkit-font-smoothing: antialiased;
+            }
+            button {
+                font: inherit;
+                color: inherit;
+                background: none;
+                border: 0;
+                cursor: pointer;
+            }
+            a {
+                color: inherit;
+                text-decoration: none;
+            }
+            svg {
+                width: 1.25em;
+                height: 1.25em;
+                flex: none;
+                fill: none;
+                stroke: currentColor;
+                stroke-width: 1.8;
+                stroke-linecap: round;
+                stroke-linejoin: round;
+            }
+            :focus-visible {
+                outline: 3px solid var(--a);
+                outline-offset: 2px;
+            }
+            .wrap {
+                max-width: 1320px;
+                margin: 0 auto;
+                padding: 0 16px;
+                overflow-wrap: anywhere;
+            }
+            .hero {
+                display: grid;
+                grid-template-columns: min(32vw, 260px) minmax(0, 1fr);
+                gap: 0 clamp(16px, 4vw, 48px);
+                align-items: center;
+                margin: 0 0 48px;
+            }
+            .strip {
+                display: grid;
+                gap: 12px;
+                margin-left: -16px;
+            }
+            .strip i {
+                display: block;
+                height: clamp(72px, 11vw, 112px);
+                background-size: cover;
+                background-position: center;
+            }
+            @media (max-width: 40em) {
+                .hero {
+                    grid-template-columns: 1fr;
+                }
+                .strip {
+                    grid-template-columns: repeat(4, 1fr);
+                    margin: 0 -16px 24px;
+                }
+            }
+            .hero small {
+                display: block;
+                font-size: 0.875rem;
+                font-weight: 500;
+                margin-bottom: 12px;
+            }
+            .hero h1 {
+                font-size: clamp(2.75rem, 7vw, 5.5rem);
+                font-weight: 600;
+                line-height: 1;
+                letter-spacing: -0.03em;
+            }
+            .hero p {
+                font-size: clamp(1.0625rem, 1.6vw, 1.375rem);
+                max-width: 34em;
+                margin-top: 16px;
+            }
+            .hero p + p {
+                color: var(--m);
+                font-size: 1.0625rem;
+            }
+            h2 {
+                font-size: 1.75rem;
+                font-weight: 600;
+                letter-spacing: -0.01em;
+                margin: 64px 0 8px;
+            }
+            .intro {
+                color: var(--m);
+                max-width: 46em;
+                margin-bottom: 24px;
+            }
+            .row {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 40px 32px;
+                align-items: flex-start;
+            }
+            figure {
+                width: 390px;
+                max-width: 100%;
+            }
+            figcaption {
+                margin-bottom: 12px;
+            }
+            figcaption b {
+                display: block;
+                font-weight: 600;
+            }
+            figcaption span {
+                color: var(--m);
+            }
+            .ph {
+                position: relative;
+                width: 100%;
+                height: 844px;
+                border-radius: 44px;
+                overflow: hidden;
+                background: var(--g);
+                color: var(--i);
+                container-type: inline-size;
+                box-shadow:
+                    0 0 0 1px var(--h),
+                    0 24px 48px -28px #0006;
+                overflow-wrap: normal;
+            }
+            .ph.tall {
+                height: auto;
+            }
+            .sb {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                height: 48px;
+                padding: 0 28px;
+                font-size: 15px;
+                font-weight: 600;
+            }
+            .sb i {
+                width: 26px;
+                height: 12px;
+                border: 1.5px solid currentColor;
+                border-radius: 4px;
+                display: block;
+                position: relative;
+            }
+            .sb i:after {
+                content: '';
+                position: absolute;
+                inset: 2px;
+                right: 6px;
+                background: currentColor;
+                border-radius: 1px;
+            }
+            .top {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                padding: 4px 20px 0;
+            }
+            .top h3 {
+                font-size: 2.125rem;
+                font-weight: 600;
+                letter-spacing: -0.02em;
+                line-height: 1.15;
+            }
+            .av {
+                width: 44px;
+                height: 44px;
+                border-radius: 50%;
+                background: var(--k);
+                display: grid;
+                place-items: center;
+                font-weight: 600;
+                font-size: 0.9375rem;
+            }
+            .sec {
+                padding: 20px 20px 16px;
+                font-size: 1.25rem;
+                font-weight: 600;
+                line-height: 1.3;
+            }
+            .sec small {
+                display: block;
+                font-size: 1rem;
+                font-weight: 400;
+                color: var(--m);
+            }
+            /* the signature: a plate flush to the screen edge, facing its words */
+            .pk {
+                display: grid;
+                grid-template-columns: 44% minmax(0, 1fr);
+                gap: 0 14px;
+                min-height: 184px;
+                position: relative;
+            }
+            .pk + .pk {
+                margin-top: 28px;
+            }
+            .pl {
+                background-size: cover;
+                background-position: center;
+                min-height: inherit;
+                background-color: var(--k);
+            }
+            .cap {
+                padding: 2px 24px 2px 0;
+                display: flex;
+                flex-direction: column;
+                gap: 6px;
+            }
+            .cap svg {
+                width: 1.125em;
+                height: 1.125em;
+            }
+            .cap h5 {
+                hyphens: auto;
+                overflow-wrap: break-word;
+                font-size: 1.1875rem;
+                font-weight: 600;
+                line-height: 1.25;
+                letter-spacing: -0.005em;
+            }
+            .rb {
+                display: flex;
+                gap: 5px;
+                align-items: center;
+                font-weight: 600;
+            }
+            .fx,
+            .why {
+                color: var(--m);
+            }
+            .fx span {
+                white-space: nowrap;
+            }
+            .why {
+                display: flex;
+                gap: 5px;
+                align-items: center;
+            }
+            .ch {
+                position: absolute;
+                right: 4px;
+                top: 50%;
+                margin-top: -10px;
+                color: var(--m);
+            }
+            .btn {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 8px;
+                width: 100%;
+                min-height: 52px;
+                border-radius: 14px;
+                background: var(--f);
+                color: var(--o);
+                font-weight: 600;
+                font-size: 1.0625rem;
+                text-align: center;
+                padding: 4px 12px;
+                line-height: 1.25;
+            }
+            .btn.ol {
+                background: var(--s);
+                border: 1.5px solid var(--e);
+            }
+            .lnk {
+                display: inline-flex;
+                align-items: center;
+                gap: 4px;
+                min-height: 44px;
+                color: var(--a);
+                font-weight: 500;
+                text-decoration: underline;
+                text-underline-offset: 4px;
+                text-decoration-thickness: 1.5px;
+            }
+            .more {
+                padding: 12px 20px 0;
+            }
+            .tb {
+                position: absolute;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                display: grid;
+                grid-template-columns: repeat(3, 1fr);
+                padding: 8px 24px 26px;
+                background: var(--s);
+                border-top: 1px solid var(--h);
+                z-index: 3;
+            }
+            .tb a {
+                display: grid;
+                justify-items: center;
+                gap: 2px;
+                font-size: 12px;
+                font-weight: 500;
+                min-height: 48px;
+            }
+            .tb svg {
+                color: var(--m);
+            }
+            .tb svg {
+                width: 26px;
+                height: 26px;
+            }
+            .tb .on {
+                font-weight: 600;
+            }
+            .tb .on svg {
+                color: var(--a);
+                fill: currentColor;
+            }
+            .dock {
+                position: absolute;
+                left: 0;
+                right: 0;
+                bottom: 83px;
+                padding: 16px 20px 12px;
+                background: linear-gradient(transparent, var(--g) 22%);
+                z-index: 2;
+            }
+            .seg {
+                margin: 16px 20px 0;
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                background: var(--k);
+                border-radius: 12px;
+                padding: 3px;
+            }
+            .seg b {
+                display: grid;
+                place-items: center;
+                min-height: 44px;
+                border-radius: 10px;
+                font-weight: 500;
+            }
+            .seg b:first-child {
+                background: var(--s);
+                font-weight: 600;
+                box-shadow: 0 1px 2px #0002;
+            }
+            .srch {
+                margin: 12px 20px 0;
+                display: flex;
+                gap: 10px;
+                align-items: center;
+                min-height: 48px;
+                padding: 0 14px;
+                border-radius: 12px;
+                background: var(--s);
+                border: 1px solid var(--e);
+                color: var(--m);
+            }
+            .chips {
+                display: flex;
+                gap: 8px;
+                padding: 12px 20px 0;
+                overflow: hidden;
+                white-space: nowrap;
+            }
+            .chip {
+                flex: none;
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+                min-height: 44px;
+                padding: 0 14px;
+                border-radius: 22px;
+                border: 1px solid var(--e);
+                background: var(--s);
+                font-weight: 500;
+            }
+            .chip.on {
+                background: var(--w);
+                border-color: var(--i);
+            }
+            .cnt {
+                display: flex;
+                gap: 0 12px;
+                justify-content: space-between;
+                align-items: center;
+                padding: 12px 20px 8px;
+                color: var(--m);
+            }
+            .ls .pk {
+                grid-template-columns: 88px minmax(0, 1fr);
+                min-height: 88px;
+                gap: 0 14px;
+            }
+            .ls .pk + .pk {
+                margin-top: 12px;
+            }
+            .ls .cap {
+                gap: 2px;
+                justify-content: center;
+            }
+            .ls .cap h5 {
+                font-size: 1.0625rem;
+            }
+            .hb {
+                position: absolute;
+                top: 56px;
+                left: 16px;
+                right: 16px;
+                display: flex;
+                gap: 8px;
+                z-index: 2;
+            }
+            .hb .sp {
+                flex: 1;
+            }
+            .hb button {
+                min-width: 44px;
+                height: 44px;
+                border-radius: 22px;
+                background: var(--s);
+                display: grid;
+                place-items: center;
+                box-shadow: 0 1px 4px #0003;
+                padding: 0 14px;
+                font-weight: 600;
+            }
+            .rh {
+                display: grid;
+                grid-template-columns: 62% minmax(0, 1fr);
+            }
+            .rh .pl {
+                min-height: 300px;
+            }
+            .facts {
+                display: flex;
+                flex-direction: column;
+                justify-content: flex-end;
+                gap: 14px;
+                padding: 16px 16px 2px;
+            }
+            .facts b {
+                display: block;
+                font-size: 1.375rem;
+                font-weight: 600;
+                line-height: 1.1;
+            }
+            .facts span {
+                font-size: 0.875rem;
+            }
+            .rt {
+                padding: 20px 20px 0;
+            }
+            .rt h3 {
+                font-size: 1.75rem;
+                font-weight: 600;
+                line-height: 1.18;
+                letter-spacing: -0.015em;
+            }
+            .meta {
+                color: var(--m);
+                margin-top: 6px;
+                display: flex;
+                flex-wrap: wrap;
+                gap: 4px 12px;
+            }
+            .desc {
+                padding: 12px 20px 0;
+                font-size: 1.0625rem;
+            }
+            .sw {
+                margin: 16px 20px 0;
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                background: var(--s);
+                border-radius: 14px;
+                padding: 12px 14px;
+                min-height: 64px;
+            }
+            .sw div {
+                flex: 1;
+            }
+            .sw p {
+                font-weight: 500;
+            }
+            .sw small {
+                display: block;
+                color: var(--m);
+                font-size: 1rem;
+            }
+            .tg {
+                width: 52px;
+                height: 32px;
+                border-radius: 16px;
+                background: var(--k);
+                border: 1.5px solid var(--e);
+                position: relative;
+                flex: none;
+            }
+            .tg:after {
+                content: '';
+                position: absolute;
+                left: 3px;
+                top: 3px;
+                width: 23px;
+                height: 23px;
+                border-radius: 50%;
+                background: var(--e);
+            }
+            .ih {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 8px;
+                justify-content: space-between;
+                align-items: center;
+                padding: 32px 20px 8px;
+            }
+            .ih h4,
+            .sh {
+                font-size: 1.375rem;
+                font-weight: 600;
+            }
+            .stp {
+                display: flex;
+                align-items: center;
+                border: 1px solid var(--e);
+                border-radius: 12px;
+                background: var(--s);
+            }
+            .stp button {
+                width: 44px;
+                height: 44px;
+                display: grid;
+                place-items: center;
+            }
+            .stp b {
+                font-weight: 600;
+                padding: 0 4px;
+                white-space: nowrap;
+            }
+            .grp {
+                padding: 12px 20px 4px;
+                font-weight: 600;
+                font-size: 0.875rem;
+                letter-spacing: 0.04em;
+                text-transform: uppercase;
+            }
+            .ing {
+                list-style: none;
+                background: var(--s);
+            }
+            .ing li {
+                display: flex;
+                gap: 14px;
+                align-items: flex-start;
+                padding: 11px 20px;
+                min-height: 48px;
+                border-top: 1px solid var(--h);
+            }
+            .ing li:first-child {
+                border: 0;
+            }
+            .cb {
+                width: 24px;
+                height: 24px;
+                border: 2px solid var(--e);
+                border-radius: 6px;
+                flex: none;
+                margin-top: 1px;
+                display: grid;
+                place-items: center;
+            }
+            .cb svg {
+                width: 18px;
+                height: 18px;
+            }
+            .ing .done {
+                color: var(--m);
+            }
+            .ing .done span:last-child {
+                text-decoration: line-through;
+            }
+            .ing .done .cb {
+                background: var(--f);
+                border-color: var(--f);
+                color: var(--o);
+            }
+            .ing small {
+                display: block;
+                color: var(--m);
+                font-size: 1rem;
+            }
+            .sh {
+                padding: 32px 20px 8px;
+            }
+            .st {
+                list-style: none;
+                background: var(--s);
+            }
+            .st li {
+                display: grid;
+                grid-template-columns: 36px minmax(0, 1fr);
+                gap: 12px;
+                padding: 16px 20px;
+                border-top: 1px solid var(--h);
+            }
+            .st .n {
+                width: 32px;
+                height: 32px;
+                border-radius: 50%;
+                border: 1.5px solid var(--e);
+                display: grid;
+                place-items: center;
+                font-weight: 600;
+            }
+            .st li.cur {
+                background: var(--w);
+                border-top-color: transparent;
+            }
+            .st .cur .n {
+                background: var(--i);
+                color: var(--g);
+                border-color: var(--i);
+            }
+            .here {
+                font-weight: 600;
+                font-size: 0.875rem;
+                letter-spacing: 0.02em;
+                margin-bottom: 4px;
+            }
+            .st p {
+                font-size: 1.0625rem;
+            }
+            .tm {
+                margin-top: 10px;
+                display: inline-flex;
+                align-items: center;
+                gap: 8px;
+                min-height: 44px;
+                padding: 0 14px;
+                border-radius: 12px;
+                border: 1px solid var(--e);
+                background: var(--s);
+                font-weight: 500;
+            }
+            .foot {
+                padding: 28px 20px 24px;
+                color: var(--m);
+            }
+            .tmr {
+                display: flex;
+                flex-wrap: wrap;
+                align-items: center;
+                gap: 8px 10px;
+                margin: 16px 20px 0;
+                padding: 8px 8px 8px 14px;
+                border-radius: 14px;
+                background: var(--s);
+                border: 1px solid var(--e);
+            }
+            .tmr p {
+                flex: 1 1 8em;
+                font-weight: 500;
+            }
+            .tmr b {
+                font-variant-numeric: tabular-nums;
+                font-weight: 600;
+            }
+            .tmr button {
+                min-height: 44px;
+                padding: 0 14px;
+                border-radius: 12px;
+                border: 1px solid var(--e);
+                font-weight: 500;
+            }
+            .empty {
+                padding: 0 20px;
+                font-size: 1.0625rem;
+                max-width: 30em;
+            }
+            /* cook mode: neutral, opaque, no signature */
+            .cm {
+                display: flex;
+                flex-direction: column;
+            }
+            .cm > * {
+                flex: none;
+            }
+            .cmh {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 0 8px;
+                align-items: center;
+                justify-content: space-between;
+                padding: 4px 12px 0 20px;
+                min-height: 52px;
+            }
+            .cmh,
+            .cmb {
+                font-size: 16px;
+            }
+            .cmh b {
+                font-weight: 600;
+            }
+            .cmb .tmr p {
+                font-size: 17px;
+                flex: 1 1 auto;
+            }
+            .cmh button {
+                min-height: 44px;
+                padding: 0 12px;
+                font-weight: 600;
+                color: var(--a);
+                text-decoration: underline;
+                text-underline-offset: 4px;
+            }
+            .cmc {
+                padding: 20px 20px 0;
+            }
+            .cmc .here {
+                font-size: 1rem;
+            }
+            .cmc p.big {
+                font-size: 1.75rem;
+                line-height: 1.3;
+                font-weight: 500;
+                margin-top: 8px;
+            }
+            .cmc p.big b {
+                font-weight: 600;
+            }
+            .awk {
+                display: flex;
+                gap: 8px;
+                align-items: center;
+                color: var(--m);
+                padding: 12px 20px 0;
+            }
+            .cmb {
+                position: absolute;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                padding: 12px 20px 30px;
+                background: var(--g);
+                border-top: 1px solid var(--h);
+            }
+            .cmb .tmr {
+                margin: 0 0 12px;
+            }
+            .nx {
+                display: grid;
+                grid-template-columns: 1fr 1.4fr;
+                gap: 12px;
+            }
+            .nx .btn {
+                min-height: 72px;
+                font-size: 19px;
+            }
+            @container (min-width:22em) {
+                .t {
+                    white-space: nowrap;
+                }
+            }
+            @container (max-width:17em) {
+                .pk {
+                    grid-template-columns: 1fr;
+                }
+                .pk .pl {
+                    width: 84%;
+                    min-height: 200px;
+                }
+                .cap {
+                    padding: 12px 34px 0 20px;
+                }
+                .ch {
+                    top: auto;
+                    bottom: 4px;
+                }
+                .ls .pk {
+                    grid-template-columns: 72px minmax(0, 1fr);
+                }
+                .ls .pk .pl {
+                    width: auto;
+                    min-height: 72px;
+                }
+                .ls .cap {
+                    padding: 0 30px 0 0;
+                }
+                .ls .ch {
+                    top: 50%;
+                    bottom: auto;
+                }
+                .rh {
+                    grid-template-columns: 1fr;
+                }
+                .rh .pl {
+                    width: 84%;
+                    min-height: 240px;
+                }
+                .facts {
+                    flex-direction: row;
+                    flex-wrap: wrap;
+                    gap: 8px 20px;
+                    padding: 12px 20px 0;
+                    justify-content: flex-start;
+                }
+                .top h3 {
+                    font-size: 1.5rem;
+                }
+                .rt h3 {
+                    font-size: 1.25rem;
+                }
+                .st li {
+                    grid-template-columns: 1fr;
+                }
+                .seg {
+                    grid-template-columns: 1fr;
+                }
+                .cnt {
+                    flex-wrap: wrap;
+                }
+                .cmc p.big {
+                    font-size: 1.375rem;
+                }
+            }
+            .sws {
+                display: grid;
+                grid-template-columns: repeat(13, 1fr);
+                height: 32px;
+                border-radius: 8px;
+                overflow: hidden;
+                margin: 6px 0 12px;
+                box-shadow: 0 0 0 1px var(--h);
+            }
+            .ptab {
+                width: 100%;
+                border-collapse: collapse;
+                font-size: 0.9375rem;
+            }
+            .ptab th,
+            .ptab td {
+                text-align: left;
+                padding: 10px 8px;
+                border-top: 1px solid var(--h);
+                vertical-align: top;
+            }
+            .ptab code {
+                font:
+                    500 0.875rem ui-monospace,
+                    monospace;
+            }
+            .ptab i {
+                display: inline-block;
+                width: 18px;
+                height: 18px;
+                border-radius: 5px;
+                vertical-align: -4px;
+                margin-right: 6px;
+                box-shadow: 0 0 0 1px #8888;
+            }
+            .tscroll {
+                overflow-x: auto;
+            }
+            .type {
+                display: grid;
+                gap: 14px;
+                background: var(--s);
+                border-radius: 20px;
+                padding: 24px;
+            }
+            .type p span {
+                display: block;
+                font-size: 1rem;
+                color: var(--m);
+                font-weight: 400;
+                letter-spacing: 0;
+            }
+            .pr {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+                gap: 16px;
+            }
+            .pr div {
+                background: var(--s);
+                border-radius: 16px;
+                padding: 18px;
+            }
+            .pr b {
+                display: block;
+                font-weight: 600;
+                margin-bottom: 4px;
+            }
+            .pr p {
+                color: var(--m);
+            }
+            footer {
+                color: var(--m);
+                padding: 48px 0 64px;
+                max-width: 60em;
+            }
+            @media (prefers-reduced-motion: no-preference) {
+                .btn,
+                .pk {
+                    transition:
+                        transform 0.16s cubic-bezier(0.2, 0.8, 0.2, 1),
+                        filter 0.16s;
+                }
+                .btn:active {
+                    transform: scale(0.98);
+                }
+                .pk:active {
+                    filter: brightness(0.95);
+                }
+            }
+            .im-sh {
+                background-image: url(data:image/webp;base64,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);
+            }
+            .im-da {
+                background-image: url(data:image/webp;base64,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);
+            }
+            .im-cu {
+                background-image: url(data:image/webp;base64,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);
+            }
+            .im-ch {
+                background-image: url(data:image/webp;base64,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);
+            }
+            .im-so {
+                background-image: url(data:image/webp;base64,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);
+            }
+        </style>
+    </head>
+    <body>
+        <svg width="0" height="0" style="position: absolute" aria-hidden="true">
+            <defs>
+                <symbol id="ho" viewBox="0 0 24 24"><path d="M4 10.5 12 4l8 6.5V20h-5v-6H9v6H4z" /></symbol>
+                <symbol id="bk" viewBox="0 0 24 24">
+                    <path d="M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3zM5 17a3 3 0 0 1 3-3h11" />
+                </symbol>
+                <symbol id="cp" viewBox="0 0 24 24">
+                    <circle cx="12" cy="12" r="8.5" />
+                    <path d="m15.5 8.5-2 5-5 2 2-5z" />
+                </symbol>
+                <symbol id="ck" viewBox="0 0 24 24">
+                    <circle cx="12" cy="12" r="8.5" />
+                    <path d="M12 7.5V12l3 2" />
+                </symbol>
+                <symbol id="sr" viewBox="0 0 24 24">
+                    <path d="m12 4 2.4 5 5.4.6-4 3.7 1.1 5.3L12 16l-4.9 2.6 1.1-5.3-4-3.7 5.4-.6z" />
+                </symbol>
+                <symbol id="fd" viewBox="0 0 24 24">
+                    <path d="M3.5 7a2 2 0 0 1 2-2h4l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z" />
+                </symbol>
+                <symbol id="lf" viewBox="0 0 24 24"><path d="M5 19c0-8 5-13 14-14 0 9-5 14-13 14zM5 19l7-7" /></symbol>
+                <symbol id="cv" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6" /></symbol>
+                <symbol id="bkk" viewBox="0 0 24 24"><path d="m15 6-6 6 6 6" /></symbol>
+                <symbol id="pl" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" /></symbol>
+                <symbol id="mi" viewBox="0 0 24 24"><path d="M5 12h14" /></symbol>
+                <symbol id="mo" viewBox="0 0 24 24">
+                    <circle cx="6" cy="12" r="1.2" />
+                    <circle cx="12" cy="12" r="1.2" />
+                    <circle cx="18" cy="12" r="1.2" />
+                </symbol>
+                <symbol id="se" viewBox="0 0 24 24">
+                    <circle cx="11" cy="11" r="6.5" />
+                    <path d="m20 20-4.2-4.2" />
+                </symbol>
+                <symbol id="tk" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5" /></symbol>
+                <symbol id="ti" viewBox="0 0 24 24">
+                    <circle cx="12" cy="13.5" r="7" />
+                    <path d="M12 10v3.5M10 3.5h4" />
+                </symbol>
+                <symbol id="su" viewBox="0 0 24 24">
+                    <circle cx="12" cy="12" r="4" />
+                    <path
+                        d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"
+                    />
+                </symbol>
+                <symbol id="dn" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5" /></symbol>
+                <symbol id="pa" viewBox="0 0 24 24"><path d="M8 5.5v13l10-6.5z" /></symbol>
+            </defs>
+        </svg>
+
+        <div class="wrap">
+            <header class="hero" style="margin-top: 40px">
+                <div class="strip" aria-hidden="true">
+                    <i class="im-sh"></i><i class="im-cu"></i><i class="im-da"></i><i class="im-ch"></i>
+                </div>
+                <div>
+                    <small>Commise visual refresh · Workshop 4 · Round 2 · Option 3 (final)</small>
+                    <h1>Food Edge</h1>
+                    <p>
+                        Each dish sits square against the edge of the screen, like the plate in a field guide, and its
+                        words face it across clear space. You choose dinner by looking at the food, then confirm by
+                        reading one line.
+                    </p>
+                    <p>
+                        The palette is Stainless &amp; Duck Yolk: the cool grey of a kitchen sink, so the food is the
+                        warmest thing you see, and the deep orange of a duck-egg yolk on the one thing to press.
+                    </p>
+                </div>
+            </header>
+
+            <h2>Light</h2>
+            <p class="intro">
+                390 px phones. Three tabs, large titles, one yolk button per screen, always low. The recipe page is
+                shown at full length.
+            </p>
+            <div class="row">
+                <figure>
+                    <figcaption>
+                        <b>Home · deciding (6:12 pm)</b><span>Primary: Cook shakshuka, the quickest pick.</span>
+                    </figcaption>
+                    <div class="ph lt" id="home">
+                        <div class="sb"><span>6:12</span><i></i></div>
+                        <div class="top">
+                            <h3>Home</h3>
+                            <span class="av" role="img" aria-label="Account, Eliza Reyes">ER</span>
+                        </div>
+                        <div class="sec">Tonight, quickest first</div>
+                        <a class="pk" href="#"
+                            ><i class="pl im-sh" role="img" aria-label="Shakshuka in a pan on the hob"></i>
+                            <div class="cap">
+                                <h5>Shakshuka with feta and herbs</h5>
+                                <p class="rb">
+                                    <svg><use href="#ck" /></svg><span>Ready by <span class="t">6:37 pm</span></span>
+                                </p>
+                                <p class="fx"><span>25 min</span> · <span>Serves 2</span></p>
+                                <p class="why">
+                                    <svg><use href="#fd" /></svg>In your Weeknights
+                                </p>
+                            </div>
+                            <svg class="ch"><use href="#cv" /></svg
+                        ></a>
+                        <a class="pk" href="#"
+                            ><i class="pl im-cu" role="img" aria-label="Green curry in a white bowl"></i>
+                            <div class="cap">
+                                <h5>Green curry with chicken and Thai basil</h5>
+                                <p class="rb">
+                                    <svg><use href="#ck" /></svg><span>Ready by <span class="t">6:42 pm</span></span>
+                                </p>
+                                <p class="why">
+                                    <svg><use href="#sr" /></svg>4.8 from 112 cooks
+                                </p>
+                            </div>
+                            <svg class="ch"><use href="#cv" /></svg
+                        ></a>
+                        <a class="pk" href="#"
+                            ><i class="pl im-da" role="img" aria-label="Dal in a steel bowl"></i>
+                            <div class="cap">
+                                <h5>Red lentil dal with crispy shallots</h5>
+                                <p class="rb">
+                                    <svg><use href="#ck" /></svg><span>Ready by <span class="t">6:47 pm</span></span>
+                                </p>
+                                <p class="fx"><span>35 min</span> · <span>Serves 4</span></p>
+                                <p class="why">
+                                    <svg><use href="#lf" /></svg>Vegetarian
+                                </p>
+                            </div>
+                            <svg class="ch"><use href="#cv" /></svg
+                        ></a>
+                        <div class="more"><button class="lnk">Show 3 more · 3 of 9 dinners</button></div>
+                        <div class="dock">
+                            <button class="btn">
+                                <svg><use href="#pa" /></svg>Cook shakshuka
+                            </button>
+                        </div>
+                        <nav class="tb">
+                            <a class="on" href="#" aria-current="page"
+                                ><svg><use href="#ho" /></svg>Home</a
+                            ><a href="#"
+                                ><svg><use href="#bk" /></svg>Recipes</a
+                            ><a href="#"
+                                ><svg><use href="#cp" /></svg>Discover</a
+                            >
+                        </nav>
+                    </div>
+                </figure>
+
+                <figure>
+                    <figcaption>
+                        <b>Recipe · full length</b
+                        ><span>Primary: Start cooking, docked. Edit in the bar; Delete in More.</span>
+                    </figcaption>
+                    <div class="ph lt tall" id="recipe">
+                        <div class="sb"><span>6:13</span><i></i></div>
+                        <div class="hb">
+                            <button aria-label="Back">
+                                <svg><use href="#bkk" /></svg></button
+                            ><span class="sp"></span><button>Edit</button
+                            ><button aria-label="More: share, add to a collection, delete">
+                                <svg><use href="#mo" /></svg>
+                            </button>
+                        </div>
+                        <div class="rh">
+                            <i class="pl im-sh" role="img" aria-label="Shakshuka in a pan on the hob"></i>
+                            <div class="facts">
+                                <p><b>6:38 pm</b><span>Ready by</span></p>
+                                <p><b>25 min</b><span>Total, 5 prep</span></p>
+                                <p><b>Easy</b><span>Level</span></p>
+                            </div>
+                        </div>
+                        <div class="rt">
+                            <h3>Shakshuka with feta and herbs</h3>
+                            <p class="meta">
+                                <span>Middle Eastern</span><span>Vegetarian</span><span>★ 4.8 from 23 cooks</span>
+                            </p>
+                        </div>
+                        <p class="desc">Eggs poached in a peppery tomato sauce. One pan, under half an hour.</p>
+                        <div class="ih">
+                            <h4>Ingredients</h4>
+                            <div class="stp">
+                                <button aria-label="Fewer servings">
+                                    <svg><use href="#mi" /></svg></button
+                                ><b>Serves 2</b
+                                ><button aria-label="More servings">
+                                    <svg><use href="#pl" /></svg>
+                                </button>
+                            </div>
+                        </div>
+                        <p class="grp">Sauce</p>
+                        <ul class="ing">
+                            <li class="done">
+                                <span class="cb"
+                                    ><svg><use href="#tk" /></svg></span
+                                ><span><b>2 tbsp</b> olive oil</span>
+                            </li>
+                            <li>
+                                <span class="cb"></span><span><b>1</b> onion<small>thinly sliced</small></span>
+                            </li>
+                            <li>
+                                <span class="cb"></span><span><b>1</b> red pepper<small>seeded and sliced</small></span>
+                            </li>
+                            <li>
+                                <span class="cb"></span><span><b>2 cloves</b> garlic<small>crushed</small></span>
+                            </li>
+                            <li>
+                                <span class="cb"></span
+                                ><span><b>1 tsp</b> ground cumin, <b>1 tsp</b> sweet paprika</span>
+                            </li>
+                            <li>
+                                <span class="cb"></span><span><b>400 g</b> tin chopped tomatoes</span>
+                            </li>
+                        </ul>
+                        <p class="grp">To finish</p>
+                        <ul class="ing">
+                            <li>
+                                <span class="cb"></span><span><b>4</b> eggs</span>
+                            </li>
+                            <li>
+                                <span class="cb"></span><span><b>60 g</b> feta, crumbled</span>
+                            </li>
+                            <li>
+                                <span class="cb"></span><span><b>1 small bunch</b> parsley and coriander</span>
+                            </li>
+                        </ul>
+                        <div class="sw">
+                            <svg><use href="#su" /></svg>
+                            <div>
+                                <p>Keep screen on</p>
+                                <small>While you cook from this page</small>
+                            </div>
+                            <span class="tg" role="switch" aria-checked="false" aria-label="Keep screen on"></span>
+                        </div>
+                        <h4 class="sh">Steps</h4>
+                        <ol class="st">
+                            <li>
+                                <span class="n">1</span>
+                                <div>
+                                    <p>
+                                        Warm <b>2 tbsp olive oil</b> in a wide pan. Add <b>1 onion</b> and
+                                        <b>1 red pepper</b> and soften for <b>5 min</b>.
+                                    </p>
+                                    <button class="tm">
+                                        <svg><use href="#ti" /></svg>Start 5 min timer
+                                    </button>
+                                </div>
+                            </li>
+                            <li>
+                                <span class="n">2</span>
+                                <div>
+                                    <p>
+                                        Stir in <b>2 cloves garlic</b>, <b>1 tsp cumin</b> and <b>1 tsp paprika</b> for
+                                        1 minute.
+                                    </p>
+                                </div>
+                            </li>
+                            <li class="cur">
+                                <span class="n">3</span>
+                                <div>
+                                    <p class="here">You are here · Step 3 of 5</p>
+                                    <p>Add <b>400 g chopped tomatoes</b>. Simmer until thick, about <b>8 min</b>.</p>
+                                    <button class="tm">
+                                        <svg><use href="#ti" /></svg>Start 8 min timer
+                                    </button>
+                                </div>
+                            </li>
+                            <li>
+                                <span class="n">4</span>
+                                <div>
+                                    <p>
+                                        Make 4 wells. Crack in <b>4 eggs</b>, cover, and cook for <b>6 min</b>, until
+                                        the whites set.
+                                    </p>
+                                    <button class="tm">
+                                        <svg><use href="#ti" /></svg>Start 6 min timer
+                                    </button>
+                                </div>
+                            </li>
+                            <li>
+                                <span class="n">5</span>
+                                <div>
+                                    <p>Scatter <b>60 g feta</b> and the herbs. Serve from the pan.</p>
+                                </div>
+                            </li>
+                        </ol>
+                        <p class="foot">Your recipe · public · edited 12 October</p>
+                        <div style="height: 150px"></div>
+                        <div class="dock">
+                            <button class="btn">
+                                <svg><use href="#pa" /></svg>Start cooking
+                            </button>
+                        </div>
+                        <nav class="tb">
+                            <a class="on" href="#" aria-current="page"
+                                ><svg><use href="#ho" /></svg>Home</a
+                            ><a href="#"
+                                ><svg><use href="#bk" /></svg>Recipes</a
+                            ><a href="#"
+                                ><svg><use href="#cp" /></svg>Discover</a
+                            >
+                        </nav>
+                    </div>
+                </figure>
+
+                <figure>
+                    <figcaption><b>My recipes</b><span>Primary: New recipe. Load more, with a count.</span></figcaption>
+                    <div class="ph lt" id="lib">
+                        <div class="sb"><span>6:14</span><i></i></div>
+                        <div class="top">
+                            <h3>Recipes</h3>
+                            <span class="av" role="img" aria-label="Account">ER</span>
+                        </div>
+                        <div class="seg" role="tablist">
+                            <b role="tab" aria-selected="true">My recipes</b><b role="tab">Collections</b>
+                        </div>
+                        <div class="srch">
+                            <svg><use href="#se" /></svg>Search your recipes
+                        </div>
+                        <div class="chips">
+                            <span class="chip on"
+                                ><svg><use href="#tk" /></svg>All 24</span
+                            ><span class="chip">Under 30 min · 7</span><span class="chip">Weeknights · 9</span
+                            ><span class="chip">Vegetarian · 6</span>
+                        </div>
+                        <div class="cnt">
+                            <span>24 recipes</span
+                            ><button class="lnk">
+                                Last edited<svg><use href="#dn" /></svg>
+                            </button>
+                        </div>
+                        <div class="ls" id="lsrows"></div>
+                        <div class="dock">
+                            <button class="btn">
+                                <svg><use href="#pl" /></svg>New recipe
+                            </button>
+                        </div>
+                        <nav class="tb">
+                            <a href="#"
+                                ><svg><use href="#ho" /></svg>Home</a
+                            ><a class="on" href="#" aria-current="page"
+                                ><svg><use href="#bk" /></svg>Recipes</a
+                            ><a href="#"
+                                ><svg><use href="#cp" /></svg>Discover</a
+                            >
+                        </nav>
+                    </div>
+                </figure>
+            </div>
+
+            <h2>Dark</h2>
+            <p class="intro">
+                Dark follows the OS setting. The same Home and recipe page, then Home in its other state: a cook in
+                progress, read from the cooking session this device holds.
+            </p>
+            <div class="row">
+                <figure>
+                    <figcaption><b>Home · deciding</b><span>Same screen, dark.</span></figcaption>
+                    <div id="homeDark"></div>
+                </figure>
+                <figure>
+                    <figcaption><b>Recipe · first screen</b><span>Same page, dark.</span></figcaption>
+                    <div id="recipeDark"></div>
+                </figure>
+                <figure>
+                    <figcaption><b>Home · cooking (6:31 pm)</b><span>Primary: Back to step 4.</span></figcaption>
+                    <div class="ph dk">
+                        <div class="sb"><span>6:31</span><i></i></div>
+                        <div class="top">
+                            <h3>Home</h3>
+                            <span class="av" role="img" aria-label="Account">ER</span>
+                        </div>
+                        <div class="sec">Cooking now</div>
+                        <a class="pk" href="#"
+                            ><i class="pl im-sh" role="img" aria-label="Shakshuka in a pan on the hob"></i>
+                            <div class="cap">
+                                <p class="rb">Step 4 of 5</p>
+                                <h5>Shakshuka with feta and herbs</h5>
+                                <p class="fx">Eggs in, lid on</p>
+                            </div>
+                            <svg class="ch"><use href="#cv" /></svg
+                        ></a>
+                        <div class="tmr" role="timer">
+                            <svg><use href="#ti" /></svg>
+                            <p>Eggs · <b>5:42</b> left</p>
+                            <button>Pause</button>
+                        </div>
+                        <div class="dock"><button class="btn">Back to step 4</button></div>
+                        <nav class="tb">
+                            <a class="on" href="#" aria-current="page"
+                                ><svg><use href="#ho" /></svg>Home</a
+                            ><a href="#"
+                                ><svg><use href="#bk" /></svg>Recipes</a
+                            ><a href="#"
+                                ><svg><use href="#cp" /></svg>Discover</a
+                            >
+                        </nav>
+                    </div>
+                </figure>
+            </div>
+
+            <h2>Two more states</h2>
+            <p class="intro">
+                Cook mode, where the signature is banned: one step, neutral and opaque, with labelled Previous and Next
+                fixed low. And Home on the first day, with nothing of the cook's yet.
+            </p>
+            <div class="row">
+                <figure>
+                    <figcaption>
+                        <b>Cook mode · step 4 of 5</b><span>Primary: Next step. Screen kept on by Start cooking.</span>
+                    </figcaption>
+                    <div class="ph lt cm">
+                        <div class="sb"><span>6:31</span><i></i></div>
+                        <div class="cmh"><b>Shakshuka with feta and herbs</b><button>Done</button></div>
+                        <p class="awk">
+                            <svg><use href="#su" /></svg>Screen stays on
+                        </p>
+                        <div class="cmc">
+                            <p class="here">Step 4 of 5</p>
+                            <p class="big">
+                                Make 4 wells. Crack in <b>4 eggs</b>, cover, and cook for <b>6 min</b>, until the whites
+                                set.
+                            </p>
+                            <p class="awk">
+                                <svg><use href="#ti" /></svg>The 6 min timer is running below
+                            </p>
+                        </div>
+                        <div class="cmb">
+                            <div class="tmr" role="timer">
+                                <svg><use href="#ti" /></svg>
+                                <p>Eggs · <b>5:42</b> left</p>
+                                <button>Pause</button>
+                            </div>
+                            <div class="nx">
+                                <button class="btn ol">Previous</button><button class="btn">Next step</button>
+                            </div>
+                        </div>
+                    </div>
+                </figure>
+                <figure>
+                    <figcaption><b>Home · nothing yet</b><span>First run. Primary: Add a recipe.</span></figcaption>
+                    <div class="ph lt">
+                        <div class="sb"><span>9:02</span><i></i></div>
+                        <div class="top">
+                            <h3>Home</h3>
+                            <span class="av" role="img" aria-label="Account">ER</span>
+                        </div>
+                        <div class="sec">Get started</div>
+                        <p class="empty">
+                            Add three dinners you cook often. Home will then show which one is ready soonest tonight.
+                        </p>
+                        <div class="sec" style="padding-top: 28px">
+                            Popular on Discover<small>Most cooked this week</small>
+                        </div>
+                        <a class="pk" href="#"
+                            ><i class="pl im-so" role="img" aria-label="Tomato soup with toasted cheese sandwich"></i>
+                            <div class="cap">
+                                <h5>Roast tomato soup with grilled cheese</h5>
+                                <p class="rb">
+                                    <svg><use href="#ck" /></svg>50 min
+                                </p>
+                                <p class="why">
+                                    <svg><use href="#sr" /></svg>4.7 from 310 cooks
+                                </p>
+                            </div>
+                            <svg class="ch"><use href="#cv" /></svg
+                        ></a>
+                        <div class="more"><a class="lnk" href="#">Browse Discover</a></div>
+                        <div class="dock">
+                            <button class="btn">
+                                <svg><use href="#pl" /></svg>Add a recipe
+                            </button>
+                        </div>
+                        <nav class="tb">
+                            <a class="on" href="#" aria-current="page"
+                                ><svg><use href="#ho" /></svg>Home</a
+                            ><a href="#"
+                                ><svg><use href="#bk" /></svg>Recipes</a
+                            ><a href="#"
+                                ><svg><use href="#cp" /></svg>Discover</a
+                            >
+                        </nav>
+                    </div>
+                </figure>
+            </div>
+
+            <h2>Palette: Stainless &amp; Duck Yolk</h2>
+            <p class="intro">
+                The cool, brushed grey of a kitchen sink and the deep orange of a duck-egg yolk. The grey makes every
+                dish the warmest thing on screen. Duck yolk marks only what you press: the one button, a ticked box, the
+                current tab. In light, its darker tone, Burnt yolk, carries links and focus because a pale fill cannot
+                carry text. Contrast below is computed live from the hex values (WCAG 2 ratio and APCA 0.0.98G Lc).
+            </p>
+            <p><b>Light</b></p>
+            <div class="sws lt" id="swl"></div>
+            <p><b>Dark</b></p>
+            <div class="sws dk" id="swd"></div>
+            <div class="tscroll">
+                <table class="ptab">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Role and use</th>
+                            <th>Light</th>
+                            <th>Dark</th>
+                            <th>Measured (light / dark)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="pt"></tbody>
+                </table>
+            </div>
+            <p class="intro" style="margin-top: 12px">
+                ΔE00 inside the palette, light / dark: Burnt yolk to Mustard 19.7 / 19.8, to Radish 29.8 / 32.1; Duck
+                yolk to Mustard 40.5 / 19.8, to Radish 47.2 / 32.1; Mustard to Radish 47.3 / 45.6. Against the five
+                earlier-round actions: at least 37.4. Against Carton's Tomato 27.2 (light, Burnt yolk) and 19.6 (dark);
+                against Deli Counter's Prosciutto 25.3 and 24.5. Duck yolk moved 15.2 from last round's Yolk and sits
+                14.1 from Bumble's yellow, but only 6.6 from Amazon's Buy Now orange: no confident yolk with a dark
+                label is 15 from every brand in this band, so the flat 14 px-radius button on steel, not the hue alone,
+                carries the difference. Under simulated deuteranopia Burnt yolk and Mustard merge (0.4), so a warning
+                always carries a triangle and a link is always underlined. The ground sits 4.5 below Mise's Counter in
+                OKLCH L×100.
+            </p>
+
+            <h2>Type</h2>
+            <p class="intro">
+                One family, Lexend: wide letters and open spacing that hold up at arm's length, and plain zeros, so 20
+                min and 220 °C read as food, not code. Three weights; nothing Light or Thin.
+            </p>
+            <div class="type">
+                <p style="font-size: 2.125rem; font-weight: 600; letter-spacing: -0.02em; line-height: 1.15">
+                    Home<span>Large title · 34 / 600</span>
+                </p>
+                <p style="font-size: 1.75rem; font-weight: 600; line-height: 1.2">
+                    Shakshuka with feta and herbs<span>Recipe title · 28 / 600</span>
+                </p>
+                <p style="font-size: 1.75rem; font-weight: 500; line-height: 1.3">
+                    Crack in <b style="font-weight: 600">4 eggs</b>, cover, and cook for
+                    <b style="font-weight: 600">6 min</b>.<span
+                        >Cook-mode step · 28 / 500, for a phone 60–90 cm away</span
+                    >
+                </p>
+                <p style="font-size: 1.1875rem; font-weight: 600">
+                    Green curry with chicken and Thai basil<span>Pick title · 19 / 600, facing its plate</span>
+                </p>
+                <p style="font-size: 1.0625rem">
+                    Add 400 g chopped tomatoes. Simmer until thick, about 8 min.<span>Body · 17 / 400</span>
+                </p>
+                <p style="color: var(--m)">
+                    25 min · Serves 2<span>Secondary · 16 / 400, Pewter, never below 16 px</span>
+                </p>
+            </div>
+
+            <h2>Principles applied</h2>
+            <div class="pr">
+                <div>
+                    <b>One signature, in the look only</b>
+                    <p>
+                        The square plate flush to the screen edge is each recipe's own photo. It encodes nothing: name,
+                        time and reason are words beside it. Banned from cook mode, controls, sheets and the ingredient
+                        and step lists (canon §2.2 rules 1–3).
+                    </p>
+                </div>
+                <div>
+                    <b>Grouping by space</b>
+                    <p>
+                        A plate and its words sit 14 px apart; pairs sit 28 px apart, and the ruled lists 12 px. No card
+                        or strip boxes a pick (§1.2 proximity).
+                    </p>
+                </div>
+                <div>
+                    <b>Scroll direction</b>
+                    <p>
+                        Picks, ingredients, steps and the library are vertical. The only row is the filter chips, with
+                        the next chip peeking (§1.3).
+                    </p>
+                </div>
+                <div>
+                    <b>A short choice with stored reasons</b>
+                    <p>
+                        Three dinners sorted by ready time: total time plus the clock. Each adds one stored fact: a
+                        collection, other cooks' rating of your public recipe, a dietary flag (§4).
+                    </p>
+                </div>
+                <div>
+                    <b>One primary, low and labelled</b>
+                    <p>
+                        One yolk button per screen, docked above the tabs and named for what it does: "Cook shakshuka".
+                        Edit sits in the bar; Delete sits in More, at the top (§1.1 Fitts, von Restorff; §4.1 reach).
+                    </p>
+                </div>
+                <div>
+                    <b>Large text is real</b>
+                    <p>
+                        Each phone is a container. At 200% text the plate stacks above its words, stays at the edge and
+                        keeps 200 px of food. Nothing is hidden (§2.2 rule 11, WCAG 1.4.4).
+                    </p>
+                </div>
+            </div>
+            <footer>
+                Heuristic judgement, untested with users. Photos from Wikimedia Commons, cropped and compressed for this
+                mockup: shakshuka by Joe Mahoney (CC BY 2.0), green curry by pelican (CC BY-SA 2.0), dal tadka by
+                Monali.mishra (CC BY-SA 4.0), chili by Carstor (CC BY-SA 2.5), tomato soup by Neil Conway (CC BY 2.0).
+                The share-alike images carry their licences into any reuse of this file.
+            </footer>
+        </div>
+
+        <script>
+            const R = [
+                ['im-sh', 'Shakshuka with feta and herbs', 'Middle Eastern · 25 min'],
+                ['im-ch', 'Smoky black bean chili with lime crema', 'Mexican · 45 min'],
+                ['im-da', 'Red lentil dal with crispy shallots', 'Indian · 35 min'],
+                ['im-cu', 'Green curry with chicken and Thai basil', 'Thai · 30 min'],
+                ['im-so', 'Roast tomato soup with grilled cheese', 'Soup · 50 min'],
+            ];
+            document.getElementById('lsrows').innerHTML =
+                R.map(
+                    (r) =>
+                        `<a class="pk" href="#"><i class="pl ${r[0]}"></i><div class="cap"><h5>${r[1]}</h5><p class="fx">${r[2]}</p></div><svg class="ch"><use href="#cv"/></svg></a>`,
+                ).join('') + '<div class="more"><button class="lnk">Show 12 more · 12 of 24 shown</button></div>';
+            for (const [s, t] of [
+                ['recipe', 'recipeDark'],
+                ['home', 'homeDark'],
+            ]) {
+                const d = document.getElementById(s).cloneNode(true);
+                d.id = '';
+                d.classList.replace('lt', 'dk');
+                d.classList.remove('tall');
+                document.getElementById(t).append(d);
+            }
+            const P = {
+                light: {
+                    g: '#E4E7EA',
+                    s: '#FFFFFF',
+                    k: '#D6DADE',
+                    e: '#69717A',
+                    i: '#121518',
+                    m: '#454C54',
+                    a: '#864A00',
+                    f: '#F8AC5E',
+                    o: '#121518',
+                    w: '#FCE6CC',
+                    wr: '#5F5A00',
+                    dg: '#B0123F',
+                    h: '#D0D5DA',
+                },
+                dark: {
+                    g: '#101214',
+                    s: '#1A1D21',
+                    k: '#252A2F',
+                    e: '#858D96',
+                    i: '#EEF1F3',
+                    m: '#B5BCC3',
+                    a: '#F8AC5E',
+                    f: '#F8AC5E',
+                    o: '#1A1206',
+                    w: '#33261A',
+                    wr: '#D8CC6E',
+                    dg: '#FF9DB4',
+                    h: '#2C3237',
+                },
+            };
+            const ROLES = [
+                ['g', 'Stainless', 'Ground: the page, and the ground under every pick'],
+                ['s', 'Porcelain', 'Surface: ruled lists, sheets, tab bar, fields'],
+                ['k', 'Sink', 'Sunken: segmented track, avatar, a plate with no photo'],
+                ['e', 'Handle', 'Edge: control outlines, unticked boxes'],
+                ['i', 'Cast iron', 'Ink: all body text and titles'],
+                ['m', 'Pewter', 'Muted: secondary text, 16 px and up'],
+                [
+                    'a',
+                    'Burnt yolk',
+                    'Action as text: links, focus ring, current-tab icon (light). In dark it is Duck yolk',
+                ],
+                ['f', 'Duck yolk', 'Action fill: the one filled button, a ticked box'],
+                ['o', 'On yolk', 'Label on a Duck yolk fill'],
+                ['w', 'Yolk wash', 'Current step, selected chip (decoration)'],
+                ['wr', 'Mustard', 'Warning: short labels with a triangle icon'],
+                ['dg', 'Radish', 'Danger: text rows with an icon, never a fill'],
+                ['h', 'Brushed', 'Hairline: dividers (no contrast duty)'],
+            ];
+            const lin = (v) => Math.pow(v, 2.4),
+                Y = (h) => {
+                    const n = parseInt(h.slice(1), 16);
+                    return (
+                        0.2126729 * lin(((n >> 16) & 255) / 255) +
+                        0.7151522 * lin(((n >> 8) & 255) / 255) +
+                        0.072175 * lin((n & 255) / 255)
+                    );
+                };
+            const wl = (h) => {
+                const n = parseInt(h.slice(1), 16),
+                    f = (c) => {
+                        c /= 255;
+                        return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+                    };
+                return 0.2126 * f((n >> 16) & 255) + 0.7152 * f((n >> 8) & 255) + 0.0722 * f(n & 255);
+            };
+            const wc = (a, b) => {
+                const x = wl(a),
+                    y = wl(b);
+                return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
+            };
+            const lc = (t, b) => {
+                let a = Y(t),
+                    c = Y(b);
+                const k = 0.022,
+                    q = 1.414;
+                a = a > k ? a : a + Math.pow(k - a, q);
+                c = c > k ? c : c + Math.pow(k - c, q);
+                let s;
+                if (c > a) {
+                    s = (Math.pow(c, 0.56) - Math.pow(a, 0.57)) * 1.14;
+                    return s < 0.1 ? 0 : (s - 0.027) * 100;
+                }
+                s = (Math.pow(c, 0.65) - Math.pow(a, 0.62)) * 1.14;
+                return s > -0.1 ? 0 : -(s + 0.027) * 100;
+            };
+            const rng = (t, fg, bgs) => {
+                const r = bgs.map((b) => wc(t[fg], t[b])),
+                    l = bgs.map((b) => Math.abs(lc(t[fg], t[b])));
+                return `${Math.min(...r).toFixed(1)}–${Math.max(...r).toFixed(1)}:1, Lc ${Math.round(Math.min(...l))}–${Math.round(Math.max(...l))}`;
+            };
+            const M = {
+                i: ['g', 's', 'k', 'w'],
+                m: ['g', 's', 'k', 'w'],
+                a: ['g', 's', 'k'],
+                wr: ['g', 's'],
+                dg: ['g', 's'],
+                o: ['f'],
+                e: ['g', 's', 'k'],
+            };
+            const meas = (t, k) =>
+                k === 'e'
+                    ? `${Math.min(...M.e.map((b) => wc(t.e, t[b]))).toFixed(1)}:1 or more`
+                    : M[k]
+                      ? rng(t, k, M[k])
+                      : k === 'f'
+                        ? 'fill; its label is On yolk'
+                        : 'decoration';
+            document.getElementById('pt').innerHTML =
+                ROLES.map(
+                    ([k, n, u]) =>
+                        `<tr><td><b>${n}</b></td><td>${u}</td><td><i style="background:${P.light[k]}"></i><code>${P.light[k]}</code></td><td><i style="background:${P.dark[k]}"></i><code>${P.dark[k]}</code></td><td>${meas(P.light, k)} / ${meas(P.dark, k)}</td></tr>`,
+                ).join('') +
+                `<tr><td colspan="5">Cast iron to Pewter: ${wc(P.light.i, P.light.m).toFixed(2)} light, ${wc(P.dark.i, P.dark.m).toFixed(2)} dark.</td></tr>`;
+            for (const [id, t] of [
+                ['swl', 'light'],
+                ['swd', 'dark'],
+            ])
+                document.getElementById(id).innerHTML = ROLES.map(
+                    ([k]) => `<i style="background:${P[t][k]}"></i>`,
+                ).join('');
+        </script>
+    </body>
+</html>

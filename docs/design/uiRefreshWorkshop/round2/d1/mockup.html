@@ -1,0 +1,3608 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Still Life, Lit — Round 2, Designer 1</title>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link
+            href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT,WONK@0,9..144,400..600,0..100,0..1;1,9..144,400..600,0..100,0..1&family=Inter:ital,opsz,wght@0,14..32,400..700;1,14..32,400..700&display=swap"
+            rel="stylesheet"
+        />
+        <style>
+            /* ================================================================== */
+            /* ROLES (D15). Components read only these. Dark = same markup.        */
+            /* ================================================================== */
+            .light {
+                --canvas: #f3ece1; /* plaster, one step deeper than R1 */
+                --wash-a: #faf0dc; /* window light, warm corner (global screens) */
+                --wash-c: #ebeee5; /* far stop, faint sage */
+                --paper: #fffcf7;
+                --raised: #fffcf7;
+                --sunken: #ece4d7; /* linen. NEVER under a pewter edge (2.93) */
+                --ink: #24201c;
+                --muted: #6b645c; /* stone, D11 */
+                --line: #e2d9cb; /* decorative hairline */
+                --control: #8a847c; /* pewter, D11 */
+                --action: #31807a; /* seafoam, D13 kept */
+                --on-action: #ffffff;
+                --action-text: #2a6b65; /* ocean-dark: links, selected tab, focus ring */
+                --tint: #ddebe7;
+                --rating: #a86a12;
+                --now: #f5e2a8; /* kitchen light, more saturated than R1 */
+                --now-edge: #a86a12;
+                --card-edge: rgba(36, 32, 28, 0.06);
+                --mat-ring: rgba(36, 32, 28, 0.08);
+                --shadow-1: 0 1px 2px rgba(52, 38, 22, 0.06), 0 12px 26px -18px rgba(52, 38, 22, 0.34);
+                --shadow-now: 0 2px 4px rgba(120, 80, 10, 0.08), 0 16px 30px -18px rgba(120, 80, 10, 0.45);
+                --shadow-fab: 0 10px 24px -10px rgba(42, 107, 101, 0.55), 0 2px 4px rgba(42, 107, 101, 0.2);
+                --glass: rgba(251, 247, 240, 0.92);
+                --glass-edge: rgba(255, 255, 255, 0.8);
+                --glass-shadow: 0 12px 32px -14px rgba(52, 38, 22, 0.32);
+                --chip: rgba(255, 252, 247, 0.92);
+                /* cover vessels */
+                --plate: #fbf7ef;
+                --plate-rim: #e9dfcf;
+                --iron: #3b3733;
+                --tin: #b9b2a8;
+                --tin-in: #cfc8bd;
+                --wood: #c99a66;
+                --stone: #3e4a4f;
+                --glassware: #f4efe6;
+                --stripe: rgba(255, 255, 255, 0.4);
+                --food-filter: none;
+                /* cover grounds (the swatch table's light column) */
+                --gr-butter: #f0ddb0;
+                --gr-oat: #eadfcb;
+                --gr-sage: #d9dcc0;
+                --gr-blush: #ebcfc4;
+                --gr-sky: #d6dee0;
+                --gr-terra: #e8c9ae;
+                --gr-lilac: #dcd3de;
+                --gr-mint: #d3e3da;
+                --gr-ink: #2f3e46;
+                --gr-plaster: #e9e1d4;
+                color-scheme: light;
+            }
+            .dark {
+                --canvas: #151311;
+                --wash-a: #1d1914;
+                --wash-c: #121614;
+                --paper: #25211d; /* raised from #1F1C19 */
+                --raised: #2e2924;
+                --sunken: #2c2723;
+                --ink: #f2ece2;
+                --muted: #b3a99c;
+                --line: #3a342e;
+                --control: #857d72;
+                --action: #6cc0b3; /* ONE token: fill and text */
+                --on-action: #0f1f1c;
+                --action-text: #6cc0b3;
+                --tint: #1e302d;
+                --rating: #e0a84a;
+                --now: #362d1c;
+                --now-edge: #e0a84a;
+                --card-edge: rgba(255, 240, 220, 0.1);
+                --mat-ring: rgba(255, 240, 220, 0.16);
+                --shadow-1: 0 0 0 1px rgba(255, 240, 220, 0.1);
+                --shadow-now: 0 0 0 1px rgba(224, 168, 74, 0.25);
+                --shadow-fab: 0 10px 24px -10px rgba(0, 0, 0, 0.7);
+                --glass: rgba(37, 33, 29, 0.88);
+                --glass-edge: rgba(255, 255, 255, 0.08);
+                --glass-shadow: 0 12px 32px -12px rgba(0, 0, 0, 0.6);
+                --chip: rgba(46, 41, 36, 0.92);
+                --plate: #d9d0c3;
+                --plate-rim: #bdb3a5;
+                --iron: #24211f;
+                --tin: #8e877e;
+                --tin-in: #a39c92;
+                --wood: #9c7650;
+                --stone: #2a3337;
+                --glassware: #c9c1b5;
+                --stripe: rgba(255, 240, 220, 0.05);
+                --food-filter: brightness(0.92);
+                --gr-butter: #4a3e22;
+                --gr-oat: #3a3228;
+                --gr-sage: #2f3426;
+                --gr-blush: #43302a;
+                --gr-sky: #27313a;
+                --gr-terra: #4a3326;
+                --gr-lilac: #352f3c;
+                --gr-mint: #25352e;
+                --gr-ink: #1c262b;
+                --gr-plaster: #2c2723;
+                color-scheme: dark;
+            }
+            /* Cover internals read inherited vars through <use>, so one drawing serves both themes. */
+            .food {
+                filter: var(--food-filter, none);
+            }
+            .sm {
+                opacity: var(--lod-acc, 1);
+            } /* accents below 8 rendered px: dropped at small size */
+            .lod-s {
+                --lod-acc: 0;
+            }
+
+            /* ================================================================== */
+            /* TYPE. Fraunces 400/500/600 + italic 400, SOFT 100, opsz pinned.     */
+            /* Inter 400/500/600/700. No in-between weights (native parity).       */
+            /* ================================================================== */
+            :root {
+                --f-display: 'Fraunces', 'Iowan Old Style', Georgia, serif;
+                --f-ui: 'Inter', -apple-system, 'Segoe UI', Roboto, system-ui, sans-serif;
+                --opsz-display: 'SOFT' 100, 'WONK' 0, 'opsz' 36;
+                --opsz-text: 'SOFT' 100, 'WONK' 0, 'opsz' 18;
+            }
+            * {
+                box-sizing: border-box;
+                margin: 0;
+                padding: 0;
+            }
+            body {
+                font-family: var(--f-ui);
+                background: #d9d1c4;
+                color: #24201c;
+                -webkit-font-smoothing: antialiased;
+                padding: 56px 40px 80px;
+            }
+            .board-head {
+                max-width: 1280px;
+                margin: 0 auto 36px;
+            }
+            .kicker {
+                font: 600 12px/1 var(--f-ui);
+                letter-spacing: 0.14em;
+                text-transform: uppercase;
+                color: #5a534b;
+            }
+            .board-head h1 {
+                font: 500 64px/1 var(--f-display);
+                font-variation-settings: var(--opsz-display);
+                letter-spacing: -0.02em;
+                margin: 12px 0 14px;
+            }
+            .board-head h1 i {
+                font-style: italic;
+                font-weight: 400;
+            }
+            .board-head p {
+                font-size: 17px;
+                line-height: 1.55;
+                max-width: 820px;
+                color: #474038;
+            }
+            .row {
+                display: flex;
+                gap: 36px;
+                justify-content: center;
+                align-items: flex-start;
+                flex-wrap: wrap;
+                max-width: 1400px;
+                margin: 0 auto 64px;
+            }
+            .label {
+                font: 600 12px/1.2 var(--f-ui);
+                letter-spacing: 0.1em;
+                text-transform: uppercase;
+                color: #5a534b;
+                margin: 0 0 12px 6px;
+            }
+            .notes {
+                width: 414px;
+                margin: 14px 0 0;
+                padding: 0 8px;
+                font: 400 13px/1.5 var(--f-ui);
+                color: #474038;
+            }
+            .notes li {
+                margin: 0 0 4px 16px;
+            }
+            .notes b {
+                font-weight: 600;
+                color: #24201c;
+            }
+
+            /* Device */
+            .device {
+                width: 414px;
+                padding: 12px;
+                border-radius: 60px;
+                background: #1b1916;
+                box-shadow:
+                    0 40px 80px -40px rgba(30, 20, 10, 0.55),
+                    inset 0 0 0 1.5px #3a3631;
+            }
+            .screen {
+                position: relative;
+                width: 390px;
+                height: 844px;
+                border-radius: 48px;
+                overflow: hidden;
+                color: var(--ink);
+                background:
+                    radial-gradient(130% 50% at 0% 0%, var(--wash-a) 0%, rgba(0, 0, 0, 0) 62%),
+                    linear-gradient(180deg, var(--canvas) 34%, var(--wash-c) 100%);
+            }
+            .screen.tall {
+                height: auto;
+                min-height: 844px;
+                padding-bottom: 130px;
+            }
+            .status {
+                height: 50px;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                padding: 6px 30px 0 34px;
+                font: 600 16px/1 var(--f-ui);
+                color: var(--ink);
+                position: relative;
+                z-index: 5;
+                font-variant-numeric: tabular-nums;
+            }
+            .status .dots {
+                display: flex;
+                gap: 6px;
+                align-items: center;
+            }
+            .status .dots span {
+                display: block;
+                width: 18px;
+                height: 11px;
+                border-radius: 3px;
+                border: 1.5px solid currentColor;
+            }
+            .status .dots b {
+                display: block;
+                width: 16px;
+                height: 11px;
+                background: currentColor;
+                clip-path: polygon(0 100%, 25% 100%, 25% 70%, 50% 70%, 50% 40%, 75% 40%, 75% 10%, 100% 10%, 100% 100%);
+            }
+            .status.on-dark-cover {
+                color: #fffcf7;
+            }
+            .status.on-light-cover {
+                color: #24201c;
+            }
+            .homebar {
+                position: absolute;
+                bottom: 8px;
+                left: 50%;
+                transform: translateX(-50%);
+                width: 134px;
+                height: 5px;
+                border-radius: 3px;
+                background: var(--ink);
+                opacity: 0.85;
+                z-index: 20;
+            }
+
+            .i {
+                width: 22px;
+                height: 22px;
+                stroke: currentColor;
+                fill: none;
+                stroke-width: 1.75;
+                stroke-linecap: round;
+                stroke-linejoin: round;
+                flex: none;
+            }
+            .i.s14 {
+                width: 14px;
+                height: 14px;
+            }
+            .i.s16 {
+                width: 16px;
+                height: 16px;
+            }
+            .i.s18 {
+                width: 18px;
+                height: 18px;
+            }
+            .i.s20 {
+                width: 20px;
+                height: 20px;
+            }
+
+            /* Glass layer, D12 only */
+            .glass {
+                background: var(--glass);
+                -webkit-backdrop-filter: blur(22px) saturate(160%);
+                backdrop-filter: blur(22px) saturate(160%);
+                box-shadow:
+                    var(--glass-shadow),
+                    inset 0 1px 0 var(--glass-edge),
+                    inset 0 0 0 0.5px var(--glass-edge);
+            }
+            .tabbar {
+                position: absolute;
+                left: 16px;
+                right: 16px;
+                bottom: 26px;
+                height: 64px;
+                border-radius: 32px;
+                display: flex;
+                padding: 6px;
+                z-index: 10;
+            }
+            .tab {
+                flex: 1;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                gap: 3px;
+                border-radius: 26px;
+                color: var(--muted);
+                font: 500 12px/1 var(--f-ui);
+            }
+            .tab.on {
+                color: var(--action-text);
+                background: var(--tint);
+                font-weight: 600;
+            }
+            .tab.on .i {
+                fill: color-mix(in srgb, var(--action-text) 22%, transparent);
+            }
+            .fab {
+                position: absolute;
+                right: 16px;
+                bottom: 106px;
+                height: 52px;
+                padding: 0 22px 0 18px;
+                border-radius: 26px;
+                background: var(--action);
+                color: var(--on-action);
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                font: 600 16px/1 var(--f-ui);
+                box-shadow: var(--shadow-fab);
+                z-index: 9;
+            }
+            .fab .i {
+                stroke-width: 2.25;
+            }
+
+            /* Shared */
+            .pad {
+                padding: 0 16px;
+            }
+            .avatar {
+                width: 44px;
+                height: 44px;
+                border-radius: 50%;
+                display: grid;
+                place-items: center;
+                background: var(--tint);
+                color: var(--action-text);
+                font: 600 15px/1 var(--f-ui);
+                box-shadow:
+                    inset 0 0 0 1.5px var(--paper),
+                    0 0 0 1px var(--line);
+                flex: none;
+            }
+            .h-large {
+                font: 500 34px/1.08 var(--f-display);
+                font-variation-settings: var(--opsz-display);
+                letter-spacing: -0.018em;
+            }
+            .h-large i {
+                font-style: italic;
+                font-weight: 400;
+            }
+            .sub {
+                font: 400 15px/1.4 var(--f-ui);
+                color: var(--muted);
+                margin-top: 8px;
+            }
+            .sec-head {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                margin: 24px 0 8px;
+            }
+            .h-sec {
+                font: 600 18px/1.25 var(--f-ui);
+                letter-spacing: -0.005em;
+            } /* sectionTitle, Inter (buildSpec 1.5) */
+            .link {
+                font: 600 14px/1 var(--f-ui);
+                color: var(--action-text);
+                display: inline-flex;
+                align-items: center;
+                gap: 4px;
+                min-height: 44px;
+                padding: 0 4px;
+            }
+            .meta {
+                font: 400 14px/1.4 var(--f-ui);
+                color: var(--muted);
+                font-variant-numeric: tabular-nums;
+            }
+
+            /* The mat: outer radius = inner radius + mat (6). Compact: 18 = 12 + 6. Full: 24 = 18 + 6. */
+            .card {
+                background: var(--paper);
+                border-radius: 18px;
+                padding: 6px;
+                box-shadow: var(--shadow-1);
+            }
+            .cover {
+                position: relative;
+                display: block;
+                width: 100%;
+                border-radius: 12px;
+                overflow: hidden;
+                aspect-ratio: 4 / 3;
+                box-shadow: inset 0 0 0 1px var(--mat-ring);
+            }
+            .cover > svg {
+                display: block;
+                width: 100%;
+                height: 100%;
+            }
+            .cover::after {
+                content: '';
+                position: absolute;
+                inset: 0;
+                border-radius: inherit;
+                box-shadow: inset 0 0 0 1px var(--mat-ring);
+                pointer-events: none;
+            }
+            .grid2 {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 12px;
+            }
+            .mini .t {
+                font: 600 16px/1.25 var(--f-display);
+                font-variation-settings: var(--opsz-text);
+                letter-spacing: -0.005em;
+                word-spacing: 0.06em;
+                padding: 10px 6px 2px;
+            }
+            .mini .meta {
+                padding: 0 6px 6px;
+                font-size: 13px;
+            }
+            /* non-pressable chips: radius 6, height 24 (buildSpec 1.6) */
+            .badge {
+                position: absolute;
+                height: 24px;
+                padding: 0 8px;
+                border-radius: 6px;
+                background: var(--chip);
+                color: var(--ink);
+                display: inline-flex;
+                align-items: center;
+                gap: 4px;
+                font: 600 12px/1 var(--f-ui);
+                font-variant-numeric: tabular-nums;
+            }
+            .badge.tl {
+                top: 8px;
+                left: 8px;
+            }
+            .badge.tr {
+                top: 8px;
+                right: 8px;
+            }
+            .badge.bl {
+                bottom: 8px;
+                left: 8px;
+            }
+            .badge .i {
+                width: 13px;
+                height: 13px;
+                stroke-width: 2;
+            }
+            .badge.pro .i {
+                color: var(--rating);
+            }
+
+            /* Coming soon: three stacked cards, line sketches, no grey bars */
+            .soon {
+                background: var(--paper);
+                border-radius: 18px;
+                padding: 16px;
+                display: flex;
+                align-items: center;
+                gap: 16px;
+                box-shadow: var(--shadow-1);
+            }
+            .soon + .soon {
+                margin-top: 12px;
+            }
+            .soon .txt {
+                flex: 1;
+                min-width: 0;
+            }
+            .soon .t {
+                font: 600 16px/1.3 var(--f-ui);
+            }
+            .soon .d {
+                font: 400 14px/1.4 var(--f-ui);
+                color: var(--muted);
+                margin-top: 4px;
+            }
+            .soon .sk {
+                width: 76px;
+                height: 56px;
+                flex: none;
+                color: var(--control);
+            }
+            .soon .sk * {
+                vector-effect: non-scaling-stroke;
+            }
+            .soonbadge {
+                display: inline-flex;
+                align-items: center;
+                height: 24px;
+                padding: 0 8px;
+                border-radius: 6px;
+                background: var(--sunken);
+                color: var(--muted);
+                font: 600 12px/1 var(--f-ui);
+                margin-bottom: 8px;
+            }
+
+            /* ================================================================== */
+            /* Recipe detail                                                       */
+            /* ================================================================== */
+            .hero {
+                position: relative;
+                height: 320px;
+            }
+            .hero > svg {
+                position: absolute;
+                inset: 0;
+                width: 100%;
+                height: 100%;
+            }
+            .hero .status {
+                position: absolute;
+                top: 0;
+                left: 0;
+                right: 0;
+            }
+            .disc {
+                position: absolute;
+                top: 56px;
+                width: 44px;
+                height: 44px;
+                border-radius: 50%;
+                display: grid;
+                place-items: center;
+                color: var(--ink);
+                z-index: 4;
+            }
+            .disc.l {
+                left: 16px;
+            }
+            .disc.r {
+                right: 16px;
+            }
+            /* the recipe's own light: the cover's ground at t = 0.25 over plaster, top stop only */
+            .sheet {
+                position: relative;
+                margin-top: -28px;
+                border-radius: 28px 28px 0 0;
+                padding-top: 22px;
+                background: linear-gradient(180deg, var(--recipe-wash) 0px, var(--canvas) 420px);
+            }
+            .light .sheet.chicken {
+                --recipe-wash: #f0e3d4;
+            }
+            .dark .sheet.chicken {
+                --recipe-wash: #281e18;
+            }
+            .rate {
+                display: flex;
+                align-items: flex-start;
+                justify-content: space-between;
+                gap: 12px;
+            }
+            .over {
+                font: 600 11px/1.4 var(--f-ui);
+                letter-spacing: 0.08em;
+                text-transform: uppercase;
+                color: var(--muted);
+            }
+            .stars {
+                display: flex;
+                gap: 2px;
+                color: var(--rating);
+                margin: 6px 0 4px;
+                align-items: center;
+            }
+            .stars .i {
+                fill: var(--rating);
+                stroke: var(--rating);
+                width: 18px;
+                height: 18px;
+            }
+            .stars .num {
+                color: var(--ink);
+                font: 600 14px/1 var(--f-ui);
+                margin-left: 8px;
+                font-variant-numeric: tabular-nums;
+            }
+            .note {
+                font: 400 14px/1.4 var(--f-ui);
+                color: var(--muted);
+            }
+            .title-block {
+                margin-top: 20px;
+            }
+            .cuisine {
+                font: 600 11px/1.4 var(--f-ui);
+                letter-spacing: 0.08em;
+                text-transform: uppercase;
+                color: var(--action-text);
+            }
+            .h-recipe {
+                font: 500 34px/1.08 var(--f-display);
+                font-variation-settings: var(--opsz-display);
+                letter-spacing: -0.02em;
+                margin: 8px 0 10px;
+            }
+            .facts {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 0 16px;
+                align-items: center;
+                font: 400 14px/1.3 var(--f-ui);
+                color: var(--muted);
+            }
+            .facts span,
+            .facts a {
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+                min-height: 44px;
+            }
+            .facts a {
+                color: var(--action-text);
+                font-weight: 600;
+                text-decoration: none;
+            }
+            .strip {
+                margin-top: 12px;
+                display: grid;
+                grid-template-columns: 1fr 1fr 1fr;
+                background: var(--paper);
+                border-radius: 18px;
+                padding: 14px 4px;
+                box-shadow: var(--shadow-1);
+            }
+            .cell {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 6px;
+            }
+            .cell + .cell {
+                border-left: 1px solid var(--line);
+            }
+            .cell .v {
+                font: 600 18px/1.1 var(--f-ui);
+                font-variant-numeric: tabular-nums;
+            }
+            .cell .k {
+                font: 500 12px/1 var(--f-ui);
+                color: var(--muted);
+            }
+            .diff {
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+                font: 600 16px/1.1 var(--f-ui);
+            }
+            .diff .pips {
+                display: inline-flex;
+                gap: 3px;
+            }
+            .diff .pips b {
+                width: 6px;
+                height: 14px;
+                border-radius: 3px;
+                background: var(--action);
+            }
+            .diff .pips b.off {
+                background: transparent;
+                box-shadow: inset 0 0 0 1.5px var(--control);
+            }
+            .actions {
+                display: flex;
+                gap: 10px;
+                margin-top: 16px;
+            }
+            .btn {
+                height: 48px;
+                border-radius: 24px;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                gap: 8px;
+                font: 600 16px/1 var(--f-ui);
+                padding: 0 20px;
+            }
+            .btn.primary {
+                background: var(--action);
+                color: var(--on-action);
+                flex: 1;
+            }
+            .btn.toggle {
+                flex: none;
+                gap: 12px;
+                color: var(--ink);
+                background: var(--paper);
+                box-shadow: inset 0 0 0 1.5px var(--control);
+                padding: 0 8px 0 16px;
+            }
+            .switch {
+                width: 40px;
+                height: 24px;
+                border-radius: 12px;
+                background: var(--paper);
+                box-shadow: inset 0 0 0 1.5px var(--control);
+                position: relative;
+            }
+            .switch::after {
+                content: '';
+                position: absolute;
+                top: 4px;
+                left: 4px;
+                width: 16px;
+                height: 16px;
+                border-radius: 50%;
+                background: var(--control);
+            }
+            .desc {
+                font: 400 16px/1.6 var(--f-ui);
+                margin-top: 20px;
+            }
+            .more {
+                font: 600 14px/1 var(--f-ui);
+                color: var(--action-text);
+                display: inline-flex;
+                align-items: center;
+                min-height: 44px;
+            }
+            .tags {
+                font: 400 14px/1.4 var(--f-ui);
+                color: var(--muted);
+            }
+            .acc {
+                margin-top: 16px;
+                background: var(--paper);
+                border-radius: 18px;
+                padding: 14px 16px;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                box-shadow: var(--shadow-1);
+                min-height: 64px;
+            }
+            .acc .t {
+                font: 600 18px/1.25 var(--f-ui);
+            }
+            .acc .s {
+                font: 400 14px/1.3 var(--f-ui);
+                color: var(--muted);
+                font-variant-numeric: tabular-nums;
+                margin-top: 2px;
+            }
+            .sec {
+                margin-top: 32px;
+            }
+            .sec-row {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+            }
+            .h2 {
+                font: 600 20px/1.25 var(--f-ui);
+                letter-spacing: -0.01em;
+            }
+            .stepper {
+                display: inline-flex;
+                align-items: center;
+                height: 44px;
+                border-radius: 22px;
+                background: var(--paper);
+                box-shadow: inset 0 0 0 1.5px var(--control);
+            }
+            .stepper span {
+                width: 44px;
+                height: 44px;
+                display: grid;
+                place-items: center;
+                color: var(--action-text);
+            }
+            .stepper b {
+                font: 600 16px/1 var(--f-ui);
+                font-variant-numeric: tabular-nums;
+                min-width: 20px;
+                text-align: center;
+            }
+            .serv-row {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                margin-top: 12px;
+            }
+            .serv-row .k {
+                font: 500 14px/1 var(--f-ui);
+                color: var(--muted);
+            }
+            .group {
+                font: italic 400 17px/1.2 var(--f-display);
+                font-variation-settings: var(--opsz-text);
+                color: var(--muted);
+                margin: 20px 0 4px;
+                display: flex;
+                align-items: center;
+                gap: 10px;
+            }
+            .group::after {
+                content: '';
+                flex: 1;
+                height: 1px;
+                background: var(--line);
+            }
+            .line {
+                display: flex;
+                gap: 14px;
+                align-items: flex-start;
+                padding: 12px 0;
+            }
+            .box {
+                width: 24px;
+                height: 24px;
+                border-radius: 7px;
+                background: var(--paper);
+                box-shadow: inset 0 0 0 1.75px var(--control);
+                flex: none;
+                display: grid;
+                place-items: center;
+                color: transparent;
+            }
+            .line.done .box {
+                background: var(--action);
+                box-shadow: none;
+                color: var(--on-action);
+            }
+            .dark .line.done .box {
+                background: var(--tint);
+                box-shadow: inset 0 0 0 1.75px var(--action);
+                color: var(--action);
+            }
+            .line.done .main {
+                color: var(--muted);
+            }
+            .main {
+                font: 400 16px/1.45 var(--f-ui);
+            }
+            .main b {
+                font-weight: 600;
+                font-variant-numeric: tabular-nums;
+            }
+            .subl {
+                display: block;
+                font: 400 14px/1.35 var(--f-ui);
+                color: var(--muted);
+            }
+            .step {
+                display: flex;
+                gap: 14px;
+                padding: 14px 12px 14px 0;
+                border-radius: 18px;
+                margin-top: 4px;
+            }
+            .step .n {
+                width: 32px;
+                height: 32px;
+                border-radius: 50%;
+                background: var(--tint);
+                color: var(--action-text);
+                display: grid;
+                place-items: center;
+                font: 600 15px/1 var(--f-ui);
+                font-variant-numeric: tabular-nums;
+                flex: none;
+            }
+            .step p {
+                font: 400 16px/1.6 var(--f-ui);
+            }
+            .step.now {
+                background: var(--now);
+                padding: 16px 14px 16px 14px;
+                margin: 8px -6px 8px -6px;
+                box-shadow:
+                    var(--shadow-now),
+                    inset 4px 0 0 var(--now-edge);
+            }
+            .step.now .n {
+                background: var(--action);
+                color: var(--on-action);
+            }
+            .nowtag {
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+                font: 600 11px/1.4 var(--f-ui);
+                letter-spacing: 0.08em;
+                text-transform: uppercase;
+                color: var(--ink);
+                margin-bottom: 4px;
+            }
+            .nowtag::before {
+                content: '';
+                width: 8px;
+                height: 8px;
+                border-radius: 50%;
+                background: var(--now-edge);
+            }
+            .timer {
+                display: inline-flex;
+                align-items: center;
+                gap: 5px;
+                margin-top: 10px;
+                height: 24px;
+                padding: 0 8px 0 6px;
+                border-radius: 6px;
+                background: var(--sunken);
+                font: 600 13px/1 var(--f-ui);
+                color: var(--ink);
+                font-variant-numeric: tabular-nums;
+            }
+            .timer .i {
+                width: 14px;
+                height: 14px;
+                color: var(--action-text);
+                stroke-width: 2;
+            }
+
+            /* ================================================================== */
+            /* Desktop (Discover, 1280)                                            */
+            /* ================================================================== */
+            .browser {
+                width: 1280px;
+                border-radius: 16px;
+                overflow: hidden;
+                box-shadow:
+                    0 50px 100px -50px rgba(30, 20, 10, 0.55),
+                    0 0 0 1px rgba(0, 0, 0, 0.08);
+            }
+            .chrome {
+                height: 40px;
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                padding: 0 16px;
+                background: #e4ddd1;
+            }
+            .chrome i {
+                width: 12px;
+                height: 12px;
+                border-radius: 50%;
+                background: #cbc2b4;
+                display: block;
+            }
+            .chrome .url {
+                margin-left: 18px;
+                flex: 0 0 380px;
+                height: 26px;
+                border-radius: 8px;
+                background: #f3ece1;
+                font: 500 12.5px/26px var(--f-ui);
+                color: #6b645c;
+                padding: 0 12px;
+            }
+            .desk {
+                display: flex;
+                color: var(--ink);
+                background:
+                    radial-gradient(60% 50% at 25% 0%, var(--wash-a) 0%, rgba(0, 0, 0, 0) 60%),
+                    linear-gradient(180deg, var(--canvas) 40%, var(--wash-c) 100%);
+            }
+            .side {
+                width: 256px;
+                flex: none;
+                padding: 24px 16px;
+                display: flex;
+                flex-direction: column;
+                gap: 4px;
+                background: var(--raised);
+                border-right: 1px solid var(--line);
+            }
+            .wordmark {
+                font: italic 500 26px/1 var(--f-display);
+                font-variation-settings:
+                    'SOFT' 100,
+                    'WONK' 1,
+                    'opsz' 36;
+                letter-spacing: -0.01em;
+                padding: 6px 12px 22px;
+                display: flex;
+                align-items: center;
+                gap: 6px;
+            }
+            .wordmark b {
+                width: 8px;
+                height: 8px;
+                border-radius: 50%;
+                background: var(--action);
+                display: block;
+                margin-top: 8px;
+            }
+            .side .new {
+                height: 48px;
+                border-radius: 24px;
+                background: var(--action);
+                color: var(--on-action);
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                padding: 0 18px;
+                font: 600 16px/1 var(--f-ui);
+                margin-bottom: 18px;
+                box-shadow: var(--shadow-fab);
+            }
+            .nav {
+                height: 44px;
+                border-radius: 22px;
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                padding: 0 16px;
+                font: 500 15px/1 var(--f-ui);
+                color: var(--muted);
+            }
+            .nav.on {
+                background: var(--tint);
+                color: var(--action-text);
+                font-weight: 600;
+            }
+            .nav.on .i {
+                fill: color-mix(in srgb, var(--action-text) 22%, transparent);
+            }
+            .side .spacer {
+                flex: 1;
+            }
+            .dmain {
+                flex: 1;
+                padding: 32px 32px 40px;
+                min-width: 0;
+            } /* 1280 - 256 - 64 = 960: D8 full-card width holds */
+            .dhead {
+                display: flex;
+                justify-content: space-between;
+                align-items: flex-start;
+            }
+            .h-desk {
+                font: 500 48px/1.04 var(--f-display);
+                font-variation-settings: var(--opsz-display);
+                letter-spacing: -0.022em;
+            }
+            .search {
+                margin-top: 20px;
+                height: 48px;
+                border-radius: 24px;
+                background: var(--paper);
+                box-shadow: inset 0 0 0 1.5px var(--control);
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                padding: 0 18px;
+                font: 400 16px/1 var(--f-ui);
+                color: var(--muted);
+                max-width: 640px;
+            }
+            .browse {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                margin: 16px 0 24px;
+            }
+            .fbtn {
+                height: 36px;
+                border-radius: 18px;
+                background: var(--paper);
+                box-shadow: inset 0 0 0 1.5px var(--control);
+                display: inline-flex;
+                align-items: center;
+                gap: 8px;
+                padding: 0 14px;
+                font: 600 14px/1 var(--f-ui);
+                color: var(--ink);
+                flex: none;
+            }
+            .pills {
+                display: flex;
+                gap: 8px;
+                overflow: hidden;
+                flex: 1;
+                min-width: 0;
+                -webkit-mask-image: linear-gradient(90deg, #000 88%, transparent);
+                mask-image: linear-gradient(90deg, #000 88%, transparent);
+            }
+            .pill {
+                height: 36px;
+                border-radius: 18px;
+                padding: 0 14px;
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+                font: 600 14px/1 var(--f-ui);
+                color: var(--ink);
+                background: var(--paper);
+                box-shadow: inset 0 0 0 1.5px var(--control);
+                flex: none;
+            }
+            .pill.sel {
+                background: var(--tint);
+                color: var(--action-text);
+                box-shadow: none;
+            }
+            .grid3 {
+                display: grid;
+                grid-template-columns: repeat(3, 1fr);
+                gap: 24px;
+            }
+            .full {
+                border-radius: 24px;
+            }
+            .full .cover {
+                border-radius: 18px;
+            }
+            .full .body {
+                padding: 14px 10px 6px;
+            }
+            .full .t {
+                font: 600 19px/1.22 var(--f-display);
+                font-variation-settings: var(--opsz-text);
+                letter-spacing: -0.01em;
+            }
+            .full .r {
+                display: flex;
+                align-items: center;
+                gap: 6px;
+                margin-top: 8px;
+                font: 600 14px/1 var(--f-ui);
+                font-variant-numeric: tabular-nums;
+            }
+            .full .r .i {
+                width: 15px;
+                height: 15px;
+                fill: var(--rating);
+                stroke: var(--rating);
+            }
+            .full .r span {
+                color: var(--muted);
+                font-weight: 400;
+            }
+            .full .foot {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                margin-top: 6px;
+            }
+            .full .by {
+                font: 500 14px/1 var(--f-ui);
+                color: var(--muted);
+                display: inline-flex;
+                align-items: center;
+                gap: 8px;
+            }
+            .full .by i {
+                width: 22px;
+                height: 22px;
+                border-radius: 50%;
+                background: var(--tint);
+                color: var(--action-text);
+                display: grid;
+                place-items: center;
+                font: 600 10px/1 var(--f-ui);
+                font-style: normal;
+            }
+            .iconbtn {
+                width: 44px;
+                height: 44px;
+                border-radius: 22px;
+                display: grid;
+                place-items: center;
+                color: var(--action-text);
+            }
+
+            /* ================================================================== */
+            /* Generator sheet                                                      */
+            /* ================================================================== */
+            .sheetboard {
+                max-width: 1280px;
+                margin: 0 auto 64px;
+                border-radius: 28px;
+                padding: 32px;
+            }
+            .sheetboard.light {
+                background: var(--canvas);
+                color: var(--ink);
+            }
+            .sheetboard.dark {
+                background: var(--canvas);
+                color: var(--ink);
+            }
+            .sheetboard h2 {
+                font: 500 30px/1.1 var(--f-display);
+                font-variation-settings: var(--opsz-display);
+                letter-spacing: -0.015em;
+            }
+            .sheetboard .lede {
+                font: 400 15px/1.55 var(--f-ui);
+                color: var(--muted);
+                max-width: 900px;
+                margin: 8px 0 22px;
+            }
+            .gen {
+                display: grid;
+                grid-template-columns: repeat(6, 172px);
+                gap: 24px 20px;
+                justify-content: space-between;
+            }
+            .gen .card {
+                width: 172px;
+            }
+            .gen .t {
+                font: 600 15px/1.25 var(--f-display);
+                font-variation-settings: var(--opsz-text);
+                padding: 8px 4px 2px;
+                min-height: 46px;
+            }
+            .gen .spec {
+                font: 400 11.5px/1.45 var(--f-ui);
+                color: var(--muted);
+                padding: 0 4px 6px;
+            }
+            .gen .spec b {
+                color: var(--ink);
+                font-weight: 600;
+            }
+            .edge {
+                font: 600 10px/1 var(--f-ui);
+                letter-spacing: 0.08em;
+                text-transform: uppercase;
+                color: var(--action-text);
+                padding: 0 4px 4px;
+                display: block;
+            }
+            .mini-status {
+                position: absolute;
+                top: 6px;
+                left: 10px;
+                right: 10px;
+                display: flex;
+                justify-content: space-between;
+                font: 600 9px/1 var(--f-ui);
+            }
+            .build {
+                display: flex;
+                gap: 16px;
+                align-items: flex-start;
+                margin-top: 8px;
+            }
+            .build .card {
+                width: 200px;
+            }
+            .build .arrow {
+                align-self: center;
+                color: var(--muted);
+            }
+
+            /* Token strip */
+            .tokens {
+                max-width: 1280px;
+                margin: 0 auto;
+                background: #f3ece1;
+                border-radius: 28px;
+                padding: 32px;
+                display: grid;
+                grid-template-columns: 1.3fr 1fr;
+                gap: 32px;
+                color: #24201c;
+            }
+            .tokens h3 {
+                font: 600 12px/1 var(--f-ui);
+                letter-spacing: 0.12em;
+                text-transform: uppercase;
+                color: #5a534b;
+                margin: 0 0 12px;
+            }
+            .sw-grid {
+                display: grid;
+                grid-template-columns: repeat(6, 1fr);
+                gap: 10px;
+            }
+            .sw {
+                border-radius: 12px;
+                overflow: hidden;
+                background: #fffcf7;
+                box-shadow: 0 0 0 1px #e2d9cb;
+            }
+            .sw div {
+                height: 48px;
+            }
+            .sw p {
+                padding: 7px 8px 8px;
+                font: 600 11px/1.3 var(--f-ui);
+            }
+            .sw p span {
+                display: block;
+                font-weight: 400;
+                color: #6b645c;
+                font-variant-numeric: tabular-nums;
+            }
+            .sw-dark {
+                margin-top: 10px;
+            }
+            .sw-dark .sw {
+                background: #25211d;
+                box-shadow: 0 0 0 1px #3a342e;
+                color: #f2ece2;
+            }
+            .sw-dark .sw p span {
+                color: #b3a99c;
+            }
+            .specimen {
+                display: flex;
+                flex-direction: column;
+                gap: 12px;
+            }
+            .specimen small {
+                display: block;
+                font: 500 11.5px/1.3 var(--f-ui);
+                color: #6b645c;
+                margin-top: 3px;
+                letter-spacing: 0;
+                font-style: normal;
+            }
+            .s1 {
+                font: 500 44px/1.04 var(--f-display);
+                font-variation-settings: var(--opsz-display);
+                letter-spacing: -0.02em;
+            }
+            .s1 i {
+                font-weight: 400;
+            }
+            .s2 {
+                font: 600 19px/1.2 var(--f-display);
+                font-variation-settings: var(--opsz-text);
+            }
+            .s2b {
+                font: italic 400 17px/1.2 var(--f-display);
+                font-variation-settings: var(--opsz-text);
+                color: #6b645c;
+            }
+            .s3 {
+                font: 600 18px/1.25 var(--f-ui);
+            }
+            .s4 {
+                font: 400 16px/1.6 var(--f-ui);
+            }
+            .s5 {
+                font: 600 20px/1 var(--f-ui);
+                font-variant-numeric: tabular-nums;
+            }
+            .scale {
+                display: flex;
+                gap: 10px;
+                flex-wrap: wrap;
+                align-items: flex-end;
+            }
+            .scale div {
+                background: #fffcf7;
+                box-shadow: 0 0 0 1.5px #8a847c;
+                display: grid;
+                place-items: center;
+                font: 600 11px/1 var(--f-ui);
+                color: #6b645c;
+            }
+            .ctrls {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 10px;
+                align-items: center;
+            }
+            .chipx {
+                height: 36px;
+                padding: 0 14px;
+                border-radius: 18px;
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+                font: 600 14px/1 var(--f-ui);
+            }
+            .chipx.sel {
+                background: #ddebe7;
+                color: #2a6b65;
+            }
+            .chipx.off {
+                box-shadow: inset 0 0 0 1.5px #8a847c;
+                color: #24201c;
+                background: #fffcf7;
+            }
+            .inputx {
+                height: 48px;
+                width: 180px;
+                border-radius: 12px;
+                box-shadow: inset 0 0 0 1.5px #8a847c;
+                background: #fffcf7;
+                font: 400 16px/48px var(--f-ui);
+                color: #6b645c;
+                padding: 0 14px;
+            }
+            .focusx {
+                height: 44px;
+                padding: 0 18px;
+                border-radius: 22px;
+                background: #31807a;
+                color: #fff;
+                font: 600 15px/44px var(--f-ui);
+                box-shadow:
+                    0 0 0 2px #f3ece1,
+                    0 0 0 4px #2a6b65;
+            }
+            .boxes {
+                display: flex;
+                gap: 8px;
+                align-items: center;
+                font: 500 12px/1 var(--f-ui);
+                color: #6b645c;
+            }
+            .bx {
+                width: 24px;
+                height: 24px;
+                border-radius: 7px;
+                display: grid;
+                place-items: center;
+            }
+            .spacing {
+                display: flex;
+                gap: 6px;
+                align-items: flex-end;
+            }
+            .spacing span {
+                background: #31807a;
+                opacity: 0.55;
+                width: 14px;
+                display: block;
+                border-radius: 2px;
+            }
+        </style>
+    </head>
+    <body>
+        <!-- ================================================================== -->
+        <!-- DEFS: icons, filters, and the COVER PARTS LIBRARY                  -->
+        <!-- Every cover on this board is assembled with <use> from these parts. -->
+        <!-- ================================================================== -->
+        <svg width="0" height="0" style="position: absolute" aria-hidden="true" focusable="false">
+            <defs>
+                <filter id="grain" x="0" y="0" width="100%" height="100%">
+                    <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" stitchTiles="stitch" />
+                    <feColorMatrix type="matrix" values="0 0 0 0 0.2  0 0 0 0 0.15  0 0 0 0 0.1  0 0 0 0.9 0" />
+                </filter>
+                <filter id="soft" x="-20%" y="-20%" width="140%" height="140%">
+                    <feGaussianBlur stdDeviation="2.5" />
+                </filter>
+                <filter id="softer" x="-20%" y="-20%" width="140%" height="140%">
+                    <feGaussianBlur stdDeviation="9" />
+                </filter>
+                <radialGradient id="vig" cx="50%" cy="45%" r="70%">
+                    <stop offset="55%" stop-color="#000" stop-opacity="0" />
+                    <stop offset="100%" stop-color="#1a0f05" stop-opacity=".45" />
+                </radialGradient>
+
+                <!-- icons (Lucide geometry, 1.75 stroke) -->
+                <g id="i-home">
+                    <path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8" />
+                    <path
+                        d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"
+                    />
+                </g>
+                <g id="i-book">
+                    <path d="M12 7v14" />
+                    <path
+                        d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"
+                    />
+                </g>
+                <g id="i-compass">
+                    <circle cx="12" cy="12" r="10" />
+                    <path
+                        d="m16.24 7.76-1.804 5.411a2 2 0 0 1-1.265 1.265L7.76 16.24l1.804-5.411a2 2 0 0 1 1.265-1.265z"
+                    />
+                </g>
+                <g id="i-plus">
+                    <path d="M5 12h14" />
+                    <path d="M12 5v14" />
+                </g>
+                <g id="i-minus"><path d="M5 12h14" /></g>
+                <g id="i-left"><path d="m15 18-6-6 6-6" /></g>
+                <g id="i-right"><path d="m9 18 6-6-6-6" /></g>
+                <g id="i-down"><path d="m6 9 6 6 6-6" /></g>
+                <g id="i-more">
+                    <circle cx="12" cy="12" r="1" />
+                    <circle cx="19" cy="12" r="1" />
+                    <circle cx="5" cy="12" r="1" />
+                </g>
+                <g id="i-star">
+                    <path
+                        d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"
+                    />
+                </g>
+                <g id="i-clock">
+                    <circle cx="12" cy="12" r="10" />
+                    <path d="M12 6v6l4 2" />
+                </g>
+                <g id="i-sun">
+                    <circle cx="12" cy="12" r="4" />
+                    <path d="M12 2v2" />
+                    <path d="M12 20v2" />
+                    <path d="m4.93 4.93 1.41 1.41" />
+                    <path d="m17.66 17.66 1.41 1.41" />
+                    <path d="M2 12h2" />
+                    <path d="M20 12h2" />
+                    <path d="m6.34 17.66-1.41 1.41" />
+                    <path d="m19.07 4.93-1.41 1.41" />
+                </g>
+                <g id="i-check"><path d="M20 6 9 17l-5-5" /></g>
+                <g id="i-timer">
+                    <path d="M10 2h4" />
+                    <path d="m12 14 3-3" />
+                    <circle cx="12" cy="14" r="8" />
+                </g>
+                <g id="i-panel">
+                    <rect width="18" height="18" x="3" y="3" rx="2" />
+                    <path d="M9 3v18" />
+                </g>
+                <g id="i-lock">
+                    <rect width="18" height="11" x="3" y="11" rx="2" />
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                </g>
+                <g id="i-pencil">
+                    <path
+                        d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"
+                    />
+                </g>
+                <g id="i-crown">
+                    <path
+                        d="M11.562 3.266a.5.5 0 0 1 .876 0L15.39 8.87a1 1 0 0 0 1.516.294L21.183 5.5a.5.5 0 0 1 .798.519l-2.834 10.246a1 1 0 0 1-.956.734H5.81a1 1 0 0 1-.957-.734L2.02 6.02a.5.5 0 0 1 .798-.519l4.276 3.664a1 1 0 0 0 1.516-.294z"
+                    />
+                    <path d="M5 21h14" />
+                </g>
+                <g id="i-search">
+                    <circle cx="11" cy="11" r="8" />
+                    <path d="m21 21-4.3-4.3" />
+                </g>
+                <g id="i-sliders">
+                    <path d="M21 4h-7" />
+                    <path d="M10 4H3" />
+                    <path d="M21 12h-9" />
+                    <path d="M8 12H3" />
+                    <path d="M21 20h-5" />
+                    <path d="M12 20H3" />
+                    <path d="M14 2v4" />
+                    <path d="M8 10v4" />
+                    <path d="M16 18v4" />
+                </g>
+                <g id="i-copy">
+                    <rect width="14" height="14" x="8" y="8" rx="2" />
+                    <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
+                </g>
+                <g id="i-flame">
+                    <path
+                        d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"
+                    />
+                </g>
+
+                <!-- ============ PARTS: VESSELS (centred at 0,0; one shadow each) ============ -->
+                <g id="v-plate">
+                    <circle cx="5" cy="7" r="120" fill="#2b2622" opacity=".07" />
+                    <circle r="118" fill="var(--plate)" />
+                    <circle r="96" fill="none" stroke="var(--plate-rim)" stroke-width="2.5" />
+                </g>
+                <g id="v-bowl">
+                    <circle cx="5" cy="7" r="114" fill="#2b2622" opacity=".08" />
+                    <circle r="112" fill="var(--plate)" />
+                    <circle r="92" fill="var(--fill)" />
+                    <circle r="92" fill="none" stroke="#000" stroke-opacity=".06" stroke-width="6" />
+                </g>
+                <g id="v-deep">
+                    <circle cx="5" cy="7" r="116" fill="#000" opacity=".14" />
+                    <circle r="114" fill="var(--stone)" />
+                    <circle r="98" fill="var(--fill)" />
+                </g>
+                <g id="v-skillet">
+                    <rect x="96" y="-14" width="104" height="28" rx="14" fill="var(--iron)" />
+                    <circle cx="5" cy="7" r="114" fill="#000" opacity=".1" />
+                    <circle r="112" fill="var(--iron)" />
+                    <circle r="98" fill="var(--fill)" />
+                </g>
+                <g id="v-tray">
+                    <rect x="-154" y="-100" width="316" height="212" rx="20" fill="#2b2622" opacity=".08" />
+                    <rect x="-158" y="-106" width="316" height="212" rx="20" fill="var(--tin)" />
+                    <rect x="-146" y="-94" width="292" height="188" rx="12" fill="var(--tin-in)" />
+                </g>
+                <g id="v-jar">
+                    <circle cx="4" cy="6" r="92" fill="#2b2622" opacity=".08" />
+                    <circle r="90" fill="var(--glassware)" />
+                    <circle r="78" fill="var(--fill)" />
+                    <path
+                        d="M-60-40a76 76 0 0 1 40-32"
+                        stroke="#fff"
+                        stroke-opacity=".55"
+                        stroke-width="6"
+                        fill="none"
+                        stroke-linecap="round"
+                    />
+                </g>
+                <g id="v-board">
+                    <rect x="-150" y="-92" width="300" height="190" rx="26" fill="#2b2622" opacity=".08" />
+                    <rect x="-154" y="-98" width="300" height="190" rx="26" fill="var(--wood)" />
+                    <path
+                        d="M-130-60h250M-130-20h250M-130 20h250M-130 60h250"
+                        stroke="#000"
+                        stroke-opacity=".05"
+                        stroke-width="3"
+                    />
+                </g>
+                <g id="v-tin">
+                    <rect x="-176" y="-24" width="352" height="48" rx="16" fill="var(--tin)" />
+                    <rect x="-148" y="-110" width="296" height="226" rx="26" fill="#2b2622" opacity=".1" />
+                    <rect x="-152" y="-116" width="296" height="226" rx="26" fill="var(--tin)" />
+                    <rect x="-138" y="-102" width="268" height="198" rx="18" fill="var(--tin-in)" />
+                </g>
+
+                <!-- ============ PARTS: DISH FORMS ============ -->
+                <g id="d-noodles" fill="none" stroke="var(--noodle)" stroke-width="8" stroke-linecap="round">
+                    <path d="M-74-22c22-28 48 22 78-8s46 18 70-6" />
+                    <path d="M-80 6c26-22 46 26 80 0s44 18 76-4" />
+                    <path d="M-66 36c22-18 44 18 70-4s42 14 60-6" />
+                    <path d="M-52-48c18-14 40 14 62-2s30 10 46-2" />
+                    <path d="M-40 60c18-10 36 10 56-2s26 6 38-2" />
+                </g>
+                <g id="d-swirl">
+                    <path
+                        d="M-30 0c0-22 40-26 46-2 5 22-26 34-40 18-11-14 5-30 18-22"
+                        stroke="var(--cream)"
+                        stroke-width="9"
+                        fill="none"
+                        stroke-linecap="round"
+                    />
+                </g>
+                <g id="d-stack">
+                    <circle cx="-4" cy="6" r="78" fill="#b9813c" />
+                    <circle r="74" fill="#dca55a" />
+                    <ellipse cx="-12" cy="-14" rx="46" ry="30" fill="#e8bd78" opacity=".6" />
+                </g>
+                <g id="d-rice">
+                    <circle r="84" fill="var(--rice)" />
+                    <g fill="#fff" opacity=".55">
+                        <ellipse cx="-30" cy="-20" rx="6" ry="3" />
+                        <ellipse cx="20" cy="-36" rx="6" ry="3" transform="rotate(30 20 -36)" />
+                        <ellipse cx="40" cy="10" rx="6" ry="3" />
+                        <ellipse cx="-10" cy="30" rx="6" ry="3" transform="rotate(-30 -10 30)" />
+                        <ellipse cx="-52" cy="18" rx="6" ry="3" />
+                        <ellipse cx="14" cy="52" rx="6" ry="3" />
+                        <ellipse cx="56" cy="-30" rx="6" ry="3" transform="rotate(50 56 -30)" />
+                    </g>
+                </g>
+                <g id="d-pieces">
+                    <g fill="var(--piece)">
+                        <path d="M-90-40c10-26 52-24 58 2 6 24-24 40-44 34-18-4-20-20-14-36z" />
+                        <path d="M10-60c16-20 54-10 52 16-2 24-34 30-50 20-12-8-12-24-2-36z" />
+                        <path d="M-40 30c14-18 50-12 52 12 2 22-30 32-46 24-14-6-16-24-6-36z" />
+                        <path d="M50 30c12-16 44-10 46 10 2 18-24 28-38 22-12-6-14-20-8-32z" />
+                    </g>
+                    <g fill="#000" opacity=".12">
+                        <path d="M-80-30c10-6 24-4 30 4" />
+                        <circle cx="30" cy="-40" r="10" />
+                        <circle cx="-20" cy="44" r="10" />
+                    </g>
+                </g>
+                <g id="d-taco">
+                    <path d="M-130 30a70 70 0 0 1 140 0z" fill="#e3b867" />
+                    <path d="M-116 30a56 56 0 0 1 112 0z" fill="#d4ddc0" />
+                    <path d="M-10 70a70 70 0 0 1 140 0z" fill="#e3b867" transform="rotate(-8 60 70)" />
+                    <path d="M4 70a56 56 0 0 1 112 0z" fill="#d4ddc0" transform="rotate(-8 60 70)" />
+                    <g fill="#d68c4b">
+                        <rect x="-96" y="6" width="24" height="12" rx="6" />
+                        <rect x="-66" y="0" width="26" height="12" rx="6" />
+                        <rect x="24" y="44" width="26" height="12" rx="6" />
+                        <rect x="56" y="40" width="24" height="12" rx="6" />
+                    </g>
+                </g>
+                <g id="d-cookies">
+                    <g fill="#c98d4f">
+                        <circle cx="-90" cy="-40" r="52" />
+                        <circle cx="40" cy="-60" r="48" />
+                        <circle cx="-20" cy="56" r="54" />
+                        <circle cx="112" cy="40" r="46" />
+                    </g>
+                    <g fill="#e0ad6c" opacity=".7">
+                        <circle cx="-96" cy="-48" r="34" />
+                        <circle cx="34" cy="-68" r="30" />
+                        <circle cx="-26" cy="48" r="34" />
+                        <circle cx="106" cy="32" r="28" />
+                    </g>
+                </g>
+                <g id="d-bird">
+                    <path
+                        d="M-82 10c-6-52 40-78 88-70 48 6 78 40 70 80-8 38-56 54-100 46-34-6-56-24-58-56z"
+                        fill="#c98b4a"
+                    />
+                    <path d="M-60 0c-2-34 30-54 66-50 34 4 58 30 52 58" fill="#dca462" opacity=".7" />
+                    <ellipse cx="-96" cy="38" rx="22" ry="14" fill="#b8793d" transform="rotate(-30 -96 38)" />
+                    <ellipse cx="84" cy="52" rx="22" ry="14" fill="#b8793d" transform="rotate(30 84 52)" />
+                </g>
+
+                <!-- ============ PARTS: INGREDIENT MOTIFS (the swatch library) ============ -->
+                <g id="m-lemon">
+                    <circle r="34" fill="#e3bd35" />
+                    <circle r="29" fill="#f5dc77" />
+                    <path d="M0-26V26M-26 0H26M-18-18 18 18M18-18-18 18" stroke="#fff4c9" stroke-width="2.5" />
+                    <circle r="4" fill="#fff4c9" />
+                </g>
+                <g id="m-lime">
+                    <path d="M-32 0a32 32 0 0 0 64 0z" fill="#6f9f3a" />
+                    <path d="M-26 0a26 26 0 0 0 52 0z" fill="#cfe39a" />
+                    <path d="M0 0v22M0 0l-15 16M0 0l15 16" stroke="#e6f0c4" stroke-width="2" />
+                </g>
+                <g id="m-leaf">
+                    <path d="M0-34C22-26 26 8 0 34C-26 8-22-26 0-34z" fill="#4e8a3e" />
+                    <path d="M0-28V30" stroke="#7fb062" stroke-width="2.5" />
+                </g>
+                <g id="m-sprig">
+                    <path
+                        d="M0 40C2 10-2-14 4-42"
+                        stroke="#5d7c40"
+                        stroke-width="3"
+                        fill="none"
+                        stroke-linecap="round"
+                    />
+                    <g fill="#7c9a55">
+                        <ellipse cx="-8" cy="24" rx="9" ry="4.5" transform="rotate(-30 -8 24)" />
+                        <ellipse cx="9" cy="14" rx="9" ry="4.5" transform="rotate(30 9 14)" />
+                        <ellipse cx="-7" cy="2" rx="9" ry="4.5" transform="rotate(-30 -7 2)" />
+                        <ellipse cx="10" cy="-10" rx="9" ry="4.5" transform="rotate(30 10 -10)" />
+                        <ellipse cx="-5" cy="-22" rx="8" ry="4" transform="rotate(-30 -5 -22)" />
+                        <ellipse cx="9" cy="-32" rx="7" ry="3.5" transform="rotate(30 9 -32)" />
+                    </g>
+                </g>
+                <g id="m-chili">
+                    <path d="M-30 6C-10 18 18 14 30-8C34-14 28-18 24-12C14 2-6 6-28-2z" fill="#c8412b" />
+                    <path
+                        d="M24-12c2-6 6-10 12-10"
+                        stroke="#5e7f37"
+                        stroke-width="4"
+                        stroke-linecap="round"
+                        fill="none"
+                    />
+                </g>
+                <g id="m-tomato">
+                    <circle r="30" fill="#c63c28" />
+                    <circle r="25" fill="#e5654a" />
+                    <g fill="#f4c0a4">
+                        <ellipse cx="-10" cy="-6" rx="4" ry="6" />
+                        <ellipse cx="10" cy="-6" rx="4" ry="6" />
+                        <ellipse cx="0" cy="11" rx="6" ry="4" />
+                    </g>
+                    <circle r="5" fill="#f0a38a" />
+                </g>
+                <g id="m-mushroom">
+                    <path d="M-30 6C-30-24 30-24 30 6z" fill="#c9ad86" />
+                    <rect x="-9" y="2" width="18" height="26" rx="6" fill="#e8d8bc" />
+                    <path d="M-20 4h40" stroke="#a88a62" stroke-width="2.5" />
+                </g>
+                <g id="m-chickpeas">
+                    <g fill="#d9b26a">
+                        <circle cx="-14" cy="-8" r="10" />
+                        <circle cx="8" cy="-14" r="10" />
+                        <circle cx="16" cy="8" r="10" />
+                        <circle cx="-6" cy="14" r="10" />
+                        <circle cx="-24" cy="12" r="9" />
+                    </g>
+                    <g fill="#f0d49a">
+                        <circle cx="-17" cy="-11" r="3.5" />
+                        <circle cx="5" cy="-17" r="3.5" />
+                        <circle cx="13" cy="5" r="3.5" />
+                        <circle cx="-9" cy="11" r="3.5" />
+                    </g>
+                </g>
+                <g id="m-shallot" fill="none" stroke-linecap="round">
+                    <circle cx="-12" cy="-6" r="15" stroke="#8e4f22" stroke-width="6" />
+                    <circle cx="14" cy="8" r="12" stroke="#a8622c" stroke-width="5.5" />
+                    <circle cx="-4" cy="18" r="9" stroke="#7a431c" stroke-width="5" />
+                </g>
+                <g id="m-plum">
+                    <circle r="30" fill="#5f2741" />
+                    <circle r="25" fill="#c2556b" />
+                    <ellipse rx="8" ry="11" fill="#8e3a4f" />
+                    <path
+                        d="M-14-14c6-4 12-4 16 0"
+                        stroke="#e58aa0"
+                        stroke-width="3"
+                        fill="none"
+                        stroke-linecap="round"
+                    />
+                </g>
+                <g id="m-asparagus">
+                    <rect x="-7" y="-62" width="14" height="124" rx="7" fill="#7fa14a" />
+                    <path d="M-9-48l9-18 9 18-9-6z" fill="#5e7f37" />
+                    <path d="M-8-24l8 6M8 0l-8 6M-8 24l8 6" stroke="#5e7f37" stroke-width="3" stroke-linecap="round" />
+                </g>
+                <g id="m-choc">
+                    <path d="M-12-14l18-4 10 14-6 16-20 2-8-14z" fill="#4a2e22" />
+                    <path d="M-6-10l10-2" stroke="#6b4632" stroke-width="3" stroke-linecap="round" />
+                </g>
+                <g id="m-yolk">
+                    <circle r="20" fill="#e99e1f" />
+                    <circle cx="-5" cy="-5" r="11" fill="#f6c552" opacity=".8" />
+                </g>
+                <g id="m-egg">
+                    <path d="M-40 4c-6-30 30-44 52-30 26 10 34 40 12 54-22 14-58 8-64-24z" fill="#fbf7ee" />
+                    <use href="#m-yolk" />
+                </g>
+                <g id="m-eggHalf">
+                    <ellipse rx="30" ry="22" fill="#fbf7ee" />
+                    <circle r="15" fill="#e8892a" />
+                    <circle cx="-4" cy="-4" r="7" fill="#f4b04a" />
+                </g>
+                <g id="m-feta" fill="#fbf7ee" stroke="#e3dccf" stroke-width="2">
+                    <rect x="-22" y="-14" width="16" height="16" rx="3" transform="rotate(12 -14 -6)" />
+                    <rect x="2" y="-20" width="15" height="15" rx="3" transform="rotate(-18 9 -12)" />
+                    <rect x="-6" y="6" width="15" height="15" rx="3" transform="rotate(22 1 13)" />
+                </g>
+                <g id="m-pepper" fill="#2b2622">
+                    <circle cx="-20" cy="-8" r="3" />
+                    <circle cx="6" cy="-18" r="2.6" />
+                    <circle cx="18" cy="6" r="3" />
+                    <circle cx="-6" cy="14" r="2.6" />
+                    <circle cx="24" cy="-22" r="2.4" />
+                    <circle cx="-26" cy="18" r="2.6" />
+                </g>
+                <g id="m-shards" fill="#f3ead2">
+                    <path d="M-20-6l14-8 6 10-14 6z" />
+                    <path d="M6 4l16-4 2 12-16 2z" />
+                    <path d="M-6 18l12-2 0 10-12 0z" />
+                </g>
+                <g id="m-slaw" fill="none" stroke-width="5" stroke-linecap="round">
+                    <path d="M-30-10c10-6 20-6 30 0" stroke="#8d4a8f" />
+                    <path d="M-10 6c10-6 22-6 32 2" stroke="#a6609f" />
+                    <path d="M-26 18c8-4 16-4 24 0" stroke="#e7dca0" />
+                    <path d="M4-16c8-4 16-2 22 4" stroke="#e7dca0" />
+                </g>
+                <g id="m-cucumber">
+                    <circle r="22" fill="#4f7d3e" />
+                    <circle r="18" fill="#cfe1b0" />
+                    <g fill="#a8c47e">
+                        <ellipse cx="0" cy="-7" rx="2.5" ry="4" />
+                        <ellipse cx="6" cy="4" rx="2.5" ry="4" transform="rotate(60 6 4)" />
+                        <ellipse cx="-6" cy="4" rx="2.5" ry="4" transform="rotate(-60 -6 4)" />
+                    </g>
+                </g>
+                <g id="m-scallion" fill="none" stroke="#6fa048" stroke-width="4.5">
+                    <circle cx="-12" cy="-6" r="7" />
+                    <circle cx="10" cy="-12" r="6" />
+                    <circle cx="4" cy="10" r="7" />
+                </g>
+                <g id="m-peanuts" fill="#c9965c">
+                    <ellipse cx="-10" cy="-6" rx="7" ry="5" />
+                    <ellipse cx="10" cy="-2" rx="7" ry="5" transform="rotate(40 10 -2)" />
+                    <ellipse cx="0" cy="12" rx="7" ry="5" transform="rotate(-20 0 12)" />
+                </g>
+                <g id="m-blueberry">
+                    <circle r="10" fill="#3d4a7a" />
+                    <circle cx="-3" cy="-3" r="3" fill="#6b79a8" />
+                    <path d="M-3 0h6M0-3v6" stroke="#2a3358" stroke-width="1.6" />
+                </g>
+                <g id="m-ricotta">
+                    <path d="M-30-6c4-20 40-22 48-4 14 2 18 20 4 28-8 12-34 12-42 2-16 0-22-16-10-26z" fill="#fffdf8" />
+                </g>
+                <g id="m-potato" fill="#e2c07a">
+                    <ellipse cx="-14" cy="0" rx="18" ry="14" transform="rotate(-20 -14 0)" />
+                    <ellipse cx="16" cy="6" rx="16" ry="13" transform="rotate(30 16 6)" />
+                </g>
+                <g id="m-garlic">
+                    <path d="M0-24c14 10 26 24 20 38-6 12-34 12-40 0-6-14 6-28 20-38z" fill="#f1e8d8" />
+                    <path
+                        d="M0-20v30M-10-8c2 10 2 16 0 22M10-8c-2 10-2 16 0 22"
+                        stroke="#d8cbb3"
+                        stroke-width="2"
+                        fill="none"
+                    />
+                </g>
+                <g id="m-onion">
+                    <circle r="18" fill="none" stroke="#a5527a" stroke-width="5" />
+                    <circle r="10" fill="none" stroke="#c97ca0" stroke-width="4" />
+                </g>
+                <g id="m-spoon">
+                    <ellipse cx="0" cy="-30" rx="16" ry="22" fill="var(--tin)" />
+                    <rect x="-4" y="-10" width="8" height="70" rx="4" fill="var(--tin)" />
+                </g>
+                <g id="m-chopsticks">
+                    <rect x="-80" y="-4" width="170" height="7" rx="3.5" fill="#b8895c" />
+                    <rect x="-70" y="12" width="170" height="7" rx="3.5" fill="#c99b6c" />
+                </g>
+
+                <!-- ============ COVERS (CoverSpec → drawing). Each = ground + vessel + form + hero + accents + grain. ============ -->
+                <!-- Lemon ricotta pancakes. form: stack · hero: lemon · accents: ricotta, blueberry -->
+                <g id="cv-pancakes">
+                    <rect width="400" height="300" fill="var(--gr-butter)" />
+                    <rect x="318" width="16" height="300" fill="var(--stripe)" />
+                    <rect x="342" width="5" height="300" fill="var(--stripe)" />
+                    <g transform="translate(176 150)"><use href="#v-plate" /></g>
+                    <g class="food">
+                        <g transform="translate(174 152)"><use href="#d-stack" /></g>
+                        <g transform="translate(172 138)"><use href="#m-ricotta" /></g>
+                        <g transform="translate(318 74) scale(1.1)"><use href="#m-lemon" /></g>
+                        <g transform="translate(298 228)"><use href="#m-blueberry" /></g>
+                        <g transform="translate(66 64)"><use href="#m-blueberry" /></g>
+                        <g class="sm">
+                            <g transform="translate(320 250)"><use href="#m-blueberry" /></g>
+                            <g transform="translate(46 240) scale(.8)"><use href="#m-blueberry" /></g>
+                        </g>
+                    </g>
+                    <rect width="400" height="300" filter="url(#grain)" opacity=".09" />
+                </g>
+
+                <!-- Weeknight pad thai. form: noodles in a deep bowl · hero: lime · accents: peanuts, chili, chopsticks -->
+                <g id="cv-padthai">
+                    <rect width="400" height="300" fill="var(--gr-oat)" />
+                    <rect y="252" width="400" height="12" fill="var(--stripe)" />
+                    <g transform="translate(186 146)" style="--fill: #3f5f58"><use href="#v-deep" /></g>
+                    <g class="food">
+                        <g transform="translate(186 150)" style="--noodle: #e8c98d"><use href="#d-noodles" /></g>
+                        <g transform="translate(160 118)"><use href="#m-peanuts" /></g>
+                        <g transform="translate(222 176)"><use href="#m-peanuts" /></g>
+                        <g transform="translate(336 66) rotate(32) scale(1.15)"><use href="#m-lime" /></g>
+                        <g transform="translate(76 238) rotate(-20)"><use href="#m-chili" /></g>
+                        <g class="sm">
+                            <g transform="translate(206 120) scale(.6)"><use href="#m-scallion" /></g>
+                        </g>
+                    </g>
+                    <g transform="translate(330 262) rotate(-22)"><use href="#m-chopsticks" /></g>
+                    <rect width="400" height="300" filter="url(#grain)" opacity=".09" />
+                </g>
+
+                <!-- Roast tomato soup. form: broth bowl + cream swirl · hero: tomato · accents: basil leaf, spoon -->
+                <g id="cv-tomato">
+                    <rect width="400" height="300" fill="var(--gr-blush)" />
+                    <rect x="34" width="12" height="300" fill="var(--stripe)" />
+                    <g transform="translate(196 152)" style="--fill: #c94a32"><use href="#v-bowl" /></g>
+                    <g class="food">
+                        <g transform="translate(196 152)" style="--cream: #fbefe3"><use href="#d-swirl" /></g>
+                        <g transform="translate(222 120) rotate(30) scale(.7)"><use href="#m-leaf" /></g>
+                        <g transform="translate(332 70) scale(1.2)"><use href="#m-tomato" /></g>
+                        <g transform="translate(70 236)"><use href="#m-tomato" /></g>
+                        <g class="sm">
+                            <g transform="translate(346 240)"><use href="#m-pepper" /></g>
+                        </g>
+                    </g>
+                    <g transform="translate(326 210) rotate(-34)"><use href="#m-spoon" /></g>
+                    <rect width="400" height="300" filter="url(#grain)" opacity=".09" />
+                </g>
+
+                <!-- Lemon and thyme roast chicken (detail hero). form: bird in a tin · hero: lemon · accents: thyme, garlic, potatoes -->
+                <g id="cv-chicken">
+                    <rect width="400" height="300" fill="var(--gr-terra)" />
+                    <rect y="40" width="400" height="10" fill="var(--stripe)" />
+                    <rect y="58" width="400" height="4" fill="var(--stripe)" />
+                    <g transform="translate(200 168)"><use href="#v-tin" /></g>
+                    <g class="food">
+                        <g transform="translate(192 160)"><use href="#d-bird" /></g>
+                        <g transform="translate(110 222)"><use href="#m-potato" /></g>
+                        <g transform="translate(286 214)"><use href="#m-potato" /></g>
+                        <g transform="translate(298 118) scale(.8)"><use href="#m-onion" /></g>
+                        <g transform="translate(96 128) scale(.85)"><use href="#m-lemon" /></g>
+                        <g transform="translate(282 160) scale(.7)"><use href="#m-lemon" /></g>
+                        <g transform="translate(246 100) rotate(60) scale(1.1)"><use href="#m-sprig" /></g>
+                        <g transform="translate(150 244) rotate(-70)"><use href="#m-sprig" /></g>
+                        <g transform="translate(340 250) scale(.9)"><use href="#m-garlic" /></g>
+                    </g>
+                    <rect width="400" height="300" filter="url(#grain)" opacity=".09" />
+                </g>
+
+                <!-- 12-cover generator sheet -->
+                <g id="cv-carbonara">
+                    <rect width="400" height="300" fill="var(--gr-sky)" />
+                    <rect x="40" width="10" height="300" fill="var(--stripe)" />
+                    <g transform="translate(200 150)"><use href="#v-plate" /></g>
+                    <g class="food">
+                        <g transform="translate(200 150) scale(.92)" style="--noodle: #ecd28c">
+                            <use href="#d-noodles" />
+                        </g>
+                        <g transform="translate(206 140) scale(1.25)"><use href="#m-yolk" /></g>
+                        <g transform="translate(178 176)"><use href="#m-pepper" /></g>
+                        <g transform="translate(336 64)"><use href="#m-shards" /></g>
+                        <g class="sm">
+                            <g transform="translate(70 248)"><use href="#m-pepper" /></g>
+                        </g>
+                    </g>
+                    <rect width="400" height="300" filter="url(#grain)" opacity=".09" />
+                </g>
+                <g id="cv-shakshuka">
+                    <rect width="400" height="300" fill="var(--gr-oat)" />
+                    <g transform="translate(168 150)" style="--fill: #b8432c"><use href="#v-skillet" /></g>
+                    <g class="food">
+                        <g transform="translate(130 128) scale(.62)"><use href="#m-egg" /></g>
+                        <g transform="translate(200 120) scale(.62)"><use href="#m-egg" /></g>
+                        <g transform="translate(166 196) scale(.62)"><use href="#m-egg" /></g>
+                        <g transform="translate(206 176)"><use href="#m-feta" /></g>
+                        <g transform="translate(116 186) rotate(-40) scale(.7)"><use href="#m-leaf" /></g>
+                        <g transform="translate(336 254) rotate(20) scale(1.1)"><use href="#m-chili" /></g>
+                    </g>
+                    <rect width="400" height="300" filter="url(#grain)" opacity=".09" />
+                </g>
+                <g id="cv-curry">
+                    <rect width="400" height="300" fill="var(--gr-sage)" />
+                    <rect y="30" width="400" height="8" fill="var(--stripe)" />
+                    <g transform="translate(176 158)" style="--fill: #d58d34"><use href="#v-bowl" /></g>
+                    <g class="food">
+                        <g transform="translate(150 130) rotate(-30) scale(1.1)"><use href="#m-leaf" /></g>
+                        <g transform="translate(208 150) rotate(40) scale(1.1)"><use href="#m-leaf" /></g>
+                        <g transform="translate(172 196)"><use href="#m-chickpeas" /></g>
+                        <g transform="translate(330 76) rotate(-20) scale(1.3)"><use href="#m-chili" /></g>
+                        <g class="sm">
+                            <g transform="translate(330 236)"><use href="#m-chickpeas" /></g>
+                        </g>
+                    </g>
+                    <rect width="400" height="300" filter="url(#grain)" opacity=".09" />
+                </g>
+                <g id="cv-dal">
+                    <rect width="400" height="300" fill="var(--gr-blush)" />
+                    <g transform="translate(228 146)" style="--fill: #e09a3e"><use href="#v-bowl" /></g>
+                    <g class="food">
+                        <g transform="translate(228 146) scale(.7)" style="--cream: #f7e6c8"><use href="#d-swirl" /></g>
+                        <g transform="translate(222 122) scale(1.25)"><use href="#m-shallot" /></g>
+                        <g transform="translate(70 70) rotate(-25)"><use href="#m-lime" /></g>
+                        <g transform="translate(76 226) rotate(24) scale(.75)"><use href="#m-leaf" /></g>
+                        <g class="sm">
+                            <g transform="translate(262 186) scale(.6)"><use href="#m-shallot" /></g>
+                        </g>
+                    </g>
+                    <rect width="400" height="300" filter="url(#grain)" opacity=".09" />
+                </g>
+                <g id="cv-ramen">
+                    <rect width="400" height="300" fill="var(--gr-ink)" />
+                    <g transform="translate(196 156)" style="--fill: #c7965a"><use href="#v-deep" /></g>
+                    <g class="food">
+                        <g transform="translate(176 168) scale(.8)" style="--noodle: #efd9a4">
+                            <use href="#d-noodles" />
+                        </g>
+                        <g transform="translate(232 120)"><use href="#m-eggHalf" /></g>
+                        <g transform="translate(150 118)"><use href="#m-mushroom" /></g>
+                        <g transform="translate(232 188) rotate(30)"><use href="#m-mushroom" /></g>
+                        <g transform="translate(176 140)"><use href="#m-scallion" /></g>
+                    </g>
+                    <g transform="translate(344 228) rotate(-60)"><use href="#m-chopsticks" /></g>
+                    <rect width="400" height="300" filter="url(#grain)" opacity=".1" />
+                </g>
+                <g id="cv-cookies">
+                    <rect width="400" height="300" fill="var(--gr-butter)" />
+                    <rect
+                        x="70"
+                        y="40"
+                        width="270"
+                        height="226"
+                        rx="10"
+                        fill="var(--plate)"
+                        opacity=".7"
+                        transform="rotate(-4 205 153)"
+                    />
+                    <g class="food">
+                        <g transform="translate(196 156)"><use href="#d-cookies" /></g>
+                        <g transform="translate(112 112)"><use href="#m-choc" /></g>
+                        <g transform="translate(76 124) scale(.8)"><use href="#m-choc" /></g>
+                        <g transform="translate(246 92)"><use href="#m-choc" /></g>
+                        <g transform="translate(176 210)"><use href="#m-choc" /></g>
+                        <g transform="translate(306 192) scale(.9)"><use href="#m-choc" /></g>
+                        <g class="sm">
+                            <g transform="translate(220 70) scale(.6)"><use href="#m-choc" /></g>
+                            <g transform="translate(150 230) scale(.6)"><use href="#m-choc" /></g>
+                        </g>
+                    </g>
+                    <rect width="400" height="300" filter="url(#grain)" opacity=".09" />
+                </g>
+                <g id="cv-sheetpan">
+                    <rect width="400" height="300" fill="var(--gr-terra)" />
+                    <g transform="translate(200 152)"><use href="#v-tray" /></g>
+                    <g class="food">
+                        <g transform="translate(196 150)" style="--piece: #b34a2a"><use href="#d-pieces" /></g>
+                        <g transform="translate(118 196) rotate(20)"><use href="#m-lemon" /></g>
+                        <g transform="translate(274 96) scale(.8)"><use href="#m-onion" /></g>
+                        <g transform="translate(110 92) scale(.8)"><use href="#m-onion" /></g>
+                        <g class="sm">
+                            <g transform="translate(286 206) rotate(60) scale(.8)"><use href="#m-chili" /></g>
+                        </g>
+                    </g>
+                    <rect width="400" height="300" filter="url(#grain)" opacity=".09" />
+                </g>
+                <g id="cv-oats">
+                    <rect width="400" height="300" fill="var(--gr-lilac)" />
+                    <g transform="translate(150 150)" style="--fill: #efe2c6"><use href="#v-jar" /></g>
+                    <g class="food">
+                        <g transform="translate(130 132) scale(1.05)"><use href="#m-plum" /></g>
+                        <g transform="translate(176 172) scale(.85)"><use href="#m-plum" /></g>
+                        <g transform="translate(310 90) scale(1.3)"><use href="#m-plum" /></g>
+                        <g transform="translate(320 214) scale(.9)"><use href="#m-plum" /></g>
+                    </g>
+                    <rect width="400" height="300" filter="url(#grain)" opacity=".09" />
+                </g>
+                <g id="cv-tacos">
+                    <rect width="400" height="300" fill="var(--gr-mint)" />
+                    <g class="food">
+                        <g transform="translate(180 120)"><use href="#d-taco" /></g>
+                        <g transform="translate(114 112)"><use href="#m-slaw" /></g>
+                        <g transform="translate(246 160)"><use href="#m-slaw" /></g>
+                        <g transform="translate(330 70) rotate(200) scale(1.25)"><use href="#m-lime" /></g>
+                        <g transform="translate(76 244) rotate(-10)"><use href="#m-lime" /></g>
+                        <g class="sm">
+                            <g transform="translate(330 240) scale(.6)"><use href="#m-leaf" /></g>
+                        </g>
+                    </g>
+                    <rect width="400" height="300" filter="url(#grain)" opacity=".09" />
+                </g>
+                <g id="cv-gazpacho">
+                    <rect width="400" height="300" fill="var(--gr-oat)" />
+                    <rect x="0" y="264" width="400" height="6" fill="var(--stripe)" />
+                    <g transform="translate(166 146)" style="--fill: #d8503a"><use href="#v-bowl" /></g>
+                    <g class="food">
+                        <g transform="translate(150 132) scale(1.1)"><use href="#m-cucumber" /></g>
+                        <g transform="translate(190 172) scale(.8)"><use href="#m-cucumber" /></g>
+                        <g transform="translate(320 92) scale(1.25)"><use href="#m-tomato" /></g>
+                        <g transform="translate(332 214)"><use href="#m-tomato" /></g>
+                        <g class="sm">
+                            <g transform="translate(196 118)"><use href="#m-pepper" /></g>
+                        </g>
+                    </g>
+                    <rect width="400" height="300" filter="url(#grain)" opacity=".09" />
+                </g>
+                <g id="cv-risotto">
+                    <rect width="400" height="300" fill="var(--gr-sage)" />
+                    <g transform="translate(210 152)"><use href="#v-plate" /></g>
+                    <g class="food">
+                        <g transform="translate(210 152)" style="--rice: #efe3be"><use href="#d-rice" /></g>
+                        <g transform="translate(196 140) rotate(60)"><use href="#m-asparagus" /></g>
+                        <g transform="translate(226 160) rotate(70)"><use href="#m-asparagus" /></g>
+                        <g transform="translate(70 76) scale(1.05)"><use href="#m-lemon" /></g>
+                        <g class="sm">
+                            <g transform="translate(240 120)"><use href="#m-shards" /></g>
+                        </g>
+                    </g>
+                    <rect width="400" height="300" filter="url(#grain)" opacity=".09" />
+                </g>
+                <!-- No matched foods yet: vessel-only fallback. Ground from the cuisine table, vessel from the title word "Bibimbap" (bowl). -->
+                <g id="cv-bibimbap">
+                    <rect width="400" height="300" fill="var(--gr-plaster)" />
+                    <rect x="300" width="14" height="300" fill="var(--stripe)" />
+                    <g transform="translate(190 150)" style="--fill: var(--plate-rim)"><use href="#v-bowl" /></g>
+                    <g transform="translate(330 220) rotate(-30)"><use href="#m-spoon" /></g>
+                    <rect width="400" height="300" filter="url(#grain)" opacity=".09" />
+                </g>
+
+                <!-- "Draws itself" sequence: chickpea curry as ingredients get matched -->
+                <g id="cv-curry-0">
+                    <rect width="400" height="300" fill="var(--gr-plaster)" />
+                    <g transform="translate(176 158)" style="--fill: var(--plate-rim)"><use href="#v-bowl" /></g>
+                    <rect width="400" height="300" filter="url(#grain)" opacity=".09" />
+                </g>
+                <g id="cv-curry-1">
+                    <rect width="400" height="300" fill="var(--gr-sage)" />
+                    <rect y="30" width="400" height="8" fill="var(--stripe)" />
+                    <g transform="translate(176 158)" style="--fill: #d58d34"><use href="#v-bowl" /></g>
+                    <g class="food">
+                        <g transform="translate(172 196)"><use href="#m-chickpeas" /></g>
+                    </g>
+                    <rect width="400" height="300" filter="url(#grain)" opacity=".09" />
+                </g>
+                <g id="cv-curry-2">
+                    <rect width="400" height="300" fill="var(--gr-sage)" />
+                    <rect y="30" width="400" height="8" fill="var(--stripe)" />
+                    <g transform="translate(176 158)" style="--fill: #d58d34"><use href="#v-bowl" /></g>
+                    <g class="food">
+                        <g transform="translate(150 130) rotate(-30) scale(1.1)"><use href="#m-leaf" /></g>
+                        <g transform="translate(208 150) rotate(40) scale(1.1)"><use href="#m-leaf" /></g>
+                        <g transform="translate(172 196)"><use href="#m-chickpeas" /></g>
+                    </g>
+                    <rect width="400" height="300" filter="url(#grain)" opacity=".09" />
+                </g>
+
+                <!-- ============ PHOTO STAND-INS (no photos allowed on this board) ============ -->
+                <!-- Every real photo gets: the same mat, the same 9% grain, a 6% warm grade. -->
+                <g id="ph-focaccia">
+                    <rect width="400" height="300" fill="#6d4a2c" />
+                    <g filter="url(#softer)">
+                        <ellipse cx="200" cy="160" rx="220" ry="150" fill="#c88a3e" />
+                        <ellipse cx="170" cy="130" rx="150" ry="90" fill="#e2ab5a" />
+                        <ellipse cx="250" cy="200" rx="120" ry="70" fill="#b8742f" />
+                    </g>
+                    <g filter="url(#soft)">
+                        <g fill="#8a5424" opacity=".8">
+                            <circle cx="90" cy="90" r="12" />
+                            <circle cx="170" cy="70" r="11" />
+                            <circle cx="260" cy="96" r="12" />
+                            <circle cx="330" cy="150" r="11" />
+                            <circle cx="130" cy="170" r="12" />
+                            <circle cx="220" cy="160" r="11" />
+                            <circle cx="300" cy="230" r="12" />
+                            <circle cx="80" cy="240" r="11" />
+                            <circle cx="190" cy="250" r="12" />
+                        </g>
+                        <g fill="#f7d996" opacity=".8">
+                            <ellipse cx="150" cy="110" rx="40" ry="16" />
+                            <ellipse cx="250" cy="140" rx="30" ry="12" />
+                        </g>
+                        <g fill="#4e6a34">
+                            <rect x="110" y="120" width="26" height="6" rx="3" transform="rotate(30 123 123)" />
+                            <rect x="236" y="196" width="26" height="6" rx="3" transform="rotate(-20 249 199)" />
+                            <rect x="300" y="100" width="22" height="6" rx="3" />
+                        </g>
+                    </g>
+                    <rect width="400" height="300" fill="url(#vig)" />
+                    <rect width="400" height="300" fill="#f3c98a" opacity=".06" />
+                    <rect width="400" height="300" filter="url(#grain)" opacity=".09" />
+                </g>
+                <g id="ph-carbonara">
+                    <rect width="400" height="300" fill="#3b332d" />
+                    <g filter="url(#softer)"><ellipse cx="210" cy="160" rx="170" ry="130" fill="#ebe4d6" /></g>
+                    <g filter="url(#soft)">
+                        <ellipse cx="210" cy="158" rx="110" ry="84" fill="#e6c77c" />
+                        <g fill="none" stroke="#f3dc9a" stroke-width="10" opacity=".9">
+                            <path d="M120 150c30-30 60 20 90-10s50 20 80-6" />
+                            <path d="M130 180c30-24 60 24 90 0s40 14 70-6" />
+                            <path d="M140 120c26-16 50 12 80-4s34 8 56-2" />
+                        </g>
+                        <g fill="#2b2622">
+                            <circle cx="180" cy="150" r="3" />
+                            <circle cx="230" cy="170" r="3" />
+                            <circle cx="250" cy="130" r="3" />
+                            <circle cx="160" cy="190" r="3" />
+                        </g>
+                    </g>
+                    <rect width="400" height="300" fill="url(#vig)" />
+                    <rect width="400" height="300" fill="#f3c98a" opacity=".06" />
+                    <rect width="400" height="300" filter="url(#grain)" opacity=".09" />
+                </g>
+                <g id="ph-ramen">
+                    <rect width="400" height="300" fill="#24201d" />
+                    <g filter="url(#softer)"><circle cx="200" cy="160" r="150" fill="#3a3430" /></g>
+                    <g filter="url(#soft)">
+                        <circle cx="200" cy="160" r="118" fill="#b07a3e" />
+                        <circle cx="190" cy="150" r="90" fill="#cf9a52" />
+                        <ellipse cx="240" cy="120" rx="34" ry="26" fill="#f6efe0" />
+                        <circle cx="240" cy="120" r="14" fill="#e88a2a" />
+                        <g fill="#7e5a3a">
+                            <ellipse cx="150" cy="130" rx="26" ry="16" />
+                            <ellipse cx="236" cy="200" rx="24" ry="16" />
+                        </g>
+                        <g fill="#7ba848">
+                            <circle cx="170" cy="190" r="8" />
+                            <circle cx="200" cy="200" r="7" />
+                            <circle cx="150" cy="170" r="7" />
+                        </g>
+                    </g>
+                    <rect width="400" height="300" fill="url(#vig)" />
+                    <rect width="400" height="300" fill="#f3c98a" opacity=".06" />
+                    <rect width="400" height="300" filter="url(#grain)" opacity=".09" />
+                </g>
+                <g id="ph-cookies">
+                    <rect width="400" height="300" fill="#8a6a4a" />
+                    <g filter="url(#softer)"><rect x="20" y="20" width="360" height="260" fill="#efe6d5" /></g>
+                    <g filter="url(#soft)">
+                        <g fill="#b97a3c">
+                            <circle cx="110" cy="110" r="64" />
+                            <circle cx="260" cy="90" r="58" />
+                            <circle cx="180" cy="220" r="66" />
+                            <circle cx="330" cy="220" r="52" />
+                        </g>
+                        <g fill="#d79a52" opacity=".8">
+                            <circle cx="100" cy="100" r="40" />
+                            <circle cx="250" cy="80" r="36" />
+                            <circle cx="170" cy="210" r="40" />
+                        </g>
+                        <g fill="#3a2418">
+                            <circle cx="120" cy="96" r="9" />
+                            <circle cx="90" cy="130" r="8" />
+                            <circle cx="270" cy="100" r="9" />
+                            <circle cx="190" cy="226" r="9" />
+                            <circle cx="160" cy="200" r="8" />
+                            <circle cx="330" cy="210" r="8" />
+                        </g>
+                    </g>
+                    <rect width="400" height="300" fill="url(#vig)" />
+                    <rect width="400" height="300" fill="#f3c98a" opacity=".06" />
+                    <rect width="400" height="300" filter="url(#grain)" opacity=".09" />
+                </g>
+
+                <!-- Coming-soon line sketches: pewter on paper (3.62:1), drawn like an unfinished study -->
+                <g id="sk-nutrition" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round">
+                    <circle cx="24" cy="28" r="18" />
+                    <path d="M24 10a18 18 0 0 1 17 22" stroke-dasharray="3 4" />
+                    <path d="M52 18h20M52 28h14M52 38h18" />
+                </g>
+                <g
+                    id="sk-resume"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.75"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                >
+                    <path d="M14 26h48v14a10 10 0 0 1-10 10H24a10 10 0 0 1-10-10z" />
+                    <path d="M8 26h60" />
+                    <path d="M28 18c-3-4 3-6 0-10M38 18c-3-4 3-6 0-10M48 18c-3-4 3-6 0-10" />
+                </g>
+                <g id="sk-week" fill="none" stroke="currentColor" stroke-width="1.75">
+                    <circle cx="8" cy="20" r="6" />
+                    <circle cx="24" cy="20" r="6" />
+                    <circle cx="40" cy="20" r="6" />
+                    <circle cx="56" cy="20" r="6" />
+                    <circle cx="16" cy="38" r="6" />
+                    <circle cx="32" cy="38" r="6" />
+                    <circle cx="48" cy="38" r="6" stroke-dasharray="2.5 3" />
+                </g>
+            </defs>
+        </svg>
+
+        <header class="board-head">
+            <div class="kicker">Commise UI refresh · Round 2 · Designer 1</div>
+            <h1>Still Life, <i>lit</i></h1>
+            <p>
+                Round 1's idea stands: the chrome is a calm wall, and the colour comes from the food. Round 2 proves the
+                covers come from a generator, not a painter. Every cover on this board is built with
+                <code>&lt;use&gt;</code> from one library of 9 vessels, 8 dish forms and 30 ingredient marks. The food's
+                colour now also lights the recipe page itself, so a cook who adds photos still sees a new app. Seafoam
+                stays the action colour, the serif is back to names only, and every rule the critics caught is fixed.
+            </p>
+        </header>
+
+        <!-- ================================================================== -->
+        <!-- ROW 1: phones                                                       -->
+        <!-- ================================================================== -->
+        <div class="row">
+            <!-- HOME · 390 · LIGHT · whole page -->
+            <div>
+                <div class="label">Home · 390 px · light · whole page</div>
+                <div class="device">
+                    <div class="screen light tall">
+                        <div class="status">
+                            <span>9:41</span><span class="dots"><b></b><span></span></span>
+                        </div>
+                        <div class="pad" style="padding-top: 12px">
+                            <div
+                                style="
+                                    display: flex;
+                                    justify-content: space-between;
+                                    align-items: flex-start;
+                                    gap: 16px;
+                                "
+                            >
+                                <div>
+                                    <h1 class="h-large">Good morning, <i>Eliza Ramirez</i></h1>
+                                    <p class="sub">Friday, October 16, 2026</p>
+                                </div>
+                                <div class="avatar" role="button" aria-label="Profile, Eliza Ramirez">ER</div>
+                            </div>
+                            <div class="sec-head">
+                                <h2 class="h-sec">Recent recipes</h2>
+                                <a class="link" aria-label="See all recipes">See all</a>
+                            </div>
+                            <div class="grid2">
+                                <div class="card mini">
+                                    <div class="cover">
+                                        <svg viewBox="0 0 400 300" class="lod-s" aria-hidden="true">
+                                            <use href="#cv-pancakes" />
+                                        </svg>
+                                    </div>
+                                    <div class="t">Lemon ricotta pancakes</div>
+                                    <div class="meta">35 min</div>
+                                </div>
+                                <div class="card mini">
+                                    <div class="cover">
+                                        <svg viewBox="0 0 400 300" class="lod-s" aria-hidden="true">
+                                            <use href="#cv-padthai" /></svg
+                                        ><span class="badge tl"
+                                            ><svg viewBox="0 0 24 24" class="i"><use href="#i-lock" /></svg
+                                            >Private</span
+                                        >
+                                    </div>
+                                    <div class="t">Weeknight pad thai</div>
+                                    <div class="meta">30 min</div>
+                                </div>
+                                <div class="card mini">
+                                    <div class="cover">
+                                        <svg viewBox="0 0 400 300" class="lod-s" aria-hidden="true">
+                                            <use href="#cv-tomato" /></svg
+                                        ><span class="badge tl"
+                                            ><svg viewBox="0 0 24 24" class="i"><use href="#i-pencil" /></svg
+                                            >Draft</span
+                                        >
+                                    </div>
+                                    <div class="t">Roast tomato soup</div>
+                                    <div class="meta">1 h 10 min</div>
+                                </div>
+                                <div class="card mini">
+                                    <div class="cover">
+                                        <svg viewBox="0 0 400 300" aria-hidden="true"><use href="#ph-focaccia" /></svg
+                                        ><span class="badge tr pro"
+                                            ><svg viewBox="0 0 24 24" class="i"><use href="#i-crown" /></svg>PRO</span
+                                        >
+                                    </div>
+                                    <div class="t">Sunday rosemary focaccia</div>
+                                    <div class="meta">3 h 15 min</div>
+                                </div>
+                            </div>
+                            <div class="sec-head" style="margin-top: 32px; margin-bottom: 0">
+                                <h2 class="h-sec">Coming soon</h2>
+                            </div>
+                            <p class="meta" style="font-size: 15px; margin: 2px 0 14px">
+                                Meal plans, a grocery list and daily nutrition are on the way.
+                            </p>
+                            <div class="soon">
+                                <div class="txt">
+                                    <span class="soonbadge">Soon</span>
+                                    <div class="t">Today’s nutrition</div>
+                                </div>
+                                <svg class="sk" viewBox="0 0 76 56" aria-hidden="true">
+                                    <use href="#sk-nutrition" />
+                                </svg>
+                            </div>
+                            <div class="soon">
+                                <div class="txt">
+                                    <span class="soonbadge">Soon</span>
+                                    <div class="t">Resume cooking</div>
+                                </div>
+                                <svg class="sk" viewBox="0 0 76 56" aria-hidden="true"><use href="#sk-resume" /></svg>
+                            </div>
+                            <div class="soon">
+                                <div class="txt">
+                                    <span class="soonbadge">Soon</span>
+                                    <div class="t">This week’s meals</div>
+                                </div>
+                                <svg class="sk" viewBox="0 0 76 56" aria-hidden="true">
+                                    <use href="#sk-week" transform="translate(6 0)" />
+                                </svg>
+                            </div>
+                        </div>
+                        <div class="fab">
+                            <svg viewBox="0 0 24 24" class="i"><use href="#i-plus" /></svg>New recipe
+                        </div>
+                        <nav class="tabbar glass" aria-label="Tabs">
+                            <div class="tab on" aria-current="page">
+                                <svg viewBox="0 0 24 24" class="i"><use href="#i-home" /></svg>Home
+                            </div>
+                            <div class="tab">
+                                <svg viewBox="0 0 24 24" class="i"><use href="#i-book" /></svg>Recipes
+                            </div>
+                            <div class="tab">
+                                <svg viewBox="0 0 24 24" class="i"><use href="#i-compass" /></svg>Discover
+                            </div>
+                        </nav>
+                        <div class="homebar"></div>
+                    </div>
+                </div>
+                <ul class="notes">
+                    <li><b>Mat:</b> card 18 = cover 12 + mat 6. Concentric everywhere.</li>
+                    <li>
+                        <b>Mixed library:</b> the focaccia is a cook's photo (stand-in). It wears the same mat, grain
+                        and warm grade, so it sits with the still lifes.
+                    </li>
+                    <li>
+                        <b>Coming soon:</b> three stacked cards, as today. Line sketches replace grey bars. Badge is
+                        radius 6, not a pill.
+                    </li>
+                    <li>
+                        <b>Greeting:</b> one translated sentence; the name is a rich-text span. No forced line break.
+                    </li>
+                </ul>
+            </div>
+
+            <!-- RECIPE DETAIL · 390 · LIGHT · whole page -->
+            <div>
+                <div class="label">Recipe detail · 390 px · light · whole page</div>
+                <div class="device">
+                    <div class="screen light tall">
+                        <div class="hero">
+                            <svg
+                                viewBox="40 0 320 300"
+                                preserveAspectRatio="xMidYMid slice"
+                                role="img"
+                                aria-label="Cover for Lemon and thyme roast chicken"
+                            >
+                                <use href="#cv-chicken" />
+                            </svg>
+                            <div class="status on-light-cover">
+                                <span>9:41</span><span class="dots"><b></b><span></span></span>
+                            </div>
+                            <div class="disc l glass" role="button" aria-label="Back to My recipes">
+                                <svg viewBox="0 0 24 24" class="i"><use href="#i-left" /></svg>
+                            </div>
+                            <div
+                                class="disc r glass"
+                                role="button"
+                                aria-label="More actions for Lemon and thyme roast chicken"
+                            >
+                                <svg viewBox="0 0 24 24" class="i"><use href="#i-more" /></svg>
+                            </div>
+                        </div>
+                        <div class="sheet chicken">
+                            <div class="pad">
+                                <section class="rate">
+                                    <div>
+                                        <h2 class="over">Community rating</h2>
+                                        <div class="stars" role="img" aria-label="Rated 4.8 out of 5, 12 ratings">
+                                            <svg viewBox="0 0 24 24" class="i"><use href="#i-star" /></svg
+                                            ><svg viewBox="0 0 24 24" class="i"><use href="#i-star" /></svg
+                                            ><svg viewBox="0 0 24 24" class="i"><use href="#i-star" /></svg
+                                            ><svg viewBox="0 0 24 24" class="i"><use href="#i-star" /></svg
+                                            ><svg viewBox="0 0 24 24" class="i"><use href="#i-star" /></svg>
+                                            <span class="num">4.8 · 12 ratings</span>
+                                        </div>
+                                        <p class="note">You can’t rate your own recipe.</p>
+                                    </div>
+                                    <a class="link">8 comments</a>
+                                </section>
+                                <div class="title-block">
+                                    <span class="cuisine">British</span>
+                                    <h1 class="h-recipe">Lemon and thyme roast chicken</h1>
+                                    <div class="facts">
+                                        <span>Public</span><span>Source: Family recipe card</span><a>Version history</a>
+                                    </div>
+                                </div>
+                                <div class="strip">
+                                    <div class="cell">
+                                        <span class="v">1 h 50 min</span><span class="k">Total</span>
+                                    </div>
+                                    <div class="cell"><span class="v">20 min</span><span class="k">Prep</span></div>
+                                    <div class="cell">
+                                        <span class="diff"
+                                            ><span class="pips" aria-hidden="true"
+                                                ><b></b><b></b><b class="off"></b></span
+                                            >Medium</span
+                                        ><span class="k">Difficulty</span>
+                                    </div>
+                                </div>
+                                <div class="actions">
+                                    <div class="btn primary">
+                                        <svg viewBox="0 0 24 24" class="i s20"><use href="#i-pencil" /></svg>Edit recipe
+                                    </div>
+                                    <div class="btn toggle" role="switch" aria-checked="false">
+                                        <span style="display: inline-flex; align-items: center; gap: 8px"
+                                            ><svg viewBox="0 0 24 24" class="i s20"><use href="#i-sun" /></svg>Screen
+                                            on</span
+                                        ><span class="switch"></span>
+                                    </div>
+                                </div>
+                                <p class="desc">
+                                    A Sunday roast that does the work for you: butter, lemon and thyme worked under the
+                                    skin, and everything else cooking in the same tin so the vegetables catch the
+                                    juices. Crisp skin, soft potatoes, and a pan sauce that needs…
+                                </p>
+                                <span class="more">More</span>
+                                <p class="tags">gluten-free · dinner · sunday roast</p>
+                                <div class="acc">
+                                    <div>
+                                        <div class="t">Nutrition</div>
+                                        <div class="s">612 cal per serving</div>
+                                    </div>
+                                    <svg viewBox="0 0 24 24" class="i"><use href="#i-down" /></svg>
+                                </div>
+
+                                <section class="sec">
+                                    <div class="sec-row">
+                                        <h2 class="h2">Ingredients</h2>
+                                        <a class="link" aria-label="Edit ingredients">Edit</a>
+                                    </div>
+                                    <div class="serv-row">
+                                        <span class="k">Servings</span>
+                                        <div class="stepper">
+                                            <span aria-label="Fewer servings"
+                                                ><svg viewBox="0 0 24 24" class="i s18">
+                                                    <use href="#i-minus" /></svg></span
+                                            ><b>4</b
+                                            ><span aria-label="More servings"
+                                                ><svg viewBox="0 0 24 24" class="i s18"><use href="#i-plus" /></svg
+                                            ></span>
+                                        </div>
+                                    </div>
+                                    <div class="group">Chicken</div>
+                                    <div class="line">
+                                        <span class="box"
+                                            ><svg viewBox="0 0 24 24" class="i s16" style="stroke-width: 2.5">
+                                                <use href="#i-check" /></svg></span
+                                        ><span class="main"
+                                            ><b>1</b> whole chicken<span class="subl">about 1.8 kg</span></span
+                                        >
+                                    </div>
+                                    <div class="line done">
+                                        <span class="box"
+                                            ><svg viewBox="0 0 24 24" class="i s16" style="stroke-width: 2.5">
+                                                <use href="#i-check" /></svg></span
+                                        ><span class="main"
+                                            ><b>3 tbsp</b> unsalted butter<span class="subl">softened</span></span
+                                        >
+                                    </div>
+                                    <div class="line">
+                                        <span class="box"></span
+                                        ><span class="main"
+                                            ><b>1</b> lemon<span class="subl">zested and halved</span></span
+                                        >
+                                    </div>
+                                    <div class="line">
+                                        <span class="box"></span><span class="main"><b>6 sprigs</b> fresh thyme</span>
+                                    </div>
+                                    <div class="line">
+                                        <span class="box"></span
+                                        ><span class="main"
+                                            ><b>1 head</b> garlic<span class="subl">halved crosswise</span></span
+                                        >
+                                    </div>
+                                    <div class="line">
+                                        <span class="box"></span><span class="main"><b>1 tsp</b> flaky sea salt</span>
+                                    </div>
+                                    <div class="group">Vegetables</div>
+                                    <div class="line">
+                                        <span class="box"></span
+                                        ><span class="main"
+                                            ><b>800 g</b> waxy potatoes<span class="subl">quartered</span></span
+                                        >
+                                    </div>
+                                    <div class="line">
+                                        <span class="box"></span
+                                        ><span class="main"
+                                            ><b>3</b> carrots<span class="subl">cut into chunks</span></span
+                                        >
+                                    </div>
+                                    <div class="line">
+                                        <span class="box"></span
+                                        ><span class="main"
+                                            ><b>2</b> red onions<span class="subl">cut into wedges</span></span
+                                        >
+                                    </div>
+                                    <div class="line">
+                                        <span class="box"></span><span class="main"><b>2 tbsp</b> olive oil</span>
+                                    </div>
+                                </section>
+                                <section class="sec">
+                                    <h2 class="h2" style="margin-bottom: 4px">Steps</h2>
+                                    <div class="step">
+                                        <span class="n">1</span>
+                                        <p>
+                                            Heat the oven to 220°C (200°C fan). Take the chicken out of the fridge, pat
+                                            the skin dry with paper towels, and leave it at room temperature while the
+                                            oven heats.
+                                        </p>
+                                    </div>
+                                    <div class="step now" aria-current="step">
+                                        <span class="n">2</span>
+                                        <div>
+                                            <span class="nowtag">Now</span>
+                                            <p>
+                                                Mash the butter with the lemon zest, half of the thyme leaves and the
+                                                salt. Work your fingers under the skin of the breast and spread the
+                                                butter over the meat.
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <div class="step">
+                                        <span class="n">3</span>
+                                        <p>
+                                            Scatter the potatoes, carrots and onions in a large roasting tin and toss
+                                            with the olive oil. Put the chicken on top with the halved lemon, the garlic
+                                            and the rest of the thyme in the cavity.
+                                        </p>
+                                    </div>
+                                    <div class="step">
+                                        <span class="n">4</span>
+                                        <div>
+                                            <p>
+                                                Roast for 20 minutes, then lower the oven to 190°C (170°C fan) and roast
+                                                for another 1 hour 10 minutes, until the juices run clear.
+                                            </p>
+                                            <span class="timer"
+                                                ><svg viewBox="0 0 24 24" class="i"><use href="#i-timer" /></svg>1 h 30
+                                                min</span
+                                            >
+                                        </div>
+                                    </div>
+                                </section>
+                            </div>
+                        </div>
+                        <nav class="tabbar glass" aria-label="Tabs">
+                            <div class="tab">
+                                <svg viewBox="0 0 24 24" class="i"><use href="#i-home" /></svg>Home
+                            </div>
+                            <div class="tab on" aria-current="page">
+                                <svg viewBox="0 0 24 24" class="i"><use href="#i-book" /></svg>Recipes
+                            </div>
+                            <div class="tab">
+                                <svg viewBox="0 0 24 24" class="i"><use href="#i-compass" /></svg>Discover
+                            </div>
+                        </nav>
+                        <div class="homebar"></div>
+                    </div>
+                </div>
+                <ul class="notes">
+                    <li>
+                        <b>The recipe's own light:</b> the sheet's top takes the cover's ground (terracotta) at 25% over
+                        plaster, fading to plaster by 420 px. It replaces the global warm corner on this screen.
+                    </li>
+                    <li>
+                        <b>Status bar:</b> <code>CoverSpec.statusBar = 'dark'</code> here (ink on the top band,
+                        10.32:1).
+                    </li>
+                    <li>
+                        <b>Kitchen light:</b> warmer fill, 4 px honey rail, a "Now" tag and real elevation, so it reads
+                        from across the room.
+                    </li>
+                    <li>
+                        <b>Inter</b> for Ingredients, Steps, Nutrition. Fraunces only for the title and the cook's group
+                        labels.
+                    </li>
+                </ul>
+            </div>
+
+            <!-- HOME · 390 · DARK -->
+            <div>
+                <div class="label">Home · 390 px · dark</div>
+                <div class="device">
+                    <div class="screen dark">
+                        <div class="status">
+                            <span>9:41</span><span class="dots"><b></b><span></span></span>
+                        </div>
+                        <div class="pad" style="padding-top: 12px">
+                            <div
+                                style="
+                                    display: flex;
+                                    justify-content: space-between;
+                                    align-items: flex-start;
+                                    gap: 16px;
+                                "
+                            >
+                                <div>
+                                    <h1 class="h-large">Good morning, <i>Eliza Ramirez</i></h1>
+                                    <p class="sub">Friday, October 16, 2026</p>
+                                </div>
+                                <div class="avatar" role="button" aria-label="Profile, Eliza Ramirez">ER</div>
+                            </div>
+                            <div class="sec-head">
+                                <h2 class="h-sec">Recent recipes</h2>
+                                <a class="link">See all</a>
+                            </div>
+                            <div class="grid2">
+                                <div class="card mini">
+                                    <div class="cover">
+                                        <svg viewBox="0 0 400 300" class="lod-s" aria-hidden="true">
+                                            <use href="#cv-pancakes" />
+                                        </svg>
+                                    </div>
+                                    <div class="t">Lemon ricotta pancakes</div>
+                                    <div class="meta">35 min</div>
+                                </div>
+                                <div class="card mini">
+                                    <div class="cover">
+                                        <svg viewBox="0 0 400 300" class="lod-s" aria-hidden="true">
+                                            <use href="#cv-padthai" /></svg
+                                        ><span class="badge tl"
+                                            ><svg viewBox="0 0 24 24" class="i"><use href="#i-lock" /></svg
+                                            >Private</span
+                                        >
+                                    </div>
+                                    <div class="t">Weeknight pad thai</div>
+                                    <div class="meta">30 min</div>
+                                </div>
+                                <div class="card mini">
+                                    <div class="cover">
+                                        <svg viewBox="0 0 400 300" class="lod-s" aria-hidden="true">
+                                            <use href="#cv-tomato" /></svg
+                                        ><span class="badge tl"
+                                            ><svg viewBox="0 0 24 24" class="i"><use href="#i-pencil" /></svg
+                                            >Draft</span
+                                        >
+                                    </div>
+                                    <div class="t">Roast tomato soup</div>
+                                    <div class="meta">1 h 10 min</div>
+                                </div>
+                                <div class="card mini">
+                                    <div class="cover">
+                                        <svg viewBox="0 0 400 300" aria-hidden="true"><use href="#ph-focaccia" /></svg
+                                        ><span class="badge tr pro"
+                                            ><svg viewBox="0 0 24 24" class="i"><use href="#i-crown" /></svg>PRO</span
+                                        >
+                                    </div>
+                                    <div class="t">Sunday rosemary focaccia</div>
+                                    <div class="meta">3 h 15 min</div>
+                                </div>
+                            </div>
+                            <div class="soon" style="margin-top: 24px">
+                                <div class="txt">
+                                    <span class="soonbadge">Soon</span>
+                                    <div class="t">Today’s nutrition</div>
+                                </div>
+                                <svg class="sk" viewBox="0 0 76 56" aria-hidden="true">
+                                    <use href="#sk-nutrition" />
+                                </svg>
+                            </div>
+                        </div>
+                        <div class="fab">
+                            <svg viewBox="0 0 24 24" class="i"><use href="#i-plus" /></svg>New recipe
+                        </div>
+                        <nav class="tabbar glass" aria-label="Tabs">
+                            <div class="tab on" aria-current="page">
+                                <svg viewBox="0 0 24 24" class="i"><use href="#i-home" /></svg>Home
+                            </div>
+                            <div class="tab">
+                                <svg viewBox="0 0 24 24" class="i"><use href="#i-book" /></svg>Recipes
+                            </div>
+                            <div class="tab">
+                                <svg viewBox="0 0 24 24" class="i"><use href="#i-compass" /></svg>Discover
+                            </div>
+                        </nav>
+                        <div class="homebar"></div>
+                    </div>
+                </div>
+                <ul class="notes">
+                    <li>
+                        <b>The mat survives the dark:</b> paper raised to <code>#25211D</code>, a 10% warm edge on the
+                        card and a 16% ring on the cover.
+                    </li>
+                    <li>
+                        <b>Covers swap ground, not dim:</b> each swatch has a dark linen. Plates drop to
+                        <code>#D9D0C3</code>; food keeps its chroma, 8% darker.
+                    </li>
+                    <li>
+                        <b>One mint:</b> the New recipe button is the only solid mint on screen. Checked boxes in dark
+                        are tint + mint tick (see token strip).
+                    </li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- ================================================================== -->
+        <!-- ROW 2: Discover · 1280 · light, mixed photos and covers             -->
+        <!-- ================================================================== -->
+        <div class="row" style="flex-direction: column; align-items: center">
+            <div class="label" style="width: 1280px">
+                Discover · 1280 px · light · half the results have photos (stand-ins), half are still lifes
+            </div>
+            <div class="browser">
+                <div class="chrome"><i></i><i></i><i></i><span class="url">commise.app/en/discover</span></div>
+                <div class="desk light">
+                    <aside class="side" aria-label="Main">
+                        <div class="wordmark">Commise<b></b></div>
+                        <div class="new">
+                            <svg viewBox="0 0 24 24" class="i"><use href="#i-plus" /></svg>New recipe
+                        </div>
+                        <div class="nav">
+                            <svg viewBox="0 0 24 24" class="i"><use href="#i-home" /></svg>Home
+                        </div>
+                        <div class="nav">
+                            <svg viewBox="0 0 24 24" class="i"><use href="#i-book" /></svg>Recipes
+                        </div>
+                        <div class="nav on" aria-current="page">
+                            <svg viewBox="0 0 24 24" class="i"><use href="#i-compass" /></svg>Discover
+                        </div>
+                        <div class="spacer"></div>
+                        <div class="nav">
+                            <svg viewBox="0 0 24 24" class="i"><use href="#i-panel" /></svg>Collapse
+                        </div>
+                    </aside>
+                    <main class="dmain">
+                        <div class="dhead">
+                            <h1 class="h-desk">Discover</h1>
+                            <div class="avatar" role="button" aria-label="Profile, Eliza Ramirez">ER</div>
+                        </div>
+                        <div class="search" role="search">
+                            <svg viewBox="0 0 24 24" class="i s20"><use href="#i-search" /></svg>Search recipes
+                        </div>
+                        <div class="browse">
+                            <div class="fbtn">
+                                <svg viewBox="0 0 24 24" class="i s18"><use href="#i-sliders" /></svg>Filters
+                            </div>
+                            <div class="pills" role="radiogroup" aria-label="Browse recipes">
+                                <span class="pill sel" role="radio" aria-checked="true"
+                                    ><svg viewBox="0 0 24 24" class="i s16" style="stroke-width: 2.25">
+                                        <use href="#i-check" /></svg
+                                    >Trending</span
+                                >
+                                <span class="pill">New</span><span class="pill">Quick</span
+                                ><span class="pill">Italian</span><span class="pill">Indian</span
+                                ><span class="pill">Mexican</span><span class="pill">Thai</span
+                                ><span class="pill">Japanese</span><span class="pill">Greek</span
+                                ><span class="pill">American</span><span class="pill">Middle Eastern</span
+                                ><span class="pill">Korean</span>
+                            </div>
+                        </div>
+                        <div class="grid3">
+                            <article class="card full">
+                                <div class="cover">
+                                    <svg viewBox="0 0 400 300" aria-hidden="true"><use href="#ph-carbonara" /></svg
+                                    ><span class="badge bl"
+                                        ><svg viewBox="0 0 24 24" class="i"><use href="#i-clock" /></svg>25 min</span
+                                    >
+                                </div>
+                                <div class="body">
+                                    <h2 class="t">Spaghetti alla carbonara</h2>
+                                    <div class="r" role="img" aria-label="Rated 4.7 out of 5, 112 ratings">
+                                        <svg viewBox="0 0 24 24" class="i"><use href="#i-star" /></svg>4.7
+                                        <span>(112) · 690 cal</span>
+                                    </div>
+                                    <div class="foot">
+                                        <span class="by"><i>NL</i>nonna_lucia</span
+                                        ><span
+                                            class="iconbtn"
+                                            role="button"
+                                            aria-label="Save a copy of Spaghetti alla carbonara"
+                                            ><svg viewBox="0 0 24 24" class="i s20"><use href="#i-copy" /></svg
+                                        ></span>
+                                    </div>
+                                </div>
+                            </article>
+                            <article class="card full">
+                                <div class="cover">
+                                    <svg viewBox="0 0 400 300" aria-hidden="true"><use href="#cv-shakshuka" /></svg
+                                    ><span class="badge bl"
+                                        ><svg viewBox="0 0 24 24" class="i"><use href="#i-clock" /></svg>30 min</span
+                                    >
+                                </div>
+                                <div class="body">
+                                    <h2 class="t">Shakshuka with feta</h2>
+                                    <div class="r">
+                                        <svg viewBox="0 0 24 24" class="i"><use href="#i-star" /></svg>4.8
+                                        <span>(64) · 360 cal</span>
+                                    </div>
+                                    <div class="foot">
+                                        <span class="by"><i>MC</i>marisol_cooks</span
+                                        ><span
+                                            class="iconbtn"
+                                            role="button"
+                                            aria-label="Save a copy of Shakshuka with feta"
+                                            ><svg viewBox="0 0 24 24" class="i s20"><use href="#i-copy" /></svg
+                                        ></span>
+                                    </div>
+                                </div>
+                            </article>
+                            <article class="card full">
+                                <div class="cover">
+                                    <svg viewBox="0 0 400 300" aria-hidden="true"><use href="#cv-curry" /></svg
+                                    ><span class="badge bl"
+                                        ><svg viewBox="0 0 24 24" class="i"><use href="#i-clock" /></svg>35 min</span
+                                    >
+                                </div>
+                                <div class="body">
+                                    <h2 class="t">Chickpea and spinach curry</h2>
+                                    <div class="r">
+                                        <svg viewBox="0 0 24 24" class="i"><use href="#i-star" /></svg>4.6
+                                        <span>(81) · 390 cal</span>
+                                    </div>
+                                    <div class="foot">
+                                        <span class="by"><i>PK</i>priya_kitchen</span
+                                        ><span
+                                            class="iconbtn"
+                                            role="button"
+                                            aria-label="Save a copy of Chickpea and spinach curry"
+                                            ><svg viewBox="0 0 24 24" class="i s20"><use href="#i-copy" /></svg
+                                        ></span>
+                                    </div>
+                                </div>
+                            </article>
+                            <article class="card full">
+                                <div class="cover">
+                                    <svg viewBox="0 0 400 300" aria-hidden="true"><use href="#ph-ramen" /></svg
+                                    ><span class="badge bl"
+                                        ><svg viewBox="0 0 24 24" class="i"><use href="#i-clock" /></svg>45 min</span
+                                    >
+                                </div>
+                                <div class="body">
+                                    <h2 class="t">Miso butter mushroom ramen</h2>
+                                    <div class="r">
+                                        <svg viewBox="0 0 24 24" class="i"><use href="#i-star" /></svg>4.8
+                                        <span>(55) · 520 cal</span>
+                                    </div>
+                                    <div class="foot">
+                                        <span class="by"><i>KT</i>kenji_t</span
+                                        ><span
+                                            class="iconbtn"
+                                            role="button"
+                                            aria-label="Save a copy of Miso butter mushroom ramen"
+                                            ><svg viewBox="0 0 24 24" class="i s20"><use href="#i-copy" /></svg
+                                        ></span>
+                                    </div>
+                                </div>
+                            </article>
+                            <article class="card full">
+                                <div class="cover">
+                                    <svg viewBox="0 0 400 300" aria-hidden="true"><use href="#cv-dal" /></svg
+                                    ><span class="badge bl"
+                                        ><svg viewBox="0 0 24 24" class="i"><use href="#i-clock" /></svg>25 min</span
+                                    >
+                                </div>
+                                <div class="body">
+                                    <h2 class="t">Red lentil dal with crispy shallots</h2>
+                                    <div class="r">
+                                        <svg viewBox="0 0 24 24" class="i"><use href="#i-star" /></svg>4.8
+                                        <span>(140) · 340 cal</span>
+                                    </div>
+                                    <div class="foot">
+                                        <span class="by"><i>PK</i>priya_kitchen</span
+                                        ><span
+                                            class="iconbtn"
+                                            role="button"
+                                            aria-label="Save a copy of Red lentil dal with crispy shallots"
+                                            ><svg viewBox="0 0 24 24" class="i s20"><use href="#i-copy" /></svg
+                                        ></span>
+                                    </div>
+                                </div>
+                            </article>
+                            <article class="card full">
+                                <div class="cover">
+                                    <svg viewBox="0 0 400 300" aria-hidden="true"><use href="#ph-cookies" /></svg
+                                    ><span class="badge bl"
+                                        ><svg viewBox="0 0 24 24" class="i"><use href="#i-clock" /></svg>40 min</span
+                                    >
+                                </div>
+                                <div class="body">
+                                    <h2 class="t">Brown butter chocolate chip cookies</h2>
+                                    <div class="r">
+                                        <svg viewBox="0 0 24 24" class="i"><use href="#i-star" /></svg>4.9
+                                        <span>(210) · 210 cal</span>
+                                    </div>
+                                    <div class="foot">
+                                        <span class="by"><i>JB</i>jo_bakes</span
+                                        ><span
+                                            class="iconbtn"
+                                            role="button"
+                                            aria-label="Save a copy of Brown butter chocolate chip cookies"
+                                            ><svg viewBox="0 0 24 24" class="i s20"><use href="#i-copy" /></svg
+                                        ></span>
+                                    </div>
+                                </div>
+                            </article>
+                        </div>
+                    </main>
+                </div>
+            </div>
+            <ul class="notes" style="width: 1280px; columns: 2; column-gap: 40px">
+                <li>
+                    <b>960 px content:</b> 1280 − 256 sidebar − 2 × 32 padding = 960, so D8's full-card threshold holds.
+                    Sidebar is solid paper (no blur).
+                </li>
+                <li>
+                    <b>Photos and still lifes sit together</b> because every image wears the same mat, ring, grain and a
+                    6% warm grade.
+                </li>
+                <li>
+                    <b>Card title</b> Fraunces 600, opsz 18. A recipe name is a name; this is listed as a ruling change.
+                </li>
+                <li>
+                    <b>Time chip</b> is radius 6, height 24 (not pressable). The selected pill is tint + check. Only
+                    pressable controls are pills.
+                </li>
+            </ul>
+        </div>
+
+        <!-- ================================================================== -->
+        <!-- ROW 3: The generator, proven. 12 covers at the real phone size.     -->
+        <!-- ================================================================== -->
+        <section class="sheetboard light">
+            <h2>Twelve covers, one parts library</h2>
+            <p class="lede">
+                Real Discover titles at 160 px (the phone 2 × 2 size), small level of detail on. Each is
+                <code>ground + vessel + dish form + hero + 1–3 accents</code>. The hero is the most
+                <b>salient</b> matched food: skip the 30 staples (onion, garlic, oil, butter, salt, pepper, flour,
+                sugar, water, stock…), then take the food rarest in this cook's library. The vessel and dish form come
+                from the title and tags. The layout comes from a hash of the recipe id. Edge cases are tagged.
+            </p>
+            <div class="gen">
+                <div>
+                    <div class="card">
+                        <div class="cover">
+                            <svg viewBox="0 0 400 300" class="lod-s" aria-hidden="true">
+                                <use href="#cv-carbonara" />
+                            </svg>
+                        </div>
+                        <div class="t">Spaghetti alla carbonara</div>
+                        <div class="spec"><b>plate · noodles</b> · hero yolk · pecorino, pepper</div>
+                    </div>
+                </div>
+                <div>
+                    <div class="card">
+                        <div class="cover">
+                            <svg viewBox="0 0 400 300" class="lod-s" aria-hidden="true">
+                                <use href="#cv-shakshuka" />
+                            </svg>
+                        </div>
+                        <div class="t">Shakshuka with feta</div>
+                        <div class="spec"><b>skillet · eggs</b> · hero egg · feta, chili</div>
+                    </div>
+                </div>
+                <div>
+                    <div class="card">
+                        <div class="cover">
+                            <svg viewBox="0 0 400 300" class="lod-s" aria-hidden="true"><use href="#cv-curry" /></svg>
+                        </div>
+                        <span class="edge" style="margin-top: 8px">Near-twin A</span>
+                        <div class="t" style="padding-top: 0">Chickpea and spinach curry</div>
+                        <div class="spec"><b>bowl · sauce</b> · hero spinach · chickpeas, chili</div>
+                    </div>
+                </div>
+                <div>
+                    <div class="card">
+                        <div class="cover">
+                            <svg viewBox="0 0 400 300" class="lod-s" aria-hidden="true"><use href="#cv-dal" /></svg>
+                        </div>
+                        <span class="edge" style="margin-top: 8px">Near-twin B</span>
+                        <div class="t" style="padding-top: 0">Red lentil dal with crispy shallots</div>
+                        <div class="spec"><b>bowl · swirl</b> · hero shallots · lime, cilantro</div>
+                    </div>
+                </div>
+                <div>
+                    <div class="card">
+                        <div class="cover" style="position: relative">
+                            <svg viewBox="0 0 400 300" class="lod-s" aria-hidden="true"><use href="#cv-ramen" /></svg
+                            ><span class="mini-status" style="color: #fffcf7" aria-hidden="true"
+                                ><span>9:41</span><span>●●</span></span
+                            >
+                        </div>
+                        <span class="edge" style="margin-top: 8px">Dark top band</span>
+                        <div class="t" style="padding-top: 0">Miso butter mushroom ramen</div>
+                        <div class="spec">
+                            <b>deep bowl · noodles</b> · hero mushroom · egg · status bar <b>light</b>
+                        </div>
+                    </div>
+                </div>
+                <div>
+                    <div class="card">
+                        <div class="cover">
+                            <svg viewBox="0 0 400 300" class="lod-s" aria-hidden="true"><use href="#cv-cookies" /></svg>
+                        </div>
+                        <span class="edge" style="margin-top: 8px">Dessert</span>
+                        <div class="t" style="padding-top: 0">Brown butter chocolate chip cookies</div>
+                        <div class="spec"><b>parchment · scatter</b> · hero chocolate</div>
+                    </div>
+                </div>
+                <div>
+                    <div class="card">
+                        <div class="cover">
+                            <svg viewBox="0 0 400 300" class="lod-s" aria-hidden="true">
+                                <use href="#cv-sheetpan" />
+                            </svg>
+                        </div>
+                        <div class="t">Harissa sheet-pan chicken</div>
+                        <div class="spec"><b>tray · pieces</b> · hero lemon · red onion</div>
+                    </div>
+                </div>
+                <div>
+                    <div class="card">
+                        <div class="cover">
+                            <svg viewBox="0 0 400 300" class="lod-s" aria-hidden="true"><use href="#cv-oats" /></svg>
+                        </div>
+                        <span class="edge" style="margin-top: 8px">Three ingredients</span>
+                        <div class="t" style="padding-top: 0">Overnight oats with roasted plums</div>
+                        <div class="spec"><b>jar · oats</b> · hero plum</div>
+                    </div>
+                </div>
+                <div>
+                    <div class="card">
+                        <div class="cover">
+                            <svg viewBox="0 0 400 300" class="lod-s" aria-hidden="true"><use href="#cv-tacos" /></svg>
+                        </div>
+                        <div class="t">Crispy fish tacos with lime slaw</div>
+                        <div class="spec"><b>no vessel · folded</b> · hero lime · red cabbage</div>
+                    </div>
+                </div>
+                <div>
+                    <div class="card">
+                        <div class="cover">
+                            <svg viewBox="0 0 400 300" class="lod-s" aria-hidden="true">
+                                <use href="#cv-gazpacho" />
+                            </svg>
+                        </div>
+                        <div class="t">Chilled tomato gazpacho</div>
+                        <div class="spec"><b>bowl · broth</b> · hero cucumber · tomato</div>
+                    </div>
+                </div>
+                <div>
+                    <div class="card">
+                        <div class="cover">
+                            <svg viewBox="0 0 400 300" class="lod-s" aria-hidden="true"><use href="#cv-risotto" /></svg>
+                        </div>
+                        <div class="t">Lemon asparagus risotto</div>
+                        <div class="spec"><b>plate · rice</b> · hero asparagus · lemon</div>
+                    </div>
+                </div>
+                <div>
+                    <div class="card">
+                        <div class="cover">
+                            <svg viewBox="0 0 400 300" class="lod-s" aria-hidden="true">
+                                <use href="#cv-bibimbap" />
+                            </svg>
+                        </div>
+                        <span class="edge" style="margin-top: 8px">No matched foods</span>
+                        <div class="t" style="padding-top: 0">Bibimbap with gochujang</div>
+                        <div class="spec"><b>bowl only</b> on plaster · still finished</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="sheetboard dark">
+            <h2>The same twelve, after hours</h2>
+            <p class="lede">
+                Same <code>&lt;use&gt;</code> references, no new drawings. Grounds swap to dark linens; plates step
+                down; the food stays in colour.
+            </p>
+            <div class="gen">
+                <div class="card">
+                    <div class="cover">
+                        <svg viewBox="0 0 400 300" class="lod-s" aria-hidden="true"><use href="#cv-carbonara" /></svg>
+                    </div>
+                    <div class="t">Spaghetti alla carbonara</div>
+                </div>
+                <div class="card">
+                    <div class="cover">
+                        <svg viewBox="0 0 400 300" class="lod-s" aria-hidden="true"><use href="#cv-shakshuka" /></svg>
+                    </div>
+                    <div class="t">Shakshuka with feta</div>
+                </div>
+                <div class="card">
+                    <div class="cover">
+                        <svg viewBox="0 0 400 300" class="lod-s" aria-hidden="true"><use href="#cv-curry" /></svg>
+                    </div>
+                    <div class="t">Chickpea and spinach curry</div>
+                </div>
+                <div class="card">
+                    <div class="cover">
+                        <svg viewBox="0 0 400 300" class="lod-s" aria-hidden="true"><use href="#cv-dal" /></svg>
+                    </div>
+                    <div class="t">Red lentil dal with crispy shallots</div>
+                </div>
+                <div class="card">
+                    <div class="cover">
+                        <svg viewBox="0 0 400 300" class="lod-s" aria-hidden="true"><use href="#cv-ramen" /></svg>
+                    </div>
+                    <div class="t">Miso butter mushroom ramen</div>
+                </div>
+                <div class="card">
+                    <div class="cover">
+                        <svg viewBox="0 0 400 300" class="lod-s" aria-hidden="true"><use href="#cv-cookies" /></svg>
+                    </div>
+                    <div class="t">Brown butter chocolate chip cookies</div>
+                </div>
+                <div class="card">
+                    <div class="cover">
+                        <svg viewBox="0 0 400 300" class="lod-s" aria-hidden="true"><use href="#cv-sheetpan" /></svg>
+                    </div>
+                    <div class="t">Harissa sheet-pan chicken</div>
+                </div>
+                <div class="card">
+                    <div class="cover">
+                        <svg viewBox="0 0 400 300" class="lod-s" aria-hidden="true"><use href="#cv-oats" /></svg>
+                    </div>
+                    <div class="t">Overnight oats with roasted plums</div>
+                </div>
+                <div class="card">
+                    <div class="cover">
+                        <svg viewBox="0 0 400 300" class="lod-s" aria-hidden="true"><use href="#cv-tacos" /></svg>
+                    </div>
+                    <div class="t">Crispy fish tacos with lime slaw</div>
+                </div>
+                <div class="card">
+                    <div class="cover">
+                        <svg viewBox="0 0 400 300" class="lod-s" aria-hidden="true"><use href="#cv-gazpacho" /></svg>
+                    </div>
+                    <div class="t">Chilled tomato gazpacho</div>
+                </div>
+                <div class="card">
+                    <div class="cover">
+                        <svg viewBox="0 0 400 300" class="lod-s" aria-hidden="true"><use href="#cv-risotto" /></svg>
+                    </div>
+                    <div class="t">Lemon asparagus risotto</div>
+                </div>
+                <div class="card">
+                    <div class="cover">
+                        <svg viewBox="0 0 400 300" class="lod-s" aria-hidden="true"><use href="#cv-bibimbap" /></svg>
+                    </div>
+                    <div class="t">Bibimbap with gochujang</div>
+                </div>
+            </div>
+        </section>
+
+        <section class="sheetboard light">
+            <h2>The cover draws itself while the cook writes</h2>
+            <p class="lede">
+                In the editor's existing "Photos &amp; publish" slot, with no new control. Each matched ingredient adds
+                its mark. Under reduced motion a mark simply appears.
+            </p>
+            <div class="build">
+                <div class="card">
+                    <div class="cover">
+                        <svg viewBox="0 0 400 300" aria-hidden="true"><use href="#cv-curry-0" /></svg>
+                    </div>
+                    <div class="gen">
+                        <div class="spec" style="padding-top: 8px">Title only: “Chickpea and spinach curry” → bowl</div>
+                    </div>
+                </div>
+                <svg viewBox="0 0 24 24" class="i arrow"><use href="#i-right" /></svg>
+                <div class="card">
+                    <div class="cover">
+                        <svg viewBox="0 0 400 300" aria-hidden="true"><use href="#cv-curry-1" /></svg>
+                    </div>
+                    <div class="gen">
+                        <div class="spec" style="padding-top: 8px">+ chickpeas matched → ground and fill</div>
+                    </div>
+                </div>
+                <svg viewBox="0 0 24 24" class="i arrow"><use href="#i-right" /></svg>
+                <div class="card">
+                    <div class="cover">
+                        <svg viewBox="0 0 400 300" aria-hidden="true"><use href="#cv-curry-2" /></svg>
+                    </div>
+                    <div class="gen">
+                        <div class="spec" style="padding-top: 8px">+ spinach → becomes the hero (rarer)</div>
+                    </div>
+                </div>
+                <svg viewBox="0 0 24 24" class="i arrow"><use href="#i-right" /></svg>
+                <div class="card">
+                    <div class="cover">
+                        <svg viewBox="0 0 400 300" aria-hidden="true"><use href="#cv-curry" /></svg>
+                    </div>
+                    <div class="gen">
+                        <div class="spec" style="padding-top: 8px">+ green chili → accent. Done.</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ================================================================== -->
+        <!-- TOKEN STRIP                                                         -->
+        <!-- ================================================================== -->
+        <section class="tokens" aria-label="Tokens">
+            <div>
+                <h3>Colour · light</h3>
+                <div class="sw-grid">
+                    <div class="sw">
+                        <div style="background: #f3ece1"></div>
+                        <p>canvas<span>#F3ECE1</span></p>
+                    </div>
+                    <div class="sw">
+                        <div style="background: #fffcf7; box-shadow: inset 0 -1px 0 #e2d9cb"></div>
+                        <p>paper<span>#FFFCF7</span></p>
+                    </div>
+                    <div class="sw">
+                        <div style="background: #ece4d7"></div>
+                        <p>linen<span>#ECE4D7</span></p>
+                    </div>
+                    <div class="sw">
+                        <div style="background: #24201c"></div>
+                        <p>ink<span>#24201C · 13.78</span></p>
+                    </div>
+                    <div class="sw">
+                        <div style="background: #6b645c"></div>
+                        <p>stone<span>#6B645C · 4.97</span></p>
+                    </div>
+                    <div class="sw">
+                        <div style="background: #8a847c"></div>
+                        <p>pewter<span>#8A847C · 3.16</span></p>
+                    </div>
+                    <div class="sw">
+                        <div style="background: #31807a"></div>
+                        <p>seafoam<span>#31807A · w 4.67</span></p>
+                    </div>
+                    <div class="sw">
+                        <div style="background: #2a6b65"></div>
+                        <p>ocean-dark<span>#2A6B65 · 5.28</span></p>
+                    </div>
+                    <div class="sw">
+                        <div style="background: #ddebe7"></div>
+                        <p>tint<span>#DDEBE7</span></p>
+                    </div>
+                    <div class="sw">
+                        <div style="background: #a86a12"></div>
+                        <p>honey<span>#A86A12 · 3.78</span></p>
+                    </div>
+                    <div class="sw">
+                        <div style="background: #f5e2a8"></div>
+                        <p>kitchen light<span>#F5E2A8</span></p>
+                    </div>
+                    <div class="sw">
+                        <div style="background: #b1442b"></div>
+                        <p>danger<span>#B1442B · 4.80</span></p>
+                    </div>
+                </div>
+                <h3 style="margin-top: 18px">Colour · dark</h3>
+                <div class="sw-grid sw-dark">
+                    <div class="sw">
+                        <div style="background: #151311"></div>
+                        <p>canvas<span>#151311</span></p>
+                    </div>
+                    <div class="sw">
+                        <div style="background: #25211d"></div>
+                        <p>paper<span>#25211D</span></p>
+                    </div>
+                    <div class="sw">
+                        <div style="background: #2c2723"></div>
+                        <p>linen<span>#2C2723</span></p>
+                    </div>
+                    <div class="sw">
+                        <div style="background: #f2ece2"></div>
+                        <p>ink<span>#F2ECE2 · 15.77</span></p>
+                    </div>
+                    <div class="sw">
+                        <div style="background: #b3a99c"></div>
+                        <p>stone<span>#B3A99C · 8.01</span></p>
+                    </div>
+                    <div class="sw">
+                        <div style="background: #857d72"></div>
+                        <p>pewter<span>#857D72 · 3.94 pp</span></p>
+                    </div>
+                    <div class="sw">
+                        <div style="background: #6cc0b3"></div>
+                        <p>mint (one token)<span>#6CC0B3 · 8.67</span></p>
+                    </div>
+                    <div class="sw">
+                        <div style="background: #0f1f1c"></div>
+                        <p>on-mint<span>#0F1F1C · 7.97</span></p>
+                    </div>
+                    <div class="sw">
+                        <div style="background: #1e302d"></div>
+                        <p>tint<span>#1E302D · 6.48</span></p>
+                    </div>
+                    <div class="sw">
+                        <div style="background: #e0a84a"></div>
+                        <p>honey<span>#E0A84A</span></p>
+                    </div>
+                    <div class="sw">
+                        <div style="background: #362d1c"></div>
+                        <p>kitchen light<span>#362D1C</span></p>
+                    </div>
+                    <div class="sw">
+                        <div style="background: #f0907a"></div>
+                        <p>danger<span>#F0907A · 7.92</span></p>
+                    </div>
+                </div>
+                <h3 style="margin-top: 18px">Cover grounds (light / dark)</h3>
+                <div class="sw-grid" style="grid-template-columns: repeat(10, 1fr)">
+                    <div class="sw">
+                        <div style="background: linear-gradient(90deg, #f0ddb0 50%, #4a3e22 50%)"></div>
+                        <p>butter</p>
+                    </div>
+                    <div class="sw">
+                        <div style="background: linear-gradient(90deg, #eadfcb 50%, #3a3228 50%)"></div>
+                        <p>oat</p>
+                    </div>
+                    <div class="sw">
+                        <div style="background: linear-gradient(90deg, #d9dcc0 50%, #2f3426 50%)"></div>
+                        <p>sage</p>
+                    </div>
+                    <div class="sw">
+                        <div style="background: linear-gradient(90deg, #ebcfc4 50%, #43302a 50%)"></div>
+                        <p>blush</p>
+                    </div>
+                    <div class="sw">
+                        <div style="background: linear-gradient(90deg, #d6dee0 50%, #27313a 50%)"></div>
+                        <p>sky</p>
+                    </div>
+                    <div class="sw">
+                        <div style="background: linear-gradient(90deg, #e8c9ae 50%, #4a3326 50%)"></div>
+                        <p>terra</p>
+                    </div>
+                    <div class="sw">
+                        <div style="background: linear-gradient(90deg, #dcd3de 50%, #352f3c 50%)"></div>
+                        <p>lilac</p>
+                    </div>
+                    <div class="sw">
+                        <div style="background: linear-gradient(90deg, #d3e3da 50%, #25352e 50%)"></div>
+                        <p>mint</p>
+                    </div>
+                    <div class="sw">
+                        <div style="background: linear-gradient(90deg, #2f3e46 50%, #1c262b 50%)"></div>
+                        <p>ink</p>
+                    </div>
+                    <div class="sw">
+                        <div style="background: linear-gradient(90deg, #e9e1d4 50%, #2c2723 50%)"></div>
+                        <p>plaster</p>
+                    </div>
+                </div>
+            </div>
+            <div class="specimen">
+                <h3>Type · Fraunces SOFT 100 (names only) + Inter (everything else)</h3>
+                <div class="s1">
+                    Good morning, <i>Eliza</i
+                    ><small>largeTitle · Fraunces 500, opsz 36 · 34 phone / 48 desktop · name in italic 400</small>
+                </div>
+                <div class="s2">
+                    Lemon and thyme roast chicken<small>cardTitle · Fraunces 600, opsz 18 · 16 compact / 19 full</small>
+                </div>
+                <div class="s2b">
+                    Vegetables<small style="font-family: var(--f-ui)"
+                        >groupLabel (cook-written) · Fraunces italic 400, opsz 18 · 17</small
+                    >
+                </div>
+                <div class="s3">Ingredients<small>sectionTitle · Inter 600 · 18 (20 on the recipe page)</small></div>
+                <div class="s4">
+                    Mash the butter with the lemon zest, half of the thyme leaves and the salt.<small
+                        >body · Inter 400 · 16/1.6</small
+                    >
+                </div>
+                <div class="s5">
+                    1 h 50 min · 800 g · 612 cal<small>figure · Inter 600, tabular · numbers are never serif</small>
+                </div>
+                <h3 style="margin-top: 6px">Shape · 6 radii, mat 6</h3>
+                <div class="scale">
+                    <div style="width: 40px; height: 40px; border-radius: 6px">6</div>
+                    <div style="width: 48px; height: 48px; border-radius: 12px">12</div>
+                    <div style="width: 56px; height: 56px; border-radius: 18px">18</div>
+                    <div style="width: 64px; height: 64px; border-radius: 24px">24</div>
+                    <div style="width: 72px; height: 72px; border-radius: 28px 28px 0 0">28</div>
+                    <div style="width: 84px; height: 40px; border-radius: 20px">full</div>
+                </div>
+                <h3 style="margin-top: 6px">Spacing · 4 pt ramp</h3>
+                <div class="spacing">
+                    <span style="height: 4px"></span><span style="height: 8px"></span><span style="height: 12px"></span
+                    ><span style="height: 16px"></span><span style="height: 20px"></span
+                    ><span style="height: 24px"></span><span style="height: 32px"></span
+                    ><span style="height: 40px"></span
+                    ><span
+                        style="
+                            font: 500 11px/1 var(--f-ui);
+                            color: #6b645c;
+                            background: none;
+                            opacity: 1;
+                            width: auto;
+                            margin-left: 8px;
+                        "
+                        >4 · 8 · 12 · 16 · 20 · 24 · 32 · 40</span
+                    >
+                </div>
+                <h3 style="margin-top: 6px">Controls</h3>
+                <div class="ctrls">
+                    <span class="chipx sel"
+                        ><svg viewBox="0 0 24 24" class="i s16" style="stroke-width: 2.25"><use href="#i-check" /></svg
+                        >Trending</span
+                    >
+                    <span class="chipx off">Quick</span>
+                    <span class="inputx">Recipe title</span>
+                    <span class="focusx">Focus ring</span>
+                </div>
+                <div class="boxes">
+                    <span class="bx" style="background: #fffcf7; box-shadow: inset 0 0 0 1.75px #8a847c"></span>off
+                    <span class="bx" style="background: #31807a; color: #fff"
+                        ><svg viewBox="0 0 24 24" class="i s16" style="stroke-width: 2.5">
+                            <use href="#i-check" /></svg></span
+                    >light on
+                    <span class="bx" style="background: #1e302d; box-shadow: inset 0 0 0 1.75px #6cc0b3; color: #6cc0b3"
+                        ><svg viewBox="0 0 24 24" class="i s16" style="stroke-width: 2.5">
+                            <use href="#i-check" /></svg></span
+                    >dark on
+                    <span
+                        style="
+                            display: inline-flex;
+                            height: 24px;
+                            align-items: center;
+                            padding: 0 8px;
+                            border-radius: 6px;
+                            background: #ece4d7;
+                            font: 600 12px/1 var(--f-ui);
+                            color: #6b645c;
+                        "
+                        >Soon · r6</span
+                    >
+                </div>
+            </div>
+        </section>
+    </body>
+</html>

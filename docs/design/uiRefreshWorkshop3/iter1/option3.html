@@ -1,0 +1,2495 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Enamelware</title>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link
+            href="https://fonts.googleapis.com/css2?family=Lexend:wght@500..700&family=Atkinson+Hyperlegible+Next:wght@400..800&display=swap"
+            rel="stylesheet"
+        />
+        <style>
+            :root {
+                --ground: #e8edf5;
+                --surface: #ffffff;
+                --seam: #d3dbe8;
+                --well: #f1f4f9;
+                --ink: #0e1a2e;
+                --slate: #3e4a5e;
+                --cobalt: #0b4dbe;
+                --oncobalt: #ffffff;
+                --wash: #e3ecfb;
+                --yolk: #f2b233;
+                --yolkdeep: #7a4e00;
+                --onyolk: #1b1405;
+                --herb: #1b6e41;
+                --amber: #8f4a00;
+                --tomato: #b3261e;
+                --edge: #6e7a90;
+                --plate: #ffffff;
+                --shadow: rgba(16, 40, 92, 0.22);
+                --gloss: rgba(255, 255, 255, 0.16);
+                --spec: rgba(255, 255, 255, 0.38);
+                --fd: 'Lexend', system-ui, sans-serif;
+                --fb: 'Atkinson Hyperlegible Next', system-ui, sans-serif;
+            }
+            .dark {
+                --ground: #0c1424;
+                --surface: #172037;
+                --seam: #2a3550;
+                --well: #222c46;
+                --ink: #eef2fa;
+                --slate: #c3ccdd;
+                --cobalt: #97beff;
+                --oncobalt: #0c1424;
+                --wash: #1d2b4d;
+                --yolk: #ffd34e;
+                --yolkdeep: #ffd34e;
+                --onyolk: #1b1405;
+                --herb: #66d69a;
+                --amber: #ffb070;
+                --tomato: #ffa0a8;
+                --edge: #7c8aaa;
+                --plate: #2c3754;
+                --shadow: rgba(0, 0, 0, 0.55);
+                --gloss: rgba(255, 255, 255, 0.22);
+                --spec: rgba(255, 255, 255, 0.5);
+            }
+            *,
+            *::before,
+            *::after {
+                box-sizing: border-box;
+            }
+            html,
+            body {
+                margin: 0;
+            }
+            body {
+                background: #f4f6fa;
+                color: #0e1a2e;
+                font: 400 17px/1.55 var(--fb);
+                -webkit-font-smoothing: antialiased;
+            }
+            .wrap {
+                max-width: 1280px;
+                margin: 0 auto;
+                padding: 0 16px;
+            }
+            .top {
+                padding: 56px 0 8px;
+                display: grid;
+                gap: 28px;
+                align-items: center;
+            }
+            @media (min-width: 880px) {
+                .top {
+                    grid-template-columns: 1.1fr 0.9fr;
+                }
+            }
+            .eyebrow {
+                font: 700 13px/1.3 var(--fb);
+                letter-spacing: 0.08em;
+                text-transform: uppercase;
+                color: #3e4a5e;
+            }
+            h1 {
+                font: 700 clamp(46px, 9.5vw, 88px)/0.98 var(--fd);
+                letter-spacing: -0.035em;
+                margin: 12px 0 18px;
+            }
+            h1 span {
+                color: #0b4dbe;
+            }
+            .lede {
+                font-size: 19px;
+                line-height: 1.55;
+                max-width: 31em;
+                margin: 0;
+                color: #22304a;
+            }
+            .tbl-hero {
+                aspect-ratio: 1.25;
+                border-radius: 28px;
+                background: #e8edf5;
+                position: relative;
+                overflow: hidden;
+                box-shadow: inset 0 0 0 1px #d3dbe8;
+            }
+            .tbl-hero > * {
+                position: absolute;
+            }
+            h2.sec {
+                font: 700 30px/1.15 var(--fd);
+                letter-spacing: -0.02em;
+                margin: 72px 0 8px;
+            }
+            .sub {
+                color: #3e4a5e;
+                margin: 0 0 24px;
+                max-width: 46em;
+            }
+            .frames {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 36px 28px;
+                align-items: flex-start;
+            }
+            .fig {
+                width: min(390px, 100%);
+                margin: 0;
+            }
+            .fig figcaption {
+                font: 600 14px/1.45 var(--fb);
+                color: #3e4a5e;
+                margin: 12px 4px 0;
+            }
+            .ph {
+                width: 100%;
+                height: 844px;
+                border-radius: 44px;
+                overflow: hidden;
+                position: relative;
+                background: var(--ground);
+                color: var(--ink);
+                box-shadow:
+                    0 0 0 1px rgba(14, 26, 46, 0.1),
+                    0 30px 60px -24px rgba(14, 26, 46, 0.35);
+                display: flex;
+                flex-direction: column;
+            }
+            .ph.long {
+                height: auto;
+            }
+            .sb {
+                height: 46px;
+                flex: none;
+                display: flex;
+                justify-content: space-between;
+                align-items: flex-end;
+                padding: 0 30px 6px;
+                font: 700 15px/1 var(--fb);
+            }
+            .sb i {
+                width: 64px;
+                height: 12px;
+                border-radius: 6px;
+                background: currentColor;
+                opacity: 0.85;
+                display: block;
+            }
+            .sc {
+                flex: 1;
+                overflow: hidden;
+                position: relative;
+            }
+            .long .sc {
+                overflow: visible;
+            }
+            .tabs {
+                flex: none;
+                height: 82px;
+                display: flex;
+                justify-content: space-around;
+                padding: 10px 4px 0;
+                background: var(--surface);
+                border-top: 1px solid var(--seam);
+            }
+            .tab {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 4px;
+                font: 700 11px/1 var(--fb);
+                color: var(--slate);
+                min-width: 56px;
+            }
+            .tab svg {
+                width: 24px;
+                height: 24px;
+            }
+            .tab.on {
+                color: var(--cobalt);
+            }
+            .i,
+            .tab svg,
+            .chev,
+            .hb svg,
+            .tg svg,
+            .btn svg,
+            .lnk svg,
+            .ed svg,
+            .tmr svg,
+            .srch svg,
+            .vw svg,
+            .cs svg {
+                fill: none;
+                stroke: currentColor;
+                stroke-width: 1.8;
+                stroke-linecap: round;
+                stroke-linejoin: round;
+            }
+            .hd {
+                display: flex;
+                align-items: flex-start;
+                justify-content: space-between;
+                gap: 12px;
+                padding: 8px 20px 4px;
+            }
+            .ttl {
+                font: 600 29px/1.12 var(--fd);
+                letter-spacing: -0.025em;
+                margin: 0;
+            }
+            .date {
+                font-size: 15px;
+                color: var(--slate);
+                margin-top: 6px;
+            }
+            .av {
+                width: 40px;
+                height: 40px;
+                border-radius: 50%;
+                background: var(--yolk);
+                color: var(--onyolk);
+                display: grid;
+                place-items: center;
+                font: 700 14px/1 var(--fb);
+                flex: none;
+                box-shadow: 0 0 0 1.5px var(--yolkdeep);
+                margin-top: 4px;
+            }
+            /* the one glossy object on a screen: an enamel-dipped pill */
+            .btn {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                gap: 8px;
+                min-height: 50px;
+                padding: 0 24px;
+                border-radius: 999px;
+                border: 0;
+                background: linear-gradient(180deg, var(--gloss), transparent 52%), var(--cobalt);
+                color: var(--oncobalt);
+                font: 700 17px/1 var(--fb);
+                box-shadow:
+                    inset 0 1px 0 var(--spec),
+                    inset 0 -2px 0 rgba(0, 0, 0, 0.14),
+                    0 10px 20px -10px var(--shadow);
+            }
+            .btn svg {
+                width: 20px;
+                height: 20px;
+                stroke-width: 2.4;
+            }
+            .dock {
+                flex: none;
+                display: flex;
+                justify-content: flex-end;
+                padding: 12px 16px;
+                background: var(--ground);
+                border-top: 1px solid var(--seam);
+            }
+            .h3 {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                padding: 0 20px;
+                margin: 14px 0 4px;
+            }
+            .h3 b,
+            .sh b {
+                font: 600 20px/1.2 var(--fd);
+                letter-spacing: -0.015em;
+            }
+            .lnk {
+                font: 700 16px/1 var(--fb);
+                color: var(--cobalt);
+                text-decoration: none;
+                display: inline-flex;
+                align-items: center;
+                gap: 4px;
+                min-height: 44px;
+            }
+            .lnk svg {
+                width: 16px;
+                height: 16px;
+                stroke-width: 2;
+            }
+            .list {
+                margin: 0 12px;
+                background: var(--surface);
+                border-radius: 20px;
+                padding: 2px 0;
+                list-style: none;
+                box-shadow: 0 0 0 1px var(--seam);
+            }
+            .row {
+                display: flex;
+                align-items: center;
+                gap: 14px;
+                padding: 8px 14px;
+                min-height: 68px;
+            }
+            .row + .row {
+                background: linear-gradient(var(--seam), var(--seam)) 76px 0 / calc(100% - 76px) 1px no-repeat;
+            }
+            .rt {
+                flex: 1;
+                min-width: 0;
+            }
+            .rn {
+                font: 700 17px/1.3 var(--fb);
+                display: block;
+            }
+            .rm {
+                font: 400 15px/1.4 var(--fb);
+                color: var(--slate);
+                display: flex;
+                flex-wrap: wrap;
+                align-items: center;
+                gap: 2px 6px;
+                margin-top: 2px;
+            }
+            .chev {
+                width: 16px;
+                height: 16px;
+                color: var(--slate);
+                stroke-width: 2;
+                flex: none;
+            }
+            .tg {
+                display: inline-flex;
+                align-items: center;
+                gap: 4px;
+                font: 700 13px/1 var(--fb);
+                padding: 4px 8px;
+                border-radius: 999px;
+                border: 1px solid var(--edge);
+                color: var(--slate);
+                white-space: nowrap;
+            }
+            .tg svg {
+                width: 12px;
+                height: 12px;
+                stroke-width: 2;
+            }
+            .cs {
+                width: 48px;
+                height: 48px;
+                display: grid;
+                place-items: center;
+                flex: none;
+                color: var(--slate);
+            }
+            .cs svg {
+                width: 26px;
+                height: 26px;
+            }
+            .note {
+                padding: 0 20px;
+                margin: 0 0 10px;
+                color: var(--slate);
+                font-size: 15px;
+            }
+            .star {
+                display: inline-flex;
+                align-items: center;
+                gap: 3px;
+                color: var(--ink);
+                font-weight: 700;
+            }
+            .star svg {
+                width: 14px;
+                height: 14px;
+                fill: var(--yolk);
+                stroke: var(--yolkdeep);
+                stroke-width: 1.2;
+            }
+            /* row plate: round, a neutral seam edge, no rim colour, no gloss */
+            .sau {
+                width: 48px;
+                height: 48px;
+                border-radius: 50%;
+                flex: none;
+                display: grid;
+                place-items: center;
+                overflow: hidden;
+                background: var(--g, var(--well));
+                color: var(--gi);
+                font: 600 21px/1 var(--fd);
+                box-shadow:
+                    0 0 0 3px var(--surface),
+                    0 0 0 4.5px var(--seam);
+            }
+            .sau svg {
+                width: 100%;
+                height: 100%;
+                display: block;
+            }
+            /* home: the latest recipe, one big plate on the table */
+            .feat {
+                position: relative;
+                height: 206px;
+                margin-top: 2px;
+            }
+            .feat .big {
+                position: absolute;
+                right: -42px;
+                top: 0;
+                width: 226px;
+                height: 226px;
+            }
+            .feat .tx {
+                position: absolute;
+                left: 20px;
+                top: 50%;
+                transform: translateY(-50%);
+                width: 176px;
+            }
+            .feat .fn {
+                font: 600 24px/1.15 var(--fd);
+                letter-spacing: -0.02em;
+                display: block;
+            }
+            .feat .fm {
+                font-size: 15px;
+                color: var(--slate);
+                margin-top: 6px;
+                display: block;
+            }
+            /* detail hero */
+            .hero {
+                height: 330px;
+                position: relative;
+                display: grid;
+                place-items: center;
+                padding-bottom: 30px;
+            }
+            .hero .big {
+                width: 268px;
+                height: 268px;
+            }
+            .prog {
+                position: absolute;
+                inset: 0;
+                transform: rotate(-90deg);
+            }
+            .prog circle {
+                fill: none;
+                stroke-width: 2.6;
+            }
+            .prog .tr {
+                stroke: var(--seam);
+            }
+            .prog .ar {
+                stroke: var(--cobalt);
+                stroke-linecap: round;
+                transition: stroke-dasharray 0.6s cubic-bezier(0.2, 0.8, 0.2, 1);
+            }
+            .pl {
+                position: relative;
+                width: 268px;
+                height: 268px;
+            }
+            .stepof {
+                position: absolute;
+                bottom: 10px;
+                left: 0;
+                right: 0;
+                text-align: center;
+                font: 700 15px/1 var(--fb);
+                color: var(--slate);
+            }
+            .stepof b {
+                color: var(--cobalt);
+            }
+            .hb {
+                position: absolute;
+                top: 6px;
+                left: 16px;
+                width: 44px;
+                height: 44px;
+                border-radius: 50%;
+                background: var(--surface);
+                display: grid;
+                place-items: center;
+                box-shadow:
+                    0 0 0 1px var(--seam),
+                    0 4px 10px -4px var(--shadow);
+            }
+            .hb svg {
+                width: 20px;
+                height: 20px;
+                stroke-width: 2.2;
+            }
+            .sheet {
+                background: var(--surface);
+                border-radius: 28px 28px 0 0;
+                padding: 24px 20px 28px;
+                box-shadow: 0 -1px 0 var(--seam);
+            }
+            .over {
+                font: 700 13px/1 var(--fb);
+                letter-spacing: 0.08em;
+                text-transform: uppercase;
+                color: var(--slate);
+            }
+            .dt {
+                font: 600 29px/1.12 var(--fd);
+                letter-spacing: -0.025em;
+                margin: 8px 0 10px;
+            }
+            .meta {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 0 16px;
+                font-size: 15px;
+                color: var(--slate);
+                align-items: center;
+            }
+            .meta > span,
+            .meta > a {
+                min-height: 32px;
+                display: inline-flex;
+                align-items: center;
+                gap: 5px;
+            }
+            .meta svg {
+                width: 16px;
+                height: 16px;
+            }
+            .meta a {
+                color: var(--cobalt);
+                font-weight: 700;
+                text-decoration: none;
+            }
+            .rate {
+                margin: 14px 0 0;
+                padding: 14px 0 0;
+                border-top: 1px solid var(--seam);
+            }
+            .rate small {
+                display: block;
+                font: 700 14px/1.4 var(--fb);
+                color: var(--slate);
+            }
+            .stars {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                margin: 4px 0;
+                font-size: 15px;
+                color: var(--slate);
+            }
+            .stars svg {
+                width: 20px;
+                height: 20px;
+                fill: var(--yolk);
+                stroke: var(--yolkdeep);
+                stroke-width: 1;
+            }
+            .rate p {
+                margin: 0;
+                font-size: 15px;
+                color: var(--slate);
+            }
+            .facts {
+                display: grid;
+                grid-template-columns: repeat(3, 1fr);
+                margin: 16px 0;
+                background: var(--well);
+                border-radius: 16px;
+                padding: 12px 0;
+            }
+            .facts div {
+                padding: 0 12px;
+            }
+            .facts div + div {
+                border-left: 1px solid var(--seam);
+            }
+            .facts b {
+                display: block;
+                white-space: nowrap;
+                font: 700 18px/1.25 var(--fb);
+                font-variant-numeric: tabular-nums;
+            }
+            .facts span {
+                font-size: 14px;
+                color: var(--slate);
+            }
+            .full {
+                width: 100%;
+            }
+            .sw-row {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                margin: 12px 0 0;
+                padding: 10px 14px;
+                border-radius: 16px;
+                background: var(--well);
+            }
+            .sw-row div {
+                flex: 1;
+            }
+            .sw-row b {
+                display: block;
+                font: 700 17px/1.3 var(--fb);
+            }
+            .sw-row span {
+                font-size: 14px;
+                color: var(--slate);
+            }
+            .switch {
+                appearance: none;
+                -webkit-appearance: none;
+                margin: 0;
+                width: 52px;
+                height: 32px;
+                border-radius: 999px;
+                background: var(--surface);
+                box-shadow: inset 0 0 0 1.5px var(--edge);
+                position: relative;
+                flex: none;
+                cursor: pointer;
+            }
+            .switch::after {
+                content: '';
+                position: absolute;
+                left: 4px;
+                top: 4px;
+                width: 24px;
+                height: 24px;
+                border-radius: 50%;
+                background: var(--edge);
+                transition:
+                    transform 0.2s ease,
+                    background 0.2s;
+            }
+            .switch:checked {
+                background: var(--cobalt);
+                box-shadow: none;
+            }
+            .switch:checked::after {
+                transform: translateX(20px);
+                background: var(--oncobalt);
+            }
+            .desc {
+                margin: 18px 0 0;
+            }
+            .more {
+                background: none;
+                border: 0;
+                padding: 0;
+                font: 700 16px/1 var(--fb);
+                color: var(--cobalt);
+                min-height: 44px;
+            }
+            .tags {
+                font-size: 15px;
+                color: var(--slate);
+            }
+            .nut {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                width: 100%;
+                margin: 8px 0 0;
+                padding: 0 14px;
+                min-height: 52px;
+                border-radius: 14px;
+                border: 1px solid var(--edge);
+                background: none;
+                color: var(--ink);
+                font: 700 16px/1 var(--fb);
+            }
+            .nut span {
+                color: var(--slate);
+                font-weight: 400;
+            }
+            .sh {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                gap: 8px;
+                margin: 28px 0 6px;
+            }
+            .sh > span {
+                display: flex;
+                align-items: center;
+                gap: 6px;
+            }
+            .ed {
+                text-decoration: none;
+                display: inline-flex;
+                align-items: center;
+                gap: 5px;
+                min-height: 44px;
+                padding: 0 6px;
+                font: 700 16px/1 var(--fb);
+                color: var(--cobalt);
+            }
+            .ed svg {
+                width: 16px;
+                height: 16px;
+            }
+            .step {
+                display: flex;
+                align-items: center;
+                border: 1px solid var(--edge);
+                border-radius: 999px;
+                height: 44px;
+            }
+            .step i {
+                width: 42px;
+                text-align: center;
+                font: 700 20px/1 var(--fb);
+                font-style: normal;
+                color: var(--cobalt);
+            }
+            .step em {
+                font: 700 15px/1 var(--fb);
+                font-style: normal;
+                min-width: 50px;
+                text-align: center;
+            }
+            .grp {
+                font: 700 13px/1 var(--fb);
+                letter-spacing: 0.08em;
+                text-transform: uppercase;
+                color: var(--slate);
+                margin: 16px 0 2px;
+            }
+            .ing {
+                display: flex;
+                gap: 12px;
+                align-items: center;
+                padding: 11px 0;
+                border-bottom: 1px solid var(--seam);
+                cursor: pointer;
+            }
+            .ing input {
+                appearance: none;
+                -webkit-appearance: none;
+                margin: 0;
+                width: 26px;
+                height: 26px;
+                border-radius: 8px;
+                border: 2px solid var(--edge);
+                flex: none;
+                display: grid;
+                place-items: center;
+                transition:
+                    background 0.15s,
+                    border-color 0.15s;
+            }
+            .ing input::after {
+                content: '';
+                width: 6px;
+                height: 12px;
+                border: solid var(--surface);
+                border-width: 0 2.5px 2.5px 0;
+                transform: rotate(45deg) scale(0);
+                margin-top: -3px;
+                transition: transform 0.15s;
+            }
+            .ing input:checked {
+                background: var(--slate);
+                border-color: var(--slate);
+            }
+            .ing input:checked::after {
+                transform: rotate(45deg) scale(1);
+            }
+            .ing input:checked + span,
+            .ing input:checked + span small {
+                color: var(--slate);
+            }
+            .ing input:checked + span q {
+                font-weight: 400;
+            }
+            .ing q {
+                quotes: none;
+                display: inline-block;
+                font-weight: 700;
+                font-variant-numeric: tabular-nums;
+                min-width: 70px;
+                margin-right: 6px;
+            }
+            .ing small {
+                color: var(--slate);
+                font-size: 15px;
+            }
+            .st {
+                display: flex;
+                gap: 14px;
+                padding: 12px 12px 12px 10px;
+                margin: 0 -10px;
+                border-radius: 16px;
+                line-height: 1.55;
+            }
+            .st input {
+                position: absolute;
+                opacity: 0;
+                pointer-events: none;
+            }
+            .num {
+                width: 40px;
+                height: 40px;
+                border-radius: 50%;
+                flex: none;
+                display: grid;
+                place-items: center;
+                border: 1.5px solid var(--edge);
+                font: 700 16px/1 var(--fb);
+                color: var(--ink);
+                cursor: pointer;
+            }
+            .st .cur {
+                display: none;
+                font: 700 14px/1 var(--fb);
+                color: var(--cobalt);
+                margin: 2px 0 6px;
+            }
+            .st:has(input:checked) {
+                background: var(--wash);
+                box-shadow: inset 3px 0 0 var(--cobalt);
+            }
+            .st:has(input:checked) .num {
+                background: var(--cobalt);
+                border-color: var(--cobalt);
+                color: var(--oncobalt);
+            }
+            .st:has(input:checked) .cur {
+                display: block;
+            }
+            .st:has(input:checked) p {
+                font-size: 21px;
+                line-height: 1.45;
+                font-weight: 500;
+            }
+            .st input:focus-visible + .num {
+                outline: 2px solid var(--ink);
+                outline-offset: 2px;
+            }
+            .st p {
+                margin: 0;
+            }
+            .tmr {
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+                margin-top: 8px;
+                min-height: 40px;
+                padding: 0 14px;
+                border-radius: 999px;
+                border: 1px solid var(--edge);
+                font: 700 15px/1 var(--fb);
+                color: var(--cobalt);
+                font-variant-numeric: tabular-nums;
+            }
+            .tmr svg {
+                width: 16px;
+                height: 16px;
+            }
+            .seg {
+                display: flex;
+                margin: 10px 20px 0;
+                background: var(--surface);
+                border-radius: 999px;
+                padding: 4px;
+                box-shadow: inset 0 0 0 1px var(--edge);
+            }
+            .seg span {
+                flex: 1;
+                text-align: center;
+                padding: 11px 0;
+                border-radius: 999px;
+                font: 700 15px/1 var(--fb);
+                color: var(--slate);
+            }
+            .seg .on {
+                background: var(--ink);
+                color: var(--surface);
+            }
+            .srch {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                margin: 12px 20px 0;
+                height: 48px;
+                padding: 0 16px;
+                border-radius: 14px;
+                background: var(--surface);
+                box-shadow: inset 0 0 0 1px var(--edge);
+                color: var(--slate);
+            }
+            .srch svg {
+                width: 20px;
+                height: 20px;
+            }
+            .chips {
+                display: flex;
+                gap: 8px;
+                padding: 12px 20px 0;
+                overflow: hidden;
+            }
+            .chip {
+                flex: none;
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+                height: 38px;
+                padding: 0 14px;
+                border-radius: 999px;
+                box-shadow: inset 0 0 0 1px var(--edge);
+                font: 700 15px/1 var(--fb);
+                color: var(--ink);
+                background: var(--surface);
+            }
+            .chip small {
+                font-size: 13px;
+                color: var(--slate);
+                font-variant-numeric: tabular-nums;
+            }
+            .chip.on {
+                background: var(--ink);
+                color: var(--surface);
+                box-shadow: none;
+            }
+            .bar {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                padding: 10px 20px 8px;
+                font-size: 15px;
+                color: var(--slate);
+            }
+            .bar b {
+                color: var(--ink);
+            }
+            .vw {
+                display: flex;
+                gap: 4px;
+            }
+            .vw span {
+                width: 44px;
+                height: 44px;
+                border-radius: 12px;
+                display: grid;
+                place-items: center;
+                color: var(--ink);
+            }
+            .vw .on {
+                background: var(--ink);
+                color: var(--surface);
+            }
+            .vw svg {
+                width: 18px;
+                height: 18px;
+            }
+            :focus-visible {
+                outline: 2px solid var(--ink);
+                outline-offset: 2px;
+            }
+            /* motion: a plate settles once (transform only, so first paint is complete); nothing loops */
+            @media (prefers-reduced-motion: no-preference) {
+                .set {
+                    animation: set 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+                }
+            }
+            @media (prefers-reduced-motion: reduce) {
+                * {
+                    transition: none !important;
+                    animation: none !important;
+                }
+            }
+            @keyframes set {
+                from {
+                    transform: translateY(-6px) scale(1.02);
+                }
+                to {
+                    transform: none;
+                }
+            }
+            /* sheet */
+            .pal {
+                display: grid;
+                grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+                gap: 14px;
+            }
+            .sw {
+                border-radius: 18px;
+                overflow: hidden;
+                background: #fff;
+                box-shadow: 0 0 0 1px rgba(14, 26, 46, 0.12);
+            }
+            .sw .c {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                height: 76px;
+            }
+            .sw .c div {
+                padding: 10px 12px;
+                font: 600 15px/1 var(--fd);
+                display: flex;
+                align-items: flex-end;
+            }
+            .sw .t {
+                padding: 12px 14px;
+                font-size: 14px;
+                line-height: 1.5;
+                color: #22304a;
+            }
+            .sw .t b {
+                display: block;
+                font: 600 16px/1.3 var(--fd);
+                color: #0e1a2e;
+            }
+            code {
+                font:
+                    500 13px/1 ui-monospace,
+                    Menlo,
+                    monospace;
+            }
+            .logic {
+                background: #0c1424;
+                color: #eef2fa;
+                border-radius: 22px;
+                padding: 22px 24px;
+                margin: 18px 0 0;
+                font-size: 18px;
+                line-height: 1.55;
+            }
+            .logic b {
+                color: #97beff;
+            }
+            .tw {
+                overflow-x: auto;
+                margin-top: 18px;
+                border-radius: 18px;
+                box-shadow: 0 0 0 1px rgba(14, 26, 46, 0.12);
+            }
+            .tbl {
+                width: 100%;
+                border-collapse: collapse;
+                font-size: 14px;
+                background: #fff;
+            }
+            .tbl th,
+            .tbl td {
+                text-align: left;
+                padding: 9px 12px;
+                border-bottom: 1px solid #e3e8f1;
+                vertical-align: top;
+            }
+            .tbl th {
+                font: 700 13px/1.3 var(--fb);
+                color: #3e4a5e;
+                background: #f1f4f9;
+            }
+            .tbl td:nth-child(n + 2) {
+                font-variant-numeric: tabular-nums;
+                white-space: nowrap;
+            }
+            .glz {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 16px 20px;
+                padding: 22px;
+                border-radius: 22px;
+                align-items: center;
+                background: var(--ground);
+                --surface: var(--ground);
+            }
+            .glz .sau {
+                width: 60px;
+                height: 60px;
+                font-size: 27px;
+            }
+            .glz p {
+                flex-basis: 100%;
+                margin: 0;
+                color: var(--slate);
+                font-size: 15px;
+            }
+            .type {
+                display: grid;
+                gap: 14px;
+                background: #fff;
+                border-radius: 22px;
+                padding: 24px;
+                box-shadow: 0 0 0 1px rgba(14, 26, 46, 0.12);
+            }
+            .type div {
+                display: grid;
+                grid-template-columns: 220px 1fr;
+                gap: 12px;
+                align-items: baseline;
+                border-bottom: 1px solid #e3e8f1;
+                padding-bottom: 12px;
+                min-width: 0;
+            }
+            .type div:last-child {
+                border: 0;
+            }
+            .type small {
+                font: 700 13px/1.3 var(--fb);
+                color: #3e4a5e;
+            }
+            @media (max-width: 560px) {
+                .type div {
+                    grid-template-columns: 1fr;
+                    gap: 4px;
+                }
+                .tbl {
+                    font-size: 13px;
+                }
+                .tbl th,
+                .tbl td {
+                    padding: 8px;
+                }
+            }
+            @media (max-width: 430px) {
+                .frames {
+                    margin: 0 -16px;
+                }
+                .fig {
+                    width: 100%;
+                }
+                .ph {
+                    border-radius: 0;
+                }
+                .fig figcaption {
+                    margin: 12px 16px 0;
+                }
+            }
+            footer {
+                color: #3e4a5e;
+                font-size: 15px;
+                padding: 48px 0 64px;
+            }
+        </style>
+    </head>
+    <body>
+        <svg width="0" height="0" style="position: absolute" aria-hidden="true">
+            <defs>
+                <filter id="grain" x="0" y="0" width="100%" height="100%">
+                    <feTurbulence type="fractalNoise" baseFrequency=".85" numOctaves="2" seed="7" />
+                    <feColorMatrix values="0 0 0 0 .5 0 0 0 0 .45 0 0 0 0 .4 0 0 0 .16 0" />
+                    <feComposite in2="SourceGraphic" operator="in" />
+                </filter>
+                <radialGradient id="vig" cx=".42" cy=".38" r=".75">
+                    <stop offset=".55" stop-color="#000" stop-opacity="0" />
+                    <stop offset="1" stop-color="#000" stop-opacity=".42" />
+                </radialGradient>
+                <radialGradient id="lite" cx=".3" cy=".22" r=".6">
+                    <stop offset="0" stop-color="#FFF6E6" stop-opacity=".55" />
+                    <stop offset="1" stop-color="#FFF6E6" stop-opacity="0" />
+                </radialGradient>
+                <linearGradient id="cake" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0" stop-color="#E9B66A" />
+                    <stop offset="1" stop-color="#B9762F" />
+                </linearGradient>
+                <linearGradient id="side" x1="0" y1="0" x2="1" y2="0">
+                    <stop offset="0" stop-color="#C98A42" />
+                    <stop offset=".55" stop-color="#9A5A22" />
+                    <stop offset="1" stop-color="#6E3C14" />
+                </linearGradient>
+                <linearGradient id="skin" x1=".2" y1="0" x2=".8" y2="1">
+                    <stop offset="0" stop-color="#E7A955" />
+                    <stop offset=".5" stop-color="#C47A2E" />
+                    <stop offset="1" stop-color="#7E4416" />
+                </linearGradient>
+                <linearGradient id="tin" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0" stop-color="#5C626C" />
+                    <stop offset="1" stop-color="#2B2F36" />
+                </linearGradient>
+                <linearGradient id="dish" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0" stop-color="#FBFCFE" />
+                    <stop offset="1" stop-color="#C9CFD9" />
+                </linearGradient>
+                <!-- the cook's photo of pancakes, shot at an angle (stand-in: no external images allowed) -->
+                <symbol id="ph-pancakes" viewBox="0 0 100 100">
+                    <rect width="100" height="100" fill="#8C97AA" />
+                    <rect width="100" height="58" fill="#A9B3C3" />
+                    <ellipse cx="50" cy="70" rx="46" ry="21" fill="#4E5868" opacity=".35" />
+                    <ellipse cx="50" cy="66" rx="45" ry="20" fill="url(#dish)" />
+                    <ellipse cx="50" cy="64" rx="33" ry="13" fill="#E6EAF0" />
+                    <g>
+                        <path d="M22 58v-8a28 10 0 0 0 56 0v8a28 10 0 0 1-56 0z" fill="url(#side)" />
+                        <ellipse cx="50" cy="50" rx="28" ry="10" fill="url(#cake)" />
+                        <path d="M24 49v-8a26 9.5 0 0 0 52 0v8a26 9.5 0 0 1-52 0z" fill="url(#side)" />
+                        <ellipse cx="50" cy="41" rx="26" ry="9.5" fill="url(#cake)" />
+                        <path d="M25 40v-8a25 9 0 0 0 50 0v8a25 9 0 0 1-50 0z" fill="url(#side)" />
+                        <ellipse cx="50" cy="32" rx="25" ry="9" fill="url(#cake)" />
+                        <ellipse cx="43" cy="29.5" rx="12" ry="3.6" fill="#F6D9A4" opacity=".7" />
+                        <path
+                            d="M38 33c6 3 18 3 24-1 1 5-2 12 1 18-2 2-4 0-4-3 0-4-2-8-4-10-4 2-10 2-14 0z"
+                            fill="#8A3C0C"
+                            opacity=".85"
+                        />
+                        <path d="M44 34c4 1 8 1 11 0" stroke="#F3B26B" stroke-width="1" fill="none" opacity=".8" />
+                        <path d="M45 26l8-1 2 4-8 1z" fill="#FFF1C4" />
+                        <path d="M46 26.4l5-.6" stroke="#fff" stroke-width=".9" />
+                        <circle cx="64" cy="63" r="3.4" fill="#2E2F6E" />
+                        <circle cx="69" cy="61" r="3" fill="#33357A" />
+                        <circle cx="35" cy="64" r="3.2" fill="#2E2F6E" />
+                        <circle cx="63" cy="62" r=".9" fill="#C9CCF2" />
+                        <circle cx="34" cy="63" r=".9" fill="#C9CCF2" />
+                        <path d="M30 30c2-3 5-3 7-1" stroke="#F1D04A" stroke-width="1.2" fill="none" />
+                    </g>
+                    <rect width="100" height="100" fill="url(#lite)" />
+                    <rect width="100" height="100" fill="url(#vig)" />
+                    <rect width="100" height="100" filter="url(#grain)" />
+                </symbol>
+                <!-- the cook's photo of the roast, in its tin, shot at an angle -->
+                <symbol id="ph-roast" viewBox="0 0 100 100">
+                    <rect width="100" height="100" fill="#6F7A8C" />
+                    <rect width="100" height="40" fill="#8E98A9" />
+                    <path d="M6 44h88l-6 46H12z" fill="url(#tin)" />
+                    <path d="M10 47h80l-5 38H15z" fill="#3A2412" />
+                    <path d="M10 47h80" stroke="#9AA2AE" stroke-width="1.6" />
+                    <g fill="#D8A050">
+                        <ellipse cx="22" cy="74" rx="8" ry="5.5" />
+                        <ellipse cx="78" cy="76" rx="8" ry="5.5" />
+                        <ellipse cx="31" cy="81" rx="6.5" ry="4.5" />
+                        <ellipse cx="70" cy="56" rx="6" ry="4" />
+                    </g>
+                    <g fill="#F2C676" opacity=".8">
+                        <ellipse cx="20" cy="72" rx="3" ry="1.6" />
+                        <ellipse cx="76" cy="74" rx="3" ry="1.6" />
+                    </g>
+                    <g fill="#D9682A">
+                        <rect x="13" y="58" width="15" height="6" rx="3" transform="rotate(-18 20 61)" />
+                        <rect x="74" y="64" width="14" height="6" rx="3" transform="rotate(22 81 67)" />
+                    </g>
+                    <g fill="#7E2C55">
+                        <path d="M22 52l9-3 3 6-9 3z" />
+                        <path d="M61 80l9-1 1 6-9 1z" />
+                    </g>
+                    <ellipse cx="50" cy="66" rx="27" ry="16" fill="#5A2E0E" opacity=".6" />
+                    <path d="M24 60c0-12 12-20 26-20s27 8 27 20c0 9-12 15-27 15s-26-6-26-15z" fill="url(#skin)" />
+                    <path
+                        d="M30 54c4-7 12-10 21-10 8 0 15 3 19 8-6-2-13-3-20-3-7 0-14 2-20 5z"
+                        fill="#F0C27A"
+                        opacity=".75"
+                    />
+                    <ellipse cx="40" cy="50" rx="7" ry="2.4" fill="#FFF3D8" opacity=".55" />
+                    <path d="M24 62c-6 0-9 4-8 7 2 3 7 2 10-1z" fill="#B76A27" />
+                    <path d="M76 62c6 0 9 4 8 7-2 3-7 2-10-1z" fill="#A65E22" />
+                    <circle cx="60" cy="70" r="5" fill="#F3D23C" />
+                    <circle cx="60" cy="70" r="3.6" fill="#FBEFA0" />
+                    <g stroke="#3F6B33" stroke-width="1.1" fill="none" stroke-linecap="round">
+                        <path d="M44 46l10-6M47 44l-1-3M50 42l-1-3M52 41l1-3" />
+                    </g>
+                    <rect width="100" height="100" fill="url(#lite)" />
+                    <rect width="100" height="100" fill="url(#vig)" />
+                    <rect width="100" height="100" filter="url(#grain)" />
+                </symbol>
+                <!-- the enamel plate: body, seam edge, photo well, one specular arc -->
+                <symbol id="plate" viewBox="0 0 100 100">
+                    <circle cx="50" cy="50" r="48" fill="var(--plate)" />
+                    <circle cx="50" cy="50" r="48" fill="none" stroke="var(--seam)" stroke-width="1" />
+                    <circle cx="50" cy="50" r="40.5" fill="none" stroke="var(--seam)" stroke-width="1.2" />
+                    <path
+                        d="M15 37A37 37 0 0 1 37 15"
+                        stroke="var(--spec)"
+                        stroke-width="2.4"
+                        fill="none"
+                        stroke-linecap="round"
+                    />
+                </symbol>
+                <clipPath id="well"><circle cx="50" cy="50" r="40" /></clipPath>
+                <symbol id="i-home" viewBox="0 0 24 24"><path d="M4 11l8-7 8 7v9h-5v-6h-6v6H4z" /></symbol>
+                <symbol id="i-book" viewBox="0 0 24 24">
+                    <path d="M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3z" />
+                    <path d="M5 17a3 3 0 0 1 3-3h11" />
+                </symbol>
+                <symbol id="i-disc" viewBox="0 0 24 24">
+                    <circle cx="12" cy="12" r="8.5" />
+                    <path d="M15.5 8.5l-2 5-5 2 2-5z" />
+                </symbol>
+                <symbol id="i-plan" viewBox="0 0 24 24">
+                    <rect x="4" y="5" width="16" height="15" rx="2.5" />
+                    <path d="M4 10h16M9 3v4M15 3v4" />
+                </symbol>
+                <symbol id="i-shop" viewBox="0 0 24 24">
+                    <path d="M5 8h14l-1.4 11H6.4z" />
+                    <path d="M9 8a3 3 0 0 1 6 0" />
+                </symbol>
+                <symbol id="i-pie" viewBox="0 0 24 24">
+                    <circle cx="12" cy="12" r="8.5" />
+                    <path d="M12 3.5V12l6 6" />
+                </symbol>
+                <symbol id="i-pot" viewBox="0 0 24 24">
+                    <path d="M4 10h16v5a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5z" />
+                    <path d="M2 10h20M9 6c0-1 1-1 1-2M14 6c0-1 1-1 1-2" />
+                </symbol>
+                <symbol id="i-chev" viewBox="0 0 16 16"><path d="M6 3l5 5-5 5" /></symbol>
+                <symbol id="i-lock" viewBox="0 0 12 12">
+                    <rect x="2" y="5.5" width="8" height="5" rx="1.2" />
+                    <path d="M4 5.5V4a2 2 0 0 1 4 0v1.5" />
+                </symbol>
+                <symbol id="i-pen" viewBox="0 0 12 12"><path d="M2 10l1-3 5-5 2 2-5 5z" /></symbol>
+                <symbol id="i-pen2" viewBox="0 0 20 20"><path d="M3 17l1.5-4.5 9-9 3 3-9 9zM12 5l3 3" /></symbol>
+                <symbol id="i-globe" viewBox="0 0 16 16">
+                    <circle cx="8" cy="8" r="6" />
+                    <path d="M2 8h12M8 2c2 2 2 10 0 12M8 2c-2 2-2 10 0 12" />
+                </symbol>
+                <symbol id="i-clock" viewBox="0 0 16 16">
+                    <circle cx="8" cy="8" r="6" />
+                    <path d="M8 5v3l2 1.5" />
+                </symbol>
+                <symbol id="i-timer" viewBox="0 0 16 16">
+                    <circle cx="8" cy="9" r="5.5" />
+                    <path d="M8 6.5V9M6.5 1.5h3" />
+                </symbol>
+                <symbol id="i-star" viewBox="0 0 20 20">
+                    <path d="M10 2l2.4 5 5.4.6-4 3.7 1.1 5.4L10 14l-4.9 2.7 1.1-5.4-4-3.7 5.4-.6z" />
+                </symbol>
+                <symbol id="i-search" viewBox="0 0 20 20">
+                    <circle cx="9" cy="9" r="6" />
+                    <path d="M14 14l4 4" />
+                </symbol>
+                <symbol id="i-down" viewBox="0 0 16 16"><path d="M3 6l5 5 5-5" /></symbol>
+                <symbol id="i-plus" viewBox="0 0 20 20"><path d="M10 4v12M4 10h12" /></symbol>
+            </defs>
+        </svg>
+
+        <div class="wrap">
+            <header class="top">
+                <div>
+                    <div class="eyebrow">Workshop 3 · Option 3 · Iteration 1</div>
+                    <h1>Enamel<span>ware</span></h1>
+                    <p class="lede">
+                        The recipe you are looking at sits on one glossy enamel plate, and its rim is a ring that fills
+                        as you cook. The rest is a calm, ordinary app on a pale enamel table, where cobalt marks only
+                        what you can press and how far you have cooked.
+                    </p>
+                </div>
+                <div class="tbl-hero" aria-hidden="true">
+                    <svg viewBox="0 0 100 100" class="set" style="width: 62%; left: 6%; top: 9%">
+                        <use href="#plate" />
+                        <g clip-path="url(#well)"><use href="#ph-roast" /></g>
+                        <circle cx="50" cy="50" r="46" fill="none" stroke="#D3DBE8" stroke-width="2.4" />
+                        <circle
+                            cx="50"
+                            cy="50"
+                            r="46"
+                            fill="none"
+                            stroke="#0B4DBE"
+                            stroke-width="2.4"
+                            stroke-linecap="round"
+                            stroke-dasharray="115.6 289"
+                            transform="rotate(-90 50 50)"
+                        />
+                    </svg>
+                    <span
+                        class="sau"
+                        style="
+                            --g: #f5e1a6;
+                            --gi: #6e4d00;
+                            --surface: #e8edf5;
+                            --seam: #d3dbe8;
+                            width: 17%;
+                            height: auto;
+                            aspect-ratio: 1;
+                            left: 72%;
+                            top: 14%;
+                            font-size: clamp(20px, 4vw, 38px);
+                        "
+                        >S</span
+                    >
+                    <span
+                        class="sau"
+                        style="
+                            --g: #cde7ea;
+                            --gi: #1f5c66;
+                            --surface: #e8edf5;
+                            --seam: #d3dbe8;
+                            width: 13%;
+                            height: auto;
+                            aspect-ratio: 1;
+                            left: 76%;
+                            top: 47%;
+                            font-size: clamp(16px, 3vw, 30px);
+                        "
+                        >O</span
+                    >
+                    <span
+                        class="btn"
+                        style="
+                            left: auto;
+                            right: 6%;
+                            bottom: 9%;
+                            --cobalt: #0b4dbe;
+                            --oncobalt: #fff;
+                            --gloss: rgba(255, 255, 255, 0.16);
+                            --spec: rgba(255, 255, 255, 0.38);
+                            --shadow: rgba(16, 40, 92, 0.22);
+                        "
+                        ><svg viewBox="0 0 20 20"><use href="#i-plus" /></svg>New recipe</span
+                    >
+                </div>
+            </header>
+
+            <h2 class="sec">Home and My recipes</h2>
+            <p class="sub">
+                390 px, light. One cobalt button per screen: New recipe, in its own band above the tabs, so it never
+                covers a row. What is chosen (All, My recipes, list view) is filled in ink, so cobalt only ever means
+                “press here”. Rows are plain list rows; their round plate is the cook’s photo or, with no photo, a
+                glazed monogram, edged in a neutral seam.
+            </p>
+
+            <div class="frames" id="light">
+                <figure class="fig" data-k="home">
+                    <div class="ph" role="img" aria-label="Home screen, light">
+                        <div class="sb"><span>9:41</span><i></i></div>
+                        <div class="sc">
+                            <div class="hd">
+                                <div>
+                                    <h3 class="ttl">Good morning, Eliza Ramirez</h3>
+                                    <div class="date">Friday, October 16, 2026</div>
+                                </div>
+                                <span class="av">ER</span>
+                            </div>
+                            <div class="h3"><b>Recent recipes</b><a class="lnk" href="#">See all</a></div>
+                            <div class="feat">
+                                <svg class="big set" viewBox="0 0 100 100" aria-hidden="true">
+                                    <use href="#plate" />
+                                    <g clip-path="url(#well)"><use href="#ph-pancakes" /></g>
+                                </svg>
+                                <div class="tx">
+                                    <span class="fn">Lemon ricotta pancakes</span
+                                    ><span class="fm">American · 35 min</span>
+                                </div>
+                            </div>
+                            <ul class="list" style="margin-top: 6px">
+                                <li class="row">
+                                    <span class="sau" style="--g: #d9e2f2; --gi: #2a4a85">W</span
+                                    ><span class="rt"
+                                        ><span class="rn">Weeknight pad thai</span
+                                        ><span class="rm"
+                                            >Thai · 30 min
+                                            <span class="tg"
+                                                ><svg><use href="#i-lock" /></svg>Private</span
+                                            ></span
+                                        ></span
+                                    ><svg class="chev"><use href="#i-chev" /></svg>
+                                </li>
+                                <li class="row">
+                                    <span class="sau" style="--g: #f6d2c4; --gi: #8e2f17">R</span
+                                    ><span class="rt"
+                                        ><span class="rn">Roast tomato soup</span
+                                        ><span class="rm"
+                                            >Italian · 1 h 10 min
+                                            <span class="tg"
+                                                ><svg><use href="#i-pen" /></svg>Draft</span
+                                            ></span
+                                        ></span
+                                    ><svg class="chev"><use href="#i-chev" /></svg>
+                                </li>
+                                <li class="row">
+                                    <span class="sau" style="--g: #cfe3d3; --gi: #2d5b3a">S</span
+                                    ><span class="rt"
+                                        ><span class="rn">Sunday rosemary focaccia</span
+                                        ><span class="rm">Italian · 3 h 15 min</span></span
+                                    ><svg class="chev"><use href="#i-chev" /></svg>
+                                </li>
+                            </ul>
+                            <div class="h3"><b>Coming soon</b></div>
+                            <p class="note">Meal plans, a grocery list and daily nutrition are on the way.</p>
+                            <ul class="list">
+                                <li class="row">
+                                    <span class="cs"
+                                        ><svg viewBox="0 0 24 24"><use href="#i-pie" /></svg></span
+                                    ><span class="rt"><span class="rn">Today’s nutrition</span></span
+                                    ><span class="tg">Soon</span>
+                                </li>
+                                <li class="row">
+                                    <span class="cs"
+                                        ><svg viewBox="0 0 24 24"><use href="#i-pot" /></svg></span
+                                    ><span class="rt"><span class="rn">Resume cooking</span></span
+                                    ><span class="tg">Soon</span>
+                                </li>
+                                <li class="row">
+                                    <span class="cs"
+                                        ><svg viewBox="0 0 24 24"><use href="#i-plan" /></svg></span
+                                    ><span class="rt"><span class="rn">This week’s meals</span></span
+                                    ><span class="tg">Soon</span>
+                                </li>
+                            </ul>
+                            <div style="height: 24px"></div>
+                        </div>
+                        <div class="dock">
+                            <span class="btn"
+                                ><svg viewBox="0 0 20 20"><use href="#i-plus" /></svg>New recipe</span
+                            >
+                        </div>
+                        <nav class="tabs">
+                            <span class="tab on"
+                                ><svg><use href="#i-home" /></svg>Home</span
+                            ><span class="tab"
+                                ><svg><use href="#i-book" /></svg>Recipes</span
+                            ><span class="tab"
+                                ><svg><use href="#i-disc" /></svg>Discover</span
+                            ><span class="tab"
+                                ><svg><use href="#i-plan" /></svg>Plan</span
+                            ><span class="tab"
+                                ><svg><use href="#i-shop" /></svg>Shop</span
+                            >
+                        </nav>
+                    </div>
+                    <figcaption>
+                        Home · light. The latest recipe sits large on the table, cut by the screen edge; the rest is a
+                        plain list.
+                    </figcaption>
+                </figure>
+
+                <figure class="fig" data-k="recipes">
+                    <div class="ph" role="img" aria-label="My recipes screen, light">
+                        <div class="sb"><span>9:41</span><i></i></div>
+                        <div class="sc">
+                            <div class="hd">
+                                <h3 class="ttl">Recipes</h3>
+                                <span class="av">ER</span>
+                            </div>
+                            <div class="seg"><span class="on">My recipes</span><span>Collections</span></div>
+                            <div class="srch">
+                                <svg><use href="#i-search" /></svg>Search your recipes
+                            </div>
+                            <div class="chips">
+                                <span class="chip on">All</span><span class="chip">Under 30 min <small>2</small></span
+                                ><span class="chip">American <small>3</small></span
+                                ><span class="chip">French <small>1</small></span>
+                            </div>
+                            <div class="bar">
+                                <span><b>9 recipes</b> · Recently edited</span
+                                ><span class="vw"
+                                    ><span class="on" aria-label="List view"
+                                        ><svg viewBox="0 0 18 18"><path d="M3 5h12M3 9h12M3 13h12" /></svg></span
+                                    ><span aria-label="Grid view"
+                                        ><svg viewBox="0 0 18 18">
+                                            <rect x="3" y="3" width="5" height="5" rx="1" />
+                                            <rect x="10" y="3" width="5" height="5" rx="1" />
+                                            <rect x="3" y="10" width="5" height="5" rx="1" />
+                                            <rect x="10" y="10" width="5" height="5" rx="1" /></svg></span
+                                ></span>
+                            </div>
+                            <ul class="list">
+                                <li class="row">
+                                    <span class="sau"
+                                        ><svg viewBox="10 10 80 80"><use href="#ph-roast" /></svg></span
+                                    ><span class="rt"
+                                        ><span class="rn">Lemon and thyme roast chicken</span
+                                        ><span class="rm"
+                                            >British · 1 h 50 min ·
+                                            <span class="star"
+                                                ><svg><use href="#i-star" /></svg>4.8</span
+                                            ></span
+                                        ></span
+                                    ><svg class="chev"><use href="#i-chev" /></svg>
+                                </li>
+                                <li class="row">
+                                    <span class="sau"
+                                        ><svg viewBox="10 10 80 80"><use href="#ph-pancakes" /></svg></span
+                                    ><span class="rt"
+                                        ><span class="rn">Lemon ricotta pancakes</span
+                                        ><span class="rm">American · 35 min</span></span
+                                    ><svg class="chev"><use href="#i-chev" /></svg>
+                                </li>
+                                <li class="row">
+                                    <span class="sau" style="--g: #d9e2f2; --gi: #2a4a85">W</span
+                                    ><span class="rt"
+                                        ><span class="rn">Weeknight Chicken Cacciatore</span
+                                        ><span class="rm"
+                                            >Italian · 55 min ·
+                                            <span class="star"
+                                                ><svg><use href="#i-star" /></svg>4.6</span
+                                            ></span
+                                        ></span
+                                    ><svg class="chev"><use href="#i-chev" /></svg>
+                                </li>
+                                <li class="row">
+                                    <span class="sau" style="--g: #f6d2c4; --gi: #8e2f17">B</span
+                                    ><span class="rt"
+                                        ><span class="rn">Brown Butter Chocolate Chip Cookies</span
+                                        ><span class="rm"
+                                            >American · 40 min ·
+                                            <span class="star"
+                                                ><svg><use href="#i-star" /></svg>4.9</span
+                                            ></span
+                                        ></span
+                                    ><svg class="chev"><use href="#i-chev" /></svg>
+                                </li>
+                                <li class="row">
+                                    <span class="sau" style="--g: #cde7ea; --gi: #1f5c66">M</span
+                                    ><span class="rt"
+                                        ><span class="rn">Miso-Glazed Salmon with Sesame Greens</span
+                                        ><span class="rm"
+                                            >Japanese · 25 min
+                                            <span class="tg"
+                                                ><svg><use href="#i-lock" /></svg>Private</span
+                                            ></span
+                                        ></span
+                                    ><svg class="chev"><use href="#i-chev" /></svg>
+                                </li>
+                                <li class="row">
+                                    <span class="sau" style="--g: #f5e1a6; --gi: #6e4d00">S</span
+                                    ><span class="rt"
+                                        ><span class="rn">Slow-Roasted Pork Shoulder</span
+                                        ><span class="rm"
+                                            >American · 6 h 30 min
+                                            <span class="tg"
+                                                ><svg><use href="#i-pen" /></svg>Draft</span
+                                            ></span
+                                        ></span
+                                    ><svg class="chev"><use href="#i-chev" /></svg>
+                                </li>
+                                <li class="row">
+                                    <span class="sau" style="--g: #e2d5ee; --gi: #5b3a7a">P</span
+                                    ><span class="rt"
+                                        ><span class="rn">Pad Thai with Shrimp</span
+                                        ><span class="rm"
+                                            >Thai · 35 min ·
+                                            <span class="star"
+                                                ><svg><use href="#i-star" /></svg>4.7</span
+                                            ></span
+                                        ></span
+                                    ><svg class="chev"><use href="#i-chev" /></svg>
+                                </li>
+                            </ul>
+                        </div>
+                        <div class="dock">
+                            <span class="btn"
+                                ><svg viewBox="0 0 20 20"><use href="#i-plus" /></svg>New recipe</span
+                            >
+                        </div>
+                        <nav class="tabs">
+                            <span class="tab"
+                                ><svg><use href="#i-home" /></svg>Home</span
+                            ><span class="tab on"
+                                ><svg><use href="#i-book" /></svg>Recipes</span
+                            ><span class="tab"
+                                ><svg><use href="#i-disc" /></svg>Discover</span
+                            ><span class="tab"
+                                ><svg><use href="#i-plan" /></svg>Plan</span
+                            ><span class="tab"
+                                ><svg><use href="#i-shop" /></svg>Shop</span
+                            >
+                        </nav>
+                    </div>
+                    <figcaption>
+                        My recipes · light. Two recipes have photos; five do not, so each wears its own glazed letter.
+                        Nothing is a made-up dish.
+                    </figcaption>
+                </figure>
+            </div>
+
+            <h2 class="sec">Recipe detail, the whole page, by day and by night</h2>
+            <p class="sub">
+                The cook’s photo sits in the plate. Its rim is the cooking progress: tap a step’s number and the cobalt
+                ring moves to that step, with the words beside it. It moves only when you tap, never on its own. The
+                current step is larger type on a cobalt rule.
+            </p>
+            <div class="frames" id="detail">
+                <figure class="fig" data-k="detail">
+                    <div class="ph long" aria-label="Recipe detail screen, light, full page">
+                        <div class="sb"><span>9:41</span><i></i></div>
+                        <div class="sc">
+                            <div class="hero">
+                                <div class="pl set">
+                                    <svg class="big" viewBox="0 0 100 100" aria-hidden="true">
+                                        <use href="#plate" />
+                                        <g clip-path="url(#well)"><use href="#ph-roast" /></g>
+                                    </svg>
+                                    <svg class="prog" viewBox="0 0 100 100" aria-hidden="true">
+                                        <circle class="tr" cx="50" cy="50" r="45" />
+                                        <circle class="ar" cx="50" cy="50" r="45" stroke-dasharray="113.1 283" />
+                                    </svg>
+                                </div>
+                                <div class="stepof" aria-live="polite">
+                                    <b>Step <span class="n">2</span></b> of 5
+                                </div>
+                                <span class="hb" role="button" aria-label="Back to My recipes"
+                                    ><svg viewBox="0 0 20 20"><path d="M12 4l-6 6 6 6" /></svg
+                                ></span>
+                            </div>
+                            <div class="sheet">
+                                <div class="over">British</div>
+                                <div class="dt">Lemon and thyme roast chicken</div>
+                                <div class="meta">
+                                    <span
+                                        ><svg class="i"><use href="#i-globe" /></svg>Public</span
+                                    ><span>Source: Family recipe card</span
+                                    ><a href="#"
+                                        ><svg class="i"><use href="#i-clock" /></svg>Version history</a
+                                    >
+                                </div>
+                                <div class="rate">
+                                    <small>Community rating</small>
+                                    <div class="stars" role="img" aria-label="Rated 4.8 out of 5, 12 ratings">
+                                        <span
+                                            ><svg><use href="#i-star" /></svg><svg><use href="#i-star" /></svg
+                                            ><svg><use href="#i-star" /></svg><svg><use href="#i-star" /></svg
+                                            ><svg><use href="#i-star" /></svg></span
+                                        >4.8 · 12 ratings
+                                    </div>
+                                    <p>You can’t rate your own recipe.</p>
+                                    <a class="lnk" href="#"
+                                        >8 comments<svg viewBox="0 0 16 16"><use href="#i-chev" /></svg
+                                    ></a>
+                                </div>
+                                <div class="facts">
+                                    <div><b>1 h 50 min</b><span>Total</span></div>
+                                    <div><b>20 min</b><span>Prep</span></div>
+                                    <div><b>Medium</b><span>Difficulty</span></div>
+                                </div>
+                                <span class="btn full"
+                                    ><svg viewBox="0 0 20 20"><use href="#i-pen2" /></svg>Edit recipe</span
+                                >
+                                <label class="sw-row"
+                                    ><div><b>Screen on</b><span>Keeps the screen awake while you cook.</span></div>
+                                    <input class="switch" type="checkbox" role="switch" checked
+                                /></label>
+                                <p class="desc">
+                                    A Sunday roast that does the work for you: butter, lemon and thyme worked under the
+                                    skin, and everything else cooking in the same tin so the vegetables catch the
+                                    juices.
+                                </p>
+                                <button class="more" type="button">More</button>
+                                <div class="tags">gluten-free · dinner · sunday roast</div>
+                                <button class="nut" type="button" aria-expanded="false">
+                                    Nutrition
+                                    <span
+                                        >612 cal per serving
+                                        <svg class="i" width="16" height="16" style="vertical-align: -3px">
+                                            <use href="#i-down" /></svg
+                                    ></span>
+                                </button>
+                                <div class="sh">
+                                    <b>Ingredients</b
+                                    ><span
+                                        ><span class="step" role="group" aria-label="Servings"
+                                            ><i aria-label="Fewer servings">−</i><em>for 4</em
+                                            ><i aria-label="More servings">+</i></span
+                                        ><a class="ed" href="#" aria-label="Edit ingredients"
+                                            ><svg viewBox="0 0 20 20"><use href="#i-pen2" /></svg>Edit</a
+                                        ></span
+                                    >
+                                </div>
+                                <div class="grp">Chicken</div>
+                                <label class="ing"
+                                    ><input type="checkbox" checked /><span
+                                        ><q>1</q>whole chicken <small>about 1.8 kg</small></span
+                                    ></label
+                                >
+                                <label class="ing"
+                                    ><input type="checkbox" checked /><span
+                                        ><q>3 tbsp</q>unsalted butter <small>softened</small></span
+                                    ></label
+                                >
+                                <label class="ing"
+                                    ><input type="checkbox" /><span
+                                        ><q>1</q>lemon <small>zested and halved</small></span
+                                    ></label
+                                >
+                                <label class="ing"
+                                    ><input type="checkbox" /><span><q>6 sprigs</q>fresh thyme</span></label
+                                >
+                                <label class="ing"
+                                    ><input type="checkbox" /><span
+                                        ><q>1 head</q>garlic <small>halved crosswise</small></span
+                                    ></label
+                                >
+                                <label class="ing"
+                                    ><input type="checkbox" /><span><q>1 tsp</q>flaky sea salt</span></label
+                                >
+                                <div class="grp">Vegetables</div>
+                                <label class="ing"
+                                    ><input type="checkbox" /><span
+                                        ><q>800 g</q>waxy potatoes <small>quartered</small></span
+                                    ></label
+                                >
+                                <label class="ing"
+                                    ><input type="checkbox" /><span
+                                        ><q>3</q>carrots <small>cut into chunks</small></span
+                                    ></label
+                                >
+                                <label class="ing"
+                                    ><input type="checkbox" /><span
+                                        ><q>2</q>red onions <small>cut into wedges</small></span
+                                    ></label
+                                >
+                                <label class="ing"
+                                    ><input type="checkbox" /><span><q>2 tbsp</q>olive oil</span></label
+                                >
+                                <label class="ing"
+                                    ><input type="checkbox" /><span
+                                        >Freshly ground black pepper <small>to taste</small></span
+                                    ></label
+                                >
+                                <div class="sh">
+                                    <b>Steps</b
+                                    ><a class="ed" href="#" aria-label="Edit steps"
+                                        ><svg viewBox="0 0 20 20"><use href="#i-pen2" /></svg>Edit</a
+                                    >
+                                </div>
+                                <div class="steps">
+                                    <label class="st"
+                                        ><input
+                                            type="radio"
+                                            name="step-l"
+                                            value="1"
+                                            aria-label="Mark step 1 as current"
+                                        /><span class="num">1</span>
+                                        <div>
+                                            <span class="cur">Current step</span>
+                                            <p>
+                                                Heat the oven to 220°C (200°C fan). Take the chicken out of the fridge,
+                                                pat the skin dry with paper towels, and leave it at room temperature
+                                                while the oven heats.
+                                            </p>
+                                        </div></label
+                                    >
+                                    <label class="st"
+                                        ><input
+                                            type="radio"
+                                            name="step-l"
+                                            value="2"
+                                            aria-label="Mark step 2 as current"
+                                            checked
+                                        /><span class="num">2</span>
+                                        <div>
+                                            <span class="cur">Current step</span>
+                                            <p>
+                                                Mash the butter with the lemon zest, half of the thyme leaves and the
+                                                salt. Work your fingers under the skin of the breast and spread the
+                                                butter over the meat.
+                                            </p>
+                                        </div></label
+                                    >
+                                    <label class="st"
+                                        ><input
+                                            type="radio"
+                                            name="step-l"
+                                            value="3"
+                                            aria-label="Mark step 3 as current"
+                                        /><span class="num">3</span>
+                                        <div>
+                                            <span class="cur">Current step</span>
+                                            <p>
+                                                Scatter the potatoes, carrots and onions in a large roasting tin and
+                                                toss with the olive oil. Put the chicken on top with the halved lemon,
+                                                the garlic and the rest of the thyme in the cavity.
+                                            </p>
+                                        </div></label
+                                    >
+                                    <label class="st"
+                                        ><input
+                                            type="radio"
+                                            name="step-l"
+                                            value="4"
+                                            aria-label="Mark step 4 as current"
+                                        /><span class="num">4</span>
+                                        <div>
+                                            <span class="cur">Current step</span>
+                                            <p>
+                                                Roast for 20 minutes, then lower the oven to 190°C (170°C fan) and roast
+                                                for another 1 hour 10 minutes, until the juices run clear.
+                                            </p>
+                                            <span class="tmr" role="button" aria-label="Timer, 1 h 30 min"
+                                                ><svg viewBox="0 0 16 16"><use href="#i-timer" /></svg>1 h 30 min</span
+                                            >
+                                        </div></label
+                                    >
+                                    <label class="st"
+                                        ><input
+                                            type="radio"
+                                            name="step-l"
+                                            value="5"
+                                            aria-label="Mark step 5 as current"
+                                        /><span class="num">5</span>
+                                        <div>
+                                            <span class="cur">Current step</span>
+                                            <p>
+                                                Rest the chicken, loosely covered with foil, for 15 minutes before
+                                                carving. Spoon the pan juices over the vegetables.
+                                            </p>
+                                            <span class="tmr" role="button" aria-label="Timer, 15 min"
+                                                ><svg viewBox="0 0 16 16"><use href="#i-timer" /></svg>15 min</span
+                                            >
+                                        </div></label
+                                    >
+                                </div>
+                            </div>
+                        </div>
+                        <nav class="tabs">
+                            <span class="tab"
+                                ><svg><use href="#i-home" /></svg>Home</span
+                            ><span class="tab on"
+                                ><svg><use href="#i-book" /></svg>Recipes</span
+                            ><span class="tab"
+                                ><svg><use href="#i-disc" /></svg>Discover</span
+                            ><span class="tab"
+                                ><svg><use href="#i-plan" /></svg>Plan</span
+                            ><span class="tab"
+                                ><svg><use href="#i-shop" /></svg>Shop</span
+                            >
+                        </nav>
+                    </div>
+                    <figcaption>
+                        Recipe detail · light, whole page. Tick ingredients (they fade, no line through), tap a step’s
+                        number, flip Screen on. All of it works here.
+                    </figcaption>
+                </figure>
+            </div>
+
+            <h2 class="sec">No photo? A glazed letter</h2>
+            <p class="sub">
+                A recipe with no photo never shows a made-up dish. Its round plate takes one of six glazes, picked from
+                the recipe’s id, with the first letter in the middle. Light glazes by day, deep glazes by night. Glazes
+                are decoration and never carry meaning.
+            </p>
+            <div class="glz">
+                <span class="sau" style="--g: #d9e2f2; --gi: #2a4a85">D</span
+                ><span class="sau" style="--g: #cfe3d3; --gi: #2d5b3a">C</span
+                ><span class="sau" style="--g: #f6d2c4; --gi: #8e2f17">P</span
+                ><span class="sau" style="--g: #f5e1a6; --gi: #6e4d00">M</span
+                ><span class="sau" style="--g: #e2d5ee; --gi: #5b3a7a">H</span
+                ><span class="sau" style="--g: #cde7ea; --gi: #1f5c66">L</span>
+                <p>By day. Letter on glaze 5.8 to 6.7 : 1.</p>
+            </div>
+            <div class="glz dark" style="margin-top: 12px">
+                <span class="sau" style="--g: #24375c; --gi: #c8d7f4">D</span
+                ><span class="sau" style="--g: #223f2b; --gi: #bfe0c7">C</span
+                ><span class="sau" style="--g: #4a2318; --gi: #f6c9b6">P</span
+                ><span class="sau" style="--g: #3d3110; --gi: #f2db98">M</span
+                ><span class="sau" style="--g: #352646; --gi: #dccbee">H</span
+                ><span class="sau" style="--g: #183b41; --gi: #bce3e8">L</span>
+                <p>By night. Letter on glaze 8.1 to 9.3 : 1.</p>
+            </div>
+
+            <h2 class="sec">The palette: Enamelware</h2>
+            <p class="sub">
+                Each colour has one job. Ratios are WCAG 2.2 contrast computed from the hex values; Lc is APCA 0.0.98G,
+                for reference. Every text pair passes 4.5 : 1 and every control edge or state mark passes 3 : 1, in both
+                modes.
+            </p>
+            <div class="pal">
+                <div class="sw">
+                    <div class="c">
+                        <div style="background: #e8edf5; color: #0e1a2e">Aa</div>
+                        <div style="background: #0c1424; color: #ffffff">Aa</div>
+                    </div>
+                    <div class="t">
+                        <b>Enamel / Graniteware</b>ground<br /><code>#E8EDF5</code> / <code>#0C1424</code>
+                    </div>
+                </div>
+                <div class="sw">
+                    <div class="c">
+                        <div style="background: #ffffff; color: #0e1a2e">Aa</div>
+                        <div style="background: #172037; color: #ffffff">Aa</div>
+                    </div>
+                    <div class="t">
+                        <b>Plate / Stoneware</b>surface: lists, sheet, tab bar<br /><code>#FFFFFF</code> /
+                        <code>#172037</code>
+                    </div>
+                </div>
+                <div class="sw">
+                    <div class="c">
+                        <div style="background: #d3dbe8; color: #0e1a2e">Aa</div>
+                        <div style="background: #2a3550; color: #ffffff">Aa</div>
+                    </div>
+                    <div class="t">
+                        <b>Seam</b>hairlines, row-plate edge, progress track (decoration)<br /><code>#D3DBE8</code> /
+                        <code>#2A3550</code>
+                    </div>
+                </div>
+                <div class="sw">
+                    <div class="c">
+                        <div style="background: #f1f4f9; color: #0e1a2e">Aa</div>
+                        <div style="background: #222c46; color: #ffffff">Aa</div>
+                    </div>
+                    <div class="t">
+                        <b>Well</b>inset: fact strip, Screen on row<br /><code>#F1F4F9</code> / <code>#222C46</code>
+                    </div>
+                </div>
+                <div class="sw">
+                    <div class="c">
+                        <div style="background: #0e1a2e; color: #ffffff">Aa</div>
+                        <div style="background: #eef2fa; color: #0c1424">Aa</div>
+                    </div>
+                    <div class="t">
+                        <b>Ink</b>text, focus ring, selected chip and segment fill<br /><code>#0E1A2E</code> /
+                        <code>#EEF2FA</code>
+                    </div>
+                </div>
+                <div class="sw">
+                    <div class="c">
+                        <div style="background: #3e4a5e; color: #ffffff">Aa</div>
+                        <div style="background: #c3ccdd; color: #0c1424">Aa</div>
+                    </div>
+                    <div class="t">
+                        <b>Slate</b>muted text, ticked box<br /><code>#3E4A5E</code> / <code>#C3CCDD</code>
+                    </div>
+                </div>
+                <div class="sw">
+                    <div class="c">
+                        <div style="background: #0b4dbe; color: #ffffff">Aa</div>
+                        <div style="background: #97beff; color: #0c1424">Aa</div>
+                    </div>
+                    <div class="t">
+                        <b>Cobalt</b>the one action, links, current tab, current step, progress rim<br /><code
+                            >#0B4DBE</code
+                        >
+                        / <code>#97BEFF</code>
+                    </div>
+                </div>
+                <div class="sw">
+                    <div class="c">
+                        <div style="background: #ffffff; color: #0e1a2e">Aa</div>
+                        <div style="background: #0c1424; color: #ffffff">Aa</div>
+                    </div>
+                    <div class="t">
+                        <b>On cobalt</b>label on cobalt<br /><code>#FFFFFF</code> / <code>#0C1424</code>
+                    </div>
+                </div>
+                <div class="sw">
+                    <div class="c">
+                        <div style="background: #e3ecfb; color: #0e1a2e">Aa</div>
+                        <div style="background: #1d2b4d; color: #ffffff">Aa</div>
+                    </div>
+                    <div class="t">
+                        <b>Cobalt wash</b>current step ground (decoration)<br /><code>#E3ECFB</code> /
+                        <code>#1D2B4D</code>
+                    </div>
+                </div>
+                <div class="sw">
+                    <div class="c">
+                        <div style="background: #f2b233; color: #0e1a2e">Aa</div>
+                        <div style="background: #ffd34e; color: #0c1424">Aa</div>
+                    </div>
+                    <div class="t">
+                        <b>Yolk</b>avatar and star fill only<br /><code>#F2B233</code> / <code>#FFD34E</code>
+                    </div>
+                </div>
+                <div class="sw">
+                    <div class="c">
+                        <div style="background: #7a4e00; color: #ffffff">Aa</div>
+                        <div style="background: #ffd34e; color: #0c1424">Aa</div>
+                    </div>
+                    <div class="t">
+                        <b>Yolk deep</b>light star and avatar outline<br /><code>#7A4E00</code> / <code>#FFD34E</code>
+                    </div>
+                </div>
+                <div class="sw">
+                    <div class="c">
+                        <div style="background: #1b1405; color: #ffffff">Aa</div>
+                        <div style="background: #1b1405; color: #ffffff">Aa</div>
+                    </div>
+                    <div class="t"><b>On yolk</b>avatar initials<br /><code>#1B1405</code> / <code>#1B1405</code></div>
+                </div>
+                <div class="sw">
+                    <div class="c">
+                        <div style="background: #1b6e41; color: #ffffff">Aa</div>
+                        <div style="background: #66d69a; color: #0c1424">Aa</div>
+                    </div>
+                    <div class="t"><b>Herb</b>success messages<br /><code>#1B6E41</code> / <code>#66D69A</code></div>
+                </div>
+                <div class="sw">
+                    <div class="c">
+                        <div style="background: #8f4a00; color: #ffffff">Aa</div>
+                        <div style="background: #ffb070; color: #0c1424">Aa</div>
+                    </div>
+                    <div class="t">
+                        <b>Amber</b>warning text + icon<br /><code>#8F4A00</code> / <code>#FFB070</code>
+                    </div>
+                </div>
+                <div class="sw">
+                    <div class="c">
+                        <div style="background: #b3261e; color: #ffffff">Aa</div>
+                        <div style="background: #ffa0a8; color: #0c1424">Aa</div>
+                    </div>
+                    <div class="t">
+                        <b>Tomato</b>danger text + icon<br /><code>#B3261E</code> / <code>#FFA0A8</code>
+                    </div>
+                </div>
+                <div class="sw">
+                    <div class="c">
+                        <div style="background: #6e7a90; color: #ffffff">Aa</div>
+                        <div style="background: #7c8aaa; color: #0c1424">Aa</div>
+                    </div>
+                    <div class="t"><b>Edge</b>control outlines<br /><code>#6E7A90</code> / <code>#7C8AAA</code></div>
+                </div>
+                <div class="sw">
+                    <div class="c">
+                        <div style="background: #ffffff; color: #0e1a2e">Aa</div>
+                        <div style="background: #2c3754; color: #ffffff">Aa</div>
+                    </div>
+                    <div class="t">
+                        <b>Plate art</b>hero plate body<br /><code>#FFFFFF</code> / <code>#2C3754</code>
+                    </div>
+                </div>
+            </div>
+            <div class="logic">
+                <b>The logic.</b> One enamel plate on its table. Cobalt is the glaze on the one thing you press and on
+                the rim that shows how far you have cooked; everything else is white enamel, slate and ink. The food
+                brings the warm colours.
+            </div>
+            <div class="tw">
+                <table class="tbl">
+                    <tr>
+                        <th>Pair</th>
+                        <th>Light</th>
+                        <th>Dark</th>
+                        <th>Needs</th>
+                    </tr>
+                    <tr>
+                        <td>Ink on ground</td>
+                        <td>14.81 · Lc 93</td>
+                        <td>16.40 · Lc 98</td>
+                        <td>4.5</td>
+                    </tr>
+                    <tr>
+                        <td>Ink on surface</td>
+                        <td>17.41 · Lc 104</td>
+                        <td>14.42 · Lc 97</td>
+                        <td>4.5</td>
+                    </tr>
+                    <tr>
+                        <td>Ink on well</td>
+                        <td>15.80 · Lc 97</td>
+                        <td>12.34 · Lc 95</td>
+                        <td>4.5</td>
+                    </tr>
+                    <tr>
+                        <td>Ink on wash (current step)</td>
+                        <td>14.64 · Lc 92</td>
+                        <td>12.44 · Lc 95</td>
+                        <td>4.5</td>
+                    </tr>
+                    <tr>
+                        <td>Slate on ground</td>
+                        <td>7.61 · Lc 80</td>
+                        <td>11.39 · Lc 75</td>
+                        <td>4.5</td>
+                    </tr>
+                    <tr>
+                        <td>Slate on surface</td>
+                        <td>8.95 · Lc 91</td>
+                        <td>10.02 · Lc 73</td>
+                        <td>4.5</td>
+                    </tr>
+                    <tr>
+                        <td>Slate on well</td>
+                        <td>8.12 · Lc 84</td>
+                        <td>8.57 · Lc 71</td>
+                        <td>4.5</td>
+                    </tr>
+                    <tr>
+                        <td>Slate on wash</td>
+                        <td>7.53 · Lc 79</td>
+                        <td>8.64 · Lc 71</td>
+                        <td>4.5</td>
+                    </tr>
+                    <tr>
+                        <td>Label on cobalt (button, current step number)</td>
+                        <td>7.45 · Lc 90</td>
+                        <td>9.75 · Lc 67</td>
+                        <td>4.5</td>
+                    </tr>
+                    <tr>
+                        <td>Label on ink (selected chip, segment)</td>
+                        <td>17.41 · Lc 106</td>
+                        <td>14.42 · Lc 95</td>
+                        <td>4.5</td>
+                    </tr>
+                    <tr>
+                        <td>Cobalt link on ground</td>
+                        <td>6.34 · Lc 74</td>
+                        <td>9.75 · Lc 66</td>
+                        <td>4.5</td>
+                    </tr>
+                    <tr>
+                        <td>Cobalt link on surface</td>
+                        <td>7.45 · Lc 85</td>
+                        <td>8.57 · Lc 64</td>
+                        <td>4.5</td>
+                    </tr>
+                    <tr>
+                        <td>Cobalt "Current step" label on wash</td>
+                        <td>6.26 · Lc 73</td>
+                        <td>7.39 · Lc 62</td>
+                        <td>4.5</td>
+                    </tr>
+                    <tr>
+                        <td>Cobalt left rule on wash (non-text)</td>
+                        <td>6.26 · Lc 73</td>
+                        <td>7.39 · Lc 62</td>
+                        <td>3</td>
+                    </tr>
+                    <tr>
+                        <td>Cobalt progress arc on plate (non-text)</td>
+                        <td>7.45 · Lc 85</td>
+                        <td>6.24 · Lc 59</td>
+                        <td>3</td>
+                    </tr>
+                    <tr>
+                        <td>Cobalt button on ground (non-text)</td>
+                        <td>6.34 · Lc 74</td>
+                        <td>9.75 · Lc 66</td>
+                        <td>3</td>
+                    </tr>
+                    <tr>
+                        <td>Initials on yolk</td>
+                        <td>9.74 · Lc 67</td>
+                        <td>12.78 · Lc 82</td>
+                        <td>4.5</td>
+                    </tr>
+                    <tr>
+                        <td>Star / avatar outline on ground</td>
+                        <td>6.12 · Lc 74</td>
+                        <td>12.86 · Lc 82</td>
+                        <td>3</td>
+                    </tr>
+                    <tr>
+                        <td>Star / avatar outline on surface</td>
+                        <td>7.20 · Lc 85</td>
+                        <td>11.31 · Lc 81</td>
+                        <td>3</td>
+                    </tr>
+                    <tr>
+                        <td>Herb on ground</td>
+                        <td>5.33 · Lc 70</td>
+                        <td>10.21 · Lc 69</td>
+                        <td>4.5</td>
+                    </tr>
+                    <tr>
+                        <td>Herb on surface</td>
+                        <td>6.26 · Lc 81</td>
+                        <td>8.97 · Lc 67</td>
+                        <td>4.5</td>
+                    </tr>
+                    <tr>
+                        <td>Amber on ground</td>
+                        <td>5.68 · Lc 71</td>
+                        <td>10.25 · Lc 69</td>
+                        <td>4.5</td>
+                    </tr>
+                    <tr>
+                        <td>Amber on surface</td>
+                        <td>6.67 · Lc 82</td>
+                        <td>9.01 · Lc 67</td>
+                        <td>4.5</td>
+                    </tr>
+                    <tr>
+                        <td>Tomato on ground</td>
+                        <td>5.56 · Lc 70</td>
+                        <td>9.50 · Lc 65</td>
+                        <td>4.5</td>
+                    </tr>
+                    <tr>
+                        <td>Tomato on surface</td>
+                        <td>6.54 · Lc 81</td>
+                        <td>8.35 · Lc 63</td>
+                        <td>4.5</td>
+                    </tr>
+                    <tr>
+                        <td>Edge on ground (non-text)</td>
+                        <td>3.68 · Lc 59</td>
+                        <td>5.32 · Lc 39</td>
+                        <td>3</td>
+                    </tr>
+                    <tr>
+                        <td>Edge on surface (non-text)</td>
+                        <td>4.33 · Lc 70</td>
+                        <td>4.68 · Lc 37</td>
+                        <td>3</td>
+                    </tr>
+                    <tr>
+                        <td>Edge on well, switch off (non-text)</td>
+                        <td>3.93 · Lc 63</td>
+                        <td>4.00 · Lc 35</td>
+                        <td>3</td>
+                    </tr>
+                    <tr>
+                        <td>Edge on wash (non-text)</td>
+                        <td>3.64 · Lc 58</td>
+                        <td>4.04 · Lc 35</td>
+                        <td>3</td>
+                    </tr>
+                    <tr>
+                        <td>Ticked box: slate fill on surface (non-text)</td>
+                        <td>8.95 · Lc 91</td>
+                        <td>10.02 · Lc 73</td>
+                        <td>3</td>
+                    </tr>
+                    <tr>
+                        <td>Focus ring: ink on ground (non-text)</td>
+                        <td>14.81 · Lc 93</td>
+                        <td>16.40 · Lc 98</td>
+                        <td>3</td>
+                    </tr>
+                </table>
+            </div>
+            <div class="tw">
+                <table class="tbl">
+                    <tr>
+                        <th>Must not be confused</th>
+                        <th>Light</th>
+                        <th>Dark</th>
+                        <th>What tells them apart</th>
+                    </tr>
+                    <tr>
+                        <td>Cobalt vs Tomato</td>
+                        <td>1.14</td>
+                        <td>1.03</td>
+                        <td>Blue vs red; danger always carries the word Delete and an icon.</td>
+                    </tr>
+                    <tr>
+                        <td>Amber vs Tomato</td>
+                        <td>1.02</td>
+                        <td>1.08</td>
+                        <td>Hue, plus a warning or error icon and a word.</td>
+                    </tr>
+                    <tr>
+                        <td>Yolk vs Amber</td>
+                        <td>3.56</td>
+                        <td>1.26</td>
+                        <td>Yolk is only a fill (avatar, star), never a status.</td>
+                    </tr>
+                    <tr>
+                        <td>Slate vs Cobalt</td>
+                        <td>1.20</td>
+                        <td>1.17</td>
+                        <td>
+                            A ticked box is a square with a tick; the current step number is a cobalt circle beside the
+                            words Current step.
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>Herb vs Cobalt</td>
+                        <td>1.19</td>
+                        <td>1.05</td>
+                        <td>Herb only appears in a success message with an icon; it never fills a control.</td>
+                    </tr>
+                    <tr>
+                        <td>Slate vs Ink</td>
+                        <td>1.95</td>
+                        <td>1.44</td>
+                        <td>
+                            Muted text is also smaller (14-15 px vs 17 px). A selected chip is an ink pill with a word;
+                            a ticked box is a small square with a tick.
+                        </td>
+                    </tr>
+                </table>
+            </div>
+
+            <h2 class="sec">Type</h2>
+            <p class="sub">
+                Lexend for titles: round, open and calm, the shape of the plate in a letter. Atkinson Hyperlegible Next
+                for reading, built by the Braille Institute so that 1, l and I, and 0 and O, never blur. Body is 17 px;
+                the current step is 21 px.
+            </p>
+            <div class="type">
+                <div>
+                    <small>Screen title · Lexend 600 · 29</small
+                    ><span style="font: 600 29px/1.12 var(--fd); letter-spacing: -0.025em"
+                        >Good morning, Eliza Ramirez</span
+                    >
+                </div>
+                <div>
+                    <small>Recipe title · Lexend 600 · 29</small
+                    ><span style="font: 600 29px/1.12 var(--fd); letter-spacing: -0.025em"
+                        >Miso-Glazed Salmon with Sesame Greens</span
+                    >
+                </div>
+                <div>
+                    <small>Section · Lexend 600 · 20</small
+                    ><span style="font: 600 20px/1.2 var(--fd)">Ingredients</span>
+                </div>
+                <div>
+                    <small>Current step · Atkinson 500 · 21</small
+                    ><span style="font-size: 21px; line-height: 1.45; font-weight: 500"
+                        >Mash the butter with the lemon zest and the salt.</span
+                    >
+                </div>
+                <div>
+                    <small>Body · Atkinson 400 · 17</small
+                    ><span>Heat the oven to 220°C (200°C fan). Pat the skin dry with paper towels.</span>
+                </div>
+                <div>
+                    <small>Amount · Atkinson 700 · tabular</small
+                    ><span style="font-weight: 700; font-variant-numeric: tabular-nums"
+                        >1 tsp · 1 l · 10 g · 1 h 30 min</span
+                    >
+                </div>
+                <div>
+                    <small>Meta · Atkinson 400 · 15</small
+                    ><span style="font-size: 15px; color: #3e4a5e">Italian · 55 min · 9 recipes · Recently edited</span>
+                </div>
+            </div>
+
+            <footer>
+                Enamelware · Commise UI refresh, workshop 3, option 3, iteration 1. The two photos are drawn stand-ins
+                for the cook’s own photos, because this page may load no outside images; every other recipe shows a
+                glazed letter. Motion: a plate settles once on load (0.7 s, transform only), the progress ring moves 0.6
+                s when you change step, a tick draws in 0.15 s, the switch slides in 0.2 s. Nothing loops, and all of it
+                stops under reduced motion.
+            </footer>
+        </div>
+
+        <script>
+            window.__glz = {
+                '#D9E2F2': ['#24375C', '#C8D7F4'],
+                '#CFE3D3': ['#223F2B', '#BFE0C7'],
+                '#F6D2C4': ['#4A2318', '#F6C9B6'],
+                '#F5E1A6': ['#3D3110', '#F2DB98'],
+                '#E2D5EE': ['#352646', '#DCCBEE'],
+                '#CDE7EA': ['#183B41', '#BCE3E8'],
+            };
+            (function () {
+                var C = 2 * Math.PI * 45;
+                function wire(fig) {
+                    var ar = fig.querySelector('.prog .ar'),
+                        n = fig.querySelector('.stepof .n');
+                    if (!ar) return;
+                    fig.querySelectorAll('.st input').forEach(function (r) {
+                        r.addEventListener('change', function () {
+                            var k = +r.value;
+                            ar.setAttribute('stroke-dasharray', ((C * k) / 5).toFixed(1) + ' ' + C.toFixed(0));
+                            n.textContent = k;
+                        });
+                    });
+                }
+                var box = { home: document.getElementById('light'), detail: document.getElementById('detail') };
+                var cap = {
+                    home: 'Home · dark. Deep graniteware, stoneware lists; the photo keeps its colour.',
+                    detail: 'Recipe detail · dark. Same page; the current step sits on its cobalt rule.',
+                };
+                ['home', 'detail'].forEach(function (k) {
+                    var f = box[k].querySelector('[data-k="' + k + '"]').cloneNode(true);
+                    var p = f.querySelector('.ph');
+                    p.classList.add('dark');
+                    p.setAttribute('aria-label', p.getAttribute('aria-label').replace('light', 'dark'));
+                    f.querySelectorAll('input[type=radio]').forEach(function (r) {
+                        r.name = 'step-d';
+                    });
+                    f.querySelectorAll('.sau[style*="--g"]').forEach(function (s) {
+                        var m = window.__glz[s.style.getPropertyValue('--g').trim().toUpperCase()];
+                        if (m) {
+                            s.style.setProperty('--g', m[0]);
+                            s.style.setProperty('--gi', m[1]);
+                        }
+                    });
+                    f.querySelector('figcaption').textContent = cap[k];
+                    box[k].appendChild(f);
+                });
+                document.querySelectorAll('[data-k="detail"]').forEach(wire);
+            })();
+        </script>
+    </body>
+</html>

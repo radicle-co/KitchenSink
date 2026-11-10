@@ -1,0 +1,895 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Plate Signatures</title>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link
+            href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Inter:wght@400;500;600&display=swap"
+            rel="stylesheet"
+        />
+        <style>
+            *,
+            *::before,
+            *::after {
+                box-sizing: border-box;
+            }
+            body {
+                margin: 0;
+                background: #e3e7ec;
+                color: #11161d;
+                font:
+                    400 15px/1.5 Inter,
+                    system-ui,
+                    sans-serif;
+            }
+            .intro {
+                max-width: 1240px;
+                margin: 0 auto;
+                padding: 40px 24px 8px;
+            }
+            .intro h1 {
+                font:
+                    700 40px/1.05 'Bricolage Grotesque',
+                    sans-serif;
+                letter-spacing: -0.02em;
+                margin: 0 0 12px;
+            }
+            .intro p {
+                max-width: 760px;
+                margin: 0;
+                font-size: 17px;
+                color: #3a4452;
+            }
+            .board {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 40px;
+                justify-content: center;
+                padding: 32px 16px 64px;
+            }
+            .cap {
+                font: 600 12px/1.4 Inter;
+                letter-spacing: 0.08em;
+                text-transform: uppercase;
+                color: #4a5563;
+                margin: 0 0 10px;
+            }
+
+            /* ---------- theme tokens, scoped per frame ---------- */
+            .t-light {
+                --bg: #f4f6f8;
+                --surface: #ffffff;
+                --ink: #11161d;
+                --muted: #4a5563;
+                --line: #d5dbe2;
+                --accent: #b42d18;
+                --on-accent: #ffffff;
+                --accent-soft: #fbe9e5;
+                --prep: #5e6b7d;
+                --cook: #b42d18;
+                --rest: #3f7697;
+                --track: #e4e8ed;
+                --f-pro: #b4532a;
+                --f-cit: #d9a400;
+                --f-herb: #3e8a4e;
+                --f-aro: #8a63b8;
+                --f-root: #a07a3c;
+                --f-fat: #c9a227;
+                --f-spice: #39424d;
+                --f-veg: #2f9c8f;
+                --f-grain: #c88a4b;
+            }
+            .t-dark {
+                --bg: #0f1318;
+                --surface: #181d24;
+                --ink: #eceff3;
+                --muted: #a3adba;
+                --line: #2a323c;
+                --accent: #ff8a70;
+                --on-accent: #1a0a06;
+                --accent-soft: #2b1a16;
+                --prep: #8b97a8;
+                --cook: #ff8a70;
+                --rest: #7fb0cf;
+                --track: #222932;
+                --f-pro: #e48a5f;
+                --f-cit: #f2c94c;
+                --f-herb: #6cc17e;
+                --f-aro: #b79be0;
+                --f-root: #cfa866;
+                --f-fat: #e8c65a;
+                --f-spice: #9aa6b6;
+                --f-veg: #5fcfc0;
+                --f-grain: #e2af77;
+            }
+
+            /* ---------- phone frame ---------- */
+            .phone {
+                width: 390px;
+                background: var(--bg);
+                color: var(--ink);
+                border-radius: 44px;
+                overflow: hidden;
+                position: relative;
+                box-shadow:
+                    0 30px 60px -20px rgba(17, 22, 29, 0.35),
+                    0 0 0 10px #11161d;
+            }
+            .status {
+                height: 44px;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                padding: 0 28px;
+                font: 600 15px Inter;
+            }
+            .status i {
+                display: inline-block;
+                width: 26px;
+                height: 11px;
+                border: 1.5px solid var(--ink);
+                border-radius: 3px;
+                position: relative;
+            }
+            .status i::after {
+                content: '';
+                position: absolute;
+                inset: 1.5px;
+                right: 5px;
+                background: var(--ink);
+                border-radius: 1px;
+            }
+            .pad {
+                padding: 0 16px;
+            }
+            .disp {
+                font-family: 'Bricolage Grotesque', sans-serif;
+                letter-spacing: -0.02em;
+            }
+            .muted {
+                color: var(--muted);
+            }
+            .over {
+                font: 600 12px/1.4 Inter;
+                letter-spacing: 0.08em;
+                text-transform: uppercase;
+                color: var(--muted);
+            }
+            button {
+                font: inherit;
+                color: inherit;
+                background: none;
+                border: 0;
+                padding: 0;
+                cursor: pointer;
+            }
+            .btn {
+                min-height: 48px;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                gap: 8px;
+                padding: 0 18px;
+                border-radius: 999px;
+                font: 600 15px Inter;
+            }
+            .btn-solid {
+                background: var(--accent);
+                color: var(--on-accent);
+            }
+            .btn-line {
+                border: 1.5px solid var(--line);
+                background: var(--surface);
+            }
+            .btn-line:focus-visible,
+            .btn:focus-visible,
+            .icon:focus-visible {
+                outline: 3px solid var(--accent);
+                outline-offset: 2px;
+            }
+            .icon {
+                width: 48px;
+                height: 48px;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                border-radius: 999px;
+            }
+            svg.ic {
+                width: 22px;
+                height: 22px;
+                fill: none;
+                stroke: currentColor;
+                stroke-width: 1.9;
+                stroke-linecap: round;
+                stroke-linejoin: round;
+            }
+            .sig {
+                display: block;
+            }
+
+            /* ---------- Home ---------- */
+            .h-head {
+                padding: 8px 16px 4px;
+            }
+            .h-date {
+                font: 500 14px Inter;
+                color: var(--muted);
+            }
+            .h-title {
+                font: 700 32px/1.05 'Bricolage Grotesque';
+                letter-spacing: -0.025em;
+                margin: 6px 0 0;
+            }
+            .feature {
+                margin: 20px 16px 0;
+                padding: 20px;
+                border-radius: 32px;
+                background: var(--surface);
+                display: grid;
+                grid-template-columns: 150px 1fr;
+                gap: 18px;
+                align-items: center;
+            }
+            .feature h2 {
+                font: 700 21px/1.15 'Bricolage Grotesque';
+                letter-spacing: -0.015em;
+                margin: 4px 0 6px;
+            }
+            .feature p {
+                margin: 0 0 12px;
+                font-size: 14px;
+                color: var(--muted);
+            }
+            .sec {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                padding: 28px 16px 6px;
+            }
+            .sec h3 {
+                margin: 0;
+                font: 700 20px 'Bricolage Grotesque';
+                letter-spacing: -0.015em;
+            }
+            .link {
+                min-height: 48px;
+                display: inline-flex;
+                align-items: center;
+                padding: 0 4px;
+                font: 600 14px Inter;
+                color: var(--accent);
+            }
+            .rack {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 20px 14px;
+                padding: 4px 16px 0;
+                align-items: end;
+            }
+            .plate {
+                display: flex;
+                flex-direction: column;
+                gap: 8px;
+                text-align: left;
+                min-height: 48px;
+            }
+            .plate b {
+                font: 600 15px/1.25 Inter;
+            }
+            .plate span {
+                font-size: 13px;
+                color: var(--muted);
+            }
+            .soon {
+                margin: 28px 16px 0;
+                padding: 20px;
+                border: 1.5px dashed var(--line);
+                border-radius: 28px;
+            }
+            .soon p {
+                margin: 4px 0 14px;
+                color: var(--muted);
+                font-size: 15px;
+            }
+            .soonrow {
+                display: flex;
+                gap: 10px;
+            }
+            .soonrow div {
+                flex: 1;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 6px;
+                font: 500 12px/1.3 Inter;
+                color: var(--muted);
+                text-align: center;
+            }
+            .tabs {
+                display: flex;
+                align-items: center;
+                justify-content: space-around;
+                margin-top: 28px;
+                padding: 8px 8px 26px;
+                border-top: 1px solid var(--line);
+                background: var(--surface);
+            }
+            .tab {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 2px;
+                min-width: 56px;
+                min-height: 48px;
+                font: 500 11px Inter;
+                color: var(--muted);
+            }
+            .tab.on {
+                color: var(--ink);
+            }
+            .tab.on svg {
+                color: var(--accent);
+            }
+            .newbtn {
+                width: 56px;
+                height: 56px;
+                border-radius: 50%;
+                background: var(--accent);
+                color: var(--on-accent);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                margin-top: -30px;
+                box-shadow: 0 0 0 6px var(--bg);
+            }
+
+            /* ---------- Recipe detail ---------- */
+            .bar {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                padding: 0 8px;
+            }
+            .bar .r {
+                display: flex;
+                align-items: center;
+                gap: 4px;
+            }
+            .chip {
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+                min-height: 32px;
+                padding: 0 12px;
+                border-radius: 999px;
+                border: 1.5px solid var(--line);
+                font: 600 13px Inter;
+            }
+            .d-title {
+                font: 700 34px/1.02 'Bricolage Grotesque';
+                letter-spacing: -0.03em;
+                margin: 6px 0 0;
+            }
+            .hero {
+                display: grid;
+                grid-template-columns: 196px 1fr;
+                gap: 14px;
+                align-items: center;
+                padding: 18px 16px 4px;
+            }
+            .legend {
+                list-style: none;
+                margin: 0;
+                padding: 0;
+                display: flex;
+                flex-direction: column;
+                gap: 12px;
+            }
+            .legend li {
+                display: grid;
+                grid-template-columns: 12px 1fr;
+                gap: 2px 10px;
+                align-items: center;
+            }
+            .legend li i {
+                width: 12px;
+                height: 12px;
+                border-radius: 3px;
+                grid-row: span 2;
+            }
+            .legend small {
+                font: 500 12px Inter;
+                color: var(--muted);
+            }
+            .legend strong {
+                font: 600 17px/1.15 Inter;
+                font-variant-numeric: tabular-nums;
+            }
+            .legend li.tot {
+                border-top: 1px solid var(--line);
+                padding-top: 10px;
+            }
+            .facts {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 4px 16px;
+                padding: 10px 16px 0;
+                font-size: 14px;
+                color: var(--muted);
+            }
+            .facts b {
+                color: var(--ink);
+                font-weight: 600;
+            }
+            .tools {
+                display: flex;
+                gap: 8px;
+                padding: 18px 16px 0;
+                flex-wrap: wrap;
+            }
+            .stepper {
+                display: flex;
+                align-items: center;
+                gap: 2px;
+                min-height: 48px;
+                border-radius: 999px;
+                border: 1.5px solid var(--line);
+                background: var(--surface);
+                padding: 0 2px;
+            }
+            .stepper output {
+                min-width: 76px;
+                text-align: center;
+                font: 600 15px Inter;
+            }
+            .stepper .icon {
+                width: 44px;
+                height: 44px;
+            }
+            .h2 {
+                font: 700 22px 'Bricolage Grotesque';
+                letter-spacing: -0.015em;
+                margin: 0;
+            }
+            .block {
+                padding: 30px 16px 0;
+            }
+            .ing {
+                list-style: none;
+                margin: 10px 0 0;
+                padding: 0;
+            }
+            .ing li {
+                display: grid;
+                grid-template-columns: 10px 84px 1fr;
+                gap: 12px;
+                align-items: baseline;
+                padding: 11px 0;
+                border-bottom: 1px solid var(--line);
+                font-size: 16px;
+            }
+            .ing li i {
+                width: 10px;
+                height: 10px;
+                border-radius: 50%;
+                align-self: center;
+            }
+            .ing li b {
+                font-weight: 600;
+                font-variant-numeric: tabular-nums;
+            }
+            .steps {
+                list-style: none;
+                margin: 12px 0 0;
+                padding: 0;
+                display: flex;
+                flex-direction: column;
+                gap: 6px;
+            }
+            .steps li {
+                display: grid;
+                grid-template-columns: 48px 1fr;
+                gap: 10px;
+                align-items: start;
+                padding: 4px 0;
+            }
+            .num {
+                width: 44px;
+                height: 44px;
+                border-radius: 50%;
+                border: 1.5px solid var(--line);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font: 600 15px Inter;
+                color: var(--muted);
+            }
+            .steps li.done .num {
+                background: var(--track);
+                border-color: var(--track);
+            }
+            .steps li.done p {
+                color: var(--muted);
+            }
+            .steps p {
+                margin: 10px 0 0;
+                font-size: 16px;
+                line-height: 1.5;
+            }
+            .steps li.now {
+                grid-template-columns: 1fr;
+                background: var(--accent-soft);
+                border-radius: 28px;
+                padding: 18px;
+                margin: 6px -4px;
+            }
+            .now-top {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+            }
+            .now-top .num {
+                background: var(--accent);
+                border-color: var(--accent);
+                color: var(--on-accent);
+            }
+            .now p {
+                font-size: 19px;
+                line-height: 1.45;
+                margin: 12px 0 14px;
+                font-weight: 500;
+            }
+            .prog {
+                height: 6px;
+                border-radius: 3px;
+                background: var(--track);
+                overflow: hidden;
+                margin: 2px 0 14px;
+            }
+            .prog span {
+                display: block;
+                height: 100%;
+                width: 38%;
+                background: var(--accent);
+                border-radius: 3px;
+            }
+            .rows {
+                padding: 22px 16px 30px;
+            }
+            .row {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                min-height: 56px;
+                border-top: 1px solid var(--line);
+                font: 600 16px Inter;
+            }
+
+            @media (prefers-reduced-motion: no-preference) {
+                .live {
+                    animation: breathe 3.6s ease-in-out infinite;
+                }
+                @keyframes breathe {
+                    0%,
+                    100% {
+                        opacity: 1;
+                    }
+                    50% {
+                        opacity: 0.45;
+                    }
+                }
+                .draw circle.t {
+                    animation: draw 1.4s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+                }
+                @keyframes draw {
+                    from {
+                        stroke-dasharray: 0 100;
+                    }
+                }
+            }
+        </style>
+    </head>
+    <body>
+        <header class="intro">
+            <div class="cap">Designer 3 · Round 1 · Concept</div>
+            <h1>Plate Signatures</h1>
+            <p>
+                Every recipe draws its own plate: a mark generated from its real data (time as the outer ring, steps as
+                the middle ring, ingredients as coloured seeds by food family), so a cook knows a dish by its shape
+                before reading a word. The same mark becomes the cooking instrument on the recipe page, where the step
+                you are on lights up on the ring and the plain text beside it stays big and straight.
+            </p>
+        </header>
+
+        <svg width="0" height="0" style="position: absolute" aria-hidden="true">
+            <symbol id="i-back" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7" /></symbol>
+            <symbol id="i-more" viewBox="0 0 24 24">
+                <circle cx="5" cy="12" r="1.2" />
+                <circle cx="12" cy="12" r="1.2" />
+                <circle cx="19" cy="12" r="1.2" />
+            </symbol>
+            <symbol id="i-edit" viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z" /></symbol>
+            <symbol id="i-globe" viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="8.5" />
+                <path d="M3.5 12h17M12 3.5c2.6 2.6 2.6 14.4 0 17M12 3.5c-2.6 2.6-2.6 14.4 0 17" />
+            </symbol>
+            <symbol id="i-timer" viewBox="0 0 24 24">
+                <circle cx="12" cy="13" r="7.5" />
+                <path d="M12 13V9M9.5 2.5h5" />
+            </symbol>
+            <symbol id="i-sun" viewBox="0 0 24 24">
+                <rect x="7" y="3" width="10" height="18" rx="2.5" />
+                <path d="M11 18h2" />
+            </symbol>
+            <symbol id="i-minus" viewBox="0 0 24 24"><path d="M6 12h12" /></symbol>
+            <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 6v12M6 12h12" /></symbol>
+            <symbol id="i-star" viewBox="0 0 24 24">
+                <path d="M12 3.5l2.6 5.4 5.9.8-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8L3.5 9.7l5.9-.8z" />
+            </symbol>
+            <symbol id="i-chev" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7" /></symbol>
+            <symbol id="i-down" viewBox="0 0 24 24"><path d="M5 9l7 7 7-7" /></symbol>
+            <symbol id="i-home" viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="8" />
+                <circle cx="12" cy="12" r="3" />
+            </symbol>
+            <symbol id="i-disc" viewBox="0 0 24 24">
+                <circle cx="11" cy="11" r="6.5" />
+                <path d="M16 16l4.5 4.5" />
+            </symbol>
+            <symbol id="i-book" viewBox="0 0 24 24"><path d="M5 4h10a4 4 0 014 4v12H9a4 4 0 01-4-4z" /></symbol>
+            <symbol id="i-col" viewBox="0 0 24 24">
+                <circle cx="8" cy="8" r="3.5" />
+                <circle cx="16" cy="8" r="3.5" />
+                <circle cx="8" cy="16" r="3.5" />
+                <circle cx="16" cy="16" r="3.5" />
+            </symbol>
+        </svg>
+
+        <main class="board">
+            <section>
+                <div class="cap">Home · light</div>
+                <div class="phone t-light" id="home"></div>
+            </section>
+            <section>
+                <div class="cap">Recipe detail · light · step 3 current</div>
+                <div class="phone t-light" id="d-light"></div>
+            </section>
+            <section>
+                <div class="cap">Recipe detail · dark (evening kitchen)</div>
+                <div class="phone t-dark" id="d-dark"></div>
+            </section>
+        </main>
+
+        <script>
+            /* Signature generator: the mark is a pure function of the recipe's own data. */
+            const ic = (n) => `<svg class="ic" aria-hidden="true"><use href="#i-${n}"/></svg>`;
+            function sig(r, size, current) {
+                const sum = r.t[0] + r.t[1] + r.t[2],
+                    gap = 1.6,
+                    k = ['prep', 'cook', 'rest'];
+                let a = 0,
+                    out = '';
+                r.t.forEach((v, i) => {
+                    const len = (v / sum) * 100 - gap;
+                    out += `<circle class="t" cx="50" cy="50" r="44" pathLength="100" fill="none" stroke="var(--${k[i]})" stroke-width="7" stroke-linecap="round" stroke-dasharray="${len} ${100 - len}" stroke-dashoffset="${-a}" transform="rotate(-90 50 50)"/>`;
+                    a += (v / sum) * 100;
+                });
+                const n = r.steps,
+                    seg = 100 / n;
+                for (let s = 0; s < n; s++) {
+                    const on = current === s + 1,
+                        done = current && s + 1 < current,
+                        len = seg - 4;
+                    out += `<circle ${on ? 'class="live"' : ''} cx="50" cy="50" r="33" pathLength="100" fill="none" stroke="${on ? 'var(--accent)' : done ? 'var(--muted)' : 'var(--track)'}" stroke-width="${on ? 5 : 3}" stroke-linecap="round" stroke-dasharray="${len} ${100 - len}" stroke-dashoffset="${-(s * seg + 2)}" transform="rotate(-90 50 50)"/>`;
+                }
+                r.ing.forEach(([f, w], i) => {
+                    const ang = (i / r.ing.length) * Math.PI * 2 - Math.PI / 2,
+                        rad = r.ing.length > 5 ? 20 : 16;
+                    out += `<circle cx="${(50 + Math.cos(ang) * rad).toFixed(1)}" cy="${(50 + Math.sin(ang) * rad).toFixed(1)}" r="${(2.2 + w * 3.4).toFixed(1)}" style="fill:var(--f-${f})"/>`;
+                });
+                const label = `${r.name}: prep ${r.tl[0]}, cook ${r.tl[1]}, rest ${r.tl[2]}; ${n} steps; ${r.ing.length} ingredients${current ? `; on step ${current}` : ''}`;
+                return `<svg class="sig draw" width="${size}" height="${size}" viewBox="0 0 100 100" role="img" aria-label="${label}">${out}</svg>`;
+            }
+
+            const chicken = {
+                name: 'Lemon and thyme roast chicken',
+                t: [20, 80, 15],
+                tl: ['20 min', '1 h 20 min', '15 min'],
+                steps: 5,
+                ing: [
+                    ['pro', 1],
+                    ['cit', 0.5],
+                    ['herb', 0.3],
+                    ['aro', 0.35],
+                    ['fat', 0.3],
+                    ['root', 0.8],
+                    ['spice', 0.1],
+                ],
+            };
+            const recents = [
+                {
+                    name: 'Slow beef ragù',
+                    meta: '3 h 30 min · Italian',
+                    t: [25, 180, 5],
+                    tl: ['25 min', '3 h', '5 min'],
+                    steps: 7,
+                    ing: [
+                        ['pro', 1],
+                        ['veg', 0.6],
+                        ['aro', 0.4],
+                        ['root', 0.5],
+                        ['fat', 0.2],
+                        ['herb', 0.2],
+                        ['spice', 0.1],
+                        ['grain', 0.7],
+                    ],
+                    d: 150,
+                },
+                {
+                    name: 'Weeknight dal with spinach',
+                    meta: '45 min · Indian',
+                    t: [10, 35, 0.1],
+                    tl: ['10 min', '35 min', 'none'],
+                    steps: 4,
+                    ing: [
+                        ['grain', 0.9],
+                        ['herb', 0.6],
+                        ['aro', 0.4],
+                        ['spice', 0.25],
+                        ['fat', 0.2],
+                    ],
+                    d: 124,
+                },
+                {
+                    name: 'Miso butter mushrooms on toast',
+                    meta: '25 min · Japanese',
+                    t: [10, 15, 0.1],
+                    tl: ['10 min', '15 min', 'none'],
+                    steps: 3,
+                    ing: [
+                        ['veg', 0.8],
+                        ['fat', 0.4],
+                        ['grain', 0.6],
+                        ['spice', 0.15],
+                    ],
+                    d: 104,
+                },
+                {
+                    name: 'Charred corn and lime salad',
+                    meta: '20 min · Mexican',
+                    t: [12, 8, 0.1],
+                    tl: ['12 min', '8 min', 'none'],
+                    steps: 3,
+                    ing: [
+                        ['grain', 0.7],
+                        ['cit', 0.4],
+                        ['herb', 0.3],
+                        ['veg', 0.5],
+                        ['spice', 0.1],
+                    ],
+                    d: 96,
+                },
+            ];
+
+            document.getElementById('home').innerHTML = `
+<div class="status"><span>9:41</span><i></i></div>
+<div class="h-head">
+  <div class="h-date">Friday, October 16, 2026</div>
+  <h1 class="h-title">Good morning,<br>Eliza Ramirez</h1>
+</div>
+<a class="feature" href="#d-light" style="color:inherit;text-decoration:none">
+  ${sig(chicken, 150, 3)}
+  <div>
+    <div class="over">Last opened</div>
+    <h2>Lemon and thyme roast chicken</h2>
+    <p>1 h 55 min · You stopped at step 3</p>
+    <span class="btn btn-solid" style="min-height:44px;padding:0 16px">Open recipe</span>
+  </div>
+</a>
+<div class="sec"><h3>Recent recipes</h3><a class="link" href="#">See all</a></div>
+<div class="rack">
+  ${recents.map((r) => `<a class="plate" href="#" style="color:inherit;text-decoration:none">${sig(r, r.d)}<b>${r.name}</b><span>${r.meta}</span></a>`).join('')}
+</div>
+<section class="soon" aria-labelledby="soon-h">
+  <h3 id="soon-h" class="h2" style="font-size:20px">Coming soon</h3>
+  <p>Meal plans, a grocery list and daily nutrition are on the way.</p>
+  <div class="soonrow">
+    ${['Meal plans', 'Grocery list', 'Daily nutrition'].map((s) => `<div><svg width="54" height="54" viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="44" fill="none" stroke="var(--line)" stroke-width="5" stroke-dasharray="4 6"/><circle cx="50" cy="50" r="30" fill="none" stroke="var(--line)" stroke-width="3" stroke-dasharray="2 6"/></svg>${s}</div>`).join('')}
+  </div>
+</section>
+<nav class="tabs" aria-label="Main">
+  <a class="tab on" href="#">${ic('home')}Home</a>
+  <a class="tab" href="#">${ic('disc')}Discover</a>
+  <button class="newbtn" aria-label="New recipe">${ic('plus')}</button>
+  <a class="tab" href="#">${ic('book')}Recipes</a>
+  <a class="tab" href="#">${ic('col')}Collections</a>
+</nav>`;
+
+            const ingredients = [
+                ['pro', '1.6 kg', 'Whole chicken'],
+                ['cit', '2', 'Lemons, halved'],
+                ['herb', '6 sprigs', 'Thyme'],
+                ['aro', '1 head', 'Garlic, cloves bashed'],
+                ['fat', '2 tbsp', 'Olive oil'],
+                ['root', '800 g', 'Floury potatoes, in chunks'],
+                ['spice', 'To taste', 'Freshly ground black pepper'],
+            ];
+            const steps = [
+                'Heat the oven to 220 °C. Pat the chicken dry and season it all over.',
+                'Push the lemon halves, garlic and half the thyme into the cavity.',
+                'Roast on the potatoes for 20 minutes, then turn the oven down to 180 °C and roast for 1 hour more, basting twice.',
+                'Check the thickest part of the thigh reads 74 °C. If not, give it 10 more minutes.',
+                'Rest the chicken under loose foil for 15 minutes, then carve.',
+            ];
+            function detail() {
+                return `
+<div class="status"><span>9:41</span><i></i></div>
+<div class="bar">
+  <button class="icon" aria-label="Back">${ic('back')}</button>
+  <div class="r">
+    <span class="chip">${ic('globe').replace('class="ic"', 'class="ic" style="width:16px;height:16px"')}Public</span>
+    <button class="icon" aria-label="Edit recipe">${ic('edit')}</button>
+    <button class="icon" aria-label="More">${ic('more')}</button>
+  </div>
+</div>
+<div class="pad">
+  <div class="over">British · Chicken</div>
+  <h1 class="d-title">Lemon and thyme roast chicken</h1>
+</div>
+<div class="hero">
+  ${sig(chicken, 196, 3)}
+  <ul class="legend" aria-label="Time">
+    <li><i style="background:var(--prep)"></i><small>Prep</small><strong>20 min</strong></li>
+    <li><i style="background:var(--cook)"></i><small>Cook</small><strong>1 h 20 min</strong></li>
+    <li><i style="background:var(--rest)"></i><small>Rest</small><strong>15 min</strong></li>
+    <li class="tot"><i style="background:transparent;border:2px solid var(--ink)"></i><small>Total</small><strong>1 h 55 min</strong></li>
+  </ul>
+</div>
+<div class="facts">
+  <span>Difficulty <b>Medium</b></span>
+  <span aria-label="Rated 4.8 out of 5, 12 ratings">${ic('star').replace('class="ic"', 'class="ic" style="width:15px;height:15px;vertical-align:-2px"')} <b>4.8</b> (12)</span>
+  <span>Source: <b>Family recipe card</b></span>
+</div>
+<div class="tools">
+  <div class="stepper" role="group" aria-label="Servings">
+    <button class="icon" aria-label="Fewer servings">${ic('minus')}</button><output>4 servings</output><button class="icon" aria-label="More servings">${ic('plus')}</button>
+  </div>
+  <button class="btn btn-line" aria-label="Timer">${ic('timer')}Timer</button>
+  <button class="btn btn-line" aria-pressed="true" aria-label="Screen on">${ic('sun')}Screen on</button>
+</div>
+<section class="block">
+  <h2 class="h2">Ingredients</h2>
+  <ul class="ing">${ingredients.map(([f, q, n]) => `<li><i style="background:var(--f-${f})"></i><b>${q}</b><span>${n}</span></li>`).join('')}</ul>
+</section>
+<section class="block">
+  <h2 class="h2">Steps</h2>
+  <ol class="steps">${steps
+      .map((s, i) =>
+          i === 2
+              ? `
+    <li class="now" aria-current="step">
+      <div class="now-top"><span class="num">3</span><div><div class="over" style="color:var(--accent)">Now · Step 3 of 5</div><div style="font:600 14px Inter">Cook · 1 h 20 min</div></div></div>
+      <p>${s}</p>
+      <div class="prog" aria-hidden="true"><span></span></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-solid">${ic('timer')}Start 1 h 20 min timer</button><button class="btn btn-line">Next step</button></div>
+    </li>`
+              : `
+    <li class="${i < 2 ? 'done' : ''}"><button class="num" aria-label="Mark step ${i + 1} as current">${i + 1}</button><p>${s}</p></li>`,
+      )
+      .join('')}
+  </ol>
+</section>
+<div class="rows">
+  <div class="row">Nutrition ${ic('down')}</div>
+  <div class="row">Version history ${ic('chev')}</div>
+</div>`;
+            }
+            document.getElementById('d-light').innerHTML = detail();
+            document.getElementById('d-dark').innerHTML = detail();
+        </script>
+    </body>
+</html>

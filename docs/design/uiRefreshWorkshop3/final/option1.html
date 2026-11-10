@@ -1,0 +1,2012 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Pilot Light</title>
+        <meta
+            name="description"
+            content="Commise UI refresh, workshop 3, option 1 (final): a calm, cool room with one warm light on what matters now."
+        />
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link
+            href="https://fonts.googleapis.com/css2?family=Funnel+Display:wght@600..800&family=Funnel+Sans:wght@400..700&display=swap"
+            rel="stylesheet"
+        />
+        <style>
+            /* Pilot Light palette. One set of names, two modes. Values come from one token list (see option1.md). */
+            :root,
+            .t-l {
+                --ground: #eef3f1;
+                --surface: #ffffff;
+                --sunk: #e1e8e5;
+                --ink: #0f1a17;
+                --muted: #4a5853;
+                --edge: #6b7873;
+                --line: #c3cfca;
+                --ember: #b42318;
+                --on-ember: #ffffff;
+                --lamp: #f4ae2a;
+                --on-lamp: #1a1205;
+                --glow: #fff1d6;
+                --leek: #2c6a3b;
+                --amber: #8a4a00;
+                --plum: #8e1f63;
+                --pool: rgba(244, 174, 42, 0.3);
+                --rim: rgba(244, 174, 42, 0.5);
+                --shade: rgba(15, 26, 23, 0.16);
+            }
+            .t-d {
+                --ground: #0f1311;
+                --surface: #1a201d;
+                --sunk: #242c28;
+                --ink: #ecf2ee;
+                --muted: #a3b0aa;
+                --edge: #75837c;
+                --line: #3a4540;
+                --ember: #ff6b5b;
+                --on-ember: #1a0a04;
+                --lamp: #ffe39a;
+                --on-lamp: #1a1205;
+                --glow: #2b2412;
+                --leek: #7ccb8c;
+                --amber: #ff9433;
+                --plum: #f08ccb;
+                --pool: rgba(255, 227, 154, 0.13);
+                --rim: rgba(255, 227, 154, 0.32);
+                --shade: rgba(0, 0, 0, 0.5);
+            }
+            @media (prefers-color-scheme: dark) {
+                :root:not([data-theme='light']) {
+                    --ground: #0f1311;
+                    --surface: #1a201d;
+                    --sunk: #242c28;
+                    --ink: #ecf2ee;
+                    --muted: #a3b0aa;
+                    --edge: #75837c;
+                    --line: #3a4540;
+                    --ember: #ff6b5b;
+                    --on-ember: #1a0a04;
+                    --lamp: #ffe39a;
+                    --glow: #2b2412;
+                    --leek: #7ccb8c;
+                    --amber: #ff9433;
+                    --plum: #f08ccb;
+                    --pool: rgba(255, 227, 154, 0.13);
+                    --shade: rgba(0, 0, 0, 0.5);
+                }
+            }
+            :root[data-theme='dark'] {
+                --ground: #0f1311;
+                --surface: #1a201d;
+                --sunk: #242c28;
+                --ink: #ecf2ee;
+                --muted: #a3b0aa;
+                --edge: #75837c;
+                --line: #3a4540;
+                --ember: #ff6b5b;
+                --on-ember: #1a0a04;
+                --lamp: #ffe39a;
+                --glow: #2b2412;
+                --leek: #7ccb8c;
+                --amber: #ff9433;
+                --plum: #f08ccb;
+                --pool: rgba(255, 227, 154, 0.13);
+                --shade: rgba(0, 0, 0, 0.5);
+            }
+            *,
+            *::before,
+            *::after {
+                box-sizing: border-box;
+            }
+            html {
+                -webkit-text-size-adjust: 100%;
+            }
+            body {
+                margin: 0;
+                background: var(--ground);
+                color: var(--ink);
+                font:
+                    400 16px/1.5 'Funnel Sans',
+                    system-ui,
+                    sans-serif;
+                overflow-x: hidden;
+            }
+            h1,
+            h2,
+            h3,
+            p {
+                margin: 0;
+            }
+            .num {
+                font-variant-numeric: tabular-nums lining-nums;
+            }
+            svg.i {
+                width: 20px;
+                height: 20px;
+                flex: none;
+                fill: none;
+                stroke: currentColor;
+                stroke-width: 1.8;
+                stroke-linecap: round;
+                stroke-linejoin: round;
+            }
+            .wrap {
+                max-width: 1260px;
+                margin: 0 auto;
+                padding: 0 16px;
+            }
+            /* page hero */
+            .hero {
+                position: relative;
+                padding: 76px 16px 40px;
+            }
+            .hero::before {
+                content: '';
+                position: absolute;
+                left: -20%;
+                top: -60%;
+                width: 90%;
+                height: 180%;
+                background: radial-gradient(closest-side, var(--pool), transparent);
+                pointer-events: none;
+                animation: on 1.4s ease-out both;
+            }
+            .hero > * {
+                position: relative;
+            }
+            .kick {
+                font: 600 13px/1 'Funnel Sans';
+                letter-spacing: 0.08em;
+                text-transform: uppercase;
+                color: var(--muted);
+            }
+            .hero h1 {
+                font: 800 clamp(56px, 12vw, 128px)/0.9 'Funnel Display';
+                letter-spacing: -0.04em;
+                margin: 18px 0 24px;
+            }
+            .hero h1 b {
+                display: inline-block;
+                width: 0.2em;
+                height: 0.2em;
+                border-radius: 50%;
+                background: var(--lamp);
+                box-shadow: 0 0 0.4em 0.14em var(--pool);
+                vertical-align: 0.6em;
+                margin-left: 0.07em;
+            }
+            .hero p {
+                max-width: 660px;
+                font-size: clamp(18px, 2.4vw, 22px);
+                line-height: 1.45;
+            }
+            .rules {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 10px;
+                margin-top: 28px;
+            }
+            .rules span {
+                display: inline-flex;
+                align-items: center;
+                gap: 8px;
+                min-height: 36px;
+                padding: 0 14px;
+                border-radius: 99px;
+                background: var(--surface);
+                box-shadow: inset 0 0 0 1px var(--line);
+                font-size: 14px;
+            }
+            .rules i {
+                width: 12px;
+                height: 12px;
+                border-radius: 50%;
+                flex: none;
+            }
+            .sec {
+                padding: 56px 0 8px;
+            }
+            .sec > h2 {
+                font: 700 32px/1.1 'Funnel Display';
+                letter-spacing: -0.02em;
+            }
+            .sec > p.lede {
+                color: var(--muted);
+                margin-top: 8px;
+                max-width: 680px;
+            }
+            .row {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 44px 24px;
+                justify-content: center;
+                margin-top: 32px;
+            }
+            .row > div {
+                width: min(390px, 100%);
+            }
+            .cap {
+                font-size: 14px;
+                color: var(--muted);
+                margin-top: 14px;
+            }
+            .cap b {
+                color: var(--ink);
+                font-weight: 600;
+            }
+            /* phone */
+            .ph {
+                position: relative;
+                width: 100%;
+                height: 844px;
+                border-radius: 46px;
+                overflow: hidden;
+                background: var(--ground);
+                color: var(--ink);
+                box-shadow:
+                    0 0 0 1px var(--line),
+                    0 34px 70px -34px var(--shade);
+                display: flex;
+                flex-direction: column;
+            }
+            .ph.lit-top::before {
+                content: '';
+                position: absolute;
+                left: -35%;
+                top: -14%;
+                width: 150%;
+                height: 60%;
+                background: radial-gradient(50% 50% at 34% 50%, var(--pool), transparent);
+                pointer-events: none;
+                animation: on 1.2s ease-out both;
+            }
+            @keyframes on {
+                from {
+                    opacity: 0;
+                }
+            }
+            .scr {
+                position: relative;
+                flex: 1;
+                overflow: hidden;
+                padding: 0 16px 120px;
+            }
+            .sb {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                padding: 16px 30px 6px;
+                font: 600 15px/1 'Funnel Sans';
+                position: relative;
+                z-index: 2;
+            }
+            .sb i {
+                width: 25px;
+                height: 12px;
+                border: 1.5px solid currentColor;
+                border-radius: 4px;
+                position: relative;
+                opacity: 0.9;
+            }
+            .sb i::after {
+                content: '';
+                position: absolute;
+                inset: 1.5px 6px 1.5px 1.5px;
+                background: currentColor;
+                border-radius: 1px;
+            }
+            .hd {
+                display: flex;
+                align-items: flex-start;
+                justify-content: space-between;
+                gap: 12px;
+                padding: 14px 0 18px;
+            }
+            .hd h1 {
+                font: 700 30px/1.08 'Funnel Display';
+                letter-spacing: -0.022em;
+            }
+            .hd p {
+                color: var(--muted);
+                font-size: 15px;
+                margin-top: 6px;
+            }
+            .av {
+                width: 44px;
+                height: 44px;
+                border-radius: 50%;
+                flex: none;
+                display: grid;
+                place-items: center;
+                background: var(--ink);
+                color: var(--ground);
+                font: 600 15px/1 'Funnel Sans';
+            }
+            .sh {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                margin: 20px 0 6px;
+            }
+            .sh h2 {
+                font: 600 19px/1.25 'Funnel Sans';
+            }
+            .lk {
+                display: inline-flex;
+                align-items: center;
+                min-height: 44px;
+                padding: 0 4px;
+                color: var(--ember);
+                font-weight: 600;
+                font-size: 15px;
+            }
+            /* dish light: the food's colours out of focus, lit from the top left by the same lamp */
+            .art {
+                position: relative;
+                flex: none;
+                border-radius: 16px;
+                overflow: hidden;
+                background:
+                    radial-gradient(70% 60% at 78% 22%, var(--a), transparent 70%),
+                    radial-gradient(60% 60% at 24% 78%, var(--c), transparent 72%),
+                    radial-gradient(80% 70% at 72% 80%, var(--b), transparent 70%), var(--m);
+            }
+            .art::after {
+                content: '';
+                position: absolute;
+                inset: 0;
+                background:
+                    radial-gradient(110% 90% at 8% 0%, rgba(255, 236, 190, 0.62), rgba(255, 236, 190, 0) 55%),
+                    radial-gradient(120% 100% at 100% 110%, rgba(20, 14, 6, 0.28), transparent 60%);
+            }
+            .t-d .art::after {
+                background:
+                    radial-gradient(110% 90% at 8% 0%, rgba(255, 227, 154, 0.42), rgba(255, 227, 154, 0) 55%),
+                    radial-gradient(120% 100% at 100% 110%, rgba(0, 0, 0, 0.45), transparent 60%);
+            }
+            .pan {
+                --a: #f7dc86;
+                --b: #e2a040;
+                --c: #fff4d2;
+                --m: #efc777;
+            }
+            .thai {
+                --a: #f09a4a;
+                --b: #c8622a;
+                --c: #9cbf6a;
+                --m: #e8b46e;
+            }
+            .soup {
+                --a: #f07a52;
+                --b: #a92e1c;
+                --c: #f3e4cc;
+                --m: #d9472e;
+            }
+            .foc {
+                --a: #e9c786;
+                --b: #b98a45;
+                --c: #7e9e5a;
+                --m: #ddb878;
+            }
+            .chk {
+                --a: #f3cf7a;
+                --b: #a9562a;
+                --c: #7ea35a;
+                --m: #d8954e;
+            }
+            .cac {
+                --a: #d85a3c;
+                --b: #7a2a1e;
+                --c: #8aa85a;
+                --m: #b5402b;
+            }
+            .coo {
+                --a: #e3b275;
+                --b: #5a3220;
+                --c: #f3ddb4;
+                --m: #b47a45;
+            }
+            .sal {
+                --a: #f59a72;
+                --b: #355e3c;
+                --c: #f2e8d6;
+                --m: #ec845e;
+            }
+            .pork {
+                --a: #d4955a;
+                --b: #6e3418;
+                --c: #ebcb98;
+                --m: #a4602f;
+            }
+            /* the one lit tile on Home */
+            .lit {
+                position: relative;
+                display: flex;
+                gap: 14px;
+                align-items: center;
+                padding: 12px 12px 12px 12px;
+                border-radius: 24px;
+                background: var(--glow);
+                box-shadow:
+                    0 0 0 1px var(--rim),
+                    0 22px 44px -22px var(--lamp);
+                animation: on 1s ease-out both;
+            }
+            .t-d .lit {
+                box-shadow:
+                    0 0 0 1px var(--rim),
+                    0 22px 50px -18px rgba(255, 227, 154, 0.28);
+            }
+            .lit .art {
+                width: 84px;
+                height: 84px;
+                border-radius: 18px;
+            }
+            .lit .tx {
+                flex: 1;
+                min-width: 0;
+            }
+            .lit h3 {
+                font: 700 21px/1.15 'Funnel Display';
+                letter-spacing: -0.012em;
+                margin: 7px 0 4px;
+            }
+            .pill {
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+                padding: 3px 10px 3px 8px;
+                border-radius: 99px;
+                background: var(--lamp);
+                color: var(--on-lamp);
+                font: 600 12px/1.4 'Funnel Sans';
+            }
+            .pill::before {
+                content: '';
+                width: 6px;
+                height: 6px;
+                border-radius: 50%;
+                background: currentColor;
+            }
+            .meta {
+                color: var(--muted);
+                font-size: 14px;
+            }
+            .chev {
+                color: var(--muted);
+            }
+            /* plain list */
+            .list {
+                background: var(--surface);
+                border-radius: 20px;
+                padding: 4px 0;
+            }
+            .li {
+                display: flex;
+                align-items: center;
+                gap: 14px;
+                min-height: 68px;
+                padding: 8px 14px;
+            }
+            .li + .li {
+                border-top: 1px solid var(--line);
+            }
+            .li .art {
+                width: 52px;
+                height: 52px;
+                border-radius: 13px;
+            }
+            .li .tx {
+                flex: 1;
+                min-width: 0;
+            }
+            .li .tt {
+                font-weight: 600;
+                font-size: 16px;
+                line-height: 1.3;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+            .tag {
+                display: inline-block;
+                padding: 0 7px;
+                border-radius: 6px;
+                box-shadow: inset 0 0 0 1px var(--edge);
+                font: 500 12px/1.5 'Funnel Sans';
+                color: var(--muted);
+                vertical-align: 1px;
+            }
+            .ico {
+                width: 40px;
+                height: 40px;
+                border-radius: 12px;
+                flex: none;
+                display: grid;
+                place-items: center;
+                background: var(--sunk);
+                color: var(--muted);
+            }
+            /* buttons */
+            .btn {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                gap: 8px;
+                min-height: 50px;
+                padding: 0 22px;
+                border-radius: 99px;
+                font: 600 16px/1 'Funnel Sans';
+                background: var(--ember);
+                color: var(--on-ember);
+            }
+            .btn.ghost {
+                background: transparent;
+                color: var(--ink);
+                box-shadow: inset 0 0 0 1.5px var(--edge);
+                min-height: 44px;
+                padding: 0 16px;
+                font-size: 15px;
+            }
+            .fab {
+                position: absolute;
+                right: 16px;
+                bottom: 100px;
+                z-index: 3;
+                box-shadow: 0 14px 28px -12px var(--ember);
+            }
+            /* tab bar */
+            .tb {
+                position: absolute;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                z-index: 3;
+                display: flex;
+                justify-content: space-around;
+                padding: 8px 6px 26px;
+                background: var(--surface);
+                box-shadow: 0 -1px 0 var(--line);
+            }
+            .tb span {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 3px;
+                min-width: 56px;
+                min-height: 48px;
+                justify-content: center;
+                font: 500 11px/1 'Funnel Sans';
+                color: var(--muted);
+            }
+            .tb span.on {
+                color: var(--ember);
+                font-weight: 700;
+            }
+            .tb .i {
+                width: 24px;
+                height: 24px;
+            }
+            .fade {
+                position: absolute;
+                left: 0;
+                right: 0;
+                bottom: 84px;
+                height: 72px;
+                background: linear-gradient(transparent, var(--ground));
+                pointer-events: none;
+                z-index: 2;
+            }
+            /* recipe detail */
+            .dh {
+                position: relative;
+                height: 250px;
+                flex: none;
+                margin-top: -46px;
+            }
+            .dh .art {
+                position: absolute;
+                inset: 0;
+                border-radius: 0;
+            }
+            .dh .art::before {
+                content: '';
+                position: absolute;
+                inset: 0;
+                z-index: 1;
+                background:
+                    radial-gradient(2.2% 2.2% at 64% 38%, #5c8a45 90%, transparent),
+                    radial-gradient(1.8% 1.8% at 70% 46%, #5c8a45 90%, transparent),
+                    radial-gradient(1.6% 1.6% at 40% 30%, #6e9a52 90%, transparent),
+                    radial-gradient(2% 2% at 30% 62%, #6e9a52 90%, transparent),
+                    radial-gradient(8% 7% at 76% 70%, rgba(255, 240, 170, 0.75), transparent),
+                    radial-gradient(10% 9% at 22% 44%, rgba(255, 236, 190, 0.5), transparent);
+                filter: blur(1.5px);
+            }
+            .dh::after {
+                content: '';
+                position: absolute;
+                left: 0;
+                right: 0;
+                bottom: -1px;
+                height: 64px;
+                background: linear-gradient(transparent, var(--ground));
+            }
+            .disc {
+                position: absolute;
+                top: 58px;
+                z-index: 3;
+                width: 44px;
+                height: 44px;
+                border-radius: 50%;
+                display: grid;
+                place-items: center;
+                background: var(--surface);
+                color: var(--ink);
+                box-shadow: 0 6px 16px -6px var(--shade);
+            }
+            .over {
+                font: 600 12px/1.4 'Funnel Sans';
+                letter-spacing: 0.07em;
+                text-transform: uppercase;
+                color: var(--muted);
+            }
+            .ttl {
+                font: 700 30px/1.08 'Funnel Display';
+                letter-spacing: -0.022em;
+                margin: 6px 0 10px;
+            }
+            .facts {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 0 14px;
+                font-size: 14px;
+                color: var(--muted);
+                align-items: center;
+            }
+            .facts span {
+                display: inline-flex;
+                gap: 5px;
+                align-items: center;
+                min-height: 30px;
+            }
+            .facts .lk {
+                font-size: 14px;
+                min-height: 30px;
+                padding: 0;
+            }
+            .facts .i {
+                width: 16px;
+                height: 16px;
+            }
+            .strip {
+                display: flex;
+                background: var(--surface);
+                border-radius: 18px;
+                margin: 14px 0 12px;
+                padding: 12px 0;
+            }
+            .strip div {
+                flex: 1;
+                padding: 0 14px;
+            }
+            .strip div + div {
+                box-shadow: -1px 0 0 var(--line);
+            }
+            .strip b {
+                display: block;
+                font: 600 18px/1.2 'Funnel Sans';
+                font-variant-numeric: tabular-nums;
+            }
+            .strip small {
+                font-size: 12px;
+                color: var(--muted);
+            }
+            .stars {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                font-size: 14px;
+                color: var(--muted);
+            }
+            .stars em {
+                font-style: normal;
+                color: var(--ink);
+                letter-spacing: 2px;
+                font-size: 16px;
+            }
+            .acts {
+                display: flex;
+                gap: 14px;
+                align-items: center;
+                margin: 16px 0 4px;
+            }
+            .tog {
+                display: inline-flex;
+                align-items: center;
+                gap: 10px;
+                font-size: 15px;
+                font-weight: 500;
+            }
+            .sw {
+                width: 46px;
+                height: 28px;
+                border-radius: 99px;
+                box-shadow: inset 0 0 0 1.5px var(--edge);
+                position: relative;
+                flex: none;
+            }
+            .sw::after {
+                content: '';
+                position: absolute;
+                left: 5px;
+                top: 5px;
+                width: 18px;
+                height: 18px;
+                border-radius: 50%;
+                background: var(--edge);
+            }
+            .sw.on {
+                background: var(--leek);
+                box-shadow: none;
+            }
+            .sw.on::after {
+                left: 23px;
+                background: var(--surface);
+            }
+            .stp {
+                display: flex;
+                align-items: center;
+                gap: 4px;
+                border-radius: 99px;
+                box-shadow: inset 0 0 0 1.5px var(--edge);
+                padding: 3px;
+                font: 600 16px/1 'Funnel Sans';
+            }
+            .stp span {
+                width: 38px;
+                height: 38px;
+                border-radius: 50%;
+                display: grid;
+                place-items: center;
+                background: var(--sunk);
+            }
+            .stp b {
+                min-width: 22px;
+                text-align: center;
+            }
+            .ing {
+                background: var(--surface);
+                border-radius: 20px;
+                padding: 4px 16px;
+            }
+            .ing .g {
+                font: 600 13px/1 'Funnel Sans';
+                color: var(--muted);
+                padding: 14px 0 6px;
+            }
+            .ing .r {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                min-height: 48px;
+                font-size: 16px;
+            }
+            .ing .r + .r {
+                box-shadow: 0 -1px 0 var(--line);
+            }
+            .cb {
+                width: 24px;
+                height: 24px;
+                border-radius: 7px;
+                box-shadow: inset 0 0 0 1.5px var(--edge);
+                flex: none;
+                display: grid;
+                place-items: center;
+            }
+            .cb.on {
+                background: var(--leek);
+                box-shadow: none;
+                color: var(--surface);
+            }
+            .cb .i {
+                width: 15px;
+                height: 15px;
+                stroke-width: 3;
+            }
+            .ing .r.done span {
+                color: var(--muted);
+            }
+            .ing .q {
+                font-weight: 600;
+                font-variant-numeric: tabular-nums;
+            }
+            /* steps (dark detail) */
+            .bar {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                padding: 4px 0 8px;
+            }
+            .bar .t {
+                flex: 1;
+                min-width: 0;
+                font: 600 16px/1.2 'Funnel Sans';
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                text-align: center;
+            }
+            .bar .bb {
+                width: 44px;
+                height: 44px;
+                border-radius: 50%;
+                display: grid;
+                place-items: center;
+                background: var(--surface);
+                flex: none;
+            }
+            .st {
+                display: flex;
+                gap: 14px;
+                padding: 8px 2px;
+                align-items: flex-start;
+            }
+            .n {
+                width: 44px;
+                height: 44px;
+                border-radius: 50%;
+                flex: none;
+                display: grid;
+                place-items: center;
+                font: 600 16px/1 'Funnel Sans';
+                box-shadow: inset 0 0 0 1.5px var(--edge);
+                color: var(--ink);
+                background: var(--surface);
+            }
+            .st.done .n {
+                background: var(--leek);
+                color: var(--surface);
+                box-shadow: none;
+            }
+            .st.done .n .i {
+                width: 18px;
+                height: 18px;
+                stroke-width: 2.6;
+            }
+            .st.done p {
+                color: var(--muted);
+            }
+            .st p {
+                font-size: 16px;
+                line-height: 1.5;
+                padding-top: 10px;
+            }
+            .st.cur {
+                flex-direction: column;
+                gap: 12px;
+                padding: 16px 16px 18px;
+                margin: 8px 0;
+                border-radius: 26px;
+                background: var(--glow);
+                box-shadow:
+                    0 0 0 1px var(--rim),
+                    0 26px 60px -18px rgba(255, 227, 154, 0.3);
+                transition: all 0.25s ease-out;
+            }
+            .st.cur .top {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+            }
+            .st.cur .n {
+                background: var(--lamp);
+                color: var(--on-lamp);
+                box-shadow: none;
+                font: 700 20px/1 'Funnel Display';
+            }
+            .st.cur p {
+                font: 500 23px/1.38 'Funnel Sans';
+                letter-spacing: -0.005em;
+                padding: 0;
+            }
+            .st.cur p b {
+                font-weight: 700;
+            }
+            .ph.wash::after {
+                content: '';
+                position: absolute;
+                inset: auto 0 0 0;
+                height: 60%;
+                background: radial-gradient(80% 70% at 50% 100%, rgba(255, 227, 154, 0.09), transparent 70%);
+                pointer-events: none;
+            }
+            /* recipes */
+            .seg {
+                display: flex;
+                background: var(--sunk);
+                border-radius: 99px;
+                padding: 4px;
+                margin-bottom: 12px;
+            }
+            .seg span {
+                flex: 1;
+                text-align: center;
+                min-height: 40px;
+                display: grid;
+                place-items: center;
+                border-radius: 99px;
+                font-weight: 600;
+                font-size: 15px;
+                color: var(--muted);
+            }
+            .seg .on {
+                background: var(--surface);
+                color: var(--ink);
+                box-shadow: 0 1px 3px var(--shade);
+            }
+            .srch {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                min-height: 48px;
+                padding: 0 16px;
+                border-radius: 99px;
+                background: var(--surface);
+                box-shadow: inset 0 0 0 1.5px var(--edge);
+                color: var(--muted);
+                font-size: 16px;
+            }
+            .chips {
+                display: flex;
+                gap: 8px;
+                overflow: hidden;
+                margin: 12px -16px 2px;
+                padding: 0 16px 2px;
+            }
+            .chips span {
+                flex: none;
+                min-height: 40px;
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+                padding: 0 14px;
+                border-radius: 99px;
+                box-shadow: inset 0 0 0 1.5px var(--edge);
+                font-weight: 500;
+                font-size: 14px;
+            }
+            .chips .on {
+                background: var(--ink);
+                color: var(--ground);
+                box-shadow: none;
+            }
+            .chips small {
+                color: var(--muted);
+                font-size: 13px;
+            }
+            .chips .on small {
+                color: var(--ground);
+            }
+            .sort {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                min-height: 44px;
+                font-size: 14px;
+                color: var(--muted);
+            }
+            .sort b {
+                color: var(--ink);
+                font-weight: 600;
+            }
+            /* palette sheet */
+            .sws {
+                display: grid;
+                grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+                gap: 16px;
+                margin-top: 28px;
+            }
+            .c {
+                border-radius: 20px;
+                overflow: hidden;
+                background: var(--surface);
+                box-shadow: 0 0 0 1px var(--line);
+            }
+            .c .h {
+                display: flex;
+                height: 92px;
+            }
+            .c .h div {
+                flex: 1;
+                display: flex;
+                align-items: flex-end;
+                padding: 8px 10px;
+                font:
+                    600 12px/1 ui-monospace,
+                    Menlo,
+                    monospace;
+            }
+            .c .b {
+                padding: 12px 14px 14px;
+            }
+            .c .b b {
+                font: 700 17px/1.2 'Funnel Display';
+            }
+            .c .b p {
+                font-size: 13px;
+                color: var(--muted);
+                margin-top: 2px;
+            }
+            .logic {
+                margin-top: 20px;
+                max-width: 760px;
+                font-size: 17px;
+            }
+            .tbl {
+                overflow-x: auto;
+                margin-top: 24px;
+                border-radius: 16px;
+                background: var(--surface);
+                box-shadow: 0 0 0 1px var(--line);
+            }
+            table {
+                width: 100%;
+                border-collapse: collapse;
+                font-size: 14px;
+            }
+            th,
+            td {
+                text-align: left;
+                padding: 10px 12px;
+                box-shadow: 0 1px 0 var(--line);
+            }
+            th {
+                font-weight: 600;
+                color: var(--muted);
+                font-size: 12px;
+                text-transform: uppercase;
+                letter-spacing: 0.05em;
+            }
+            td.v {
+                font-variant-numeric: tabular-nums;
+                font-weight: 600;
+                white-space: nowrap;
+            }
+            td.v i {
+                display: inline-grid;
+                place-items: center;
+                width: 34px;
+                height: 26px;
+                margin-right: 8px;
+                border-radius: 7px;
+                font: 700 13px/1 'Funnel Sans';
+                font-style: normal;
+                box-shadow: inset 0 0 0 1px rgba(127, 127, 127, 0.25);
+                vertical-align: middle;
+            }
+            .type {
+                display: grid;
+                gap: 24px;
+                margin-top: 28px;
+                background: var(--surface);
+                border-radius: 24px;
+                padding: 28px 20px;
+            }
+            .type .lab {
+                font-size: 12px;
+                color: var(--muted);
+                letter-spacing: 0.05em;
+                text-transform: uppercase;
+                margin-bottom: 6px;
+            }
+            .foot {
+                padding: 56px 0 72px;
+                color: var(--muted);
+                font-size: 14px;
+            }
+            @media (prefers-reduced-motion: reduce) {
+                *,
+                *::before,
+                *::after {
+                    animation: none !important;
+                    transition: none !important;
+                }
+            }
+        </style>
+    </head>
+    <body>
+        <svg width="0" height="0" style="position: absolute" aria-hidden="true">
+            <symbol id="home" viewBox="0 0 24 24">
+                <path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z" />
+            </symbol>
+            <symbol id="book" viewBox="0 0 24 24">
+                <path d="M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3z" />
+                <path d="M5 17a3 3 0 0 1 3-3h11" />
+            </symbol>
+            <symbol id="comp" viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="9" />
+                <path d="m15.5 8.5-2 5-5 2 2-5z" />
+            </symbol>
+            <symbol id="cal" viewBox="0 0 24 24">
+                <rect x="3.5" y="5" width="17" height="15" rx="2" />
+                <path d="M3.5 10h17M8 3v4M16 3v4" />
+            </symbol>
+            <symbol id="bag" viewBox="0 0 24 24">
+                <path d="M5 8h14l-1 12H6z" />
+                <path d="M9 8a3 3 0 0 1 6 0" />
+            </symbol>
+            <symbol id="chr" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6" /></symbol>
+            <symbol id="chl" viewBox="0 0 24 24"><path d="m15 6-6 6 6 6" /></symbol>
+            <symbol id="more" viewBox="0 0 24 24">
+                <circle cx="6" cy="12" r="1.3" />
+                <circle cx="12" cy="12" r="1.3" />
+                <circle cx="18" cy="12" r="1.3" />
+            </symbol>
+            <symbol id="plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" /></symbol>
+            <symbol id="minus" viewBox="0 0 24 24"><path d="M5 12h14" /></symbol>
+            <symbol id="srch" viewBox="0 0 24 24">
+                <circle cx="11" cy="11" r="6.5" />
+                <path d="m16 16 4 4" />
+            </symbol>
+            <symbol id="ok" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5" /></symbol>
+            <symbol id="tmr" viewBox="0 0 24 24">
+                <circle cx="12" cy="13" r="8" />
+                <path d="M12 9v4l2.5 2M9.5 2.5h5" />
+            </symbol>
+            <symbol id="glb" viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="9" />
+                <path d="M3 12h18M12 3c3 3.2 3 14.8 0 18M12 3c-3 3.2-3 14.8 0 18" />
+            </symbol>
+            <symbol id="note" viewBox="0 0 24 24">
+                <path d="M6 3h9l4 4v14H6z" />
+                <path d="M14 3v5h5M9 13h7M9 17h5" />
+            </symbol>
+            <symbol id="hist" viewBox="0 0 24 24">
+                <path d="M4 12a8 8 0 1 0 2.4-5.7L4 8.5" />
+                <path d="M4 4v4.5h4.5M12 8v4l3 2" />
+            </symbol>
+            <symbol id="pen" viewBox="0 0 24 24"><path d="m4 20 4-1 11-11-3-3L5 16z" /></symbol>
+            <symbol id="sort" viewBox="0 0 24 24">
+                <path d="M7 4v16M3.5 16.5 7 20l3.5-3.5M17 20V4M13.5 7.5 17 4l3.5 3.5" />
+            </symbol>
+        </svg>
+
+        <header class="wrap hero">
+            <div class="kick">Commise · Workshop 3 · Option 1 · Final</div>
+            <h1>Pilot Light<b></b></h1>
+            <p>
+                Every screen is a calm, cool room with one warm light in it, on the recipe you opened last or the step
+                you are cooking now. Everything else is the plain lists, buttons and tabs you already know, so there is
+                nothing to learn.
+            </p>
+            <div class="rules">
+                <span><i style="background: #f4ae2a"></i>Lamplight means “now”</span
+                ><span><i style="background: #b42318"></i>Ember is the one button</span
+                ><span
+                    ><i style="background: linear-gradient(135deg, #f7dc86, #d9472e, #7e9e5a)"></i>Every dish wears its
+                    own colours</span
+                >
+            </div>
+        </header>
+
+        <main class="wrap">
+            <section class="sec">
+                <h2>Light</h2>
+                <p class="lede">
+                    One light per screen at most, and none where nothing is happening now. The light always comes with a
+                    word, so nobody has to read the glow.
+                </p>
+                <div class="row">
+                    <!-- HOME, LIGHT -->
+                    <div>
+                        <div class="ph lit-top t-l" role="img" aria-label="Home screen in light mode">
+                            <div class="sb"><span>9:41</span><i></i></div>
+                            <div class="scr">
+                                <div class="hd">
+                                    <div>
+                                        <h1>Good morning, Eliza Ramirez</h1>
+                                        <p>Friday, October 16, 2026</p>
+                                    </div>
+                                    <div class="av">ER</div>
+                                </div>
+                                <div class="lit">
+                                    <div class="art pan"></div>
+                                    <div class="tx">
+                                        <span class="pill">Last opened</span>
+                                        <h3>Lemon ricotta pancakes</h3>
+                                        <div class="meta num">35 min · American</div>
+                                    </div>
+                                    <svg class="i chev"><use href="#chr" /></svg>
+                                </div>
+                                <div class="sh">
+                                    <h2>Recent recipes</h2>
+                                    <span class="lk">See all</span>
+                                </div>
+                                <div class="list">
+                                    <div class="li">
+                                        <div class="art thai"></div>
+                                        <div class="tx">
+                                            <div class="tt">Weeknight pad thai</div>
+                                            <div class="meta num">30 min · Thai · Private</div>
+                                        </div>
+                                        <svg class="i chev"><use href="#chr" /></svg>
+                                    </div>
+                                    <div class="li">
+                                        <div class="art soup"></div>
+                                        <div class="tx">
+                                            <div class="tt">Roast tomato soup</div>
+                                            <div class="meta num">
+                                                1 h 10 min · Italian · <span class="tag">Draft</span>
+                                            </div>
+                                        </div>
+                                        <svg class="i chev"><use href="#chr" /></svg>
+                                    </div>
+                                    <div class="li">
+                                        <div class="art foc"></div>
+                                        <div class="tx">
+                                            <div class="tt">Sunday rosemary focaccia</div>
+                                            <div class="meta num">3 h 15 min · Italian</div>
+                                        </div>
+                                        <svg class="i chev"><use href="#chr" /></svg>
+                                    </div>
+                                </div>
+                                <div class="sh"><h2>Coming soon</h2></div>
+                                <div class="list">
+                                    <div class="li">
+                                        <div class="ico">
+                                            <svg class="i"><use href="#cal" /></svg>
+                                        </div>
+                                        <div class="tx meta" style="font-size: 15px; line-height: 1.4">
+                                            Meal plans, a grocery list and daily nutrition are on the way.
+                                        </div>
+                                        <span class="tag">Soon</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <span class="btn fab"
+                                ><svg class="i"><use href="#plus" /></svg>New recipe</span
+                            >
+                            <div class="fade"></div>
+                            <nav class="tb">
+                                <span class="on"
+                                    ><svg class="i"><use href="#home" /></svg>Home</span
+                                ><span
+                                    ><svg class="i"><use href="#book" /></svg>Recipes</span
+                                ><span
+                                    ><svg class="i"><use href="#comp" /></svg>Discover</span
+                                ><span
+                                    ><svg class="i"><use href="#cal" /></svg>Plan</span
+                                ><span
+                                    ><svg class="i"><use href="#bag" /></svg>Shop</span
+                                >
+                            </nav>
+                        </div>
+                        <p class="cap">
+                            <b>Home.</b> The lamp falls from the top left onto the recipe you opened last. It is a row
+                            like the others, with a chevron, so it looks as tappable as it is. One ember button: New
+                            recipe.
+                        </p>
+                    </div>
+
+                    <!-- DETAIL, LIGHT -->
+                    <div>
+                        <div class="ph t-l" role="img" aria-label="Recipe detail screen in light mode">
+                            <div class="sb"><span>9:41</span><i></i></div>
+                            <div class="dh"><div class="art chk"></div></div>
+                            <span class="disc" style="left: 16px"
+                                ><svg class="i"><use href="#chl" /></svg></span
+                            ><span class="disc" style="right: 16px"
+                                ><svg class="i"><use href="#more" /></svg
+                            ></span>
+                            <div class="scr" style="margin-top: -6px">
+                                <div class="over">British</div>
+                                <h2 class="ttl">Lemon and thyme roast chicken</h2>
+                                <div class="facts">
+                                    <span
+                                        ><svg class="i"><use href="#glb" /></svg>Public</span
+                                    ><span
+                                        ><svg class="i"><use href="#note" /></svg>Source: Family recipe card</span
+                                    ><span class="lk"
+                                        ><svg class="i"><use href="#hist" /></svg>Version history</span
+                                    >
+                                </div>
+                                <div class="strip num">
+                                    <div><b>1 h 50 min</b><small>Total</small></div>
+                                    <div><b>20 min</b><small>Prep</small></div>
+                                    <div><b>Medium</b><small>Difficulty</small></div>
+                                </div>
+                                <div class="stars">
+                                    <em aria-hidden="true">★★★★★</em><span class="num">4.8 · 12 ratings</span>
+                                </div>
+                                <div class="acts">
+                                    <span class="btn"
+                                        ><svg class="i"><use href="#pen" /></svg>Edit recipe</span
+                                    ><span class="tog"><span class="sw"></span>Screen on</span>
+                                </div>
+                                <div class="sh">
+                                    <h2>Ingredients</h2>
+                                    <span class="stp num"
+                                        ><span
+                                            ><svg class="i"><use href="#minus" /></svg></span
+                                        ><b>4</b
+                                        ><span
+                                            ><svg class="i"><use href="#plus" /></svg></span
+                                    ></span>
+                                </div>
+                                <div class="ing">
+                                    <div class="g">Chicken</div>
+                                    <div class="r done">
+                                        <span class="cb on"
+                                            ><svg class="i"><use href="#ok" /></svg></span
+                                        ><span><span class="q">1</span> whole chicken</span>
+                                    </div>
+                                    <div class="r done">
+                                        <span class="cb on"
+                                            ><svg class="i"><use href="#ok" /></svg></span
+                                        ><span><span class="q">3 tbsp</span> unsalted butter</span>
+                                    </div>
+                                    <div class="r">
+                                        <span class="cb"></span><span><span class="q">1</span> lemon</span>
+                                    </div>
+                                    <div class="r">
+                                        <span class="cb"></span><span><span class="q">6 sprigs</span> fresh thyme</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="fade"></div>
+                            <nav class="tb">
+                                <span
+                                    ><svg class="i"><use href="#home" /></svg>Home</span
+                                ><span class="on"
+                                    ><svg class="i"><use href="#book" /></svg>Recipes</span
+                                ><span
+                                    ><svg class="i"><use href="#comp" /></svg>Discover</span
+                                ><span
+                                    ><svg class="i"><use href="#cal" /></svg>Plan</span
+                                ><span
+                                    ><svg class="i"><use href="#bag" /></svg>Shop</span
+                                >
+                            </nav>
+                        </div>
+                        <p class="cap">
+                            <b>Recipe detail.</b> The dish fills the top, lit by the lamp, then fades into a plain page:
+                            facts, rating, one ember button and the Screen on switch, as today. Stars are ink, never a
+                            warm colour.
+                        </p>
+                    </div>
+
+                    <!-- RECIPES, LIGHT -->
+                    <div>
+                        <div class="ph t-l" role="img" aria-label="My recipes screen in light mode">
+                            <div class="sb"><span>9:41</span><i></i></div>
+                            <div class="scr">
+                                <div class="hd">
+                                    <div><h1>Recipes</h1></div>
+                                    <div class="av">SR</div>
+                                </div>
+                                <div class="seg"><span class="on">My recipes</span><span>Collections</span></div>
+                                <div class="srch">
+                                    <svg class="i"><use href="#srch" /></svg>Search your recipes
+                                </div>
+                                <div class="chips">
+                                    <span class="on">All</span><span>Under 30 min <small>4</small></span
+                                    ><span>American <small>3</small></span
+                                    ><span>French <small>1</small></span
+                                    ><span>Italian <small>2</small></span>
+                                </div>
+                                <div class="sort">
+                                    <span>Sort: <b>Recently edited</b></span
+                                    ><svg class="i"><use href="#sort" /></svg>
+                                </div>
+                                <div class="list">
+                                    <div class="li">
+                                        <div class="art cac"></div>
+                                        <div class="tx">
+                                            <div class="tt">Weeknight Chicken Cacciatore</div>
+                                            <div class="meta num">55 min · Italian</div>
+                                        </div>
+                                        <svg class="i chev"><use href="#chr" /></svg>
+                                    </div>
+                                    <div class="li">
+                                        <div class="art coo"></div>
+                                        <div class="tx">
+                                            <div class="tt">Brown Butter Chocolate Chip Cookies</div>
+                                            <div class="meta num">40 min · American</div>
+                                        </div>
+                                        <svg class="i chev"><use href="#chr" /></svg>
+                                    </div>
+                                    <div class="li">
+                                        <div class="art sal"></div>
+                                        <div class="tx">
+                                            <div class="tt">Miso-Glazed Salmon with Sesame Greens</div>
+                                            <div class="meta num">25 min · Japanese · Private</div>
+                                        </div>
+                                        <svg class="i chev"><use href="#chr" /></svg>
+                                    </div>
+                                    <div class="li">
+                                        <div class="art pork"></div>
+                                        <div class="tx">
+                                            <div class="tt">Slow-Roasted Pork Shoulder</div>
+                                            <div class="meta num">
+                                                6 h 30 min · American · <span class="tag">Draft</span>
+                                            </div>
+                                        </div>
+                                        <svg class="i chev"><use href="#chr" /></svg>
+                                    </div>
+                                    <div class="li">
+                                        <div class="art soup"></div>
+                                        <div class="tx">
+                                            <div class="tt">Roasted Tomato Basil Soup</div>
+                                            <div class="meta num">50 min · Mediterranean</div>
+                                        </div>
+                                        <svg class="i chev"><use href="#chr" /></svg>
+                                    </div>
+                                    <div class="li">
+                                        <div class="art thai"></div>
+                                        <div class="tx">
+                                            <div class="tt">Pad Thai with Shrimp</div>
+                                            <div class="meta num">35 min · Thai</div>
+                                        </div>
+                                        <svg class="i chev"><use href="#chr" /></svg>
+                                    </div>
+                                </div>
+                            </div>
+                            <span class="btn fab"
+                                ><svg class="i"><use href="#plus" /></svg>New recipe</span
+                            >
+                            <div class="fade"></div>
+                            <nav class="tb">
+                                <span
+                                    ><svg class="i"><use href="#home" /></svg>Home</span
+                                ><span class="on"
+                                    ><svg class="i"><use href="#book" /></svg>Recipes</span
+                                ><span
+                                    ><svg class="i"><use href="#comp" /></svg>Discover</span
+                                ><span
+                                    ><svg class="i"><use href="#cal" /></svg>Plan</span
+                                ><span
+                                    ><svg class="i"><use href="#bag" /></svg>Shop</span
+                                >
+                            </nav>
+                        </div>
+                        <p class="cap">
+                            <b>My recipes.</b> Nothing here is “now”, so there is no light: search, filters, sort and a
+                            plain list. The colour comes from the food, and Draft is a plain outlined tag.
+                        </p>
+                    </div>
+                </div>
+            </section>
+
+            <section class="sec">
+                <h2>Dark: cast iron</h2>
+                <p class="lede">
+                    At night the room is green-black cast iron and the lamp turns to candlelight. Same screens, same
+                    names. Only the values change.
+                </p>
+                <div class="row">
+                    <!-- HOME, DARK -->
+                    <div>
+                        <div class="ph lit-top t-d" role="img" aria-label="Home screen in dark mode">
+                            <div class="sb"><span>9:41</span><i></i></div>
+                            <div class="scr">
+                                <div class="hd">
+                                    <div>
+                                        <h1>Good evening, Eliza Ramirez</h1>
+                                        <p>Friday, October 16, 2026</p>
+                                    </div>
+                                    <div class="av">ER</div>
+                                </div>
+                                <div class="lit">
+                                    <div class="art chk"></div>
+                                    <div class="tx">
+                                        <span class="pill">Last opened</span>
+                                        <h3>Lemon and thyme roast chicken</h3>
+                                        <div class="meta num">1 h 50 min · British</div>
+                                    </div>
+                                    <svg class="i chev"><use href="#chr" /></svg>
+                                </div>
+                                <div class="sh">
+                                    <h2>Recent recipes</h2>
+                                    <span class="lk">See all</span>
+                                </div>
+                                <div class="list">
+                                    <div class="li">
+                                        <div class="art thai"></div>
+                                        <div class="tx">
+                                            <div class="tt">Weeknight pad thai</div>
+                                            <div class="meta num">30 min · Thai · Private</div>
+                                        </div>
+                                        <svg class="i chev"><use href="#chr" /></svg>
+                                    </div>
+                                    <div class="li">
+                                        <div class="art soup"></div>
+                                        <div class="tx">
+                                            <div class="tt">Roast tomato soup</div>
+                                            <div class="meta num">
+                                                1 h 10 min · Italian · <span class="tag">Draft</span>
+                                            </div>
+                                        </div>
+                                        <svg class="i chev"><use href="#chr" /></svg>
+                                    </div>
+                                    <div class="li">
+                                        <div class="art pan"></div>
+                                        <div class="tx">
+                                            <div class="tt">Lemon ricotta pancakes</div>
+                                            <div class="meta num">35 min · American</div>
+                                        </div>
+                                        <svg class="i chev"><use href="#chr" /></svg>
+                                    </div>
+                                </div>
+                                <div class="sh"><h2>Coming soon</h2></div>
+                                <div class="list">
+                                    <div class="li">
+                                        <div class="ico">
+                                            <svg class="i"><use href="#cal" /></svg>
+                                        </div>
+                                        <div class="tx meta" style="font-size: 15px; line-height: 1.4">
+                                            Meal plans, a grocery list and daily nutrition are on the way.
+                                        </div>
+                                        <span class="tag">Soon</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <span class="btn fab"
+                                ><svg class="i"><use href="#plus" /></svg>New recipe</span
+                            >
+                            <div class="fade"></div>
+                            <nav class="tb">
+                                <span class="on"
+                                    ><svg class="i"><use href="#home" /></svg>Home</span
+                                ><span
+                                    ><svg class="i"><use href="#book" /></svg>Recipes</span
+                                ><span
+                                    ><svg class="i"><use href="#comp" /></svg>Discover</span
+                                ><span
+                                    ><svg class="i"><use href="#cal" /></svg>Plan</span
+                                ><span
+                                    ><svg class="i"><use href="#bag" /></svg>Shop</span
+                                >
+                            </nav>
+                        </div>
+                        <p class="cap">
+                            <b>Home, dark.</b> Cast iron, not grey. The light is softer and warmer, and it still lands
+                            on one thing.
+                        </p>
+                    </div>
+
+                    <!-- DETAIL STEPS, DARK -->
+                    <div>
+                        <div
+                            class="ph wash t-d"
+                            role="img"
+                            aria-label="Recipe detail in dark mode, scrolled to the steps while cooking"
+                        >
+                            <div class="sb"><span>9:41</span><i></i></div>
+                            <div class="scr">
+                                <div class="bar">
+                                    <span class="bb"
+                                        ><svg class="i"><use href="#chl" /></svg></span
+                                    ><span class="t">Lemon and thyme roast chicken</span
+                                    ><span class="bb"
+                                        ><svg class="i"><use href="#more" /></svg
+                                    ></span>
+                                </div>
+                                <div class="sh" style="margin-top: 6px">
+                                    <h2>Steps</h2>
+                                    <span class="tog"><span class="sw on"></span>Screen on</span>
+                                </div>
+                                <div class="st done">
+                                    <span class="n" title="Mark step 1 as current"
+                                        ><svg class="i"><use href="#ok" /></svg
+                                    ></span>
+                                    <p>Heat the oven to 220°C (200°C fan). Pat the chicken skin dry.</p>
+                                </div>
+                                <div class="st done">
+                                    <span class="n" title="Mark step 2 as current"
+                                        ><svg class="i"><use href="#ok" /></svg
+                                    ></span>
+                                    <p>Mash the butter with the lemon zest and half of the thyme.</p>
+                                </div>
+                                <div class="st done">
+                                    <span class="n" title="Mark step 3 as current"
+                                        ><svg class="i"><use href="#ok" /></svg
+                                    ></span>
+                                    <p>Scatter the potatoes, carrots and onions in a large roasting tin.</p>
+                                </div>
+                                <div class="st cur">
+                                    <div class="top">
+                                        <span class="n">4</span><span class="pill">Current step</span>
+                                    </div>
+                                    <p>
+                                        Roast for <b class="num">20 minutes</b>, then lower the oven to 190°C (170°C
+                                        fan) and roast for another <b class="num">1 hour 10 minutes</b>, until the
+                                        juices run clear.
+                                    </p>
+                                    <span class="btn ghost" style="align-self: flex-start"
+                                        ><svg class="i"><use href="#tmr" /></svg>Timer · 20 min</span
+                                    >
+                                </div>
+                                <div class="st">
+                                    <span class="n" title="Mark step 5 as current">5</span>
+                                    <p>Rest the chicken, loosely covered with foil, for 15 minutes before carving.</p>
+                                </div>
+                            </div>
+                            <nav class="tb">
+                                <span
+                                    ><svg class="i"><use href="#home" /></svg>Home</span
+                                ><span class="on"
+                                    ><svg class="i"><use href="#book" /></svg>Recipes</span
+                                ><span
+                                    ><svg class="i"><use href="#comp" /></svg>Discover</span
+                                ><span
+                                    ><svg class="i"><use href="#cal" /></svg>Plan</span
+                                ><span
+                                    ><svg class="i"><use href="#bag" /></svg>Shop</span
+                                >
+                            </nav>
+                        </div>
+                        <p class="cap">
+                            <b>Recipe detail, dark, cooking.</b> Every step number is a real button, “Mark step as
+                            current”, and tapping the row does the same. The current step grows to 23 px, takes the
+                            light and says “Current step”. Done steps get a green tick.
+                        </p>
+                    </div>
+                </div>
+            </section>
+
+            <section class="sec" id="palette">
+                <h2>The palette: Pilot Light</h2>
+                <p class="logic">
+                    Cool fog by day and cast iron by night make a quiet room, so the one warm light always means
+                    something. Lamplight marks what is happening now and ember marks what you can do; the red, orange
+                    and yellow sit far apart in hue and never share a job.
+                </p>
+                <div class="sws">
+                    <div class="c">
+                        <div class="h">
+                            <div style="background: #eef3f1; color: #0f1a17">#EEF3F1</div>
+                            <div style="background: #0f1311; color: #ecf2ee">#0F1311</div>
+                        </div>
+                        <div class="b">
+                            <b>Fog · Cast iron</b>
+                            <p>Ground. The room.</p>
+                        </div>
+                    </div>
+                    <div class="c">
+                        <div class="h">
+                            <div style="background: #ffffff; color: #0f1a17">#FFFFFF</div>
+                            <div style="background: #1a201d; color: #ecf2ee">#1A201D</div>
+                        </div>
+                        <div class="b">
+                            <b>Porcelain · Skillet</b>
+                            <p>Surface: lists, fields, tab bar.</p>
+                        </div>
+                    </div>
+                    <div class="c">
+                        <div class="h">
+                            <div style="background: #e1e8e5; color: #0f1a17">#E1E8E5</div>
+                            <div style="background: #242c28; color: #ecf2ee">#242C28</div>
+                        </div>
+                        <div class="b">
+                            <b>Stone</b>
+                            <p>Sunk surface: segmented track, icon tiles.</p>
+                        </div>
+                    </div>
+                    <div class="c">
+                        <div class="h">
+                            <div style="background: #0f1a17; color: #eef3f1">#0F1A17</div>
+                            <div style="background: #ecf2ee; color: #0f1311">#ECF2EE</div>
+                        </div>
+                        <div class="b">
+                            <b>Iron ink · Steam</b>
+                            <p>Text, stars, selected chip.</p>
+                        </div>
+                    </div>
+                    <div class="c">
+                        <div class="h">
+                            <div style="background: #4a5853; color: #ffffff">#4A5853</div>
+                            <div style="background: #a3b0aa; color: #0f1311">#A3B0AA</div>
+                        </div>
+                        <div class="b">
+                            <b>Slate · Ash</b>
+                            <p>Muted text, chevrons, done steps.</p>
+                        </div>
+                    </div>
+                    <div class="c">
+                        <div class="h">
+                            <div style="background: #b42318; color: #ffffff">#B42318</div>
+                            <div style="background: #ff6b5b; color: #1a0a04">#FF6B5B</div>
+                        </div>
+                        <div class="b">
+                            <b>Ember</b>
+                            <p>Primary action, links, selected tab. One button per screen.</p>
+                        </div>
+                    </div>
+                    <div class="c">
+                        <div class="h">
+                            <div style="background: #f4ae2a; color: #1a1205">#F4AE2A</div>
+                            <div style="background: #ffe39a; color: #1a1205">#FFE39A</div>
+                        </div>
+                        <div class="b">
+                            <b>Lamplight</b>
+                            <p>Signature: the light. “Now” only. Never text.</p>
+                        </div>
+                    </div>
+                    <div class="c">
+                        <div class="h">
+                            <div style="background: #fff1d6; color: #0f1a17">#FFF1D6</div>
+                            <div style="background: #2b2412; color: #ecf2ee">#2B2412</div>
+                        </div>
+                        <div class="b">
+                            <b>Glow</b>
+                            <p>The surface under the light.</p>
+                        </div>
+                    </div>
+                    <div class="c">
+                        <div class="h">
+                            <div style="background: #6b7873; color: #ffffff">#6B7873</div>
+                            <div style="background: #75837c; color: #0f1311">#75837C</div>
+                        </div>
+                        <div class="b">
+                            <b>Pewter</b>
+                            <p>Control edge: fields, checkboxes, chips, switch.</p>
+                        </div>
+                    </div>
+                    <div class="c">
+                        <div class="h">
+                            <div style="background: #2c6a3b; color: #ffffff">#2C6A3B</div>
+                            <div style="background: #7ccb8c; color: #0f1311">#7CCB8C</div>
+                        </div>
+                        <div class="b">
+                            <b>Leek</b>
+                            <p>Success: ticks, done steps, Screen on.</p>
+                        </div>
+                    </div>
+                    <div class="c">
+                        <div class="h">
+                            <div style="background: #8a4a00; color: #ffffff">#8A4A00</div>
+                            <div style="background: #ff9433; color: #1a0a04">#FF9433</div>
+                        </div>
+                        <div class="b">
+                            <b>Amber</b>
+                            <p>Warning, always with an icon and a word. Never a fill.</p>
+                        </div>
+                    </div>
+                    <div class="c">
+                        <div class="h">
+                            <div style="background: #8e1f63; color: #ffffff">#8E1F63</div>
+                            <div style="background: #f08ccb; color: #1a0a04">#F08CCB</div>
+                        </div>
+                        <div class="b">
+                            <b>Plum</b>
+                            <p>Danger: Delete, errors. A cool hue, far from ember.</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="tbl">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Pair (computed, WCAG 2.2)</th>
+                                <th>Light</th>
+                                <th>Dark</th>
+                                <th>Needs</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Text on ground</td>
+                                <td class="v"><i style="color: #0f1a17; background: #eef3f1">Aa</i>15.86</td>
+                                <td class="v"><i style="color: #ecf2ee; background: #0f1311">Aa</i>16.50</td>
+                                <td>4.5</td>
+                            </tr>
+                            <tr>
+                                <td>Text on surface</td>
+                                <td class="v"><i style="color: #0f1a17; background: #ffffff">Aa</i>17.79</td>
+                                <td class="v"><i style="color: #ecf2ee; background: #1a201d">Aa</i>14.59</td>
+                                <td>4.5</td>
+                            </tr>
+                            <tr>
+                                <td>Text on sunk (segmented control)</td>
+                                <td class="v"><i style="color: #0f1a17; background: #e1e8e5">Aa</i>14.30</td>
+                                <td class="v"><i style="color: #ecf2ee; background: #242c28">Aa</i>12.62</td>
+                                <td>4.5</td>
+                            </tr>
+                            <tr>
+                                <td>Text on glow (current step)</td>
+                                <td class="v"><i style="color: #0f1a17; background: #fff1d6">Aa</i>15.93</td>
+                                <td class="v"><i style="color: #ecf2ee; background: #2b2412">Aa</i>13.57</td>
+                                <td>4.5</td>
+                            </tr>
+                            <tr>
+                                <td>Muted on ground</td>
+                                <td class="v"><i style="color: #4a5853; background: #eef3f1">Aa</i>6.66</td>
+                                <td class="v"><i style="color: #a3b0aa; background: #0f1311">Aa</i>8.33</td>
+                                <td>4.5</td>
+                            </tr>
+                            <tr>
+                                <td>Muted on surface (meta, chevrons, tab labels)</td>
+                                <td class="v"><i style="color: #4a5853; background: #ffffff">Aa</i>7.47</td>
+                                <td class="v"><i style="color: #a3b0aa; background: #1a201d">Aa</i>7.37</td>
+                                <td>4.5</td>
+                            </tr>
+                            <tr>
+                                <td>Muted on sunk</td>
+                                <td class="v"><i style="color: #4a5853; background: #e1e8e5">Aa</i>6.00</td>
+                                <td class="v"><i style="color: #a3b0aa; background: #242c28">Aa</i>6.38</td>
+                                <td>4.5</td>
+                            </tr>
+                            <tr>
+                                <td>Muted on glow</td>
+                                <td class="v"><i style="color: #4a5853; background: #fff1d6">Aa</i>6.69</td>
+                                <td class="v"><i style="color: #a3b0aa; background: #2b2412">Aa</i>6.85</td>
+                                <td>4.5</td>
+                            </tr>
+                            <tr>
+                                <td>Label on ember button</td>
+                                <td class="v"><i style="color: #ffffff; background: #b42318">Aa</i>6.57</td>
+                                <td class="v"><i style="color: #1a0a04; background: #ff6b5b">Aa</i>6.89</td>
+                                <td>4.5</td>
+                            </tr>
+                            <tr>
+                                <td>Ember link on ground</td>
+                                <td class="v"><i style="color: #b42318; background: #eef3f1">Aa</i>5.86</td>
+                                <td class="v"><i style="color: #ff6b5b; background: #0f1311">Aa</i>6.69</td>
+                                <td>4.5</td>
+                            </tr>
+                            <tr>
+                                <td>Ember on surface (link, selected tab)</td>
+                                <td class="v"><i style="color: #b42318; background: #ffffff">Aa</i>6.57</td>
+                                <td class="v"><i style="color: #ff6b5b; background: #1a201d">Aa</i>5.92</td>
+                                <td>4.5</td>
+                            </tr>
+                            <tr>
+                                <td>Ember on glow</td>
+                                <td class="v"><i style="color: #b42318; background: #fff1d6">Aa</i>5.89</td>
+                                <td class="v"><i style="color: #ff6b5b; background: #2b2412">Aa</i>5.50</td>
+                                <td>4.5</td>
+                            </tr>
+                            <tr>
+                                <td>Label on lamplight (pill, step number)</td>
+                                <td class="v"><i style="color: #1a1205; background: #f4ae2a">Aa</i>9.65</td>
+                                <td class="v"><i style="color: #1a1205; background: #ffe39a">Aa</i>14.75</td>
+                                <td>4.5</td>
+                            </tr>
+                            <tr>
+                                <td>Selected chip (ground on ink)</td>
+                                <td class="v"><i style="color: #eef3f1; background: #0f1a17">Aa</i>15.86</td>
+                                <td class="v"><i style="color: #0f1311; background: #ecf2ee">Aa</i>16.50</td>
+                                <td>4.5</td>
+                            </tr>
+                            <tr>
+                                <td>Leek on surface (success text)</td>
+                                <td class="v"><i style="color: #2c6a3b; background: #ffffff">Aa</i>6.50</td>
+                                <td class="v"><i style="color: #7ccb8c; background: #1a201d">Aa</i>8.50</td>
+                                <td>4.5</td>
+                            </tr>
+                            <tr>
+                                <td>Leek on ground</td>
+                                <td class="v"><i style="color: #2c6a3b; background: #eef3f1">Aa</i>5.79</td>
+                                <td class="v"><i style="color: #7ccb8c; background: #0f1311">Aa</i>9.61</td>
+                                <td>4.5</td>
+                            </tr>
+                            <tr>
+                                <td>Leek on glow (done step tick)</td>
+                                <td class="v"><i style="color: #2c6a3b; background: #fff1d6">Aa</i>5.82</td>
+                                <td class="v"><i style="color: #7ccb8c; background: #2b2412">Aa</i>7.90</td>
+                                <td>3</td>
+                            </tr>
+                            <tr>
+                                <td>Tick on leek (checkbox, surface colour)</td>
+                                <td class="v"><i style="color: #ffffff; background: #2c6a3b">Aa</i>6.50</td>
+                                <td class="v"><i style="color: #1a201d; background: #7ccb8c">Aa</i>8.50</td>
+                                <td>3</td>
+                            </tr>
+                            <tr>
+                                <td>Amber on surface (warning text)</td>
+                                <td class="v"><i style="color: #8a4a00; background: #ffffff">Aa</i>6.86</td>
+                                <td class="v"><i style="color: #ff9433; background: #1a201d">Aa</i>7.52</td>
+                                <td>4.5</td>
+                            </tr>
+                            <tr>
+                                <td>Amber on ground</td>
+                                <td class="v"><i style="color: #8a4a00; background: #eef3f1">Aa</i>6.12</td>
+                                <td class="v"><i style="color: #ff9433; background: #0f1311">Aa</i>8.50</td>
+                                <td>4.5</td>
+                            </tr>
+                            <tr>
+                                <td>Plum on surface (danger text)</td>
+                                <td class="v"><i style="color: #8e1f63; background: #ffffff">Aa</i>8.31</td>
+                                <td class="v"><i style="color: #f08ccb; background: #1a201d">Aa</i>7.35</td>
+                                <td>4.5</td>
+                            </tr>
+                            <tr>
+                                <td>Plum on ground</td>
+                                <td class="v"><i style="color: #8e1f63; background: #eef3f1">Aa</i>7.41</td>
+                                <td class="v"><i style="color: #f08ccb; background: #0f1311">Aa</i>8.31</td>
+                                <td>4.5</td>
+                            </tr>
+                            <tr>
+                                <td>Pewter edge on surface (fields, checkbox, chips)</td>
+                                <td class="v"><i style="color: #6b7873; background: #ffffff">Aa</i>4.61</td>
+                                <td class="v"><i style="color: #75837c; background: #1a201d">Aa</i>4.17</td>
+                                <td>3</td>
+                            </tr>
+                            <tr>
+                                <td>Pewter edge on ground</td>
+                                <td class="v"><i style="color: #6b7873; background: #eef3f1">Aa</i>4.11</td>
+                                <td class="v"><i style="color: #75837c; background: #0f1311">Aa</i>4.72</td>
+                                <td>3</td>
+                            </tr>
+                            <tr>
+                                <td>Pewter edge on glow</td>
+                                <td class="v"><i style="color: #6b7873; background: #fff1d6">Aa</i>4.12</td>
+                                <td class="v"><i style="color: #75837c; background: #2b2412">Aa</i>3.88</td>
+                                <td>3</td>
+                            </tr>
+                            <tr>
+                                <td>Pewter edge on sunk</td>
+                                <td class="v"><i style="color: #6b7873; background: #e1e8e5">Aa</i>3.70</td>
+                                <td class="v"><i style="color: #75837c; background: #242c28">Aa</i>3.61</td>
+                                <td>3</td>
+                            </tr>
+                            <tr>
+                                <td>Focus ring (ink, 2 px) on ground</td>
+                                <td class="v"><i style="color: #0f1a17; background: #eef3f1">Aa</i>15.86</td>
+                                <td class="v"><i style="color: #ecf2ee; background: #0f1311">Aa</i>16.50</td>
+                                <td>3</td>
+                            </tr>
+                            <tr>
+                                <td>Disc icon on Back/More disc (ink on surface)</td>
+                                <td class="v"><i style="color: #0f1a17; background: #ffffff">Aa</i>17.79</td>
+                                <td class="v"><i style="color: #ecf2ee; background: #1a201d">Aa</i>14.59</td>
+                                <td>3</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <p class="cap" style="max-width: 760px">
+                    Every pair passes AA. Lamplight is 1.7:1 on fog, so it is light, never text, and it always comes
+                    with a word. Dividers (#C3CFCA, #3A4540) are decorative; every control has a pewter edge instead.
+                    Hues: ember 4° / 6°, amber 32° / 29°, lamplight 39° / 43°, plum 323° / 322°.
+                </p>
+            </section>
+
+            <section class="sec">
+                <h2>Type</h2>
+                <p class="lede">Funnel Display for titles, Funnel Sans for everything you read. No serif, no paper.</p>
+                <div class="type">
+                    <div>
+                        <div class="lab">Display · Funnel Display 800 · 44</div>
+                        <div style="font: 800 44px/1 'Funnel Display'; letter-spacing: -0.03em">Pilot Light</div>
+                    </div>
+                    <div>
+                        <div class="lab">Title · Funnel Display 700 · 30</div>
+                        <div style="font: 700 30px/1.1 'Funnel Display'; letter-spacing: -0.022em">
+                            Lemon and thyme roast chicken
+                        </div>
+                    </div>
+                    <div>
+                        <div class="lab">Current step · Funnel Sans 500 · 23</div>
+                        <div style="font: 500 23px/1.38 'Funnel Sans'">
+                            Roast for <b>20 minutes</b>, then lower the oven to 190°C.
+                        </div>
+                    </div>
+                    <div>
+                        <div class="lab">Body · Funnel Sans 400 · 16 · Meta 14 · Label 12</div>
+                        <div>Mash the butter with the lemon zest and half of the thyme.</div>
+                        <div class="meta num">1 h 50 min · British · 4.8 · 12 ratings</div>
+                    </div>
+                </div>
+            </section>
+
+            <footer class="wrap foot">
+                Pilot Light · Designer 1 · Workshop 3 final. Motion: the light fades on once when a screen opens, and a
+                step grows into the light in 250 ms. Nothing loops. All of it stops under reduced motion.
+            </footer>
+        </main>
+    </body>
+</html>

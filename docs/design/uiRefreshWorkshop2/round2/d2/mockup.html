@@ -1,0 +1,1518 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Induction II: Live Hob</title>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link
+            href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Sora:wght@300;400;600&display=swap"
+            rel="stylesheet"
+        />
+        <style>
+            *,
+            *::before,
+            *::after {
+                box-sizing: border-box;
+            }
+            :root {
+                --sora: 'Sora', system-ui, sans-serif;
+                --inter: 'Inter', system-ui, sans-serif;
+            }
+            body {
+                margin: 0;
+                background: #16181e;
+                color: #eceff4;
+                font: 400 16px/1.5 var(--inter);
+            }
+            .intro {
+                max-width: 900px;
+                margin: 0 auto;
+                padding: 40px 16px 0;
+            }
+            .intro h1 {
+                font: 300 34px/1.15 var(--sora);
+                margin: 0 0 12px;
+                letter-spacing: -0.015em;
+            }
+            .intro h1 b {
+                font-weight: 600;
+            }
+            .intro p {
+                margin: 0 0 8px;
+                color: #b9c0cc;
+                font-size: 17px;
+                max-width: 70ch;
+            }
+            .board {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 44px;
+                justify-content: center;
+                align-items: flex-start;
+                padding: 32px 16px 64px;
+            }
+            figure {
+                margin: 0;
+            }
+            .cap {
+                font: 500 13px/1.45 var(--inter);
+                color: #a3acbb;
+                text-align: center;
+                margin: 14px auto 0;
+                max-width: 390px;
+            }
+
+            /* ---------- two materials, one heat scale ---------- */
+            /* dark: black hob glass, heat is LIGHT coming up through it */
+            .dark {
+                --ground: #0a0c10;
+                --ink: #eceff4;
+                --muted: #a3acbb;
+                --line: #232833;
+                --track: #181c24;
+                --print: rgba(236, 239, 244, 0.1);
+                --cool: #5b8cff;
+                --warm: #ffb547;
+                --sear: #ff8a3d;
+                --hot: #ff5a3c;
+                --off: rgba(163, 172, 187, 0.22);
+                --ember: #ff8a50;
+                --on-ember: #140c08;
+                --link: #93b3ff;
+                --bloom: 0.8;
+                --blend: screen;
+                --veil: transparent;
+                --tick: rgba(236, 239, 244, 0.28);
+            }
+            /* light: white ceramic, heat is a TINT soaking up under frosted ceramic, cast as warm shadow */
+            .light {
+                --ground: #edf0f4;
+                --ink: #10131a;
+                --muted: #4b5463;
+                --line: #d5dae2;
+                --track: #dde2e9;
+                --print: rgba(16, 19, 26, 0.13);
+                --cool: #2f63e0;
+                --warm: #b86e00;
+                --sear: #d2541a;
+                --hot: #c8321e;
+                --off: rgba(75, 84, 99, 0.3);
+                --ember: #c2410c;
+                --on-ember: #ffffff;
+                --link: #2a55c4;
+                --bloom: 0.55;
+                --blend: multiply;
+                --veil: rgba(237, 240, 244, 0.55);
+                --tick: rgba(16, 19, 26, 0.3);
+            }
+
+            /* ---------- phone ---------- */
+            .phone {
+                width: 390px;
+                border-radius: 50px;
+                overflow: hidden;
+                position: relative;
+                background: var(--ground);
+                color: var(--ink);
+                box-shadow:
+                    0 0 0 10px #04050a,
+                    0 30px 80px rgba(0, 0, 0, 0.5);
+            }
+            .status {
+                height: 50px;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                padding: 0 30px;
+                font: 600 15px var(--inter);
+            }
+            .status .isl {
+                width: 120px;
+                height: 34px;
+                border-radius: 20px;
+                background: #000;
+            }
+            .status svg {
+                fill: currentColor;
+            }
+            .pad {
+                padding: 0 20px;
+            }
+            /* printed hob markings: the faint dot grid every ceramic hob carries */
+            .phone::before {
+                content: '';
+                position: absolute;
+                inset: 0;
+                pointer-events: none;
+                background: radial-gradient(circle, var(--print) 0 1px, transparent 1.5px) 0 0/16px 16px;
+                -webkit-mask: linear-gradient(#000, transparent 55%);
+                mask: linear-gradient(#000, transparent 55%);
+            }
+            .num {
+                font-family: var(--sora);
+                font-variant-numeric: tabular-nums;
+            }
+
+            /* ---------- the burner: one heat ring, the dish sits in it like a pan ---------- */
+            .burner {
+                --s: 120px;
+                --w: 8px;
+                width: var(--s);
+                height: var(--s);
+                position: relative;
+                flex: none;
+                border-radius: 50%;
+            }
+            .burner > .trk,
+            .burner > .arc,
+            .burner > .bloom > span,
+            .burner > .knurl {
+                position: absolute;
+                inset: 0;
+                border-radius: 50%;
+                -webkit-mask: radial-gradient(
+                    farthest-side,
+                    transparent calc(100% - var(--w)),
+                    #000 calc(100% - var(--w) + 0.5px)
+                );
+                mask: radial-gradient(
+                    farthest-side,
+                    transparent calc(100% - var(--w)),
+                    #000 calc(100% - var(--w) + 0.5px)
+                );
+            }
+            .burner > .trk {
+                background: var(--track);
+            }
+            .burner > .arc,
+            .burner > .bloom > span {
+                background: var(--sig);
+            }
+            /* the bloom: in dark it is light through glass; in light it is tint under frost (multiply, wider, then veiled) */
+            .burner > .bloom {
+                position: absolute;
+                inset: -10%;
+                filter: blur(calc(var(--w) * 1.8));
+                opacity: var(--bloom);
+                mix-blend-mode: var(--blend);
+                animation: simmer 6s ease-in-out infinite;
+            }
+            .burner > .bloom > span {
+                inset: 9%;
+            }
+            .light .burner > .bloom {
+                inset: -16%;
+                filter: blur(calc(var(--w) * 2.6));
+                transform: translateY(6%);
+            }
+            .burner > .mid {
+                position: absolute;
+                inset: calc(var(--w) + 6px);
+                border-radius: 50%;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                text-align: center;
+                background: var(--ground);
+                box-shadow: inset 0 0 0 1px var(--print);
+            }
+            .burner > .mid.veil {
+                background: var(--veil);
+            }
+            @keyframes simmer {
+                0%,
+                100% {
+                    opacity: calc(var(--bloom) * 0.72);
+                }
+                50% {
+                    opacity: var(--bloom);
+                }
+            }
+
+            /* heat signatures: arc = step length, colour = one continuous cool->hot scale, dim = heat off (resting) */
+            .s-chicken {
+                --sig: conic-gradient(
+                    var(--cool) 0 15.4%,
+                    transparent 15.4% 16.4%,
+                    var(--hot) 16.4% 32%,
+                    var(--sear) 87.4%,
+                    transparent 87.4% 88.4%,
+                    var(--off) 88.4% 99.4%,
+                    transparent 99.4%
+                );
+            }
+            .s-ragu {
+                --sig: conic-gradient(
+                    var(--cool) 0 11%,
+                    transparent 11% 12%,
+                    var(--sear) 12% 19%,
+                    transparent 19% 20%,
+                    var(--hot) 20% 26%,
+                    transparent 26% 27%,
+                    var(--warm) 27% 91%,
+                    transparent 91% 92%,
+                    var(--off) 92% 99.3%,
+                    transparent 99.3%
+                );
+            }
+            .s-dal {
+                --sig: conic-gradient(
+                    var(--cool) 0 24%,
+                    transparent 24% 25.5%,
+                    var(--warm) 25.5% 70%,
+                    transparent 70% 71.5%,
+                    var(--hot) 71.5% 82%,
+                    transparent 82% 83.5%,
+                    var(--off) 83.5% 98.5%,
+                    transparent 98.5%
+                );
+            }
+            .s-greens {
+                --sig: conic-gradient(var(--cool) 0 47%, transparent 47% 50%, var(--hot) 50% 97%, transparent 97%);
+            }
+
+            /* the dish, painted from above: roast chicken in its tin (stands in for the cook's own photo) */
+            .dish {
+                position: absolute;
+                inset: calc(var(--w) + 6px);
+                border-radius: 50%;
+                background:
+                    radial-gradient(circle at 44% 38%, rgba(255, 244, 214, 0.75) 0 3%, transparent 9%),
+                    radial-gradient(ellipse 13% 9% at 47% 60%, #c4782d 0 60%, transparent 64%),
+                    radial-gradient(
+                        ellipse 30% 23% at 50% 47%,
+                        #f2c072 0 22%,
+                        #d78f3d 52%,
+                        #9c5520 84%,
+                        transparent 87%
+                    ),
+                    radial-gradient(circle at 73% 28%, #fff0a0 0 3%, #f4d64a 3.5% 6.4%, #d7b42c 7%, transparent 7.6%),
+                    radial-gradient(circle at 25% 33%, #f0d08a 0 4%, #c9994e 6.8%, transparent 7.4%),
+                    radial-gradient(circle at 34% 79%, #f0d08a 0 4%, #c9994e 6.8%, transparent 7.4%),
+                    radial-gradient(circle at 77% 66%, #f0d08a 0 4%, #c9994e 6.8%, transparent 7.4%),
+                    radial-gradient(ellipse 7% 3.6% at 19% 58%, #ee7a2c 0 85%, transparent 95%),
+                    radial-gradient(ellipse 3.6% 7% at 63% 82%, #ee7a2c 0 85%, transparent 95%),
+                    radial-gradient(ellipse 6.5% 3.6% at 82% 46%, #ee7a2c 0 85%, transparent 95%),
+                    radial-gradient(ellipse 5% 4% at 52% 87%, #a04466 0 80%, transparent 90%),
+                    radial-gradient(ellipse 5% 4% at 15% 44%, #a04466 0 80%, transparent 90%),
+                    radial-gradient(circle at 38% 70%, #4f7a2e 0 1.2%, transparent 1.6%),
+                    radial-gradient(circle at 61% 30%, #4f7a2e 0 1.2%, transparent 1.6%),
+                    radial-gradient(circle at 70% 54%, #4f7a2e 0 1.2%, transparent 1.6%),
+                    radial-gradient(
+                        circle,
+                        #6a3814 0 62%,
+                        #3a2110 73%,
+                        #1c1512 75.5%,
+                        #4c5058 77%,
+                        #2b2d33 84%,
+                        #5a5e66 87%,
+                        #24262b 90%
+                    );
+                box-shadow:
+                    0 0 0 1px rgba(0, 0, 0, 0.25),
+                    0 10px 26px rgba(0, 0, 0, 0.45);
+            }
+            .light .dish {
+                box-shadow:
+                    0 0 0 1px rgba(0, 0, 0, 0.08),
+                    0 14px 26px -8px rgba(120, 40, 10, 0.38);
+            }
+
+            /* the knob: the hero ring is the control. knurled bezel, a notch, the arc is the timer */
+            .burner > .knurl {
+                inset: -14px;
+                --w: 7px;
+                background: repeating-conic-gradient(var(--tick) 0 0.55deg, transparent 0.55deg 4deg);
+            }
+            .notch {
+                position: absolute;
+                left: 50%;
+                top: -20px;
+                width: 4px;
+                height: 20px;
+                margin-left: -2px;
+                border-radius: 2px;
+                background: var(--ink);
+                transform-origin: 2px calc(var(--s) / 2 + 20px);
+                transform: rotate(var(--at, 0deg));
+            }
+            .notch::after {
+                content: '';
+                position: absolute;
+                left: -5px;
+                top: -9px;
+                width: 14px;
+                height: 14px;
+                border-radius: 50%;
+                background: var(--ink);
+                box-shadow: 0 0 0 4px var(--ground);
+            }
+            .demo .notch {
+                animation: nudge 7s ease-in-out infinite;
+            }
+            @keyframes nudge {
+                0%,
+                70%,
+                100% {
+                    transform: rotate(0);
+                }
+                78% {
+                    transform: rotate(16deg);
+                }
+                86% {
+                    transform: rotate(-3deg);
+                }
+                92% {
+                    transform: rotate(0);
+                }
+            }
+            /* running timer: the remaining part of the current arc is lit, the spent part has cooled */
+            .spent {
+                position: absolute;
+                inset: 0;
+                border-radius: 50%;
+                background: conic-gradient(var(--ground) 0 var(--done), transparent 0);
+                opacity: 0.62;
+                -webkit-mask: radial-gradient(
+                    farthest-side,
+                    transparent calc(100% - var(--w)),
+                    #000 calc(100% - var(--w) + 0.5px)
+                );
+                mask: radial-gradient(
+                    farthest-side,
+                    transparent calc(100% - var(--w)),
+                    #000 calc(100% - var(--w) + 0.5px)
+                );
+            }
+
+            /* residual heat: the "H" a real hob shows on a zone that is still warm */
+            .resid {
+                position: absolute;
+                right: -4px;
+                top: 2px;
+                display: flex;
+                align-items: center;
+                gap: 5px;
+                padding: 3px 8px 3px 6px;
+                border-radius: 999px;
+                background: var(--ground);
+                box-shadow: 0 0 0 1px var(--line);
+                font: 500 12px/1.2 var(--inter);
+                color: var(--muted);
+            }
+            .resid b {
+                font: 600 13px/1 var(--sora);
+                color: var(--ink);
+                width: 16px;
+                height: 16px;
+                border-radius: 4px;
+                display: grid;
+                place-items: center;
+                background: color-mix(in srgb, var(--hot) 30%, transparent);
+                box-shadow: 0 0 10px color-mix(in srgb, var(--hot) 60%, transparent);
+            }
+
+            @media (prefers-reduced-motion: reduce) {
+                .burner > .bloom,
+                .demo .notch,
+                .warmth {
+                    animation: none !important;
+                }
+            }
+
+            /* ---------- type ---------- */
+            .date {
+                font: 500 13px/1.4 var(--inter);
+                color: var(--muted);
+                letter-spacing: 0.02em;
+            }
+            .hello {
+                font: 300 30px/1.15 var(--sora);
+                margin: 4px 0 0;
+                letter-spacing: -0.015em;
+            }
+            .hello b {
+                font-weight: 600;
+            }
+            .sec {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                margin: 26px 0 0;
+            }
+            .sec h2 {
+                margin: 0;
+                font: 600 18px/1.3 var(--inter);
+            }
+            .link {
+                min-height: 48px;
+                display: inline-flex;
+                align-items: center;
+                padding: 0 4px;
+                color: var(--link);
+                font: 600 14px var(--inter);
+                text-decoration: none;
+            }
+            .lead {
+                margin: 0;
+                color: var(--muted);
+                font-size: 16px;
+            }
+            .meta {
+                font: 400 13px/1.4 var(--inter);
+                color: var(--muted);
+            }
+
+            /* ---------- home: the hob plan. each recipe gets a zone sized by its time ---------- */
+            .plan {
+                position: relative;
+                height: 452px;
+                margin-top: 6px;
+            }
+            .plan::before {
+                content: '';
+                position: absolute;
+                inset: 4px -6px 0;
+                border-radius: 28px;
+                border: 1px solid var(--print);
+            }
+            .zone {
+                position: absolute;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 10px;
+                text-decoration: none;
+                color: inherit;
+                text-align: center;
+            }
+            .zone .n {
+                font: 500 15px/1.3 var(--inter);
+                max-width: 178px;
+            }
+            .zone .burner > .mid .t {
+                font: 300 26px/1 var(--sora);
+            }
+            .zone .burner > .mid .t small {
+                font-size: 13px;
+            }
+            .zone .burner > .mid .u {
+                font: 500 11px/1.3 var(--inter);
+                color: var(--muted);
+                margin-top: 4px;
+            }
+            .unlitrow {
+                display: flex;
+                justify-content: space-between;
+                padding: 16px 4px 0;
+            }
+            .unlit {
+                width: 100px;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 10px;
+                text-align: center;
+            }
+            .unlit .burner {
+                --s: 84px;
+                --w: 2px;
+            }
+            .unlit .burner > .mid {
+                box-shadow: none;
+                border: 1px dashed var(--print);
+            }
+            .unlit svg {
+                width: 22px;
+                height: 22px;
+                stroke: var(--muted);
+                fill: none;
+                stroke-width: 1.6;
+            }
+            .unlit .n {
+                font: 500 14px/1.3 var(--inter);
+            }
+            .soon {
+                font: 600 11px/1 var(--inter);
+                letter-spacing: 0.08em;
+                text-transform: uppercase;
+                color: var(--muted);
+                border: 1px solid var(--line);
+                border-radius: 999px;
+                padding: 4px 8px;
+            }
+
+            /* ---------- tab bar ---------- */
+            .tabs {
+                margin-top: 26px;
+                display: flex;
+                justify-content: space-around;
+                padding: 8px 8px 28px;
+                border-top: 1px solid var(--line);
+                background: color-mix(in srgb, var(--ground) 90%, transparent);
+                position: relative;
+            }
+            .tab {
+                width: 66px;
+                min-height: 48px;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 4px;
+                font: 500 11px/1 var(--inter);
+                color: var(--muted);
+            }
+            .tab svg {
+                width: 24px;
+                height: 24px;
+                stroke: currentColor;
+                fill: none;
+                stroke-width: 1.6;
+            }
+            .tab.on {
+                color: var(--ink);
+            }
+            .tab.on::before {
+                content: '';
+                width: 22px;
+                height: 3px;
+                border-radius: 2px;
+                background: var(--ember);
+                box-shadow: 0 0 10px var(--ember);
+                margin: -8px 0 2px;
+            }
+
+            /* ---------- recipe detail ---------- */
+            .bar {
+                display: flex;
+                justify-content: space-between;
+                padding: 0 8px;
+                position: relative;
+            }
+            .iconbtn {
+                width: 48px;
+                height: 48px;
+                display: grid;
+                place-items: center;
+                border-radius: 50%;
+                color: var(--ink);
+            }
+            .iconbtn svg {
+                width: 24px;
+                height: 24px;
+                stroke: currentColor;
+                fill: none;
+                stroke-width: 1.8;
+            }
+            .over {
+                font: 600 12px/1.4 var(--inter);
+                letter-spacing: 0.08em;
+                text-transform: uppercase;
+                color: var(--muted);
+            }
+            .title {
+                font: 600 30px/1.12 var(--sora);
+                margin: 6px 0 0;
+                letter-spacing: -0.02em;
+            }
+            .hero {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                padding: 42px 0 6px;
+            }
+            .turn {
+                margin: 24px 0 0;
+                font: 500 14px/1.4 var(--inter);
+                color: var(--muted);
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            }
+            .turn svg {
+                width: 18px;
+                height: 18px;
+                stroke: currentColor;
+                fill: none;
+                stroke-width: 1.8;
+            }
+            .scale {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                margin-top: 12px;
+                font: 500 12px/1.3 var(--inter);
+                color: var(--muted);
+            }
+            .scale .g {
+                width: 120px;
+                height: 6px;
+                border-radius: 3px;
+                background: linear-gradient(90deg, var(--cool), var(--warm) 45%, var(--sear) 70%, var(--hot));
+            }
+            .scale .o {
+                width: 16px;
+                height: 6px;
+                border-radius: 3px;
+                background: var(--off);
+            }
+            .facts {
+                display: flex;
+                margin: 24px 0 0;
+                border-top: 1px solid var(--line);
+                border-bottom: 1px solid var(--line);
+            }
+            .fact {
+                flex: 1;
+                padding: 14px 0;
+                display: flex;
+                flex-direction: column;
+                gap: 2px;
+                min-width: 0;
+            }
+            .fact + .fact {
+                padding-left: 14px;
+                border-left: 1px solid var(--line);
+            }
+            .fact b {
+                font: 400 20px/1.2 var(--sora);
+                font-variant-numeric: tabular-nums;
+                white-space: nowrap;
+            }
+            .fact b small {
+                font-size: 13px;
+            }
+            .fact span {
+                font: 500 12px/1.3 var(--inter);
+                color: var(--muted);
+            }
+            .stepper {
+                display: flex;
+                align-items: center;
+            }
+            .stepper button {
+                width: 44px;
+                height: 44px;
+                margin: -10px -6px;
+                border: 0;
+                border-radius: 50%;
+                background: transparent;
+                color: var(--ink);
+                font: 400 20px var(--sora);
+            }
+            .stepper b {
+                min-width: 28px;
+                text-align: center;
+            }
+            .rate {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                margin-top: 14px;
+                font: 500 14px var(--inter);
+                color: var(--muted);
+            }
+            .rate i {
+                color: var(--warm);
+                font-style: normal;
+                letter-spacing: 1px;
+            }
+            .desc {
+                font: 400 17px/1.6 var(--inter);
+                margin: 14px 0 0;
+            }
+            .cook {
+                margin: 22px 0 0;
+                width: 100%;
+                min-height: 56px;
+                border: 0;
+                border-radius: 28px;
+                background: var(--ember);
+                color: var(--on-ember);
+                font: 600 17px var(--inter);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 10px;
+                box-shadow: 0 10px 34px -8px color-mix(in srgb, var(--ember) 75%, transparent);
+            }
+            .cook svg {
+                width: 20px;
+                height: 20px;
+                fill: currentColor;
+            }
+            .h2 {
+                font: 600 20px/1.25 var(--sora);
+                margin: 34px 0 4px;
+                display: flex;
+                align-items: baseline;
+                gap: 10px;
+            }
+            .h2 span {
+                font: 500 14px var(--inter);
+                color: var(--muted);
+            }
+            .hint {
+                margin: 0 0 6px;
+                font: 400 14px/1.45 var(--inter);
+                color: var(--muted);
+            }
+            .grp {
+                font: 600 12px/1.4 var(--inter);
+                letter-spacing: 0.08em;
+                text-transform: uppercase;
+                color: var(--muted);
+                padding: 14px 0 0;
+            }
+            /* ingredients: each line wears the heat of the step that uses it, and the pip is the check target */
+            .ing {
+                list-style: none;
+                margin: 0;
+                padding: 0;
+            }
+            .ing li {
+                display: grid;
+                grid-template-columns: 44px 74px 1fr;
+                align-items: center;
+                gap: 8px;
+                min-height: 56px;
+                padding: 6px 0;
+                border-bottom: 1px solid var(--line);
+            }
+            .ing li:last-child {
+                border: 0;
+            }
+            .pip {
+                width: 32px;
+                height: 32px;
+                border-radius: 50%;
+                display: grid;
+                place-items: center;
+                font: 600 12px/1 var(--sora);
+                color: var(--ink);
+                box-shadow: inset 0 0 0 2px var(--c);
+                position: relative;
+            }
+            .pip.hot {
+                background: color-mix(in srgb, var(--c) 22%, transparent);
+            }
+            .ing .q {
+                font: 400 15px/1.4 var(--sora);
+                font-variant-numeric: tabular-nums;
+                color: var(--muted);
+            }
+            .ing .w {
+                font-size: 16px;
+                line-height: 1.35;
+            }
+            .ing .w small {
+                display: block;
+                font-size: 13px;
+                color: var(--muted);
+            }
+            .ing li.done .w {
+                color: var(--muted);
+            }
+            .ing li.done .pip {
+                background: var(--c);
+                box-shadow: none;
+                color: var(--ground);
+            }
+            .ing li.done .pip::after {
+                content: '';
+                position: absolute;
+                width: 12px;
+                height: 7px;
+                border: solid var(--on-ember);
+                border-width: 0 0 2.5px 2.5px;
+                transform: translateY(-2px) rotate(-45deg);
+            }
+            .ing li.done .pip {
+                font-size: 0;
+            }
+            /* steps: each one carries its own arc of the ring */
+            .steps {
+                list-style: none;
+                margin: 0;
+                padding: 0;
+            }
+            .steps li {
+                display: grid;
+                grid-template-columns: 44px 1fr;
+                gap: 14px;
+                padding: 16px 0;
+                border-bottom: 1px solid var(--line);
+            }
+            .steps li:last-child {
+                border: 0;
+            }
+            .steps .burner {
+                --s: 44px;
+                --w: 4px;
+            }
+            .steps .burner > .mid {
+                inset: 6px;
+                box-shadow: none;
+                font: 600 13px var(--sora);
+            }
+            .steps .burner > .bloom {
+                filter: blur(5px);
+            }
+            .steps p {
+                margin: 0;
+                font-size: 16px;
+                line-height: 1.55;
+            }
+            .dur {
+                display: flex;
+                gap: 10px;
+                margin-top: 6px;
+                font: 500 13px var(--inter);
+                color: var(--muted);
+            }
+            .dur b {
+                font-weight: 600;
+                color: var(--ink);
+            }
+            .dur b::before {
+                content: '';
+                display: inline-block;
+                width: 8px;
+                height: 8px;
+                border-radius: 50%;
+                background: var(--c);
+                margin-right: 6px;
+                vertical-align: 1px;
+            }
+
+            /* ---------- cooking state (light frame): the knob runs, the room warms ---------- */
+            .warmth {
+                position: absolute;
+                left: -20%;
+                right: -20%;
+                bottom: -120px;
+                height: 420px;
+                pointer-events: none;
+                border-radius: 50%;
+                background: radial-gradient(closest-side, color-mix(in srgb, var(--hot) 22%, transparent), transparent);
+                mix-blend-mode: var(--blend);
+                animation: simmer 6s ease-in-out infinite;
+                --bloom: 1;
+            }
+            .dark .warmth {
+                background: radial-gradient(closest-side, color-mix(in srgb, var(--hot) 16%, transparent), transparent);
+            }
+            .now {
+                display: flex;
+                align-items: center;
+                gap: 16px;
+                padding: 6px 0 0;
+            }
+            .now .burner > .mid .t {
+                font: 300 34px/1 var(--sora);
+                letter-spacing: -0.02em;
+            }
+            .now .burner > .mid .u {
+                font: 500 12px/1.3 var(--inter);
+                color: var(--muted);
+                margin-top: 4px;
+            }
+            .chip {
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+                font: 600 12px/1 var(--inter);
+                letter-spacing: 0.06em;
+                text-transform: uppercase;
+                color: var(--ink);
+                padding: 6px 10px;
+                border-radius: 999px;
+                box-shadow: inset 0 0 0 1px var(--line);
+            }
+            .chip i {
+                width: 8px;
+                height: 8px;
+                border-radius: 50%;
+                background: var(--hot);
+            }
+            .big {
+                font: 400 22px/1.45 var(--inter);
+                margin: 18px 0 0;
+                letter-spacing: -0.005em;
+            }
+            .big b {
+                font-weight: 600;
+            }
+            .tools {
+                display: flex;
+                gap: 10px;
+                margin-top: 20px;
+            }
+            .tool {
+                flex: 1;
+                min-height: 52px;
+                border-radius: 26px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 8px;
+                font: 600 15px var(--inter);
+                color: var(--ink);
+                box-shadow: inset 0 0 0 1.5px var(--line);
+                background: color-mix(in srgb, var(--ground) 70%, #fff);
+            }
+            .dark .tool {
+                background: transparent;
+            }
+            .tool svg {
+                width: 20px;
+                height: 20px;
+                stroke: currentColor;
+                fill: none;
+                stroke-width: 1.8;
+            }
+            .tool.on {
+                box-shadow: inset 0 0 0 2px var(--ink);
+            }
+            .next {
+                display: grid;
+                grid-template-columns: 44px 1fr;
+                gap: 14px;
+                align-items: center;
+                margin-top: 22px;
+                padding: 14px 16px;
+                border-radius: 22px;
+                box-shadow: inset 0 0 0 1px var(--line);
+            }
+            .next p {
+                margin: 0;
+                font-size: 15px;
+                line-height: 1.45;
+            }
+            .next p span {
+                display: block;
+                font: 500 12px/1.3 var(--inter);
+                color: var(--muted);
+                letter-spacing: 0.06em;
+                text-transform: uppercase;
+            }
+        </style>
+    </head>
+    <body>
+        <header class="intro">
+            <h1><b>Induction II: Live Hob.</b> The screen is the hob, and every recipe is a burner.</h1>
+            <p>
+                Each recipe is a ring of heat (its steps, as long as they take, cool blue to red-hot), with the dish
+                sitting inside it like a pan, and that ring is also the knob you turn to cook. The phone behaves like
+                the appliance it lives next to: zones sized by cooking time, residual heat on what you made last night,
+                unlit burners for what is coming, and a screen that warms with the step on the stove.
+            </p>
+        </header>
+
+        <main class="board">
+            <!-- ================= HOME · DARK ================= -->
+            <figure>
+                <div class="phone dark" role="img" aria-label="Home screen, dark theme">
+                    <div class="status">
+                        <span class="num">9:41</span><span class="isl"></span
+                        ><svg width="54" height="12" viewBox="0 0 54 12" aria-hidden="true">
+                            <rect x="0" y="7" width="3" height="5" rx="1" />
+                            <rect x="5" y="5" width="3" height="7" rx="1" />
+                            <rect x="10" y="3" width="3" height="9" rx="1" />
+                            <rect x="15" y="1" width="3" height="11" rx="1" />
+                            <rect x="28" y="1" width="22" height="11" rx="3" fill="none" stroke="currentColor" />
+                            <rect x="30" y="3" width="15" height="7" rx="1.5" />
+                        </svg>
+                    </div>
+                    <div class="pad">
+                        <div class="date">Friday, October 16, 2026</div>
+                        <h1 class="hello">Good morning,<br /><b>Eliza Ramirez</b></h1>
+
+                        <div class="sec">
+                            <h2>Recent recipes</h2>
+                            <a class="link" href="#">See all</a>
+                        </div>
+
+                        <div class="plan">
+                            <!-- largest zone: the longest cook -->
+                            <a
+                                class="zone"
+                                href="#"
+                                style="left: -2px; top: 22px"
+                                aria-label="Slow tomato ragù, 3 hours"
+                            >
+                                <div class="burner s-ragu" style="--s: 176px; --w: 11px">
+                                    <div class="trk"></div>
+                                    <div class="bloom"><span></span></div>
+                                    <div class="arc"></div>
+                                    <div class="mid">
+                                        <span class="t num">3<small> h</small></span
+                                        ><span class="u">6 steps</span>
+                                    </div>
+                                </div>
+                                <span class="n">Slow tomato ragù</span>
+                            </a>
+                            <!-- the one with a photo: the dish sits in its burner, still warm from last night -->
+                            <a
+                                class="zone"
+                                href="#"
+                                style="right: -2px; top: 10px"
+                                aria-label="Lemon and thyme roast chicken, 1 hour 50 minutes, cooked last night"
+                            >
+                                <div class="burner s-chicken" style="--s: 156px; --w: 10px">
+                                    <div class="trk"></div>
+                                    <div class="bloom"><span></span></div>
+                                    <div class="arc"></div>
+                                    <div class="dish"></div>
+                                    <span class="resid"><b>H</b>Last night</span>
+                                </div>
+                                <span class="n"
+                                    >Lemon and thyme roast chicken<br /><span class="meta num">1 h 50 min</span></span
+                                >
+                            </a>
+                            <a
+                                class="zone"
+                                href="#"
+                                style="left: 30px; top: 262px"
+                                aria-label="Weeknight red lentil dal, 40 minutes"
+                            >
+                                <div class="burner s-dal" style="--s: 118px; --w: 8px">
+                                    <div class="trk"></div>
+                                    <div class="bloom"><span></span></div>
+                                    <div class="arc"></div>
+                                    <div class="mid">
+                                        <span class="t num" style="font-size: 22px">40<small> min</small></span>
+                                    </div>
+                                </div>
+                                <span class="n">Weeknight red<br />lentil dal</span>
+                            </a>
+                            <a
+                                class="zone"
+                                href="#"
+                                style="right: 34px; top: 292px"
+                                aria-label="Charred greens with tahini, 15 minutes"
+                            >
+                                <div class="burner s-greens" style="--s: 92px; --w: 7px">
+                                    <div class="trk"></div>
+                                    <div class="bloom"><span></span></div>
+                                    <div class="arc"></div>
+                                    <div class="mid">
+                                        <span class="t num" style="font-size: 19px">15<small> min</small></span>
+                                    </div>
+                                </div>
+                                <span class="n">Charred greens<br />with tahini</span>
+                            </a>
+                        </div>
+
+                        <div class="sec" style="margin-top: 20px"><h2>Coming soon</h2></div>
+                        <p class="lead">Meal plans, a grocery list and daily nutrition are on the way.</p>
+                        <div class="unlitrow">
+                            <div class="unlit">
+                                <div class="burner">
+                                    <div class="trk"></div>
+                                    <div class="mid">
+                                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                                            <rect x="4" y="5" width="16" height="15" rx="2" />
+                                            <path d="M4 10h16M9 3v4M15 3v4" />
+                                        </svg>
+                                    </div>
+                                </div>
+                                <span class="n">Meal plans</span><span class="soon">Soon</span>
+                            </div>
+                            <div class="unlit">
+                                <div class="burner">
+                                    <div class="trk"></div>
+                                    <div class="mid">
+                                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                                            <path d="M4 6h2l2 10h10l2-7H7" />
+                                            <circle cx="9" cy="19" r="1.3" />
+                                            <circle cx="17" cy="19" r="1.3" />
+                                        </svg>
+                                    </div>
+                                </div>
+                                <span class="n">Grocery list</span><span class="soon">Soon</span>
+                            </div>
+                            <div class="unlit">
+                                <div class="burner">
+                                    <div class="trk"></div>
+                                    <div class="mid">
+                                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                                            <path d="M12 21c-4.5 0-7-3-7-7 0-5 7-11 7-11s7 6 7 11c0 4-2.5 7-7 7z" />
+                                        </svg>
+                                    </div>
+                                </div>
+                                <span class="n">Nutrition</span><span class="soon">Soon</span>
+                            </div>
+                        </div>
+                    </div>
+                    <nav class="tabs" aria-label="Main">
+                        <div class="tab on">
+                            <svg viewBox="0 0 24 24"><path d="M4 11l8-7 8 7v9H4z" /></svg>Home
+                        </div>
+                        <div class="tab">
+                            <svg viewBox="0 0 24 24">
+                                <circle cx="12" cy="12" r="8" />
+                                <path d="M15 9l-2 4-4 2 2-4z" /></svg
+                            >Discover
+                        </div>
+                        <div class="tab">
+                            <svg viewBox="0 0 24 24">
+                                <circle cx="12" cy="12" r="8" />
+                                <circle cx="12" cy="12" r="3" /></svg
+                            >Recipes
+                        </div>
+                        <div class="tab">
+                            <svg viewBox="0 0 24 24">
+                                <rect x="4" y="4" width="7" height="7" rx="2" />
+                                <rect x="13" y="4" width="7" height="7" rx="2" />
+                                <rect x="4" y="13" width="7" height="7" rx="2" />
+                                <rect x="13" y="13" width="7" height="7" rx="2" /></svg
+                            >Collections
+                        </div>
+                        <div class="tab">
+                            <svg viewBox="0 0 24 24">
+                                <circle cx="12" cy="8" r="4" />
+                                <path d="M4 20c1.5-4 4.5-6 8-6s6.5 2 8 6" /></svg
+                            >Profile
+                        </div>
+                    </nav>
+                </div>
+                <figcaption class="cap">
+                    Home · dark glass. The hob plan: each recipe gets a zone sized by its time. The chicken still shows
+                    residual heat (H) from last night. What is coming stays unlit.
+                </figcaption>
+            </figure>
+
+            <!-- ================= RECIPE DETAIL · DARK ================= -->
+            <figure>
+                <div class="phone dark" role="img" aria-label="Recipe detail, dark theme">
+                    <div class="status">
+                        <span class="num">9:41</span><span class="isl"></span
+                        ><svg width="54" height="12" viewBox="0 0 54 12" aria-hidden="true">
+                            <rect x="0" y="7" width="3" height="5" rx="1" />
+                            <rect x="5" y="5" width="3" height="7" rx="1" />
+                            <rect x="10" y="3" width="3" height="9" rx="1" />
+                            <rect x="15" y="1" width="3" height="11" rx="1" />
+                            <rect x="28" y="1" width="22" height="11" rx="3" fill="none" stroke="currentColor" />
+                            <rect x="30" y="3" width="15" height="7" rx="1.5" />
+                        </svg>
+                    </div>
+                    <div class="bar">
+                        <span class="iconbtn" aria-label="Back to My recipes"
+                            ><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7" /></svg
+                        ></span>
+                        <span style="display: flex"
+                            ><span class="iconbtn" aria-label="Save to collection"
+                                ><svg viewBox="0 0 24 24"><path d="M6 4h12v16l-6-4-6 4z" /></svg></span
+                            ><span class="iconbtn" aria-label="More actions for Lemon and thyme roast chicken"
+                                ><svg viewBox="0 0 24 24">
+                                    <circle cx="5" cy="12" r="1.2" />
+                                    <circle cx="12" cy="12" r="1.2" />
+                                    <circle cx="19" cy="12" r="1.2" /></svg></span
+                        ></span>
+                    </div>
+                    <div class="pad">
+                        <div class="over">British · Public</div>
+                        <h1 class="title">Lemon and thyme roast chicken</h1>
+
+                        <div class="hero demo">
+                            <div
+                                class="burner s-chicken"
+                                style="--s: 262px; --w: 16px"
+                                role="slider"
+                                aria-label="Cooking knob: turn to move through the 5 steps"
+                                aria-valuemin="0"
+                                aria-valuemax="5"
+                                aria-valuenow="0"
+                            >
+                                <div class="knurl"></div>
+                                <div class="trk"></div>
+                                <div class="bloom"><span></span></div>
+                                <div class="arc"></div>
+                                <div class="dish"></div>
+                                <div class="notch"></div>
+                            </div>
+                            <div class="turn">
+                                <svg viewBox="0 0 24 24" aria-hidden="true">
+                                    <path d="M20 12a8 8 0 1 1-3-6.2" />
+                                    <path d="M17 2v4h4" /></svg
+                                >Turn the ring to cook, step by step
+                            </div>
+                            <div class="scale" aria-label="Heat scale: cool to hot, dim means heat off">
+                                <span>Cool</span><span class="g"></span><span>Hot</span><span class="o"></span
+                                ><span>Off</span>
+                            </div>
+                        </div>
+
+                        <div class="facts">
+                            <div class="fact">
+                                <b>1 h 50<small> min</small></b
+                                ><span>Total</span>
+                            </div>
+                            <div class="fact">
+                                <b>20<small> min</small></b
+                                ><span>Prep</span>
+                            </div>
+                            <div class="fact">
+                                <div class="stepper">
+                                    <button aria-label="Fewer servings">−</button
+                                    ><b class="num" style="font: 400 20px/1.2 var(--sora)">4</b
+                                    ><button aria-label="More servings">+</button>
+                                </div>
+                                <span>Servings</span>
+                            </div>
+                        </div>
+                        <div class="rate">
+                            <i aria-hidden="true">★★★★★</i
+                            ><span aria-label="Rated 4.8 out of 5, 12 ratings">4.8 · 12 ratings</span>
+                        </div>
+
+                        <p class="desc">
+                            A Sunday roast that does the work for you: butter, lemon and thyme worked under the skin,
+                            and everything else cooking in the same tin so the vegetables catch the juices.
+                        </p>
+
+                        <button class="cook">
+                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z" /></svg>Start cooking
+                        </button>
+
+                        <h2 class="h2">Ingredients <span>11</span></h2>
+                        <p class="hint">
+                            Each line wears the heat of the step that uses it. This roast is all cold prep, then one
+                            long roast, so its list is cool. Tap the step mark to check it off.
+                        </p>
+                        <div class="grp">Chicken</div>
+                        <ul class="ing">
+                            <li style="--c: var(--cool)">
+                                <span class="pip" aria-label="Step 1, check off">1</span><span class="q">1</span
+                                ><span class="w">whole chicken<small>about 1.8 kg</small></span>
+                            </li>
+                            <li style="--c: var(--cool)">
+                                <span class="pip">2</span><span class="q">3 tbsp</span
+                                ><span class="w">unsalted butter<small>softened</small></span>
+                            </li>
+                            <li style="--c: var(--cool)">
+                                <span class="pip">2</span><span class="q">1</span
+                                ><span class="w">lemon<small>zested and halved</small></span>
+                            </li>
+                            <li style="--c: var(--cool)">
+                                <span class="pip">2</span><span class="q">6 sprigs</span
+                                ><span class="w">fresh thyme</span>
+                            </li>
+                            <li style="--c: var(--cool)">
+                                <span class="pip">3</span><span class="q">1 head</span
+                                ><span class="w">garlic<small>halved crosswise, into the cavity</small></span>
+                            </li>
+                        </ul>
+                        <div class="grp">Vegetables</div>
+                        <ul class="ing">
+                            <li style="--c: var(--cool)">
+                                <span class="pip">3</span><span class="q">800 g</span
+                                ><span class="w">waxy potatoes<small>quartered</small></span>
+                            </li>
+                            <li style="--c: var(--cool)">
+                                <span class="pip">3</span><span class="q">4</span
+                                ><span class="w">carrots<small>cut into chunks</small></span>
+                            </li>
+                        </ul>
+
+                        <h2 class="h2">Steps <span>5</span></h2>
+                        <ol class="steps">
+                            <li>
+                                <div class="burner" style="--sig: conic-gradient(var(--cool) 0 15.4%, transparent 0)">
+                                    <div class="trk"></div>
+                                    <div class="arc"></div>
+                                    <div class="mid">1</div>
+                                </div>
+                                <div>
+                                    <p>
+                                        Heat the oven to 220°C (200°C fan). Take the chicken out of the fridge, pat the
+                                        skin dry and leave it while the oven heats.
+                                    </p>
+                                    <div class="dur" style="--c: var(--cool)">
+                                        <b class="num">20 min</b>prep, steps 1–3
+                                    </div>
+                                </div>
+                            </li>
+                            <li>
+                                <div
+                                    class="burner"
+                                    style="
+                                        --sig: conic-gradient(
+                                            transparent 0 16.4%,
+                                            var(--hot) 16.4% 32%,
+                                            var(--sear) 87.4%,
+                                            transparent 0
+                                        );
+                                    "
+                                >
+                                    <div class="trk"></div>
+                                    <div class="bloom"><span></span></div>
+                                    <div class="arc"></div>
+                                    <div class="mid">4</div>
+                                </div>
+                                <div>
+                                    <p>
+                                        Roast for 20 minutes, then lower the oven to 190°C (170°C fan) and roast for
+                                        another 1 hour 10 minutes, until the juices run clear.
+                                    </p>
+                                    <div class="dur" style="--c: var(--hot)">
+                                        <b class="num">1 h 30 min</b>220°C, then 190°C
+                                    </div>
+                                </div>
+                            </li>
+                        </ol>
+                        <div style="height: 34px"></div>
+                    </div>
+                </div>
+                <figcaption class="cap">
+                    Recipe detail · dark. The hero is the dish in its burner, and the knurled ring is a knob. One heat
+                    scale, named once. Ingredients and steps wear the same heat as the ring. (Steps 2–3, 5 and four
+                    ingredients are cut from this sample.)
+                </figcaption>
+            </figure>
+
+            <!-- ================= RECIPE DETAIL, STEP 4 CURRENT · LIGHT ================= -->
+            <figure>
+                <div class="phone light" role="img" aria-label="Recipe detail with step 4 current, light theme">
+                    <div class="warmth" aria-hidden="true"></div>
+                    <div class="status" style="position: relative">
+                        <span class="num">6:12</span><span class="isl"></span
+                        ><svg width="54" height="12" viewBox="0 0 54 12" aria-hidden="true">
+                            <rect x="0" y="7" width="3" height="5" rx="1" />
+                            <rect x="5" y="5" width="3" height="7" rx="1" />
+                            <rect x="10" y="3" width="3" height="9" rx="1" />
+                            <rect x="15" y="1" width="3" height="11" rx="1" />
+                            <rect x="28" y="1" width="22" height="11" rx="3" fill="none" stroke="currentColor" />
+                            <rect x="30" y="3" width="15" height="7" rx="1.5" />
+                        </svg>
+                    </div>
+                    <div class="bar">
+                        <span class="iconbtn" aria-label="Back to My recipes"
+                            ><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7" /></svg
+                        ></span>
+                        <span class="iconbtn" aria-label="More actions"
+                            ><svg viewBox="0 0 24 24">
+                                <circle cx="5" cy="12" r="1.2" />
+                                <circle cx="12" cy="12" r="1.2" />
+                                <circle cx="19" cy="12" r="1.2" /></svg
+                        ></span>
+                    </div>
+                    <div class="pad" style="position: relative">
+                        <div class="over">Lemon and thyme roast chicken</div>
+
+                        <div class="hero" style="padding: 34px 0 0">
+                            <div
+                                class="burner s-chicken"
+                                style="--s: 250px; --w: 16px; --done: 46%"
+                                role="slider"
+                                aria-label="Cooking knob at step 4 of 5, 52 minutes left"
+                                aria-valuemin="0"
+                                aria-valuemax="5"
+                                aria-valuenow="4"
+                            >
+                                <div class="knurl"></div>
+                                <div class="trk"></div>
+                                <div class="bloom"><span></span></div>
+                                <div class="arc"></div>
+                                <div class="spent"></div>
+                                <div class="dish"></div>
+                                <div
+                                    class="mid veil"
+                                    style="
+                                        background: radial-gradient(
+                                            circle,
+                                            rgba(237, 240, 244, 0.84) 0 46%,
+                                            rgba(237, 240, 244, 0.5) 72%,
+                                            rgba(237, 240, 244, 0.35) 100%
+                                        );
+                                        box-shadow: none;
+                                    "
+                                >
+                                    <span class="t num" style="font: 300 52px/1 var(--sora); letter-spacing: -0.03em"
+                                        >52:10</span
+                                    ><span
+                                        class="u"
+                                        style="font: 600 13px/1.3 var(--inter); color: var(--ink); margin-top: 6px"
+                                        >left in step 4 · 190°C</span
+                                    >
+                                </div>
+                                <div class="notch" style="--at: 166deg"></div>
+                            </div>
+                        </div>
+
+                        <div
+                            style="margin-top: 30px; display: flex; justify-content: space-between; align-items: center"
+                        >
+                            <span class="chip"><i></i>Step 4 of 5 · Roasting</span>
+                            <span class="meta num">Done at 7:19</span>
+                        </div>
+                        <p class="big">
+                            Roast for 20 minutes, then lower the oven to <b>190°C (170°C fan)</b> and roast for another
+                            1 hour 10 minutes, until the juices run clear.
+                        </p>
+
+                        <div class="tools">
+                            <span class="tool on"
+                                ><svg viewBox="0 0 24 24" aria-hidden="true">
+                                    <circle cx="12" cy="13" r="7" />
+                                    <path d="M12 9v4l2 2M9 2h6" /></svg
+                                >Timer</span
+                            >
+                            <span class="tool on"
+                                ><svg viewBox="0 0 24 24" aria-hidden="true">
+                                    <circle cx="12" cy="12" r="4" />
+                                    <path
+                                        d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.4 1.4M17.6 17.6L19 19M5 19l1.4-1.4M17.6 6.4L19 5"
+                                    /></svg
+                                >Screen on</span
+                            >
+                        </div>
+
+                        <div class="next">
+                            <div
+                                class="burner"
+                                style="
+                                    --s: 44px;
+                                    --w: 4px;
+                                    --sig: conic-gradient(transparent 0 88.4%, var(--off) 88.4% 99.4%, transparent 0);
+                                "
+                            >
+                                <div class="trk"></div>
+                                <div class="arc"></div>
+                                <div class="mid" style="inset: 6px; box-shadow: none; font: 600 13px var(--sora)">
+                                    5
+                                </div>
+                            </div>
+                            <p>
+                                <span>Next · heat off · 15 min</span>Rest the chicken, loosely covered with foil, before
+                                carving.
+                            </p>
+                        </div>
+
+                        <h2 class="h2" style="margin-top: 26px">In the tin <span>all checked</span></h2>
+                        <ul class="ing">
+                            <li class="done" style="--c: var(--cool)">
+                                <span class="pip" aria-label="Checked">3</span><span class="q">800 g</span
+                                ><span class="w">waxy potatoes</span>
+                            </li>
+                            <li class="done" style="--c: var(--cool)">
+                                <span class="pip" aria-label="Checked">3</span><span class="q">2 tbsp</span
+                                ><span class="w">olive oil</span>
+                            </li>
+                        </ul>
+                        <div style="height: 30px"></div>
+                    </div>
+                </div>
+                <figcaption class="cap">
+                    Recipe detail with step 4 current · light ceramic. Heat no longer glows: it soaks up under frosted
+                    white and falls as a warm shadow. The arc you have used cools; the rest is the timer. The lower
+                    screen warms with the step on the stove.
+                </figcaption>
+            </figure>
+        </main>
+    </body>
+</html>

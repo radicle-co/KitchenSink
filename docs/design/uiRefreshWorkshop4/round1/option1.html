@@ -1,0 +1,2416 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Carton</title>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link
+            href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,400..800&display=swap"
+            rel="stylesheet"
+        />
+        <style>
+            /* ---- Tokens: palette "Carton". The palette sheet reads these; the check script reads the same hex. ---- */
+            :root,
+            .lt {
+                --ground: #ffffff;
+                --surface: #ffffff;
+                --sunken: #edf1f4;
+                --edge: #6e7a86;
+                --ink: #11161c;
+                --muted: #4a5560;
+                --action: #c41e3a;
+                --on-action: #ffffff;
+                --wash: #fce6e8;
+                --warning: #855400;
+                --danger: #8f1d63;
+                --hairline: #dde3e8;
+                --carton: #b9d8f2;
+                --band: var(--ink);
+                --band-ink: var(--ground);
+                --shadow: 0 1px 2px rgb(17 22 28 / 0.08), 0 6px 18px rgb(17 22 28 / 0.08);
+            }
+            .dk {
+                --ground: #0e1216;
+                --surface: #161b21;
+                --sunken: #1f262d;
+                --edge: #7d8893;
+                --ink: #eef2f5;
+                --muted: #aeb8c2;
+                --action: #ffa294;
+                --on-action: #2a0606;
+                --wash: #33181a;
+                --warning: #f2c14e;
+                --danger: #f2a6f0;
+                --hairline: #2a3239;
+                --carton: #21405e;
+                --band: var(--ink);
+                --band-ink: var(--ground);
+                --shadow: 0 1px 2px rgb(0 0 0 / 0.45);
+            }
+            :root {
+                --pg: #f3f5f7;
+                --pg-ink: #11161c;
+                --pg-muted: #4a5560;
+                --pg-line: #dde3e8;
+                color-scheme: light dark;
+            }
+            @media (prefers-color-scheme: dark) {
+                :root:not([data-theme='light']) {
+                    --pg: #090c0f;
+                    --pg-ink: #eef2f5;
+                    --pg-muted: #aeb8c2;
+                    --pg-line: #2a3239;
+                }
+            }
+            :root[data-theme='dark'] {
+                --pg: #090c0f;
+                --pg-ink: #eef2f5;
+                --pg-muted: #aeb8c2;
+                --pg-line: #2a3239;
+            }
+
+            * {
+                box-sizing: border-box;
+            }
+            html {
+                -webkit-text-size-adjust: 100%;
+            }
+            body {
+                margin: 0;
+                background: var(--pg);
+                color: var(--pg-ink);
+                font:
+                    400 1.0625rem/1.45 'Bricolage Grotesque',
+                    system-ui,
+                    sans-serif;
+                font-variation-settings: 'opsz' 14;
+                overflow-wrap: break-word;
+            }
+            .f-d {
+                font-weight: 800;
+                font-stretch: 78%;
+                font-variation-settings: 'opsz' 72;
+            }
+            .wrap {
+                max-width: 1280px;
+                margin: 0 auto;
+                padding: 0 16px 80px;
+            }
+            .hero {
+                padding: 48px 0 28px;
+                display: grid;
+                gap: 18px;
+            }
+            .hero h1 {
+                margin: 0;
+                font-size: clamp(3.5rem, 13vw, 8rem);
+                line-height: 0.86;
+            }
+            .hero p {
+                margin: 0;
+                max-width: 42rem;
+                font-size: 1.25rem;
+                line-height: 1.4;
+            }
+            .hero .k {
+                font-size: 1rem;
+                color: var(--pg-muted);
+            }
+            .strip {
+                display: flex;
+                height: 32px;
+                border-radius: 8px;
+                overflow: hidden;
+                max-width: 34rem;
+                border: 1px solid var(--pg-line);
+            }
+            .strip i {
+                flex: 1;
+            }
+            h2.band {
+                font-size: 1.75rem;
+                margin: 56px 0 6px;
+                line-height: 1.1;
+            }
+            .band + p {
+                margin: 0 0 24px;
+                color: var(--pg-muted);
+                max-width: 46rem;
+            }
+            .row {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 28px;
+                align-items: flex-start;
+            }
+            figure {
+                margin: 0;
+                width: min(390px, 100%);
+            }
+            figcaption {
+                font-size: 1rem;
+                color: var(--pg-muted);
+                margin-top: 12px;
+                line-height: 1.4;
+            }
+            figcaption b {
+                color: var(--pg-ink);
+            }
+
+            /* ---- Phone ---- */
+            .phone {
+                position: relative;
+                width: 100%;
+                height: 844px;
+                border-radius: 44px;
+                overflow: hidden;
+                background: var(--ground);
+                color: var(--ink);
+                border: 1px solid var(--pg-line);
+                box-shadow:
+                    0 2px 6px rgb(0 0 0 / 0.06),
+                    0 24px 48px -24px rgb(0 0 0 / 0.25);
+                display: flex;
+                flex-direction: column;
+            }
+            .phone.short {
+                height: auto;
+            }
+            .phone {
+                container-type: inline-size;
+            }
+            .sb {
+                flex: none;
+                height: 50px;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                padding: 6px 30px 0;
+                font: 650 15px/1 'Bricolage Grotesque';
+            }
+            .sb svg {
+                width: 64px;
+                height: 12px;
+                fill: var(--ink);
+            }
+            .scroll {
+                flex: 1;
+                overflow-y: auto;
+                overflow-x: hidden;
+                scrollbar-width: none;
+            }
+            .scroll::-webkit-scrollbar {
+                display: none;
+            }
+            svg.i {
+                width: 1.25em;
+                height: 1.25em;
+                fill: none;
+                stroke: currentColor;
+                stroke-width: 1.9;
+                stroke-linecap: round;
+                stroke-linejoin: round;
+                flex: none;
+                vertical-align: -0.22em;
+            }
+
+            /* large title: plain weight, normal width. The carton name is the only condensed shout on a screen. */
+            .lt-h {
+                display: flex;
+                align-items: flex-end;
+                justify-content: space-between;
+                gap: 12px;
+                padding: 4px 16px 0;
+            }
+            .lt-h h1 {
+                margin: 0;
+                font-size: min(calc(1.0625rem + 17px), 44px);
+                line-height: 1.05;
+                font-weight: 700;
+                letter-spacing: -0.01em;
+            }
+            .lt-h .d {
+                display: block;
+                font-size: 0.8125rem;
+                font-weight: 650;
+                letter-spacing: 0.01em;
+                margin-bottom: 4px;
+            }
+            .av {
+                width: clamp(44px, 2.6em, 52px);
+                height: clamp(44px, 2.6em, 52px);
+                border-radius: 50%;
+                border: 0;
+                background: var(--sunken);
+                color: var(--ink);
+                font: 700 0.9375rem/1 'Bricolage Grotesque';
+                flex: none;
+            }
+
+            /* ---- The carton: one per screen. Crisp corners, a die-cut window with a printed keyline, the name printed on colour, a band of facts. ---- */
+            .carton {
+                display: flex;
+                flex-direction: column;
+                margin: 16px 16px 0;
+                padding: 8px 10px 0;
+                border-radius: 8px;
+                background: var(--carton);
+                color: var(--ink);
+                text-decoration: none;
+            }
+            .win {
+                order: 3;
+                display: block;
+                position: relative;
+                border-radius: 16px;
+                overflow: hidden;
+                aspect-ratio: 16 / 10;
+                background: #1d2228;
+                box-shadow:
+                    0 0 0 4px var(--carton),
+                    0 0 0 5.5px var(--ink);
+                margin: 6px 6px 10px;
+            }
+            .win svg {
+                display: block;
+                width: 100%;
+                height: 100%;
+            }
+            .why-o {
+                display: block;
+                margin: 8px 16px 0;
+                font-size: 1rem;
+                font-weight: 700;
+            }
+            .why-o + .carton {
+                margin-top: 8px;
+            }
+            .why-o svg {
+                margin-right: 6px;
+            }
+            .carton .why svg {
+                margin-right: 6px;
+            }
+            .carton .why {
+                order: 1;
+                display: block;
+                margin: 6px 4px 0;
+                font-size: 0.9375rem;
+                font-weight: 700;
+            }
+            .carton .nm {
+                order: 2;
+                display: block;
+                margin: 4px 4px 10px;
+                font-size: min(calc(1rem + 16px), 40px);
+                line-height: 0.95;
+                letter-spacing: -0.005em;
+                text-wrap: balance;
+            }
+            .facts {
+                order: 4;
+                display: flex;
+                flex-wrap: wrap;
+                gap: 4px 18px;
+                margin: 0 -10px;
+                padding: 12px 14px 13px;
+                border-radius: 0 0 8px 8px;
+                background: var(--band);
+                color: var(--band-ink);
+                font-size: 1rem;
+                font-weight: 700;
+            }
+            .facts span {
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+            }
+
+            /* buttons */
+            .btn {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 8px;
+                min-height: 52px;
+                padding: 12px 20px;
+                border-radius: 14px;
+                border: 0;
+                font: 700 1.0625rem/1.2 'Bricolage Grotesque';
+                text-decoration: none;
+                text-align: center;
+                cursor: pointer;
+            }
+            .btn.p {
+                background: var(--action);
+                color: var(--on-action);
+            }
+            .btn.s {
+                background: transparent;
+                color: var(--ink);
+                box-shadow: inset 0 0 0 1.5px var(--edge);
+            }
+            .btn:active {
+                transform: scale(0.98);
+            }
+            .cta {
+                margin: 12px 16px 0;
+            }
+            .link {
+                color: var(--action);
+                font-weight: 700;
+                text-decoration: underline;
+                text-underline-offset: 3px;
+                text-decoration-thickness: 1.5px;
+            }
+
+            /* section heads + rows */
+            .sh {
+                display: flex;
+                align-items: center;
+                flex-wrap: wrap;
+                justify-content: space-between;
+                gap: 8px 12px;
+                margin: 20px 16px 2px;
+            }
+            .sh h2 {
+                margin: 0;
+                font-size: 1.375rem;
+                line-height: 1.15;
+                font-weight: 700;
+            }
+            .sh .c {
+                color: var(--muted);
+                font-size: 1rem;
+            }
+            .rows {
+                list-style: none;
+                margin: 0;
+                padding: 0 16px;
+            }
+            .rows a {
+                display: flex;
+                align-items: center;
+                gap: 14px;
+                min-height: 72px;
+                padding: 7px 0;
+                color: var(--ink);
+                text-decoration: none;
+                border-bottom: 1px solid var(--hairline);
+            }
+            .th {
+                width: 76px;
+                height: 57px;
+                border-radius: 6px;
+                overflow: hidden;
+                flex: none;
+                background: var(--sunken);
+            }
+            .th svg {
+                width: 100%;
+                height: 100%;
+                display: block;
+            }
+            .th.none {
+                background: var(--carton);
+                display: grid;
+                place-items: center;
+            }
+            .th.none i {
+                width: 48px;
+                height: 28px;
+                border-radius: 7px;
+                box-shadow: 0 0 0 1.5px var(--ink);
+                background: var(--ground);
+                opacity: 0.7;
+            }
+            .tx {
+                flex: 1;
+                min-width: 0;
+            }
+            .tx b {
+                display: block;
+                overflow-wrap: anywhere;
+                font-size: 1.0625rem;
+                font-weight: 700;
+                line-height: 1.25;
+            }
+            .tx span {
+                display: block;
+                font-size: 1rem;
+                color: var(--muted);
+                margin-top: 2px;
+            }
+            .chev {
+                color: var(--muted);
+            }
+            .tx .tag {
+                display: inline-flex;
+                align-items: center;
+                font-size: 0.8125rem;
+                font-weight: 700;
+                color: var(--ink);
+                padding: 1px 7px;
+                border-radius: 6px;
+                box-shadow: inset 0 0 0 1px var(--edge);
+                margin-left: 6px;
+                vertical-align: 2px;
+            }
+            .more {
+                display: flex;
+                align-items: center;
+                margin: 0 16px;
+                min-height: 48px;
+                color: var(--ink);
+                text-decoration: none;
+                font-weight: 700;
+                border-bottom: 1px solid var(--hairline);
+            }
+            .more em {
+                font-style: normal;
+                color: var(--muted);
+                font-weight: 400;
+                margin-left: auto;
+                margin-right: 8px;
+            }
+            .soon {
+                margin: 22px 16px 32px;
+                color: var(--muted);
+                font-size: 1rem;
+            }
+
+            /* tab bar: three tabs (TAB_ROUTES). Labels in Ink (text under 16 px uses Ink); the current tab is marked by a filled icon and weight. */
+            .tabs {
+                flex: none;
+                display: grid;
+                grid-template-columns: repeat(3, 1fr);
+                padding: 6px 4px 26px;
+                background: var(--surface);
+                border-top: 1px solid var(--hairline);
+            }
+            .tabs a {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 2px;
+                min-height: 48px;
+                color: var(--ink);
+                text-decoration: none;
+                font-size: 12px;
+                font-weight: 550;
+            }
+            .tabs a svg {
+                width: 26px;
+                height: 26px;
+                color: var(--muted);
+            }
+            .tabs a[aria-current] {
+                font-weight: 800;
+            }
+            .tabs a[aria-current] svg {
+                color: var(--action);
+                fill: var(--action);
+                fill-opacity: 0.2;
+            }
+            .dock {
+                flex: none;
+                padding: 10px 16px 12px;
+                background: var(--surface);
+                border-top: 1px solid var(--hairline);
+            }
+
+            /* recipe page: the carton runs full width, its nav row printed on the carton, never on the photo */
+            .navr {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                gap: 8px;
+                order: 0;
+                margin: 0 0 4px;
+            }
+            .navr .r {
+                display: flex;
+                gap: 8px;
+            }
+            .circ {
+                width: 44px;
+                height: 44px;
+                border-radius: 50%;
+                border: 0;
+                display: grid;
+                place-items: center;
+                background: var(--surface);
+                color: var(--ink);
+                box-shadow: var(--shadow);
+                flex: none;
+            }
+            .pill {
+                min-height: 44px;
+                padding: 0 16px;
+                border-radius: 22px;
+                border: 0;
+                background: var(--surface);
+                color: var(--ink);
+                font: 700 1rem/1 'Bricolage Grotesque';
+                box-shadow: var(--shadow);
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+            }
+            .dcart {
+                margin: 0;
+                border-radius: 0 0 8px 8px;
+                padding: 4px 12px 0;
+            }
+            .dcart .why {
+                font-weight: 650;
+            }
+            .dcart .nm {
+                font-size: min(calc(1.125rem + 19px), 48px);
+            }
+            .dcart .facts {
+                margin: 0 -12px;
+            }
+            .facts.grid {
+                gap: 8px 26px;
+                padding: 10px 16px 12px;
+            }
+            .facts.grid span {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 0;
+                font-weight: 500;
+                font-size: 0.8125rem;
+            }
+            .facts.grid span b {
+                font-size: 1.125rem;
+                font-weight: 800;
+            }
+            .bar2 {
+                display: none;
+            }
+            .scrolled .bar2 {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                padding: 6px 16px 8px;
+                background: var(--surface);
+                border-bottom: 1px solid var(--hairline);
+            }
+            .bar2 .ttl {
+                flex: 1;
+                min-width: 0;
+                font-weight: 750;
+                font-size: 1rem;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+            .bar2 .circ,
+            .bar2 .pill {
+                box-shadow: none;
+                background: var(--sunken);
+            }
+            .rate {
+                display: flex;
+                align-items: center;
+                flex-wrap: wrap;
+                gap: 2px 10px;
+                margin: 16px 16px 0;
+                font-size: 1rem;
+            }
+            .stars {
+                letter-spacing: 1px;
+            }
+            .desc {
+                margin: 8px 16px 0;
+            }
+            .stepper {
+                display: inline-flex;
+                align-items: center;
+                border-radius: 12px;
+                box-shadow: inset 0 0 0 1.5px var(--edge);
+            }
+            .stepper button {
+                width: 48px;
+                height: 44px;
+                border: 0;
+                background: none;
+                color: var(--ink);
+                display: grid;
+                place-items: center;
+            }
+            .stepper output {
+                min-width: 4.5rem;
+                text-align: center;
+                font-weight: 700;
+                font-size: 1rem;
+            }
+            .grp {
+                margin: 16px 16px 0;
+                font-size: 0.8125rem;
+                font-weight: 750;
+                letter-spacing: 0.06em;
+                text-transform: uppercase;
+            }
+            .ing {
+                list-style: none;
+                margin: 0;
+                padding: 0 16px;
+            }
+            .ing li {
+                display: flex;
+                gap: 14px;
+                align-items: flex-start;
+                padding: 11px 0;
+                border-bottom: 1px solid var(--hairline);
+            }
+            .box {
+                width: 26px;
+                height: 26px;
+                border-radius: 7px;
+                box-shadow: inset 0 0 0 2px var(--edge);
+                flex: none;
+                display: grid;
+                place-items: center;
+                margin-top: 1px;
+            }
+            .done .box {
+                background: var(--action);
+                box-shadow: none;
+                color: var(--on-action);
+            }
+            .done .box svg {
+                width: 18px;
+                height: 18px;
+                stroke-width: 3;
+            }
+            .ing .q {
+                font-weight: 750;
+            }
+            .ing small {
+                display: block;
+                font-size: 1rem;
+                color: var(--muted);
+            }
+            .done .t {
+                color: var(--muted);
+                text-decoration: line-through;
+                text-decoration-thickness: 1.5px;
+            }
+            .steps {
+                list-style: none;
+                margin: 4px 0 0;
+                padding: 0 16px;
+            }
+            .steps li {
+                display: flex;
+                gap: 14px;
+                padding: 16px 0;
+                border-bottom: 1px solid var(--hairline);
+            }
+            .steps .n {
+                width: 34px;
+                height: 34px;
+                border-radius: 50%;
+                flex: none;
+                display: grid;
+                place-items: center;
+                font-weight: 800;
+                box-shadow: inset 0 0 0 1.5px var(--edge);
+            }
+            .steps b {
+                font-weight: 750;
+            }
+            .steps .cur {
+                background: var(--wash);
+                margin: 0 -16px;
+                padding: 16px;
+                border: 0;
+            }
+            .steps .cur .n {
+                background: var(--ink);
+                color: var(--ground);
+                box-shadow: none;
+            }
+            .steps .lab {
+                display: block;
+                font-size: 0.8125rem;
+                font-weight: 800;
+                letter-spacing: 0.04em;
+                text-transform: uppercase;
+                margin-bottom: 4px;
+            }
+            .steps p {
+                margin: 0;
+            }
+            .tmr {
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+                margin: 10px 6px 0 0;
+                min-height: 44px;
+                padding: 0 14px;
+                border-radius: 12px;
+                border: 0;
+                background: var(--surface);
+                color: var(--action);
+                font: 700 1rem/1 'Bricolage Grotesque';
+                box-shadow: inset 0 0 0 1.5px var(--edge);
+            }
+            .nut {
+                list-style: none;
+                margin: 0;
+                padding: 0 16px;
+            }
+            .nut li {
+                display: flex;
+                justify-content: space-between;
+                padding: 12px 0;
+                border-bottom: 1px solid var(--hairline);
+            }
+            .nut b {
+                font-weight: 750;
+            }
+            .foot {
+                margin: 20px 16px 28px;
+                display: grid;
+                gap: 14px;
+            }
+            .del {
+                display: inline-flex;
+                align-items: center;
+                gap: 8px;
+                color: var(--danger);
+                font-weight: 700;
+                min-height: 44px;
+            }
+
+            /* my recipes */
+            .seg {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                margin: 14px 16px 0;
+                padding: 3px;
+                border-radius: 12px;
+                background: var(--sunken);
+            }
+            .seg span {
+                display: grid;
+                place-items: center;
+                min-height: 44px;
+                text-align: center;
+                padding: 6px;
+                border-radius: 9px;
+                font-weight: 700;
+                font-size: 1rem;
+            }
+            .seg .on {
+                background: var(--surface);
+                box-shadow: var(--shadow);
+            }
+            .search {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                margin: 12px 16px 0;
+                min-height: 48px;
+                padding: 0 14px;
+                border-radius: 12px;
+                background: var(--sunken);
+                color: var(--muted);
+                font-size: 1rem;
+            }
+            .chips {
+                display: flex;
+                gap: 8px;
+                overflow-x: auto;
+                padding: 14px 16px 2px;
+                scrollbar-width: none;
+            }
+            .chips span {
+                flex: none;
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+                min-height: 44px;
+                padding: 0 14px;
+                border-radius: 10px;
+                box-shadow: inset 0 0 0 1.5px var(--edge);
+                font-weight: 650;
+                font-size: 1rem;
+                white-space: nowrap;
+            }
+            .chips .on {
+                background: var(--wash);
+                box-shadow: inset 0 0 0 1.5px var(--action);
+            }
+            .chips em {
+                font-style: normal;
+                color: var(--muted);
+            }
+            .lm {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 0 8px;
+                flex-wrap: wrap;
+                margin: 10px 16px 0;
+                font-size: 1rem;
+            }
+            .lm .sort {
+                display: inline-flex;
+                align-items: center;
+                gap: 4px;
+                min-height: 44px;
+                font-weight: 700;
+            }
+
+            /* cook mode: neutral, opaque, no carton */
+            .ck {
+                background: var(--surface);
+            }
+            .ck .top {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 10px;
+                padding: 6px 16px 8px;
+            }
+            .ck .scroll {
+                margin-bottom: 10px;
+                -webkit-mask-image: linear-gradient(#000 calc(100% - 28px), transparent);
+                mask-image: linear-gradient(#000 calc(100% - 28px), transparent);
+            }
+            .ck .ttl {
+                margin: 0 16px 8px;
+                font-weight: 700;
+                font-size: 1rem;
+                line-height: 1.25;
+            }
+            .awake {
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+                font-size: 0.8125rem;
+                font-weight: 750;
+                padding: 6px 10px;
+                border-radius: 10px;
+                background: var(--sunken);
+            }
+            .prog {
+                margin: 6px 16px 0;
+            }
+            .prog .lbl {
+                font-weight: 800;
+                font-size: 1.0625rem;
+            }
+            .bar {
+                display: grid;
+                grid-template-columns: repeat(7, 1fr);
+                gap: 4px;
+                margin-top: 8px;
+            }
+            .bar i {
+                height: 6px;
+                border-radius: 3px;
+                background: var(--hairline);
+            }
+            .bar i.d {
+                background: var(--action);
+            }
+            .bar i.c {
+                background: var(--ink);
+            }
+            .big {
+                margin: 22px 16px 0;
+                font-size: calc(0.875rem + 14px);
+                line-height: 1.3;
+                font-weight: 600;
+            }
+            .big b {
+                font-weight: 800;
+            }
+            .why-n {
+                margin: 22px 16px 0;
+                padding: 4px 16px;
+                border-radius: 14px;
+                background: var(--sunken);
+                font-size: 1.0625rem;
+            }
+            .why-n summary {
+                min-height: 48px;
+                display: flex;
+                align-items: center;
+                font-weight: 700;
+                cursor: pointer;
+            }
+            .why-n p {
+                margin: 0 0 14px;
+            }
+            .tstrip {
+                display: flex;
+                flex-wrap: wrap;
+                align-items: center;
+                gap: 10px;
+                margin: 0 16px;
+                padding: 12px 14px;
+                border-radius: 14px;
+                background: var(--sunken);
+                font-weight: 700;
+            }
+            .tstrip .tt {
+                flex: 1;
+            }
+            .tstrip .tt span {
+                display: block;
+                font-size: 1.375rem;
+                font-weight: 800;
+                font-variant-numeric: tabular-nums;
+            }
+            .np {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(min(100%, 8rem), 1fr));
+                gap: 10px;
+                padding: 12px 16px 30px;
+            }
+            .np .btn {
+                min-height: 72px;
+                font-size: 1.1875rem;
+                border-radius: 18px;
+                padding: 12px 14px;
+            }
+
+            /* states */
+            .sk {
+                background: rgb(255 255 255 / 0.55);
+                border-radius: 8px;
+            }
+            .dk .sk {
+                background: rgb(255 255 255 / 0.12);
+            }
+            .note {
+                display: flex;
+                gap: 10px;
+                align-items: flex-start;
+                margin: 0 16px;
+                padding: 14px;
+                border-radius: 14px;
+                background: var(--sunken);
+                font-size: 1rem;
+            }
+            .toast {
+                display: flex;
+                flex-wrap: wrap;
+                align-items: center;
+                gap: 12px;
+                margin: 0 16px;
+                padding: 12px 14px;
+                border-radius: 14px;
+                background: var(--ink);
+                color: var(--ground);
+                font-weight: 650;
+            }
+            .toast .link {
+                color: inherit;
+                margin-left: auto;
+                min-height: 44px;
+                min-width: 44px;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+            }
+            .stl {
+                margin: 22px 16px 8px;
+                font-size: 0.8125rem;
+                font-weight: 800;
+                letter-spacing: 0.06em;
+                text-transform: uppercase;
+                color: var(--ink);
+            }
+
+            /* palette + type sheets */
+            .sheet {
+                background: var(--surface);
+                color: var(--ink);
+                border-radius: 20px;
+                padding: 20px;
+                border: 1px solid var(--hairline);
+                flex: 1 1 340px;
+                min-width: 0;
+            }
+            .sheet h3 {
+                margin: 0 0 4px;
+                font-size: 1.375rem;
+            }
+            .sheet > p {
+                margin: 0 0 14px;
+                color: var(--muted);
+                font-size: 1rem;
+            }
+            .sw {
+                display: grid;
+                grid-template-columns: 36px 1fr;
+                gap: 4px 12px;
+                padding: 10px 0;
+                border-top: 1px solid var(--hairline);
+                font-size: 1rem;
+            }
+            .sw > i {
+                width: 36px;
+                height: 36px;
+                border-radius: 8px;
+                box-shadow: inset 0 0 0 1px rgb(127 127 127 / 0.35);
+                grid-row: span 2;
+            }
+            .sw code {
+                font:
+                    600 0.8125rem/1.3 ui-monospace,
+                    monospace;
+            }
+            .sw span {
+                color: var(--muted);
+            }
+            .ramp div {
+                padding: 10px 0;
+                border-top: 1px solid var(--hairline);
+            }
+            .ramp code {
+                display: block;
+                font:
+                    500 0.8125rem/1.3 ui-monospace,
+                    monospace;
+                color: var(--ink);
+                margin-bottom: 2px;
+            }
+            .prin {
+                display: grid;
+                gap: 12px;
+                max-width: 56rem;
+                padding: 0;
+                margin: 0;
+                list-style: none;
+            }
+            .prin li {
+                padding: 14px 16px;
+                border-radius: 14px;
+                background: var(--surface);
+                color: var(--ink);
+                border: 1px solid var(--hairline);
+            }
+            .prin b {
+                display: block;
+                font-size: 1.0625rem;
+            }
+            .prin span {
+                color: var(--muted);
+                font-size: 1rem;
+            }
+            /* large text: the phone is under 15 em wide (320 px from about 125% text, 390 px from about 155%). The window moves to the top of the carton so the food stays on the first screen, and the primary sticks above the tabs. */
+            @container (max-width: 15em) {
+                .win {
+                    order: 1;
+                    aspect-ratio: 2 / 1;
+                    margin: 6px 6px 4px;
+                }
+                .carton .why {
+                    order: 2;
+                    margin-top: 10px;
+                }
+                .carton .nm {
+                    order: 3;
+                    margin: 4px 4px 12px;
+                }
+                .carton .nm {
+                    font-size: min(calc(1rem + 16px), 36px);
+                }
+                .facts {
+                    gap: 0 14px;
+                    padding: 8px 12px 10px;
+                }
+                .lt-h h1 {
+                    font-size: min(calc(1.0625rem + 17px), 40px);
+                }
+                .rows a {
+                    align-items: flex-start;
+                }
+                .carton .why svg,
+                .facts svg {
+                    display: none;
+                }
+                .seg {
+                    grid-template-columns: 1fr;
+                }
+                .cta {
+                    position: sticky;
+                    bottom: 0;
+                    z-index: 1;
+                    margin: 0;
+                    padding: 10px 16px;
+                    background: var(--ground);
+                }
+            }
+            @media (prefers-reduced-motion: no-preference) {
+                .done .box {
+                    transition: background-color 0.18s ease-out;
+                }
+                .btn,
+                .carton {
+                    transition: transform 0.1s ease-out;
+                }
+                a.carton:active {
+                    transform: scale(0.99);
+                }
+            }
+        </style>
+    </head>
+    <body>
+        <svg width="0" height="0" style="position: absolute" aria-hidden="true">
+            <defs>
+                <!-- Photo stand-ins: overhead "photos" drawn in SVG, with grain and one soft light so they read as photographs, not icons. -->
+                <filter id="grain" x="0" y="0" width="100%" height="100%">
+                    <feTurbulence type="fractalNoise" baseFrequency=".85" numOctaves="2" seed="4" result="n" />
+                    <feColorMatrix
+                        in="n"
+                        type="matrix"
+                        values="0 0 0 0 .5  0 0 0 0 .5  0 0 0 0 .5  0 0 0 .55 -.2"
+                        result="g"
+                    />
+                    <feComposite in="g" in2="SourceGraphic" operator="in" result="gi" />
+                    <feBlend in="SourceGraphic" in2="gi" mode="overlay" />
+                </filter>
+                <filter id="soft" x="-20%" y="-20%" width="140%" height="140%">
+                    <feGaussianBlur stdDeviation="7" />
+                </filter>
+                <filter id="mottle" x="0" y="0" width="100%" height="100%">
+                    <feTurbulence type="fractalNoise" baseFrequency=".012 .05" numOctaves="3" seed="9" />
+                    <feColorMatrix type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 -1.1 .75" />
+                </filter>
+                <radialGradient id="light" cx=".3" cy=".2" r=".9">
+                    <stop offset="0" stop-color="#fff" stop-opacity=".22" />
+                    <stop offset=".55" stop-color="#fff" stop-opacity="0" />
+                    <stop offset="1" stop-color="#000" stop-opacity=".28" />
+                </radialGradient>
+                <radialGradient id="gPlate" cx=".45" cy=".4" r=".6">
+                    <stop offset="0" stop-color="#FBFAF7" />
+                    <stop offset=".82" stop-color="#F1EFEA" />
+                    <stop offset=".9" stop-color="#FFFFFF" />
+                    <stop offset="1" stop-color="#D9D6CF" />
+                </radialGradient>
+                <linearGradient id="gSal" x1="0" y1="0" x2=".3" y2="1">
+                    <stop offset="0" stop-color="#7A2A0E" />
+                    <stop offset=".22" stop-color="#B9531F" />
+                    <stop offset=".6" stop-color="#E5803F" />
+                    <stop offset="1" stop-color="#F2A066" />
+                </linearGradient>
+                <linearGradient id="gGlaze" x1="0" y1="0" x2="1" y2="0">
+                    <stop offset="0" stop-color="#5C1E08" stop-opacity=".7" />
+                    <stop offset=".5" stop-color="#8E3511" stop-opacity=".3" />
+                    <stop offset="1" stop-color="#5C1E08" stop-opacity=".75" />
+                </linearGradient>
+                <linearGradient id="gStem" x1="0" y1="0" x2="1" y2="0">
+                    <stop offset="0" stop-color="#E9F1D8" />
+                    <stop offset="1" stop-color="#B9D398" />
+                </linearGradient>
+                <radialGradient id="gChk" cx=".42" cy=".35" r=".7">
+                    <stop offset="0" stop-color="#F6CC80" />
+                    <stop offset=".45" stop-color="#D99545" />
+                    <stop offset=".85" stop-color="#A55A22" />
+                    <stop offset="1" stop-color="#6E3412" />
+                </radialGradient>
+                <radialGradient id="gPot" cx=".35" cy=".3" r=".8">
+                    <stop offset="0" stop-color="#F3D27E" />
+                    <stop offset=".7" stop-color="#C98A35" />
+                    <stop offset="1" stop-color="#8A5419" />
+                </radialGradient>
+                <radialGradient id="gChili" cx=".45" cy=".38" r=".62">
+                    <stop offset="0" stop-color="#9A4223" />
+                    <stop offset=".7" stop-color="#6E2814" />
+                    <stop offset="1" stop-color="#3F150B" />
+                </radialGradient>
+                <radialGradient id="gBowl" cx=".4" cy=".35" r=".7">
+                    <stop offset="0" stop-color="#3E4650" />
+                    <stop offset=".85" stop-color="#262B31" />
+                    <stop offset="1" stop-color="#15181C" />
+                </radialGradient>
+                <radialGradient id="gSoup" cx=".42" cy=".38" r=".6">
+                    <stop offset="0" stop-color="#EE6B3E" />
+                    <stop offset=".8" stop-color="#C23D22" />
+                    <stop offset="1" stop-color="#8E2614" />
+                </radialGradient>
+                <radialGradient id="gCake" cx=".42" cy=".38" r=".62">
+                    <stop offset="0" stop-color="#F4D08C" />
+                    <stop offset=".75" stop-color="#D99B4E" />
+                    <stop offset="1" stop-color="#9E5E26" />
+                </radialGradient>
+            </defs>
+            <symbol id="salmon" viewBox="0 0 320 180" preserveAspectRatio="xMidYMid slice">
+                <g filter="url(#grain)">
+                    <rect width="320" height="180" fill="#3A3F44" />
+                    <rect width="320" height="180" fill="#2A2F34" filter="url(#mottle)" opacity=".6" />
+                    <ellipse cx="168" cy="98" rx="104" ry="100" fill="#000" opacity=".45" filter="url(#soft)" />
+                    <circle cx="160" cy="90" r="100" fill="url(#gPlate)" />
+                    <g transform="rotate(-12 110 112)">
+                        <path d="M70 104c10-14 36-16 50-4 6 16-2 34-22 38-18 2-32-8-28-34z" fill="url(#gStem)" />
+                        <path d="M68 100c4-24 30-32 44-20 8 10 2 22-10 26-16 2-28 2-34-6z" fill="#2F6B24" />
+                        <path d="M76 98c10-12 24-14 32-8" stroke="#5F9B3C" stroke-width="2.5" fill="none" />
+                    </g>
+                    <g transform="rotate(18 108 150)">
+                        <path d="M84 142c10-12 32-12 44 0 2 14-10 24-26 24-14 0-22-10-18-24z" fill="url(#gStem)" />
+                        <path d="M86 140c6-18 28-22 40-10 2 8-6 14-16 14-12 0-20 0-24-4z" fill="#3B7A2B" />
+                    </g>
+                    <ellipse cx="200" cy="104" rx="66" ry="46" fill="#3A1405" opacity=".45" filter="url(#soft)" />
+                    <path
+                        d="M138 70c26-22 96-22 124 0 10 22 4 54-14 68-34 10-76 8-100-4-14-20-18-44-10-64z"
+                        fill="url(#gSal)"
+                    />
+                    <path
+                        d="M138 70c26-22 96-22 124 0 4 10-8 16-22 12-26-8-58-8-84 0-12 2-20-4-18-12z"
+                        fill="url(#gGlaze)"
+                    />
+                    <g stroke="#FFD2B0" stroke-width="2.2" fill="none" stroke-linecap="round" opacity=".55">
+                        <path d="M164 78c-6 18-6 38 2 56" />
+                        <path d="M190 74c-6 20-6 42 2 62" />
+                        <path d="M216 74c-6 20-6 40 2 60" />
+                        <path d="M240 78c-4 16-4 34 2 50" />
+                    </g>
+                    <path
+                        d="M150 90c20-8 60-10 92-2"
+                        stroke="#FFE6CF"
+                        stroke-width="5"
+                        stroke-linecap="round"
+                        opacity=".35"
+                        fill="none"
+                    />
+                    <g fill="#FFF6E2">
+                        <ellipse cx="176" cy="98" rx="3" ry="1.5" transform="rotate(20 176 98)" />
+                        <ellipse cx="202" cy="92" rx="3" ry="1.5" transform="rotate(-30 202 92)" />
+                        <ellipse cx="226" cy="104" rx="3" ry="1.5" />
+                        <ellipse cx="190" cy="116" rx="3" ry="1.5" transform="rotate(50 190 116)" />
+                        <ellipse cx="236" cy="90" rx="3" ry="1.5" />
+                        <ellipse cx="212" cy="120" rx="3" ry="1.5" transform="rotate(-10 212 120)" />
+                    </g>
+                    <g fill="#1E1A15">
+                        <ellipse cx="184" cy="104" rx="3" ry="1.5" transform="rotate(-20 184 104)" />
+                        <ellipse cx="220" cy="96" rx="3" ry="1.5" />
+                    </g>
+                    <g fill="none" stroke="#9BCB5C" stroke-width="3">
+                        <circle cx="234" cy="122" r="4.5" />
+                        <circle cx="168" cy="124" r="4.5" />
+                        <circle cx="204" cy="130" r="4" />
+                    </g>
+                    <circle cx="272" cy="34" r="22" fill="#15181B" />
+                    <circle cx="272" cy="34" r="17" fill="#3B1C0B" />
+                    <ellipse cx="266" cy="28" rx="6" ry="3" fill="#fff" opacity=".25" />
+                    <rect width="320" height="180" fill="url(#light)" />
+                </g>
+            </symbol>
+            <symbol id="chicken" viewBox="0 0 320 180" preserveAspectRatio="xMidYMid slice">
+                <g filter="url(#grain)">
+                    <rect width="320" height="180" fill="#8A6A4C" />
+                    <rect width="320" height="180" fill="#4A3220" filter="url(#mottle)" />
+                    <rect x="30" y="18" width="262" height="152" rx="26" fill="#000" opacity=".5" filter="url(#soft)" />
+                    <rect x="26" y="10" width="268" height="158" rx="26" fill="#2B2F34" />
+                    <rect x="38" y="22" width="244" height="134" rx="18" fill="#3D220F" />
+                    <rect
+                        x="38"
+                        y="22"
+                        width="244"
+                        height="134"
+                        rx="18"
+                        fill="#1d0f06"
+                        opacity=".5"
+                        filter="url(#mottle)"
+                    />
+                    <g>
+                        <ellipse cx="78" cy="52" rx="19" ry="14" fill="url(#gPot)" />
+                        <ellipse cx="244" cy="58" rx="18" ry="13" fill="url(#gPot)" transform="rotate(20 244 58)" />
+                        <ellipse cx="86" cy="134" rx="18" ry="13" fill="url(#gPot)" />
+                        <ellipse cx="236" cy="134" rx="19" ry="13" fill="url(#gPot)" />
+                        <ellipse cx="62" cy="94" rx="13" ry="11" fill="url(#gPot)" />
+                        <ellipse cx="262" cy="98" rx="12" ry="10" fill="url(#gPot)" />
+                    </g>
+                    <g fill="#D8642A">
+                        <rect x="244" y="82" width="26" height="12" rx="6" transform="rotate(-30 257 88)" />
+                        <rect x="118" y="140" width="26" height="12" rx="6" transform="rotate(14 131 146)" />
+                        <rect x="58" y="66" width="22" height="11" rx="5" transform="rotate(40 69 71)" />
+                    </g>
+                    <g fill="#8E3A6E">
+                        <path d="M250 118l24-4-12 20z" />
+                        <path d="M112 32l26 4-18 16z" />
+                    </g>
+                    <ellipse cx="170" cy="96" rx="76" ry="58" fill="#1a0b03" opacity=".6" filter="url(#soft)" />
+                    <path d="M112 74c-18-8-34 2-32 18 2 10 14 14 26 12" fill="url(#gChk)" />
+                    <path d="M112 124c-18 8-34-2-32-18 2-10 14-14 26-12" fill="url(#gChk)" />
+                    <path
+                        d="M100 98c0-42 38-62 78-60 42 2 66 30 64 62-2 34-28 56-70 56-42 0-72-22-72-58z"
+                        fill="url(#gChk)"
+                    />
+                    <path
+                        d="M130 66c22-14 62-14 86 4M126 132c26 10 66 8 90-8"
+                        stroke="#FAE0A8"
+                        stroke-width="5"
+                        fill="none"
+                        stroke-linecap="round"
+                        opacity=".45"
+                    />
+                    <path d="M142 98c18-5 50-5 68 0" stroke="#7A3B12" stroke-width="3" fill="none" opacity=".5" />
+                    <g stroke="#3E6B2A" stroke-width="2.4" stroke-linecap="round">
+                        <path d="M150 86l44 16M160 90l4-9M172 94l4-9M184 99l4-9M156 90l-3 8M168 94l-3 8" />
+                    </g>
+                    <g>
+                        <circle cx="248" cy="32" r="14" fill="#F0CF3A" />
+                        <circle cx="248" cy="32" r="10" fill="#FBE98C" />
+                        <path d="M248 23v18M239 32h18" stroke="#F0CF3A" stroke-width="1.5" />
+                        <circle cx="56" cy="144" r="13" fill="#F0CF3A" />
+                        <circle cx="56" cy="144" r="9" fill="#FBE98C" />
+                    </g>
+                    <rect width="320" height="180" fill="url(#light)" />
+                </g>
+            </symbol>
+            <symbol id="chili" viewBox="0 0 320 180" preserveAspectRatio="xMidYMid slice">
+                <g filter="url(#grain)">
+                    <rect width="320" height="180" fill="#B48A5E" />
+                    <rect width="320" height="180" fill="#6B4527" filter="url(#mottle)" />
+                    <circle cx="166" cy="98" r="88" fill="#000" opacity=".5" filter="url(#soft)" />
+                    <circle cx="160" cy="90" r="84" fill="url(#gBowl)" />
+                    <circle cx="160" cy="90" r="68" fill="url(#gChili)" />
+                    <g fill="#2A0F08">
+                        <ellipse cx="132" cy="72" rx="7" ry="4.5" transform="rotate(30 132 72)" />
+                        <ellipse cx="190" cy="66" rx="7" ry="4.5" />
+                        <ellipse cx="118" cy="108" rx="7" ry="4.5" transform="rotate(-20 118 108)" />
+                        <ellipse cx="180" cy="124" rx="7" ry="4.5" transform="rotate(40 180 124)" />
+                        <ellipse cx="204" cy="102" rx="7" ry="4.5" />
+                        <ellipse cx="146" cy="132" rx="7" ry="4.5" />
+                        <ellipse cx="160" cy="56" rx="6" ry="4" transform="rotate(-40 160 56)" />
+                    </g>
+                    <g fill="#C9762E" opacity=".9">
+                        <circle cx="146" cy="96" r="3.5" />
+                        <circle cx="208" cy="82" r="3.5" />
+                        <circle cx="130" cy="56" r="3" />
+                        <circle cx="196" cy="128" r="3" />
+                    </g>
+                    <path d="M148 82c10-12 32-10 36 4 2 14-22 22-34 12-6-5-6-11-2-16z" fill="#F6F2EA" />
+                    <path d="M152 84c8-6 20-6 26 0" stroke="#fff" stroke-width="3" fill="none" opacity=".8" />
+                    <g fill="#3F8A2E">
+                        <path d="M184 76l12-10 4 14z" />
+                        <path d="M144 86l-14-4 9 12z" />
+                        <path d="M166 108l8 11-13 1z" />
+                        <path d="M120 90l-8 8 12 2z" />
+                    </g>
+                    <path d="M244 140a28 28 0 0 1 32-30l-6 32z" fill="#A9D25A" stroke="#5E8F2A" stroke-width="3" />
+                    <rect width="320" height="180" fill="url(#light)" />
+                </g>
+            </symbol>
+            <symbol id="soup" viewBox="0 0 320 180" preserveAspectRatio="xMidYMid slice">
+                <g filter="url(#grain)">
+                    <rect width="320" height="180" fill="#C9C4BA" />
+                    <rect width="320" height="180" fill="#8E877A" filter="url(#mottle)" />
+                    <circle cx="166" cy="96" r="86" fill="#000" opacity=".35" filter="url(#soft)" />
+                    <circle cx="160" cy="90" r="84" fill="url(#gPlate)" />
+                    <circle cx="160" cy="90" r="64" fill="url(#gSoup)" />
+                    <path
+                        d="M120 86c16-20 50-22 62-4 8 12-6 26-20 20"
+                        stroke="#FBE6D6"
+                        stroke-width="6"
+                        fill="none"
+                        stroke-linecap="round"
+                    />
+                    <g fill="#3F8A3A">
+                        <path d="M186 62c10-10 26-6 26 6-12 8-22 6-26-6z" />
+                        <path d="M196 78c12-4 22 6 16 14-12 0-18-6-16-14z" fill="#5FA548" />
+                    </g>
+                    <g fill="#D9A55C">
+                        <rect x="128" y="112" width="12" height="12" rx="3" />
+                        <rect x="150" y="120" width="12" height="12" rx="3" transform="rotate(18 156 126)" />
+                    </g>
+                    <rect width="320" height="180" fill="url(#light)" />
+                </g>
+            </symbol>
+            <symbol id="cakes" viewBox="0 0 320 180" preserveAspectRatio="xMidYMid slice">
+                <g filter="url(#grain)">
+                    <rect width="320" height="180" fill="#4A5661" />
+                    <rect width="320" height="180" fill="#26303A" filter="url(#mottle)" />
+                    <circle cx="166" cy="96" r="88" fill="#000" opacity=".4" filter="url(#soft)" />
+                    <circle cx="160" cy="90" r="86" fill="url(#gPlate)" />
+                    <circle cx="160" cy="94" r="62" fill="#B97A3A" />
+                    <circle cx="160" cy="90" r="60" fill="url(#gCake)" />
+                    <path d="M138 80c10-16 40-16 46 2 2 12-14 18-26 16-14-2-24-8-20-18z" fill="#FFFCF2" />
+                    <g fill="#F2D447">
+                        <circle cx="196" cy="118" r="11" />
+                        <circle cx="122" cy="120" r="10" />
+                    </g>
+                    <g fill="#36386E">
+                        <circle cx="186" cy="74" r="6" />
+                        <circle cx="198" cy="86" r="6" />
+                        <circle cx="132" cy="100" r="6" />
+                        <circle cx="174" cy="130" r="6" />
+                    </g>
+                    <rect width="320" height="180" fill="url(#light)" />
+                </g>
+            </symbol>
+            <symbol id="plate" viewBox="0 0 320 180" preserveAspectRatio="xMidYMid slice">
+                <rect width="320" height="180" fill="#E9EEF2" />
+                <circle cx="166" cy="96" r="72" fill="#000" opacity=".12" filter="url(#soft)" />
+                <circle cx="160" cy="90" r="70" fill="url(#gPlate)" />
+                <circle cx="160" cy="90" r="48" fill="none" stroke="#E2E6EA" stroke-width="3" />
+                <rect x="62" y="38" width="8" height="104" rx="4" fill="#C9D1D8" />
+                <rect x="250" y="38" width="8" height="104" rx="4" fill="#C9D1D8" />
+            </symbol>
+            <!-- icons -->
+            <symbol id="i-clock" viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="8.5" />
+                <path d="M12 7.5V12l3 2" />
+            </symbol>
+            <symbol id="i-ppl" viewBox="0 0 24 24">
+                <circle cx="9" cy="8.5" r="3.2" />
+                <path d="M3.5 19c.6-3.2 2.8-5 5.5-5s4.9 1.8 5.5 5" />
+                <circle cx="16.5" cy="9.5" r="2.6" />
+                <path d="M15.5 14.2c2.7-.2 4.5 1.6 5 4.3" />
+            </symbol>
+            <symbol id="i-chev" viewBox="0 0 24 24"><path d="M9.5 6l6 6-6 6" /></symbol>
+            <symbol id="i-back" viewBox="0 0 24 24"><path d="M14.5 6l-6 6 6 6" /></symbol>
+            <symbol id="i-more" viewBox="0 0 24 24">
+                <circle cx="6" cy="12" r="1.2" />
+                <circle cx="12" cy="12" r="1.2" />
+                <circle cx="18" cy="12" r="1.2" />
+            </symbol>
+            <symbol id="i-search" viewBox="0 0 24 24">
+                <circle cx="11" cy="11" r="6.5" />
+                <path d="M16 16l4.5 4.5" />
+            </symbol>
+            <symbol id="i-home" viewBox="0 0 24 24"><path d="M4 10.5L12 4l8 6.5V20h-5.5v-5.5h-5V20H4z" /></symbol>
+            <symbol id="i-book" viewBox="0 0 24 24">
+                <path d="M5 4.5h10.5a3 3 0 0 1 3 3V20H8a3 3 0 0 1-3-3z" />
+                <path d="M5 17a3 3 0 0 1 3-3h10.5M9 8.5h6" />
+            </symbol>
+            <symbol id="i-disc" viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="8.5" />
+                <path d="M15.5 8.5l-2 5-5 2 2-5z" />
+            </symbol>
+            <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" /></symbol>
+            <symbol id="i-minus" viewBox="0 0 24 24"><path d="M5 12h14" /></symbol>
+            <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5" /></symbol>
+            <symbol id="i-timer" viewBox="0 0 24 24">
+                <circle cx="12" cy="13.5" r="7" />
+                <path d="M12 10v3.5M9.5 3.5h5M18 7l1.5-1.5" />
+            </symbol>
+            <symbol id="i-sun" viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="3.8" />
+                <path
+                    d="M12 2.8v2.4M12 18.8v2.4M2.8 12h2.4M18.8 12h2.4M5.5 5.5l1.7 1.7M16.8 16.8l1.7 1.7M5.5 18.5l1.7-1.7M16.8 7.2l1.7-1.7"
+                />
+            </symbol>
+            <symbol id="i-x" viewBox="0 0 24 24"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11" /></symbol>
+            <symbol id="i-edit" viewBox="0 0 24 24"><path d="M5 19l1-4.5L15.5 5l3.5 3.5L9.5 18z" /></symbol>
+            <symbol id="i-trash" viewBox="0 0 24 24"><path d="M5 7h14M10 7V4.5h4V7M7 7l1 13h8l1-13" /></symbol>
+            <symbol id="i-off" viewBox="0 0 24 24">
+                <path
+                    d="M4 4l16 16M8.5 16a5 5 0 0 1 7 0M5 12.5a10 10 0 0 1 4-2.3M14.5 10.2a10 10 0 0 1 4.5 2.3M12 19.5h.01"
+                />
+            </symbol>
+            <symbol id="i-sort" viewBox="0 0 24 24"><path d="M7 5v14M4 16l3 3 3-3M17 19V5M14 8l3-3 3 3" /></symbol>
+            <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5.5v13l10.5-6.5z" /></symbol>
+            <symbol id="i-pause" viewBox="0 0 24 24"><path d="M9 6v12M15 6v12" /></symbol>
+            <symbol id="i-leaf" viewBox="0 0 24 24"><path d="M5 19c0-8 5-14 14-14 0 9-6 14-14 14zM5 19l7-7" /></symbol>
+            <symbol id="sb" viewBox="0 0 64 12">
+                <rect x="0" y="7" width="3" height="5" rx="1" />
+                <rect x="5" y="5" width="3" height="7" rx="1" />
+                <rect x="10" y="3" width="3" height="9" rx="1" />
+                <rect x="15" y="1" width="3" height="11" rx="1" />
+                <path d="M30 4.5a9 9 0 0 1 11 0l-1.6 1.7a6.6 6.6 0 0 0-7.8 0zM32.8 7.5a5 5 0 0 1 5.4 0L35.5 10.5z" />
+                <rect
+                    x="44"
+                    y="1"
+                    width="18"
+                    height="10"
+                    rx="3"
+                    fill="none"
+                    stroke-width="1.2"
+                    stroke="currentColor"
+                    opacity=".5"
+                />
+                <rect x="45.8" y="2.8" width="12.5" height="6.4" rx="1.6" />
+            </symbol>
+        </svg>
+
+        <div class="wrap">
+            <header class="hero">
+                <h1 class="f-d">Carton</h1>
+                <p>
+                    Each recipe is packed like good groceries: its name is printed big on a sky-blue carton, and you see
+                    the food through a window cut below it. Around that one carton is the plainest app you know, so the
+                    food and the one red button are the only loud things on the screen.
+                </p>
+                <p class="k">
+                    Option 1 · Designer 1 · round 1 · palette “Carton”: Sky carton, Tomato action, white Shelf,
+                    Squid-ink band. The drawn dishes stand in for the cook’s own photos.
+                </p>
+                <div class="strip" aria-label="Palette strip, light">
+                    <i style="background: #ffffff"></i><i style="background: #edf1f4"></i
+                    ><i style="background: #b9d8f2; flex: 3"></i><i style="background: #11161c; flex: 1.2"></i
+                    ><i style="background: #c41e3a; flex: 1.4"></i><i style="background: #fce6e8"></i
+                    ><i style="background: #4a5560"></i>
+                </div>
+                <div class="strip" aria-label="Palette strip, dark">
+                    <i style="background: #0e1216"></i><i style="background: #1f262d"></i
+                    ><i style="background: #21405e; flex: 3"></i><i style="background: #eef2f5; flex: 1.2"></i
+                    ><i style="background: #ffa294; flex: 1.4"></i><i style="background: #33181a"></i
+                    ><i style="background: #aeb8c2"></i>
+                </div>
+            </header>
+
+            <h2 class="band f-d">Light</h2>
+            <p>
+                One carton per screen, holding the thing the screen is for. Everything else is a white shelf: plain
+                rows, three tabs and one Tomato button.
+            </p>
+            <div class="row" id="lightRow">
+                <figure id="fHome">
+                    <div class="phone lt">
+                        <div class="sb">
+                            <span>17:52</span><svg aria-hidden="true"><use href="#sb" /></svg>
+                        </div>
+                        <div class="scroll">
+                            <header class="lt-h">
+                                <h1><span class="d">Tuesday 20 October</span>Tonight</h1>
+                                <button class="av" aria-label="Account">ER</button>
+                            </header>
+                            <p class="why-o">
+                                <svg class="i"><use href="#i-clock" /></svg>Your quickest dinner
+                            </p>
+                            <a class="carton" href="#">
+                                <span class="win"
+                                    ><svg role="img" aria-label="Photo of miso-glazed salmon">
+                                        <use href="#salmon" /></svg
+                                ></span>
+                                <span class="nm f-d">Miso-glazed salmon with sesame greens</span>
+                                <span class="facts"
+                                    ><span
+                                        ><svg class="i"><use href="#i-clock" /></svg>25&nbsp;min</span
+                                    ><span
+                                        ><svg class="i"><use href="#i-ppl" /></svg>Serves 2</span
+                                    ><span>Easy</span></span
+                                >
+                            </a>
+                            <div class="cta">
+                                <a class="btn p" href="#"
+                                    ><svg class="i"><use href="#i-play" /></svg>Cook this tonight</a
+                                >
+                            </div>
+                            <div class="sh"><h2>Or one of these</h2></div>
+                            <ul class="rows">
+                                <li>
+                                    <a href="#"
+                                        ><span class="th"
+                                            ><svg aria-hidden="true"><use href="#chili" /></svg></span
+                                        ><span class="tx"
+                                            ><b>Smoky black bean chili</b><span>Serves 6 · your biggest</span></span
+                                        ><svg class="i chev"><use href="#i-chev" /></svg
+                                    ></a>
+                                </li>
+                                <li>
+                                    <a href="#"
+                                        ><span class="th"
+                                            ><svg aria-hidden="true"><use href="#soup" /></svg></span
+                                        ><span class="tx"
+                                            ><b>Roasted tomato basil soup</b><span>Easy · vegetarian</span></span
+                                        ><svg class="i chev"><use href="#i-chev" /></svg
+                                    ></a>
+                                </li>
+                            </ul>
+                            <a class="more" href="#"
+                                >All your recipes<em>24</em><svg class="i chev"><use href="#i-chev" /></svg
+                            ></a>
+                            <p class="soon">Coming soon: meal plans and a shopping list.</p>
+                        </div>
+                        <nav class="tabs" aria-label="Main">
+                            <a href="#" aria-current="page"
+                                ><svg class="i"><use href="#i-home" /></svg>Home</a
+                            ><a href="#"
+                                ><svg class="i"><use href="#i-book" /></svg>Recipes</a
+                            ><a href="#"
+                                ><svg class="i"><use href="#i-disc" /></svg>Discover</a
+                            >
+                        </nav>
+                    </div>
+                    <figcaption>
+                        <b>Home, deciding.</b> Three dinners on the first screen: the carton and two rows. Each reason
+                        is a fact on the recipe: total time with meal type, servings, difficulty with a dietary flag.
+                        Primary: <b>Cook this tonight</b>.
+                    </figcaption>
+                </figure>
+
+                <figure id="fDetail">
+                    <div class="phone lt">
+                        <div class="sb">
+                            <span>17:53</span><svg aria-hidden="true"><use href="#sb" /></svg>
+                        </div>
+                        <div class="bar2">
+                            <button class="circ" aria-label="Back">
+                                <svg class="i"><use href="#i-back" /></svg></button
+                            ><span class="ttl">Lemon and thyme roast chicken</span
+                            ><button class="pill">
+                                <svg class="i"><use href="#i-edit" /></svg>Edit
+                            </button>
+                        </div>
+                        <div class="scroll">
+                            <div class="carton dcart">
+                                <div class="navr">
+                                    <button class="circ" aria-label="Back">
+                                        <svg class="i"><use href="#i-back" /></svg></button
+                                    ><span class="r"
+                                        ><button class="pill">
+                                            <svg class="i"><use href="#i-edit" /></svg>Edit</button
+                                        ><button class="circ" aria-label="More">
+                                            <svg class="i"><use href="#i-more" /></svg></button
+                                    ></span>
+                                </div>
+                                <span class="win"
+                                    ><svg role="img" aria-label="Photo of the roast chicken in its tin">
+                                        <use href="#chicken" /></svg
+                                ></span>
+                                <span class="why">British · Dinner · Family recipe card</span>
+                                <h1 class="nm f-d">Lemon and thyme roast chicken</h1>
+                                <span class="facts grid"
+                                    ><span>Total<b>1&nbsp;h&nbsp;50</b></span
+                                    ><span>Prep<b>20&nbsp;min</b></span
+                                    ><span>Serves<b>4</b></span
+                                    ><span>Difficulty<b>Medium</b></span></span
+                                >
+                            </div>
+                            <div class="rate">
+                                <span class="stars" aria-label="You rated it 5 of 5">★★★★★</span
+                                ><span>You rated it 5</span><span style="color: var(--muted)">· 4.8 from 12</span>
+                            </div>
+                            <p class="desc">
+                                A Sunday roast that does the work for you: butter, lemon and thyme under the skin, and
+                                everything else cooks in the same tin.
+                            </p>
+                            <div class="sh">
+                                <h2>Ingredients</h2>
+                                <span class="stepper" role="group" aria-label="Servings"
+                                    ><button aria-label="Fewer servings">
+                                        <svg class="i"><use href="#i-minus" /></svg></button
+                                    ><output>4 servings</output
+                                    ><button aria-label="More servings">
+                                        <svg class="i"><use href="#i-plus" /></svg></button
+                                ></span>
+                            </div>
+                            <p class="grp">Chicken</p>
+                            <ul class="ing">
+                                <li class="done">
+                                    <span class="box"
+                                        ><svg class="i"><use href="#i-check" /></svg></span
+                                    ><span class="t"
+                                        ><span class="q">1</span> whole chicken<small>about 1.8 kg</small></span
+                                    >
+                                </li>
+                                <li class="done">
+                                    <span class="box"
+                                        ><svg class="i"><use href="#i-check" /></svg></span
+                                    ><span class="t"
+                                        ><span class="q">3 tbsp</span> unsalted butter<small>softened</small></span
+                                    >
+                                </li>
+                                <li>
+                                    <span class="box"></span
+                                    ><span class="t"
+                                        ><span class="q">1</span> lemon<small>zested and halved</small></span
+                                    >
+                                </li>
+                                <li>
+                                    <span class="box"></span
+                                    ><span class="t"><span class="q">6 sprigs</span> fresh thyme</span>
+                                </li>
+                            </ul>
+                            <p class="grp">Vegetables</p>
+                            <ul class="ing">
+                                <li>
+                                    <span class="box"></span
+                                    ><span class="t"
+                                        ><span class="q">800 g</span> small waxy potatoes<small>halved</small></span
+                                    >
+                                </li>
+                                <li>
+                                    <span class="box"></span
+                                    ><span class="t"
+                                        ><span class="q">4</span> carrots<small>cut into chunks</small></span
+                                    >
+                                </li>
+                                <li>
+                                    <span class="box"></span
+                                    ><span class="t"
+                                        ><span class="q">2</span> red onions<small>cut into wedges</small></span
+                                    >
+                                </li>
+                                <li>
+                                    <span class="box"></span
+                                    ><span class="t"><span class="q">2 tbsp</span> olive oil</span>
+                                </li>
+                            </ul>
+                            <div class="sh">
+                                <h2>Steps</h2>
+                                <span class="c">7 steps</span>
+                            </div>
+                            <ol class="steps">
+                                <li>
+                                    <span class="n">1</span>
+                                    <p>Heat the oven to <b>220&nbsp;°C</b> (200&nbsp;°C fan). Pat the chicken dry.</p>
+                                </li>
+                                <li>
+                                    <span class="n">2</span>
+                                    <p>
+                                        Mash <b>3 tbsp butter</b> with the lemon zest and half the thyme. Push it under
+                                        the skin of the breast.
+                                    </p>
+                                </li>
+                                <li class="cur">
+                                    <span class="n">3</span>
+                                    <div>
+                                        <span class="lab">Current step</span>
+                                        <p>
+                                            Scatter <b>800 g potatoes</b>, <b>4 carrots</b> and <b>2 red onions</b> in
+                                            the tin. Toss with <b>2 tbsp olive oil</b> and sit the chicken on top.
+                                        </p>
+                                    </div>
+                                </li>
+                                <li>
+                                    <span class="n">4</span>
+                                    <div>
+                                        <p>
+                                            Roast for 20 minutes, then turn the oven down to <b>190&nbsp;°C</b> and
+                                            roast for 1&nbsp;h&nbsp;10.
+                                        </p>
+                                        <button class="tmr">
+                                            <svg class="i"><use href="#i-timer" /></svg>20&nbsp;min</button
+                                        ><button class="tmr">
+                                            <svg class="i"><use href="#i-timer" /></svg>1&nbsp;h&nbsp;10
+                                        </button>
+                                    </div>
+                                </li>
+                                <li>
+                                    <span class="n">5</span>
+                                    <div>
+                                        <p>Rest the chicken under foil.</p>
+                                        <button class="tmr">
+                                            <svg class="i"><use href="#i-timer" /></svg>15&nbsp;min
+                                        </button>
+                                    </div>
+                                </li>
+                            </ol>
+                            <div class="sh">
+                                <h2>Nutrition</h2>
+                                <span class="c">per serving</span>
+                            </div>
+                            <ul class="nut">
+                                <li>Calories<b>612</b></li>
+                                <li>Protein<b>48 g</b></li>
+                                <li>Carbs<b>38 g</b></li>
+                                <li>Fat<b>29 g</b></li>
+                            </ul>
+                            <div class="foot">
+                                <a class="more" href="#" style="margin: 0"
+                                    >Version history<svg class="i chev" style="margin-left: auto">
+                                        <use href="#i-chev" /></svg></a
+                                ><span class="del"
+                                    ><svg class="i"><use href="#i-trash" /></svg>Delete recipe</span
+                                >
+                            </div>
+                        </div>
+                        <div class="dock">
+                            <a class="btn p" href="#"
+                                ><svg class="i"><use href="#i-play" /></svg>Start cooking</a
+                            >
+                        </div>
+                    </div>
+                    <figcaption>
+                        <b>Recipe page.</b> Back, Edit and More are printed on the carton, never on the photo. The
+                        Ingredients heading and the servings stepper show above the docked <b>Start cooking</b>.
+                    </figcaption>
+                </figure>
+
+                <figure id="fDetail2">
+                    <div class="phone lt" id="detail2slot"></div>
+                    <figcaption>
+                        <b>Recipe page, scrolled.</b> A solid bar takes over the title. Ingredients and steps run down
+                        one column; quantities sit inside the steps, ticked lines are struck and muted, the current step
+                        has a wash and a label, and every duration is a timer.
+                    </figcaption>
+                </figure>
+
+                <figure id="fMine">
+                    <div class="phone lt">
+                        <div class="sb">
+                            <span>17:55</span><svg aria-hidden="true"><use href="#sb" /></svg>
+                        </div>
+                        <div class="scroll">
+                            <header class="lt-h">
+                                <h1>Recipes</h1>
+                                <button class="av" aria-label="Account">ER</button>
+                            </header>
+                            <div class="seg" role="tablist">
+                                <span class="on" role="tab" aria-selected="true">My recipes</span
+                                ><span role="tab" aria-selected="false">Collections</span>
+                            </div>
+                            <div class="search">
+                                <svg class="i"><use href="#i-search" /></svg>Search your recipes
+                            </div>
+                            <div class="chips" aria-label="Quick filters">
+                                <span class="on"
+                                    ><svg class="i"><use href="#i-check" /></svg>All <em>24</em></span
+                                ><span>Dinner <em>11</em></span
+                                ><span>Under 30 min <em>7</em></span
+                                ><span>Drafts <em>2</em></span
+                                ><span>Italian <em>4</em></span>
+                            </div>
+                            <div class="lm">
+                                <span>24 recipes</span
+                                ><span class="sort"
+                                    ><svg class="i"><use href="#i-sort" /></svg>Recently edited</span
+                                >
+                            </div>
+                            <ul class="rows">
+                                <li>
+                                    <a href="#"
+                                        ><span class="th none" aria-hidden="true"><i></i></span
+                                        ><span class="tx"
+                                            ><b>Saag paneer <span class="tag">Draft</span></b
+                                            ><span>Saved on this phone · 3 of 9 steps</span></span
+                                        ><svg class="i chev"><use href="#i-chev" /></svg
+                                    ></a>
+                                </li>
+                                <li>
+                                    <a href="#"
+                                        ><span class="th"
+                                            ><svg aria-hidden="true"><use href="#chicken" /></svg></span
+                                        ><span class="tx"
+                                            ><b>Lemon and thyme roast chicken</b
+                                            ><span>1&nbsp;h&nbsp;50 · Serves 4 · British</span></span
+                                        ><svg class="i chev"><use href="#i-chev" /></svg
+                                    ></a>
+                                </li>
+                                <li>
+                                    <a href="#"
+                                        ><span class="th"
+                                            ><svg aria-hidden="true"><use href="#salmon" /></svg></span
+                                        ><span class="tx"
+                                            ><b
+                                                >Miso-glazed salmon with sesame greens
+                                                <span class="tag">Private</span></b
+                                            ><span>25&nbsp;min · Serves 2 · Japanese</span></span
+                                        ><svg class="i chev"><use href="#i-chev" /></svg
+                                    ></a>
+                                </li>
+                                <li>
+                                    <a href="#"
+                                        ><span class="th"
+                                            ><svg aria-hidden="true"><use href="#chili" /></svg></span
+                                        ><span class="tx"
+                                            ><b>Smoky black bean chili</b
+                                            ><span>1&nbsp;h&nbsp;10 · Serves 6 · Mexican</span></span
+                                        ><svg class="i chev"><use href="#i-chev" /></svg
+                                    ></a>
+                                </li>
+                                <li>
+                                    <a href="#"
+                                        ><span class="th"
+                                            ><svg aria-hidden="true"><use href="#soup" /></svg></span
+                                        ><span class="tx"
+                                            ><b>Roasted tomato basil soup</b
+                                            ><span>50&nbsp;min · Serves 4 · Italian</span></span
+                                        ><svg class="i chev"><use href="#i-chev" /></svg
+                                    ></a>
+                                </li>
+                                <li>
+                                    <a href="#"
+                                        ><span class="th"
+                                            ><svg aria-hidden="true"><use href="#cakes" /></svg></span
+                                        ><span class="tx"
+                                            ><b>Lemon ricotta pancakes</b
+                                            ><span>35&nbsp;min · Serves 4 · American</span></span
+                                        ><svg class="i chev"><use href="#i-chev" /></svg
+                                    ></a>
+                                </li>
+                            </ul>
+                            <p class="soon" style="text-align: center; margin-bottom: 8px">Showing 20 of 24</p>
+                            <div style="padding: 0 16px 28px"><a class="btn s" href="#">Show 4 more</a></div>
+                        </div>
+                        <div class="dock">
+                            <a class="btn p" href="#"
+                                ><svg class="i"><use href="#i-plus" /></svg>New recipe</a
+                            >
+                        </div>
+                        <nav class="tabs" aria-label="Main">
+                            <a href="#"
+                                ><svg class="i"><use href="#i-home" /></svg>Home</a
+                            ><a href="#" aria-current="page"
+                                ><svg class="i"><use href="#i-book" /></svg>Recipes</a
+                            ><a href="#"
+                                ><svg class="i"><use href="#i-disc" /></svg>Discover</a
+                            >
+                        </nav>
+                    </div>
+                    <figcaption>
+                        <b>My recipes.</b> A vertical list with a count, a sort and “Show 4 more”. Filter chips are the
+                        one sideways row, with the next chip peeking. A draft with no photo shows an empty carton
+                        window. Primary: <b>New recipe</b>.
+                    </figcaption>
+                </figure>
+            </div>
+
+            <h2 class="band f-d">Dark</h2>
+            <p>
+                Dark follows the phone’s setting. The carton deepens to night-sky blue and its band stays reversed,
+                light on dark; Tomato lightens so it still reads as the one thing to press.
+            </p>
+            <div class="row" id="darkRow"></div>
+
+            <h2 class="band f-d">Cooking, first run and other states</h2>
+            <p>
+                Cook mode has no carton, no glass and no photo: one step, big, with Next and Previous fixed at the
+                bottom. The other states use the same parts with real copy.
+            </p>
+            <div class="row">
+                <figure>
+                    <div class="phone lt">
+                        <div class="sb">
+                            <span>18:20</span><svg aria-hidden="true"><use href="#sb" /></svg>
+                        </div>
+                        <div class="scroll">
+                            <header class="lt-h">
+                                <h1><span class="d">Tuesday 20 October</span>Tonight</h1>
+                                <button class="av" aria-label="Account">ER</button>
+                            </header>
+                            <p class="why-o">
+                                <svg class="i"><use href="#i-play" /></svg>Cooking now · Step 4 of 7
+                            </p>
+                            <a class="carton" href="#">
+                                <span class="win"
+                                    ><svg role="img" aria-label="Photo of the black bean chili">
+                                        <use href="#chili" /></svg
+                                ></span>
+                                <span class="nm f-d">Smoky black bean chili</span>
+                                <span class="facts"
+                                    ><span
+                                        ><svg class="i"><use href="#i-timer" /></svg>Simmer timer · 32:10 left</span
+                                    ></span
+                                >
+                            </a>
+                            <div class="cta"><a class="btn p" href="#">Back to step 4</a></div>
+                            <p class="soon">
+                                Your place in the recipe is kept on this phone while the app is open. It is not saved to
+                                your account yet.
+                            </p>
+                        </div>
+                        <nav class="tabs" aria-label="Main">
+                            <a href="#" aria-current="page"
+                                ><svg class="i"><use href="#i-home" /></svg>Home</a
+                            ><a href="#"
+                                ><svg class="i"><use href="#i-book" /></svg>Recipes</a
+                            ><a href="#"
+                                ><svg class="i"><use href="#i-disc" /></svg>Discover</a
+                            >
+                        </nav>
+                    </div>
+                    <figcaption>
+                        <b>Home, cooking.</b> The same carton says what is happening, with a brown dish in the window.
+                        The primary follows the state: <b>Back to step 4</b>.
+                    </figcaption>
+                </figure>
+
+                <figure>
+                    <div class="phone lt ck">
+                        <div class="sb">
+                            <span>18:21</span><svg aria-hidden="true"><use href="#sb" /></svg>
+                        </div>
+                        <div class="top">
+                            <button class="circ" aria-label="Close cook mode">
+                                <svg class="i"><use href="#i-x" /></svg></button
+                            ><span class="awake"
+                                ><svg class="i"><use href="#i-sun" /></svg>Screen on</span
+                            >
+                        </div>
+                        <p class="ttl">Lemon and thyme roast chicken</p>
+                        <div class="prog">
+                            <span class="lbl">Step 3 of 7</span>
+                            <div class="bar" aria-hidden="true">
+                                <i class="d"></i><i class="d"></i><i class="c"></i><i></i><i></i><i></i><i></i>
+                            </div>
+                        </div>
+                        <div class="scroll">
+                            <p class="big">
+                                Scatter <b>800 g potatoes</b>, <b>4 carrots</b> and <b>2 red onions</b> in the tin. Toss
+                                with <b>2 tbsp olive oil</b> and sit the chicken on top.
+                            </p>
+                            <details class="why-n">
+                                <summary>Why one layer?</summary>
+                                <p>Crowded vegetables steam. In one layer they brown in the chicken fat.</p>
+                            </details>
+                        </div>
+                        <div class="tstrip">
+                            <svg class="i" style="width: 1.6em; height: 1.6em"><use href="#i-timer" /></svg
+                            ><span class="tt">Oven heating<span>06:40</span></span
+                            ><button class="btn s" style="min-height: 48px">
+                                <svg class="i"><use href="#i-pause" /></svg>Pause
+                            </button>
+                        </div>
+                        <div class="np">
+                            <a class="btn s" href="#"
+                                ><svg class="i"><use href="#i-back" /></svg>Previous</a
+                            ><a class="btn p" href="#"
+                                >Next step<svg class="i"><use href="#i-chev" /></svg
+                            ></a>
+                        </div>
+                    </div>
+                    <figcaption>
+                        <b>Cook mode.</b> 28 px step text, quantities inline, a fixed timer strip, and labelled Next and
+                        Previous at 72 px. “Screen on” was switched on by Start cooking. Voice “Next” and “Back” also
+                        work.
+                    </figcaption>
+                </figure>
+
+                <figure>
+                    <div class="phone lt">
+                        <div class="sb">
+                            <span>09:02</span><svg aria-hidden="true"><use href="#sb" /></svg>
+                        </div>
+                        <div class="scroll">
+                            <header class="lt-h">
+                                <h1><span class="d">Welcome, Eliza</span>Tonight</h1>
+                                <button class="av" aria-label="Account">ER</button>
+                            </header>
+                            <p class="why-o">Start here</p>
+                            <div class="carton">
+                                <span class="win"
+                                    ><svg aria-hidden="true"><use href="#plate" /></svg
+                                ></span>
+                                <span class="nm f-d">Write down a dish you already love</span>
+                                <span class="facts"
+                                    ><span>Name, ingredients, steps. A photo can come later.</span></span
+                                >
+                            </div>
+                            <div class="cta">
+                                <a class="btn p" href="#"
+                                    ><svg class="i"><use href="#i-plus" /></svg>New recipe</a
+                                >
+                            </div>
+                            <a class="more" href="#" style="margin-top: 12px"
+                                >Find recipes on Discover<svg class="i chev" style="margin-left: auto">
+                                    <use href="#i-chev" /></svg
+                            ></a>
+                        </div>
+                        <nav class="tabs" aria-label="Main">
+                            <a href="#" aria-current="page"
+                                ><svg class="i"><use href="#i-home" /></svg>Home</a
+                            ><a href="#"
+                                ><svg class="i"><use href="#i-book" /></svg>Recipes</a
+                            ><a href="#"
+                                ><svg class="i"><use href="#i-disc" /></svg>Discover</a
+                            >
+                        </nav>
+                    </div>
+                    <figcaption>
+                        <b>Home, nothing yet.</b> An empty carton with an empty plate in its window. Primary:
+                        <b>New recipe</b>.
+                    </figcaption>
+                </figure>
+
+                <figure>
+                    <div class="phone lt short">
+                        <div class="sb">
+                            <span>17:52</span><svg aria-hidden="true"><use href="#sb" /></svg>
+                        </div>
+                        <p class="stl">Loading (after 1 second)</p>
+                        <div
+                            class="carton"
+                            aria-busy="true"
+                            aria-label="Loading tonight’s choices"
+                            style="padding-bottom: 12px"
+                        >
+                            <div class="sk" style="aspect-ratio: 16/9; margin: 6px; border-radius: 16px"></div>
+                            <div class="sk" style="width: 45%; height: 14px; margin: 12px 4px 0"></div>
+                            <div class="sk" style="width: 80%; height: 28px; margin: 8px 4px 0"></div>
+                        </div>
+                        <p class="stl">Offline</p>
+                        <div class="note">
+                            <svg class="i"><use href="#i-off" /></svg
+                            ><span
+                                >You’re offline. Recipes saved on this phone still open, and your changes will send when
+                                you’re back.</span
+                            >
+                        </div>
+                        <p class="stl">Error</p>
+                        <div class="note" style="flex-wrap: wrap">
+                            <span style="flex: 1 1 12rem"
+                                >We couldn’t load tonight’s choices. Your recipes are safe.</span
+                            ><a class="btn s" href="#" style="min-height: 44px">Try again</a>
+                        </div>
+                        <p class="stl">Saved</p>
+                        <div class="toast" role="status">
+                            <svg class="i"><use href="#i-check" /></svg>Recipe saved<a class="link" href="#">Undo</a>
+                        </div>
+                        <p class="stl">Deleted</p>
+                        <div class="toast" role="status" style="margin-bottom: 28px">
+                            <svg class="i"><use href="#i-trash" /></svg>“Saag paneer” deleted<a class="link" href="#"
+                                >Undo</a
+                            >
+                        </div>
+                    </div>
+                    <figcaption>
+                        <b>States.</b> A skeleton carton, then real copy for offline, error, saved and deleted. Delete
+                        gives Undo, never “Are you sure?”.
+                    </figcaption>
+                </figure>
+            </div>
+
+            <h2 class="band f-d">Palette “Carton”</h2>
+            <p>
+                A white shelf, one sky-blue carton with a squid-ink band, and one Tomato action. Blue sits opposite the
+                browns, golds and reds of cooked food, so the dish in the window reads warmer. Tomato is the only colour
+                you can press. Contrast below is computed in this page from the same tokens the phones use.
+            </p>
+            <p style="color: var(--pg-muted); max-width: 46rem; margin: -8px 0 24px">
+                Colour distance (CIEDE2000, script output): Tomato is 45–68 from every earlier-round action. Inside the
+                palette, Tomato, Sky carton, Mustard and Radicchio are at least 20 apart in light and 25 apart in dark.
+            </p>
+            <div class="row" id="sheets">
+                <div class="sheet lt" id="sheetL">
+                    <h3>Light</h3>
+                    <p>
+                        WCAG ratio and APCA Lc on the Shelf. Text on the carton is Ink only; the band is Shelf on Squid
+                        ink.
+                    </p>
+                </div>
+                <div class="sheet dk" id="sheetD">
+                    <h3>Dark</h3>
+                    <p>The same roles at night. The band is always reversed: Shelf text on Squid ink.</p>
+                </div>
+                <div class="sheet lt ramp">
+                    <h3>Type</h3>
+                    <p>
+                        One family, Bricolage Grotesque, used two ways: condensed and heavy only for the name printed on
+                        the carton, open and plain for everything else.
+                    </p>
+                    <div>
+                        <code
+                            >Carton name · 32 (Home), 37 (recipe) / 0.95 · 800 · width 78% · grows at half rate, caps at
+                            44 / 48</code
+                        ><span class="f-d" style="font-size: 2.25rem; line-height: 0.95"
+                            >Lemon and thyme roast chicken</span
+                        >
+                    </div>
+                    <div>
+                        <code>Large title · 34 · 700 · normal width</code
+                        ><span style="font-size: 2.125rem; line-height: 1; font-weight: 700; letter-spacing: -0.01em"
+                            >Tonight</span
+                        >
+                    </div>
+                    <div>
+                        <code>Section · 22 · 700</code
+                        ><span style="font-size: 1.375rem; font-weight: 700">Ingredients</span>
+                    </div>
+                    <div>
+                        <code>Cook step · 28/1.3 · 600, quantities 800</code
+                        ><span style="font-size: 1.75rem; line-height: 1.3; font-weight: 600"
+                            >Toss with <b style="font-weight: 800">2 tbsp olive oil</b>.</span
+                        >
+                    </div>
+                    <div><code>Body · 17/1.45 · 400</code>Push the butter under the skin of the breast.</div>
+                    <div>
+                        <code>Secondary · 16 · 400 · Muted</code
+                        ><span style="color: var(--muted)">1&nbsp;h&nbsp;10 · Serves 6 · Mexican</span>
+                    </div>
+                    <div>
+                        <code>Label · 13 · 750 · Ink only</code
+                        ><span
+                            style="
+                                font-size: 0.8125rem;
+                                font-weight: 750;
+                                letter-spacing: 0.06em;
+                                text-transform: uppercase;
+                            "
+                            >Vegetables</span
+                        >
+                    </div>
+                    <div><code>Spacing 4 · 8 · 12 · 16 · 24 · 32 — radius 8 carton · 16 window · 14 control</code></div>
+                </div>
+            </div>
+
+            <h2 class="band f-d">Principles applied</h2>
+            <ul class="prin">
+                <li>
+                    <b>Fresh in the look, familiar in the structure</b
+                    ><span
+                        >Three tabs, large titles, rows with chevrons, a stepper, chips and a docked button sit where
+                        people expect them (Jakob). The carton is the only new thing, and it is a picture, not a control
+                        (canon §2.1, §2.2 rules 1–3).</span
+                    >
+                </li>
+                <li>
+                    <b>Food first, text never on the photo</b
+                    ><span
+                        >The name is printed on colour above the window: no scrim, no tint. At large text the window
+                        moves to the top, so the dish stays on the first screen (§3.4 rule 4, §1.4).</span
+                    >
+                </li>
+                <li>
+                    <b>A short choice, not a hero</b
+                    ><span
+                        >The carton is 329 px tall, so all three dinners show above the tab bar at 390 px. Each has its
+                        own reason (§4, Hick).</span
+                    >
+                </li>
+                <li>
+                    <b>One loud colour means press</b
+                    ><span
+                        >Tomato fills one button per screen and marks ticks, links and the current tab’s icon. Sky blue
+                        only ever holds pictures and type (§3.4 rule 1, von Restorff).</span
+                    >
+                </li>
+                <li>
+                    <b>Vertical to read, sideways only to sample</b
+                    ><span
+                        >Ingredients, steps, nutrition and the library run down. Filter chips are the one sideways row,
+                        with the next chip peeking (§1.3).</span
+                    >
+                </li>
+                <li>
+                    <b>Reasons from facts the recipe holds</b
+                    ><span
+                        >Total time with meal type, servings, difficulty and dietary flags are on every recipe. Nothing
+                        depends on a history we do not store (§4, data audit).</span
+                    >
+                </li>
+                <li>
+                    <b>Two modes, two layouts</b
+                    ><span
+                        >Planning gets colour and the carton. Cook mode is opaque and neutral, 28 px, with fixed Next
+                        and Previous low on the screen (§4).</span
+                    >
+                </li>
+                <li>
+                    <b>Calm</b
+                    ><span
+                        >Nothing moves at rest. Presses scale to 98% in 100 ms; a tick fills in 180 ms; all of it is off
+                        with Reduce Motion (§4.1).</span
+                    >
+                </li>
+            </ul>
+        </div>
+
+        <script>
+            // One source of markup: the scrolled recipe page and the dark frames are clones of the light ones.
+            (function () {
+                const d = document.querySelector('#fDetail .phone');
+                document.getElementById('detail2slot').replaceWith(d.cloneNode(true));
+                const d2 = document.querySelector('#fDetail2 .phone');
+                const dark = document.getElementById('darkRow');
+                for (const [id, cap] of [
+                    [
+                        'fHome',
+                        '<b>Home, dark.</b> The carton becomes night-sky blue; the band stays reversed; the food stays untouched.',
+                    ],
+                    ['fDetail', '<b>Recipe page, dark.</b> Same order, same single docked action.'],
+                ]) {
+                    const f = document.getElementById(id).cloneNode(true);
+                    f.removeAttribute('id');
+                    f.querySelector('.phone').classList.replace('lt', 'dk');
+                    f.querySelector('figcaption').innerHTML = cap;
+                    dark.appendChild(f);
+                }
+                d2.classList.add('scrolled');
+                requestAnimationFrame(() => {
+                    const s = d2.querySelector('.scroll');
+                    s.scrollTop = s.querySelector('.steps').offsetTop - 330;
+                });
+                // Palette sheet: computed from the CSS tokens (WCAG 2 and APCA 0.0.98G).
+                const roles = [
+                    ['ground', 'Ground', 'Shelf', 'The page'],
+                    ['surface', 'Surface', 'Board', 'Sheets, tab bar, docked bar'],
+                    ['sunken', 'Sunken', 'Tray', 'Search field, segmented track, cook timer strip'],
+                    ['edge', 'Edge', 'Rule', 'Control outlines, unticked boxes'],
+                    ['ink', 'Ink', 'Squid ink', 'All text, the window keyline, the band'],
+                    ['muted', 'Muted', 'Pepper', 'Secondary text, 16 px and up'],
+                    ['action', 'Action', 'Tomato', 'The one filled button, links, ticks, current-tab icon, focus'],
+                    ['on-action', 'On action', 'On tomato', 'Label on a Tomato fill'],
+                    ['wash', 'Action wash', 'Tomato wash', 'Selected chip, current step ground'],
+                    ['warning', 'Warning', 'Mustard', 'Short labels with an icon'],
+                    ['danger', 'Danger', 'Radicchio', 'Delete, with an icon, never a fill'],
+                    ['hairline', 'Hairline', 'Seam', 'Dividers only'],
+                    ['carton', 'Content hue', 'Sky carton', 'The carton: pictures and type only, never a control'],
+                ];
+                const hex = (el, v) => {
+                    const t = document.createElement('i');
+                    t.style.color = 'var(--' + v + ')';
+                    el.appendChild(t);
+                    const c = getComputedStyle(t).color.match(/\d+/g).slice(0, 3).map(Number);
+                    t.remove();
+                    return (
+                        '#' +
+                        c
+                            .map((x) => x.toString(16).padStart(2, '0'))
+                            .join('')
+                            .toUpperCase()
+                    );
+                };
+                const lin = (c) => {
+                    c /= 255;
+                    return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+                };
+                const rgb = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+                const lum = (h) => {
+                    const [r, g, b] = rgb(h).map(lin);
+                    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+                };
+                const wc = (a, b) => {
+                    const x = lum(a),
+                        y = lum(b);
+                    return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
+                };
+                const sy = (h) => {
+                    const [r, g, b] = rgb(h).map((c) => Math.pow(c / 255, 2.4));
+                    return 0.2126729 * r + 0.7151522 * g + 0.072175 * b;
+                };
+                const apca = (t, bg) => {
+                    let a = sy(t),
+                        b = sy(bg);
+                    const cl = (y) => (y > 0.022 ? y : y + Math.pow(0.022 - y, 1.414));
+                    a = cl(a);
+                    b = cl(b);
+                    if (Math.abs(b - a) < 0.0005) return 0;
+                    let s;
+                    if (b > a) {
+                        s = (Math.pow(b, 0.56) - Math.pow(a, 0.57)) * 1.14;
+                        return s < 0.1 ? 0 : (s - 0.027) * 100;
+                    }
+                    s = (Math.pow(b, 0.65) - Math.pow(a, 0.62)) * 1.14;
+                    return s > -0.1 ? 0 : (s + 0.027) * 100;
+                };
+                for (const sh of [document.getElementById('sheetL'), document.getElementById('sheetD')]) {
+                    const g = hex(sh, 'ground'),
+                        ct = hex(sh, 'carton');
+                    for (const [v, role, name, use] of roles) {
+                        const h = hex(sh, v);
+                        let m = '';
+                        if (['ink', 'muted', 'action', 'warning', 'danger'].includes(v))
+                            m = `${wc(h, g).toFixed(1)}:1 · Lc ${Math.abs(apca(h, g)).toFixed(0)} on Shelf`;
+                        if (v === 'ink')
+                            m += ` · ${wc(h, ct).toFixed(1)}:1 · Lc ${Math.abs(apca(h, ct)).toFixed(0)} on Carton`;
+                        if (v === 'on-action')
+                            m = `${wc(h, hex(sh, 'action')).toFixed(1)}:1 · Lc ${Math.abs(apca(h, hex(sh, 'action'))).toFixed(0)} on Tomato`;
+                        if (v === 'edge')
+                            m = `${wc(h, g).toFixed(1)}:1 on Shelf · ${wc(h, hex(sh, 'sunken')).toFixed(1)}:1 on Tray`;
+                        if (v === 'muted') m += ` · Ink to Muted ${(wc(hex(sh, 'ink'), g) / wc(h, g)).toFixed(2)}`;
+                        const r = document.createElement('div');
+                        r.className = 'sw';
+                        r.innerHTML = `<i style="background:${h}"></i><b>${name} <code>${h}</code></b><span>${role}: ${use}${m ? '. ' + m : ''}</span>`;
+                        sh.appendChild(r);
+                    }
+                }
+            })();
+        </script>
+    </body>
+</html>

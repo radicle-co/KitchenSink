@@ -1,0 +1,1675 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width,initial-scale=1" />
+        <title>Food Edge</title>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link
+            href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;600;800&display=swap"
+            rel="stylesheet"
+        />
+        <style>
+            :root {
+                --g: #e3eef7;
+                --s: #ffffff;
+                --w: #d6e3ee;
+                --e: #5f7183;
+                --i: #0c1824;
+                --m: #425468;
+                --a: #b33a06;
+                --oa: #ffffff;
+                --aw: #fbe3d4;
+                --wn: #735500;
+                --d: #ad1048;
+                --c: #9dc4e0;
+                --h: #cbdae6;
+                --ff: 'Atkinson Hyperlegible Next', system-ui, sans-serif;
+            }
+            .dk {
+                --g: #0a121a;
+                --s: #121c26;
+                --w: #1a2733;
+                --e: #8193a5;
+                --i: #eef4f9;
+                --m: #b3c2d0;
+                --a: #ffa478;
+                --oa: #1f0b02;
+                --aw: #3a2418;
+                --wn: #ebc660;
+                --d: #ffa3c0;
+                --c: #355c7a;
+                --h: #25323f;
+            }
+            @media (prefers-color-scheme: dark) {
+                :root:not([data-theme='light']) body {
+                    --g: #0a121a;
+                    --s: #121c26;
+                    --w: #1a2733;
+                    --e: #8193a5;
+                    --i: #eef4f9;
+                    --m: #b3c2d0;
+                    --a: #ffa478;
+                    --oa: #1f0b02;
+                    --aw: #3a2418;
+                    --c: #355c7a;
+                    --h: #25323f;
+                }
+            }
+            :root[data-theme='dark'] body {
+                --g: #0a121a;
+                --s: #121c26;
+                --w: #1a2733;
+                --e: #8193a5;
+                --i: #eef4f9;
+                --m: #b3c2d0;
+                --a: #ffa478;
+                --oa: #1f0b02;
+                --aw: #3a2418;
+                --c: #355c7a;
+                --h: #25323f;
+            }
+            * {
+                box-sizing: border-box;
+            }
+            body {
+                margin: 0;
+                background: var(--g);
+                color: var(--i);
+                font: 400 17px/1.45 var(--ff);
+                -webkit-font-smoothing: antialiased;
+            }
+            .pg {
+                max-width: 1280px;
+                margin: 0 auto;
+                padding: 0 16px 64px;
+            }
+            h1,
+            h2,
+            h3,
+            p {
+                margin: 0;
+            }
+            .sec {
+                margin-top: 56px;
+            }
+            .sec > h2 {
+                font: 800 28px/1.15 var(--ff);
+                letter-spacing: -0.01em;
+            }
+            .sec > p {
+                color: var(--m);
+                max-width: 62ch;
+                margin-top: 8px;
+            }
+            /* hero */
+            .hero {
+                display: grid;
+                grid-template-columns: 120px 1fr;
+                gap: 28px;
+                margin: 0 -16px;
+                padding: 0 16px 0 0;
+            }
+            .hero .col {
+                display: grid;
+                gap: 3px;
+            }
+            .hero .col svg {
+                width: 100%;
+                height: 132px;
+                display: block;
+            }
+            .hero .tx {
+                padding: 40px 0 8px;
+            }
+            .eyebrow {
+                font: 600 16px/1.3 var(--ff);
+                color: var(--m);
+            }
+            .hero h1 {
+                font: 800 clamp(52px, 11vw, 124px)/0.95 var(--ff);
+                letter-spacing: -0.035em;
+                margin: 12px 0 20px;
+            }
+            .hero p {
+                font-size: 20px;
+                line-height: 1.45;
+                max-width: 40ch;
+            }
+            .hero p + p {
+                margin-top: 10px;
+                color: var(--m);
+                font-size: 17px;
+            }
+            /* boards */
+            .row {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 32px;
+                margin-top: 24px;
+                align-items: flex-start;
+            }
+            .cap {
+                width: 390px;
+                max-width: 100%;
+            }
+            .cap h3 {
+                font: 800 19px/1.2 var(--ff);
+            }
+            .cap > p {
+                color: var(--m);
+                font-size: 16px;
+                margin: 4px 0 12px;
+                min-height: 46px;
+            }
+            .ph {
+                font-size: 1.0625rem;
+                width: 390px;
+                max-width: 100%;
+                height: 844px;
+                border-radius: 44px;
+                overflow: hidden;
+                position: relative;
+                background: var(--g);
+                color: var(--i);
+                box-shadow:
+                    0 0 0 1px var(--h),
+                    0 18px 50px -24px rgba(12, 24, 36, 0.35);
+                display: flex;
+                flex-direction: column;
+            }
+            .ph.tall {
+                height: auto;
+            }
+            .scr {
+                flex: 1;
+                overflow: hidden;
+                padding-bottom: 16px;
+            }
+            .tall .scr {
+                padding-bottom: 100px;
+            }
+            .sb {
+                height: 48px;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                padding: 6px 28px 0 32px;
+                font: 600 15px/1 var(--ff);
+            }
+            .sb i {
+                display: inline-block;
+                width: 26px;
+                height: 12px;
+                border: 1.5px solid currentColor;
+                border-radius: 4px;
+                position: relative;
+            }
+            .sb i:after {
+                content: '';
+                position: absolute;
+                inset: 1.5px 6px 1.5px 1.5px;
+                background: currentColor;
+                border-radius: 1.5px;
+            }
+            .ic {
+                width: 24px;
+                height: 24px;
+                fill: none;
+                stroke: currentColor;
+                stroke-width: 2;
+                stroke-linecap: round;
+                stroke-linejoin: round;
+                flex: none;
+            }
+            .hd {
+                display: flex;
+                align-items: flex-start;
+                justify-content: space-between;
+                gap: 12px;
+                padding: 8px 16px 20px;
+            }
+            .hd .dt {
+                font: 600 1rem/1.3 var(--ff);
+                color: var(--m);
+            }
+            .lt {
+                font: 800 2.125rem/1.08 var(--ff);
+                letter-spacing: -0.015em;
+                margin-top: 4px;
+            }
+            .av {
+                width: 44px;
+                height: 44px;
+                border-radius: 50%;
+                background: var(--w);
+                display: grid;
+                place-items: center;
+                font: 800 15px/1 var(--ff);
+                flex: none;
+                border: 0;
+                color: var(--i);
+            }
+            .sh {
+                display: flex;
+                flex-wrap: wrap;
+                align-items: baseline;
+                justify-content: space-between;
+                gap: 8px;
+                padding: 0 16px;
+                margin: 4px 0 4px;
+            }
+            .sh h2 {
+                font: 800 1.3125rem/1.2 var(--ff);
+            }
+            .lk {
+                color: var(--a);
+                font: 600 1rem/1.2 var(--ff);
+                min-height: 44px;
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+                text-decoration: none;
+                background: none;
+                border: 0;
+                padding: 0;
+                cursor: pointer;
+            }
+            .sub {
+                padding: 0 16px 14px;
+                color: var(--m);
+                font-size: 1rem;
+                line-height: 1.4;
+            }
+            /* THE SIGNATURE: the food edge */
+            .sp {
+                display: grid;
+                grid-template-columns: 42% 1fr;
+                min-height: 136px;
+                color: inherit;
+                text-decoration: none;
+                position: relative;
+            }
+            .sp + .sp {
+                margin-top: 3px;
+            }
+            .sp .fd {
+                position: relative;
+                overflow: hidden;
+                background: var(--c);
+            }
+            .sp .fd svg {
+                position: absolute;
+                inset: 0;
+                width: 100%;
+                height: 100%;
+            }
+            .sp .tx {
+                padding: 12px 16px 12px 14px;
+                display: flex;
+                flex-direction: column;
+                gap: 5px;
+                min-width: 0;
+            }
+            .sp .t {
+                font: 800 1.1875rem/1.18 var(--ff);
+                letter-spacing: -0.005em;
+                padding-right: 22px;
+            }
+            .sp .mt {
+                color: var(--m);
+                font-size: 1rem;
+                line-height: 1.35;
+            }
+            .sp .why {
+                display: flex;
+                gap: 6px;
+                align-items: flex-start;
+                font: 600 1rem/1.3 var(--ff);
+            }
+            .sp .why .ic {
+                width: 18px;
+                height: 18px;
+                margin-top: 1px;
+            }
+            .sp > .ch {
+                position: absolute;
+                right: 12px;
+                top: 14px;
+                width: 20px;
+                height: 20px;
+                color: var(--m);
+            }
+            .sp.lead {
+                min-height: 224px;
+                grid-template-columns: 46% 1fr;
+            }
+            .la {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 4px 16px;
+                align-items: center;
+                padding: 14px 16px 6px;
+                border-bottom: 1px solid var(--h);
+                margin-bottom: 3px;
+            }
+            .la .btn {
+                flex: 1 1 180px;
+            }
+            .sp.lead .t {
+                font-size: 1.5rem;
+                line-height: 1.12;
+                padding: 0;
+            }
+            .lead .tx {
+                gap: 8px;
+                padding-top: 16px;
+            }
+            .tag {
+                display: inline-flex;
+                align-self: flex-start;
+                gap: 4px;
+                align-items: center;
+                border: 1.5px solid var(--e);
+                border-radius: 8px;
+                padding: 1px 8px;
+                font: 600 0.8125rem/1.5 var(--ff);
+                color: var(--i);
+            }
+            .tag .ic {
+                width: 14px;
+                height: 14px;
+            }
+            .btn {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 8px;
+                min-height: 50px;
+                border-radius: 14px;
+                border: 0;
+                background: var(--a);
+                color: var(--oa);
+                font: 800 1.0625rem/1.2 var(--ff);
+                padding: 0 18px;
+                width: 100%;
+                cursor: pointer;
+                transition:
+                    transform 0.12s,
+                    filter 0.12s;
+            }
+            .btn:active {
+                transform: scale(0.98);
+                filter: brightness(0.92);
+            }
+            .btn2 {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 6px;
+                min-height: 48px;
+                border-radius: 14px;
+                border: 1.5px solid var(--e);
+                background: transparent;
+                color: var(--i);
+                font: 600 1rem/1.2 var(--ff);
+                padding: 0 14px;
+                cursor: pointer;
+            }
+            .ic.big {
+                width: 56px;
+                height: 56px;
+                stroke-width: 1.6;
+            }
+            .one {
+                padding: 24px 16px 8px;
+                color: var(--m);
+                font-size: 1rem;
+            }
+            /* tab bar + dock */
+            .dock {
+                position: absolute;
+                left: 0;
+                right: 0;
+                bottom: 84px;
+                padding: 10px 16px;
+                background: var(--s);
+                border-top: 1px solid var(--h);
+            }
+            .tb {
+                position: absolute;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                height: 84px;
+                background: var(--s);
+                border-top: 1px solid var(--h);
+                display: grid;
+                grid-template-columns: repeat(5, 1fr);
+                padding: 6px 4px 0;
+            }
+            .tb a {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 3px;
+                font: 600 12px/1.2 var(--ff);
+                color: var(--i);
+                text-decoration: none;
+                min-height: 48px;
+                text-align: center;
+            }
+            .tb a[aria-current] {
+                color: var(--a);
+            }
+            .ph:not(.tall) .scr.hasdock {
+                padding-bottom: 160px;
+            }
+            .ph:not(.tall) .scr.hastb {
+                padding-bottom: 96px;
+            }
+            /* recipe detail */
+            .rh {
+                display: grid;
+                grid-template-columns: 58% 1fr;
+                height: 318px;
+                position: relative;
+            }
+            .rh .fd {
+                position: relative;
+                overflow: hidden;
+            }
+            .rh .fd svg {
+                position: absolute;
+                inset: 0;
+                width: 100%;
+                height: 100%;
+            }
+            .disc {
+                position: absolute;
+                top: 10px;
+                width: 44px;
+                height: 44px;
+                border-radius: 50%;
+                border: 0;
+                display: grid;
+                place-items: center;
+                background: var(--s);
+                color: var(--i);
+                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+            }
+            .facts {
+                display: flex;
+                flex-direction: column;
+                justify-content: flex-end;
+                gap: 14px;
+                padding: 64px 16px 4px 16px;
+            }
+            .facts b {
+                display: block;
+                font: 800 1.375rem/1.1 var(--ff);
+                font-variant-numeric: tabular-nums;
+            }
+            .facts span {
+                font: 600 1rem/1.3 var(--ff);
+                color: var(--m);
+            }
+            .rt {
+                padding: 20px 16px 0;
+            }
+            .rt h1 {
+                font: 800 1.875rem/1.1 var(--ff);
+                letter-spacing: -0.015em;
+            }
+            .rt .mt {
+                color: var(--m);
+                font-size: 1rem;
+                margin-top: 8px;
+                display: flex;
+                flex-wrap: wrap;
+                gap: 4px 12px;
+            }
+            .desc {
+                padding: 14px 16px 0;
+            }
+            .sw {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                margin: 20px 16px 0;
+                padding: 12px 14px;
+                background: var(--s);
+                border-radius: 16px;
+            }
+            .sw div {
+                flex: 1;
+                font: 600 1rem/1.3 var(--ff);
+            }
+            .sw small {
+                display: block;
+                font: 400 1rem/1.35 var(--ff);
+                color: var(--m);
+            }
+            .tg {
+                width: 51px;
+                height: 31px;
+                border-radius: 16px;
+                background: var(--a);
+                position: relative;
+                flex: none;
+                border: 0;
+                cursor: pointer;
+                transition: background 0.2s;
+            }
+            .tg:after {
+                content: '';
+                position: absolute;
+                top: 2px;
+                left: 22px;
+                width: 27px;
+                height: 27px;
+                border-radius: 50%;
+                background: #fff;
+                box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+                transition: left 0.2s;
+            }
+            .tg[aria-checked='false'] {
+                background: var(--e);
+            }
+            .tg[aria-checked='false']:after {
+                left: 2px;
+            }
+            .hsec {
+                display: flex;
+                flex-wrap: wrap;
+                align-items: center;
+                justify-content: space-between;
+                gap: 8px;
+                padding: 32px 16px 8px;
+            }
+            .hsec h2 {
+                font: 800 1.3125rem/1.2 var(--ff);
+            }
+            .stp {
+                display: flex;
+                align-items: center;
+                border: 1.5px solid var(--e);
+                border-radius: 14px;
+                overflow: hidden;
+            }
+            .stp button {
+                width: 44px;
+                height: 44px;
+                border: 0;
+                background: none;
+                color: var(--i);
+                display: grid;
+                place-items: center;
+                cursor: pointer;
+            }
+            .stp output {
+                padding: 0 6px;
+                text-align: center;
+                white-space: normal;
+                font: 600 1rem/1 var(--ff);
+            }
+            .grp {
+                padding: 14px 16px 2px;
+                font: 800 1rem/1.3 var(--ff);
+                color: var(--m);
+            }
+            .ing {
+                display: flex;
+                gap: 12px;
+                align-items: flex-start;
+                padding: 10px 16px;
+                min-height: 48px;
+                cursor: pointer;
+                background: none;
+                border: 0;
+                width: 100%;
+                text-align: left;
+                color: inherit;
+                font: inherit;
+            }
+            .cb {
+                width: 24px;
+                height: 24px;
+                border: 2px solid var(--e);
+                border-radius: 7px;
+                flex: none;
+                display: grid;
+                place-items: center;
+                margin-top: 1px;
+                transition:
+                    background 0.15s,
+                    border-color 0.15s;
+            }
+            .cb svg {
+                width: 16px;
+                height: 16px;
+                stroke: var(--oa);
+                stroke-width: 3;
+                fill: none;
+                opacity: 0;
+                transition: opacity 0.15s;
+            }
+            .ing[aria-pressed='true'] .cb {
+                background: var(--a);
+                border-color: var(--a);
+            }
+            .ing[aria-pressed='true'] .cb svg {
+                opacity: 1;
+            }
+            .ing[aria-pressed='true'] .q {
+                text-decoration: line-through;
+                color: var(--m);
+            }
+            .q b {
+                font-weight: 800;
+            }
+            .q small {
+                display: block;
+                color: var(--m);
+                font-size: 1rem;
+            }
+            .st {
+                display: grid;
+                grid-template-columns: 44px 1fr;
+                gap: 10px;
+                padding: 12px 16px;
+                position: relative;
+            }
+            .st.cur {
+                background: var(--aw);
+            }
+            .sn {
+                width: 44px;
+                height: 44px;
+                border-radius: 50%;
+                border: 2px solid var(--e);
+                background: none;
+                color: var(--i);
+                font: 800 1rem/1 var(--ff);
+                cursor: pointer;
+                display: grid;
+                place-items: center;
+            }
+            .cur .sn {
+                background: var(--i);
+                color: var(--g);
+                border-color: var(--i);
+            }
+            .st p {
+                padding-top: 7px;
+            }
+            .st p b {
+                font-weight: 800;
+            }
+            .st .here {
+                display: block;
+                font: 800 0.8125rem/1.4 var(--ff);
+                color: var(--i);
+                margin-bottom: 2px;
+            }
+            .tmr {
+                display: inline-flex;
+                align-items: center;
+                gap: 4px;
+                vertical-align: middle;
+                margin: 2px 0;
+                min-height: 44px;
+                padding: 0 10px;
+                border-radius: 10px;
+                border: 1.5px solid var(--a);
+                color: var(--a);
+                font: 800 0.9375rem/1 var(--ff);
+                background: var(--s);
+                cursor: pointer;
+            }
+            .tmr .ic {
+                width: 16px;
+                height: 16px;
+            }
+            .foot {
+                display: flex;
+                flex-direction: column;
+                gap: 2px;
+                padding: 28px 16px 0;
+            }
+            .foot a {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                min-height: 48px;
+                color: var(--i);
+                text-decoration: none;
+                border-top: 1px solid var(--h);
+                font-weight: 600;
+            }
+            /* recipes */
+            .seg {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                margin: 0 16px;
+                background: var(--w);
+                border-radius: 12px;
+                padding: 3px;
+            }
+            .seg span {
+                min-height: 44px;
+                display: grid;
+                place-items: center;
+                text-align: center;
+                font: 600 1rem/1 var(--ff);
+                border-radius: 10px;
+            }
+            .seg span:first-child {
+                background: var(--s);
+                box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+            }
+            .srch {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                margin: 12px 16px 0;
+                min-height: 48px;
+                padding: 0 14px;
+                background: var(--s);
+                border-radius: 12px;
+                color: var(--m);
+                border: 1.5px solid var(--e);
+            }
+            .chips {
+                display: flex;
+                gap: 8px;
+                overflow-x: auto;
+                padding: 12px 16px;
+                scrollbar-width: none;
+            }
+            .chip {
+                flex: none;
+                min-height: 44px;
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+                padding: 0 14px;
+                border-radius: 20px;
+                border: 1.5px solid var(--e);
+                font: 600 0.9375rem/1 var(--ff);
+                background: none;
+                color: var(--i);
+            }
+            .chip[aria-pressed='true'] {
+                background: var(--aw);
+                border-color: var(--a);
+            }
+            .chip small {
+                font-weight: 400;
+                color: var(--m);
+                font-size: 1rem;
+            }
+            .cnt {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                padding: 0 16px 8px;
+                font: 600 1rem/1.3 var(--ff);
+            }
+            .more {
+                margin: 16px 16px 0;
+            }
+            /* Largest text sizes (Dynamic Type AX, 200%): the food edge narrows to a third and the lead stacks its button under the row */
+            .x2 .sp,
+            .x2 .sp.lead {
+                grid-template-columns: 33% 1fr;
+            }
+            .x2 .hd .lt {
+                font-size: 1.25rem;
+            }
+            .x2 .hd .dt {
+                display: none;
+            }
+            .x2 .sub {
+                display: none;
+            }
+            .x2 .hd {
+                padding-bottom: 8px;
+            }
+            .x2 .sp .fd svg {
+                height: min(100%, 260px);
+            }
+            .x2 .facts b {
+                font-size: 1rem;
+            }
+            .x2 .rh {
+                grid-template-columns: 50% 1fr;
+                height: auto;
+                min-height: 318px;
+            }
+            /* palette + type */
+            .pal {
+                display: grid;
+                grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+                gap: 24px;
+                margin-top: 20px;
+            }
+            .strip {
+                display: flex;
+                height: 32px;
+                border-radius: 8px;
+                overflow: hidden;
+                margin: 8px 0 16px;
+                box-shadow: 0 0 0 1px var(--h);
+            }
+            .strip i {
+                flex: 1;
+            }
+            table {
+                border-collapse: collapse;
+                width: 100%;
+                font-size: 15px;
+            }
+            td,
+            th {
+                text-align: left;
+                padding: 7px 6px;
+                border-bottom: 1px solid var(--h);
+                vertical-align: top;
+            }
+            th {
+                font-weight: 800;
+            }
+            .sq {
+                display: inline-block;
+                width: 18px;
+                height: 18px;
+                border-radius: 5px;
+                vertical-align: -4px;
+                margin-right: 6px;
+                box-shadow: 0 0 0 1px rgba(127, 127, 127, 0.4);
+            }
+            .tbl {
+                overflow-x: auto;
+            }
+            .ts > div {
+                padding: 12px 0;
+                border-bottom: 1px solid var(--h);
+                display: flex;
+                gap: 16px;
+                align-items: baseline;
+                flex-wrap: wrap;
+            }
+            .ts small {
+                color: var(--m);
+                font-size: 15px;
+                min-width: 150px;
+            }
+            .pr {
+                display: grid;
+                grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+                gap: 20px;
+                margin-top: 20px;
+            }
+            .pr div {
+                background: var(--s);
+                border-radius: 16px;
+                padding: 16px 18px;
+            }
+            .pr h3 {
+                font: 800 18px/1.25 var(--ff);
+                margin-bottom: 6px;
+            }
+            .pr p {
+                font-size: 16px;
+                color: var(--m);
+            }
+            @media (prefers-reduced-motion: reduce) {
+                * {
+                    transition: none !important;
+                    animation: none !important;
+                }
+            }
+        </style>
+    </head>
+    <body>
+        <svg width="0" height="0" style="position: absolute" aria-hidden="true">
+            <defs>
+                <filter id="grain" x="0" y="0" width="100%" height="100%">
+                    <feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="2" seed="4" />
+                    <feColorMatrix values="0 0 0 0 .5 0 0 0 0 .5 0 0 0 0 .5 0 0 0 .5 0" />
+                    <feComposite in2="SourceGraphic" operator="in" />
+                </filter>
+                <filter id="sf"><feGaussianBlur stdDeviation=".9" /></filter>
+                <filter id="bk"><feGaussianBlur stdDeviation="7" /></filter>
+                <radialGradient id="vg" cx=".5" cy=".45" r=".75">
+                    <stop offset=".55" stop-color="#000" stop-opacity="0" />
+                    <stop offset="1" stop-color="#000" stop-opacity=".28" />
+                </radialGradient>
+                <radialGradient id="gold" cx=".4" cy=".35" r=".7">
+                    <stop offset="0" stop-color="#FBD9A0" />
+                    <stop offset=".45" stop-color="#D98B3A" />
+                    <stop offset="1" stop-color="#7A3A12" />
+                </radialGradient>
+                <radialGradient id="spud" cx=".35" cy=".3" r=".8">
+                    <stop offset="0" stop-color="#FFE3A3" />
+                    <stop offset="1" stop-color="#B9772A" />
+                </radialGradient>
+                <radialGradient id="soup" cx=".45" cy=".4" r=".7">
+                    <stop offset="0" stop-color="#F26B3A" />
+                    <stop offset=".7" stop-color="#C8381A" />
+                    <stop offset="1" stop-color="#8A220E" />
+                </radialGradient>
+                <radialGradient id="salm" cx=".35" cy=".3" r=".9">
+                    <stop offset="0" stop-color="#FFB38A" />
+                    <stop offset=".5" stop-color="#E9744A" />
+                    <stop offset="1" stop-color="#8E3418" />
+                </radialGradient>
+                <radialGradient id="cake" cx=".45" cy=".3" r=".8">
+                    <stop offset="0" stop-color="#F7D29A" />
+                    <stop offset="1" stop-color="#B8742E" />
+                </radialGradient>
+                <radialGradient id="chil" cx=".45" cy=".4" r=".7">
+                    <stop offset="0" stop-color="#B2471F" />
+                    <stop offset="1" stop-color="#5A1E0C" />
+                </radialGradient>
+                <symbol id="f-chicken" viewBox="0 0 200 200">
+                    <rect width="200" height="200" fill="#8E9AA0" />
+                    <rect x="-10" y="18" width="220" height="196" rx="26" fill="#5B4A3C" />
+                    <rect x="-2" y="26" width="204" height="180" rx="20" fill="#6E5A47" />
+                    <g filter="url(#sf)">
+                        <ellipse cx="108" cy="104" rx="66" ry="54" fill="url(#gold)" />
+                        <ellipse cx="86" cy="82" rx="26" ry="14" fill="#FFE6B8" opacity=".55" />
+                        <path d="M150 128c14 6 22 18 18 26-5 8-18 4-26-8z" fill="url(#gold)" />
+                        <path d="M60 128c-14 6-22 18-18 26 5 8 18 4 26-8z" fill="url(#gold)" />
+                        <ellipse cx="96" cy="76" rx="9" ry="4" fill="#fff" opacity=".6" />
+                        <circle cx="40" cy="150" r="17" fill="url(#spud)" />
+                        <circle cx="62" cy="172" r="14" fill="url(#spud)" />
+                        <circle cx="168" cy="160" r="16" fill="url(#spud)" />
+                        <circle cx="30" cy="70" r="15" fill="url(#spud)" />
+                        <rect
+                            x="150"
+                            y="40"
+                            width="44"
+                            height="13"
+                            rx="6"
+                            fill="#E46A1C"
+                            transform="rotate(30 170 46)"
+                        />
+                        <rect
+                            x="18"
+                            y="104"
+                            width="40"
+                            height="12"
+                            rx="6"
+                            fill="#E8741F"
+                            transform="rotate(-20 38 110)"
+                        />
+                        <ellipse cx="150" cy="178" rx="15" ry="10" fill="#8A2F5A" />
+                        <ellipse cx="40" cy="36" rx="14" ry="10" fill="#7E2A55" />
+                        <circle cx="128" cy="66" r="13" fill="#F4D23C" />
+                        <circle cx="128" cy="66" r="9" fill="#FBEA8C" />
+                    </g>
+                    <g fill="#5E7A2E">
+                        <circle cx="100" cy="96" r="2.4" />
+                        <circle cx="118" cy="112" r="2" />
+                        <circle cx="92" cy="122" r="2.2" />
+                        <circle cx="132" cy="96" r="1.8" />
+                        <circle cx="74" cy="104" r="2" />
+                    </g>
+                    <rect width="200" height="200" fill="url(#vg)" />
+                    <rect width="200" height="200" filter="url(#grain)" opacity=".35" />
+                </symbol>
+                <symbol id="f-salmon" viewBox="0 0 200 200">
+                    <rect width="200" height="200" fill="#B9C4C8" />
+                    <path d="M0 150 200 120V200H0z" fill="#A9B6BB" />
+                    <ellipse cx="104" cy="112" rx="98" ry="90" fill="#F3F1EC" />
+                    <ellipse cx="104" cy="112" rx="80" ry="72" fill="#E7E3DB" />
+                    <g filter="url(#sf)">
+                        <ellipse cx="70" cy="150" rx="36" ry="16" fill="#2F6A2A" />
+                        <ellipse cx="132" cy="156" rx="32" ry="14" fill="#4C8C34" />
+                        <ellipse cx="100" cy="146" rx="24" ry="9" fill="#6FAE46" />
+                        <path
+                            d="M44 108c4-30 42-44 80-40 30 3 44 16 42 33-2 20-32 32-64 32-36 0-62-8-58-25z"
+                            fill="url(#salm)"
+                        />
+                        <path d="M56 92c24-12 60-14 96-2" stroke="#7A2A0E" stroke-width="9" fill="none" opacity=".6" />
+                        <g stroke="#FFD9C2" stroke-width="2.4" fill="none" opacity=".75">
+                            <path
+                                d="M70 104c4 10 4 20 0 26M92 98c5 12 5 24 0 32M114 96c5 12 5 24 0 32M136 100c4 10 4 18 0 24"
+                            />
+                        </g>
+                        <ellipse cx="96" cy="84" rx="26" ry="6" fill="#FFE7D4" opacity=".7" />
+                    </g>
+                    <g fill="#FBF3DF">
+                        <ellipse cx="88" cy="88" rx="2.4" ry="1.4" />
+                        <ellipse cx="108" cy="92" rx="2.4" ry="1.4" />
+                        <ellipse cx="124" cy="86" rx="2.4" ry="1.4" />
+                        <ellipse cx="100" cy="80" rx="2.4" ry="1.4" />
+                        <ellipse cx="76" cy="96" rx="2.4" ry="1.4" />
+                    </g>
+                    <g stroke="#3E7A2A" stroke-width="2.4" stroke-linecap="round">
+                        <path d="M118 74l10-6M126 78l12-2" />
+                    </g>
+                    <rect width="200" height="200" fill="url(#vg)" />
+                    <rect width="200" height="200" filter="url(#grain)" opacity=".25" />
+                </symbol>
+                <symbol id="f-soup" viewBox="0 0 200 200">
+                    <rect width="200" height="200" fill="#D9D2C6" />
+                    <rect y="120" width="200" height="80" fill="#BFB5A6" />
+                    <circle cx="96" cy="100" r="86" fill="#F4F1EC" />
+                    <circle cx="96" cy="100" r="66" fill="url(#soup)" />
+                    <g filter="url(#sf)">
+                        <path d="M70 92c10-14 34-16 44-4s-4 26-20 22" stroke="#4F8A2A" stroke-width="5" fill="none" />
+                        <circle cx="118" cy="80" r="3" fill="#FFE2C8" />
+                        <circle cx="80" cy="120" r="2.5" fill="#FFE2C8" />
+                        <rect
+                            x="150"
+                            y="150"
+                            width="70"
+                            height="40"
+                            rx="10"
+                            fill="#C98A45"
+                            transform="rotate(-18 180 170)"
+                        />
+                    </g>
+                    <circle cx="74" cy="76" r="10" fill="#fff" opacity=".25" filter="url(#bk)" />
+                    <rect width="200" height="200" fill="url(#vg)" opacity=".7" />
+                    <rect width="200" height="200" filter="url(#grain)" opacity=".3" />
+                </symbol>
+                <symbol id="f-chili" viewBox="0 0 200 200">
+                    <rect width="200" height="200" fill="#B98A5E" />
+                    <path d="M0 40h200M0 90h200M0 150h200" stroke="#A3764C" stroke-width="3" />
+                    <circle cx="100" cy="104" r="92" fill="#EDE6DA" />
+                    <circle cx="100" cy="104" r="86" fill="#D9663A" />
+                    <circle cx="100" cy="104" r="78" fill="url(#chil)" />
+                    <g filter="url(#sf)">
+                        <g fill="#2A0E08">
+                            <ellipse cx="70" cy="90" rx="7" ry="4.5" />
+                            <ellipse cx="120" cy="80" rx="7" ry="4.5" />
+                            <ellipse cx="130" cy="130" rx="7" ry="4.5" />
+                            <ellipse cx="80" cy="134" rx="7" ry="4.5" />
+                            <ellipse cx="102" cy="110" rx="7" ry="4.5" />
+                        </g>
+                        <path d="M86 96c10-10 30-8 34 4s-12 20-26 16-14-12-8-20z" fill="#F7F2E8" />
+                        <g fill="#4C8F34">
+                            <circle cx="112" cy="94" r="4" />
+                            <circle cx="96" cy="88" r="3" />
+                            <circle cx="122" cy="108" r="3.4" />
+                        </g>
+                    </g>
+                    <rect width="200" height="200" fill="url(#vg)" />
+                    <rect width="200" height="200" filter="url(#grain)" opacity=".35" />
+                </symbol>
+                <symbol id="f-cakes" viewBox="0 0 200 200">
+                    <rect width="200" height="200" fill="#C7D6DD" />
+                    <rect y="130" width="200" height="70" fill="#AFC2CB" />
+                    <ellipse cx="100" cy="160" rx="90" ry="26" fill="#F5F7F8" />
+                    <g filter="url(#sf)">
+                        <ellipse cx="100" cy="146" rx="64" ry="16" fill="#A8652A" />
+                        <ellipse cx="100" cy="132" rx="64" ry="16" fill="url(#cake)" />
+                        <ellipse cx="100" cy="118" rx="62" ry="16" fill="#B87430" />
+                        <ellipse cx="100" cy="104" rx="62" ry="16" fill="url(#cake)" />
+                        <ellipse cx="100" cy="90" rx="60" ry="15" fill="#B87430" />
+                        <ellipse cx="100" cy="78" rx="60" ry="15" fill="url(#cake)" />
+                        <ellipse cx="102" cy="70" rx="24" ry="10" fill="#FBF8F0" />
+                        <path d="M128 78c4 12 2 30-2 44" stroke="#8A4A12" stroke-width="5" fill="none" opacity=".8" />
+                        <g fill="#F2D23A">
+                            <rect x="94" y="64" width="9" height="2.4" rx="1" />
+                            <rect x="106" y="70" width="8" height="2.4" rx="1" />
+                        </g>
+                    </g>
+                    <rect width="200" height="200" fill="url(#vg)" opacity=".6" />
+                    <rect width="200" height="200" filter="url(#grain)" opacity=".25" />
+                </symbol>
+                <symbol id="f-thai" viewBox="0 0 200 200">
+                    <rect width="200" height="200" fill="#6E8C7C" />
+                    <circle cx="100" cy="104" r="92" fill="#F4F0E8" />
+                    <g filter="url(#sf)" fill="none" stroke-linecap="round">
+                        <path
+                            d="M40 100c30-20 70 20 120-6M44 116c34-16 76 18 112-4M48 84c30-18 70 14 104-6M52 130c30-14 66 16 96-2"
+                            stroke="#D9A75A"
+                            stroke-width="7"
+                        />
+                        <path d="M60 106c20-12 50 10 80-2" stroke="#ECC37A" stroke-width="5" />
+                    </g>
+                    <g filter="url(#sf)">
+                        <path d="M82 80c-10 0-14 10-8 16s14 2 14-4" stroke="#F08A6A" stroke-width="7" fill="none" />
+                        <path d="M124 118c-10 0-14 10-8 16s14 2 14-4" stroke="#F08A6A" stroke-width="7" fill="none" />
+                        <path d="M146 62l22 18-26 6z" fill="#86C24A" />
+                        <g fill="#7A4A1E">
+                            <circle cx="100" cy="96" r="3" />
+                            <circle cx="108" cy="104" r="2.5" />
+                            <circle cx="94" cy="110" r="2.6" />
+                        </g>
+                        <g fill="#4E9A3A">
+                            <circle cx="70" cy="122" r="3" />
+                            <circle cx="130" cy="90" r="3" />
+                        </g>
+                    </g>
+                    <rect width="200" height="200" fill="url(#vg)" />
+                    <rect width="200" height="200" filter="url(#grain)" opacity=".3" />
+                </symbol>
+                <symbol id="f-foc" viewBox="0 0 200 200">
+                    <rect width="200" height="200" fill="#9BA6AA" />
+                    <rect x="10" y="20" width="200" height="190" rx="20" fill="url(#cake)" />
+                    <g filter="url(#sf)">
+                        <g fill="#9C5A1C" opacity=".7">
+                            <circle cx="50" cy="60" r="5" />
+                            <circle cx="90" cy="50" r="5" />
+                            <circle cx="130" cy="64" r="5" />
+                            <circle cx="170" cy="52" r="5" />
+                            <circle cx="60" cy="110" r="5" />
+                            <circle cx="110" cy="100" r="5" />
+                            <circle cx="160" cy="112" r="5" />
+                            <circle cx="80" cy="160" r="5" />
+                            <circle cx="130" cy="150" r="5" />
+                            <circle cx="180" cy="170" r="5" />
+                        </g>
+                        <g stroke="#3F6B2A" stroke-width="3" stroke-linecap="round">
+                            <path d="M68 76l10 8M118 120l10-6M150 80l8 10M100 170l10-4" />
+                        </g>
+                        <g fill="#FFF6E0">
+                            <circle cx="86" cy="130" r="2" />
+                            <circle cx="146" cy="138" r="2" />
+                            <circle cx="56" cy="84" r="2" />
+                        </g>
+                    </g>
+                    <rect width="200" height="200" fill="url(#vg)" opacity=".7" />
+                    <rect width="200" height="200" filter="url(#grain)" opacity=".35" />
+                </symbol>
+                <symbol id="f-cacc" viewBox="0 0 200 200">
+                    <rect width="200" height="200" fill="#C9D3D8" />
+                    <circle cx="100" cy="104" r="94" fill="#2F5E86" />
+                    <circle cx="100" cy="104" r="86" fill="#F2EFE8" />
+                    <circle cx="100" cy="104" r="72" fill="#B8381A" />
+                    <g filter="url(#sf)">
+                        <ellipse cx="80" cy="96" rx="26" ry="20" fill="url(#gold)" />
+                        <ellipse cx="126" cy="122" rx="24" ry="18" fill="url(#gold)" />
+                        <g fill="#2E2A1E">
+                            <circle cx="120" cy="80" r="6" />
+                            <circle cx="74" cy="132" r="6" />
+                            <circle cx="146" cy="96" r="5" />
+                        </g>
+                        <g fill="#E8A040">
+                            <rect x="96" y="128" width="20" height="7" rx="3" />
+                            <rect x="58" y="70" width="18" height="7" rx="3" />
+                        </g>
+                        <g fill="#56913A">
+                            <circle cx="104" cy="104" r="3" />
+                            <circle cx="92" cy="86" r="2.4" />
+                        </g>
+                    </g>
+                    <rect width="200" height="200" fill="url(#vg)" />
+                    <rect width="200" height="200" filter="url(#grain)" opacity=".35" />
+                </symbol>
+                <symbol id="i-home" viewBox="0 0 24 24">
+                    <path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z" />
+                </symbol>
+                <symbol id="i-book" viewBox="0 0 24 24">
+                    <path d="M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3z" />
+                    <path d="M5 17a3 3 0 0 1 3-3h11" />
+                </symbol>
+                <symbol id="i-comp" viewBox="0 0 24 24">
+                    <circle cx="12" cy="12" r="9" />
+                    <path d="m15.5 8.5-2 5-5 2 2-5z" />
+                </symbol>
+                <symbol id="i-cal" viewBox="0 0 24 24">
+                    <rect x="3.5" y="5" width="17" height="15.5" rx="2.5" />
+                    <path d="M3.5 10h17M8 3v4M16 3v4" />
+                </symbol>
+                <symbol id="i-bag" viewBox="0 0 24 24">
+                    <path d="M5 8h14l-1 12.5H6z" />
+                    <path d="M9 8V6.5a3 3 0 0 1 6 0V8" />
+                </symbol>
+                <symbol id="i-chev" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7" /></symbol>
+                <symbol id="i-back" viewBox="0 0 24 24"><path d="m15 5-7 7 7 7" /></symbol>
+                <symbol id="i-more" viewBox="0 0 24 24">
+                    <circle cx="5" cy="12" r="1.3" />
+                    <circle cx="12" cy="12" r="1.3" />
+                    <circle cx="19" cy="12" r="1.3" />
+                </symbol>
+                <symbol id="i-clock" viewBox="0 0 24 24">
+                    <circle cx="12" cy="12" r="9" />
+                    <path d="M12 7v5l3 2" />
+                </symbol>
+                <symbol id="i-star" viewBox="0 0 24 24">
+                    <path d="m12 3.5 2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z" />
+                </symbol>
+                <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" /></symbol>
+                <symbol id="i-minus" viewBox="0 0 24 24"><path d="M5 12h14" /></symbol>
+                <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5" /></symbol>
+                <symbol id="i-srch" viewBox="0 0 24 24">
+                    <circle cx="11" cy="11" r="6.5" />
+                    <path d="m16 16 4.5 4.5" />
+                </symbol>
+                <symbol id="i-shuf" viewBox="0 0 24 24">
+                    <path d="M3 7h4l10 10h4M3 17h4l3-3M14 10l3-3h4M18 4l3 3-3 3M18 14l3 3-3 3" />
+                </symbol>
+                <symbol id="i-lock" viewBox="0 0 24 24">
+                    <rect x="5" y="11" width="14" height="9.5" rx="2" />
+                    <path d="M8.5 11V8a3.5 3.5 0 0 1 7 0v3" />
+                </symbol>
+                <symbol id="i-pen" viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z" /></symbol>
+                <symbol id="i-sun" viewBox="0 0 24 24">
+                    <circle cx="12" cy="12" r="4" />
+                    <path
+                        d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"
+                    />
+                </symbol>
+                <symbol id="i-bowl" viewBox="0 0 24 24">
+                    <path d="M3 11h18a9 9 0 0 1-18 0zM8 7c0-1.5 1-2 1-3.5M12 7c0-1.5 1-2 1-3.5M16 7c0-1.5 1-2 1-3.5" />
+                </symbol>
+                <symbol id="i-users" viewBox="0 0 24 24">
+                    <circle cx="9" cy="8" r="3.5" />
+                    <path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4.6a3.5 3.5 0 0 1 0 6.8M18 14a6.5 6.5 0 0 1 3.5 6" />
+                </symbol>
+                <symbol id="i-folder" viewBox="0 0 24 24">
+                    <path
+                        d="M3 6.5A1.5 1.5 0 0 1 4.5 5H9l2 2.5h8.5A1.5 1.5 0 0 1 21 9v9.5a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 18.5z"
+                    />
+                </symbol>
+            </defs>
+        </svg>
+
+        <div class="pg">
+            <header class="hero">
+                <div class="col" aria-hidden="true">
+                    <svg viewBox="0 0 200 200" preserveAspectRatio="xMidYMid slice"><use href="#f-salmon" /></svg
+                    ><svg viewBox="0 0 200 200" preserveAspectRatio="xMidYMid slice"><use href="#f-chicken" /></svg
+                    ><svg viewBox="0 0 200 200" preserveAspectRatio="xMidYMid slice"><use href="#f-soup" /></svg
+                    ><svg viewBox="0 0 200 200" preserveAspectRatio="xMidYMid slice"><use href="#f-chili" /></svg>
+                </div>
+                <div class="tx">
+                    <div class="eyebrow">Commise visual refresh · Workshop 4 · Option 3 · Designer 3</div>
+                    <h1>Food Edge</h1>
+                    <p>
+                        Every list in Commise leads with a column of food that runs down the edge of the screen, so you
+                        choose dinner by looking, then confirm by reading.
+                    </p>
+                    <p>
+                        The rest is the cold, clean light of an open fridge: icy grounds and deep blue-black ink, so
+                        warm food is the warmest thing you see, and Persimmon marks the one thing to press.
+                    </p>
+                </div>
+            </header>
+
+            <section class="sec" aria-labelledby="s1">
+                <h2 id="s1">Light: Home, Recipe detail, My recipes</h2>
+                <p>
+                    390 px phones. Plain tabs, large titles, plain rows, a stepper, checkboxes and one filled Persimmon
+                    button per screen. The recipe page is shown at its full length, scrolled.
+                </p>
+                <div class="row" id="light"></div>
+            </section>
+
+            <section class="sec" aria-labelledby="s2">
+                <h2 id="s2">Home in its other two states</h2>
+                <p>
+                    Home shows the cook's state. Cook marks live in memory on the phone and in the tab's session on the
+                    web, so "Cooking now" shows only while that session holds them. With no recipes yet, Home asks for
+                    the first one.
+                </p>
+                <div class="row" id="states"></div>
+            </section>
+
+            <section class="sec" aria-labelledby="s3">
+                <h2 id="s3">Dark: Home and Recipe detail</h2>
+                <p>
+                    Dark follows the phone's setting. The food stays the brightest thing, and Persimmon turns to a
+                    lighter tone so it still reads as the one action.
+                </p>
+                <div class="row" id="dark"></div>
+            </section>
+
+            <section class="sec" aria-labelledby="s4">
+                <h2 id="s4">Palette: Cold Light</h2>
+                <p>
+                    The idea: the light of an open fridge door at six in the evening, cool and clean, so roast skin,
+                    salmon and tomato look warm and good to eat. Colour lives in four places: the icy ground, the
+                    blue-black ink, the Glacier content hue behind food, and Persimmon on the one thing to press. Every
+                    figure below is computed on this page from the hex values (WCAG 2.x ratio, APCA 0.0.98G Lc).
+                </p>
+                <div class="pal" id="pal"></div>
+            </section>
+
+            <section class="sec" aria-labelledby="s5">
+                <h2 id="s5">Type: Atkinson Hyperlegible Next, one family</h2>
+                <p>
+                    Drawn by the Braille Institute for readers with low vision: open shapes, a 1 that is never an l, a 0
+                    that is never an O. A cook reads through steam at arm's length; this face was made for hard reading,
+                    and at 800 it is also warm and confident.
+                </p>
+                <div class="ts" id="ts"></div>
+            </section>
+
+            <section class="sec" aria-labelledby="s6">
+                <h2 id="s6">Principles applied</h2>
+                <div class="pr">
+                    <div>
+                        <h3>The food edge is look, not a control</h3>
+                        <p>
+                            It is the row's picture, made bigger and set flush to the screen edge. The whole row is one
+                            target with a chevron. Ignore the edge and nothing is lost: the title, time and reason are
+                            all in words (canon 2.2 rules 1 to 3).
+                        </p>
+                    </div>
+                    <div>
+                        <h3>Vertical for lists you go through</h3>
+                        <p>
+                            Picks, recent recipes, the library, ingredients and steps scroll down. Only the filter chips
+                            scroll sideways, as optional peers with the next chip peeking (1.3).
+                        </p>
+                    </div>
+                    <div>
+                        <h3>Home helps you choose</h3>
+                        <p>
+                            Three picks with reasons built only from stored facts: total time ("Ready by 6:45 pm" is
+                            total time plus the clock), your own star rating, a collection you made, difficulty and
+                            servings. No invented history (4, data audit).
+                        </p>
+                    </div>
+                    <div>
+                        <h3>One primary, in thumb reach</h3>
+                        <p>
+                            Start cooking on Home and on the recipe; New recipe on My recipes. Each is the only filled
+                            Persimmon button on its screen, low and labelled (Hick, Fitts, von Restorff).
+                        </p>
+                    </div>
+                    <div>
+                        <h3>Quantities sit inside the steps</h3>
+                        <p>
+                            Steps carry their amounts in bold and their times as timer buttons. The servings stepper
+                            rescales both lists. The current step is marked with a wash, a filled number and the words
+                            "You are here" (Cowan, 4).
+                        </p>
+                    </div>
+                    <div>
+                        <h3>Chrome serves the food</h3>
+                        <p>
+                            No tint on photos, no text on photos, no glass. Cool grounds flatter warm food; Persimmon
+                            never sits next to Raspberry in the same role, and Danger is a text row, never a pill (3.4).
+                        </p>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <script>
+            const U = (id, c = 'ic') => `<svg class="${c}" aria-hidden="true"><use href="#i-${id}"/></svg>`;
+            const F = (id) =>
+                `<svg viewBox="0 0 200 200" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><use href="#f-${id}"/></svg>`;
+            const SB = `<div class="sb"><span>6:12</span><i></i></div>`;
+            const TB = (c) =>
+                `<nav class="tb" aria-label="Tabs">${[
+                    ['home', 'Home'],
+                    ['book', 'Recipes'],
+                    ['comp', 'Discover'],
+                    ['cal', 'Plan'],
+                    ['bag', 'Shop'],
+                ]
+                    .map(([i, l]) => `<a href="#" ${l == c ? 'aria-current="page"' : ''}>${U(i)}${l}</a>`)
+                    .join('')}</nav>`;
+            const row = (f, t, mt, why, tag) =>
+                `<a class="sp" href="#">${f ? `<div class="fd">${F(f)}</div>` : `<div class="fd" style="display:grid;place-items:center">${U('bowl', 'ic')}</div>`}<div class="tx"><div class="t">${t}</div>${why ? `<div class="why">${why}</div>` : ''}<div class="mt">${mt}</div>${tag || ''}</div>${U('chev', 'ic ch')}</a>`;
+            const home =
+                () => `${SB}<div class="scr hastb"><div class="hd"><div><div class="dt">Tuesday, October 20</div><h1 class="lt">Good evening, Eliza</h1></div><button class="av" aria-label="Profile, Eliza Ramirez">ER</button></div>
+<div class="sh"><h2>Three for tonight</h2><button class="lk">${U('shuf')}Others</button></div>
+<p class="sub">Picked from your recipes by time, your stars and your collections.</p>
+<div class="sp lead"><a class="fd" href="#" aria-label="See recipe: Miso-glazed salmon with sesame greens">${F('salmon')}</a><div class="tx"><div class="why">${U('clock')}Ready by 6:45 pm</div><h3 class="t">Miso-glazed salmon with sesame greens</h3><div class="mt">30 min · Serves 2 · Easy</div><div class="why">${U('star')}You gave it 5 stars</div></div></div><div class="la"><button class="btn">Start cooking</button><a class="lk" href="#">See recipe ${U('chev')}</a></div>
+${row('chili', 'Smoky black bean chili', '45 min · Serves 4', U('folder') + 'In your Weeknights')}
+${row('soup', 'Roast tomato soup with basil oil', '40 min · Serves 4', U('clock') + 'Ready by 6:55 pm')}
+<div class="sh" style="margin-top:28px"><h2>Recently edited</h2><a class="lk" href="#">See all 24</a></div>
+${row('chicken', 'Lemon and thyme roast chicken', '1 h 50 · Serves 4', '')}
+${row(null, 'Sourdough boule (work in progress)', '4 h 30 · Serves 8', '', `<span class="tag">${U('pen')}Draft</span>`)}
+<p class="one">Meal plans and a shopping list are on the way.</p></div>${TB('Home')}`;
+            const homeCook =
+                () => `${SB}<div class="scr hastb"><div class="hd"><div><div class="dt">Tuesday, October 20</div><h1 class="lt">Good evening, Eliza</h1></div><button class="av" aria-label="Profile, Eliza Ramirez">ER</button></div>
+<div class="sh"><h2>Cooking now</h2></div>
+<div class="sp lead"><a class="fd" href="#" aria-label="Back to step 4">${F('chicken')}</a><div class="tx"><div class="why">Step 4 of 5</div><h3 class="t">Lemon and thyme roast chicken</h3><div class="mt">Roast for 20 min, then lower to 190°C.</div><div class="why">${U('clock')}Roast: 14:20 left</div></div></div><div class="la"><button class="btn">Back to step 4</button></div>
+<div class="sh" style="margin-top:28px"><h2>Recently edited</h2><a class="lk" href="#">See all 24</a></div>
+${row('salmon', 'Miso-glazed salmon with sesame greens', '30 min · Serves 2', '')}
+${row('chili', 'Smoky black bean chili', '45 min · Serves 4', '')}</div>${TB('Home')}`;
+            const homeNew =
+                () => `${SB}<div class="scr hastb"><div class="hd"><div><div class="dt">Tuesday, October 20</div><h1 class="lt">Welcome, Eliza</h1></div><button class="av" aria-label="Profile, Eliza Ramirez">ER</button></div>
+<div class="sp lead" style="min-height:220px"><div class="fd" style="display:grid;place-items:center">${U('bowl', 'ic big')}</div><div class="tx"><h3 class="t">Your recipes will live here</h3><div class="mt">Write one, or paste a list of ingredients and we sort out the amounts.</div></div></div><div class="la"><button class="btn">Add your first recipe</button></div>
+<div class="sh" style="margin-top:28px"><h2>Or start from Discover</h2></div>
+${row('cakes', 'Lemon ricotta pancakes', '35 min · Serves 4', '')}
+${row('thai', 'Pad thai with shrimp', '30 min · Serves 2', '')}</div>${TB('Home')}`;
+            const ING = [
+                ['Chicken'],
+                [1, '', 'whole chicken', 'about 1.8 kg'],
+                [3, 'tbsp', 'unsalted butter', 'softened', 1],
+                [1, '', 'lemon', 'zested and halved'],
+                [6, 'sprigs', 'fresh thyme'],
+                [1, 'head', 'garlic', 'halved crosswise'],
+                [1, 'tsp', 'flaky sea salt'],
+                ['Vegetables'],
+                [800, 'g', 'waxy potatoes', 'quartered'],
+                [3, '', 'carrots', 'cut in chunks'],
+                [2, '', 'red onions', 'cut in wedges'],
+                [2, 'tbsp', 'olive oil'],
+                [0, '', 'Black pepper', 'to taste'],
+            ];
+            const q = (n, u) => `<b data-q="${n}" data-u="${u}">${n}${u ? ' ' + u : ''}</b>`;
+            const detail =
+                () => `${SB}<div class="scr"><div class="rh"><div class="fd">${F('chicken')}</div><button class="disc" style="left:12px" aria-label="Back to My recipes">${U('back')}</button><button class="disc" style="right:12px" aria-label="More actions">${U('more')}</button>
+<div class="facts"><div><b>1 h 50</b><span>Total</span></div><div><b>20 min</b><span>Prep</span></div><div><b>Medium</b><span>Difficulty</span></div></div></div>
+<div class="rt"><h1>Lemon and thyme roast chicken</h1><div class="mt"><span>British</span><span>Public</span><span>★ 4.8 (23)</span></div></div>
+<p class="desc">A Sunday roast that works on a Tuesday: one tin, lemon butter under the skin, and vegetables that cook in the juices.</p>
+<div class="sw">${U('sun')}<div>Keep screen on<small>While you cook from this page</small></div><button class="tg" role="switch" aria-checked="true" aria-label="Keep screen on"></button></div>
+<div class="hsec"><h2>Ingredients</h2><div class="stp" role="group" aria-label="Servings"><button data-s="-1" aria-label="Fewer servings">${U('minus')}</button><output>Serves 4</output><button data-s="1" aria-label="More servings">${U('plus')}</button></div></div>
+${ING.map((r) => (r.length == 1 ? `<div class="grp">${r[0]}</div>` : `<button class="ing" aria-pressed="${r[4] ? 'true' : 'false'}"><span class="cb"><svg viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></span><span class="q">${r[0] ? q(r[0], r[1]) + ' ' : ''}${r[2]}${r[3] ? `<small>${r[3]}</small>` : ''}</span></button>`)).join('')}
+<div class="hsec"><h2>Steps</h2><span class="dt" style="color:var(--m);font-weight:600">5 steps</span></div>
+<div class="st"><button class="sn" aria-label="Mark step 1 as current">1</button><p>Heat the oven to 220°C (200°C fan). Pat ${q(1, '')} whole chicken dry and leave it out while the oven heats.</p></div>
+<div class="st"><button class="sn" aria-label="Mark step 2 as current">2</button><p>Mash ${q(3, 'tbsp')} butter with the zest of the lemon, half of the thyme and ${q(1, 'tsp')} salt. Spread it under the breast skin.</p></div>
+<div class="st cur"><button class="sn" aria-label="Step 3, current">3</button><p><span class="here">You are here · Step 3 of 5</span>Toss ${q(800, 'g')} potatoes, ${q(3, '')} carrots and ${q(2, '')} onions with ${q(2, 'tbsp')} oil in a large tin. Sit the chicken on top with the lemon and garlic inside.</p></div>
+<div class="st"><button class="sn" aria-label="Mark step 4 as current">4</button><p>Roast for <button class="tmr">${U('clock')}20 min</button>, then lower to 190°C (170°C fan) and roast for <button class="tmr">${U('clock')}1 h 10 min</button>, until the juices run clear.</p></div>
+<div class="st"><button class="sn" aria-label="Mark step 5 as current">5</button><p>Rest under foil for <button class="tmr">${U('clock')}15 min</button> before carving. Spoon the juices over the vegetables.</p></div>
+<div class="foot"><a href="#">Edit recipe ${U('pen')}</a><a href="#">Version history ${U('chev')}</a><a href="#">Source: Eliza's kitchen ${U('chev')}</a></div></div>
+<div class="dock" style="bottom:0;padding-bottom:30px"><button class="btn">Start cooking</button></div>`;
+            const recipes =
+                () => `${SB}<div class="scr hasdock"><div class="hd"><h1 class="lt">Recipes</h1><button class="av" aria-label="Profile, Eliza Ramirez">ER</button></div>
+<div class="seg" role="tablist"><span role="tab" aria-selected="true">My recipes</span><span role="tab">Collections</span></div>
+<div class="srch">${U('srch')}Search your recipes</div>
+<div class="chips"><button class="chip" aria-pressed="true">${U('check')}All <small>24</small></button><button class="chip">Under 30 min <small>7</small></button><button class="chip">Weeknights <small>9</small></button><button class="chip">Drafts <small>2</small></button><button class="chip">Italian <small>4</small></button></div>
+<div class="cnt"><span>24 recipes</span><button class="lk">Last edited ${U('chev')}</button></div>
+${row('salmon', 'Miso-glazed salmon with sesame greens', 'Japanese · 30 min', null, `<span class="tag">${U('star')}5</span>`)}
+${row('chicken', 'Lemon and thyme roast chicken', 'British · 1 h 50')}
+${row('thai', 'Pad thai with shrimp', 'Thai · 30 min', null, `<span class="tag">${U('lock')}Private</span>`)}
+${row('cacc', 'Weeknight chicken cacciatore', 'Italian · 55 min')}
+${row('foc', 'Sunday rosemary focaccia', 'Italian · 3 h')}
+${row('cakes', 'Lemon ricotta pancakes', 'American · 35 min')}
+<button class="btn2 more" style="width:calc(100% - 32px)">Show 12 more · 12 of 24 shown</button></div>
+<div class="dock"><button class="btn">${U('plus')}New recipe</button></div>${TB('Recipes')}`;
+            const frame = (id, html, o = {}) =>
+                `<div class="cap"><h3>${o.h}</h3><p>${o.p}</p><div class="ph ${o.tall ? 'tall' : ''} ${o.dark ? 'dk' : ''}" id="${id}">${html}</div></div>`;
+            document.getElementById('light').innerHTML =
+                frame('h-l', home(), { h: 'Home · deciding', p: 'Primary: Start cooking, on the lead pick.' }) +
+                frame('d-l', detail(), {
+                    tall: 1,
+                    h: 'Recipe detail · full length',
+                    p: 'Primary: Start cooking. Tap a box, a step number or the stepper.',
+                }) +
+                frame('r-l', recipes(), { h: 'My recipes', p: 'Primary: New recipe. Load more, with a count.' });
+            document.getElementById('states').innerHTML =
+                frame('h-c', homeCook(), {
+                    h: 'Home · cooking',
+                    p: 'Primary: Back to step 4. Timer named for its step.',
+                }) + frame('h-n', homeNew(), { h: 'Home · nothing yet', p: 'Primary: Add your first recipe.' });
+            document.getElementById('dark').innerHTML =
+                frame('h-d', home(), { dark: 1, h: 'Home · dark', p: 'Same structure, Cold Light dark.' }) +
+                frame('d-d', detail(), {
+                    dark: 1,
+                    tall: 1,
+                    h: 'Recipe detail · dark',
+                    p: 'Ticked lines: tick, strike and muted text.',
+                });
+            /* behaviour: ticks, current step, servings scale both lists */
+            document.addEventListener('click', (e) => {
+                const b = e.target.closest('.ing');
+                if (b) {
+                    b.setAttribute('aria-pressed', b.getAttribute('aria-pressed') != 'true');
+                    return;
+                }
+                const n = e.target.closest('.sn');
+                if (n) {
+                    const ph = n.closest('.ph');
+                    ph.querySelectorAll('.st').forEach((s) => {
+                        s.classList.remove('cur');
+                        const h = s.querySelector('.here');
+                        if (h) h.remove();
+                    });
+                    const st = n.closest('.st');
+                    st.classList.add('cur');
+                    st.querySelector('p').insertAdjacentHTML(
+                        'afterbegin',
+                        `<span class="here">You are here · Step ${n.textContent} of 5</span>`,
+                    );
+                    return;
+                }
+                const t = e.target.closest('.tg');
+                if (t) {
+                    t.setAttribute('aria-checked', t.getAttribute('aria-checked') != 'true');
+                    return;
+                }
+                const s = e.target.closest('[data-s]');
+                if (s) {
+                    const ph = s.closest('.ph'),
+                        o = ph.querySelector('.stp output');
+                    let v = +o.textContent.replace(/\D/g, '') + +s.dataset.s;
+                    v = Math.max(1, Math.min(16, v));
+                    o.textContent = 'Serves ' + v;
+                    ph.querySelectorAll('[data-q]').forEach((x) => {
+                        const r = (+x.dataset.q * v) / 4,
+                            u = x.dataset.u;
+                        const w = Math.floor(r),
+                            f = r - w,
+                            fr = f < 0.13 ? '' : f < 0.38 ? '¼' : f < 0.63 ? '½' : f < 0.88 ? '¾' : '';
+                        const val = u == 'g' ? Math.round(r / 10) * 10 : (f >= 0.88 ? w + 1 : w || '') + fr || '¼';
+                        x.textContent = val + (u ? ' ' + u : '');
+                    });
+                }
+            });
+            /* palette sheet: computed here from hex */
+            const T = {
+                light: {
+                    Ground: ['Frost', '#E3EEF7', 'The page behind everything'],
+                    Surface: ['Shelf', '#FFFFFF', 'Tab bar, fields, sheets, switch row'],
+                    Sunken: ['Crisper', '#D6E3EE', 'Segmented track, avatar, inset'],
+                    Edge: ['Rail', '#5F7183', 'Control outlines, unticked boxes'],
+                    Ink: ['Nightshade', '#0C1824', 'All body text and titles'],
+                    Muted: ['Slate', '#425468', 'Secondary text, 16 px and up'],
+                    Action: ['Persimmon', '#B33A06', 'The one filled button, links, current tab, ticks, focus'],
+                    OnAction: ['On persimmon', '#FFFFFF', 'Label on a Persimmon fill'],
+                    Wash: ['Peach', '#FBE3D4', 'Current step, selected chip (decoration)'],
+                    Warning: ['Mustard', '#735500', 'Short labels with an icon'],
+                    Danger: ['Raspberry', '#AD1048', 'Short labels with an icon; text rows'],
+                    Content: ['Glacier', '#9DC4E0', 'Behind food and empty dishes only'],
+                    Hairline: ['Seam', '#CBDAE6', 'Dividers, decoration only'],
+                },
+                dark: {
+                    Ground: ['Frost', '#0A121A'],
+                    Surface: ['Shelf', '#121C26'],
+                    Sunken: ['Crisper', '#1A2733'],
+                    Edge: ['Rail', '#8193A5'],
+                    Ink: ['Nightshade', '#EEF4F9'],
+                    Muted: ['Slate', '#B3C2D0'],
+                    Action: ['Persimmon', '#FFA478'],
+                    OnAction: ['On persimmon', '#1F0B02'],
+                    Wash: ['Peach', '#3A2418'],
+                    Warning: ['Mustard', '#EBC660'],
+                    Danger: ['Raspberry', '#FFA3C0'],
+                    Content: ['Glacier', '#355C7A'],
+                    Hairline: ['Seam', '#25323F'],
+                },
+            };
+            const lin = (v) => {
+                v /= 255;
+                return v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+            };
+            const rgb = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+            const lum = (h) => {
+                const [r, g, b] = rgb(h).map(lin);
+                return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+            };
+            const cr = (a, b) => {
+                const x = lum(a),
+                    y = lum(b);
+                return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
+            };
+            const apY = (h) => {
+                const [r, g, b] = rgb(h).map((v) => Math.pow(v / 255, 2.4));
+                return 0.2126729 * r + 0.7151522 * g + 0.072175 * b;
+            };
+            const lc = (t, b) => {
+                let Yt = apY(t),
+                    Yb = apY(b);
+                const c = (y) => (y > 0.022 ? y : y + Math.pow(0.022 - y, 1.414));
+                Yt = c(Yt);
+                Yb = c(Yb);
+                let S, o;
+                if (Yb > Yt) {
+                    S = (Math.pow(Yb, 0.56) - Math.pow(Yt, 0.57)) * 1.14;
+                    o = S < 0.1 ? 0 : S - 0.027;
+                } else {
+                    S = (Math.pow(Yb, 0.65) - Math.pow(Yt, 0.62)) * 1.14;
+                    o = S > -0.1 ? 0 : S + 0.027;
+                }
+                return Math.abs(o * 100);
+            };
+            const pairs = [
+                ['Ink', 'Ground'],
+                ['Ink', 'Surface'],
+                ['Ink', 'Wash'],
+                ['Muted', 'Ground'],
+                ['Muted', 'Surface'],
+                ['Muted', 'Sunken'],
+                ['Action', 'Ground'],
+                ['Action', 'Surface'],
+                ['OnAction', 'Action'],
+                ['Warning', 'Surface'],
+                ['Danger', 'Surface'],
+                ['Edge', 'Ground'],
+                ['Edge', 'Surface'],
+                ['Ink', 'Muted'],
+            ];
+            let ph = '';
+            for (const th of ['light', 'dark']) {
+                const t = T[th];
+                ph += `<div><h3 style="font:800 19px/1.2 var(--ff)">${th == 'light' ? 'Light' : 'Dark'}</h3><div class="strip">${Object.keys(
+                    t,
+                )
+                    .map((k) => `<i style="background:${t[k][1]}" title="${t[k][0]}"></i>`)
+                    .join(
+                        '',
+                    )}</div><div class="tbl"><table><tr><th>Role</th><th>Name</th><th>Hex</th>${th == 'light' ? '<th>Use</th>' : ''}</tr>${Object.keys(
+                    t,
+                )
+                    .map(
+                        (k) =>
+                            `<tr><td>${k.replace('OnAction', 'On action').replace('Wash', 'Action wash').replace('Content', 'Content hue')}</td><td><span class="sq" style="background:${t[k][1]}"></span>${t[k][0]}</td><td>${t[k][1]}</td>${th == 'light' ? `<td>${t[k][2]}</td>` : ''}</tr>`,
+                    )
+                    .join('')}</table></div>
+<div class="tbl" style="margin-top:12px"><table><tr><th>Pair</th><th>WCAG</th><th>APCA Lc</th></tr>${pairs.map(([a, b]) => `<tr><td>${t[a][0]} on ${t[b][0]}</td><td>${cr(t[a][1], t[b][1]).toFixed(2)}:1</td><td>${a == 'Ink' && b == 'Muted' ? 'step' : lc(t[a][1], t[b][1]).toFixed(1)}</td></tr>`).join('')}</table></div></div>`;
+            }
+            ph += `<div><h3 style="font:800 19px/1.2 var(--ff)">Distances (ΔE00, from the culori script)</h3><div class="tbl"><table><tr><th>Pair</th><th>Light</th><th>Dark</th></tr><tr><td>Persimmon–Raspberry</td><td>23.4</td><td>24.1</td></tr><tr><td>Persimmon–Mustard</td><td>24.2</td><td>22.8</td></tr><tr><td>Persimmon–Glacier</td><td>52.7</td><td>51.7</td></tr><tr><td>Mustard–Raspberry</td><td>41.3</td><td>43.9</td></tr><tr><td>Glacier–Mustard</td><td>53.1</td><td>59.0</td></tr><tr><td>Glacier–Raspberry</td><td>56.1</td><td>50.1</td></tr><tr><td>Persimmon vs closest earlier-round action</td><td>46.0</td><td>41.9</td></tr></table></div><p style="color:var(--m);font-size:16px;margin-top:10px">Against the reference Mise: the ground is blue, not green (hue 242 vs 135), and Glacier is visible at swatch size. Light Frost: OKLCH L 0.943, C 0.017. Dark Frost: L 0.178.</p></div>`;
+            document.getElementById('pal').innerHTML = ph;
+            document.getElementById('ts').innerHTML =
+                [
+                    ['Large title · 34/37 · 800', 'Good evening, Eliza', '800 34px/1.08'],
+                    ['Recipe title · 30/33 · 800', 'Lemon and thyme roast chicken', '800 30px/1.1'],
+                    ['Section · 21/25 · 800', 'Three for tonight', '800 21px/1.2'],
+                    ['Row title · 19/22 · 800', 'Miso-glazed salmon with sesame greens', '800 19px/1.18'],
+                    ['Body · 17/25 · 400', 'Mash 3 tbsp butter with the zest of the lemon.', '400 17px/1.45'],
+                    ['Secondary · 16/22 · 400, Slate', '30 min · Serves 2 · Easy', '400 16px/1.35'],
+                    ['Label · 13/19 · 600', 'Draft · You are here', '600 13px/1.4'],
+                    ['Cook-mode step · 30/38 · 600 (spec)', 'Roast for 20 min, then lower to 190°C.', '600 30px/1.25'],
+                ]
+                    .map(([a, b, c]) => `<div><small>${a}</small><span style="font:${c} var(--ff)">${b}</span></div>`)
+                    .join('') +
+                `<div><small>Spacing scale</small><span>4 · 8 · 12 · 16 · 24 · 32 · 48. Gaps between groups are 24 or more; inside a group 4 to 12.</span></div>`;
+        </script>
+    </body>
+</html>

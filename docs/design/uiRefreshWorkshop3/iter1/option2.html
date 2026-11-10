@@ -1,0 +1,2167 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Fresh Cut</title>
+        <meta
+            name="description"
+            content="Option 2 for the Commise UI refresh, iteration 1: a plain, familiar app on pure white, where every recipe wears a flat picture of its ingredients cut open."
+        />
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link
+            href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&display=swap"
+            rel="stylesheet"
+        />
+        <style>
+            *,
+            *::before,
+            *::after {
+                box-sizing: border-box;
+            }
+            html {
+                -webkit-text-size-adjust: 100%;
+            }
+            :root {
+                --ground: #ffffff;
+                --sheet: #ffffff;
+                --shell: #f0f1ee;
+                --hair: #e2e4e0;
+                --ink: #141317;
+                --muted: #55535c;
+                --rind: #767a75;
+                --on-ink: #ffffff;
+                --link: #3442c2;
+                --zest: #ffe680;
+                --success: #1c6a45;
+                --warning: #875200;
+                --danger: #c0261a;
+                --on-danger: #ffffff;
+                --pY: #ffd23f;
+                --pR: #f0532f;
+                --pG: #2f9e5e;
+                --pO: #ff8c2e;
+                --pB: #b0215f;
+                --pD: #3d4bd6;
+                --f: 'Archivo', system-ui, sans-serif;
+            }
+            .dark {
+                --ground: #121114;
+                --sheet: #1b1a1e;
+                --shell: #27252b;
+                --hair: #322f37;
+                --ink: #f5f3ef;
+                --muted: #d2cdd6;
+                --rind: #8a8592;
+                --on-ink: #141317;
+                --link: #c4cbff;
+                --zest: #45390f;
+                --success: #62d49c;
+                --warning: #f2b54a;
+                --danger: #ff9a8c;
+                --on-danger: #141317;
+                --pY: #d9a814;
+                --pR: #c93a1e;
+                --pG: #237a48;
+                --pO: #d96e14;
+                --pB: #8a1a4b;
+                --pD: #2c37a6;
+            }
+            body {
+                margin: 0;
+                background: var(--ground);
+                color: var(--ink);
+                font: 400 16px/1.5 var(--f);
+            }
+            svg.i {
+                width: 22px;
+                height: 22px;
+                fill: none;
+                stroke: currentColor;
+                stroke-width: 1.9;
+                stroke-linecap: round;
+                stroke-linejoin: round;
+                flex: none;
+            }
+            a {
+                color: inherit;
+                text-decoration: none;
+            }
+            button {
+                font: inherit;
+                color: inherit;
+                background: none;
+                border: 0;
+                padding: 0;
+                cursor: pointer;
+            }
+            :focus-visible {
+                outline: 3px solid var(--link);
+                outline-offset: 2px;
+            }
+            .disp {
+                font-stretch: 118%;
+            }
+
+            /* page */
+            .wrap {
+                max-width: 1280px;
+                margin: 0 auto;
+                padding: 0 16px;
+            }
+            .hero {
+                padding: 40px 0 20px;
+            }
+            .hero .wrap {
+                display: grid;
+                gap: 28px;
+                grid-template-columns: minmax(0, 1fr);
+                align-items: center;
+            }
+            @media (min-width: 900px) {
+                .hero .wrap {
+                    grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+                }
+            }
+            .kick {
+                font: 600 14px var(--f);
+                color: var(--muted);
+                margin: 0;
+            }
+            h1.big {
+                font: 900 clamp(52px, 12vw, 120px)/0.9 var(--f);
+                font-stretch: 125%;
+                letter-spacing: -0.04em;
+                margin: 10px 0 18px;
+            }
+            .idea {
+                font: 400 clamp(18px, 2.2vw, 22px)/1.5 var(--f);
+                margin: 0;
+                max-width: 32em;
+            }
+            .heroArt {
+                border-radius: 28px;
+                aspect-ratio: 4/3;
+            }
+            .band {
+                padding: 32px 0 48px;
+            }
+            .band.dk {
+                background: #0a0a0b;
+                color: #f5f3ef;
+            }
+            .bh {
+                font: 800 28px/1.15 var(--f);
+                font-stretch: 118%;
+                letter-spacing: -0.02em;
+                margin: 0 0 6px;
+            }
+            .lede {
+                margin: 0 0 28px;
+                max-width: 46em;
+                color: var(--muted);
+            }
+            .dk .lede,
+            .dk figcaption small {
+                color: #d2cdd6;
+            }
+            .row {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 36px;
+                justify-content: center;
+                align-items: flex-start;
+            }
+            figure {
+                margin: 0;
+                width: min(390px, 100%);
+            }
+            figcaption {
+                font: 600 15px var(--f);
+                margin: 0 0 12px;
+            }
+            figcaption small {
+                display: block;
+                font: 400 14px/1.45 var(--f);
+                color: var(--muted);
+            }
+
+            /* phone */
+            .phone {
+                width: 100%;
+                background: var(--ground);
+                color: var(--ink);
+                border-radius: 44px;
+                overflow: hidden;
+                position: relative;
+                box-shadow:
+                    0 0 0 1px #d9dcd6,
+                    0 30px 60px -32px rgba(20, 18, 30, 0.4);
+            }
+            .dark.phone {
+                box-shadow:
+                    0 0 0 1px #2e2c33,
+                    0 30px 60px -30px #000;
+            }
+            .sb {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                padding: 14px 28px 6px;
+                font: 600 15px var(--f);
+            }
+            .sb i {
+                display: inline-block;
+                width: 18px;
+                height: 10px;
+                border-radius: 3px;
+                border: 1.5px solid currentColor;
+                position: relative;
+            }
+            .sb i::after {
+                content: '';
+                position: absolute;
+                inset: 1px 4px 1px 1px;
+                background: currentColor;
+                border-radius: 1px;
+            }
+            .top {
+                display: flex;
+                align-items: flex-start;
+                gap: 12px;
+                padding: 8px 16px 4px;
+            }
+            .top .t {
+                flex: 1;
+                min-width: 0;
+            }
+            .date {
+                font: 500 14px var(--f);
+                color: var(--muted);
+                margin: 0 0 4px;
+            }
+            .lt {
+                font: 800 30px/1.08 var(--f);
+                font-stretch: 116%;
+                letter-spacing: -0.025em;
+                margin: 0;
+            }
+            .av {
+                width: 44px;
+                height: 44px;
+                border-radius: 50%;
+                flex: none;
+                display: grid;
+                place-items: center;
+                font: 700 15px var(--f);
+                background: var(--shell);
+                color: var(--ink);
+                box-shadow: inset 0 0 0 1px var(--rind);
+            }
+            .sec {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 12px;
+                margin: 24px 16px 6px;
+            }
+            .sec h2 {
+                font: 800 20px/1.2 var(--f);
+                font-stretch: 112%;
+                letter-spacing: -0.01em;
+                margin: 0;
+            }
+            .link {
+                color: var(--link);
+                display: inline-flex;
+                align-items: center;
+                min-height: 44px;
+                padding: 0 2px;
+                font: 600 15px var(--f);
+                text-decoration: underline;
+                text-underline-offset: 3px;
+                text-decoration-thickness: 1.5px;
+            }
+            .muted {
+                color: var(--muted);
+            }
+            .meta {
+                font: 400 14px/1.4 var(--f);
+                color: var(--muted);
+                display: flex;
+                flex-wrap: wrap;
+                gap: 0 8px;
+                align-items: center;
+            }
+            .tag {
+                display: inline-flex;
+                align-items: center;
+                gap: 4px;
+                font: 600 12px/1 var(--f);
+                padding: 4px 8px;
+                border-radius: 999px;
+                background: var(--shell);
+                color: var(--ink);
+            }
+
+            /* art */
+            .art {
+                position: relative;
+                overflow: hidden;
+                border-radius: 20px;
+            }
+            .art svg {
+                display: block;
+                width: 100%;
+                height: 100%;
+            }
+            .dark .art svg {
+                filter: brightness(0.92);
+            }
+            .Y {
+                background: var(--pY);
+            }
+            .R {
+                background: var(--pR);
+            }
+            .G {
+                background: var(--pG);
+            }
+            .O {
+                background: var(--pO);
+            }
+            .B {
+                background: var(--pB);
+            }
+            .D {
+                background: var(--pD);
+            }
+            .pc {
+                transform-box: fill-box;
+                transform-origin: center;
+                animation: land 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+            }
+            @keyframes land {
+                from {
+                    opacity: 0;
+                    transform: translateY(-8px) scale(0.96);
+                }
+                to {
+                    opacity: 1;
+                    transform: none;
+                }
+            }
+
+            /* home lead + plain list */
+            .lead {
+                display: block;
+                margin: 4px 16px 0;
+            }
+            .lead .art {
+                aspect-ratio: 16/10;
+            }
+            .leadrow {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                padding: 10px 0 4px;
+            }
+            .leadrow .tx {
+                flex: 1;
+                min-width: 0;
+            }
+            .leadrow b {
+                display: block;
+                font: 800 21px/1.2 var(--f);
+                font-stretch: 110%;
+                letter-spacing: -0.01em;
+            }
+            .list {
+                margin: 8px 0 0;
+            }
+            .rr {
+                display: flex;
+                gap: 14px;
+                align-items: center;
+                padding: 10px 12px 10px 16px;
+                min-height: 84px;
+                position: relative;
+            }
+            .rr + .rr::before,
+            .li + .li::before {
+                content: '';
+                position: absolute;
+                top: 0;
+                right: 0;
+                left: 94px;
+                border-top: 1px solid var(--hair);
+            }
+            .rr .art {
+                width: 64px;
+                height: 64px;
+                border-radius: 14px;
+                flex: none;
+            }
+            .rr .tx {
+                flex: 1;
+                min-width: 0;
+            }
+            .rr b {
+                display: block;
+                font: 700 17px/1.25 var(--f);
+                margin-bottom: 3px;
+            }
+            .rr > .i,
+            .leadrow > .i {
+                color: var(--muted);
+            }
+            .li {
+                display: flex;
+                align-items: center;
+                gap: 14px;
+                padding: 10px 16px;
+                min-height: 60px;
+                position: relative;
+            }
+            .li + .li::before {
+                left: 70px;
+            }
+            .li .ic {
+                width: 40px;
+                height: 40px;
+                border-radius: 12px;
+                display: grid;
+                place-items: center;
+                background: var(--shell);
+                color: var(--muted);
+                flex: none;
+            }
+            .li b {
+                flex: 1;
+                font: 600 16px/1.3 var(--f);
+            }
+            .soon {
+                font: 600 12px var(--f);
+                color: var(--muted);
+                border: 1px solid var(--rind);
+                border-radius: 999px;
+                padding: 3px 9px;
+            }
+
+            /* tabs + primary */
+            .tabs {
+                display: flex;
+                background: var(--sheet);
+                border-top: 1px solid var(--hair);
+                padding: 6px 4px 26px;
+            }
+            .tab {
+                flex: 1;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 3px;
+                min-height: 48px;
+                font: 500 12px var(--f);
+                color: var(--muted);
+            }
+            .tab .p {
+                display: grid;
+                place-items: center;
+                width: 56px;
+                height: 30px;
+                border-radius: 999px;
+            }
+            .tab.on {
+                color: var(--ink);
+                font-weight: 700;
+            }
+            .tab.on .p {
+                background: var(--shell);
+            }
+            .dock {
+                display: flex;
+                justify-content: flex-end;
+                padding: 20px 16px 14px;
+            }
+            .btn {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                gap: 8px;
+                min-height: 52px;
+                padding: 0 22px 0 18px;
+                border-radius: 999px;
+                background: var(--ink);
+                color: var(--on-ink);
+                font: 700 16px var(--f);
+                letter-spacing: 0.01em;
+            }
+            .fab {
+                box-shadow: 0 12px 24px -10px rgba(20, 19, 23, 0.55);
+            }
+            .dark .fab {
+                box-shadow: 0 12px 24px -10px #000;
+            }
+            .wide {
+                width: 100%;
+            }
+
+            /* recipes controls */
+            .seg {
+                display: flex;
+                margin: 12px 16px 0;
+                background: var(--shell);
+                border-radius: 999px;
+                padding: 4px;
+            }
+            .seg button {
+                flex: 1;
+                min-height: 40px;
+                border-radius: 999px;
+                font: 600 15px var(--f);
+                color: var(--muted);
+                border: 1px solid transparent;
+            }
+            .seg .on {
+                background: var(--sheet);
+                color: var(--ink);
+                border-color: var(--rind);
+            }
+            .search {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                margin: 12px 16px 0;
+                min-height: 48px;
+                padding: 0 14px;
+                border-radius: 14px;
+                background: var(--shell);
+                border: 1px solid var(--rind);
+                color: var(--muted);
+                font: 400 16px var(--f);
+            }
+            .chips {
+                display: flex;
+                gap: 8px;
+                overflow-x: auto;
+                padding: 12px 16px 2px;
+                scrollbar-width: none;
+            }
+            .chips::-webkit-scrollbar {
+                display: none;
+            }
+            .chip {
+                flex: none;
+                min-height: 40px;
+                padding: 0 14px;
+                border-radius: 999px;
+                background: var(--ground);
+                border: 1px solid var(--rind);
+                font: 600 14px var(--f);
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+            }
+            .chip.on {
+                background: var(--shell);
+                border: 2px solid var(--ink);
+                padding: 0 13px;
+            }
+            .chip em {
+                font-style: normal;
+                font-weight: 500;
+                color: var(--muted);
+            }
+            .bar {
+                display: flex;
+                align-items: center;
+                gap: 6px;
+                margin: 10px 12px 0 16px;
+                font: 500 14px var(--f);
+                color: var(--muted);
+            }
+            .bar .sort {
+                display: inline-flex;
+                align-items: center;
+                gap: 4px;
+                min-height: 44px;
+                margin-left: auto;
+                padding: 0 6px;
+                font: 600 14px var(--f);
+                color: var(--ink);
+            }
+            .vt {
+                display: flex;
+                gap: 2px;
+                background: var(--shell);
+                border-radius: 12px;
+                padding: 2px;
+            }
+            .vt button {
+                width: 40px;
+                height: 40px;
+                border-radius: 10px;
+                display: grid;
+                place-items: center;
+                color: var(--muted);
+            }
+            .vt .on {
+                background: var(--sheet);
+                color: var(--ink);
+                box-shadow: inset 0 0 0 1px var(--rind);
+            }
+
+            /* detail */
+            .dh {
+                position: relative;
+            }
+            .dh .art {
+                border-radius: 0;
+                aspect-ratio: 390/280;
+            }
+            .dh .sb {
+                position: absolute;
+                inset: 0 0 auto;
+                color: #141317;
+            }
+            .dark .dh .sb {
+                color: #ffffff;
+            }
+            .fb {
+                position: absolute;
+                top: 54px;
+                width: 44px;
+                height: 44px;
+                border-radius: 50%;
+                background: var(--sheet);
+                color: var(--ink);
+                display: grid;
+                place-items: center;
+                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+            }
+            .sheet {
+                position: relative;
+                margin-top: -24px;
+                background: linear-gradient(var(--wash) 0, var(--sheet) 260px);
+                border-radius: 26px 26px 0 0;
+                padding: 22px 16px 8px;
+            }
+            .wR {
+                --wash: #fef1ee;
+            }
+            .dark .wR {
+                --wash: #371f1e;
+            }
+            .over {
+                font: 600 13px var(--f);
+                color: var(--muted);
+                display: flex;
+                gap: 8px;
+                align-items: center;
+            }
+            .dt {
+                font: 800 31px/1.06 var(--f);
+                font-stretch: 116%;
+                letter-spacing: -0.025em;
+                margin: 8px 0 6px;
+            }
+            .rate {
+                display: flex;
+                align-items: center;
+                gap: 6px;
+                font: 500 15px var(--f);
+                flex-wrap: wrap;
+            }
+            .rate svg {
+                color: var(--warning);
+            }
+            .facts {
+                display: grid;
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+                margin: 16px 0;
+                border-top: 1px solid var(--hair);
+                border-bottom: 1px solid var(--hair);
+                padding: 12px 0;
+            }
+            .facts div {
+                padding: 0 12px;
+            }
+            .facts div:first-child {
+                padding-left: 0;
+            }
+            .facts div + div {
+                border-left: 1px solid var(--hair);
+            }
+            .facts b {
+                display: block;
+                font: 800 19px/1.2 var(--f);
+                font-stretch: 108%;
+                font-variant-numeric: tabular-nums;
+                white-space: nowrap;
+            }
+            .facts span {
+                font: 500 13px var(--f);
+                color: var(--muted);
+            }
+            .tog {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 10px;
+                min-height: 52px;
+                margin-top: 6px;
+                font: 600 16px var(--f);
+            }
+            .sw {
+                appearance: none;
+                -webkit-appearance: none;
+                margin: 0;
+                width: 52px;
+                height: 32px;
+                border-radius: 999px;
+                background: var(--shell);
+                border: 1px solid var(--rind);
+                position: relative;
+                flex: none;
+                cursor: pointer;
+                transition: background 0.2s;
+            }
+            .sw::after {
+                content: '';
+                position: absolute;
+                top: 3px;
+                left: 3px;
+                width: 24px;
+                height: 24px;
+                border-radius: 50%;
+                background: var(--muted);
+                transition:
+                    transform 0.2s,
+                    background 0.2s;
+            }
+            .sw:checked {
+                background: var(--ink);
+                border-color: var(--ink);
+            }
+            .sw:checked::after {
+                transform: translateX(20px);
+                background: var(--on-ink);
+            }
+            .desc {
+                font: 400 17px/1.6 var(--f);
+                margin: 14px 0 0;
+            }
+            .tags {
+                font: 400 14px var(--f);
+                color: var(--muted);
+                margin: 6px 0 0;
+            }
+            .acc {
+                display: flex;
+                align-items: center;
+                min-height: 56px;
+                margin-top: 14px;
+                border-top: 1px solid var(--hair);
+                border-bottom: 1px solid var(--hair);
+                font: 600 16px var(--f);
+            }
+            .acc span {
+                font-weight: 400;
+                color: var(--muted);
+                margin-left: auto;
+                margin-right: 8px;
+            }
+            .h2 {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                margin: 28px 0 6px;
+            }
+            .h2 h2 {
+                font: 800 22px/1.2 var(--f);
+                font-stretch: 112%;
+                margin: 0;
+                margin-right: auto;
+            }
+            .step {
+                display: inline-flex;
+                align-items: center;
+                border: 1px solid var(--rind);
+                border-radius: 999px;
+            }
+            .step button {
+                width: 44px;
+                height: 44px;
+                display: grid;
+                place-items: center;
+            }
+            .step output {
+                min-width: 22px;
+                text-align: center;
+                font: 700 16px var(--f);
+                font-variant-numeric: tabular-nums;
+            }
+            .gh {
+                font: 700 13px var(--f);
+                letter-spacing: 0.05em;
+                text-transform: uppercase;
+                color: var(--muted);
+                margin: 16px 0 2px;
+            }
+            .ing {
+                display: grid;
+                grid-template-columns: 44px 72px minmax(0, 1fr);
+                align-items: start;
+                gap: 4px 8px;
+                padding: 8px 0;
+                border-top: 1px solid var(--hair);
+                font: 400 16px/1.4 var(--f);
+                cursor: pointer;
+            }
+            .ing input {
+                appearance: none;
+                -webkit-appearance: none;
+                margin: -10px 0 0 -10px;
+                width: 44px;
+                height: 44px;
+                display: grid;
+                place-items: center;
+                cursor: pointer;
+                position: relative;
+            }
+            .ing input::before {
+                content: '';
+                width: 24px;
+                height: 24px;
+                border-radius: 7px;
+                border: 2px solid var(--rind);
+                background: var(--ground);
+                transition:
+                    background 0.15s,
+                    border-color 0.15s;
+            }
+            .ing input:checked::before {
+                background: var(--ink);
+                border-color: var(--ink);
+            }
+            .ing input:checked::after {
+                content: '';
+                position: absolute;
+                left: 17px;
+                top: 11px;
+                width: 7px;
+                height: 13px;
+                border: solid var(--on-ink);
+                border-width: 0 2.5px 2.5px 0;
+                transform: rotate(45deg);
+            }
+            .ing b {
+                font-weight: 700;
+                font-variant-numeric: tabular-nums;
+            }
+            .ing small {
+                display: block;
+                font-size: 14px;
+                color: var(--muted);
+            }
+            .ing:has(input:checked) b,
+            .ing:has(input:checked) span {
+                color: var(--muted);
+            }
+            .st {
+                display: grid;
+                grid-template-columns: 48px minmax(0, 1fr);
+                gap: 12px;
+                padding: 14px 10px;
+                margin: 0 -10px;
+                border-radius: 16px;
+                position: relative;
+            }
+            .st .n {
+                width: 44px;
+                height: 44px;
+                border-radius: 50%;
+                display: grid;
+                place-items: center;
+                font: 800 17px var(--f);
+                background: var(--ground);
+                border: 1.5px solid var(--rind);
+            }
+            .st p {
+                margin: 9px 0 0;
+                font: 400 17px/1.55 var(--f);
+            }
+            .st.cur {
+                background: var(--zest);
+                box-shadow: inset 5px 0 0 var(--ink);
+            }
+            .st.cur .n {
+                background: var(--ink);
+                color: var(--on-ink);
+                border-color: var(--ink);
+            }
+            .st.cur p {
+                font-size: 22px;
+                line-height: 1.42;
+                margin-top: 8px;
+            }
+            .now {
+                display: inline-block;
+                font: 700 13px/1 var(--f);
+                letter-spacing: 0.02em;
+                margin-top: 12px;
+                padding: 6px 9px;
+                border-radius: 999px;
+                background: var(--ink);
+                color: var(--on-ink);
+            }
+            .timers {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 8px;
+                margin-top: 10px;
+            }
+            .timer {
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+                min-height: 44px;
+                padding: 0 14px 0 10px;
+                border-radius: 999px;
+                border: 1px solid var(--rind);
+                background: var(--ground);
+                font: 600 14px var(--f);
+                font-variant-numeric: tabular-nums;
+            }
+            .foot {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 4px 16px;
+                margin: 20px 0 24px;
+                font: 500 14px var(--f);
+                color: var(--muted);
+            }
+
+            /* sheets of reference */
+            .sw-grid {
+                display: grid;
+                gap: 14px;
+                grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+            }
+            .swc {
+                border-radius: 18px;
+                overflow: hidden;
+                border: 1px solid var(--hair);
+            }
+            .chipsw {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                height: 60px;
+                border-bottom: 1px solid var(--hair);
+            }
+            .chipsw span {
+                display: grid;
+                place-items: center;
+                font: 800 22px var(--f);
+            }
+            .hex {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                font:
+                    600 13px ui-monospace,
+                    Menlo,
+                    monospace;
+                padding: 8px 14px 0;
+            }
+            .swc .k {
+                padding: 10px 14px 14px;
+            }
+            .swc h3 {
+                font: 800 17px var(--f);
+                font-stretch: 110%;
+                margin: 0;
+            }
+            .swc p {
+                margin: 2px 0 6px;
+                font: 400 14px/1.4 var(--f);
+                color: var(--muted);
+            }
+            .swc code {
+                font:
+                    500 12.5px/1.55 ui-monospace,
+                    Menlo,
+                    monospace;
+                display: block;
+            }
+            .sub {
+                font: 800 19px var(--f);
+                font-stretch: 112%;
+                margin: 30px 0 4px;
+            }
+            .produce {
+                display: grid;
+                gap: 10px;
+                grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+                margin-top: 12px;
+            }
+            .produce div {
+                border-radius: 16px;
+                overflow: hidden;
+                border: 1px solid var(--hair);
+                font: 600 13px/1.3 var(--f);
+            }
+            .produce i {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                height: 72px;
+            }
+            .produce i span {
+                display: block;
+            }
+            .produce b {
+                display: block;
+                padding: 8px 10px;
+            }
+            .type {
+                display: grid;
+                gap: 16px;
+                grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            }
+            .type > div {
+                border-radius: 18px;
+                padding: 20px;
+                border: 1px solid var(--hair);
+            }
+            .lbl {
+                font: 600 13px var(--f);
+                color: var(--muted);
+                margin: 0 0 8px;
+            }
+            .notes {
+                display: grid;
+                gap: 18px;
+                grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+                margin-top: 36px;
+            }
+            .notes > div {
+                border-top: 3px solid var(--ink);
+                padding-top: 12px;
+            }
+            .notes h3 {
+                font: 800 18px var(--f);
+                font-stretch: 112%;
+                margin: 0 0 4px;
+            }
+            .notes p {
+                margin: 0;
+                color: var(--muted);
+            }
+            .empty {
+                display: grid;
+                gap: 16px;
+                grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+                margin-top: 16px;
+            }
+            .empty > div {
+                border: 1px solid var(--hair);
+                border-radius: 22px;
+                padding: 22px;
+            }
+            .empty .art {
+                width: 112px;
+                height: 112px;
+                margin: 0 auto 14px;
+                border-radius: 24px;
+            }
+            .empty h4 {
+                font: 800 20px var(--f);
+                font-stretch: 112%;
+                margin: 0 0 4px;
+            }
+            .empty p {
+                margin: 0 0 16px;
+                color: var(--muted);
+            }
+            .ghost {
+                display: inline-flex;
+                align-items: center;
+                min-height: 48px;
+                padding: 0 18px;
+                border-radius: 999px;
+                border: 1px solid var(--rind);
+                font: 600 15px var(--f);
+            }
+            .skel {
+                display: flex;
+                gap: 12px;
+                align-items: center;
+                padding: 10px 0;
+            }
+            .skel i {
+                width: 64px;
+                height: 64px;
+                border-radius: 14px;
+                background: var(--shell);
+                flex: none;
+            }
+            .skel s {
+                display: block;
+                height: 12px;
+                border-radius: 6px;
+                background: var(--shell);
+                text-decoration: none;
+                margin: 6px 0;
+            }
+            @media (prefers-reduced-motion: reduce) {
+                .pc {
+                    animation: none;
+                }
+                .sw,
+                .sw::after,
+                .ing input::before {
+                    transition: none;
+                }
+            }
+        </style>
+    </head>
+    <body>
+        <svg width="0" height="0" style="position: absolute" aria-hidden="true">
+            <defs>
+                <symbol id="lemon" viewBox="0 0 100 100">
+                    <circle cx="50" cy="50" r="48" fill="var(--a,#FFE45C)" />
+                    <circle cx="50" cy="50" r="41" fill="#FFFBEA" />
+                    <g fill="var(--b,#FFE98A)">
+                        <path d="M50 50L50 12A38 38 0 0 1 82.9 31Z" />
+                        <path d="M50 50L82.9 31A38 38 0 0 1 82.9 69Z" />
+                        <path d="M50 50L82.9 69A38 38 0 0 1 50 88Z" />
+                        <path d="M50 50L50 88A38 38 0 0 1 17.1 69Z" />
+                        <path d="M50 50L17.1 69A38 38 0 0 1 17.1 31Z" />
+                        <path d="M50 50L17.1 31A38 38 0 0 1 50 12Z" />
+                    </g>
+                    <g stroke="#FFFBEA" stroke-width="3.5">
+                        <path d="M50 50V10M50 50L84.6 30M50 50L84.6 70M50 50V90M50 50L15.4 70M50 50L15.4 30" />
+                    </g>
+                </symbol>
+                <symbol id="tomato" viewBox="0 0 100 100">
+                    <circle cx="50" cy="50" r="48" fill="var(--a,#E8361F)" />
+                    <circle cx="50" cy="50" r="40" fill="#FF6B4E" />
+                    <path d="M50 12V88M12 50H88" stroke="#E8361F" stroke-width="3.5" />
+                    <g fill="#FFB49E">
+                        <ellipse cx="33" cy="33" rx="10" ry="8" />
+                        <ellipse cx="67" cy="33" rx="10" ry="8" />
+                        <ellipse cx="33" cy="67" rx="10" ry="8" />
+                        <ellipse cx="67" cy="67" rx="10" ry="8" />
+                    </g>
+                    <g fill="#FFE7A8">
+                        <circle cx="30" cy="32" r="2.6" />
+                        <circle cx="37" cy="35" r="2.6" />
+                        <circle cx="64" cy="31" r="2.6" />
+                        <circle cx="70" cy="35" r="2.6" />
+                        <circle cx="31" cy="68" r="2.6" />
+                        <circle cx="37" cy="65" r="2.6" />
+                        <circle cx="64" cy="68" r="2.6" />
+                        <circle cx="70" cy="65" r="2.6" />
+                    </g>
+                    <circle cx="50" cy="50" r="7" fill="#E8361F" />
+                </symbol>
+                <symbol id="coin" viewBox="0 0 100 100">
+                    <circle cx="50" cy="50" r="48" fill="var(--a,#F57A1A)" />
+                    <circle cx="50" cy="50" r="31" fill="#FFA24F" />
+                    <circle cx="50" cy="50" r="13" fill="#FFC98F" />
+                </symbol>
+                <symbol id="onion" viewBox="0 0 100 100">
+                    <g fill="none" stroke="var(--a,#E4A3DD)" stroke-width="7">
+                        <circle cx="50" cy="50" r="44" />
+                        <circle cx="50" cy="50" r="30" />
+                        <circle cx="50" cy="50" r="16" />
+                    </g>
+                </symbol>
+                <symbol id="chili" viewBox="0 0 100 100">
+                    <circle cx="50" cy="50" r="40" fill="none" stroke="var(--a,#E8361F)" stroke-width="16" />
+                    <g fill="#FFE7A8">
+                        <circle cx="40" cy="44" r="5" />
+                        <circle cx="58" cy="40" r="5" />
+                        <circle cx="52" cy="60" r="5" />
+                    </g>
+                </symbol>
+                <symbol id="olive" viewBox="0 0 100 100">
+                    <ellipse cx="50" cy="50" rx="46" ry="40" fill="var(--a,#5E7E22)" />
+                    <ellipse cx="50" cy="50" rx="18" ry="15" fill="#E8361F" />
+                </symbol>
+                <symbol id="leaf" viewBox="0 0 100 100">
+                    <path d="M50 2C84 28 84 72 50 98C16 72 16 28 50 2Z" fill="var(--a,#4FC77E)" />
+                    <path
+                        d="M50 12V90M50 40L34 28M50 40L66 28M50 62L32 50M50 62L68 50"
+                        stroke="var(--b,#1E7A45)"
+                        stroke-width="3.5"
+                        fill="none"
+                    />
+                </symbol>
+                <symbol id="sprig" viewBox="0 0 100 100">
+                    <path d="M50 98C50 60 52 30 50 2" stroke="var(--b,#1E6B3C)" stroke-width="4" fill="none" />
+                    <g fill="var(--a,#4FC77E)">
+                        <ellipse cx="40" cy="18" rx="9" ry="5" transform="rotate(-30 40 18)" />
+                        <ellipse cx="60" cy="28" rx="9" ry="5" transform="rotate(30 60 28)" />
+                        <ellipse cx="40" cy="40" rx="10" ry="5" transform="rotate(-30 40 40)" />
+                        <ellipse cx="61" cy="52" rx="10" ry="5" transform="rotate(30 61 52)" />
+                        <ellipse cx="39" cy="64" rx="10" ry="5" transform="rotate(-30 39 64)" />
+                        <ellipse cx="61" cy="76" rx="10" ry="5" transform="rotate(30 61 76)" />
+                    </g>
+                </symbol>
+                <symbol id="garlic" viewBox="0 0 100 100">
+                    <path
+                        d="M50 4C56 22 90 34 88 64C86 90 64 98 50 98C36 98 14 90 12 64C10 34 44 22 50 4Z"
+                        fill="#FFF7EA"
+                    />
+                    <path
+                        d="M50 30C38 50 36 76 44 96M50 30C62 50 64 76 56 96"
+                        stroke="#E5D2B0"
+                        stroke-width="3"
+                        fill="none"
+                    />
+                </symbol>
+                <symbol id="potato" viewBox="0 0 100 100">
+                    <path d="M18 30C34 6 80 10 90 40C98 70 72 96 44 92C14 88 4 52 18 30Z" fill="#F2D38C" />
+                    <path d="M28 40C40 22 74 24 80 44C86 64 66 84 46 80C24 76 18 56 28 40Z" fill="#FBE7B5" />
+                </symbol>
+                <symbol id="drum" viewBox="0 0 100 100">
+                    <path d="M58 4C90 6 100 42 82 62C70 76 52 74 44 66C30 52 28 6 58 4Z" fill="var(--a,#E9A24B)" />
+                    <path
+                        d="M62 16C78 18 84 38 76 50"
+                        stroke="#F7C77F"
+                        stroke-width="6"
+                        fill="none"
+                        stroke-linecap="round"
+                    />
+                    <path d="M46 64L22 88" stroke="#FFF7EA" stroke-width="10" stroke-linecap="round" />
+                    <circle cx="16" cy="88" r="7" fill="#FFF7EA" />
+                    <circle cx="24" cy="96" r="6" fill="#FFF7EA" />
+                </symbol>
+                <symbol id="cakes" viewBox="0 0 100 100">
+                    <g fill="#F2B46A">
+                        <rect x="6" y="66" width="88" height="22" rx="11" />
+                        <rect x="10" y="46" width="80" height="22" rx="11" />
+                        <rect x="14" y="26" width="72" height="22" rx="11" />
+                    </g>
+                    <g fill="#FFE3B0">
+                        <rect x="10" y="70" width="80" height="6" rx="3" />
+                        <rect x="14" y="50" width="72" height="6" rx="3" />
+                        <rect x="18" y="30" width="64" height="6" rx="3" />
+                    </g>
+                    <path d="M30 26C30 14 70 14 70 26Z" fill="#FFFFFF" />
+                </symbol>
+                <symbol id="noodle" viewBox="0 0 100 100">
+                    <g fill="none" stroke="#FFF0C9" stroke-width="6" stroke-linecap="round">
+                        <path d="M4 20Q20 4 34 20T64 20T96 20" />
+                        <path d="M4 42Q20 26 34 42T64 42T96 42" />
+                        <path d="M4 64Q20 48 34 64T64 64T96 64" />
+                        <path d="M4 86Q20 70 34 86T64 86T96 86" />
+                    </g>
+                </symbol>
+                <symbol id="slab" viewBox="0 0 100 100">
+                    <rect x="4" y="14" width="92" height="72" rx="16" fill="#EDB15E" />
+                    <rect x="10" y="20" width="80" height="60" rx="12" fill="#FFE0A6" />
+                    <g fill="#D69A45">
+                        <circle cx="24" cy="34" r="5" />
+                        <circle cx="48" cy="32" r="5" />
+                        <circle cx="74" cy="36" r="5" />
+                        <circle cx="34" cy="56" r="5" />
+                        <circle cx="60" cy="54" r="5" />
+                        <circle cx="24" cy="70" r="5" />
+                        <circle cx="50" cy="72" r="5" />
+                        <circle cx="76" cy="66" r="5" />
+                    </g>
+                </symbol>
+                <symbol id="choc" viewBox="0 0 100 100">
+                    <rect x="14" y="14" width="72" height="72" rx="10" fill="#5A2E14" />
+                    <path d="M14 50H86M50 14V86" stroke="#7A4528" stroke-width="5" />
+                </symbol>
+                <symbol id="cookie" viewBox="0 0 100 100">
+                    <circle cx="50" cy="50" r="46" fill="#FFD9A0" />
+                    <g fill="#5A2E14">
+                        <rect x="30" y="28" width="10" height="10" rx="2" />
+                        <rect x="58" y="34" width="10" height="10" rx="2" />
+                        <rect x="40" y="58" width="10" height="10" rx="2" />
+                        <rect x="66" y="62" width="9" height="9" rx="2" />
+                    </g>
+                </symbol>
+                <symbol id="salmon" viewBox="0 0 100 100">
+                    <path
+                        d="M50 6C78 6 96 26 96 50C96 76 76 94 50 94C40 94 34 86 40 76C46 66 34 58 24 62C10 66 4 56 6 44C10 22 28 6 50 6Z"
+                        fill="#FF8F6B"
+                    />
+                    <path
+                        d="M30 30C46 30 64 38 72 54M26 46C42 46 56 54 62 68M44 18C62 22 78 34 84 50"
+                        stroke="#FFD0BE"
+                        stroke-width="4"
+                        fill="none"
+                        stroke-linecap="round"
+                    />
+                </symbol>
+                <symbol id="pork" viewBox="0 0 100 100">
+                    <path
+                        d="M8 40C8 18 40 10 60 14C88 20 98 44 90 66C82 90 40 94 20 80C10 72 8 56 8 40Z"
+                        fill="#FFF1E2"
+                    />
+                    <path
+                        d="M16 42C16 26 42 20 58 23C80 28 88 46 82 62C76 80 42 84 26 72C18 66 16 54 16 42Z"
+                        fill="#E68C69"
+                    />
+                    <path
+                        d="M30 40Q50 34 70 44M28 56Q50 50 74 60"
+                        stroke="#F7B48C"
+                        stroke-width="4"
+                        fill="none"
+                        stroke-linecap="round"
+                    />
+                </symbol>
+                <symbol id="i-home" viewBox="0 0 24 24">
+                    <path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z" />
+                </symbol>
+                <symbol id="i-book" viewBox="0 0 24 24">
+                    <path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2zM4 21V5M8 7h7" />
+                </symbol>
+                <symbol id="i-compass" viewBox="0 0 24 24">
+                    <circle cx="12" cy="12" r="9" />
+                    <path d="M15.5 8.5l-2 5-5 2 2-5z" />
+                </symbol>
+                <symbol id="i-cal" viewBox="0 0 24 24">
+                    <rect x="3" y="5" width="18" height="16" rx="2" />
+                    <path d="M3 10h18M8 3v4M16 3v4" />
+                </symbol>
+                <symbol id="i-bag" viewBox="0 0 24 24"><path d="M5 8h14l-1 13H6zM9 8V6a3 3 0 0 1 6 0v2" /></symbol>
+                <symbol id="i-search" viewBox="0 0 24 24">
+                    <circle cx="11" cy="11" r="7" />
+                    <path d="M20 20l-4-4" />
+                </symbol>
+                <symbol id="i-back" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7" /></symbol>
+                <symbol id="i-more" viewBox="0 0 24 24">
+                    <circle cx="5" cy="12" r="1.2" />
+                    <circle cx="12" cy="12" r="1.2" />
+                    <circle cx="19" cy="12" r="1.2" />
+                </symbol>
+                <symbol id="i-star" viewBox="0 0 24 24">
+                    <path
+                        d="M12 3l2.8 5.8 6.2.9-4.5 4.4 1 6.2L12 17.4l-5.5 2.9 1-6.2L3 9.7l6.2-.9z"
+                        fill="currentColor"
+                    />
+                </symbol>
+                <symbol id="i-clock" viewBox="0 0 24 24">
+                    <circle cx="12" cy="13" r="8" />
+                    <path d="M12 9v4l3 2M9 2h6" />
+                </symbol>
+                <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" /></symbol>
+                <symbol id="i-minus" viewBox="0 0 24 24"><path d="M5 12h14" /></symbol>
+                <symbol id="i-pen" viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16zM14 6l4 4" /></symbol>
+                <symbol id="i-chev" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6" /></symbol>
+                <symbol id="i-down" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6" /></symbol>
+                <symbol id="i-list" viewBox="0 0 24 24">
+                    <path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01" />
+                </symbol>
+                <symbol id="i-grid" viewBox="0 0 24 24">
+                    <rect x="4" y="4" width="7" height="7" rx="1.5" />
+                    <rect x="13" y="4" width="7" height="7" rx="1.5" />
+                    <rect x="4" y="13" width="7" height="7" rx="1.5" />
+                    <rect x="13" y="13" width="7" height="7" rx="1.5" />
+                </symbol>
+                <symbol id="i-flame" viewBox="0 0 24 24">
+                    <path d="M12 3c1 4 6 6 6 11a6 6 0 0 1-12 0c0-3 2-4 2-7 2 1 3 2 3 4 1-2 1-5 1-8z" />
+                </symbol>
+                <symbol id="i-cart" viewBox="0 0 24 24"><path d="M3 4h3l2 11h11l2-8H7M9 20h.01M18 20h.01" /></symbol>
+                <symbol id="i-lock" viewBox="0 0 24 24">
+                    <rect x="5" y="11" width="14" height="10" rx="2" />
+                    <path d="M8 11V8a4 4 0 0 1 8 0v3" />
+                </symbol>
+                <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5" /></symbol>
+            </defs>
+        </svg>
+
+        <header class="hero">
+            <div class="wrap">
+                <div>
+                    <p class="kick">Commise UI refresh · Workshop 3 · Option 2, iteration 1</p>
+                    <h1 class="big">Fresh Cut</h1>
+                    <p class="idea">
+                        Every recipe wears a flat picture of its own ingredients, laid out as on a chopping board with
+                        the produce cut open, so even a recipe with no photo looks good to eat. All the colour comes
+                        from the food; the app itself is black type on white, with lists and buttons you already know.
+                    </p>
+                </div>
+                <div
+                    class="heroArt art G"
+                    data-art="hero"
+                    role="img"
+                    aria-label="Cut tomato, lemon, carrot, red onion and chili slices with basil on a pea-green ground"
+                ></div>
+            </div>
+        </header>
+
+        <section class="band">
+            <div class="wrap">
+                <h2 class="bh">Light</h2>
+                <p class="lede">
+                    A poster on white: black type, one black button per screen, and colour only where there is food.
+                    Plain rows with dividers instead of boxes. Text never sits on a picture.
+                </p>
+                <div class="row">
+                    <figure>
+                        <figcaption>
+                            Home<small
+                                >Primary action: New recipe, docked above the tabs. The list is padded by the button
+                                height, so it never covers a row.</small
+                            >
+                        </figcaption>
+                        <div class="phone" id="fHome">
+                            <div class="sb"><span>9:41</span><i></i></div>
+                            <div class="top">
+                                <div class="t">
+                                    <p class="date">Friday, October 16, 2026</p>
+                                    <h1 class="lt">Good morning, Eliza Ramirez</h1>
+                                </div>
+                                <button class="av" aria-label="Profile, Eliza Ramirez">ER</button>
+                            </div>
+                            <div class="sec">
+                                <h2>Recent recipes</h2>
+                                <a class="link" href="#">See all</a>
+                            </div>
+                            <a class="lead" href="#"
+                                ><div class="art D" data-art="pancakes"></div>
+                                <div class="leadrow">
+                                    <div class="tx">
+                                        <b>Lemon ricotta pancakes</b>
+                                        <div class="meta">American · 25 min</div>
+                                    </div>
+                                    <svg class="i"><use href="#i-chev" /></svg></div
+                            ></a>
+                            <div class="list">
+                                <a class="rr" href="#"
+                                    ><div class="art O" data-thumb="padthai"></div>
+                                    <div class="tx">
+                                        <b>Pad Thai with Shrimp</b>
+                                        <div class="meta">
+                                            Thai · 35 min
+                                            <span class="tag"
+                                                ><svg class="i" style="width: 12px; height: 12px">
+                                                    <use href="#i-lock" /></svg
+                                                >Private</span
+                                            >
+                                        </div>
+                                    </div>
+                                    <svg class="i"><use href="#i-chev" /></svg
+                                ></a>
+                                <a class="rr" href="#"
+                                    ><div class="art Y" data-thumb="soup"></div>
+                                    <div class="tx">
+                                        <b>Roasted Tomato Basil Soup</b>
+                                        <div class="meta">Mediterranean · 50 min</div>
+                                    </div>
+                                    <svg class="i"><use href="#i-chev" /></svg
+                                ></a>
+                                <a class="rr" href="#"
+                                    ><div class="art B" data-thumb="focaccia"></div>
+                                    <div class="tx">
+                                        <b>Sunday rosemary focaccia</b>
+                                        <div class="meta">Italian · 3 h 15 min <span class="tag">Draft</span></div>
+                                    </div>
+                                    <svg class="i"><use href="#i-chev" /></svg
+                                ></a>
+                            </div>
+                            <div class="sec" style="margin-bottom: 2px"><h2>Coming soon</h2></div>
+                            <p class="muted" style="margin: 0 16px 6px">
+                                Meal plans, a grocery list and daily nutrition are on the way.
+                            </p>
+                            <div class="list">
+                                <div class="li">
+                                    <span class="ic"
+                                        ><svg class="i"><use href="#i-flame" /></svg></span
+                                    ><b>Today’s nutrition</b><span class="soon">Soon</span>
+                                </div>
+                                <div class="li">
+                                    <span class="ic"
+                                        ><svg class="i"><use href="#i-cal" /></svg></span
+                                    ><b>Meal plan</b><span class="soon">Soon</span>
+                                </div>
+                                <div class="li">
+                                    <span class="ic"
+                                        ><svg class="i"><use href="#i-cart" /></svg></span
+                                    ><b>Grocery list</b><span class="soon">Soon</span>
+                                </div>
+                            </div>
+                            <div class="dock">
+                                <button class="btn fab">
+                                    <svg class="i"><use href="#i-plus" /></svg>New recipe
+                                </button>
+                            </div>
+                            <nav class="tabs" aria-label="Tabs">
+                                <a class="tab on" href="#" aria-current="page"
+                                    ><span class="p"
+                                        ><svg class="i"><use href="#i-home" /></svg></span
+                                    >Home</a
+                                >
+                                <a class="tab" href="#"
+                                    ><span class="p"
+                                        ><svg class="i"><use href="#i-book" /></svg></span
+                                    >Recipes</a
+                                >
+                                <a class="tab" href="#"
+                                    ><span class="p"
+                                        ><svg class="i"><use href="#i-compass" /></svg></span
+                                    >Discover</a
+                                >
+                                <a class="tab" href="#"
+                                    ><span class="p"
+                                        ><svg class="i"><use href="#i-cal" /></svg></span
+                                    >Plan</a
+                                >
+                                <a class="tab" href="#"
+                                    ><span class="p"
+                                        ><svg class="i"><use href="#i-bag" /></svg></span
+                                    >Shop</a
+                                >
+                            </nav>
+                        </div>
+                    </figure>
+
+                    <figure>
+                        <figcaption>
+                            Recipe detail<small
+                                >Primary action: Edit recipe. Tick the ingredients as you go (try it). Step 3 is
+                                current: lemon fill, black edge, 22 px type.</small
+                            >
+                        </figcaption>
+                        <div class="phone" id="fDetail">
+                            <div class="dh">
+                                <div
+                                    class="art R"
+                                    data-art="chicken"
+                                    role="img"
+                                    aria-label="Chicken drumstick, lemon, thyme, carrot, red onion and potato, cut open"
+                                ></div>
+                                <div class="sb"><span>9:41</span><i></i></div>
+                                <button class="fb" style="left: 16px" aria-label="Back">
+                                    <svg class="i"><use href="#i-back" /></svg>
+                                </button>
+                                <button class="fb" style="right: 16px" aria-label="More actions">
+                                    <svg class="i"><use href="#i-more" /></svg>
+                                </button>
+                            </div>
+                            <div class="sheet wR">
+                                <div class="over">British <span class="tag">Public</span></div>
+                                <h1 class="dt">Lemon and thyme roast chicken</h1>
+                                <div class="rate">
+                                    <svg class="i" style="width: 18px; height: 18px"><use href="#i-star" /></svg
+                                    ><b>4.8</b><span class="muted">· 12 ratings ·</span
+                                    ><a class="link" style="min-height: 0" href="#">8 comments</a>
+                                </div>
+                                <div class="facts">
+                                    <div><b>1 h 50 min</b><span>Total</span></div>
+                                    <div><b>20 min</b><span>Prep</span></div>
+                                    <div><b>Medium</b><span>Difficulty</span></div>
+                                </div>
+                                <button class="btn wide">
+                                    <svg class="i"><use href="#i-pen" /></svg>Edit recipe
+                                </button>
+                                <label class="tog"
+                                    >Keep screen awake<input class="sw" type="checkbox" role="switch"
+                                /></label>
+                                <p class="desc">
+                                    A Sunday roast that does the work for you: butter, lemon and thyme worked under the
+                                    skin, and everything else cooking in the same tin so the vegetables catch the
+                                    juices.
+                                </p>
+                                <a class="link" href="#">More</a>
+                                <p class="tags" style="margin-top: 0">gluten-free · dinner · sunday roast</p>
+                                <div class="acc">
+                                    Nutrition<span>612 cal per serving</span><svg class="i"><use href="#i-chev" /></svg>
+                                </div>
+
+                                <div class="h2">
+                                    <h2>Ingredients</h2>
+                                    <span class="muted" style="font: 500 14px var(--f)">Servings</span>
+                                    <span class="step"
+                                        ><button aria-label="Fewer servings">
+                                            <svg class="i"><use href="#i-minus" /></svg></button
+                                        ><output>4</output
+                                        ><button aria-label="More servings">
+                                            <svg class="i"><use href="#i-plus" /></svg></button
+                                    ></span>
+                                </div>
+                                <p class="gh">Chicken</p>
+                                <label class="ing"
+                                    ><input type="checkbox" checked /><b>1</b
+                                    ><span>whole chicken<small>about 1.8 kg</small></span></label
+                                >
+                                <label class="ing"
+                                    ><input type="checkbox" checked /><b>3 tbsp</b
+                                    ><span>unsalted butter<small>softened</small></span></label
+                                >
+                                <label class="ing"
+                                    ><input type="checkbox" /><b>1</b
+                                    ><span>lemon<small>zested and halved</small></span></label
+                                >
+                                <label class="ing"
+                                    ><input type="checkbox" /><b>6 sprigs</b><span>fresh thyme</span></label
+                                >
+                                <label class="ing"
+                                    ><input type="checkbox" /><b>1 head</b
+                                    ><span>garlic<small>halved crosswise</small></span></label
+                                >
+                                <p class="gh">Vegetables</p>
+                                <label class="ing"
+                                    ><input type="checkbox" /><b>800 g</b
+                                    ><span>waxy potatoes<small>quartered</small></span></label
+                                >
+                                <label class="ing"
+                                    ><input type="checkbox" /><b>4</b
+                                    ><span>carrots<small>cut into chunks</small></span></label
+                                >
+                                <label class="ing"
+                                    ><input type="checkbox" /><b>2</b
+                                    ><span>red onions<small>cut into wedges</small></span></label
+                                >
+                                <label class="ing"><input type="checkbox" /><b>2 tbsp</b><span>olive oil</span></label>
+
+                                <div class="h2"><h2>Steps</h2></div>
+                                <div class="st">
+                                    <button class="n" aria-label="Make step 1 current">1</button>
+                                    <p>
+                                        Heat the oven to 220°C (200°C fan). Pat the chicken skin dry with paper towels
+                                        and leave it at room temperature while the oven heats.
+                                    </p>
+                                </div>
+                                <div class="st">
+                                    <button class="n" aria-label="Make step 2 current">2</button>
+                                    <p>
+                                        Mash the butter with the lemon zest, half of the thyme leaves and the salt.
+                                        Spread it under the skin of the breast.
+                                    </p>
+                                </div>
+                                <div class="st cur">
+                                    <button class="n" aria-label="Step 3, current" aria-pressed="true">3</button>
+                                    <div>
+                                        <span class="now">Current step</span>
+                                        <p>
+                                            Scatter the potatoes, carrots and onions in a large roasting tin and toss
+                                            with the olive oil. Put the chicken on top with the halved lemon, the garlic
+                                            and the rest of the thyme in the cavity.
+                                        </p>
+                                    </div>
+                                </div>
+                                <div class="st">
+                                    <button class="n" aria-label="Make step 4 current">4</button>
+                                    <div>
+                                        <p>
+                                            Roast for 20 minutes, then lower the oven to 190°C (170°C fan) and roast for
+                                            another 1 hour 10 minutes, until the juices run clear.
+                                        </p>
+                                        <div class="timers">
+                                            <button class="timer">
+                                                <svg class="i" style="width: 18px; height: 18px">
+                                                    <use href="#i-clock" /></svg
+                                                >20 min</button
+                                            ><button class="timer">
+                                                <svg class="i" style="width: 18px; height: 18px">
+                                                    <use href="#i-clock" /></svg
+                                                >Then 1 h 10 min
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="foot">
+                                    <span>Source: Family recipe card</span
+                                    ><a class="link" style="min-height: 0; font-size: 14px" href="#">Version history</a>
+                                </div>
+                            </div>
+                        </div>
+                    </figure>
+
+                    <figure>
+                        <figcaption>
+                            My recipes<small
+                                >Primary action: New recipe. Every thumbnail shows two shapes, the lead ingredient and
+                                the next, so no two recipes look alike.</small
+                            >
+                        </figcaption>
+                        <div class="phone" id="fRecipes">
+                            <div class="sb"><span>9:41</span><i></i></div>
+                            <div class="top">
+                                <div class="t"><h1 class="lt">Recipes</h1></div>
+                                <button class="av" aria-label="Profile, Sam Rivera">SR</button>
+                            </div>
+                            <div class="seg" role="tablist" aria-label="Recipes">
+                                <button class="on" role="tab" aria-selected="true">My recipes</button
+                                ><button role="tab" aria-selected="false">Collections</button>
+                            </div>
+                            <div class="search">
+                                <svg class="i"><use href="#i-search" /></svg>Search your recipes
+                            </div>
+                            <div class="chips" aria-label="Quick filters">
+                                <button class="chip on" aria-pressed="true">
+                                    <svg class="i" style="width: 16px; height: 16px"><use href="#i-check" /></svg>All
+                                </button>
+                                <button class="chip">Under 30 min <em>2</em></button>
+                                <button class="chip">American <em>3</em></button>
+                                <button class="chip">French <em>1</em></button>
+                                <button class="chip">Italian <em>1</em></button>
+                            </div>
+                            <div class="bar">
+                                <span>9 recipes</span
+                                ><button class="sort" aria-label="Sort: Recently edited">
+                                    Recently edited<svg class="i" style="width: 18px; height: 18px">
+                                        <use href="#i-down" />
+                                    </svg></button
+                                ><span class="vt" role="group" aria-label="View"
+                                    ><button class="on" aria-label="List view" aria-pressed="true">
+                                        <svg class="i"><use href="#i-list" /></svg></button
+                                    ><button aria-label="Grid view">
+                                        <svg class="i"><use href="#i-grid" /></svg></button
+                                ></span>
+                            </div>
+                            <div class="list">
+                                <a class="rr" href="#"
+                                    ><div class="art R" data-thumb="cacciatore"></div>
+                                    <div class="tx">
+                                        <b>Weeknight Chicken Cacciatore</b>
+                                        <div class="meta">Italian · 55 min · 420 cal</div>
+                                        <div class="meta">
+                                            <svg class="i" style="width: 14px; height: 14px; color: var(--warning)">
+                                                <use href="#i-star" /></svg
+                                            >4.6 (23)
+                                        </div>
+                                    </div>
+                                    <svg class="i"><use href="#i-chev" /></svg
+                                ></a>
+                                <a class="rr" href="#"
+                                    ><div class="art D" data-thumb="cookies"></div>
+                                    <div class="tx">
+                                        <b>Brown Butter Chocolate Chip Cookies</b>
+                                        <div class="meta">American · 40 min · 210 cal</div>
+                                        <div class="meta">
+                                            <svg class="i" style="width: 14px; height: 14px; color: var(--warning)">
+                                                <use href="#i-star" /></svg
+                                            >4.9 (112)
+                                        </div>
+                                    </div>
+                                    <svg class="i"><use href="#i-chev" /></svg
+                                ></a>
+                                <a class="rr" href="#"
+                                    ><div class="art G" data-thumb="salmon"></div>
+                                    <div class="tx">
+                                        <b>Miso-Glazed Salmon with Sesame Greens</b>
+                                        <div class="meta">
+                                            Japanese · 25 min · 480 cal <span class="tag">Private</span>
+                                        </div>
+                                    </div>
+                                    <svg class="i"><use href="#i-chev" /></svg
+                                ></a>
+                                <a class="rr" href="#"
+                                    ><div class="art B" data-thumb="pork"></div>
+                                    <div class="tx">
+                                        <b>Slow-Roasted Pork Shoulder</b>
+                                        <div class="meta">American · 6 h 30 min <span class="tag">Draft</span></div>
+                                    </div>
+                                    <svg class="i"><use href="#i-chev" /></svg
+                                ></a>
+                                <a class="rr" href="#"
+                                    ><div class="art Y" data-thumb="soup"></div>
+                                    <div class="tx">
+                                        <b>Roasted Tomato Basil Soup</b>
+                                        <div class="meta">Mediterranean · 50 min · 180 cal</div>
+                                    </div>
+                                    <svg class="i"><use href="#i-chev" /></svg
+                                ></a>
+                                <a class="rr" href="#"
+                                    ><div class="art O" data-thumb="padthai"></div>
+                                    <div class="tx">
+                                        <b>Pad Thai with Shrimp</b>
+                                        <div class="meta">Thai · 35 min · 560 cal</div>
+                                    </div>
+                                    <svg class="i"><use href="#i-chev" /></svg
+                                ></a>
+                            </div>
+                            <div class="dock">
+                                <button class="btn fab">
+                                    <svg class="i"><use href="#i-plus" /></svg>New recipe
+                                </button>
+                            </div>
+                            <nav class="tabs" aria-label="Tabs">
+                                <a class="tab" href="#"
+                                    ><span class="p"
+                                        ><svg class="i"><use href="#i-home" /></svg></span
+                                    >Home</a
+                                >
+                                <a class="tab on" href="#" aria-current="page"
+                                    ><span class="p"
+                                        ><svg class="i"><use href="#i-book" /></svg></span
+                                    >Recipes</a
+                                >
+                                <a class="tab" href="#"
+                                    ><span class="p"
+                                        ><svg class="i"><use href="#i-compass" /></svg></span
+                                    >Discover</a
+                                >
+                                <a class="tab" href="#"
+                                    ><span class="p"
+                                        ><svg class="i"><use href="#i-cal" /></svg></span
+                                    >Plan</a
+                                >
+                                <a class="tab" href="#"
+                                    ><span class="p"
+                                        ><svg class="i"><use href="#i-bag" /></svg></span
+                                    >Shop</a
+                                >
+                            </nav>
+                        </div>
+                    </figure>
+                </div>
+            </div>
+        </section>
+
+        <section class="band dk">
+            <div class="wrap">
+                <h2 class="bh">Dark</h2>
+                <p class="lede">
+                    Night is a soft charcoal, not pure black. The black button turns into a warm white one. Each produce
+                    colour steps one shade deeper and the pictures dim a little, so they glow without glaring in a dark
+                    kitchen.
+                </p>
+                <div class="row" id="darkRow"></div>
+            </div>
+        </section>
+
+        <section class="band">
+            <div class="wrap">
+                <h2 class="bh">Palette: Market White</h2>
+                <p class="lede">
+                    The interface is black and white, like a printed poster. Black is the one button you press. In the
+                    controls, red only ever means delete, as everywhere else. Six produce colours belong to the pictures
+                    alone: none of them carries text, a control or a meaning. Numbers are WCAG 2 contrast ratios, light
+                    · dark; Lc is APCA.
+                </p>
+                <div class="sw-grid" id="sw"></div>
+                <h3 class="sub">Produce: picture grounds only</h3>
+                <p class="muted" style="margin: 0">
+                    Each lead shape has one fixed ground, the colour it reads best on. Light shade left, dark right.
+                </p>
+                <div class="produce" id="produce"></div>
+            </div>
+        </section>
+
+        <section class="band" style="padding-top: 0">
+            <div class="wrap">
+                <h2 class="bh">Type: Archivo, one family</h2>
+                <p class="lede">
+                    One grotesque with a width axis. Titles are set wide and heavy, like a poster headline. Reading text
+                    is the same family at normal width. The current step grows to 22 px so you can read it from the
+                    stove.
+                </p>
+                <div class="type">
+                    <div>
+                        <p class="lbl">Large title · Archivo 800, width 116 · 30/32</p>
+                        <div style="font: 800 30px/1.08 var(--f); font-stretch: 116%; letter-spacing: -0.025em">
+                            Lemon and thyme roast chicken
+                        </div>
+                        <p class="lbl" style="margin-top: 14px">Section · 800, width 112 · 20/24</p>
+                        <div style="font: 800 20px/1.2 var(--f); font-stretch: 112%">Recent recipes</div>
+                    </div>
+                    <div>
+                        <p class="lbl">Current step · Archivo 400 · 22/31</p>
+                        <p style="margin: 0; font: 400 22px/1.42 var(--f)">
+                            Scatter the potatoes, carrots and onions in a large roasting tin.
+                        </p>
+                        <p class="lbl" style="margin-top: 14px">Facts · 800, width 108, tabular</p>
+                        <div style="font: 800 19px var(--f); font-stretch: 108%; font-variant-numeric: tabular-nums">
+                            1 h 50 min · 20 min · Medium
+                        </div>
+                    </div>
+                    <div>
+                        <p class="lbl">Body · Archivo 400 · 17/27</p>
+                        <p style="margin: 0; font: 400 17px/1.6 var(--f)">
+                            Mash the butter with the lemon zest, half of the thyme leaves and the salt.
+                        </p>
+                        <p class="lbl" style="margin-top: 14px">Amounts · 700, tabular · 16</p>
+                        <div style="font: 700 16px var(--f); font-variant-numeric: tabular-nums">
+                            3 tbsp · 800 g · 1 tsp
+                        </div>
+                    </div>
+                </div>
+
+                <h3 class="sub">Empty and loading</h3>
+                <div class="empty">
+                    <div style="text-align: center">
+                        <div class="art Y" data-thumb="lemonly"></div>
+                        <h4>Your recipe box is empty</h4>
+                        <p>Add a recipe you love, or paste an ingredient list and we’ll set it up.</p>
+                        <button class="btn">
+                            <svg class="i"><use href="#i-plus" /></svg>Add your first recipe</button
+                        ><br /><button class="ghost" style="margin-top: 10px">Paste ingredients</button>
+                    </div>
+                    <div>
+                        <p class="lbl">Loading: plain grey tiles, no shimmer. The picture fades in once.</p>
+                        <div class="skel">
+                            <i></i>
+                            <div style="flex: 1"><s style="width: 70%"></s><s style="width: 45%"></s></div>
+                        </div>
+                        <div class="skel">
+                            <i></i>
+                            <div style="flex: 1"><s style="width: 60%"></s><s style="width: 35%"></s></div>
+                        </div>
+                        <div class="skel">
+                            <i></i>
+                            <div style="flex: 1"><s style="width: 75%"></s><s style="width: 40%"></s></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="notes">
+                    <div>
+                        <h3>Simple</h3>
+                        <p>
+                            Plain rows, a large title, tabs, one black button. Ticks, steppers and switches look like
+                            what they are.
+                        </p>
+                    </div>
+                    <div>
+                        <h3>Fresh</h3>
+                        <p>
+                            Produce cut open and food laid flat, in market colours, on pure white. No paper, no plates,
+                            no light.
+                        </p>
+                    </div>
+                    <div>
+                        <h3>Motion</h3>
+                        <p>
+                            Slices settle once, 0.6 s, when a picture first appears. A tick fills in 150 ms. Nothing
+                            loops. Reduced motion turns all of it off.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <script>
+            (function () {
+                var Y = '#FFE45C',
+                    L = '#7FD39A',
+                    DG = '#1E6B3C',
+                    LI = '#9BD45A',
+                    LIb = '#D7F0A8';
+                // [shape, x, y, size, rotate, --a, --b] on 160x120. Items 0 and 1 make the thumbnail.
+                var A = {
+                    hero: [
+                        ['tomato', 34, 90, 92, -10],
+                        ['lemon', 126, 28, 84, 12],
+                        ['coin', 112, 96, 46, 0],
+                        ['onion', 62, 30, 50, 0],
+                        ['chili', 150, 66, 34, 0],
+                        ['leaf', 86, 64, 46, 40, L, DG],
+                        ['coin', 14, 24, 30, 0],
+                    ],
+                    pancakes: [
+                        ['cakes', 70, 72, 96, -4],
+                        ['lemon', 134, 30, 72, 18],
+                        ['lemon', 126, 100, 34, 0],
+                    ],
+                    chicken: [
+                        ['drum', 66, 68, 96, -8],
+                        ['lemon', 134, 30, 66, 16],
+                        ['sprig', 22, 58, 60, -30, '#BFF0CC', '#E9FFF0'],
+                        ['coin', 140, 98, 44, 0],
+                        ['onion', 58, 112, 42, 0],
+                        ['potato', 104, 104, 34, 20],
+                    ],
+                    padthai: [['lemon', 44, 58, 0, 0, LI, LIb], ['noodle']],
+                    soup: [['tomato'], ['leaf', 0, 0, 0, 30, '#2FA35F', DG]],
+                    focaccia: [['slab'], ['sprig', 0, 0, 0, 24, L, DG]],
+                    cacciatore: [['drum'], ['olive']],
+                    cookies: [['cookie'], ['choc', 0, 0, 0, 14]],
+                    salmon: [['salmon'], ['leaf', 0, 0, 0, 30, '#BFF0CC', '#2F9E5E']],
+                    pork: [['pork'], ['sprig', 0, 0, 0, 24, L, DG]],
+                    lemonly: [['lemon']],
+                };
+                function use(p, i, tf) {
+                    var st = (p[5] ? '--a:' + p[5] + ';' : '') + (p[6] ? '--b:' + p[6] + ';' : '');
+                    return (
+                        '<g transform="' +
+                        tf +
+                        '"><g class="pc" style="animation-delay:' +
+                        i * 70 +
+                        'ms"><use href="#' +
+                        p[0] +
+                        '" x="-50" y="-50" width="100" height="100" style="' +
+                        st +
+                        '"/></g></g>'
+                    );
+                }
+                function art(k) {
+                    return (
+                        '<svg viewBox="0 0 160 120" preserveAspectRatio="xMidYMid slice" aria-hidden="true">' +
+                        A[k]
+                            .map(function (p, i) {
+                                return use(
+                                    p,
+                                    i,
+                                    'translate(' +
+                                        p[1] +
+                                        ' ' +
+                                        p[2] +
+                                        ') rotate(' +
+                                        p[4] +
+                                        ') scale(' +
+                                        p[3] / 100 +
+                                        ')',
+                                );
+                            })
+                            .join('') +
+                        '</svg>'
+                    );
+                }
+                function thumb(k) {
+                    var a = A[k],
+                        s =
+                            a.length === 1
+                                ? 'translate(50 50) scale(.72)'
+                                : 'translate(42 58) rotate(' + (a[0][4] || 0) + ') scale(.66)';
+                    var out = use(a[0], 0, s);
+                    if (a[1]) out += use(a[1], 1, 'translate(76 26) rotate(' + (a[1][4] || -12) + ') scale(.42)');
+                    return '<svg viewBox="0 0 100 100" aria-hidden="true">' + out + '</svg>';
+                }
+                ['fHome', 'fDetail'].forEach(function (id) {
+                    var fig = document.getElementById(id).parentNode.cloneNode(true),
+                        ph = fig.querySelector('.phone');
+                    fig.querySelectorAll('[id]').forEach(function (n) {
+                        n.removeAttribute('id');
+                    });
+                    ph.classList.add('dark');
+                    fig.querySelector('small').textContent =
+                        id === 'fHome'
+                            ? 'Charcoal ground. The primary button is warm white with a black label (16.7:1).'
+                            : 'The current step keeps its lemon tint, black edge and 22 px type, deepened for night.';
+                    document.getElementById('darkRow').appendChild(fig);
+                });
+                document.querySelectorAll('[data-art]').forEach(function (el) {
+                    el.innerHTML = art(el.getAttribute('data-art'));
+                });
+                document.querySelectorAll('[data-thumb]').forEach(function (el) {
+                    el.innerHTML = thumb(el.getAttribute('data-thumb'));
+                });
+                // [name, role, light, dark, ink-on-light, ink-on-dark, ratios]
+                var S = [
+                    [
+                        'Board',
+                        'Ground: every screen',
+                        '#FFFFFF',
+                        '#121114',
+                        'Lists are plain rows with Hair dividers, so nothing needs a box edge.',
+                    ],
+                    [
+                        'Sheet',
+                        'Detail sheet, dialogs, tab bar',
+                        '#FFFFFF',
+                        '#1B1A1E',
+                        'On ground 1.00 · 1.09. Its top edge is the radius plus the picture above it.',
+                    ],
+                    [
+                        'Shell',
+                        'Fills: search, segment track, tab pill, loading',
+                        '#F0F1EE',
+                        '#27252B',
+                        'Never the only edge of a control: fields also carry Rind.',
+                    ],
+                    ['Hair', 'Dividers (decorative)', '#E2E4E0', '#322F37', 'No contrast duty.'],
+                    [
+                        'Peppercorn',
+                        'Text, and the primary button',
+                        '#141317',
+                        '#F5F3EF',
+                        'On board 18.5 (Lc 105) · 17.0 (Lc 100)\nShell 16.3 · 13.7 · Zest 14.9 · 10.3',
+                    ],
+                    ['On primary', 'Label on the button', '#FFFFFF', '#141317', 'On Peppercorn 18.5 · 16.7'],
+                    [
+                        'Clove',
+                        'Muted text',
+                        '#55535C',
+                        '#D2CDD6',
+                        'Board 7.6 (Lc 86) · 12.1 (Lc 77)\nShell 6.7 · 9.7 · dark Sheet 11.1 (Lc 76)',
+                    ],
+                    [
+                        'Rind',
+                        'Control edges: field, chip, checkbox, step number, switch',
+                        '#767A75',
+                        '#8A8592',
+                        '3:1 needed. Board 4.4 · 5.2\nShell 3.9 · 4.2 · Zest 3.5 · 3.2',
+                    ],
+                    [
+                        'Blueberry',
+                        'Links (underlined) and the focus ring',
+                        '#3442C2',
+                        '#C4CBFF',
+                        'Board 7.8 (Lc 86) · 12.0 (Lc 76)\nShell 6.9 · 9.6',
+                    ],
+                    [
+                        'Zest',
+                        'Current-step fill, with a Peppercorn edge',
+                        '#FFE680',
+                        '#45390F',
+                        'Text on it 14.9 · 10.3. Edge and number disc 14.9 · 10.3 (3:1 needed)',
+                    ],
+                    ['Basil', 'Success', '#1C6A45', '#62D49C', 'Board 6.6 · 10.2 · Shell 5.8 · 8.2'],
+                    ['Turmeric', 'Warning, rating star', '#875200', '#F2B54A', 'Board 6.5 · 10.3 · Shell 5.7 · 8.3'],
+                    [
+                        'Paprika',
+                        'Danger: delete, erase. Never a primary',
+                        '#C0261A',
+                        '#FF9A8C',
+                        'Board 5.9 · 9.2 (Lc 62) · Shell 5.2 · 7.4\nLabel on it: white 5.9 · Peppercorn 9.0',
+                    ],
+                ];
+                document.getElementById('sw').innerHTML = S.map(function (s) {
+                    return (
+                        '<div class="swc"><div class="chipsw"><span style="background:' +
+                        s[2] +
+                        '"></span><span style="background:' +
+                        s[3] +
+                        '"></span></div><div class="hex"><span>' +
+                        s[2] +
+                        '</span><span>' +
+                        s[3] +
+                        '</span></div><div class="k"><h3>' +
+                        s[0] +
+                        '</h3><p>' +
+                        s[1] +
+                        '</p><code>' +
+                        s[4].replace('\n', '<br>') +
+                        '</code></div></div>'
+                    );
+                }).join('');
+                var PR = [
+                    ['Lemon', '#FFD23F', '#D9A814', 'tomato slice'],
+                    ['Persimmon', '#F0532F', '#C93A1E', 'drumstick'],
+                    ['Pea', '#2F9E5E', '#237A48', 'salmon'],
+                    ['Carrot', '#FF8C2E', '#D96E14', 'lime wheel'],
+                    ['Beet', '#B0215F', '#8A1A4B', 'bread slab, pork slice'],
+                    ['Damson', '#3D4BD6', '#2C37A6', 'pancake stack, cookie'],
+                ];
+                document.getElementById('produce').innerHTML = PR.map(function (p) {
+                    return (
+                        '<div><i><span style="background:' +
+                        p[1] +
+                        '"></span><span style="background:' +
+                        p[2] +
+                        '"></span></i><b>' +
+                        p[0] +
+                        '<br><code>' +
+                        p[1] +
+                        ' / ' +
+                        p[2] +
+                        '</code><br><span class="muted" style="font-weight:400">' +
+                        p[3] +
+                        '</span></b></div>'
+                    );
+                }).join('');
+            })();
+        </script>
+    </body>
+</html>

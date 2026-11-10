@@ -139,6 +139,17 @@ const nameField = (): HTMLInputElement =>
     ) as HTMLInputElement;
 
 describe('the phone row editor sheet, over the real editor session (native)', () => {
+    // The device flow taps the label text, and its typed text landed nowhere: the label must hand focus to its field.
+    it('pressing the "Name on the recipe" label focuses the Name field', () => {
+        mount();
+
+        fireEvent.click(screen.getByRole('button', { name: /^Edit 2 tbsp chili oil/u }));
+        expect(document.activeElement).not.toBe(nameField());
+        fireEvent.click(within(dialogTitled('chili oil')).getByText(en.rowDisplayTextLabel));
+
+        expect(document.activeElement).toBe(nameField());
+    });
+
     it('stays open and keeps a new name typed after the name was cleared and a checkpoint was answered', async () => {
         vi.useFakeTimers({ shouldAdvanceTime: true });
         const { port } = mount();

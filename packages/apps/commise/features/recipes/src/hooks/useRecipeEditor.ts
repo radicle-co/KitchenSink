@@ -1046,8 +1046,6 @@ function slotsRefusedByServer(ctx: EditorContext, seq: number, limit: number): v
  * @sideEffect Withdraws the parked record and records the refusal for the sheet.
  */
 function privateFoodsRefusedByServer(ctx: EditorContext, seq: number, lines: readonly PrivateFoodLine[]): void {
-    ctx.lane.dispatch({ type: 'deferredTaken' });
-
     void ctx.opts.port.withdraw(seq).then(
         () => {
             ctx.lane.dispatch({ type: 'withdrawn', seq });
@@ -1070,6 +1068,8 @@ function onParked(ctx: EditorContext, event: Settlement, pending: OutstandingWri
     }
 
     if (event.answer?.kind === 'recipePrivateFoods') {
+        // What waited behind the refused write is not sent past it.
+        ctx.lane.dispatch({ type: 'deferredTaken' });
         privateFoodsRefusedByServer(ctx, event.seq, event.answer.lines);
 
         return;
@@ -1100,6 +1100,18 @@ function onSettled(ctx: EditorContext, event: Settlement): void {
     const pending = ctx.lane.get().outstanding;
 
     if (pending === undefined || event.seq !== pending.seq) {
+        // ⛔ A refusal of THIS recipe that another editor of it sent (the cook closed it and opened it again before the
+        // answer landed). Only kept aside, it would stand as a parked save behind a Try again that can only be refused
+        // again. It is ALSO kept below: if it is this editor's own write whose number has not come back yet, the replay
+        // clears the lane (the second withdrawal finds nothing).
+        if (
+            event.answer?.kind === 'recipePrivateFoods' &&
+            event.entity === 'recipe' &&
+            event.localId === ctx.core.get().server.ref
+        ) {
+            privateFoodsRefusedByServer(ctx, event.seq, event.answer.lines);
+        }
+
         // ⛔ The outbox may answer before `submitExclusive` has told the editor this record's number.
         if (event.entity === 'recipe') {
             ctx.lane.keepEarly(event.seq, event);

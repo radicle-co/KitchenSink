@@ -213,6 +213,19 @@ artifacts. These consequences are **not** yet discharged:
    and that the new material was **not** examined by the original review. A re-run of the
    peer-review lint over current scope is owed.
 
+5. **Two amendments never reached the planning chain past `spec.md` (recorded 2026-11-09).**
+    - The **2026-10-28** email and push amendment (FR-046 – FR-056, SC-017 – SC-019) has no section in `plan.md`
+      and no task in `tasks.md`. `plan.md`'s _Deferred channels_ and _Preferences / Opt-Out Strategy_ still read as
+      if email and push were out of scope. Both now carry a note pointing at the amendment, but the channel plan
+      itself is owed, with `staff-architect`: provider choice, push fan-out, token registration, the FR-048 text
+      and link fill, settings read at send time, quiet hours and caps.
+    - The **2026-11-09** request-updates amendment (FR-057 – FR-059, SC-020 – SC-021, US-014) is planned and tasked
+      (T-085 – T-095), but T-091 and T-092 depend on that owed channel work and cannot start before it.
+    - **`v-model/` traces FR-001 – FR-033 only** (REQ-001 – REQ-041). FR-034 – FR-044 (2026-08-12), FR-046 –
+      FR-056 (2026-10-28) and FR-057 – FR-059 (2026-11-09) have no `REQ`, no test case and no matrix row. They were
+      **not** hand-extended this time: adding rows for the newest FRs alone would leave the chain skipping the middle,
+      which reads as complete when it is not. Regeneration over the whole current scope is owed.
+
 ---
 
 ## Cross-Artifact Links

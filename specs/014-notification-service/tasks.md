@@ -6,21 +6,22 @@
 
 ## User Story Reference
 
-| US ID  | Description                         | Priority |
-| ------ | ----------------------------------- | -------- |
-| US-001 | Direct User Notification            | P1       |
-| US-002 | Group Recipient Routing             | P1       |
-| US-003 | Global Broadcast                    | P1       |
-| US-004 | Client Dispatches by `messageType`  | P1       |
-| US-005 | Catch-Up After Disconnect           | P1       |
-| US-006 | Operational Counters                | P1       |
-| US-007 | Authenticated Subscription          | P2       |
-| US-008 | Envelope Schema Validation          | P2       |
-| US-009 | `messageType` Registry Enforcement  | P2       |
-| US-010 | Producer-Defined Idempotency Key    | P3       |
-| US-011 | Per-Feature Publish Quotas          | P3       |
-| US-012 | Client Acknowledges Consumption     | **P1**   |
-| US-013 | Identical Pending Payloads Collapse | **P1**   |
+| US ID  | Description                                       | Priority |
+| ------ | ------------------------------------------------- | -------- |
+| US-001 | Direct User Notification                          | P1       |
+| US-002 | Group Recipient Routing                           | P1       |
+| US-003 | Global Broadcast                                  | P1       |
+| US-004 | Client Dispatches by `messageType`                | P1       |
+| US-005 | Catch-Up After Disconnect                         | P1       |
+| US-006 | Operational Counters                              | P1       |
+| US-007 | Authenticated Subscription                        | P2       |
+| US-008 | Envelope Schema Validation                        | P2       |
+| US-009 | `messageType` Registry Enforcement                | P2       |
+| US-010 | Producer-Defined Idempotency Key                  | P3       |
+| US-011 | Per-Feature Publish Quotas                        | P3       |
+| US-012 | Client Acknowledges Consumption                   | **P1**   |
+| US-013 | Identical Pending Payloads Collapse               | **P1**   |
+| US-014 | A Cook Hears Back When Staff Decide on Their Food | P2       |
 
 > US-012 and US-013 were added to `spec.md` on 2026-08-12 on the owner's retention/dedup directive, both at
 > **P1**. They are not enhancements to US-001: without an ack the service cannot tell "delivered" from
@@ -34,7 +35,9 @@
 > Updated 2026-08-12. Task ids are **not** contiguous in meaning: T-021…T-033 were appended by the sync-verify
 > reconciliation, T-034…T-048 by the 2026-08-10 dual-ingress amendment, and **T-049…T-076 by the 2026-08-12
 > retention / dedup / store / contract amendment**. They slot into the graph by dependency, not by number. Total:
-> **76 tasks**, of which one (T-048) is done.
+> **76 tasks**, of which one (T-048) is done. _(Recounted 2026-11-09: T-077…T-084 were added by the 2026-08-16
+> substrate amendment and T-085…T-095 by the 2026-11-09 request-updates amendment, so the file now defines **95
+> tasks**, still with one done. The 2026-10-28 channel amendment, FR-046 to FR-056, has **no tasks yet**.)_
 
 ```text
 Identity groups (Q-002 — prerequisite for group routing)
@@ -98,6 +101,19 @@ T-074 ◄── T-072 + T-030                  (mobile ack UI)
 Cross-cutting proofs
 T-075 ◄── T-034 + T-063 + T-067          (one envelope valid on BOTH paths — SC-008)
 T-076 ◄── T-065                          (invalid payload: not retried, not a row — SC-016)
+
+Request updates — food publication decisions (added 2026-11-09)
+CHANNEL ◄── (owed: the 2026-10-28 channel tasks — push fan-out FR-046, token registration FR-053, text fill FR-048,
+             settings read at send time FR-049; none written yet)
+T-085                                    (identity settings columns; no upstream, lands early)
+T-087 ──► T-088 ──► T-089 ──► T-090      (payload zod + builder ► notified_at column ► inline send ► sweep)
+T-086 ◄── T-063 + T-046 + T-087          (food registered as a producer, payload documented)
+T-089 ◄── CHANNEL + T-034 + T-035 + T-086   (FR-059: food publishes nothing before the channel is live)
+T-091 ◄── CHANNEL + T-085 + T-086        (this service routes the requestUpdate category)
+T-092 ◄── CHANNEL                        (native permission ask; FR-059 until CHANNEL ships)
+T-093 ◄── T-091 + T-047                  (push tap + deep link to FoodDetail, feed item on both platforms)
+T-094 ◄── T-085                          (settings toggles, both platforms)
+T-095 ◄── —                              (copy: foods.push.* keys; email copy owed)
 
 Verification
 T-019 ◄── all implementation tasks above
@@ -737,3 +753,84 @@ needed to actually ship it. A notification service with a synthetic producer and
     - **Why C-10**: the substrate is a **log a consumer reads**; 014's pending set is **state a consumer mutates** (ack deletes it, dedup compares against what is pending). Merging them would put ack-and-dedup semantics onto a table whose producers must stay ignorant of consumers — the property R1.1 exists to protect.
     - **Acceptance**: no code path acks, deletes or mutates a substrate item; no code path reads the pending set to answer "what happened before I existed"; a consumer started against a substrate holding pre-existing items delivers **nothing** from them beyond what its own trigger woke it for.
     - **⚠️ Mutation lens**: pointing the pending-set reader at the substrate table must turn this test **red**. If it stays green, the test is asserting nothing.
+
+## Request updates — staff decisions on food publication (added 2026-11-09 — `spec.md` FR-057 to FR-059)
+
+> **Why this section exists.** The owner ruled on 2026-11-09 that a cook gets a push when staff approve or decline a
+> food they asked to make public, or an edit to a public food (`spec.md` US-014, Clarifications Session 2026-11-09).
+> The plan is [`plan.md` → _Request updates: food publication decisions_](./plan.md#request-updates-food-publication-decisions-added-2026-11-09).
+>
+> ⚠️ **These tasks sit on top of channel work that has no task.** The 2026-10-28 amendment (FR-046 to FR-056) never
+> reached this file: there is no task for the push fan-out, token registration, the FR-048 text fill or the settings
+> read at send time. The graph calls that missing work `CHANNEL`. T-091 and T-092 cannot start until it is written
+> and built. Until then FR-059 holds: the in-app result is the only signal, and the app asks for no permission.
+>
+> Test-first per CLAUDE.md: each task's tests are written from `spec.md` and watched failing before its code. Tiers
+> follow the current rulings: integration MOCKS the database, a real database is LOCAL e2e on a developer's machine,
+> and a deployed target is DEPLOYED e2e.
+
+- [ ] **T-085** [P] [US-014] Add the three `requestUpdate` settings to identity: `request_updates_in_app`, `request_updates_push` and `request_updates_email`, nullable booleans with **no SQL `DEFAULT`**, and `requestUpdatesInApp` / `requestUpdatesPush` / `requestUpdatesEmail` on the response, the strict PATCH body and `SETTINGS_DEFAULTS` (`true`, `true`, `false`). — `packages/services/identity/src/database/migrations/` (next free number) + `packages/services/identity/src/settings/settings.schema.ts` + `packages/shared/identity-db/src/schema/settings.ts`
+    - **Depends on**: —
+    - **Implements**: FR-057, FR-049; ADR-0059
+    - **Acceptance**: a cook with no row reads `true`, `true`, `false` and nothing is written; a PATCH of one key leaves the other two NULL in the row; a PATCH with an unknown key is a `400`; the regenerated `@kitchensink/schema-identity` carries the three fields; erasure deletes the row.
+    - **Tests**: **unit** (defaults resolved on read; NULL is "never chosen", never stored as the default) **AND** **integration** (controller round trip with the DAO mocked) **AND** **LOCAL e2e** asserting the migrated columns are nullable with no default on a real database. `identity-db`'s `erasureCoverage.test.ts` stays green.
+
+- [ ] **T-086** [P] [US-014, US-009] Register the food service as a producer and document `food.publicationDecided`, the T-046 way. — `packages/services/notification-service/src/registry/producers.registry.ts` + `specs/014-notification-service/payload-reference.md`
+    - **Depends on**: T-063, T-046, T-087
+    - **Implements**: FR-041, FR-047, FR-058
+    - **Acceptance**: one entry with producer `food-service`, its EventBridge `source`, quota magnitudes sized for staff decisions, owning feature "authored foods (ADR-0029)", and `food.publicationDecided` in category `requestUpdate`. The payload reference covers every payload field, one worked envelope per outcome, the four keys, the link, what a client does on receipt (open the food page), and what it must not assume (that the push carries a reason; that the food is still in the state the push names).
+    - **Tests**: **unit** (the registry's own zod accepts the entry; boot injectivity still holds with the new `source`) **AND** **integration** (an envelope from this producer passes the dual-signal check on the event path, and the same envelope with another `producer` is rejected).
+
+- [ ] **T-087** [P] [US-014] Author the `food.publicationDecided` payload zod as a `z.strictObject` with **no reason field**, the exhaustive `(kind, outcome)` → key mapping, and the ONE envelope builder that reads committed rows. — `packages/services/food-service/src/foods/publication.schema.ts` + `packages/services/food-service/src/foods/domain/publicationNotice.ts`
+    - **Depends on**: —
+    - **Implements**: FR-058, SC-021
+    - **Acceptance**: `kind` is `edit` exactly when the same food has an earlier `approved` request; `{food}` is the live name after the decision; the link is `commise://foods/{foodId}`; the recipient id is the identity user id the notification service binds subscribers to, pinned by a test rather than assumed.
+    - **Tests**: **unit** (all four `(kind, outcome)` cells; a payload carrying `reason` or `declineReason` FAILS to parse, which is SC-021; mutation lens: swapping two keys turns a test red) **AND** **integration** (the builder over a mocked DAO for a first publication, an edit approved after a rename, and an edit declined).
+
+- [ ] **T-088** [P] [US-014] Add `notified_at timestamptz` to `food_publication_requests`, with `CHECK (notified_at IS NULL OR status IN ('approved', 'declined'))` and the sweep's partial index. Expand-only. — `packages/services/food-service/src/db/migrations/` (next free number after `0028`) + `packages/services/food-service/src/db/schema/food.ts`
+    - **Depends on**: T-087
+    - **Implements**: FR-058; ADR-0035
+    - **Acceptance**: a `closed` or `pending` row cannot carry `notified_at`; the sweep's query plan uses the partial index.
+    - **Tests**: **LOCAL e2e** on a real database (the CHECK refuses `closed` and `pending` with a stamp; the index exists with its predicate) and the schema conformance and storage-capacity suites updated for the column. A unit test cannot observe a migration that did not apply.
+
+- [ ] **T-089** [P] [US-014] Publish after the decision commits, then stamp. A failed publish is logged and left for the sweep, and never fails the staff member's committed decision. — `packages/services/food-service/src/foods/publication.service.ts` + a publisher beside the existing EventBridge emitter
+    - **Depends on**: CHANNEL (owed — no task yet; FR-059), T-034, T-035, T-086, T-088
+    - **Implements**: FR-058, FR-059
+    - **Acceptance**: an `approved` or `declined` decision publishes one envelope with `idempotencyKey = requestId`; a `closed` request and a refused decision publish nothing; `notified_at` is set only after a success, with `WHERE notified_at IS NULL`; nothing is published inside the transaction.
+    - **Tests**: **unit** (ordering: commit, publish, stamp; a publish error leaves the stamp NULL and the decision answered) **AND** **integration** (the decide route with the database and the EventBridge client mocked, covering approve, decline, close and refuse). **DEPLOYED e2e** once the notification bus exists: a staff decision on a sandbox food yields exactly one envelope. No new HTTP route, so no new k6 scenario.
+
+- [ ] **T-090** [P] [US-014] The sweep in the food worker's loop: publish every `approved`/`declined` request with `notified_at IS NULL`, inside the age bound derived from the FR-018 claim window, and never send past it: a gauge of unsent requests past the bound alarms instead. — `packages/services/food-service/src/worker/`
+    - **Depends on**: T-089
+    - **Implements**: FR-058, SC-020; ADR-0062
+    - **Acceptance**: a decision whose inline send failed is published once by the next sweep; a request already stamped is never re-sent; a `closed` request with a `decided_at` is never selected; a request past the bound is never sent, and a gauge of decided, unsent requests older than the bound alarms when it is above zero; the bound is derived from the claim window exported by `@kitchensink/schema-notifications`, never restated as a number.
+    - **Tests**: **unit** (the predicate and the bound; ⚠️ mutation lens: a predicate of `decided_at IS NOT NULL` alone MUST turn a test red, because it would push for every closed request) **AND** **integration** (a stop between commit and publish, then a sweep, gives one publish; inline and sweep racing give two publishes with ONE key). Counters dimension on `Stage` only.
+
+- [ ] **T-091** [P] [US-014] Route the `requestUpdate` category in this service: read the cook's three settings at send time, keep quiet hours, apply no `reminder` cap, and send push on native devices only. — `packages/services/notification-service/src/channels/`
+    - **Depends on**: CHANNEL (owed — no task yet), T-085, T-086
+    - **Implements**: FR-047, FR-049, FR-051, FR-057; SC-019, SC-020
+    - **Acceptance**: push off means no push and the in-app item still lands; in-app off means no feed item and the food's own state is untouched; email off by default; a decision during quiet hours is held until they end; ten decisions in one day are ten pushes, not one.
+    - **Tests**: **unit** (the category's channel decision table over settings × quiet hours) **AND** **integration** (fan-out with identity and the provider mocked; a redelivered envelope sends no second push, SC-018).
+
+- [ ] **T-092** [P] [US-014] Native permission ask in the "Ask to make public" command: file the request first, then, when the OS reports `undetermined`, call FR-053's registration command. No screen of ours comes first (design D7). — `packages/apps/commise/mobile/src/` (food page command) + the FR-053 registration module
+    - **Depends on**: CHANNEL (owed — no task yet)
+    - **Implements**: FR-050 (amended), FR-059
+    - **Acceptance**: the request is sent whatever the answer; a denial changes nothing else; a second press asks nothing; while the channel is not live, the press asks nothing.
+    - **Tests**: **component** tests (React Testing Library) for every state: `undetermined`, `granted`, `denied`, channel not live, request failed (no ask) **AND** a **Maestro** flow `askToMakeFoodPublic.yaml` extended to accept the system dialog. A **Playwright** test asserts the web press shows no permission prompt.
+
+- [ ] **T-093** [P] [US-014] Open the food page from the push and from the feed item: a React Navigation `linking` config mapping `commise://foods/:foodId` to `FoodDetail`, and the feed item's `food.publicationDecided` handler on both platforms. — `packages/apps/commise/mobile/src/navigation/` + the shared client dispatch (T-047)
+    - **Depends on**: T-091, T-047
+    - **Implements**: FR-058, FR-011, US-014
+    - **Acceptance**: a tap on each of the four pushes opens that food's page in the state the decision left; an unknown or malformed food id opens nothing and does not crash; on the web the feed item opens the food page.
+    - **Tests**: **component** (dispatch for each outcome, an unknown id) **AND** **Maestro** (open `commise://foods/{foodId}` and land on `FoodDetail`) **AND** **Playwright** (the web feed item opens the food page).
+
+- [ ] **T-094** [P] [US-014] The three request-update toggles on the settings screen, web and mobile, after `staff-ux-engineer` SPECIFY. The web shows the push toggle and says it applies to the phone app. — `packages/apps/commise/web/src/` + `packages/apps/commise/mobile/src/` (settings)
+    - **Depends on**: T-085
+    - **Implements**: FR-049, FR-057
+    - **Acceptance**: each toggle reads the resolved default and writes only its own key; every state (loading, saved, save failed, offline) has its copy and key.
+    - **Tests**: **component** tests for every state on both platforms **AND** **Playwright** and **Maestro** for turning push off and reading it back.
+
+- [ ] **T-095** [P] [US-014] Copy: the four `foods.push.*` keys with the `{food}` parameter in every locale, from `docs/design/uiRefreshWorkshop5/privateFoods/spec.md` §16. The email copy for this category is **not designed**: raise it with `staff-ux-engineer`, and keep email for this category unshipped until it is. — the localization catalogs
+    - **Depends on**: —
+    - **Implements**: FR-048, FR-057
+    - **Acceptance**: every locale carries the four keys; no key text names a decline reason.
+    - **Tests**: **unit** (the catalog parity check every locale already passes; a guard that no `foods.push.*` text holds a reason placeholder).

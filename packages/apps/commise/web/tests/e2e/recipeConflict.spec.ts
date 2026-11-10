@@ -316,7 +316,8 @@ test.describe('recipe concurrent-edit conflict resolution (FR-007c / W7)', () =>
             ingredientId: E2E_INGREDIENT_IDS.oliveOil,
             name: 'Olive oil',
             foodId: 'food_olive_oil',
-            notes: 'flat half, select',
+            // `note`, not the retired wire `notes` (0ca39b847), which the stub no longer carries, so the text never showed.
+            note: 'flat half, select',
             quantity: { kind: 'exact', value } as const,
             unit: 'tbsp',
             isUserEntered: false,

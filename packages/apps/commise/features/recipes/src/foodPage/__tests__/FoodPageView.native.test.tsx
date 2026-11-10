@@ -186,4 +186,33 @@ describe('FoodPageView (native): where the actions sit (spec section 5.3)', () =
 
         expect(names.indexOf('Ask to make public')).toBeLessThan(names.indexOf('Edit'));
     });
+
+    // The group is the buttons' common parent. A column that also WRAPS shrink-wraps each button to its label on a device.
+    const groupOf = (name: string) => screen.getByRole('button', { name }).parentElement?.parentElement as HTMLElement;
+    const flexOf = (node: HTMLElement) => getComputedStyle(node);
+
+    it('on a phone every action stacks in a column that does not wrap, so each fills the width', () => {
+        at(375);
+        view(makeOwnState('private', { request: undefined }));
+        const group = groupOf('Edit');
+
+        expect(groupOf('Ask to make public')).toBe(group);
+        expect(flexOf(group).flexDirection).toBe('column');
+        expect(flexOf(group).flexWrap).not.toBe('wrap');
+    });
+
+    it('on a phone a lone Edit (states 7 to 10) is in the same non-wrapping column', () => {
+        at(375);
+        view(makeOwnState('notApproved'));
+
+        expect(flexOf(groupOf('Edit')).flexWrap).not.toBe('wrap');
+    });
+
+    it('from 600 dp the actions stay a wrapping row', () => {
+        at(800);
+        view(makeOwnState('private', { request: undefined }));
+
+        expect(flexOf(groupOf('Edit')).flexDirection).toBe('row');
+        expect(flexOf(groupOf('Edit')).flexWrap).toBe('wrap');
+    });
 });

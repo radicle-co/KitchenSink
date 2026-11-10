@@ -82,6 +82,20 @@ describe('IngredientLineEditor (native) — the field layout', () => {
         expect(Boolean(name.compareDocumentPosition(note) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
     });
 
+    // A column that also WRAPS shrink-wraps each field to its content on a device (the boxes drew a third wide).
+    it('on a phone the Name and Note stack does not wrap, so each box fills the width', () => {
+        render(<IngredientLineEditor view={view} index={0} m={m} details={null} />);
+        const stack = fieldBox(m.rowDisplayTextLabel).parentElement;
+
+        expect(getComputedStyle(stack as HTMLElement).flexWrap).not.toBe('wrap');
+    });
+
+    it('on a phone Amount and Unit keep their content sizes (they still wrap as a row)', () => {
+        render(<IngredientLineEditor view={view} index={0} m={m} details={null} />);
+
+        expect(getComputedStyle(fieldBox(m.rowAmountLabel).parentElement as HTMLElement).flexWrap).toBe('wrap');
+    });
+
     it('on a phone Amount and Unit still share a row', () => {
         render(<IngredientLineEditor view={view} index={0} m={m} details={null} />);
         const amount = fieldBox(m.rowAmountLabel);
@@ -94,5 +108,6 @@ describe('IngredientLineEditor (native) — the field layout', () => {
         render(<IngredientLineEditor view={view} index={0} m={m} details={null} />);
 
         expect(direction(fieldBox(m.rowDisplayTextLabel).parentElement)).toBe('row');
+        expect(getComputedStyle(fieldBox(m.rowDisplayTextLabel).parentElement as HTMLElement).flexWrap).toBe('wrap');
     });
 });

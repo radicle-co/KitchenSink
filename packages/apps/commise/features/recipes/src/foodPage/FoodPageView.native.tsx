@@ -97,7 +97,8 @@ const FoodShown: FC<FoodPageViewProps & { readonly state: FoodShownState }> = ({
     const actions =
         copy.actions.length === 0 ? null : (
             <YStack gap="$3">
-                <XStack flexWrap="wrap" gap="$3" flexDirection={tablet ? 'row' : 'column'}>
+                {/* A column that also wraps shrink-wraps each button to its label on a device, so a phone's column never wraps. */}
+                <XStack flexWrap={tablet ? 'wrap' : 'nowrap'} gap="$3" flexDirection={tablet ? 'row' : 'column'}>
                     {ordered.map((action) => (
                         <ActionButton
                             key={action.key}

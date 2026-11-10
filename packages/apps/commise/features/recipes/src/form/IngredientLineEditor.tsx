@@ -74,7 +74,7 @@ export const IngredientLineEditor: FC<IngredientLineEditorProps> = ({ view, inde
                 )}
             </div>
         </div>
-        <div className="flex flex-wrap items-end gap-x-3 gap-y-4">
+        <div className="flex flex-col gap-4 @regular/main:flex-row @regular/main:flex-wrap @regular/main:items-end @regular/main:gap-x-3">
             <div className="flex min-w-40 flex-1 flex-col gap-1">
                 <FieldLabel forId={view.ids.displayText} label={m.rowDisplayTextLabel} />
                 <input

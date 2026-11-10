@@ -96,8 +96,8 @@ any real cook who bound the root already holds it through their own signed-in an
 **Alternatives rejected**:
 
 - **A public, credential-free read on food.** It opens a new unauthenticated surface on food and makes the curated
-  catalog readable by anyone, against `016-FR-030`. It is the flip target if the owner rules that catalog food names
-  are public data (spec Q2).
+  catalog readable by anyone, against `016-FR-030`. The owner ruled on 2026-11-09 (spec Q2) that catalog food
+  names and nutrition are not public data, so this option stays rejected.
 - **Clerk M2M.** The erasure token's argument against it (an ambient capability that cannot be bound to one target)
   does not apply to a read with no target. It loses on two practical counts: no M2M issuer is wired, and it adds a Clerk
   dependency and secret to recipe-service.
@@ -109,7 +109,8 @@ any real cook who bound the root already holds it through their own signed-in an
 
 **Decision**: one pure Specification, `evaluateOpenToWeb`, with an SQL form. Each input is a required, typed reading
 (`open`, `closed` or `unknown`), and `unknown` is closed. The producers that 016 and 020 own return `unknown` until those
-features ship. So the feature ships dark (I0).
+features ship. So the feature ships dark. The owner confirmed on 2026-11-09 that it stays dark until 016 and 020 ship
+(spec Q1).
 
 **Rationale**: It is the only state that keeps 021 FR-001 (the owner's 2026-11-03 ruling) without a waiver. Making each
 input required means that a missing producer is a compile error, so no future change can open a recipe by forgetting
@@ -124,12 +125,11 @@ is not such a case: suspension exists (ADR-0081), so it is a real reading (R4).
 needs it. The first slice that reads a set (the sitemap or a creator page list) adds it with a test that holds the two
 forms equal (spec FR-001).
 
-**Alternatives** (owner question Q1):
+**Alternatives rejected** (owner ruling 2026-11-09, spec Q1):
 
-- **I1, facts only for recipes written in the editor.** Facts need no licence (ADR-0082). It waives the hold for facts
-  only. It needs a UX state that 021 does not define. It is a change to the Specification, built as a conditional unit,
-  never a switch.
-- **I2, the full page for recipes written in the editor.** Rejected. It waives the hold and the licence, and a recipe
+- **A facts-only form for recipes written in the editor, opened early.** It waived the hold for facts only. The owner
+  kept the feature dark instead, so no conditional unit is planned.
+- **The full page for recipes written in the editor, opened early.** It waived the hold and the licence, and a recipe
   pasted into the editor counts as written there.
 
 ## R4. Author standing
@@ -156,10 +156,14 @@ keep in step.
 A pull cannot do that. Then a recipe leg joins the deletion worker's lifecycle fan-out and feeds an `author_standings`
 table behind the same port. Only the adapter changes.
 
-**A conflict found.** Account closure has no recipe leg today (`deletionWorker.ts`): it bans the user at Clerk and
-marks the identity row `tombstoned`. Erasure deletes a cook's recipes unless they choose to donate them, and donated
-recipes stay public under a pseudonymous handle. Rule 7 closes an erased author's recipes, which hides every donated
-recipe. The plan keeps that safe default until the owner rules (spec Q8).
+**Recipes left public at erasure** (owner ruling 2026-11-09, spec Q8). Account closure has no recipe leg today
+(`deletionWorker.ts`): it bans the user at Clerk and marks the identity row `tombstoned`. Erasure deletes a cook's
+recipes, except the ones it keeps public: those the cook elected to donate and those already public. Kept recipes carry
+a pseudonymous handle, `user_{ULID}` (`recipe-core/src/accountErasure.ts`), which embeds the user id. The owner ruled
+that a recipe left public at erasure stays open signed out, with no author name, and `021-FR-002` rule 7 is amended for
+that case only. So `authorActive` passes `erased`, and the projection shows no author and never the handle. Every
+public published recipe of an erased author is one the erasure kept, because the erasure removes every other owner-only
+recipe in the same transaction. The spec records the reading that both kinds of kept recipe are covered.
 
 - **Trust the reader's token.** A reader's token says nothing about the author.
 - **Treat standing as always active.** Suspension exists, so that opens a suspended cook's recipes.
@@ -169,7 +173,7 @@ recipe. The plan keeps that safe default until the owner rules (spec Q8).
 **Decision**: the page is the only cache (R1). The API is always `no-store`. The CloudFront behaviour for
 `/api/v1/public/recipes/*` on the recipe distribution uses `CACHING_DISABLED` and an origin-request policy that forwards
 no `Authorization` header, no cookie and no query string. The page never reads `searchParams`, cookies or headers, so
-the cache key is the path alone and a share mark cannot split it.
+the cache key is the path plus the page language (R8), and a share mark cannot split it.
 
 **Rationale**: the one cache forgets within 5 minutes by itself, so the bound holds without a purge (FR-013). ADR-0020's
 "URL-only recipe behaviour" decision is not needed, because nothing on the API is cached.
@@ -188,8 +192,9 @@ the WAF rate limit and the production web cache are proven in production only. A
   clients are limited per address.
 - **Origin**: the public controller is `@SkipThrottle()`, so the per-user throttle's shared fallback bucket never sees a
   signed-out read.
-- **Web server to API**: Vercel's server fetches come from shared addresses. The default is a header that lifts only the
-  API's per-address limit and grants no read (owner question Q4). It is built so that it can be removed in one unit.
+- **Web server to API**: Vercel's server fetches come from shared addresses. A secret header lifts only the API's
+  per-address limit for page renders, and grants no read (owner ruling 2026-11-09, spec Q4). The WAF rule accepts the
+  current and the previous value, so the secret rotates with no failed render.
 - **Crawlers**: verified on the web host by each operator's published method (021 FR-064). Crawlers never call the API.
 
 **Alternatives rejected**: a limit at the origin keyed on a forwarded address header, because a client can set that
@@ -206,8 +211,11 @@ include `Origin`. Otherwise the cache serves one origin's allow header to anothe
 ## R8. The public address and app links
 
 **Decision**: `https://commise.app/recipe/{id}/{slug}`, with no locale. A wrong or missing slug redirects with `308`
-only when the recipe is open. `/recipe/` and `/.well-known/` are excluded from the Clerk middleware matcher and from the
-locale redirect. One pure parser, `parsePublicRecipePath`, serves the web route, the middleware exclusion, the native
+only when the recipe is open. `/.well-known/` is excluded from the middleware. `/recipe/*` is handled by the middleware
+before Clerk and never reaches `clerkMiddleware`: it picks the page language and rewrites to the internal
+`/publicRecipe/{lang}/{id}/{slug}` (owner ruling 2026-11-09, spec Q3). The page's own words follow the first supported
+locale in `Accept-Language`, else English. The ISR cache key is the internal path, so it is the public path plus the
+language from a closed set, never the raw header. The response sends `Vary: Accept-Language`. One pure parser, `parsePublicRecipePath`, serves the web route, the middleware exclusion, the native
 gate, the native link config and the association files.
 
 The association files are served by route handlers at `/.well-known/apple-app-site-association` and
@@ -215,27 +223,27 @@ The association files are served by route handlers at `/.well-known/apple-app-si
 that exists only with its link. Signed in, React Navigation's `linking` maps the same path to the existing recipe
 screen.
 
-The public route has its own root layout (`app/recipe/layout.tsx`) with no `ClerkProvider`, so nothing on the page
+The public route has its own root layout (`app/publicRecipe/layout.tsx`) with no `ClerkProvider`, so nothing on the page
 can start a Clerk session. A signed-out reader's account action returns through the in-app address
-`/{locale}/recipes/{id}?then=saveCopy|rate`, which `safeReturnPath` already accepts, so that parser does not change.
+`/{locale}/recipes/{id}?then=save|saveCopy|rate`, which `safeReturnPath` already accepts, so that parser does not change.
 
-**Rationale**: A locale-free address never changes when a second locale ships (021 FR-062 keys the cache on the path).
+**Rationale**: A locale-free address never changes when a second locale ships. Choosing the language from a closed set
+keeps the cache bounded: one entry per recipe per supported locale.
 The slug redirect only for open recipes keeps a closed recipe's title private.
 
-**One-way doors**: the address form, the association files' path set, team id, bundle id and signing fingerprints, and
+**One-way doors**: the address form, the cache key (path plus language), the association files' path set, team id, bundle id and signing fingerprints, and
 the native gate's state.
 
 ## R9. The signed-out actions
 
-**Decision** (from `staff-ux-engineer` DESIGN): only "Save a copy" and "Rate this recipe", the two actions a signed-in
-reader has today. No plain "Save". The pending action travels in the return path as a value from a closed set, parsed
-like `?done=`.
+**Decision** (owner ruling 2026-11-09, spec Q5): the same actions a signed-in reader has on another cook's public
+recipe: "Save" (the app's normal save to a collection), "Save a copy" and "Rate this recipe". After sign-in, each behaves
+exactly as it does everywhere else in the app. The pending action travels in the return path as a value from a closed
+set (`save`, `saveCopy`, `rate`), parsed like `?done=`.
 
-**Rationale**: A plain "Save" that adds the recipe to a collection publishes a free cook's reading list. A free cook's
-collections are public and readable signed out. A "Save" that makes a copy makes a draft the reader
-cannot cook. "Start cooking" and "Add to plan" do not exist yet (008, 006).
-
-**Follow-up** (owner question Q5): a private bookmark, as a new entity and a one-way door.
+**What changed**: DESIGN had left plain "Save" out of 003A. The owner pointed out that no such restriction exists in
+code or specs, and reversed it. No private bookmark feature is planned. "Start cooking" and "Add to plan" do not exist
+yet (008, 006), so they are not offered.
 
 ## R10. Page structure
 
@@ -253,7 +261,8 @@ the committed design, on phone, tablet and desktop.
 always, as a header and a meta tag.
 
 **Rationale**: A page must not be indexable before the removal machinery (sitemap removal and IndexNow, 021 FR-074)
-exists. It is a two-way door and an ordering decision (owner question Q7).
+exists. The owner confirmed it on 2026-11-09 (spec Q7). 021 owes its removal: `021-FR-020a` makes removing it part of
+021 section C's done, and task P003A-01 carries it.
 
 ## R12. Photos
 

@@ -66,4 +66,5 @@ gateways parse them unchanged.
   `erased` or `unknown`. Identity maps `users.status`: `tombstoned` becomes `closed`. An id with no row is `unknown`.
 - Identity's `AuthMiddleware` exempts exactly this path. Its `PublicReaderGuard` checks the token.
 - recipe-service reads a timeout, an error, a missing entry or `unknown` as closed, and answers the public read `503`.
-- Only `active` opens. `erased` stays closed until the owner rules on donated recipes (spec Q8).
+- `active` opens. `erased` opens too, for a recipe the erasure left public, shown with no author (owner ruling
+  2026-11-09, spec Q8). `suspended`, `closed` and `unknown` close.

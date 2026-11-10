@@ -73,15 +73,18 @@ Validation:
 
 ## Author standing
 
-| Value       | Meaning                                                               |
-| ----------- | --------------------------------------------------------------------- |
-| `active`    | the owner can be shown                                                |
-| `suspended` | identity's `users.status = 'suspended'` (ADR-0081)                    |
-| `closed`    | identity's `users.status = 'tombstoned'`: the account is closed       |
-| `erased`    | the account is erased. Closed until the owner rules on donations (Q8) |
-| `unknown`   | no identity row, a timeout or an error. Reads as closed               |
+| Value       | Meaning                                                           |
+| ----------- | ----------------------------------------------------------------- |
+| `active`    | the owner can be shown                                            |
+| `suspended` | identity's `users.status = 'suspended'` (ADR-0081)                |
+| `closed`    | identity's `users.status = 'tombstoned'`: the account is closed   |
+| `erased`    | the account is erased. Opens a recipe left public at erasure (Q8) |
+| `unknown`   | no identity row, a timeout or an error. Reads as closed           |
 
-Only `active` opens. It is read on each origin miss and is not stored by recipe-service.
+`active` opens. `erased` also opens, because every public, published recipe of an erased author is one the erasure kept
+public, and the owner ruled those stay open with no author name (spec Q8). The projection then shows no author and never
+the pseudonymous handle, which embeds the user id. `suspended`, `closed` and `unknown` close. The standing is read on
+each origin miss and is not stored by recipe-service.
 
 ## Public recipe address
 
@@ -96,6 +99,13 @@ A Value Object with one pure parser, `parsePublicRecipePath`.
 A path that does not parse is not a public recipe address. The query string is ignored by the page and the cache, and
 read only by measurement (the share mark's presence).
 
+## Page language
+
+The language of the page's own words, chosen by the pure `publicPageLanguage` from `Accept-Language`: the first
+supported locale, else `en` (spec FR-015a). It is a member of the closed set of supported locales, never the raw header.
+It is part of the page's cache key, through the internal rewrite path `/publicRecipe/{lang}/{id}/{slug}`. The recipe's
+own text is never translated.
+
 ## Public-reader token
 
 A short-lived EdDSA JWT that recipe-service signs, with one audience for food and one for identity. The exact claims
@@ -103,5 +113,5 @@ are in [contracts/publicReaderToken.md](contracts/publicReaderToken.md). It name
 
 ## Pending action
 
-A value from a closed set, `saveCopy` or `rate`, carried as `?then=` in the sign-in return path `/{locale}/recipes/{id}`. Parsed like `?done=`. A value
+A value from a closed set, `save`, `saveCopy` or `rate`, carried as `?then=` in the sign-in return path `/{locale}/recipes/{id}`. Parsed like `?done=`. A value
 outside the set is ignored. Not stored on the device.

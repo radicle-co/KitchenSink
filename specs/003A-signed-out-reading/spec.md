@@ -3,8 +3,7 @@
 **Feature Branch**: `docs/im-spec003a` (single-branch directive. The spec directory is
 `specs/003A-signed-out-reading`. The owner named the feature 003A. It is not part of `003-usda-food-data`.)
 **Created**: 2026-11-09
-**Status**: Draft. Planned. Not built. Eight owner questions are open, each with a default (see "Open questions for the
-owner").
+**Status**: Draft. Planned. Not built. The owner answered all eight open questions on 2026-11-09 (see Clarifications).
 **Input**: Owner order, 2026-11-09: write the spec and the plan for signed-out reading of public recipes. Owner legal
 ruling, 2026-11-03 (ADR-0082): the facts of any dish (ingredients, amounts, times, yield, step order) are public and
 readable signed out. In the EU and UK, a per-site cap applies, counted over time.
@@ -69,7 +68,7 @@ ingredient as "not loaded".
 recipe opens before 020's hold is in the read rule (`021-FR-001`). It also rules that no recipe opens in full before its
 cook accepts the licence (`021-FR-002` rule 6). So 003A ships **dark**: every input it cannot read counts as closed, and every
 public address answers "not available" until 016 and 020 supply their readings. No code changes on the day they do.
-Open question Q1 asks the owner whether to light a facts-only form earlier.
+The owner confirmed on 2026-11-09 that it stays switched off until then (Clarifications, Q1).
 
 ### What this feature does
 
@@ -80,8 +79,8 @@ Open question Q1 asks the owner whether to light a facts-only form earlier.
 - It reads food names and nutrition for a public recipe without any user's credential.
 - It opens a shared link in the app on a phone with the app. Without the app, the link opens on the web
   (`021-FR-016`).
-- It invites a signed-out reader to sign up only after they tap "Save a copy" or "Rate", and brings them back to the
-  same recipe (`021-FR-050` to `021-FR-053`).
+- It invites a signed-out reader to sign up only after they tap an account action ("Save", "Save a copy" or "Rate"),
+  and brings them back to the same recipe (`021-FR-050` to `021-FR-053`).
 
 ### What this feature does NOT do
 
@@ -95,8 +94,8 @@ Open question Q1 asks the owner whether to light a facts-only form earlier.
   ignores it, except to count it.
 - It adds no creator page, chef directory, collection page, embed widget, licence panel, report form or takedown flow.
 - It adds no signed-out search, list, feed, bulk or export route (`021-FR-060`).
-- It adds no plain "Save". In 003A the signed-out actions are only the ones a signed-in reader has today: "Save a copy"
-  and "Rate this recipe" (FR-020).
+- It adds no new account action. A signed-out reader is offered the same actions a signed-in reader has: "Save" to a
+  collection, "Save a copy" and "Rate this recipe" (FR-020).
 
 ### Words used in this spec
 
@@ -187,43 +186,46 @@ cook beyond their public profile.
 **Why this priority**: A leak here is a privacy breach on the open web, and the cache spreads it.
 
 **Independent Test**: For each closed case, request the public address and the public endpoint. Each answer is the
-same not-available page and the same `404` body. No response carries an owner id, a private food, a rater, a comment or
-a version number.
+same not-available page and the same `404` body. No response carries an owner id, a private food, a rater or a version
+number.
 
 **Acceptance Scenarios**:
 
 1. **Given** any recipe that the open-to-web rule does not admit, or an id that never existed, or an id that is not a
    recipe id, **When** it is requested signed out, **Then** the answer is the one not-available answer (`021-FR-013`).
 2. **Given** any public form, **When** its response is inspected, **Then** it carries only `021-FR-070`'s fields. It
-   carries no owner id, no clone source id, no version number, no rater, no comment, no impact count and no other
-   recipe (FR-005).
+   carries no owner id, no clone source id, no version number, no rater, no impact count and no other recipe
+   (FR-005). A comment, once comments exist, carries its commenter's display name and no user id (FR-025).
 3. **Given** a public recipe, **When** its food data is read, **Then** no private food's name, nutrition or existence can
    appear. This holds when the data is wrong too (FR-009).
-4. **Given** an author whose standing is suspended, closed, erased or unknown, **When** their recipe is requested signed
-   out, **Then** it is not available (FR-012).
-5. **Given** a public read, **When** it is served, **Then** no `recipe_viewed` event names a user, and no rating by any
+4. **Given** an author whose standing is suspended, closed or unknown, **When** their recipe is requested signed out,
+   **Then** it is not available (FR-012).
+5. **Given** a recipe that stayed public when its cook erased their account, **When** it is requested signed out,
+   **Then** it is shown with no author name and no pseudonym (FR-012).
+6. **Given** a public read, **When** it is served, **Then** no `recipe_viewed` event names a user, and no rating by any
    user is shown (FR-005).
 
 ---
 
 ### User Story 4 - A signed-out reader taps an account action (Priority: P2)
 
-A signed-out reader taps "Save a copy" or "Rate this recipe". A sheet says what a free account gives, with sign up and
+A signed-out reader taps "Save", "Save a copy" or "Rate this recipe". A sheet says what a free account gives, with sign up and
 sign in side by side. It closes in one tap. After they sign up or sign in, they land back on the same recipe, and the
 action they tapped is offered again for one confirmation. It is never done silently.
 
 **Why this priority**: It turns a reader into a cook, honestly (021 US5). It comes after the read works.
 
-**Independent Test**: Signed out, tap "Save a copy". The sheet opens. Sign up. The same recipe shows with a confirmation
-that says the copy becomes the person's own draft. Confirm. A draft copy exists. Repeat and choose "Not now": no copy
-exists.
+**Independent Test**: Signed out, tap "Save". The sheet opens. Sign up. The same recipe shows with the app's normal
+Save to a collection, offered once. Choose a collection. The recipe is in it. Repeat with "Save a copy": a draft copy
+exists after the reader confirms, and none after "Not now".
 
 **Acceptance Scenarios**:
 
 1. **Given** a signed-out reader, **When** the page loads, **Then** it shows exactly two prompts: a small header control
    and one end card after the recipe. No modal, overlay, interstitial, countdown or fake limit appears
    (`021-FR-050`).
-2. **Given** a signed-out reader, **When** they tap "Save a copy" or "Rate this recipe", **Then** the sign-up sheet opens,
+2. **Given** a signed-out reader, **When** they tap "Save", "Save a copy" or "Rate this recipe", **Then** the sign-up
+   sheet opens,
    titled with the action they tapped, and lists only what an account gives today (`021-FR-051`, FR-020).
 3. **Given** the reader signs up or signs in from the sheet, **When** they return, **Then** they are on the same recipe
    through the app's parsed return path, and the action is offered once for confirmation (`021-FR-052`).
@@ -339,16 +341,46 @@ or local storage entry is written.
 - **The native app receives a link while the public view is already open.** It replaces the view with the new recipe.
 - **A link arrives while signed out and the person then signs in from the public view.** The app opens the recipe's
   normal screen after sign-in, with the pending action offered once (US4).
-- **A second locale ships later.** The public address has no locale (FR-015), so shared links keep working. Which
-  language the page's own words use then is open question Q3.
+- **A second locale ships later.** The public address has no locale (FR-015), so shared links keep working. The page's
+  own words follow the reader's browser language, with English as the fallback, and the recipe's text stays as the cook
+  wrote it (FR-015a).
+- **A search crawler reads the page.** Crawlers usually send no `Accept-Language` or send English, so the indexed copy
+  shows the English page words. That is accepted while there is one locale. 021's search work owns the question once
+  pages are indexable in more than one language (`021-FR-020a`).
 - **Previews (`pr-{N}`).** They have no CloudFront and no WAF, so no rate limit runs there. Every non-production public
   page sends `noindex` regardless (FR-017).
 
 ## Clarifications
 
-No clarification session ran. The spec makes informed defaults and records the decisions that only the owner can
-take under "Open questions for the owner". The 021 Sessions of 2026-10-27 to 2026-11-04 were read first, and nothing
-settled there is asked again.
+The 021 Sessions of 2026-10-27 to 2026-11-04 were read first, and nothing settled there was asked again.
+
+### Session 2026-11-09 (owner answers to the eight open questions)
+
+- **Q1. Light a form before 016 and 020 ship? → No.** It stays switched off until 016 and 020 ship (the default). The
+  facts-only option (I1) and its conditional plan unit are dropped.
+- **Q2. Are catalog food names public data? → No.** Catalog food names and nutrition are not ruled public. The signed
+  public-reader call stays (FR-009, research R2).
+- **Q3. The language of the page's own words → the reader's browser language.** The page's words (headings, buttons,
+  states) follow `Accept-Language`, with English as the fallback. The page cache varies by the language chosen, so the
+  cache key is now the path plus that language (FR-015, FR-015a). The address still has no locale.
+- **Q4. A rate-limit exemption from the web server to the API → allowed.** A secret header from the web server, rotated,
+  lifts only the API's per-address limit for page renders. It grants no read (FR-016).
+- **Q5. What "Save" means → no restriction.** The owner, 2026-11-09: no such restriction exists in code or specs. A
+  reader who signs in from a public page gets the app's normal "Save" to a collection, exactly as everywhere else, plus
+  "Save a copy" and "Rate" (FR-020). The earlier text that kept "Save" off the page, and its reason, are removed. No
+  private bookmark feature is planned.
+- **Q6. Comments on public pages → shown.** The owner, verbatim: "by commenting they are agreeing to leave their name
+  and words public - this is normal everywhere. If we need to, update the terms of service feature to make sure that is
+  noted." Comments render on the full public page with the commenter's display name (FR-025). The facts card stays
+  without comments (021 Session 2026-11-04). The terms say so (`016-FR-012c`). `021-FR-070` is amended to match.
+- **Q7. `noindex` until 021's search work → yes.** Every public page says `noindex` until 021 section C ships its
+  sitemap and its fast removal path. 021 MUST then remove it (`021-FR-020a`, FR-017).
+- **Q8. Recipes an erased cook left public → open, with no author name.** A recipe the cook chose to leave public at
+  erasure stays readable signed out, shown without the deleted author's name. `021-FR-002` rule 7 is amended for that
+  case only. Suspended and closed authors still close their recipes (FR-012). _Reading:_ the erasure keeps two kinds of
+  recipe public, the ones the cook elected to donate and the ones that were already public, and both carry the same
+  consent. This spec reads the ruling as covering both. If the owner meant donated recipes only, the erasure job's
+  stored election (`account_erasure_jobs.publish_recipe_ids`) tells them apart.
 
 ## Requirements _(mandatory)_
 
@@ -369,7 +401,7 @@ settled there is asked again.
   except where that feature's closed state cannot happen yet. The plan names the one such case (rule 8).
 - **FR-003**: Until 016 and 020 supply their readings, the rule MUST admit nothing. The feature ships dark. Lighting any
   form earlier is a change to the Specification itself, reviewed like any rule change, never a configuration switch
-  (open question Q1).
+  (owner ruling 2026-11-09, Q1).
 - **FR-004**: The rule MUST decide the public form: full, facts card, source card, or not available. Which fields each
   form carries is a separate decision (FR-005), tested separately.
 
@@ -406,9 +438,10 @@ settled there is asked again.
 - **FR-012**: The public read MUST know whether the recipe's owner is active. It MUST NOT trust a user's own token for
   another user (ADR-0081). A suspension, closure or erasure MUST take the recipe out within the purge bound. When the
   standing cannot be read, it MUST be `unknown`, and the recipe is not available. The plan chooses the source.
-  _Conflict found:_ account erasure lets a cook donate recipes, which stay public under a pseudonymous handle. Rule 7
-  says an erased author's recipe is not open. Until the owner rules (open question Q8), an erased author's recipes are
-  not available, which is the safe direction.
+  A recipe the cook left public when they erased their account is the one exception (owner ruling 2026-11-09, Q8,
+  amending `021-FR-002` rule 7): an `erased` standing does not close a public, published recipe. It is shown with no
+  author name and no pseudonym, because the pseudonymous handle the erasure writes carries the user id. Suspended,
+  closed and unknown standings still close the recipe.
 
 #### D. Caching, purge and rate limits
 
@@ -419,28 +452,36 @@ settled there is asked again.
 - **FR-014**: A redirect from a wrong slug to the right one MUST happen only for an open recipe. Otherwise the answer is
   not available, so no closed recipe's title leaks.
 - **FR-015**: The public address MUST be on `commise.app`, on its own route, with the recipe id and a readable slug, and
-  with no locale segment. The cache key MUST be the path alone (`021-FR-062`). The address is a one-way door.
+  with no locale segment. The address is a one-way door. The cache key MUST be the path plus the page language chosen
+  under FR-015a, and nothing else: never a query string, a cookie, the `Authorization` header or the raw
+  `Accept-Language` header (owner ruling 2026-11-09, Q3, amending `021-FR-062`).
+- **FR-015a**: The page's own words MUST be in the reader's browser language: the first supported locale in
+  `Accept-Language`, else English. The language is chosen from the closed set of supported locales, so the number of
+  cache entries per recipe is at most the number of locales. The recipe's own text is never translated. The response
+  MUST say `Vary: Accept-Language`. The native public view uses the app's own language setting.
 - **FR-016**: Signed-out traffic MUST be rate-limited per client address at the edge of each system that serves it: the
   web host and the API distribution (`021-FR-063`). It MUST NOT count against the per-user throttle, and it MUST NOT
   fall into a bucket that every signed-out reader shares. A rate-limit answer MUST NOT set a cookie or run a challenge
-  that sets one.
+  that sets one. The web server's page renders MAY carry a secret, rotated header that lifts only the API's
+  per-address limit and grants no read (owner ruling 2026-11-09, Q4).
 - **FR-017**: Every public page MUST say `noindex` until 021 section C ships, because a page must not be indexable before
-  the removal machinery (`021-FR-074`) exists. Every non-production public page MUST say `noindex` always. The page still
+  the removal machinery (`021-FR-074`) exists (owner ruling 2026-11-09, Q7). 021 MUST remove this `noindex` when its
+  sitemap and fast removal path ship (`021-FR-020a`). Each requirement names the other, so the two cannot drift. Every non-production public page MUST say `noindex` always. The page still
   carries its canonical link and its structured data (`021-FR-023`).
 
 #### E. Web and native surfaces
 
 - **FR-018**: The public web page MUST be rendered on the server, from the public read only. No browser MUST call the
-  public endpoint. The page and its route MUST be outside the sign-in middleware, so no session handshake or cookie can
-  reach the response. Signed-in extras MUST load after the page, and only for a visitor who already has a session.
+  public endpoint. The page and its route MUST be outside the Clerk sign-in middleware, so no session handshake or cookie
+  can reach the response. Only the language choice of FR-015a runs in front of it. Signed-in extras MUST load after the page, and only for a visitor who already has a session.
 - **FR-019**: The link association files MUST associate the public recipe route and nothing else (`021-FR-035`). The
   native app MUST open a public recipe link as the public view when signed out and as its own recipe screen when signed
   in. The public view MUST be a state of the auth gate that exists only with its link, so the gate still has no landing
   state (`001-FR-045a`).
-- **FR-020**: The signed-out account actions MUST be exactly the ones a signed-in reader has today on another cook's
-  public recipe: "Save a copy" and "Rate this recipe". The page and the sheet MUST NOT show or promise an action that
-  does not exist. "Save" alone MUST NOT appear, and a save MUST NOT add the recipe to a collection, because a free
-  cook's collection is public (open question Q5).
+- **FR-020**: The signed-out account actions MUST be the ones a signed-in reader has on another cook's public recipe:
+  "Save" (the app's normal save to a collection), "Save a copy" and "Rate this recipe" (owner ruling 2026-11-09, Q5).
+  After sign-in, each behaves exactly as it does everywhere else in the app. The page and the sheet MUST NOT show or
+  promise an action that does not exist yet, such as "Start cooking" or "Add to plan".
 - **FR-021**: The pending action MUST travel in the parsed return path as one value from a closed set. A value outside
   the set MUST do nothing. The action MUST NOT be stored on the device.
 - **FR-022**: Measurement MUST follow `021-FR-080` to `021-FR-083`, with nothing stored on the visitor's device and no
@@ -449,8 +490,11 @@ settled there is asked again.
   copy and a localisation key: loading (native), full, facts card, source card, not available, food data partly
   unavailable, offline (native), unavailable, rate-limited, the owner note and the signed-in visitor.
 - **FR-024**: Cook marks on a public page or view MUST be kept in memory only.
-- **FR-025**: Comments MUST NOT appear on a public page or view, because they name the people who wrote them
-  (`021-FR-070`). Open question Q6 asks the owner to confirm.
+- **FR-025**: Comments MUST appear on the full public page and the public view, each with its commenter's display name,
+  the same as a signed-in reader sees them (owner ruling 2026-11-09, Q6, amending `021-FR-070`). A comment carries no
+  user id. A facts card shows no comments (021 Session 2026-11-04). Comments are not built yet: the public form gains
+  them, picked from the comments schema, in the same release that ships comments. The terms say a comment on a public
+  recipe is public (`016-FR-012c`).
 - **FR-026**: A public photo MUST be a derived image with its metadata stripped (`021-FR-071`). Until a stripped
   full-size image exists, the public forms carry the thumbnail only, and a photo with no thumbnail is left out. The
   original upload MUST never be served, because it can carry GPS data.
@@ -516,9 +560,7 @@ native public view shows the offline state with Try again. The web page is serve
 - The web app is served by Vercel and the recipe API by CloudFront in production only (ADR-0020). Previews have neither
   CloudFront nor WAF.
 - One locale (`en`) ships today.
-- A free cook's collections are public by default, which is why a signed-out "Save" must not touch a collection.
-- Today's signed-in reader actions on another cook's public recipe are "Save a copy" and "Rate this recipe". "Start
-  cooking" and "Add to plan" wait for 008 and 006.
+- "Start cooking" and "Add to plan" wait for 008 and 006, so they are not offered.
 - The plan prices the edge rules and rendering with `cfo-1` (`021-FR-066`). This spec states no cost figures.
 
 ## Out of Scope
@@ -527,39 +569,9 @@ native public view shows the offline state with Try again. The web page is serve
   creator pages, the chef directory, collections, the embed widget, the share action and share marks (021 US2).
 - The producers of the hold (020), the rights label and the licence acceptance (016), the per-source cap and the
   aggregator list (`021-FR-014e`), and the public domain record (`021-FR-006`).
-- A private "Save" bookmark (open question Q5).
 - Any signed-out list, search, feed, bulk or export route (`021-FR-060`).
 
 ## Open questions for the owner
 
-Each has a default the plan builds, so none blocks the build.
-
-- **Q1. Light a form before 016 and 020 ship?** 021 FR-001 (your 2026-11-03 ruling) says nothing opens before the hold
-  is in the read rule, and 021 FR-002 rule 6 says nothing opens in full before the cook accepts the licence. Options:
-  (I0) ship dark until both land. This is the default. (I1) open a facts-only form for recipes a cook wrote in the
-  editor: title, servings, times, step count, our nutrition, rating, and the ingredients with amounts, with no photo, no
-  description and no step text. Facts need no licence (ADR-0082), so this waives only the hold for facts. (I2) open
-  the full page for recipes written in the editor. Not recommended: it puts cooks' words on the open web under terms
-  they never accepted, and a recipe pasted into the editor is "written in the editor" too.
-- **Q2. Are catalog food names public data?** If yes, food can serve a credential-free read of catalog and promoted
-  foods, and recipe-service does not need to sign a token (plan, research R2). The default keeps food closed to
-  strangers and adds the signed public-reader call.
-- **Q3. The public address and its language.** The default is `https://commise.app/recipe/{id}/{slug}`, with no locale,
-  so a link never changes when a second locale ships. Which language do the page's own words use then: the
-  reader's browser language, or the recipe's?
-- **Q4. A rate-limit exemption from the web server to the API.** Vercel's server fetches come from shared addresses. The
-  default sends a header that lifts only the API's per-address limit and grants no read. Is that within your FR-106
-  rule against a machine credential on the web tier, or must the web server live with the limit? What "no" costs: the
-  page renders then share the WAF's per-address buckets, so the API limit must be set high enough for all of Vercel's
-  renders together. That limit then also applies to each phone, which makes the native limit much weaker.
-- **Q5. What "Save" means.** In 003A there is no plain "Save", only "Save a copy" (a draft the reader owns) and "Rate".
-  The UX recommendation for later is a private bookmark: always private, uses no slot, shows "No longer available" if
-  the cook removes the recipe. It is a new entity and a one-way door, so it needs your ruling.
-- **Q6. Comments on the full public page.** The facts card already shows none (Session 2026-11-04). The default hides
-  them on the full page too, because they name the people who wrote them. Confirm.
-- **Q7. `noindex` until 021 section C.** The default keeps every public page out of search until the removal machinery
-  exists. Your 2026-11-03 ruling makes pages indexable; this only orders the two. Confirm.
-- **Q8. Recipes an erased cook donated.** The erasure flow lets a cook donate recipes, which stay public under a
-  pseudonymous handle. 021 FR-002 rule 7 says a recipe whose owner is erased is not open. The two conflict. The default
-  keeps donated recipes off the open web until you rule. Options: (a) donated recipes are open, and rule 7 reads
-  "erased with donation" as active, or (b) donated recipes stay readable only to signed-in readers.
+None. The owner answered all eight on 2026-11-09. The answers are recorded under Clarifications, Session
+2026-11-09.

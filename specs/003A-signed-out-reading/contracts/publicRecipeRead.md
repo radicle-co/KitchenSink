@@ -107,6 +107,15 @@ provenance, `foodId`, `impact`, `viewerRating`, raters, comments, collections an
 carries `displayText`, `note`, `preparation`, `description`, step text or a source photo (`021-FR-014b`). The
 allowlist tests fail when any other key appears.
 
+**No author for an erased cook.** A recipe whose author standing is `erased` carries no author field and never the
+pseudonymous handle `user_{ULID}`, which embeds the user id (spec FR-012, owner ruling Q8). No creator field is
+projected for anyone until 012's creator profiles ship.
+
+**Comments (owner ruling 2026-11-09, spec Q6).** Comments are not built yet. In the release that ships them,
+`PublicFull` gains `comments`, picked from the comments schema: each comment's text, its date and its commenter's
+display name, never a user id (spec FR-025). A facts card never carries comments. Adding the field is growth of the
+contract, which this contract allows.
+
 **Clients**: web and native switch exhaustively over `form`.
 
 ## Client

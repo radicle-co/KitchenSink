@@ -51,7 +51,7 @@ npm run test:e2e:web
 npm run test:e2e:mobile
 ```
 
-Expected, web: a public address answers with no `Set-Cookie`, the same bytes with and without a session, `noindex` on
+Expected, web: a public address answers with `Vary: Accept-Language` and no `Set-Cookie`, the same bytes with and without a session, `noindex` on
 a preview, and the not-available page for a private recipe. Expected, native: a tapped public link opens the public
 view signed out, Close lands on sign-in, and signed in it opens the recipe screen.
 

@@ -5,6 +5,9 @@ so the template was copied by hand. `.specify/feature.json` pointed at this dire
 was put back before the commit.) | **Date**: 2026-11-09 | **Spec**: [spec.md](spec.md)
 **Input**: Feature specification from `specs/003A-signed-out-reading/spec.md`
 
+**Owner answers**: all eight of the spec's questions were answered on 2026-11-09 and are applied here (spec,
+Clarifications, Session 2026-11-09).
+
 **Staff runs**: `staff-architect` PLANNING then BLUEPRINT, and `staff-ux-engineer` DISCOVER then DESIGN, all on
 2026-11-09. `staff-ux-engineer` SPECIFY is owed before any UI is built, and `staff-architect` REVIEW per unit after.
 
@@ -22,7 +25,8 @@ Build the whole signed-out read path for one public recipe, on web and native, a
 - For the author's standing, recipe-service asks a new identity internal route with the same token type and its own
   audience. No answer is `unknown`, and `unknown` is closed.
 - The web renders `https://commise.app/recipe/{id}/{slug}` on the server with classic ISR: `revalidate = 60` and
-  `expireTime: 300`. The route has its own root layout with no Clerk provider, so it sets no cookie. The native app
+  `expireTime: 300`. The route has its own root layout with no Clerk provider, so it sets no cookie. The page's own
+  words follow the browser language, and the cache key is the path plus that language. The native app
   opens the same link as a public view when signed out.
 - Rate limits sit at the edge of both systems: Vercel Firewall for pages, an AWS WAF web ACL on the recipe distribution
   for the API.
@@ -69,19 +73,19 @@ Re-checked after Phase 1: unchanged. Two deviations are argued under Complexity 
 
 Each is argued in [research.md](research.md), with the rejected alternatives and the flip condition.
 
-| #   | Decision                                                                                                  | Research | One-way door?                      |
-| --- | --------------------------------------------------------------------------------------------------------- | -------- | ---------------------------------- |
-| D1  | Public endpoint, always `no-store`. The web page is the one cache: classic ISR, forgotten within 300 s    | R1, R5   | No                                 |
-| D2  | recipe-signed EdDSA token. Two food internal routes that copy their public twins. No hold                 | R2, R13  | Yes: issuer, audiences, key        |
-| D3  | `openToWeb` = `contentOpen` and `authorActive`, with required readings. Ship dark (I0). SQL form deferred | R3       | No                                 |
-| D4  | Author standing from identity on each origin miss, behind a port, fail closed                             | R4       | Yes: the internal route's contract |
-| D5  | Per-address limits at Vercel and at a WAF on the recipe distribution. `@SkipThrottle` at the origin       | R6       | No                                 |
-| D6  | No browser calls the endpoint. CORS unchanged                                                             | R7       | No                                 |
-| D7  | `/recipe/{id}/{slug}`, no locale. Association files for `/recipe/*` only. Native gate state               | R8       | Yes: the address and the files     |
-| D8  | Signed-out actions are "Save a copy" and "Rate" only. The return goes to the in-app address with `?then=` | R8, R9   | No                                 |
-| D9  | Direction A, with the facts card's method card                                                            | R10      | No                                 |
-| D10 | `noindex` until 021 section C                                                                             | R11      | No                                 |
-| D11 | Thumbnails only on public forms                                                                           | R12      | No                                 |
+| #   | Decision                                                                                                                                                                                      | Research | One-way door?                                 |
+| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | --------------------------------------------- |
+| D1  | Public endpoint, always `no-store`. The web page is the one cache: classic ISR, forgotten within 300 s                                                                                        | R1, R5   | No                                            |
+| D2  | recipe-signed EdDSA token. Two food internal routes that copy their public twins. No hold                                                                                                     | R2, R13  | Yes: issuer, audiences, key                   |
+| D3  | `openToWeb` = `contentOpen` and `authorActive`, with required readings. Ship dark until 016 and 020 ship (owner, Q1). SQL form deferred                                                       | R3       | No                                            |
+| D4  | Author standing from identity on each origin miss, behind a port, fail closed                                                                                                                 | R4       | Yes: the internal route's contract            |
+| D5  | Per-address limits at Vercel and at a WAF on the recipe distribution. `@SkipThrottle` at the origin                                                                                           | R6       | No                                            |
+| D6  | No browser calls the endpoint. CORS unchanged                                                                                                                                                 | R7       | No                                            |
+| D7  | `/recipe/{id}/{slug}`, no locale. Page words in the browser language, and the cache key is the path plus that language (owner, Q3). Association files for `/recipe/*` only. Native gate state | R8       | Yes: the address, the cache key and the files |
+| D8  | Signed-out actions are "Save" to a collection, "Save a copy" and "Rate", the same as signed in (owner, Q5). The return goes to the in-app address with `?then=`                               | R8, R9   | No                                            |
+| D9  | Direction A, with the facts card's method card                                                                                                                                                | R10      | No                                            |
+| D10 | `noindex` until 021 section C                                                                                                                                                                 | R11      | No                                            |
+| D11 | Thumbnails only on public forms                                                                                                                                                               | R12      | No                                            |
 
 **Where the plan departs from the spec or from 021**, each recorded in the spec too:
 
@@ -89,7 +93,8 @@ Each is argued in [research.md](research.md), with the rejected alternatives and
 - **A failed read renders, it never throws** (spec FR-008). This is stricter than `021-FR-065`, which allows a stale
   copy for up to an hour.
 - **The API is never cached** (spec FR-013). Only the page is.
-- **Erased authors stay closed** until the owner rules on donated recipes (spec FR-012, Q8).
+- **A recipe left public at erasure stays open, with no author name** (spec FR-012, owner ruling Q8). `021-FR-002`
+  rule 7 is amended for that case.
 
 ## One-way doors
 
@@ -99,11 +104,11 @@ Each is argued in [research.md](research.md), with the rejected alternatives and
   file at its CDN.
 - **The `PublicRecipeView` wire contract**, parsed by native builds in the wild.
 - **The token contracts**: the issuer and the two audiences, the algorithm, the key, and the three internal routes.
-- **The cache key**: the path alone.
+- **The cache key**: the path plus the page language from the closed set of supported locales (owner ruling Q3).
 - **The CloudFront behaviour path and the WAF association** on the recipe distribution.
 
-Two-way doors: the cache durations, the rate thresholds, I0 against I1, `noindex` until 021 section C, and the
-rate-exemption header (U8).
+Two-way doors: the cache durations, the rate thresholds, and `noindex` until 021 section C (which `021-FR-020a` owes
+the removal of).
 
 ## Pattern Register
 
@@ -158,7 +163,7 @@ New (N) and changed (C) files, by package. Names are checked against `docs/CODIN
 packages/services/recipe-service/
   src/publicRead/domain/openToWebInputs.ts            N  reading types
   src/publicRead/domain/openToWebSpecification.ts     N  contentOpen, authorActive, openToWeb
-  src/publicRead/domain/pendingReadings.ts            N  I0 producers: unknown, and moderation fixed at none
+  src/publicRead/domain/pendingReadings.ts            N  dark-build producers: unknown, and moderation fixed at none
   src/publicRead/domain/authorStandingPort.ts         N
   src/publicRead/domain/publicRecipeProjection.ts     N  pure projection per form
   src/publicRead/authorStanding.gateway.ts            N  identity adapter, fails closed
@@ -204,23 +209,24 @@ packages/infra/global/
   lib/platform/EdgeStack.ts                           C  recipe-only behaviour, WAF web ACL
 packages/apps/commise/features/recipes/src/public/
   publicRecipePath.ts                                 N  Value Object, shared by web and native
-  publicReturnAction.ts                               N  saveCopy | rate
+  publicReturnAction.ts                               N  save | saveCopy | rate
   publicDetailModel.ts                                N  Adapter to the detail sections
   PublicRecipeBody.tsx, .native.tsx                   N
   PublicNotAvailable.tsx, .native.tsx                 N
   PublicSignUpSheet.tsx, .native.tsx                  N
 packages/apps/commise/i18n                            C  publicRecipe.* keys
 packages/apps/commise/web/
-  src/app/recipe/layout.tsx                           N  root layout, no ClerkProvider
-  src/app/recipe/[id]/[[...slug]]/page.tsx            N  ISR, no searchParams, cookies or headers
-  src/app/recipe/[id]/[[...slug]]/not-found.tsx       N
+  src/app/publicRecipe/layout.tsx                     N  root layout, no ClerkProvider, html lang = page language
+  src/app/publicRecipe/[lang]/[id]/[[...slug]]/page.tsx  N  ISR, no searchParams, cookies or headers
+  src/app/publicRecipe/[lang]/[id]/[[...slug]]/not-found.tsx  N
+  src/lib/publicPageLanguage.ts                       N  pure: Accept-Language to a supported locale, else en
   src/app/.well-known/apple-app-site-association/route.ts  N
   src/app/.well-known/assetlinks.json/route.ts        N
   src/lib/appLinks.ts                                 N  pure
   src/lib/publicRecipeLoader.ts                       N
   src/components/publicRecipe/SignedInLayer.tsx       N  React.lazy
-  src/middleware.ts                                   C  excludes /recipe/ and /.well-known/
-  next.config.ts                                      C  expireTime 300, X-Robots-Tag noindex on /recipe/*
+  src/middleware.ts                                   C  /recipe/*: language rewrite, never Clerk. /.well-known/ excluded
+  next.config.ts                                      C  expireTime 300, X-Robots-Tag noindex and Vary: Accept-Language on /recipe/*
   src/app/[locale]/recipes/[id]/page.tsx             C  signed-out: public read 200 → /recipe/{id}/{slug}, else sign-in
   src/app/appDocument.tsx                             C  a document shell variant without ClerkProvider
 packages/apps/commise/mobile/
@@ -238,31 +244,38 @@ packages/tools/repoGuards/__tests__/
 **Structure Decision**: no new workspace. Each new file sits in the domain folder of the service or app that owns it.
 The mobile `screens/` layout and the `features-recipes` export map were not checked by BLUEPRINT and are checked at the
 start of U7. Checked after BLUEPRINT: the web app has no `app/layout.tsx`. `[locale]/layout.tsx` is a root layout that
-mounts `ClerkProvider` through `appDocument.tsx`. So `app/recipe/layout.tsx` is a second root layout with no Clerk, and
+mounts `ClerkProvider` through `appDocument.tsx`. So the public route can be a second root layout with no Clerk, and
 no route group is needed. `requireSignedIn.ts` does not change. Only the recipe detail page changes (spec FR-027).
+
+**The page language (owner ruling Q3).** The middleware handles `/recipe/*` first and never hands it to
+`clerkMiddleware`. It picks the page language with the pure `publicPageLanguage` (the first supported locale in
+`Accept-Language`, else `en`) and rewrites, not redirects, `/recipe/{id}/{slug}` to the internal
+`/publicRecipe/{lang}/{id}/{slug}`. The ISR cache key is that internal path, so it is the public path plus the language,
+and a raw header never splits the cache. A direct request for `/publicRecipe/*` answers the not-available page. The
+response sends `Vary: Accept-Language` so a cache outside Vercel keys the same way. Today there is one locale, so each
+recipe has one cache entry.
 
 ## Build Order
 
 Each unit is test-first (CLAUDE.md, TEST-FIRST IS LAW). Write the failing tests in every tier named, watch them fail,
 then write the code. Each unit leaves the tree green and the feature dark.
 
-| Unit                 | Content                                                                                                  | Failing tests first                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| -------------------- | -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **U0**               | Reading types, `pendingReadings`, the `openToWeb` composite, and the `Viewer` union with every call site | **Unit**: every `021-FR-002` rule closes on its own. Each `unknown` closes. I0 gives `notAvailable` for every row. `contentOpen` runs before `authorActive`. A type test (`expectTypeOf`) shows that dropping an input fails to compile. **Integration**: the existing visibility call sites keep their behaviour                                                                                                                                                                                                                                                                                                                                |
-| **U1**               | Token contracts, `PublicReaderKeyStack` and its provisioner, the signer                                  | **Unit**: claims built and parsed, the 120 s cap, `kid`. **Infra synth**: the secret is not in the template, the SSM outputs exist, the provisioner is not in the VPC                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| **U2**               | Food internal routes and the `publicReader` audience                                                     | **Unit**: the verifier refuses a wrong `iss`, `aud`, `alg` or `sub`, an expired token, and a window over 120 s. `marksRealHold(publicReader)` is `false`. **Integration (mocked)**: a private food is `absent`. No hold is written. `no-store`. No `/v1` alias. **LOCAL e2e**: against Postgres, a test-picked root stays unheld after a public read                                                                                                                                                                                                                                                                                             |
-| **U3**               | Identity standing route                                                                                  | **Unit**: the verifier, as U2. The status mapping is total. **Integration (mocked)**: an unknown id is `unknown`. More than 24 ids is `400`. The middleware exempts exactly this path. **LOCAL e2e**: the DAO returns each of the four statuses                                                                                                                                                                                                                                                                                                                                                                                                  |
-| **U4**               | The recipe public endpoint                                                                               | **Unit**: each form's allowlist, failing on any forbidden key. Thumbnails only. No remote call when `contentOpen` closes. Identity or food down gives `503`. **Integration**: the same bytes with and without `Authorization`. One `404` for malformed, private, draft, deleted and missing ids. `no-store`. No analytics. Signer-to-verifier round trips with the real food and identity verifiers. **LOCAL e2e**: real row reads. **DEPLOYED e2e** (`publicRecipe.e2e.test.ts`): every seeded recipe answers `404`, a forged or missing internal token answers `401`, and `/v1/public/…` answers `404`. **k6** (manual): `publicRecipeRead.js` |
-| **U5**               | CloudFront behaviour and WAF (production)                                                                | **Synth**: the guards under "Guards". **Production only**: a run past the limit gets `429` with `Retry-After`. The same bytes with and without a token                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| **U6**               | Web public page, association files, middleware, the open-only redirect from the in-app address           | **Component**: every FR-023 state from fixtures, including `full` and `factsCard`, which I0 cannot reach. **Page test**: the page reads no `searchParams`, cookies or headers. **Unit**: `appLinks.ts`, `publicRecipePath.ts`. **Playwright** (`publicRecipe.spec.ts`, on a preview): one `404` page, no `Set-Cookie`, an empty cookie jar, `Cache-Control: s-maxage=60, stale-while-revalidate=240`, `noindex`, and the association files `200` JSON with no redirect where configured. A signed-out visitor at the in-app address of a public recipe lands on sign-in, signs in, and sees the recipe (FR-027)                                  |
-| **U7**               | Native gate, public view and links                                                                       | **Component**: the gate's transitions and every screen state. **Unit**: the parser shared with web. **Maestro**: `publicRecipeLinkSignedOut.yaml` (link, not-available view, close, sign-in) and `publicRecipeLinkSignedIn.yaml`                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| **U8** (removable)   | The Vercel rate-exemption header (spec Q4)                                                               | **Unit and synth**: one environment value, one header in `publicRecipeLoader`, one WAF scope-down statement. Removing it is three lines                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| **U9**               | Sign-up sheet and return                                                                                 | **Component**: the sheet's contents, its focus order and closing. The confirmation is offered once. A forged `then` does nothing. **Unit**: `publicReturnAction.ts`. **Playwright and Maestro**: the return flow from the in-app address, signed in, with `?then=saveCopy`                                                                                                                                                                                                                                                                                                                                                                       |
-| **U10**              | Measurement (`021-FR-080` to `021-FR-083`), web and native                                               | **Unit**: the referrer class is a closed set. The share mark's presence is read without loosening `analyticsRedaction.ts`. **Playwright**: a page view writes nothing to cookies or storage. **Native**: unit and integration show the public view emits the same closed-set event and writes nothing to device storage. No Maestro flow, because measurement has no screen behaviour for a flow to see                                                                                                                                                                                                                                          |
-| **U-I1** (on ruling) | Facts-only form for editor-written recipes (spec Q1)                                                     | A code change and a new ADR, never a switch. **Unit**: `user_created` gives `factsCard` with no photo or prose, and every other source stays closed. Playwright and Maestro open-page flows become possible                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| Unit    | Content                                                                                                          | Failing tests first                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| ------- | ---------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **U0**  | Reading types, `pendingReadings`, the `openToWeb` composite, and the `Viewer` union with every call site         | **Unit**: every `021-FR-002` rule closes on its own. Each `unknown` closes. The dark build gives `notAvailable` for every row. An `erased` standing passes `authorActive` and `suspended`, `closed` and `unknown` fail it. `contentOpen` runs before `authorActive`. A type test (`expectTypeOf`) shows that dropping an input fails to compile. **Integration**: the existing visibility call sites keep their behaviour                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| **U1**  | Token contracts, `PublicReaderKeyStack` and its provisioner, the signer                                          | **Unit**: claims built and parsed, the 120 s cap, `kid`. **Infra synth**: the secret is not in the template, the SSM outputs exist, the provisioner is not in the VPC                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| **U2**  | Food internal routes and the `publicReader` audience                                                             | **Unit**: the verifier refuses a wrong `iss`, `aud`, `alg` or `sub`, an expired token, and a window over 120 s. `marksRealHold(publicReader)` is `false`. **Integration (mocked)**: a private food is `absent`. No hold is written. `no-store`. No `/v1` alias. **LOCAL e2e**: against Postgres, a test-picked root stays unheld after a public read                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| **U3**  | Identity standing route                                                                                          | **Unit**: the verifier, as U2. The status mapping is total. **Integration (mocked)**: an unknown id is `unknown`. More than 24 ids is `400`. The middleware exempts exactly this path. **LOCAL e2e**: the DAO returns each of the four statuses                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| **U4**  | The recipe public endpoint                                                                                       | **Unit**: each form's allowlist, failing on any forbidden key. Thumbnails only. No remote call when `contentOpen` closes. Identity or food down gives `503`. A recipe whose author is `erased` projects no author and no pseudonym. **Integration**: the same bytes with and without `Authorization`. One `404` for malformed, private, draft, deleted and missing ids. `no-store`. No analytics. Signer-to-verifier round trips with the real food and identity verifiers. **LOCAL e2e**: real row reads. **DEPLOYED e2e** (`publicRecipe.e2e.test.ts`): every seeded recipe answers `404`, a forged or missing internal token answers `401`, and `/v1/public/…` answers `404`. **k6** (manual): `publicRecipeRead.js`                                                                                                                                                                                                   |
+| **U5**  | CloudFront behaviour and WAF (production)                                                                        | **Synth**: the guards under "Guards". **Production only**: a run past the limit gets `429` with `Retry-After`. The same bytes with and without a token                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| **U6**  | Web public page, language rewrite, association files, middleware, the open-only redirect from the in-app address | **Component**: every FR-023 state from fixtures, including `full` and `factsCard`, which the dark build cannot reach. **Page test**: the page reads no `searchParams`, cookies or headers. **Unit**: `appLinks.ts`, `publicRecipePath.ts`, `publicPageLanguage.ts` (quality values, unsupported tags, an empty or missing header all resolve to a supported locale), and the middleware sends `/recipe/*` to the rewrite and never to Clerk, and answers a direct `/publicRecipe/*` request with not-available. **Playwright** (`publicRecipe.spec.ts`, on a preview): one `404` page, no `Set-Cookie`, an empty cookie jar, `Cache-Control: s-maxage=60, stale-while-revalidate=240`, `Vary: Accept-Language`, `noindex`, the association files `200` JSON with no redirect where configured, and a signed-out visitor at the in-app address of a public recipe lands on sign-in, signs in, and sees the recipe (FR-027) |
+| **U7**  | Native gate, public view and links                                                                               | **Component**: the gate's transitions and every screen state. **Unit**: the parser shared with web. **Maestro**: `publicRecipeLinkSignedOut.yaml` (link, not-available view, close, sign-in) and `publicRecipeLinkSignedIn.yaml`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| **U8**  | The web server's rate-exemption header (owner ruling Q4)                                                         | **Unit and synth**: one secret in the web host's environment, one header in `publicRecipeLoader`, one WAF scope-down statement that matches the current and the previous value, so the secret rotates with no failed render. The runbook step: add the new value to the WAF rule, then the web host, then remove the old one                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| **U9**  | Sign-up sheet and return                                                                                         | **Component**: the sheet's contents, its focus order and closing. The returned action is offered once. A forged `then` does nothing. **Unit**: `publicReturnAction.ts` (`save`, `saveCopy`, `rate`). **Playwright and Maestro**: the return flow from the in-app address, signed in, with `?then=save` (the app's normal save to a collection) and `?then=saveCopy`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| **U10** | Measurement (`021-FR-080` to `021-FR-083`), web and native                                                       | **Unit**: the referrer class is a closed set. The share mark's presence is read without loosening `analyticsRedaction.ts`. **Playwright**: a page view writes nothing to cookies or storage. **Native**: unit and integration show the public view emits the same closed-set event and writes nothing to device storage. No Maestro flow, because measurement has no screen behaviour for a flow to see                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 
 **What the dark build reaches.** `contentOpen` closes before any remote call, so U2, U3 and the signing key carry no
-production traffic until 016 and 020 ship (or until I1). Their positive path is proven by LOCAL e2e and the
+production traffic until 016 and 020 ship. Their positive path is proven by LOCAL e2e and the
 cross-package integration tests. Their deployed checks are negative only. A positive deployed test is owed on the day
 the first gate opens. e2e uses no fakes, so Playwright and Maestro cannot show an open page while the feature is dark.
 
@@ -294,7 +307,9 @@ ADR-0040 are not edited, because `adrHygiene` forbids editing an accepted ADR. T
     - author standing as a synchronous identity read behind a port, with ADR-0081's reasoning separated from this case;
     - a recipe-only passthrough and a WAF (amends ADR-0020 §1 and §2);
     - the fail-closed readings of the dark build;
-    - the removable rate-exemption header, which grants no read and so is not `021-FR-106`'s credential.
+    - the rotated rate-exemption header (owner ruling Q4), which grants no read and so is not `021-FR-106`'s credential;
+    - the page language and the cache key that varies by it (owner ruling Q3, amends `021-FR-062`);
+    - an `erased` author standing opens a recipe left public at erasure, shown with no author (owner ruling Q8).
 3. **Alternatives**: CDN snapshots, a public food read, Clerk M2M, names stored at publish (and from the version
    snapshot), `cacheComponents`, and a status read model.
 4. **Consequences**: previews have no WAF. The SQL form is owed. The push-fed standing is owed with IndexNow. The full
@@ -328,7 +343,11 @@ a recipe on a deployed stage is refused, because it is also a way to open one in
 - **Scraping by id.** UUIDs and the per-address limits. The sitemap stays the only list.
 - **A leaked signing key.** It reveals non-private food names and author standings by id. Rotate with the verifiers'
   two-key window.
-- **A leaked exemption header.** It lifts the API limit only. The Vercel limit still applies.
+- **A leaked exemption header.** It lifts the API limit only. The Vercel limit still applies, and the secret rotates.
+- **A cache split by language.** The key uses the chosen locale from a closed set, never the raw header, so the number
+  of entries per recipe is bounded by the number of locales.
+- **Search crawlers see English words.** Crawlers send English or no `Accept-Language`. Accepted while there is one
+  locale. 021's search work owns it once pages are indexable (`021-FR-020a`).
 - **A cookie on a signed-out visit.** The route has no Clerk provider and is outside the Clerk middleware. Playwright
   checks the cookie jar. It is assumed, not verified, that clerk-js sets a cookie when it loads for a signed-out
   visitor, which is why it never loads there.
@@ -337,16 +356,15 @@ a recipe on a deployed stage is refused, because it is also a way to open one in
 
 ## Owed before build
 
-- `staff-ux-engineer` SPECIFY for every FR-023 state, on phone, tablet and desktop, web and native, including the I0
-  not-available and unavailable states.
+- `staff-ux-engineer` SPECIFY for every FR-023 state, on phone, tablet and desktop, web and native, including the
+  not-available and unavailable states, and the comments list on the full page once comments ship (FR-025).
 - `cfo-1` prices the WAF, the Vercel Firewall rule and the rendering (`021-FR-066`).
 - `ts-1` writes the tracking plan for U10.
 - `sec-aud-1` reviews the tokens, the WAF and the cookie behaviour.
-- Owner answers to the spec's open questions. Each has a default, so none blocks the dark build.
 
 ## Open questions for the owner
 
-See the spec, "Open questions for the owner" (Q1 to Q8).
+None. The owner answered all eight on 2026-11-09 (spec, Clarifications).
 
 ## Complexity Tracking
 

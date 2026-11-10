@@ -549,8 +549,8 @@ The first delivery slice of 021: one public recipe, read signed out, on web and 
 that are easy to get wrong:
 
 - **It ships dark on purpose.** Every input of the open-to-web rule is a required reading, and the ones 016 and 020
-  own read `unknown`, which is closed. Do not "light" it with a switch or a test-only door. Lighting it early is an
-  owner ruling (spec Q1) and a change to the Specification.
+  own read `unknown`, which is closed. Do not "light" it with a switch or a test-only door. The owner ruled on 2026-11-09
+  that it stays dark until 016 and 020 ship.
 - **The web page is the only cache.** Classic ISR with `expireTime: 300`, and the API is always `no-store`. Do not turn
   on `cacheComponents` for it: its default `expire` is a year.
 - **A public read holds no catalog root** (ADR-0040's `publicReader` audience). The food and identity calls use a

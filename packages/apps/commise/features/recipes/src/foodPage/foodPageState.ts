@@ -64,8 +64,9 @@ export type FoodPageState =
  * @returns Exactly one state.
  */
 export function foodPageStateOf({ read, request, online }: FoodPageInput): FoodPageState {
+    // Offline, the app's `offlineFirst` read fails once and parks its retry, so it stays pending: that is state 4 too.
     if (read.phase === 'pending') {
-        return { kind: 'loading' };
+        return online ? { kind: 'loading' } : { kind: 'offline' };
     }
 
     if (read.phase === 'error') {
@@ -90,5 +91,6 @@ export function foodPageStateOf({ read, request, online }: FoodPageInput): FoodP
     // A withdrawn food has no actions, so there is nothing for a missing connection to disable.
     const actionsDisabled = !online && word !== 'withdrawn';
 
-    return { kind: word, food, request, actionsDisabled } as FoodPageState;
+    // No cast: each `publicationState` value must name an `OwnFoodState` member, so a new one fails to compile here.
+    return { kind: word, food, request, actionsDisabled };
 }

@@ -82,7 +82,7 @@ export const IngredientLineEditor: FC<IngredientLineEditorProps> = ({ view, inde
             </YStack>
             <XStack
                 flexDirection={stacked ? 'column' : 'row'}
-                flexWrap="wrap"
+                flexWrap={stacked ? 'nowrap' : 'wrap'}
                 alignItems={stacked ? 'stretch' : 'flex-end'}
                 columnGap="$3"
                 rowGap="$4"

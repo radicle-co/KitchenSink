@@ -18,8 +18,8 @@
  * ⛔ NOR DOES ITS PRODUCTION SOURCE READ CONNECTIVITY. `@commise/query`'s `useIsOffline` is the one reader of TanStack's
  * `onlineManager`, and a feature that subscribes to the singleton itself is a second reader that can drift from it (the
  * food page once carried a copy). A feature takes connectivity from its host, or derives it from a read or write TanStack
- * paused. The check is on the IDENTIFIER, so a comment that names `onlineManager` (as `signOutAndVerify.ts`'s does,
- * describing what the app passes in) is not a reference, and test files, which drive connectivity, are out of scope.
+ * paused. The check is on the IDENTIFIER, so a comment that names `onlineManager` is not a reference, and test files,
+ * which drive connectivity, are out of scope.
  */
 import { readFileSync } from 'node:fs';
 import path from 'node:path';

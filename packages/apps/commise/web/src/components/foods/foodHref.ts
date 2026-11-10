@@ -2,8 +2,8 @@
  * @module components/foods/foodHref — where the author's food page lives on web (private foods spec section 5).
  *
  * The app, not the shared feature package, knows its own routes (as `dataSourcesHref` does for its page). The page is
- * linked from Your foods, the recipe page, the editor and the version history, so every web link to it takes its
- * address from here. ⚠️ The address is a one-way door: it is linked from a refused publish and bookmarked.
+ * linked from more than one surface, so every web link to it takes its address from here. ⚠️ The address is a one-way
+ * door: it is linked from a refused publish and bookmarked.
  */
 import type { Route } from 'next';
 

@@ -90,7 +90,11 @@ export function useFoodPage(foodId: string, { offline }: FoodPageHost): FoodPage
         edit,
         onEdit: edit.onOpen,
         onAsk: () => {
-            requestPublication.mutate(foodId, { onSuccess: () => show({ message: m.ask.done }) });
+            requestPublication.mutate(foodId, {
+                onSuccess: () => {
+                    show({ message: m.ask.done });
+                },
+            });
         },
         onWithdraw: () => {
             withdrawFood.reset();

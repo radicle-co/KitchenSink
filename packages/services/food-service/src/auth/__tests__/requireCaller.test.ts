@@ -23,13 +23,21 @@ function refusalOf(run: () => void): unknown {
 
 describe('requireId', () => {
     it('admits a food ULID', () => {
-        expect(refusalOf(() => requireId(newFoodId()))).toBe('no refusal');
+        expect(
+            refusalOf(() => {
+                requireId(newFoodId());
+            }),
+        ).toBe('no refusal');
     });
 
     it.each(['', 'not-a-ulid', '01JPR1VATEF00D00000000000', '01JAUTH0REDF00D00000000000', "'; drop table food"])(
         'refuses %j with 400 INVALID_ID',
         (id) => {
-            expect(refusalOf(() => requireId(id))).toMatchObject({ status: 400, body: { code: 'INVALID_ID' } });
+            expect(
+                refusalOf(() => {
+                    requireId(id);
+                }),
+            ).toMatchObject({ status: 400, body: { code: 'INVALID_ID' } });
         },
     );
 });

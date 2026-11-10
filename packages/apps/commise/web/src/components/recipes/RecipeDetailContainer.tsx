@@ -184,7 +184,9 @@ const SettledRecipeDetail: FC<SettledRecipeDetailProps> = ({ id, detail }) => {
             // shell (`recipesAfterDeleteHref`).
             onDeleted: () => router.push(recipesAfterDeleteHref(locale) as Route),
             // The make-public refusal's Open food: a new tab, so this page stays where the cook is (private foods spec D5).
-            onOpenFood: (foodId) => openFoodInNewTab(locale, foodId),
+            onOpenFood: (foodId) => {
+                openFoodInNewTab(locale, foodId);
+            },
         },
     });
 

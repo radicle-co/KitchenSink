@@ -46,7 +46,9 @@ export const YourFoodsContainer: FC<{ readonly locale: string }> = ({ locale }) 
                         hasMore={foods.hasNextPage}
                         loadingMore={foods.isFetchingNextPage}
                         hrefOf={(id) => withBasePath(foodHref(locale, id))}
-                        onOpen={(id) => router.push(foodHref(locale, id))}
+                        onOpen={(id) => {
+                            router.push(foodHref(locale, id));
+                        }}
                         onRetry={() => void foods.refetch()}
                         onLoadMore={() => void foods.fetchNextPage()}
                     />

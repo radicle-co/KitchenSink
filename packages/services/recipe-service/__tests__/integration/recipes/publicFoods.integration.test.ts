@@ -85,7 +85,7 @@ const create = vi.fn(async (input: { readonly ownerId: string; readonly visibili
 );
 const update = vi.fn(async () => aggregateOf(stored));
 const setVisibility = vi.fn(async (_id: string, visibility: RecipeVisibility) =>
-    aggregateOf({ ...stored, visibility } as RecipeRow),
+    aggregateOf({ ...stored, visibility }),
 );
 /** Food, as the caller: the cook's blend is still private, every other food is public. */
 const resolve = vi.fn(async (_caller: unknown, refs: readonly { readonly kind: string; readonly id: string }[]) => ({
@@ -265,7 +265,7 @@ describe('PATCH /api/v1/recipes/{id}', () => {
 
 describe('PATCH /api/v1/recipes/{id}/visibility', () => {
     it('⛔ answers 400 PRIVATE_FOODS_ON_PUBLIC_RECIPE making a published recipe with a private line public', async () => {
-        stored = { ...stored, visibility: 'private' } as RecipeRow;
+        stored = { ...stored, visibility: 'private' };
 
         const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}/visibility`, { visibility: 'public' });
 

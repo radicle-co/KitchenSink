@@ -17,7 +17,7 @@ const nutrient = (nutrient: string, amount: number, unit: string) => ({
     basis: 'per_100g',
     source: 'author',
 });
-const FOOD: FoodResponse = {
+const WITHOUT_MACROS: FoodResponse = {
     id: 'f1',
     name: 'Oat milk',
     description: null,
@@ -31,9 +31,9 @@ const FOOD: FoodResponse = {
     ],
     portions: [],
     provenance: {},
-    authoredMacros: { calories: 120, proteinG: 3, carbsG: 16, fatG: 5 },
     variants: [],
 };
+const FOOD: FoodResponse = { ...WITHOUT_MACROS, authoredMacros: { calories: 120, proteinG: 3, carbsG: 16, fatG: 5 } };
 const SNAPSHOT: PublicationSnapshot = {
     name: 'Oat milk',
     description: null,
@@ -81,9 +81,7 @@ describe('foodEditComparison', () => {
     });
 
     it('a food with no authored figures lists every figure the edit states, from nothing', () => {
-        const { authoredMacros: _none, ...food } = FOOD;
-
-        expect(foodEditComparison(food, SNAPSHOT).map((row) => [row.field, row.from, row.to])).toEqual([
+        expect(foodEditComparison(WITHOUT_MACROS, SNAPSHOT).map((row) => [row.field, row.from, row.to])).toEqual([
             ['calories', '', '120'],
             ['proteinG', '', '3'],
             ['carbsG', '', '16'],

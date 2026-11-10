@@ -382,7 +382,9 @@ const RecipeEditorSession: FC<RecipeEditorSessionProps> = ({ locale, mode, draft
             }}
             onOpenMyRecipes={() => router.push(`/${locale}/recipes` as Route)}
             // A new tab, so the draft stays where the cook left it (private foods spec D5, D6).
-            onOpenFood={(foodId) => openFoodInNewTab(locale, foodId)}
+            onOpenFood={(foodId) => {
+                openFoodInNewTab(locale, foodId);
+            }}
         />
     );
 };

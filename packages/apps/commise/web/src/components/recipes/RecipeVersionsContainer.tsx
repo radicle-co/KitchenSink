@@ -68,7 +68,9 @@ const SettledVersions: FC<RecipeVersionsContainerProps> = ({ recipeId }) => {
                 onBack={goToRecipe}
                 backHref={recipeHref}
                 // The refused restore's Open food: a new tab, so this page stays where the cook is (private foods spec D5).
-                onOpenFood={(foodId) => openFoodInNewTab(locale, foodId)}
+                onOpenFood={(foodId) => {
+                    openFoodInNewTab(locale, foodId);
+                }}
             />
         </RecipeVersionsFrame>
     );

@@ -172,6 +172,10 @@ const ADJECTIVES: ReadonlySet<string> = new Set([
     // was never a claim about English grammar — a purchasable FORM is identity whatever its morphology.
     'candied',
     'canned',
+    // Part of the food's name, not a step the cook does: `black-eyed peas`, `corned beef` (dogfooding 2026-11-09).
+    // `black-eyed` is listed whole because `head()` would read it as `eyed`.
+    'black-eyed',
+    'corned',
     'granulated',
     'imported',
     'powdered',

@@ -1459,10 +1459,7 @@ export class RecipesService {
                     clonedFromId: source.recipe.id,
                     hasSubstantiveEdit: false,
                     ...bylineColumnsOf(byline),
-                    ingredientNamesText: ingredientNamesText(
-                        source.ingredients.map((row) => row.foodLookupId),
-                        identities,
-                    ),
+                    ingredientNamesText: ingredientNamesText(source.ingredients, identities),
                     ingredients: source.ingredients.map(toClonedLineInput),
                     steps: source.steps.map(toStepInputFromRow),
                 },

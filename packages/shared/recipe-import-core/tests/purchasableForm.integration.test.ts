@@ -87,7 +87,7 @@ describe('a purchasable form survives the parse pipeline', () => {
  * the engine's real answer (`ingredient-parser-nlp` 2.3.0, run 2026-11-06); each LLM answer is what the parse prompt's
  * rule 7 tells the model to give ("ONLY these product descriptors stay in the name: dried, canned, … frozen").
  */
-describe('dried, frozen and canned survive the parse pipeline', () => {
+describe('dried, frozen, canned, black-eyed and corned survive the parse pipeline', () => {
     const cases: readonly {
         line: string;
         crf: CrfReading;
@@ -128,6 +128,32 @@ describe('dried, frozen and canned survive the parse pipeline', () => {
                 comment: null,
             },
             llm: { statedMeasure: '2 cups', name: 'canned tomatoes', prep: null },
+        },
+        // Dogfooding 2026-11-09: the `-ed` rule filed these as preparation, but they are part of the food's identity.
+        // The CRF rows are the shape the engine gives a name-only line; they were not re-measured against the engine.
+        {
+            line: '1 can black-eyed peas',
+            crf: {
+                sentence: '1 can black-eyed peas',
+                measure: '1 can',
+                names: ['black-eyed peas'],
+                size: null,
+                preparation: null,
+                comment: null,
+            },
+            llm: { statedMeasure: '1 can', name: 'black-eyed peas', prep: null },
+        },
+        {
+            line: '12 ounces corned beef',
+            crf: {
+                sentence: '12 ounces corned beef',
+                measure: '12 ounces',
+                names: ['corned beef'],
+                size: null,
+                preparation: null,
+                comment: null,
+            },
+            llm: { statedMeasure: '12 ounces', name: 'corned beef', prep: null },
         },
     ];
 

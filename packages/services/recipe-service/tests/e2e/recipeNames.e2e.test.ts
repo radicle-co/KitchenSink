@@ -80,6 +80,7 @@ async function createRecipe(
     title: string,
     lookupIds: readonly string[],
     visibility: 'public' | 'private' = 'public',
+    displayText?: string,
 ): Promise<RecipeBody> {
     return json<RecipeBody>(AUTHOR, 'POST', '/api/v1/recipes', 201, {
         title: `${SCOPE} ${title}`,
@@ -93,6 +94,7 @@ async function createRecipe(
             ingredientId,
             quantity: { kind: 'exact', value: 100 },
             unit: 'g',
+            ...(displayText === undefined ? {} : { displayText }),
         })),
         steps: [{ instruction: 'Cook.' }],
     });
@@ -185,6 +187,18 @@ describe('recipe line names (e2e, assembled app + food fake)', () => {
             ingredientName: `${SCOPE} spice mix`,
             isUserEntered: true,
         });
+    });
+
+    it('indexes the words the cook wrote on a line, so the recipe is found by them', async () => {
+        const created = await createRecipe('cook words', [sharedLookup], 'public', `${SCOPE} zebrastriped point cut`);
+        const { rows } = await pool.query<{ text: string; found: boolean }>(
+            `SELECT ingredient_names_text AS text, search_vector @@ plainto_tsquery('english', 'zebrastriped') AS found
+               FROM recipes WHERE id = $1`,
+            [created.id],
+        );
+
+        expect(rows[0]?.text).toContain('Beef brisket');
+        expect(rows[0]?.found).toBe(true);
     });
 
     it('saves during a food outage, with the search text degraded and the bound line unreachable on read', async () => {

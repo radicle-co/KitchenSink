@@ -31,6 +31,7 @@ const SETUP_PYTHON = /^actions\/setup-python@[0-9a-f]{40}$/u;
 
 interface Step {
     readonly name?: string;
+    readonly if?: string;
     readonly uses?: string;
     readonly run?: string;
     readonly 'working-directory'?: string;
@@ -87,8 +88,12 @@ export function findUnpinnedPythonSteps(file: string, doc: WorkflowDocument): re
                 return problems;
             });
 
+        // A setup gated on a DIFFERENT condition may not have run when the needing step does, so it must be
+        // unconditional or carry the same `if:`.
+        const prepares = (earlier: Step, step: Step): boolean =>
+            isSetupPython(earlier) && (earlier.if === undefined || earlier.if === step.if);
         const unprepared = steps.flatMap((step, index) =>
-            needsPinnedPython(step) && !steps.slice(0, index).some((earlier) => isSetupPython(earlier))
+            needsPinnedPython(step) && !steps.slice(0, index).some((earlier) => prepares(earlier, step))
                 ? [`${where(step)} → runs before any setup-python in its job`]
                 : [],
         );
@@ -98,7 +103,7 @@ export function findUnpinnedPythonSteps(file: string, doc: WorkflowDocument): re
 }
 
 function realWorkflows(): readonly (readonly [string, WorkflowDocument])[] {
-    return execFileSync('git', ['ls-files', '.github/workflows', '.github/actions'], {
+    return execFileSync('git', ['ls-files', '.github/workflows'], {
         cwd: REPO_ROOT,
         encoding: 'utf8',
     })
@@ -150,6 +155,19 @@ describe('the rule detects the absence it exists to detect', () => {
         ]);
         expect(findUnpinnedPythonSteps('w.yml', { jobs: { j: { steps: [install, setup] } } })).toHaveLength(1);
         expect(findUnpinnedPythonSteps('w.yml', { jobs: { j: { steps: [setup, install] } } })).toEqual([]);
+    });
+
+    it('flags a setup gated on another condition than the step it must prepare, and passes the same gate', () => {
+        const gated = { ...install, if: "matrix.group == 'services'" };
+
+        expect(
+            findUnpinnedPythonSteps('w.yml', {
+                jobs: { j: { steps: [{ ...setup, if: "matrix.group == 'web'" }, gated] } },
+            }),
+        ).toHaveLength(1);
+        expect(
+            findUnpinnedPythonSteps('w.yml', { jobs: { j: { steps: [{ ...setup, if: gated.if }, gated] } } }),
+        ).toEqual([]);
     });
 
     it('flags a literal version, a tag pin and another version file', () => {

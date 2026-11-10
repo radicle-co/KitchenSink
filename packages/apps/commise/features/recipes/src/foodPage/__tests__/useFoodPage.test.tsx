@@ -23,7 +23,7 @@ afterEach(() => {
     show.mockReset();
 });
 
-function setup(client: Partial<FoodServiceClient>) {
+function setup(client: Partial<FoodServiceClient>, offline = false) {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     const wrapper = ({ children }: { readonly children: ReactNode }) =>
         createElement(
@@ -32,7 +32,7 @@ function setup(client: Partial<FoodServiceClient>) {
             createElement(FoodServiceProvider, { client: client as FoodServiceClient, subject: 'user_a', children }),
         );
 
-    return { ...renderHook(() => useFoodPage('food_1'), { wrapper }) };
+    return { ...renderHook(() => useFoodPage('food_1', { offline }), { wrapper }) };
 }
 
 const resolved = (word: 'private' | 'asked' | 'public' | 'notApproved') => ({
@@ -153,6 +153,24 @@ describe('useFoodPage', () => {
         await waitFor(() => expect(result.current.state.kind).toBe('private'));
         act(() => result.current.onEdit());
         expect(result.current.edit.open).toBe(true);
+    });
+
+    it('the host says offline: a cached copy keeps reading with its actions disabled', async () => {
+        const { result } = setup({ getById: vi.fn().mockResolvedValue(resolved('private')) }, true);
+
+        await waitFor(() => expect(result.current.state).toMatchObject({ kind: 'private', actionsDisabled: true }));
+    });
+
+    it('the host says offline: a failed read with no copy is the offline state, not an error', async () => {
+        const { result } = setup({ getById: vi.fn().mockRejectedValue(new Error('network')) }, true);
+
+        await waitFor(() => expect(result.current.state.kind).toBe('offline'));
+    });
+
+    it('the host says online: a cached copy has its actions', async () => {
+        const { result } = setup({ getById: vi.fn().mockResolvedValue(resolved('private')) });
+
+        await waitFor(() => expect(result.current.state).toMatchObject({ kind: 'private', actionsDisabled: false }));
     });
 
     it('Retry reads the food again', async () => {

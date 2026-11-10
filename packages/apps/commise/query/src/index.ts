@@ -9,6 +9,7 @@
  * the `errors.ts` that defines them. See `retryPolicy.ts` for why that split is load-bearing.
  */
 export { createAppQueryClient } from './queryClient.js';
+export { useIsOffline } from './useIsOffline.js';
 export {
     MAX_MUTATION_RETRIES,
     MAX_QUERY_RETRIES,

@@ -9,20 +9,26 @@ import { expectOneBackInBarAndOneInHeader } from '@commise/test-utils';
 import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { render } from '@testing-library/react';
+import { onlineManager } from '@tanstack/react-query';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { FoodPageContainer } from '@/components/foods/FoodPageContainer';
 
-const { pushMock, sessionRef } = vi.hoisted(() => ({
+const { pushMock, sessionRef, sessionArgs } = vi.hoisted(() => ({
     pushMock: vi.fn(),
     sessionRef: { current: {} as Record<string, unknown> },
+    sessionArgs: [] as unknown[][],
 }));
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: pushMock }) }));
 
 vi.mock('@commise/features-recipes/food-page', async (importOriginal) => ({
     ...(await importOriginal<Record<string, unknown>>()),
-    useFoodPage: () => sessionRef.current,
+    useFoodPage: (...args: unknown[]) => {
+        sessionArgs.push(args);
+
+        return sessionRef.current;
+    },
     FoodPageView: ({ onLeave }: { readonly onLeave: () => void }) => (
         <button type="button" onClick={onLeave}>
             leave the food page
@@ -35,6 +41,8 @@ vi.mock('@commise/features-recipes/food-page', async (importOriginal) => ({
 
 afterEach(() => {
     vi.clearAllMocks();
+    sessionArgs.length = 0;
+    onlineManager.setOnline(true);
 });
 
 const mount = (state: unknown) => {
@@ -48,6 +56,16 @@ const mount = (state: unknown) => {
 };
 
 describe('FoodPageContainer', () => {
+    it.each([
+        [false, true],
+        [true, false],
+    ])('hands the session the app’s connectivity reading (offline: %s)', (offline, online) => {
+        onlineManager.setOnline(online);
+        mount({ kind: 'loading' });
+
+        expect(sessionArgs.at(-1)).toEqual(['food_1', { offline }]);
+    });
+
     it('titles the page with the food’s name', () => {
         mount({ kind: 'private', food: { name: 'Oat milk' } });
 

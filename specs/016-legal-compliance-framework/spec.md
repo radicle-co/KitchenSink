@@ -545,6 +545,11 @@ the policy's recommendation are both visible.
   Software can find a STATED licence (schema.org `license`, a Creative Commons mark). It cannot find "no copyright",
   because every page is protected from creation (Berne Art. 5(2), 17 U.S.C. §102, §408). So a surface or document
   MUST NOT say that the server checks a page's copyright. Counsel review is owed before launch (`FR-050`).
+- **FR-012c** _(added 2026-11-09, owner ruling on 003A Q6)_: The terms MUST state, in words a non-lawyer understands,
+  that a comment on a public recipe is public. It is shown with the commenter's display name, and anyone can read it,
+  signed-out readers included, on any public page that shows the recipe (`021-FR-070`, `003A-FR-025`). The owner,
+  verbatim: "by commenting they are agreeing to leave their name and words public - this is normal everywhere." The
+  licence in `FR-010` covers showing the comment. Counsel review is owed before launch (`FR-050`).
 - **FR-013**: The terms MUST include a representation that the user has the rights necessary to upload the
   content and to grant the licence, recorded per-account at acceptance.
 - **FR-014**: For content classified as **not authored by the uploader**, the per-item attestation of
@@ -2093,6 +2098,13 @@ before launch (`FR-050`).
   public or sale waits for review (`020-FR-003b`). Decided _(owner rulings 2026-11-03, ADR-0082 §9)_.
 
 Counsel review is owed before launch (`FR-050`).
+
+### Session 2026-11-09: comments on public recipes are public (owner ruling)
+
+- **Ruling.** Feature 003A asked whether comments show on signed-out public pages. The owner, verbatim: "by commenting
+  they are agreeing to leave their name and words public - this is normal everywhere. If we need to, update the terms of
+  service feature to make sure that is noted." `FR-012c` puts it in the terms. `021-FR-070` and `003A-FR-025` show the
+  comments with the commenter's display name.
 
 ## Owner decisions required
 

@@ -3911,6 +3911,27 @@ describe('a Publish the server refuses for a private food in a public recipe', (
         expect(view.result.current.saveStatus.kind).not.toBe('syncFailed');
     });
 
+    it('⛔ a dropped record whose answer no refusal names still leaves the lane: the Publish does not hang', async () => {
+        const view = mount({ recipe: PUBLIC_DRAFT }, undefined, fakePort(), undefined);
+        act(() => {
+            view.result.current.publish('');
+        });
+        await settle();
+        const seq = view.port.lastSeq();
+        act(() => {
+            view.port.drop(seq, 410, { kind: 'recipeDeleted', id: PUBLIC_DRAFT.id });
+        });
+        await settle();
+
+        expect(view.port.withdraw).not.toHaveBeenCalled();
+        expect(view.result.current.writeInFlight).toBe(false);
+        expect(view.result.current.parked).toBeUndefined();
+        // Left as it was, the lane kept the gone write as its outstanding one: the Publish stayed `finishing` and the save
+        // `syncing` for good.
+        expect(view.result.current.state.status).toBe('editing');
+        expect(view.result.current.saveStatus.kind).not.toBe('syncing');
+    });
+
     it('⛔ the cook removes the private line: Publish sends the CURRENT draft, and nothing refused is left behind', async () => {
         const { view, seq } = await publishRefused();
         const values = view.result.current.values;

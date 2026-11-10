@@ -1088,6 +1088,14 @@ function onRefused(ctx: EditorContext, event: Settlement, pending: OutstandingWr
         return;
     }
 
+    if (event.outcome === 'dropped') {
+        // Out of the log already, with an answer nothing above names: it waits for no one, and nothing sends past it.
+        ctx.lane.dispatch({ type: 'deferredTaken' });
+        ctx.lane.dispatch({ type: 'withdrawn', seq: event.seq });
+
+        return;
+    }
+
     if (event.answer?.kind !== 'recipeConflict') {
         // A parked write waits for the cook, and so does whatever waited behind it: nothing publishes past them.
         ctx.lane.dispatch({ type: 'deferredTaken' });

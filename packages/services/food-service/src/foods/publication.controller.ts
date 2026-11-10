@@ -13,10 +13,8 @@
 import { Controller, Get, Header, HttpStatus, Inject, Param, Post, Query, Req, Res } from '@nestjs/common';
 import type { Response } from 'express';
 
-import { requireUserUlid } from '../auth/requireCaller.js';
+import { requireId, requireUserUlid } from '../auth/requireCaller.js';
 import type { AuthenticatedRequest } from '../auth/authenticatedPrincipal.js';
-import { apiError } from '../common/apiError.js';
-import { isFoodId } from '../db/ulid.js';
 import { OwnFoodListQueryDto } from './dto/ownFoodListQuery.dto.js';
 import type { OwnFoodList, PublicationRequestDetail } from './publication.schema.js';
 import { FoodPublicationService } from './publication.service.js';
@@ -51,7 +49,7 @@ export class FoodPublicationController {
         @Req() req: AuthenticatedRequest,
         @Res({ passthrough: true }) res: Response,
     ): Promise<PublicationRequestDetail> {
-        this.requireId(id);
+        requireId(id);
 
         const { created, detail } = await this.publication.request(requireUserUlid(req), id);
         res.status(created ? HttpStatus.CREATED : HttpStatus.OK);
@@ -66,15 +64,8 @@ export class FoodPublicationController {
     @Get(':id/publication-request')
     @Header('Cache-Control', 'private, no-store')
     public async read(@Param('id') id: string, @Req() req: AuthenticatedRequest): Promise<PublicationRequestDetail> {
-        this.requireId(id);
+        requireId(id);
 
         return this.publication.read(requireUserUlid(req), id);
-    }
-
-    /** Validate the `id` path param is a structurally valid ULID → else `400`. */
-    private requireId(id: string): void {
-        if (!isFoodId(id)) {
-            throw apiError('INVALID_ID', 'The id is not a valid food (ingredient) ULID');
-        }
     }
 }

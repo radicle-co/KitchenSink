@@ -67,7 +67,7 @@ import { RecipeReadError } from '@/components/recipes/RecipeReadError';
 import { recipesAfterDeleteHref } from '@/components/recipes/recipesAfterDeleteHref';
 import { useAddressNotice } from '@/hooks/useAddressNotice';
 import { useUserProfile } from '@/hooks/useUserProfile';
-import { withBasePath } from '@/lib/basePath';
+import { openFoodInNewTab } from '@/components/foods/foodHref';
 
 /** Props for {@link RecipeDetailContainer}. */
 export interface RecipeDetailContainerProps {
@@ -184,8 +184,9 @@ const SettledRecipeDetail: FC<SettledRecipeDetailProps> = ({ id, detail }) => {
             // shell (`recipesAfterDeleteHref`).
             onDeleted: () => router.push(recipesAfterDeleteHref(locale) as Route),
             // The make-public refusal's Open food: a new tab, so this page stays where the cook is (private foods spec D5).
-            onOpenFood: (foodId) =>
-                window.open(withBasePath(`/${locale}/foods/${encodeURIComponent(foodId)}`), '_blank', 'noopener'),
+            onOpenFood: (foodId) => {
+                openFoodInNewTab(locale, foodId);
+            },
         },
     });
 

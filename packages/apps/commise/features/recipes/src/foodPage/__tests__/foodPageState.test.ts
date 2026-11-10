@@ -6,9 +6,9 @@
  */
 import { FoodServiceClientError, NotFoundError, UnexpectedResponseError } from '@kitchensink/food-service-client';
 import type { FoodResponse, PublicationRequestDetail, PublicationStateValue } from '@kitchensink/schema-food';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, expectTypeOf, it } from 'vitest';
 
-import { foodPageStateOf, type FoodPageInput } from '../foodPageState.js';
+import { foodPageStateOf, type FoodPageInput, type FoodPageState } from '../foodPageState.js';
 
 const FOOD: FoodResponse = {
     id: 'f1',
@@ -46,9 +46,19 @@ const ready = (food: FoodResponse, extra: Partial<FoodPageInput> = {}): FoodPage
     ...extra,
 });
 
+describe('FoodPageState', () => {
+    it('has one author state per `publicationState` value and no other, so a new value is a compile error', () => {
+        expectTypeOf<
+            Extract<FoodPageState, { readonly request: unknown }>['kind']
+        >().toEqualTypeOf<PublicationStateValue>();
+    });
+});
+
 describe('foodPageStateOf', () => {
     it('1: a read still in flight is loading', () => {
-        expect(foodPageStateOf({ read: { phase: 'pending' }, request: undefined, online: true }).kind).toBe('loading');
+        expect(
+            foodPageStateOf({ read: { phase: 'pending', parked: false }, request: undefined, online: true }).kind,
+        ).toBe('loading');
     });
 
     it('2: a NotFoundError is not found, for a missing id, another cook’s private food and a withdrawn food alike', () => {
@@ -81,6 +91,24 @@ describe('foodPageStateOf', () => {
         };
 
         expect(foodPageStateOf(input).kind).toBe('offline');
+    });
+
+    it('4: a read TanStack parked with no connection is offline, not a spinner that never ends', () => {
+        // The app's reads are `offlineFirst` with retry: offline, the first attempt fails and the retry parks, so the read
+        // stays pending until the connection returns. Without this the page would load for as long as the device is offline.
+        expect(
+            foodPageStateOf({ read: { phase: 'pending', parked: true }, request: undefined, online: false }).kind,
+        ).toBe('offline');
+    });
+
+    it('a read still in its first attempt is loading even offline: only a PARKED read is offline (as `PendingSlot`)', () => {
+        // Mobile reads an unsure connection as offline, so a cold open must not flash the offline notice before it tried.
+        expect(
+            foodPageStateOf({ read: { phase: 'pending', parked: false }, request: undefined, online: false }).kind,
+        ).toBe('loading');
+        expect(
+            foodPageStateOf({ read: { phase: 'pending', parked: true }, request: undefined, online: true }).kind,
+        ).toBe('loading');
     });
 
     it('a 202 (a food still resolving) is an error, never one of the author states', () => {

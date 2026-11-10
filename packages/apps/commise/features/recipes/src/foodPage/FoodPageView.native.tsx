@@ -24,8 +24,8 @@ import { useWindowDimensions } from 'react-native';
 import { XStack, YStack } from 'tamagui';
 
 import { fillTemplate } from '../format/fillTemplate.js';
-import { figureText, macrosOfFood } from './foodEditComparison.js';
-import { foodPageCopyOf, type FoodAction, type FoodShownState } from './foodPageCopy.js';
+import { figureText } from './foodEditComparison.js';
+import { foodPageCopyOf, type FoodAction, type FoodPageCopy, type FoodShownState } from './foodPageCopy.js';
 import type { FoodPageViewProps } from './foodPageViewProps.js';
 import { foodPageMessages } from './messages.js';
 
@@ -81,49 +81,9 @@ const FoodShown: FC<FoodPageViewProps & { readonly state: FoodShownState }> = ({
     const locale = useLocale();
     const { width } = useWindowDimensions();
     const copy = foodPageCopyOf(state, m, locale);
-    const macros = macrosOfFood(state.food);
-    const figures: readonly (readonly [string, number | undefined, 'kcal' | 'g'])[] = [
-        [m.nutrition.calories, macros.calories, 'kcal'],
-        [m.nutrition.protein, macros.proteinG, 'g'],
-        [m.nutrition.carbs, macros.carbsG, 'g'],
-        [m.nutrition.fat, macros.fatG, 'g'],
-    ];
     const name = state.food.name ?? m.titleFallback;
-    const press = { edit: onEdit, ask: onAsk } as const;
     const tablet = width >= TABLET_WIDTH;
-
-    // Phone: the primary on top. Tablet: the primary last, at the end edge.
-    const ordered = tablet ? copy.actions : [...copy.actions].reverse();
-    const actions =
-        copy.actions.length === 0 ? null : (
-            <YStack gap="$3">
-                {/* A column that also wraps shrink-wraps each button to its label on a device, so a phone's column never wraps. */}
-                <XStack flexWrap={tablet ? 'wrap' : 'nowrap'} gap="$3" flexDirection={tablet ? 'row' : 'column'}>
-                    {ordered.map((action) => (
-                        <ActionButton
-                            key={action.key}
-                            action={action}
-                            full={!tablet}
-                            disabled={copy.actionsDisabled}
-                            busy={action.key === 'ask' && ask === 'busy'}
-                            description={copy.actionsNote}
-                            label={action.key === 'ask' && ask === 'busy' ? m.ask.busy : m.action[action.key]}
-                            onPress={press[action.key]}
-                        />
-                    ))}
-                </XStack>
-                {copy.actionsNote === undefined ? null : (
-                    <DesignText aria-hidden typeRole="meta" color="$inkMuted">
-                        {copy.actionsNote}
-                    </DesignText>
-                )}
-                {ask === 'failed' ? (
-                    <DesignText role="alert" typeRole="meta" color="$dangerText">
-                        {m.ask.failed}
-                    </DesignText>
-                ) : null}
-            </YStack>
-        );
+    const actions = <FoodActions copy={copy} ask={ask} tablet={tablet} press={{ edit: onEdit, ask: onAsk }} />;
 
     return (
         <YStack gap="$4">
@@ -152,42 +112,9 @@ const FoodShown: FC<FoodPageViewProps & { readonly state: FoodShownState }> = ({
 
             {tablet && copy.statement === undefined ? actions : null}
 
-            {copy.comparison === undefined ? null : (
-                <YStack gap="$2">
-                    <DesignText role="header" typeRole="sectionTitle" color="$ink">
-                        {copy.comparison.heading}
-                    </DesignText>
-                    {copy.comparison.rows.map((row) => (
-                        <YStack key={row.label} accessible aria-label={row.spoken}>
-                            <DesignText aria-hidden typeRole="meta" color="$inkMuted">
-                                {row.label}
-                            </DesignText>
-                            <DesignText aria-hidden typeRole="body" color="$ink">
-                                {row.text}
-                            </DesignText>
-                        </YStack>
-                    ))}
-                    <DesignText typeRole="meta" color="$inkMuted">
-                        {copy.comparison.rest}
-                    </DesignText>
-                </YStack>
-            )}
+            {copy.comparison === undefined ? null : <EditComparison comparison={copy.comparison} />}
 
-            <YStack gap="$2">
-                <DesignText role="header" typeRole="sectionTitle" color="$ink">
-                    {m.nutrition.heading}
-                </DesignText>
-                {figures.map(([label, amount, unit]) => (
-                    <XStack key={label} flexWrap="wrap" justifyContent="space-between" columnGap="$4">
-                        <DesignText typeRole="meta" color="$inkMuted">
-                            {label}
-                        </DesignText>
-                        <DesignText typeRole="meta" color="$ink">
-                            {amount === undefined ? '–' : `${figureText(amount)} ${m.unit[unit]}`}
-                        </DesignText>
-                    </XStack>
-                ))}
-            </YStack>
+            <NutritionFigures food={state.food} />
 
             {state.food.portions.length === 0 ? null : (
                 <YStack gap="$1">
@@ -224,6 +151,109 @@ const FoodShown: FC<FoodPageViewProps & { readonly state: FoodShownState }> = ({
                 onConfirm={onWithdrawConfirm}
                 onKeep={onWithdrawKeep}
             />
+        </YStack>
+    );
+};
+
+/**
+ * The panel's actions: on a phone a full-width column with the primary on top, from 600 dp a row with the primary last,
+ * then why they are disabled and whether the ask failed. Presentational: `props → JSX`.
+ */
+const FoodActions: FC<{
+    readonly copy: FoodPageCopy;
+    readonly ask: FoodPageViewProps['ask'];
+    readonly tablet: boolean;
+    readonly press: Readonly<Record<FoodAction['key'], () => void>>;
+}> = ({ copy, ask, tablet, press }) => {
+    const m = useMessages(foodPageMessages);
+    const asking = ask === 'busy';
+
+    if (copy.actions.length === 0) {
+        return null;
+    }
+
+    // Phone: the primary on top. Tablet: the primary last, at the end edge.
+    const ordered = tablet ? copy.actions : [...copy.actions].reverse();
+
+    return (
+        <YStack gap="$3">
+            {/* A column that also wraps shrink-wraps each button to its label on a device, so a phone's column never wraps. */}
+            <XStack flexWrap={tablet ? 'wrap' : 'nowrap'} gap="$3" flexDirection={tablet ? 'row' : 'column'}>
+                {ordered.map((action) => (
+                    <ActionButton
+                        key={action.key}
+                        action={action}
+                        full={!tablet}
+                        disabled={copy.actionsDisabled}
+                        busy={action.key === 'ask' && asking}
+                        description={copy.actionsNote}
+                        label={action.key === 'ask' && asking ? m.ask.busy : m.action[action.key]}
+                        onPress={press[action.key]}
+                    />
+                ))}
+            </XStack>
+            {copy.actionsNote === undefined ? null : (
+                <DesignText aria-hidden typeRole="meta" color="$inkMuted">
+                    {copy.actionsNote}
+                </DesignText>
+            )}
+            {ask === 'failed' ? (
+                <DesignText role="alert" typeRole="meta" color="$dangerText">
+                    {m.ask.failed}
+                </DesignText>
+            ) : null}
+        </YStack>
+    );
+};
+
+/** "Your edit": each changed field, read as one phrase. Presentational: `props → JSX`. */
+const EditComparison: FC<{ readonly comparison: NonNullable<FoodPageCopy['comparison']> }> = ({ comparison }) => (
+    <YStack gap="$2">
+        <DesignText role="header" typeRole="sectionTitle" color="$ink">
+            {comparison.heading}
+        </DesignText>
+        {comparison.rows.map((row) => (
+            <YStack key={row.label} accessible aria-label={row.spoken}>
+                <DesignText aria-hidden typeRole="meta" color="$inkMuted">
+                    {row.label}
+                </DesignText>
+                <DesignText aria-hidden typeRole="body" color="$ink">
+                    {row.text}
+                </DesignText>
+            </YStack>
+        ))}
+        <DesignText typeRole="meta" color="$inkMuted">
+            {comparison.rest}
+        </DesignText>
+    </YStack>
+);
+
+/** "Nutrition per 100 g": the four figures the author wrote, a dash for one the food does not carry. Presentational. */
+const NutritionFigures: FC<{ readonly food: FoodShownState['food'] }> = ({ food }) => {
+    const m = useMessages(foodPageMessages);
+    const macros = food.authoredMacros;
+    const figures: readonly (readonly [string, number | undefined, 'kcal' | 'g'])[] = [
+        [m.nutrition.calories, macros?.calories, 'kcal'],
+        [m.nutrition.protein, macros?.proteinG, 'g'],
+        [m.nutrition.carbs, macros?.carbsG, 'g'],
+        [m.nutrition.fat, macros?.fatG, 'g'],
+    ];
+
+    return (
+        <YStack gap="$2">
+            <DesignText role="header" typeRole="sectionTitle" color="$ink">
+                {m.nutrition.heading}
+            </DesignText>
+            {figures.map(([label, amount, unit]) => (
+                <XStack key={label} flexWrap="wrap" justifyContent="space-between" columnGap="$4">
+                    <DesignText typeRole="meta" color="$inkMuted">
+                        {label}
+                    </DesignText>
+                    <DesignText typeRole="meta" color="$ink">
+                        {amount === undefined ? '–' : `${figureText(amount)} ${m.unit[unit]}`}
+                    </DesignText>
+                </XStack>
+            ))}
         </YStack>
     );
 };

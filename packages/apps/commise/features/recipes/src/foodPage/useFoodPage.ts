@@ -17,8 +17,8 @@ import {
 } from '@kitchensink/food-service-client/hooks';
 import { useMessages } from '@commise/i18n/react';
 import { useSnackbar } from '@commise/ui/snackbar';
-import { onlineManager } from '@tanstack/react-query';
-import { useCallback, useState, useSyncExternalStore } from 'react';
+import type { PublicationStateValue } from '@kitchensink/schema-food';
+import { useState } from 'react';
 
 import { foodPageStateOf, type FoodPageState, type FoodRead } from './foodPageState.js';
 import type { AskStatus, WithdrawDialogState } from './foodPageViewProps.js';
@@ -40,29 +40,30 @@ export interface FoodPageSession {
     readonly onRetry: () => void;
 }
 
-/** The publication states whose panel shows staff's answer, so they need the newest request. */
-const NEEDS_REQUEST = new Set(['asked', 'notApproved', 'editWaiting', 'editNotApproved']);
-
-function useOnline(): boolean {
-    return useSyncExternalStore(
-        (notify) => onlineManager.subscribe(notify),
-        () => onlineManager.isOnline(),
-        () => true,
-    );
+/** What the host hands the page: the app's one connectivity reading (`@commise/query`'s `useIsOffline`). */
+export interface FoodPageHost {
+    readonly offline: boolean;
 }
+
+/** The publication states whose panel shows staff's answer, so they need the newest request. */
+const NEEDS_REQUEST: ReadonlySet<PublicationStateValue> = new Set([
+    'asked',
+    'notApproved',
+    'editWaiting',
+    'editNotApproved',
+]);
 
 /**
  * The author's food page.
  *
  * @param foodId - The food’s id.
- * @param host - The host’s hand-offs.
+ * @param host - What the host hands in: whether the device is offline.
  * @returns The page state and the cook’s intents.
  * @sideEffect Reads food-service; Ask and Withdraw write to it; a snackbar says each success.
  */
-export function useFoodPage(foodId: string): FoodPageSession {
+export function useFoodPage(foodId: string, { offline }: FoodPageHost): FoodPageSession {
     const m = useMessages(foodPageMessages);
     const { show } = useSnackbar();
-    const online = useOnline();
     const food = useFood(foodId);
     const word = food.data?.status === 'RESOLVED' ? food.data.food.publicationState : undefined;
     const request = usePublicationRequest(foodId, { enabled: word !== undefined && NEEDS_REQUEST.has(word) });
@@ -76,24 +77,11 @@ export function useFoodPage(foodId: string): FoodPageSession {
             ? { phase: 'ready', result: food.data }
             : food.isError
               ? { phase: 'error', error: food.error }
-              : { phase: 'pending' };
-    const state = foodPageStateOf({ read, request: request.data, online });
+              : { phase: 'pending', parked: food.fetchStatus === 'paused' };
+    const state = foodPageStateOf({ read, request: request.data, online: !offline });
     const edit = useFoodEdit(state);
 
     const ask: AskStatus = requestPublication.isPending ? 'busy' : requestPublication.isError ? 'failed' : 'idle';
-
-    const onAsk = useCallback(() => {
-        requestPublication.mutate(foodId, { onSuccess: () => show({ message: m.ask.done }) });
-    }, [foodId, m.ask.done, requestPublication, show]);
-
-    const onWithdrawConfirm = useCallback(() => {
-        withdrawFood.mutate(foodId, {
-            onSuccess: () => {
-                setConfirming(false);
-                show({ message: m.withdraw.done });
-            },
-        });
-    }, [foodId, m.withdraw.done, show, withdrawFood]);
 
     return {
         state,
@@ -101,12 +89,25 @@ export function useFoodPage(foodId: string): FoodPageSession {
         withdraw: { open: confirming, busy: withdrawFood.isPending, failed: withdrawFood.isError },
         edit,
         onEdit: edit.onOpen,
-        onAsk,
+        onAsk: () => {
+            requestPublication.mutate(foodId, {
+                onSuccess: () => {
+                    show({ message: m.ask.done });
+                },
+            });
+        },
         onWithdraw: () => {
             withdrawFood.reset();
             setConfirming(true);
         },
-        onWithdrawConfirm,
+        onWithdrawConfirm: () => {
+            withdrawFood.mutate(foodId, {
+                onSuccess: () => {
+                    setConfirming(false);
+                    show({ message: m.withdraw.done });
+                },
+            });
+        },
         onWithdrawKeep: () => setConfirming(false),
         onRetry: () => void food.refetch(),
     };

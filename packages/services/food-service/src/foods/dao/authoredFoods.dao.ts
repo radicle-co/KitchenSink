@@ -14,7 +14,7 @@
  *    keeps it out of both refresh scans by construction.
  *  - the nutrition aggregate (0018): one header and the four macro values (Q3a), each UNCITED (0013 made value provenance nullable;
  *    NULL means "the food's author wrote this"). Dictionary identities come from
- *    {@link LABEL_NUTRIENT_MAP} — the SAME `{name, unit}` rows the USDA merge resolves against, so the
+ *    {@link AUTHORED_MACRO_IDENTITIES} — the SAME `{name, unit}` rows the USDA merge resolves against, so the
  *    recipe side's nutrition projection reads authored macros through the very code path it already has.
  *  - `food_portions`: optional household measures, `source_id` NULL.
  *
@@ -35,7 +35,7 @@ import { FoodNutritionDao, type AuthoredNutritionValue } from './foodNutrition.d
 import { FoodItemDao, itemIdOfFood } from './foodItem.dao.js';
 import { NutrientDao } from './nutrient.dao.js';
 import { isUniqueViolation } from './dao.errors.js';
-import { LABEL_NUTRIENT_MAP } from '../nutrition/labelNutrientMap.js';
+import { AUTHORED_MACRO_IDENTITIES } from '../domain/authoredMacros.js';
 import { decideEdit, publicationStateOf, type PublicationState } from '../domain/publicationRequestPolicy.js';
 
 /** The authored macros, per 100g (Q3a: macros-only at launch). */
@@ -130,13 +130,6 @@ function decodeCursor(cursor: string | undefined): { updatedAt: string; id: stri
 }
 
 /** The four macro rows, in a stable order, resolved to the canonical dictionary identities. */
-const MACRO_LABELS = [
-    { key: 'calories' as const, identity: LABEL_NUTRIENT_MAP.calories },
-    { key: 'proteinG' as const, identity: LABEL_NUTRIENT_MAP.protein },
-    { key: 'carbsG' as const, identity: LABEL_NUTRIENT_MAP.carbohydrates },
-    { key: 'fatG' as const, identity: LABEL_NUTRIENT_MAP.fat },
-];
-
 /** One version row's content — what the food SAYS at this version (R21's recourse shape). Pure. */
 function snapshotOf(input: CreateAuthoredInput): Record<string, unknown> {
     return {
@@ -499,9 +492,9 @@ async function writeValues(
 ): Promise<void> {
     // `NutrientDao` takes `FoodWriter`, which an open transaction satisfies structurally — no cast.
     const dictionary = await new NutrientDao(tx).resolveOrCreateMany(
-        MACRO_LABELS.map(({ identity }) => ({ name: identity.name, unit: identity.unit })),
+        AUTHORED_MACRO_IDENTITIES.map(({ identity }) => ({ name: identity.name, unit: identity.unit })),
     );
-    const values: AuthoredNutritionValue[] = MACRO_LABELS.map(({ key }, index) => {
+    const values: AuthoredNutritionValue[] = AUTHORED_MACRO_IDENTITIES.map(({ key }, index) => {
         const row = dictionary[index];
 
         if (row === undefined) {

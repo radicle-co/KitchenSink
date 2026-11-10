@@ -30,13 +30,15 @@ export interface FoodDetailScreenProps {
     readonly onLeave: () => void;
     /** The label of that way out. */
     readonly leaveLabel: string;
+    /** Whether the device is offline: the app's one connectivity reading, which this package may not read itself. */
+    readonly offline: boolean;
 }
 
 /** The food page screen. */
-export const FoodDetailScreen: FC<FoodDetailScreenProps> = ({ foodId, back, onLeave, leaveLabel }) => {
+export const FoodDetailScreen: FC<FoodDetailScreenProps> = ({ foodId, back, onLeave, leaveLabel, offline }) => {
     const m = useMessages(foodPageMessages);
     const headingId = useId();
-    const session = useFoodPage(foodId);
+    const session = useFoodPage(foodId, { offline });
     const title = 'food' in session.state ? (session.state.food.name ?? m.titleFallback) : m.titleFallback;
 
     return (

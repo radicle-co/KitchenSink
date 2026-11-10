@@ -35,6 +35,7 @@
  */
 import { ABSENT_QUANTITY, type IngredientQuantity } from '../ingredientQuantity.js';
 import { LENGTH_UNIT_VOCABULARY, isSizeWord } from '../units.js';
+import { escapeRegExp } from './escapeRegExp.js';
 import { readCooksMeasure } from './measureReader.js';
 import { readParenthetical, type Parenthetical } from './parentheticalMeasure.js';
 
@@ -143,7 +144,7 @@ function looseOf(text: string): string {
     return text
         .trim()
         .split(/\s+/u)
-        .map((word) => word.replace(/[.*+?^${}()|[\]\\]/gu, String.raw`\$&`))
+        .map(escapeRegExp)
         .join(String.raw`\s+`);
 }
 

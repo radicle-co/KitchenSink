@@ -20,7 +20,8 @@ import type {
 
 /** Where the food read stands. */
 export type FoodRead =
-    | { readonly phase: 'pending' }
+    /** `parked`: TanStack paused the read for want of a connection (`fetchStatus: 'paused'`). */
+    | { readonly phase: 'pending'; readonly parked: boolean }
     | { readonly phase: 'error'; readonly error: unknown }
     | { readonly phase: 'ready'; readonly result: GetFoodResult };
 
@@ -64,8 +65,10 @@ export type FoodPageState =
  * @returns Exactly one state.
  */
 export function foodPageStateOf({ read, request, online }: FoodPageInput): FoodPageState {
+    // Offline, the app's `offlineFirst` read fails once and parks its retry, so it stays pending: that is state 4 too.
+    // Only a PARKED read, as `@commise/query`'s `PendingSlot` rules: one still in its first attempt is loading.
     if (read.phase === 'pending') {
-        return { kind: 'loading' };
+        return read.parked && !online ? { kind: 'offline' } : { kind: 'loading' };
     }
 
     if (read.phase === 'error') {
@@ -90,5 +93,6 @@ export function foodPageStateOf({ read, request, online }: FoodPageInput): FoodP
     // A withdrawn food has no actions, so there is nothing for a missing connection to disable.
     const actionsDisabled = !online && word !== 'withdrawn';
 
-    return { kind: word, food, request, actionsDisabled } as FoodPageState;
+    // No cast: each `publicationState` value must name an `OwnFoodState` member, so a new one fails to compile here.
+    return { kind: word, food, request, actionsDisabled };
 }

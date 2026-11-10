@@ -33,6 +33,7 @@ import {
 import type { DraftAction } from '../../form/draftAction.js';
 import { mintLineKey } from '../../form/mintLineKey.js';
 import type { LineCommitOutcome, IngredientPick } from '../../hooks/lineCommit.js';
+import { MAX_MATCH_ATTEMPTS } from '../matchRequests.js';
 import { pastedLinesOf } from '../pastedLines.js';
 
 const mocks = vi.hoisted(() => ({
@@ -470,6 +471,37 @@ describe('usePasteMatching — an offer the server stops showing is withdrawn', 
         expect(rebinds(dispatch)).toHaveLength(1);
         expect(rebinds(dispatch)[0]?.binding).toMatchObject({ ingredientId: 'free_milk' });
         expect(result.current.lines[0]).toMatchObject({ state: 'needsChoice', binding: undefined });
+    });
+
+    it.each([false, true])(
+        '⛔ a withdrawal that failed is tried again in the same session, and the line goes back (strict: %s)',
+        async (strict) => {
+            const { read, dispatch, result } = setup(jobOf(confident()), {}, strict);
+            await settle();
+            dispatch.mockClear();
+            mocks.create.mockRejectedValueOnce(new Error('recipe-service unreachable'));
+
+            read(jobOf(asks()));
+            await settle();
+
+            expect(mocks.create).toHaveBeenCalledTimes(2);
+            expect(rebinds(dispatch)).toHaveLength(1);
+            expect(result.current.lines[0]).toMatchObject({ state: 'needsChoice', binding: undefined });
+        },
+    );
+
+    it('⛔ a withdrawal that keeps failing is tried at most MAX_MATCH_ATTEMPTS times: a down service is not a storm', async () => {
+        const { read, dispatch } = setup(jobOf(confident()));
+        await settle();
+        dispatch.mockClear();
+        mocks.create.mockRejectedValue(new Error('recipe-service unreachable'));
+
+        read(jobOf(asks()));
+        await settle();
+        await settle();
+
+        expect(mocks.create).toHaveBeenCalledTimes(MAX_MATCH_ATTEMPTS);
+        expect(rebinds(dispatch)).toEqual([]);
     });
 
     it('⛔ never touches the cook’s own pick', async () => {

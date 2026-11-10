@@ -17,7 +17,7 @@ import { Body, Controller, Get, HttpCode, HttpStatus, Inject, Param, Post, Query
 
 import { FOOD_ADMIN_SCOPE, hasScope, type AuthenticatedRequest } from '../../auth/authenticatedPrincipal.js';
 import { apiError } from '../../common/apiError.js';
-import { isFoodId } from '../../db/ulid.js';
+import { requireId } from '../../auth/requireCaller.js';
 import { FoodPublicationService } from '../publication.service.js';
 import { PublicationDecisionBodyDto } from '../dto/publicationDecision.dto.js';
 import { PublicationRequestsQueryDto } from '../dto/publicationRequestsQuery.dto.js';
@@ -74,12 +74,10 @@ export class FoodsAdminController {
     public async requeueFood(@Param('id') id: string, @Req() req: AuthenticatedRequest): Promise<RequeueResponse> {
         this.requireAdmin(req);
 
-        // Same guard every other `:id` route applies. Without it a malformed id reaches two DAO writes and
+        // The same guard every other `:id` route applies. Without it a malformed id reaches two DAO writes and
         // fails as a 500 rather than the 400 the caller can act on — and the route-input inventory in
         // `routeValidation.test.ts` requires every raw param to name the validator that covers it.
-        if (!isFoodId(id)) {
-            throw apiError('INVALID_ID', 'The id is not a valid food (ingredient) ULID');
-        }
+        requireId(id);
 
         // The verified `sub` — documented on `AuthenticatedPrincipal` as the trace/audit identity — is the
         // accountable principal behind the source calls this requeue authorises (FR-048). `requireAdmin`

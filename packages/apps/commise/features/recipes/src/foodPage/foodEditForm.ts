@@ -9,7 +9,7 @@ import type { UpdateAuthoredFoodResult } from '@kitchensink/food-service-client'
 import type { PublicationStateValue } from '@kitchensink/schema-food';
 
 import type { AuthoredFoodDraft } from '../hooks/authoredFoodCreate.model.js';
-import { figureText, macrosOfFood } from './foodEditComparison.js';
+import { figureText } from './foodEditComparison.js';
 import type { FoodPageState } from './foodPageState.js';
 
 /** A page state the cook can edit from. */
@@ -46,15 +46,15 @@ export function editDraftOf(state: EditableState): AuthoredFoodDraft {
         };
     }
 
-    const macros = macrosOfFood(state.food);
+    const macros = state.food.authoredMacros;
     const text = (value: number | undefined): string => (value === undefined ? '' : figureText(value));
 
     return {
         name: state.food.name ?? '',
-        calories: text(macros.calories),
-        proteinG: text(macros.proteinG),
-        carbsG: text(macros.carbsG),
-        fatG: text(macros.fatG),
+        calories: text(macros?.calories),
+        proteinG: text(macros?.proteinG),
+        carbsG: text(macros?.carbsG),
+        fatG: text(macros?.fatG),
     };
 }
 

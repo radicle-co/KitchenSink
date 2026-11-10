@@ -14,6 +14,7 @@ import { editorMessages, finishedNoticeOf, type EditorFinish, type PrivateRefusa
 import { foodPageMessages } from '@commise/features-recipes/food-page';
 import { FoodDetailScreen } from '@commise/features-recipes/food-page/mobile';
 import { useMessages } from '@commise/i18n/react';
+import { useIsOffline } from '@commise/query';
 import { useSnackbar } from '@commise/ui/snackbar';
 import type { NativeStackScreenProps, createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useCallback, type JSX } from 'react';
@@ -140,6 +141,7 @@ function FoodDetailRoute({ navigation, route }: TaskProps<'FoodDetail'>): JSX.El
               ? m.backToRecipe
               : { label: m.yourFoods.title, parent: m.yourFoods.title };
     const goBack = (): void => navigation.goBack();
+    const offline = useIsOffline();
 
     return (
         <FoodDetailScreen
@@ -147,6 +149,7 @@ function FoodDetailRoute({ navigation, route }: TaskProps<'FoodDetail'>): JSX.El
             back={{ label: back.label, parent: back.parent, onPress: goBack }}
             leaveLabel={back.label}
             onLeave={goBack}
+            offline={offline}
         />
     );
 }

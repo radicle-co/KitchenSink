@@ -13,6 +13,7 @@
  */
 import { FoodEditSheet, FoodPageView, foodPageMessages, useFoodPage } from '@commise/features-recipes/food-page';
 import { useMessages } from '@commise/i18n/react';
+import { useIsOffline } from '@commise/query';
 import { LargeTitleHeader } from '@commise/ui/large-title-header';
 import { PushedPageFrame } from '@commise/ui/pushed-page';
 import type { Route } from 'next';
@@ -33,7 +34,7 @@ export const FoodPageContainer: FC<FoodPageContainerProps> = ({ foodId, locale }
     const router = useRouter();
     const headingId = useId();
     const recipesPath = `/${locale}/recipes`;
-    const session = useFoodPage(foodId);
+    const session = useFoodPage(foodId, { offline: useIsOffline() });
     const title = 'food' in session.state ? (session.state.food.name ?? m.titleFallback) : m.titleFallback;
     const back = {
         label: m.back.label,

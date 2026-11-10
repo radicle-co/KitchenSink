@@ -17,6 +17,7 @@ import { useRouter } from 'next/navigation';
 import { useId, type FC } from 'react';
 
 import { withBasePath } from '@/lib/basePath';
+import { foodHref } from '@/components/foods/foodHref';
 
 /** The list route’s content. */
 export const YourFoodsContainer: FC<{ readonly locale: string }> = ({ locale }) => {
@@ -44,8 +45,10 @@ export const YourFoodsContainer: FC<{ readonly locale: string }> = ({ locale }) 
                         items={items}
                         hasMore={foods.hasNextPage}
                         loadingMore={foods.isFetchingNextPage}
-                        hrefOf={(id) => withBasePath(`/${locale}/foods/${encodeURIComponent(id)}`)}
-                        onOpen={(id) => router.push(`/${locale}/foods/${encodeURIComponent(id)}` as Route)}
+                        hrefOf={(id) => withBasePath(foodHref(locale, id))}
+                        onOpen={(id) => {
+                            router.push(foodHref(locale, id));
+                        }}
                         onRetry={() => void foods.refetch()}
                         onLoadMore={() => void foods.fetchNextPage()}
                     />

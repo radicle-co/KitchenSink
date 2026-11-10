@@ -3889,6 +3889,49 @@ describe('a Publish the server refuses for a private food in a public recipe', (
         expect(view.result.current.privateFoodRefusal?.lines).toEqual(REFUSED.lines);
     });
 
+    // The drain drops a refusal as it lands (ruling a369e1852), so the record is already out of the log: the editor shows
+    // the refusal and clears its lane, and asks the outbox to withdraw nothing.
+    it('⛔ a refusal the outbox already DROPPED is shown at once, with no withdrawal asked for', async () => {
+        const view = mount({ recipe: PUBLIC_DRAFT }, undefined, fakePort(), undefined);
+        act(() => {
+            view.result.current.publish('');
+        });
+        await settle();
+        const seq = view.port.lastSeq();
+        act(() => {
+            view.port.drop(seq, 400, REFUSED);
+        });
+        await settle();
+
+        expect(view.port.withdraw).not.toHaveBeenCalled();
+        expect(view.port.stateOf(seq)).toBeUndefined();
+        expect(view.result.current.privateFoodRefusal?.lines).toEqual(REFUSED.lines);
+        expect(view.result.current.parked).toBeUndefined();
+        expect(view.result.current.writeInFlight).toBe(false);
+        expect(view.result.current.saveStatus.kind).not.toBe('syncFailed');
+    });
+
+    it('⛔ a dropped record whose answer no refusal names still leaves the lane: the Publish does not hang', async () => {
+        const view = mount({ recipe: PUBLIC_DRAFT }, undefined, fakePort(), undefined);
+        act(() => {
+            view.result.current.publish('');
+        });
+        await settle();
+        const seq = view.port.lastSeq();
+        act(() => {
+            view.port.drop(seq, 410, { kind: 'recipeDeleted', id: PUBLIC_DRAFT.id });
+        });
+        await settle();
+
+        expect(view.port.withdraw).not.toHaveBeenCalled();
+        expect(view.result.current.writeInFlight).toBe(false);
+        expect(view.result.current.parked).toBeUndefined();
+        // Left as it was, the lane kept the gone write as its outstanding one: the Publish stayed `finishing` and the save
+        // `syncing` for good.
+        expect(view.result.current.state.status).toBe('editing');
+        expect(view.result.current.saveStatus.kind).not.toBe('syncing');
+    });
+
     it('⛔ the cook removes the private line: Publish sends the CURRENT draft, and nothing refused is left behind', async () => {
         const { view, seq } = await publishRefused();
         const values = view.result.current.values;
@@ -3990,12 +4033,27 @@ describe('a Publish refused for a private food after the editor was closed and o
     const publishRefusedIn = async (second: ReturnType<typeof mount>, port: ReturnType<typeof fakePort>) =>
         publishRefusedInBy(second, port, (seq) => port.park(seq, 400, REFUSED));
 
-    function expectRefusalShown(second: ReturnType<typeof mount>, port: ReturnType<typeof fakePort>, seq: number) {
+    /**
+     * The refusal is shown and the refused record is gone. A PARKED one is gone because the editor withdrew it; a DROPPED
+     * one left the log as it settled, so the editor must ask for no withdrawal of it.
+     */
+    function expectRefusalShown(
+        second: ReturnType<typeof mount>,
+        port: ReturnType<typeof fakePort>,
+        seq: number,
+        via: 'parked' | 'dropped' = 'parked',
+    ) {
         expect(port.submitted.at(-1)).toMatchObject({ payload: { input: { status: RecipeStatus.PUBLISHED } } });
         expect(second.result.current.privateFoodRefusal?.lines).toEqual(REFUSED.lines);
         // The sheet opens only on a row it can name (`RecipeEditorSurface`): the reopened draft must still carry the food.
         expect(refusedRowsOf(REFUSED.lines, second.result.current.values)).toEqual([1]);
-        expect(port.withdrawn).toContain(seq);
+
+        if (via === 'parked') {
+            expect(port.withdrawn).toContain(seq);
+        } else {
+            expect(port.withdrawn).not.toContain(seq);
+        }
+
         expect(port.stateOf(seq)).toBeUndefined();
         expect(second.result.current.parked).toBeUndefined();
         expect(second.result.current.saveStatus.kind).not.toBe('syncFailed');
@@ -4126,7 +4184,7 @@ describe('a Publish refused for a private food after the editor was closed and o
         const seq = await publishRefusedInBy(second, port, (sent) => port.drop(sent, 400, REFUSED));
 
         expect(seq).not.toBe(refusedSeq);
-        expectRefusalShown(second, port, seq);
+        expectRefusalShown(second, port, seq, 'dropped');
     });
 
     it('⛔ a slots-full refusal of a Publish the closed editor sent lands on the reopened one: the ask, and the record dropped', async () => {
@@ -4152,6 +4210,25 @@ describe('a Publish refused for a private food after the editor was closed and o
         expect(port.withdrawn).toEqual([refusedSeq]);
         expect(port.stateOf(refusedSeq)).toBeUndefined();
         expect(second.result.current.parked).toBeUndefined();
+    });
+
+    it('⛔ a slots-full refusal the outbox already DROPPED opens the ask with no withdrawal asked for', async () => {
+        const PRIVATE_DRAFT = { ...PUBLIC_DRAFT, visibility: RecipeVisibility.PRIVATE };
+        const view = mount({ recipe: PRIVATE_DRAFT }, undefined, fakePort(), undefined);
+        act(() => {
+            view.result.current.publish('');
+        });
+        await settle();
+        const seq = view.port.lastSeq();
+        act(() => {
+            view.port.drop(seq, 403, { kind: 'recipeSlotsFull', used: 50, limit: 50 });
+        });
+        await settle();
+
+        expect(view.port.withdraw).not.toHaveBeenCalled();
+        expect(view.result.current.publishBlocked).toEqual({ kind: 'noSlot', total: 50 });
+        expect(view.result.current.parked).toBeUndefined();
+        expect(view.result.current.writeInFlight).toBe(false);
     });
 
     it('a refusal for ANOTHER recipe is not this editor’s to show or drop', async () => {

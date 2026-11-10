@@ -1,6 +1,9 @@
 /**
  * @module @commise/features-recipes/foodPage — the "Your edit" comparison of state 9 (private foods spec D4): the fields a
  * waiting edit changes, as "from to" pairs over the public version, and nothing else. Pure.
+ *
+ * Macros to macros: the public version's figures are the food's `authoredMacros`, which food-service reads from the live
+ * row by nutrient identity, and the waiting edit's are its `PublicationSnapshot.macros`.
  */
 import type { AuthoredMacros, FoodResponse, PublicationSnapshot } from '@kitchensink/schema-food';
 
@@ -24,38 +27,6 @@ const UNIT_OF: Readonly<Record<keyof AuthoredMacros, 'kcal' | 'g'>> = {
     fatG: 'g',
 };
 
-/** Which nutrient row is which figure. An authored food's rows carry the dictionary's names. */
-const NUTRIENT_OF: Readonly<Record<keyof AuthoredMacros, RegExp>> = {
-    calories: /^energy|calor/iu,
-    proteinG: /^protein/iu,
-    carbsG: /^carbohydrate/iu,
-    fatG: /^(total )?(lipid|fat)/iu,
-};
-
-/**
- * The four per-100 g figures the food page shows, read out of the food's nutrient rows. Energy is the kcal row, never
- * kJ. A figure the food does not carry is absent. Pure.
- */
-export function macrosOfFood(food: FoodResponse): Partial<AuthoredMacros> {
-    const figureOf = (field: keyof AuthoredMacros): number | undefined =>
-        food.nutrients.find(
-            (candidate) =>
-                NUTRIENT_OF[field].test(candidate.nutrient) &&
-                (field !== 'calories' || candidate.unit.toLowerCase() === 'kcal'),
-        )?.amount;
-    const calories = figureOf('calories');
-    const proteinG = figureOf('proteinG');
-    const carbsG = figureOf('carbsG');
-    const fatG = figureOf('fatG');
-
-    return {
-        ...(calories === undefined ? {} : { calories }),
-        ...(proteinG === undefined ? {} : { proteinG }),
-        ...(carbsG === undefined ? {} : { carbsG }),
-        ...(fatG === undefined ? {} : { fatG }),
-    };
-}
-
 /** A figure as the cook reads it: its decimals only when it has some. Pure. */
 export function figureText(amount: number): string {
     return String(Math.round(amount * 100) / 100);
@@ -69,7 +40,7 @@ export function figureText(amount: number): string {
  * @returns One row per changed field, in a fixed order; empty when nothing changed.
  */
 export function foodEditComparison(food: FoodResponse, snapshot: PublicationSnapshot): readonly ComparedRow[] {
-    const live = macrosOfFood(food);
+    const live: Partial<AuthoredMacros> = food.authoredMacros ?? {};
     const rows: ComparedRow[] = [];
 
     for (const field of ORDER) {

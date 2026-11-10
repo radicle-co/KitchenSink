@@ -63,9 +63,9 @@ import { opensPasteSheet } from '@/components/recipes/pasteIngredientsHref';
 import { RecipeReadError } from '@/components/recipes/RecipeReadError';
 import { RecipePhotoUploaderContainer } from '@/components/recipes/RecipePhotoUploaderContainer';
 import { useUserProfile } from '@/hooks/useUserProfile';
-import { withBasePath } from '@/lib/basePath';
 import { isRecipeRouteId } from '@/lib/recipeRouteId';
 import { reportErrorToSentry } from '@/lib/sentryErrorReporter';
+import { openFoodInNewTab } from '@/components/foods/foodHref';
 
 /** Props for {@link RecipeEditorContainer}. */
 export interface RecipeEditorContainerProps {
@@ -382,9 +382,9 @@ const RecipeEditorSession: FC<RecipeEditorSessionProps> = ({ locale, mode, draft
             }}
             onOpenMyRecipes={() => router.push(`/${locale}/recipes` as Route)}
             // A new tab, so the draft stays where the cook left it (private foods spec D5, D6).
-            onOpenFood={(foodId) =>
-                window.open(withBasePath(`/${locale}/foods/${encodeURIComponent(foodId)}`), '_blank', 'noopener')
-            }
+            onOpenFood={(foodId) => {
+                openFoodInNewTab(locale, foodId);
+            }}
         />
     );
 };

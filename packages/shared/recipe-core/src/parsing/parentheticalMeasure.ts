@@ -19,6 +19,7 @@
  * @pattern Parser — parse, don't validate: a closed result type instead of a regex match for the callers to re-read
  */
 import { LENGTH_UNIT_VOCABULARY, classifyUnit } from '../units.js';
+import { escapeRegExp } from './escapeRegExp.js';
 
 /** What a parenthetical after the amount says. `text` is the text inside the parentheses, as written. */
 export type Parenthetical =
@@ -62,9 +63,7 @@ const LEADING = new RegExp(
     'u',
 );
 
-const LENGTH_UNITS = LENGTH_UNIT_VOCABULARY.map((unit) => unit.replace(/[.*+?^${}()|[\]\\]/gu, String.raw`\$&`)).join(
-    '|',
-);
+const LENGTH_UNITS = LENGTH_UNIT_VOCABULARY.map(escapeRegExp).join('|');
 
 /** "9 inch", "9x13 inch", "9 x 13 inches", "1/2 inch", "9-inch", `9"`. */
 const DIMENSION = new RegExp(String.raw`^${NUMBER}(?:\s*(?:x|×|by)\s*${NUMBER})?\s*-?\s*(?:${LENGTH_UNITS})$`, 'iu');

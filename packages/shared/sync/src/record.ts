@@ -82,5 +82,8 @@ export interface OutboxRecord extends Intent {
  *
  * ⚠️ Version 1 is the format ADR-0057 records (`seq`, `sending`, the counter and the resolutions included). Nothing
  * wrote an outbox before that format was fixed — the queue had no `submit` call site — so it was not bumped for it.
+ *
+ * Version 2 (commit 0ca39b847, 2026-11-08): a queued recipe write's ingredient lines carry the wire's
+ * `displayText` and `note`, and no longer the retired `notes`. Nothing else in the record changed.
  */
 export const LOCAL_SCHEMA_VERSION = 2;

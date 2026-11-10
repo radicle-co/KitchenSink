@@ -23,7 +23,7 @@ import { StatusBadge } from '@commise/ui/status-badge';
 import type { FC } from 'react';
 
 import { fillTemplate } from '../format/fillTemplate.js';
-import { figureText, macrosOfFood } from './foodEditComparison.js';
+import { figureText } from './foodEditComparison.js';
 import { foodPageCopyOf, type FoodShownState } from './foodPageCopy.js';
 import type { FoodPageViewProps } from './foodPageViewProps.js';
 import { foodPageMessages } from './messages.js';
@@ -76,12 +76,12 @@ const FoodShown: FC<FoodPageViewProps & { readonly state: FoodShownState }> = ({
     const m = useMessages(foodPageMessages);
     const locale = useLocale();
     const copy = foodPageCopyOf(state, m, locale);
-    const macros = macrosOfFood(state.food);
+    const macros = state.food.authoredMacros;
     const figures: readonly (readonly [string, number | undefined, 'kcal' | 'g'])[] = [
-        [m.nutrition.calories, macros.calories, 'kcal'],
-        [m.nutrition.protein, macros.proteinG, 'g'],
-        [m.nutrition.carbs, macros.carbsG, 'g'],
-        [m.nutrition.fat, macros.fatG, 'g'],
+        [m.nutrition.calories, macros?.calories, 'kcal'],
+        [m.nutrition.protein, macros?.proteinG, 'g'],
+        [m.nutrition.carbs, macros?.carbsG, 'g'],
+        [m.nutrition.fat, macros?.fatG, 'g'],
     ];
     const name = state.food.name ?? m.titleFallback;
     const press = { edit: onEdit, ask: onAsk } as const;

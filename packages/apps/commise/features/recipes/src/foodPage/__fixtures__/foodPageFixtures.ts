@@ -4,7 +4,10 @@ import type { EditableState } from '../foodEditForm.js';
 import type { FoodPageState } from '../foodPageState.js';
 import type { FoodPageViewProps } from '../foodPageViewProps.js';
 
-/** An authored food with the four figures and one portion. */
+/**
+ * An authored food with the four figures and one portion. Its nutrient rows disagree with its `authoredMacros` on
+ * purpose: the page reads the authored figures, so a page that read the rows by name would show 999 and fail.
+ */
 export function makeFood(overrides: Partial<FoodResponse> = {}): FoodResponse {
     return {
         id: 'food_1',
@@ -13,13 +16,14 @@ export function makeFood(overrides: Partial<FoodResponse> = {}): FoodResponse {
         kind: 'generic',
         status: 'RESOLVED',
         nutrients: [
-            { nutrient: 'Energy', amount: 120, unit: 'kcal', basis: 'per_100g', source: 'authored' },
-            { nutrient: 'Protein', amount: 3, unit: 'g', basis: 'per_100g', source: 'authored' },
-            { nutrient: 'Carbohydrate, by difference', amount: 16, unit: 'g', basis: 'per_100g', source: 'authored' },
-            { nutrient: 'Total lipid (fat)', amount: 5, unit: 'g', basis: 'per_100g', source: 'authored' },
+            { nutrient: 'Energy', amount: 999, unit: 'kcal', basis: 'per_100g', source: 'author' },
+            { nutrient: 'Protein', amount: 99, unit: 'g', basis: 'per_100g', source: 'author' },
+            { nutrient: 'Carbohydrate, by difference', amount: 99, unit: 'g', basis: 'per_100g', source: 'author' },
+            { nutrient: 'Total lipid (fat)', amount: 99, unit: 'g', basis: 'per_100g', source: 'author' },
         ],
-        portions: [{ label: '1 cup', gramWeight: 240, source: 'authored' }],
+        portions: [{ label: '1 cup', gramWeight: 240, source: 'author' }],
         provenance: {},
+        authoredMacros: { calories: 120, proteinG: 3, carbsG: 16, fatG: 5 },
         variants: [],
         ...overrides,
     };

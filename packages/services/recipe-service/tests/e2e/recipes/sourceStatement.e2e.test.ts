@@ -21,6 +21,8 @@ import { createRecipeDrizzle, type RecipeDrizzle } from '../../../src/database/c
 import { recipes, type RecipeRow } from '../../../src/database/schema/index.js';
 import { RecipesService } from '../../../src/recipes/recipes.service.js';
 import { CURATOR_IMPORT_SCOPE, createRecipeRequestSchema } from '../../../src/recipes/recipes.schema.js';
+import { resolveStatementProvenance } from '../../../src/recipes/domain/provenancePolicy.js';
+import { privateRuleOf } from '@kitchensink/recipe-core';
 import type { Principal } from '../../../src/auth/principal.js';
 import { recipeDb } from '../../support/roleDb.js';
 
@@ -229,6 +231,72 @@ describe('a pasted web link as the recipe source (e2e)', () => {
         expect(status).toBe(400);
         expect(json['code']).toBe('INVALID_VISIBILITY');
         expect((await readRow(id)).visibility).toBe('private');
+    });
+
+    // The bulk import saves through `RecipesService.create` with the provenance its statement resolved to (ADR-0072 section 9,
+    // ADR-0089). A web statement must be a web copy in the database, so it can never be saved public and never reads as the
+    // curator's public-domain text.
+    describe('a bulk import’s public_web item', () => {
+        const importedFor = (statement: Parameters<typeof resolveStatementProvenance>[0]) => {
+            const provenance = resolveStatementProvenance(statement);
+
+            if (provenance === undefined) {
+                throw new Error('test setup: the statement must resolve');
+            }
+
+            return { provenance, lineOrigins: [{ kind: 'cook' }] } as const;
+        };
+
+        it('asked for PUBLIC is refused, and no row is written', async () => {
+            await expect(
+                service.create(
+                    principal(),
+                    createRecipeRequestSchema.parse(body({ visibility: 'public' })),
+                    undefined,
+                    importedFor(STATEMENT),
+                ),
+            ).rejects.toMatchObject({ code: 'INVALID_VISIBILITY' });
+            expect(await db.select().from(recipes).where(eq(recipes.ownerId, COOK))).toHaveLength(0);
+        });
+
+        it('saved PRIVATE stores the kind in the database and reads back as a web copy, never public domain', async () => {
+            const saved = await service.create(
+                principal(),
+                createRecipeRequestSchema.parse(body({ visibility: 'private', status: 'draft' })),
+                undefined,
+                importedFor(STATEMENT),
+            );
+
+            expect(await readRow(saved.id)).toMatchObject({
+                visibility: 'private',
+                sourceType: 'imported_public',
+                sourceKind: 'public_web',
+                sourceUrl: LINK,
+            });
+
+            const read = await send('GET', `/api/v1/recipes/${saved.id}`);
+
+            // The read path carries the kind, so no client treats this `imported_public` as the curator's text.
+            expect(read.json).toMatchObject({ sourceType: 'imported_public', sourceKind: 'public_web' });
+            expect(privateRuleOf('imported_public', read.json['sourceKind'] as 'public_web')).toBe('privateOnly');
+        });
+
+        it('every statement form resolves to a row the 0065 CHECK accepts', async () => {
+            for (const statement of [
+                STATEMENT,
+                { kind: 'book', citation: 'Joy of Cooking, p. 12' },
+                { kind: 'paid_site', citation: 'A paid site' },
+            ] as const) {
+                const saved = await service.create(
+                    principal(),
+                    createRecipeRequestSchema.parse(body({ visibility: 'private', status: 'draft' })),
+                    undefined,
+                    importedFor(statement),
+                );
+
+                expect((await readRow(saved.id)).sourceKind).toBe(statement.kind);
+            }
+        });
     });
 
     it('a clone of a web copy carries the source and cannot clear it', async () => {

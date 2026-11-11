@@ -119,6 +119,11 @@ function makeQueue(): { enqueue: Mock<(messages: readonly ParseLineJobMessage[])
     return { enqueue: vi.fn<(messages: readonly ParseLineJobMessage[]) => Promise<void>>(async () => undefined) };
 }
 
+/** Every message the queue was handed, across calls. */
+function enqueuedMessages(queue: ReturnType<typeof makeQueue>): readonly ParseLineJobMessage[] {
+    return queue.enqueue.mock.calls.flatMap(([messages]) => [...messages]);
+}
+
 describe('create', () => {
     /**
      * ⚠️ REWRITTEN for the copy-forward contract (plan 2026-09-19-001). Each stored line now carries its
@@ -327,6 +332,78 @@ describe('createPrepaid — a job whose unit the caller already paid', () => {
         ]);
         expect(queue.enqueue).toHaveBeenCalledTimes(1);
         expect(view.lines).toHaveLength(2);
+    });
+
+    describe('under a job id the caller derived (a bulk import’s retry finds the same job)', () => {
+        const PRE_ID = '3f2504e0-4f89-41d3-9a0c-0305e82c3302';
+
+        it('⛔ hands the id to the DAL on the prepaid admission, so a retry after a crash cannot make a second job', async () => {
+            const dal = makeDal();
+
+            await new ParseJobsService(dal, makeQueue()).createPrepaid(OWNER, ['2 cups flour'], PRE_ID);
+
+            expect(dal.createJob.mock.calls[0]?.[3]).toEqual({ kind: 'prepaid', jobId: PRE_ID });
+        });
+
+        it('⛔ answers an EXISTING job and re-sends only the lines nothing ever claimed', async () => {
+            const claimed = {
+                lineIndex: 0,
+                sourceLine: 'claimed',
+                lineDigest: lineDigest('claimed', sha256Hex),
+                status: 'pending' as const,
+                proposal: null,
+                llmAttempts: null,
+                attempts: 1,
+                claimAgeSeconds: 3,
+            };
+            const never = {
+                ...claimed,
+                lineIndex: 1,
+                sourceLine: 'never',
+                lineDigest: lineDigest('never', sha256Hex),
+                attempts: 0,
+                claimAgeSeconds: null,
+            };
+            const landed = {
+                ...claimed,
+                lineIndex: 2,
+                sourceLine: 'landed',
+                lineDigest: lineDigest('landed', sha256Hex),
+                status: 'parsed' as const,
+                attempts: 1,
+            };
+            const dal = makeDal({
+                createJob: vi.fn<ParseJobsDalPort['createJob']>(async () => ({
+                    kind: 'existing' as const,
+                    record: makeRecord({ id: PRE_ID, lines: [claimed, never, landed] }),
+                })),
+            });
+            const queue = makeQueue();
+
+            const view = await new ParseJobsService(dal, queue).createPrepaid(
+                OWNER,
+                ['claimed', 'never', 'landed'],
+                PRE_ID,
+            );
+
+            expect(view.id).toBe(PRE_ID);
+            expect(queue.enqueue).toHaveBeenCalledTimes(1);
+            expect(enqueuedMessages(queue).map((message) => message.lineIndex)).toEqual([1]);
+        });
+
+        it('sends nothing for an existing job that has no line left to send', async () => {
+            const dal = makeDal({
+                createJob: vi.fn<ParseJobsDalPort['createJob']>(async () => ({
+                    kind: 'existing' as const,
+                    record: makeRecord({ id: PRE_ID, status: 'complete', lines: [] }),
+                })),
+            });
+            const queue = makeQueue();
+
+            await new ParseJobsService(dal, queue).createPrepaid(OWNER, ['x'], PRE_ID);
+
+            expect(queue.enqueue).not.toHaveBeenCalled();
+        });
     });
 
     it('refuses an empty list rather than creating a job with nothing to parse', async () => {

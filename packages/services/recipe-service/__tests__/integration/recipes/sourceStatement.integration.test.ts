@@ -32,6 +32,10 @@ import {
 } from '../../../src/recipes/recipes.tokens.js';
 import { PendingArchivesDal } from '../../../src/versions/dal/pendingArchives.dal.js';
 import { VERSIONS_DAL } from '../../../src/versions/versions.service.js';
+import type { Principal } from '../../../src/auth/principal.js';
+import { resolveStatementProvenance } from '../../../src/recipes/domain/provenancePolicy.js';
+import { createRecipeRequestSchema } from '../../../src/recipes/recipes.schema.js';
+import { RecipesService } from '../../../src/recipes/recipes.service.js';
 import { asPrincipal } from '../../../tests/support/asPrincipal.js';
 import { bearerFor, startFoodFake, type FoodFake } from '../../../tests/support/foodFake.js';
 import { bootMockedRecipeApp } from '../../../tests/support/mockedRecipeApp.js';
@@ -418,6 +422,53 @@ describe('PATCH /api/v1/recipes/{id} — the source can be settled until the fir
 
         expect(response.status).toBe(400);
         expect(update).not.toHaveBeenCalled();
+    });
+});
+
+// The bulk import (ADR-0072 section 9) calls `RecipesService.create` with its statement's provenance, an INTERNAL argument. A
+// web statement must resolve to the web copy and so can never be saved public, whatever the item asked for.
+describe('RecipesService.create with the bulk import’s provenance (ADR-0089)', () => {
+    const importedPrincipal: Principal = {
+        userId: COOK,
+        sub: `test:${COOK}`,
+        scopes: [],
+        permissions: [],
+        roles: [],
+        principalKind: 'real',
+        containment: 'enforce',
+    };
+    const provenance = resolveStatementProvenance({ kind: 'public_web', citation: LINK });
+
+    function createWith(over: Record<string, unknown>) {
+        if (provenance === undefined) {
+            throw new Error('test setup: the statement must resolve');
+        }
+
+        return booted.app
+            .get(RecipesService)
+            .create(importedPrincipal, createRecipeRequestSchema.parse({ ...DRAFT_BODY, ...over }), undefined, {
+                provenance,
+                lineOrigins: [{ kind: 'cook' }],
+            });
+    }
+
+    it('REFUSES a public save of a public_web item, and writes nothing', async () => {
+        await expect(createWith({ visibility: 'public' })).rejects.toMatchObject({ code: 'INVALID_VISIBILITY' });
+        expect(create).not.toHaveBeenCalled();
+    });
+
+    it('a private save stores the web copy WITH its kind, so it never reads as the curator’s text', async () => {
+        await createWith({ visibility: 'private' });
+
+        expect(create).toHaveBeenCalledWith(
+            expect.objectContaining({
+                sourceType: 'imported_public',
+                sourceKind: 'public_web',
+                sourceUrl: LINK,
+                visibility: 'private',
+            }),
+            expect.anything(),
+        );
     });
 });
 

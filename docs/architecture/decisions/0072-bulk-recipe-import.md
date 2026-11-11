@@ -240,6 +240,13 @@ The owner ruled that bulk import has an allowance of its own, separate from past
   under "Needs your statement", uses no slot, and cannot be published until the cook gives the statement. It is kept
   as long as the import's working data: purged 30 days after the import's last `advance`, which covers an import the
   cook finished and one they abandoned.
+- **The purge runs on the band drain's 15-minute tick** in recipe-workers (`purgeFinishedImports`), beside the
+  parse-job sweep. It adds no Lambda, no schedule rule and no NAT consumer, so ADR-0004, ADR-0060 and ADR-0061 apply
+  unchanged. Its clock is `recipe_imports.updated_at`, indexed for it (migration 0066). It deletes 3 imports per
+  statement, oldest first, and stops after 20 seconds of the Lambda's 60. A failure fails the tick, and it runs last, so
+  a failure costs the other sweeps nothing. The import row goes, and its items and snapshot lines go with it by
+  cascade. Every saved recipe stays with its ingredients and `bound_by`, and the ingredient's `import_line_id` becomes
+  NULL. The allowance ledger is not touched and nothing is refunded.
 - **The import sets the provenance label from the statement:**
 
     | Statement                            | `sourceType`        | Visibility the policy allows                      |
@@ -351,6 +358,15 @@ is reached, this path does not wait for the budget to return.
   list covers those lines.
 - **A large library takes days.** At 1,000 recipes a rolling day (a paid plan), 017 SC-004's 2,000-recipe export
   finishes on the second day at the earliest. On Free's 200 a day it takes ten days.
+
+- **A purge drops open "to check" lines.** That list is derived from the snapshot. When an import is purged, its
+  lines that still wait for the cook leave the list and the count. The saved recipe keeps the line as the import left
+  it. This follows the owner's ruling literally, and it is open for the owner. To keep those lines findable, the purge
+  needs a rule that spares an import with open lines.
+- **One very large import can outlast a purge statement.** The purge deletes 3 imports per statement, and each one
+  takes its items and lines with it by cascade. A file of any size is accepted. So one import that holds tens of
+  thousands of recipes can make a single statement run past the tick's time. The tick then fails, and the next tick
+  tries the same import again.
 
 ## Follow-ups
 

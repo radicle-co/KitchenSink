@@ -37,6 +37,7 @@
  */
 import { RecipeSourceType, parseSourceLink, type RecipeSourceKind } from '@kitchensink/recipe-core';
 
+import type { ImportStatement } from '../import.schema.js';
 import { CURATOR_IMPORT_SCOPE, type RecipeSourceInput, type RecipeStatementInput } from '../recipes.schema.js';
 
 /**
@@ -116,6 +117,55 @@ const UNDECLARED: ResolvedProvenance = {
 };
 
 /**
+ * The ONE reading of a cook's statement as provenance (ADR-0072 section 9, ADR-0089). A recipe's own `statement` reads it
+ * through {@link evaluateProvenance}, and the bulk import reads it for each item, so the two cannot disagree.
+ *
+ * ⛔ Every resolution carries the source KIND, and the kind is the label's pair: a web copy is `imported_public` with
+ * `public_web`, a book `imported_physical` with `book`, a paid site `imported_paid` with `paid_site`. An `imported_public`
+ * with no kind reads as the curator's public-domain text, which may be public: that is the hazard ADR-0089 closes. These
+ * pairs are also what the `recipes_source_kind_pairs_source_type` CHECK accepts, so a write built from this cannot violate it.
+ *
+ * @param statement - The statement: the import's four forms, of which a recipe's own `statement` is the web member.
+ * @returns The provenance to store, or `undefined` for a web link that is not a usable source. Pure.
+ */
+export function resolveStatementProvenance(
+    statement: ImportStatement | RecipeStatementInput,
+): ResolvedProvenance | undefined {
+    switch (statement.kind) {
+        case 'authored':
+            return UNDECLARED;
+
+        case 'public_web': {
+            const parsed = parseSourceLink(statement.citation);
+
+            return parsed.ok
+                ? {
+                      sourceType: RecipeSourceType.IMPORTED_PUBLIC,
+                      sourceUrl: parsed.link.url,
+                      sourceAttribution: parsed.link.site,
+                      sourceKind: 'public_web',
+                  }
+                : undefined;
+        }
+
+        case 'book':
+            return {
+                sourceType: RecipeSourceType.IMPORTED_PHYSICAL,
+                sourceUrl: null,
+                sourceAttribution: statement.citation,
+                sourceKind: 'book',
+            };
+        case 'paid_site':
+            return {
+                sourceType: RecipeSourceType.IMPORTED_PAID,
+                sourceUrl: null,
+                sourceAttribution: statement.citation,
+                sourceKind: 'paid_site',
+            };
+    }
+}
+
+/**
  * Evaluate whether a caller may declare the provenance in its create body, and resolve what will be
  * persisted. Pure — inputs only.
  *
@@ -133,20 +183,15 @@ export function evaluateProvenance(input: ProvenancePolicyInput): ProvenanceDeci
         // ⛔ The statement branch NEVER reads `grantedScopes`: a cook states where a copy came from, and the label says
         // exactly that (ADR-0072 section 9). It is a web copy whatever else the caller holds, so a curator who states a link
         // gets a private web copy, not the curator's public-domain reading.
-        const parsed = parseSourceLink(statement.citation);
+        const provenance = resolveStatementProvenance(statement);
 
-        if (!parsed.ok) {
+        if (provenance === undefined) {
             return { allowed: false, denial: 'unusable', reason: 'The source link is not a public web page address.' };
         }
 
         return {
             allowed: true,
-            provenance: {
-                sourceType: RecipeSourceType.IMPORTED_PUBLIC,
-                sourceUrl: parsed.link.url,
-                sourceAttribution: parsed.link.site,
-                sourceKind: statement.kind,
-            },
+            provenance,
             reason: 'The cook stated that this recipe was copied from a public web page.',
         };
     }

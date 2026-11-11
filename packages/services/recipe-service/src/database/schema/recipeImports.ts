@@ -88,6 +88,7 @@ export const recipeImports = pgTable(
         check('recipe_imports_cursor_ordinal_check', sql`${table.cursorOrdinal} >= 0`),
         check('recipe_imports_cursor_within_file', sql`${table.cursorOrdinal} <= ${table.expectedTotal}`),
         index('recipe_imports_user_created_idx').on(table.userId, table.createdAt),
+        index('recipe_imports_updated_idx').on(table.updatedAt),
     ],
 );
 
@@ -106,6 +107,10 @@ export const recipeImportItems = pgTable(
         review: text('review').notNull().default('pending'),
         /** SET NULL: the TTL purge deletes jobs daily; the snapshot has what is needed. */
         parseJobId: uuid('parse_job_id').references(() => recipeParseJobs.id, { onDelete: 'set null' }),
+        /** Which job this item is on: the job id is derived from (import, ordinal, generation), so a retry finds the same job. */
+        parseGeneration: integer('parse_generation').notNull().default(0),
+        /** The fence on the save claim: bumped by every write of what the item is saved from. */
+        decisionRev: integer('decision_rev').notNull().default(0),
         allowanceSpentAt: timestamp('allowance_spent_at', { withTimezone: true }),
         matchedAt: timestamp('matched_at', { withTimezone: true }),
         savedAt: timestamp('saved_at', { withTimezone: true }),
@@ -122,6 +127,8 @@ export const recipeImportItems = pgTable(
     (table) => [
         primaryKey({ columns: [table.importId, table.ordinal] }),
         check('recipe_import_items_ordinal_check', sql`${table.ordinal} >= 0`),
+        check('recipe_import_items_parse_generation_check', sql`${table.parseGeneration} >= 0`),
+        check('recipe_import_items_decision_rev_check', sql`${table.decisionRev} >= 0`),
         check('recipe_import_items_title_check', sql`btrim(${table.title}) <> ''`),
         check('recipe_import_items_stage_check', inArray(table.stage, [...IMPORT_STAGES])),
         check('recipe_import_items_review_check', inArray(table.review, [...IMPORT_ITEM_REVIEWS])),
@@ -204,6 +211,8 @@ export const recipeImportLines = pgTable(
             .notNull()
             .default(sql`'[]'::jsonb`),
         verificationKey: text('verification_key'),
+        /** The key the verdict about the SAVED line lives under, set at the save. A key, never a verdict. */
+        savedVerificationKey: text('saved_verification_key'),
         review: text('review'),
         pickedFoodId: text('picked_food_id'),
         pickedFoodVariantId: text('picked_food_variant_id'),

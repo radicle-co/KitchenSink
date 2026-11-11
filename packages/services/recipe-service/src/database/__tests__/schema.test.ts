@@ -285,6 +285,10 @@ describe('recipe-service schema — table contracts (T011–T014, T118, T119, T1
             stage: { type: 'text', notNull: true },
             review: { type: 'text', notNull: true },
             parse_job_id: { type: 'uuid', notNull: false },
+            // Which job the item is on: the job id is derived from (import, ordinal, generation) so a retry finds the same job.
+            parse_generation: { type: 'integer', notNull: true },
+            // The fence on the save claim: bumped by every write of what an item is saved FROM (statement, visibility, review mark, pick).
+            decision_rev: { type: 'integer', notNull: true },
             allowance_spent_at: { type: 'timestampwithtimezone', notNull: false },
             matched_at: { type: 'timestampwithtimezone', notNull: false },
             saved_at: { type: 'timestampwithtimezone', notNull: false },
@@ -325,6 +329,8 @@ describe('recipe-service schema — table contracts (T011–T014, T118, T119, T1
             margin: { type: 'double precision', notNull: false },
             candidates: { type: 'jsonb', notNull: true },
             verification_key: { type: 'text', notNull: false },
+            // A KEY, never a verdict: where the verdict about the saved line lives (0066's header).
+            saved_verification_key: { type: 'text', notNull: false },
             review: { type: 'text', notNull: false },
             picked_food_id: { type: 'text', notNull: false },
             picked_food_variant_id: { type: 'text', notNull: false },

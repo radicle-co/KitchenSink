@@ -126,12 +126,19 @@ export type JobAdmission =
           readonly channel: ImportAllowanceChannel;
           readonly units: number;
       }
-    /** The caller already spent the unit this job belongs to (a bulk import's recipe pays on the `bulk` channel, ADR-0072 §8): admit nothing here. */
-    | { readonly kind: 'prepaid' };
+    /**
+     * The caller already spent the unit this job belongs to (a bulk import's recipe pays on the `bulk` channel, ADR-0072 §8):
+     * admit nothing here. `jobId`, when given, is the id the job is created under: a retry that names an id that already
+     * exists is answered with THAT job (`existing`) instead of making a second one, which is what makes a crash between
+     * "the job was created" and "the item names it" free of a second LLM bill.
+     */
+    | { readonly kind: 'prepaid'; readonly jobId?: string };
 
 /** What creating a job answers. A refusal wrote nothing: no job, no line, no ledger row. */
 export type CreateJobOutcome =
     | { readonly kind: 'created'; readonly record: ParseJobRecord }
+    /** The prepaid id named a job that already exists: nothing was written, and this is that job. */
+    | { readonly kind: 'existing'; readonly record: ParseJobRecord }
     | { readonly kind: 'refused'; readonly resetsAt: Date };
 
 /** The SQL truth this service depends on. Implemented by `dal/parseJobs.dal.ts`. */
@@ -352,15 +359,17 @@ export class ParseJobsService {
      *
      * @param ownerId - The verified caller.
      * @param lines - The already-split source lines (the importer's own, not a paste).
+     * @param jobId - The id to create the job under, when the caller derives one (a bulk import does, from its item). A job
+     *   with that id that already exists is returned as it is, and only the lines nothing ever claimed are sent again.
      * @throws {RangeError} when there are no lines: a job with nothing to parse is a caller defect.
      * @sideEffect Writes the parse-job tables and enqueues SQS messages.
      */
-    public async createPrepaid(ownerId: string, lines: readonly string[]): Promise<ParseJobResponse> {
+    public async createPrepaid(ownerId: string, lines: readonly string[], jobId?: string): Promise<ParseJobResponse> {
         if (lines.length === 0) {
             throw new RangeError('createPrepaid needs at least one line');
         }
 
-        return this.createWith(ownerId, lines, { kind: 'prepaid' });
+        return this.createWith(ownerId, lines, jobId === undefined ? { kind: 'prepaid' } : { kind: 'prepaid', jobId });
     }
 
     /**
@@ -392,9 +401,15 @@ export class ParseJobsService {
         }
 
         const { record } = created;
-        // ⛔ Only the lines the DAL actually left OUTSTANDING get a message. Reading it off the stored status
+        // ⛔ Only the lines the DAL actually left OUTSTANDING get a message. For a job that ALREADY EXISTED, only those nothing
+        // has claimed: the first attempt may have died before it enqueued, and a line a worker holds needs no second message.
+        // (A duplicate is harmless either way: the worker's landing is digest-guarded and the parse cache absorbs the work.) Reading it off the stored status
         // rather than off `decisions` keeps ONE authority for "what still needs doing" — the rows.
-        const outstanding = record.lines.filter((line) => line.status === 'pending');
+        const outstanding = record.lines.filter(
+            (line) =>
+                line.status === 'pending' &&
+                (created.kind === 'created' || (line.attempts === 0 && line.claimAgeSeconds === null)),
+        );
 
         if (outstanding.length === 0) {
             // Nothing to send, so nothing can fail. ⚠️ The job is already `complete` (derived in the DAL's

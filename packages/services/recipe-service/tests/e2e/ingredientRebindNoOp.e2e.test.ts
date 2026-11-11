@@ -2,6 +2,12 @@
  * A rebind whose target is the binding the line already holds, through the fully assembled app, a real Postgres and a
  * food-service fake (plan 002 U5; ADR-0045; LOCAL e2e under the 2026-09-20 ruling).
  *
+ * REWRITTEN for ADR-0072 §5 (bulk import). "The same food is a no-op" is still true for a line with no recorded origin or
+ * one the cook already owns (the first three cases, unchanged). It is NOT true for a line the import BOUND (`bound_by` is
+ * `exact`, `curated`, `review`, `default` or `autoBest`): the cook picking that same food is the cook confirming it, so it
+ * writes `cook`, mints a version and records the correction the cook taught. Without that, a flagged line could never be
+ * cleared by choosing the food it already holds. The last `describe` proves it against the real columns.
+ *
  * An editor adopts the version the command answers. What a mock cannot prove and these cases do: a stale
  * `expectedVersion` meets the enriched 409 with both conflict sides and writes nothing; a current one writes no
  * version, no line and no correction; and when another writer commits while food is asked, the answer still names the
@@ -99,6 +105,16 @@ async function storedState(recipeId: string): Promise<unknown> {
     );
 
     return rows[0];
+}
+
+/** What the import-bound line's origin columns hold now. */
+async function originOf(recipeId: string): Promise<{ bound_by: string | null; import_line_id: string | null }> {
+    const { rows } = await pool.query(
+        `SELECT bound_by, import_line_id::text AS import_line_id FROM ingredients WHERE recipe_id = $1 ORDER BY sort_order`,
+        [recipeId],
+    );
+
+    return rows[0] as { bound_by: string | null; import_line_id: string | null };
 }
 
 /** The live corrections this cook holds for `phrase`. */
@@ -212,5 +228,67 @@ describe('a rebind that changes nothing (e2e, assembled app + food fake)', () =>
 
         expect(save.status).toBe(409);
         expect((await json<RecipeBody>('GET', `/api/v1/recipes/${recipe.id}`, 200)).title).toBe(otherTitle);
+    });
+
+    describe('a rebind to the same food on a line the bulk import bound (ADR-0072 §5; e2e, assembled app + food fake)', () => {
+        /** A recipe whose one line the import auto-bound, with a link to a snapshot line that really exists. */
+        async function importBoundRecipe(
+            phrase: string,
+            boundBy: string,
+        ): Promise<{ recipe: RecipeBody; lineId: string }> {
+            const recipe = await brisketRecipe(phrase);
+            const imp = await pool.query<{ id: string }>(
+                `INSERT INTO recipe_imports (user_id, match_mode, visibility, expected_total) VALUES ($1, 'bindBest', 'private', 1) RETURNING id`,
+                [AUTHOR],
+            );
+            const importId = imp.rows[0]?.id ?? '';
+
+            await pool.query(
+                `INSERT INTO recipe_import_items (import_id, ordinal, title, payload, stage) VALUES ($1, 0, 'x', '{}'::jsonb, 'received')`,
+                [importId],
+            );
+            const line = await pool.query<{ id: string }>(
+                `INSERT INTO recipe_import_lines (import_id, ordinal, line_index, food_index, source_line, line_digest, judgement_digest, phrase, unit)
+                 VALUES ($1, 0, 0, 0, $2, 'ld', 'jd', $3, 'g') RETURNING id`,
+                [importId, `500 g ${phrase}`, phrase],
+            );
+            const lineId = line.rows[0]?.id ?? '';
+
+            await pool.query(`UPDATE ingredients SET bound_by = $2, import_line_id = $3 WHERE recipe_id = $1`, [
+                recipe.id,
+                boundBy,
+                lineId,
+            ]);
+
+            return { recipe, lineId };
+        }
+
+        it('⛔ writes `cook`, keeps the import link, mints exactly one version and teaches the correction', async () => {
+            const phrase = `${SCOPE} import bound brisket`;
+            const { recipe, lineId } = await importBoundRecipe(phrase, 'autoBest');
+            const before = (await storedState(recipe.id)) as { versions: number };
+
+            const response = await rebindToSameFood(recipe.id, recipe.currentVersion);
+            const body = (await response.json()) as RecipeBody;
+
+            expect(response.status).toBe(200);
+            expect(body.currentVersion).toBe(recipe.currentVersion + 1);
+            expect(await originOf(recipe.id)).toStrictEqual({ bound_by: 'cook', import_line_id: lineId });
+            expect(((await storedState(recipe.id)) as { versions: number }).versions).toBe(before.versions + 1);
+            expect(await corrections(phrase)).toHaveLength(1);
+        });
+
+        it('a second confirm of the now-cook line is a no-op again: no new version', async () => {
+            const phrase = `${SCOPE} confirmed twice brisket`;
+            const { recipe } = await importBoundRecipe(phrase, 'exact');
+            const first = (await (await rebindToSameFood(recipe.id, recipe.currentVersion)).json()) as RecipeBody;
+            const before = await storedState(recipe.id);
+
+            const second = await rebindToSameFood(recipe.id, first.currentVersion);
+
+            expect(second.status).toBe(200);
+            expect(((await second.json()) as RecipeBody).currentVersion).toBe(first.currentVersion);
+            expect(await storedState(recipe.id)).toStrictEqual(before);
+        });
     });
 });

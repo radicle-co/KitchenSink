@@ -762,6 +762,17 @@ describe('createRecipeRequestSchema — the optional `statement` (ADR-0089)', ()
         expect(createAccepts({ statement: { ...WEB, citation: 'http://example.com/a' } })).toBe(true);
     });
 
+    // Code that derives the statement kinds from the union (`importStatementSchema.options`) must still read each member's
+    // `kind` after the refined public-web member replaced the loose one.
+    it('the import union still exposes every member’s `kind` literal, refined member included', () => {
+        expect(importStatementSchema.options.map((member) => member.shape.kind.value).sort()).toEqual([
+            'authored',
+            'book',
+            'paid_site',
+            'public_web',
+        ]);
+    });
+
     it('is the SAME member the bulk import statement uses, not a second copy of the shape', () => {
         expect(importStatementSchema.safeParse(WEB).success).toBe(true);
         expect(recipeStatementSchema.safeParse(WEB).success).toBe(true);

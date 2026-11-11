@@ -14,6 +14,7 @@
 import * as Sentry from '@sentry/nestjs';
 import { forwardRef, Inject, Injectable, Logger } from '@nestjs/common';
 import {
+    isBoundBy,
     quantitiesEqual,
     type RecipeSnapshot,
     type RecipeSourceKind,
@@ -54,7 +55,13 @@ import {
     privateFoodsOnPublicRecipe,
 } from './recipe.error.js';
 import type { PrivateSlotUsage } from './recipes.schema.js';
-import { evaluateProvenance } from './domain/provenancePolicy.js';
+import { evaluateProvenance, type ResolvedProvenance } from './domain/provenancePolicy.js';
+import {
+    resolveLineBindings,
+    type DirectedBinding,
+    type LineOriginDirective,
+    type StoredBinding,
+} from './domain/bindingOriginCarryForward.js';
 import { evaluatePublication, type PublishPolicyInput } from './domain/publishPolicy.js';
 import { evaluateSourceCorrection, type StoredSource } from './domain/sourceCorrectionPolicy.js';
 import { evaluatePublicFoods, type PublicFoodsLine } from './domain/publicFoodsPolicy.js';
@@ -472,6 +479,47 @@ function visibilityAskOf(
     };
 }
 
+/**
+ * What the BULK IMPORT's save adds to a create (ADR-0072 §3, §9). An INTERNAL channel: it is an argument to
+ * {@link RecipesService.create}, never a field of a request body.
+ *
+ * ⛔ `provenance` is the one place `imported_public` (and the private-only labels) is set without the curator grant that
+ * `POST /api/v1/recipes` requires. ADR-0023's exception is for the import route only, and what backs the label is the
+ * cook's stored per-recipe statement and citation. It still passes through visibility: the caller judges the recipe against
+ * THIS provenance, so a book recipe cannot be public.
+ */
+export interface ImportedCreate {
+    /** The provenance the per-recipe statement set. */
+    readonly provenance: ResolvedProvenance;
+    /** One directive per ingredient line, in line order: the origin the import states and the snapshot line it came from. */
+    readonly lineOrigins: readonly LineOriginDirective[];
+    /**
+     * Runs INSIDE the recipe's transaction, right after the recipe row is written, with what was persisted. The import uses it
+     * to claim its item (`UPDATE … WHERE saved_at IS NULL`) in the same transaction as the recipe, so two saves of one item
+     * cannot both commit, and to store the verdict key of each saved line. A throw rolls the whole create back.
+     */
+    readonly afterWrite?: (tx: RecipeTx, saved: SavedRecipe) => Promise<void>;
+}
+
+/** What a create persisted, as `afterWrite` sees it. */
+interface SavedRecipe {
+    readonly recipeId: string;
+    /** The persisted lines, in line order. */
+    readonly ingredients: readonly IngredientRow[];
+    /** Each line's binding and what food named it, by binding id (the arm tells a food from a line kept as written). */
+    readonly identities: ReadonlyMap<string, IngredientLineIdentity>;
+}
+
+/** What a caller of {@link RecipesService.update} may state beyond the request: the save path's own directives. */
+export interface UpdateOptions {
+    readonly snapshot?: SnapshotDirective;
+    /**
+     * Origin directives by line POSITION in this request (the rebind builds its lines from the stored ones in the same call,
+     * so the position is stable). Internal: never a request field.
+     */
+    readonly lineOrigins?: ReadonlyMap<number, LineOriginDirective>;
+}
+
 @Injectable()
 export class RecipesService {
     public constructor(
@@ -694,6 +742,7 @@ export class RecipesService {
         principal: Principal,
         dto: CreateRecipeDto,
         caller: CallerToken | undefined,
+        imported?: ImportedCreate,
     ): Promise<RecipeResponse> {
         // ── Provenance FIRST, then visibility ────────────────────────────────────────────────────
         // The order is the seam (ADR-0023): the provenance policy decides WHAT THE RECIPE IS, and C-004
@@ -711,12 +760,24 @@ export class RecipesService {
             throw sourceAndStatementTogether();
         }
 
+        // ⛔ The bulk import is the ONE caller that states its provenance (ADR-0023's exception, this route only): the
+        // cook's per-recipe statement set it, and the stored statement and citation back the label. Everything below
+        // (visibility, the publish floor, the planner, the version row) is the SAME path an ordinary create takes.
+        // ⛔ Its `provenance` carries the source KIND (`resolveStatementProvenance`, the one function the statement branch
+        // of `evaluateProvenance` uses too), so a bulk web import is a web copy and never reads as the curator's text.
         const grantedScopes = [...principal.scopes, ...principal.permissions];
-        const provenanceDecision = evaluateProvenance(
-            dto.statement !== undefined
-                ? { statement: dto.statement, grantedScopes }
-                : { declared: dto.source, grantedScopes },
-        );
+        const provenanceDecision =
+            imported === undefined
+                ? evaluateProvenance(
+                      dto.statement !== undefined
+                          ? { statement: dto.statement, grantedScopes }
+                          : { declared: dto.source, grantedScopes },
+                  )
+                : ({
+                      allowed: true,
+                      provenance: imported.provenance,
+                      reason: 'The import’s per-recipe statement set the provenance.',
+                  } as const);
 
         if (!provenanceDecision.allowed) {
             throw provenanceDecision.denial === 'unusable'
@@ -775,6 +836,15 @@ export class RecipesService {
             plan.inputs.map((line) => ({ foodLookupId: line.foodLookupId, sortOrder: line.sortOrder })),
             plan.identities,
         );
+
+        // ⛔ The origins are matched to the planned lines BY POSITION, so a list of another length is a defect in the caller, and a
+        // missing entry would silently read as "the cook chose this food" (`cook`) and drop the line from every worklist.
+        if (imported !== undefined && imported.lineOrigins.length !== plan.inputs.length) {
+            throw new Error(
+                `imported.lineOrigins has ${String(imported.lineOrigins.length)} entries for ${String(plan.inputs.length)} planned lines`,
+            );
+        }
+
         // ⛔ ONE TRANSACTION: the recipe and its version row commit together or not at all (owner ruling
         // 2026-09-06). Everything above stays OUTSIDE — reads, policy and pure derivation — and so does
         // everything below, because a Postgres transaction must never be held across a network call.
@@ -826,11 +896,25 @@ export class RecipesService {
                     ingredientNamesText: plan.namesText,
                     // Denormalized byline (W8-a.2) — each half absent → its column stays NULL until the fan-out fills it.
                     ...bylineColumnsOf(byline),
-                    ingredients: plan.inputs,
+                    // Who bound each line (ADR-0072 §5): a create has nothing stored, so the cook's own foods are `cook`, a
+                    // line kept as written has no origin, and the import states its own.
+                    ingredients: this.withBindings(
+                        [],
+                        plan.inputs,
+                        plan.identities,
+                        (index) => imported?.lineOrigins[index],
+                    ),
                     steps: dto.steps.map(toStepInput),
                 },
                 tx,
             );
+
+            // The import's claim of its item, in THIS transaction, so the claim and the recipe commit or vanish together.
+            await imported?.afterWrite?.(tx, {
+                recipeId: created.recipe.id,
+                ingredients: created.ingredients,
+                identities: plan.identities,
+            });
 
             await this.recordSnapshotIn(tx, created, plan.identities, principal.userId, 'Created', byline);
             await this.assertNoPrivateFoodLinesIn(tx, created);
@@ -979,6 +1063,57 @@ export class RecipesService {
                     error instanceof Error ? error.stack : String(error),
                 ),
         );
+    }
+
+    /**
+     * Stamp each line with WHO BOUND it and WHICH imported line it came from (`bound_by`, `import_line_id`; ADR-0072 §5), by
+     * the pure {@link resolveLineBindings} rule over the currently-stored lines.
+     *
+     * ⛔ "KEPT AS WRITTEN" IS DERIVED FROM THE BINDING'S ARM. A line kept as written still has a `food_lookup_id` (an
+     * unresolved one), so feeding the rule raw ids would call it a food, and the first save would turn every such line into
+     * `cook`. The arm is read from the identities this write's plan already derived; a stored line whose binding is not in
+     * them is not among the incoming lines either, so it cannot match.
+     *
+     * @param stored - The recipe's persisted lines (none on a create).
+     * @param resolved - The lines about to be persisted, in final order.
+     * @param identities - The lines' identities by binding id, from this write's plan.
+     * @param directiveAt - The save path's directive for the line at an index, if any.
+     * @returns The same lines, each stating its origin. Pure.
+     */
+    private withBindings(
+        stored: readonly IngredientRow[],
+        resolved: readonly IngredientLineInput[],
+        identities: LineIdentities,
+        directiveAt: (index: number) => LineOriginDirective | undefined,
+    ): IngredientLineInput[] {
+        const isKeptAsWritten = (lookupId: string): boolean => identities.get(lookupId)?.arm.kind === 'unresolved';
+        const storedBindings = stored.map((row): StoredBinding => {
+            const boundBy = isBoundBy(row.boundBy) ? row.boundBy : null;
+
+            return isKeptAsWritten(row.foodLookupId)
+                ? {
+                      foodLookupId: undefined,
+                      keptLookupId: row.foodLookupId,
+                      boundBy: null,
+                      importLineId: row.importLineId,
+                  }
+                : { foodLookupId: row.foodLookupId, boundBy, importLineId: row.importLineId };
+        });
+        const incoming = resolved.map((line, index): DirectedBinding => {
+            const directive = directiveAt(index);
+            const identity = isKeptAsWritten(line.foodLookupId)
+                ? { foodLookupId: undefined, keptLookupId: line.foodLookupId }
+                : { foodLookupId: line.foodLookupId };
+
+            return { ...identity, importLineId: null, ...(directive === undefined ? {} : { directive }) };
+        });
+        const origins = resolveLineBindings(storedBindings, incoming);
+
+        return resolved.map((line, index) => ({
+            ...line,
+            boundBy: origins[index]?.boundBy ?? null,
+            importLineId: origins[index]?.importLineId ?? null,
+        }));
     }
 
     /**
@@ -1141,7 +1276,7 @@ export class RecipesService {
         id: string,
         dto: UpdateRecipeDto,
         caller: CallerToken | undefined,
-        options: { readonly snapshot?: SnapshotDirective } = {},
+        options: UpdateOptions = {},
     ): Promise<RecipeResponse> {
         const ownerId = principal.userId;
         const existing = await this.findEditableAggregate(ownerId, id, dto.expectedVersion, caller);
@@ -1195,8 +1330,16 @@ export class RecipesService {
         //    describes a request no app makes. The rule is `domain/transcriptionCarryForward.ts`; it is applied
         //    HERE because this is the only layer holding both the stored aggregate and the resolved lines.
         const plan = dto.ingredients !== undefined ? await this.planner.plan(caller, dto.ingredients) : undefined;
+        // …and the ORIGIN of each line (ADR-0072 §5): the food's own, carried by identity; a changed food is the cook's.
         const ingredients =
-            plan === undefined ? undefined : this.withCarriedTranscription(existing.ingredients, plan.inputs);
+            plan === undefined
+                ? undefined
+                : this.withBindings(
+                      existing.ingredients,
+                      this.withCarriedTranscription(existing.ingredients, plan.inputs),
+                      plan.identities,
+                      (index) => options.lineOrigins?.get(index),
+                  );
         // The version snapshot needs every line's identity. A patch without lines keeps the stored ones, whose
         // identities are read here — OUTSIDE the transaction, because it asks food.
         const identities =

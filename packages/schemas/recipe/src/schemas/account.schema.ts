@@ -39,6 +39,7 @@
  *     contract test asserts the handler has no body parameter.
  */
 import { z } from 'zod';
+import { recipeSourceKindSchema } from '@kitchensink/recipe-core';
 
 // ── The erasure intent gate ───────────────────────────────────────────────────────────────────────
 
@@ -253,7 +254,7 @@ export const recipeExportSchema = z
         firstPublishedAt: exportTimestampSchema.nullable(),
         sourceType: z.string(),
         /** What the cook said the source is (`public_web`, `book`, `paid_site`), or `null` (ADR-0089). */
-        sourceKind: z.string().nullable(),
+        sourceKind: recipeSourceKindSchema.nullable(),
         sourceUrl: z.string().nullable(),
         sourceAttribution: z.string().nullable(),
         /** Clone provenance: the recipe this was cloned FROM, or `null` for an original. */

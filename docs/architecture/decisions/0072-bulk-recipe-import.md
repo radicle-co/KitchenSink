@@ -242,12 +242,12 @@ The owner ruled that bulk import has an allowance of its own, separate from past
   cook finished and one they abandoned.
 - **The import sets the provenance label from the statement:**
 
-    | Statement                            | `sourceType`        | Visibility the policy allows                  |
-    | ------------------------------------ | ------------------- | --------------------------------------------- |
-    | I wrote this                         | `user_created`      | Public. Private needs Premium or a free slot. |
-    | From a public web page, with its URL | `imported_public`   | Private only, in a free slot (ADR-0089)       |
-    | From a book, with a citation         | `imported_physical` | Private only. Needs Premium or a free slot.   |
-    | From a paid site, with a citation    | `imported_paid`     | Private only. Needs Premium or a free slot.   |
+    | Statement                            | `sourceType`        | Visibility the policy allows                      |
+    | ------------------------------------ | ------------------- | ------------------------------------------------- |
+    | I wrote this                         | `user_created`      | Public. Private needs Premium or a free slot.     |
+    | From a public web page, with its URL | `imported_public`   | Private only. Needs Pro or a free slot (ADR-0089) |
+    | From a book, with a citation         | `imported_physical` | Private only. Needs Premium or a free slot.       |
+    | From a paid site, with a citation    | `imported_paid`     | Private only. Needs Premium or a free slot.       |
 
 - **This is an exception to ADR-0023's curator-only rule for `imported_public`.** On `POST /api/v1/recipes` only a
   principal holding the curator grant can DECLARE `imported_public` with its `source`. On the bulk import route the

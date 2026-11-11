@@ -3,6 +3,7 @@ import type { SQSHandler, SQSRecord } from 'aws-lambda';
 import { DeleteObjectsCommand, ListObjectsV2Command, S3Client } from '@aws-sdk/client-s3';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import {
+    PRIVATE_ONLY_SQL,
     cdnOwnerPrefixInvalidationPath,
     erasureQueueMessageKind,
     ownerMediaPrefix,
@@ -711,12 +712,21 @@ export const eraseRecipeRows = async (
         //    ⛔ ONLY a recipe that holds no private food (ADR-0029 section 6): a public recipe may not hold one (migration
         //    0064 would roll this whole transaction back, stranding the erasure), and a dead author's private foods must
         //    stay unreferenced so they are deleted. Such an elected recipe is removed with the owner-only set below.
+        //    ⛔ AND ONLY a recipe that may be public at all (ADR-0089): a book, a paid-site recipe or a copy of a web page is
+        //    private-only, and a donation makes it public. recipe-core's SQL twin of `privateRuleOf` says which, so the rule
+        //    is not copied here. Such an elected recipe is removed with the owner-only set below, exactly as one that holds a
+        //    private food is. (Until now a donated book or paid-site recipe was published.)
         await tx.execute(sql`
             UPDATE recipes
             SET visibility = 'public', status = 'published', updated_at = now()
             WHERE id IN (SELECT jsonb_array_elements_text(${publishElectionJson}::jsonb)::uuid)
               AND owner_id = ${ownerId}
               AND NOT recipe_holds_private_food(id)
+              AND NOT ${
+                  // A constant SQL fragment derived from recipe-core's rule, never input; it names columns, so it cannot be a bound value.
+                  // eslint-disable-next-line no-restricted-syntax -- the argument is a build-time constant, not a request value
+                  sql.raw(PRIVATE_ONLY_SQL)
+              }
         `);
 
         // 2. The removed set = the owner's rows that are NOT truly-public (owner-only, non-donated). Captured

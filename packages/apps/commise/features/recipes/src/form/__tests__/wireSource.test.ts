@@ -69,7 +69,7 @@ describe('toUpdateRecipeInput carries only a change of Source', () => {
     });
 
     it('sends nothing once the recipe has been published', () => {
-        const published = webCopy({ status: RecipeStatus.PUBLISHED });
+        const published = webCopy({ status: RecipeStatus.PUBLISHED, firstPublishedAt: '2026-11-01T00:00:00.000Z' });
 
         expect(update(makeFilledRecipeFormValues(), published)).not.toHaveProperty('statement');
     });

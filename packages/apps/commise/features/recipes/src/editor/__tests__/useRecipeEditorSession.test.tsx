@@ -646,6 +646,7 @@ describe('useRecipeEditorSession: the Source (ADR-0089)', () => {
         const view = mount({
             recipe: complete({
                 status: RecipeStatus.PUBLISHED,
+                firstPublishedAt: '2026-11-01T00:00:00.000Z',
                 sourceType: RecipeSourceType.IMPORTED_PUBLIC,
                 sourceKind: 'public_web',
                 sourceUrl: ALLRECIPES,

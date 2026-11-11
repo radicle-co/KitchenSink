@@ -24,12 +24,11 @@
  *
  * Pure: no I/O, no mutation, no external calls — a straight structural translation.
  */
-import { usesPremiumCapability } from '@kitchensink/recipe-core';
+import { recipeSourceKindSchema, usesPremiumCapability } from '@kitchensink/recipe-core';
 import type {
     Recipe,
     RecipeDifficulty,
     RecipeMealType,
-    RecipeSourceKind,
     RecipeSourceType,
     RecipeStatus,
     RecipeVisibility,
@@ -151,7 +150,7 @@ export function recipeRowToDomain(row: RecipeRowInput): Recipe {
         ...(row.authorUsername !== null ? { authorUsername: row.authorUsername } : {}),
         // OMITTED when NULL (no statement), never `null`: a client locks and judges the source from it (ADR-0089).
         // `!= null`, like `firstPublishedAt`: a raw read whose hand-named column list lacks the column passes `undefined`.
-        ...(row.sourceKind != null ? { sourceKind: row.sourceKind as RecipeSourceKind } : {}),
+        ...(row.sourceKind != null ? { sourceKind: recipeSourceKindSchema.parse(row.sourceKind) } : {}),
         ...(row.sourceUrl !== null ? { sourceUrl: row.sourceUrl } : {}),
         ...(row.sourceAttribution !== null ? { sourceAttribution: row.sourceAttribution } : {}),
         ...(row.clonedFromId !== null ? { clonedFromId: row.clonedFromId } : {}),

@@ -8257,6 +8257,10 @@ components:
               sourceKind:
                 nullable: true
                 type: string
+                enum:
+                  - public_web
+                  - book
+                  - paid_site
               sourceUrl:
                 nullable: true
                 type: string

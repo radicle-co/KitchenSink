@@ -15,6 +15,7 @@
  */
 import {
     parseSourceLink,
+    sourceIsCorrectable,
     RecipeSourceType,
     RecipeVisibility,
     type PrivateRule,
@@ -26,11 +27,13 @@ import {
 import type { RecipeStatementInput } from '@kitchensink/schema-recipe';
 
 import { privateRuleForDraft } from '../actions/recipePrivateGate.js';
-import { lifecycleOf } from '../editor/checkpointPolicy.js';
 import type { RecipeFormValues } from './values.js';
 
 /** What the recipe the editor holds says of its source: the server's own answer, `undefined` before the first save. */
-type StoredRecipe = Pick<RecipeDetail, 'status' | 'firstPublishedAt' | 'sourceType' | 'sourceKind' | 'sourceUrl'>;
+type StoredRecipe = Pick<
+    RecipeDetail,
+    'status' | 'firstPublishedAt' | 'sourceType' | 'sourceKind' | 'sourceUrl' | 'clonedFromId'
+>;
 
 /** The Source field's text as the draft holds it, `''` when there is none. Pure. */
 export const sourceTextOf = (values: Pick<RecipeFormValues, 'sourceLink'>): string => values.sourceLink ?? '';
@@ -60,13 +63,20 @@ export function draftSourceOf(values: Pick<RecipeFormValues, 'sourceLink'>): Dra
 }
 
 /**
- * Whether the source can no longer change: the recipe was published at some point (ADR-0023 section 1b, ADR-0058). The
- * same fact the checkpoints are keyed on, so the field, the wire and the server's `SOURCE_LOCKED` agree.
+ * Whether the source can no longer change, by `recipe-core`'s ONE lock rule `sourceIsCorrectable`, the rule the server's
+ * `PATCH` policy reads: published once, not stated through a link (the curator's text, a book, a paid site), or inherited by
+ * a clone. So the field, the wire and the server's `SOURCE_LOCKED` agree. A recipe never saved has nothing to lock.
  *
  * @param recipe - The server's recipe, or `undefined` before the first save.
  */
-export const sourceIsLocked = (recipe: Pick<StoredRecipe, 'status' | 'firstPublishedAt'> | undefined): boolean =>
-    lifecycleOf(recipe) === 'published';
+const sourceIsLocked = (recipe: StoredRecipe | undefined): boolean =>
+    recipe !== undefined &&
+    !sourceIsCorrectable({
+        sourceType: recipe.sourceType,
+        sourceKind: recipe.sourceKind ?? null,
+        firstPublishedAt: recipe.firstPublishedAt,
+        clonedFromId: recipe.clonedFromId,
+    });
 
 const heldAsWebCopy = (recipe: Pick<StoredRecipe, 'sourceKind'> | undefined): boolean =>
     recipe?.sourceKind === 'public_web';
@@ -83,6 +93,11 @@ export function draftPrivateRule(
     values: Pick<RecipeFormValues, 'sourceLink'>,
     recipe: StoredRecipe | undefined,
 ): PrivateRule {
+    // A locked source is the server's, whatever the field holds: judge the stored facts.
+    if (recipe !== undefined && sourceIsLocked(recipe)) {
+        return privateRuleForDraft(recipe.sourceType, recipe.sourceKind ?? null);
+    }
+
     const source = draftSourceOf(values);
 
     if (source.kind === 'link') {

@@ -676,6 +676,7 @@ describe('RecipeEditorSurface — the Source (ADR-0089)', () => {
                 recipe: makeRecipeDetail({
                     id: 'rec_1',
                     status: RecipeStatus.PUBLISHED,
+                    firstPublishedAt: '2026-11-01T00:00:00.000Z',
                     visibility: RecipeVisibility.PRIVATE,
                     sourceType: 'imported_public',
                     sourceKind: 'public_web',

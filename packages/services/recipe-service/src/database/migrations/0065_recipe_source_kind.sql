@@ -8,8 +8,9 @@
 -- NULL means no statement: every recipe that exists, a recipe the cook wrote, and the curator's public-domain text. It is the
 -- ONE spelling of "none". No backfill: a row that predates the column has no statement to record.
 --
--- Two CHECKs. The vocabulary is closed. And a web copy is a labelled, cited recipe: `public_web` is only ever stored with
--- `source_type = 'imported_public'` and a `source_url`, so "a web copy with no address" cannot be written by any writer.
+-- Two CHECKs. The vocabulary is closed. And every kind is paired with its label (ADR-0072 section 9): `public_web` with
+-- `imported_public` AND a `source_url`, `book` with `imported_physical`, `paid_site` with `imported_paid`. So a row that
+-- says "web copy" and is labelled `user_created`, or a web copy with no address, cannot be written by any writer.
 --
 -- Additive and expand-only (ADR-0035): one nullable column with no default, so no rewrite. Code from the previous release
 -- neither reads nor writes it, and both CHECKs hold for every row it can write (all NULL).
@@ -23,8 +24,11 @@ SET LOCAL lock_timeout = '5s';
 ALTER TABLE recipes
     ADD COLUMN source_kind text,
     ADD CONSTRAINT recipes_source_kind_check CHECK (source_kind IN ('public_web', 'book', 'paid_site')),
-    ADD CONSTRAINT recipes_web_source_has_address CHECK (
-        source_kind IS DISTINCT FROM 'public_web' OR (source_type = 'imported_public' AND source_url IS NOT NULL)
+    ADD CONSTRAINT recipes_source_kind_pairs_source_type CHECK (
+        source_kind IS NULL
+        OR (source_kind = 'public_web' AND source_type = 'imported_public' AND source_url IS NOT NULL)
+        OR (source_kind = 'book' AND source_type = 'imported_physical')
+        OR (source_kind = 'paid_site' AND source_type = 'imported_paid')
     );
 
 COMMENT ON COLUMN recipes.source_kind IS

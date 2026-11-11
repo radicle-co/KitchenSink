@@ -17,6 +17,9 @@ import {
 
 const ALLRECIPES = 'https://www.allrecipes.com/recipe/1/soup/';
 const withLink = (sourceLink: string, over = {}) => makeRecipeFormValues({ sourceLink, ...over });
+/** The first-publish instant a published recipe always carries (the server's CHECK): the ONE fact the lock reads. */
+const FIRST = '2026-11-01T00:00:00.000Z';
+const CLONE_OF = '00000000-0000-4000-8000-0000000000c1';
 const neverPublished = (over = {}) => makeRecipeDetail({ status: RecipeStatus.DRAFT, ...over });
 const webCopy = (over = {}) =>
     makeRecipeDetail({
@@ -131,7 +134,7 @@ describe('sourceStatementOf: what the wire carries', () => {
     });
 
     it('update: nothing is sent once the recipe has been published (the source is locked)', () => {
-        const published = webCopy({ status: RecipeStatus.PUBLISHED });
+        const published = webCopy({ status: RecipeStatus.PUBLISHED, firstPublishedAt: FIRST });
 
         expect(sourceStatementOf(makeRecipeFormValues(), published)).toBeUndefined();
         expect(sourceStatementOf(withLink('https://other.example/a'), published)).toBeUndefined();
@@ -180,7 +183,15 @@ describe('pastedSourcePlanOf: a link line in pasted text', () => {
     });
 
     it('sets nothing on a recipe whose source is locked, and says it can’t change', () => {
-        expect(plan(`2 eggs\n${ALLRECIPES}`, { recipe: webCopy({ status: RecipeStatus.PUBLISHED }) })).toEqual({
+        expect(
+            plan(`2 eggs\n${ALLRECIPES}`, {
+                recipe: webCopy({ status: RecipeStatus.PUBLISHED, firstPublishedAt: FIRST }),
+            }),
+        ).toEqual({ note: { kind: 'locked' } });
+    });
+
+    it('sets nothing on a clone that inherited a web source (cloning is not a way to relabel)', () => {
+        expect(plan(`2 eggs\n${ALLRECIPES}`, { recipe: webCopy({ clonedFromId: CLONE_OF }) })).toEqual({
             note: { kind: 'locked' },
         });
     });
@@ -221,7 +232,13 @@ describe('sourceRowOf: every state of the Source row', () => {
     });
 
     it('locked: the site link and the URL, read only', () => {
-        expect(row(withLink(ALLRECIPES), webCopy({ status: RecipeStatus.PUBLISHED }))).toEqual({
+        expect(row(withLink(ALLRECIPES), webCopy({ status: RecipeStatus.PUBLISHED, firstPublishedAt: FIRST }))).toEqual(
+            { kind: 'locked', site: 'allrecipes.com', url: ALLRECIPES },
+        );
+    });
+
+    it('locked: a clone keeps the web source it inherited, read only', () => {
+        expect(row(makeRecipeFormValues(), webCopy({ clonedFromId: CLONE_OF }))).toEqual({
             kind: 'locked',
             site: 'allrecipes.com',
             url: ALLRECIPES,
@@ -229,9 +246,25 @@ describe('sourceRowOf: every state of the Source row', () => {
     });
 
     it('hidden: published with no source', () => {
-        expect(row(makeRecipeFormValues(), makeRecipeDetail({ status: RecipeStatus.PUBLISHED }))).toEqual({
-            kind: 'hidden',
+        expect(
+            row(makeRecipeFormValues(), makeRecipeDetail({ status: RecipeStatus.PUBLISHED, firstPublishedAt: FIRST })),
+        ).toEqual({ kind: 'hidden' });
+    });
+
+    it('hidden: a source the cook did not state through a link (the curator’s text, a book), even on a draft', () => {
+        const curator = makeRecipeDetail({
+            status: RecipeStatus.DRAFT,
+            sourceType: RecipeSourceType.IMPORTED_PUBLIC,
+            sourceUrl: 'https://gutenberg.org/x',
         });
+        const book = makeRecipeDetail({
+            status: RecipeStatus.DRAFT,
+            sourceType: RecipeSourceType.IMPORTED_PHYSICAL,
+            sourceKind: 'book',
+        });
+
+        expect(row(makeRecipeFormValues(), curator)).toEqual({ kind: 'hidden' });
+        expect(row(makeRecipeFormValues(), book)).toEqual({ kind: 'hidden' });
     });
 
     it('a never-published stored recipe still edits its source', () => {

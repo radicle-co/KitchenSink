@@ -55,7 +55,8 @@ web copy from the curator's public-domain text, which carry the same label. A cu
 
 Migration `0065` adds `recipes.source_kind` (nullable, no default, expand-only, no backfill). A CHECK keeps the
 vocabulary closed (`public_web`, `book`, `paid_site`, the import tables' vocabulary, now stated once in `recipe-core`).
-A second CHECK says a `public_web` row is `imported_public` and has an address. `null` means no statement. Clone copies
+A second CHECK pairs every kind with its label: `public_web` with `imported_public` and an address, `book` with
+`imported_physical`, `paid_site` with `imported_paid`. `null` means no statement. Clone copies
 the kind. The account export carries it. The detail and list responses carry `sourceKind`, and leave it out for `null`.
 
 ### 5. A web copy is private only
@@ -72,21 +73,27 @@ card.
 
 The editor's draft checkpoints can create the server row before the cook pastes the link. So `PATCH` takes `statement`:
 a statement sets the source, `null` removes it, absent leaves it. The rule is one pure policy,
-`evaluateSourceCorrection`:
+`evaluateSourceCorrection`. Its lock is ONE pure rule in `recipe-core`, `sourceIsCorrectable`, which the editor's Source
+row reads too. The source can no longer change in any of these three cases:
 
-- It is open only while `first_published_at IS NULL` (ADR-0058). The fact is that column, not `status`, so a recipe set
+- The recipe was first published (`first_published_at`, ADR-0058). The fact is that column, not `status`, so a recipe set
   back to draft stays locked. The row is read from the aggregate that the write's compare-and-swap on `expectedVersion`
   then pins. Every route to a first publish is a `PATCH` that advances the version.
-- It is open only for a source the cook stated by link: none, or a web copy. The curator's text, a book and a paid-site
-  recipe are never overwritten by a pasted link.
-- A statement on a public draft makes it private in the same write. A draft holds no slot, so nothing is counted.
-  Clearing the statement never changes visibility.
-- Otherwise the answer is `403 FORBIDDEN` with `details.reason: 'SOURCE_LOCKED'`. It is a 403 and not a 409 because an
-  installed client reads an unknown 409 as a version conflict (the reason `PRIVATE_SLOTS_FULL` is a 403). It is not a
-  new published code. A new code widens a contract both apps consume, for a refusal the editor prevents.
+- The stored source is not one the cook states by link, which means it is not "none" or a web copy. The curator's text, a
+  book and a paid-site recipe are never overwritten by a pasted link.
+- A clone inherited the source (`cloned_from_id` is set and the kind is set). Without this rule, cloning is a way to
+  relabel a recipe.
 
-After the first publish the source is frozen (ADR-0023 §1b, ADR-0077 §2, no relabel route). A client knows it is locked
-from the existing `firstPublishedAt` field.
+Otherwise:
+
+- Every write that sets a source sets Private with it, in the same write. A draft holds no slot, so nothing is counted.
+  The policy does not read the stored visibility. Clearing the statement never changes visibility.
+- A refusal is `403 FORBIDDEN` with `details.reason: 'SOURCE_LOCKED'`. It is not a new published code, because a new code
+  widens a contract both apps consume, for a refusal the editor prevents. `FORBIDDEN` already means "authenticated, but
+  not permitted".
+
+After the first publish the source is frozen (ADR-0023 §1b, ADR-0077 §2, no relabel route). A client reads
+`sourceIsCorrectable` over the recipe it holds (`firstPublishedAt`, `sourceType`, `sourceKind`, `clonedFromId`).
 
 ### 7. The label states what the cook told us
 
@@ -104,10 +111,12 @@ the editor. This ADR does not decide the card. When the read path ships it repla
 
 - **A bulk import's web statement must store the same kind.** The import save path is not built yet. When it is, a
   `public_web` statement stores `source_kind = 'public_web'`, so the rule above holds for it too.
-- **Account erasure can still donate an elected private recipe** by flipping it to public, whatever its label. That
-  already holds for book and paid-site recipes. It is now also true for a web copy. It is not fixed here. A CHECK on
-  visibility makes erasure fail, and the fix belongs in the donation predicate (ADR-0074). It is recorded so nobody
-  reads it as covered.
+- **Account erasure no longer donates a private-only recipe.** The donate step flipped an elected owner-only recipe to
+  public, whatever its label. That made a book or paid-site recipe public, which ADR-0073 and 004-FR-014a forbid. It now
+  skips a private-only recipe with `PRIVATE_ONLY_SQL`, recipe-core's SQL twin of `privateRuleOf`, derived from it. The
+  skipped recipe is removed with the owner-only set, like one that holds a private food. A book, a paid-site recipe and a
+  web copy are deleted at erasure, and the cook's election to donate them is not honoured. The curator's text and a recipe
+  the cook wrote are still donated.
 - **Set-visibility reads the source outside its transaction.** A cook racing themselves on two devices (a `PATCH`
   statement and a set-public on the same draft) can leave a web copy public. It can only be an owner-only public DRAFT.
   Publishing refuses it. `evaluatePublishedState` judges the state a write leaves. It reads the visibility under the

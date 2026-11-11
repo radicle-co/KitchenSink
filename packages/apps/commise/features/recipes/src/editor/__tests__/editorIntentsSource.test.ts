@@ -105,7 +105,7 @@ describe('an update with a Source', () => {
     it('sends no statement once the recipe has been published', () => {
         const payload = payloadOf(
             recipeWriteIntent({
-                server: storedOf({ status: RecipeStatus.PUBLISHED }),
+                server: storedOf({ status: RecipeStatus.PUBLISHED, firstPublishedAt: '2026-11-01T00:00:00.000Z' }),
                 draft: draft({ sourceLink: ALLRECIPES }),
                 ref: 'rec_1',
                 publish: false,

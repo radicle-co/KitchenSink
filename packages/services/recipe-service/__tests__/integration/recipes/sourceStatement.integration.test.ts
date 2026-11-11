@@ -271,12 +271,31 @@ describe('PATCH /api/v1/recipes/{id} — the source can be settled until the fir
         expect(await response.json()).toMatchObject({ visibility: 'private', sourceKind: 'public_web' });
     });
 
-    it('leaves a private draft private: visibility is not rewritten when it is already right', async () => {
+    it('sets Private on EVERY write that sets a source, whatever visibility the read saw', async () => {
         stored = makeRecipeRow({ id: RECIPE_ID, ownerId: COOK, status: 'draft', visibility: 'private' });
 
         await call('PATCH', `/api/v1/recipes/${RECIPE_ID}`, { expectedVersion: 1, statement: STATEMENT });
 
-        expect(update.mock.calls[0]?.[1]).not.toHaveProperty('visibility');
+        expect(update.mock.calls[0]?.[1]).toHaveProperty('visibility', 'private');
+    });
+
+    it('refuses a statement on a clone whose web source was inherited (no relabel by clone)', async () => {
+        stored = makeRecipeRow({
+            id: RECIPE_ID,
+            ownerId: COOK,
+            status: 'draft',
+            visibility: 'private',
+            clonedFromId: '00000000-0000-4000-8000-0000000000c1',
+            sourceType: 'imported_public',
+            sourceKind: 'public_web',
+            sourceUrl: LINK,
+            sourceAttribution: 'allrecipes.com',
+        });
+
+        const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}`, { expectedVersion: 1, statement: null });
+
+        expect(await refusalOf(response)).toMatchObject({ status: 403, details: { reason: 'SOURCE_LOCKED' } });
+        expect(update).not.toHaveBeenCalled();
     });
 
     it('clears the statement with null: the source goes back to none and visibility is left as it is', async () => {

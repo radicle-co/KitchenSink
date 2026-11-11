@@ -719,7 +719,7 @@ export class RecipesService {
         );
 
         if (!provenanceDecision.allowed) {
-            throw provenanceDecision.requiredScope === undefined
+            throw provenanceDecision.denial === 'unusable'
                 ? sourceNotUsable(provenanceDecision.reason)
                 : provenanceNotPermitted(provenanceDecision.reason, {
                       requiredScope: provenanceDecision.requiredScope,
@@ -1161,7 +1161,7 @@ export class RecipesService {
             sourceType: recipeSourceTypeSchema.parse(existing.recipe.sourceType),
             sourceKind: existing.recipe.sourceKind,
             firstPublishedAt: existing.recipe.firstPublishedAt,
-            visibility: existing.recipe.visibility,
+            clonedFromId: existing.recipe.clonedFromId,
         };
         const correction = evaluateSourceCorrection({ statement: dto.statement, stored: storedSource });
 

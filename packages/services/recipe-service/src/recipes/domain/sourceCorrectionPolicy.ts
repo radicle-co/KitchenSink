@@ -16,31 +16,24 @@
  * It closes at `first_published_at` (ADR-0058, set by a trigger and never cleared) and stays closed: a recipe set back to
  * draft is still locked, because a source label that could be removed after publishing would be the relabel route ADR-0077
  * section 2 refuses. It is also closed for any source the cook did not state through a link (the curator's public-domain
- * text, a book, a paid site): a pasted link restates nothing about those.
+ * text, a book, a paid site): a pasted link restates nothing about those. And it is closed for a source a clone inherited,
+ * so cloning is not a way to relabel a recipe. The rule is `sourceIsCorrectable`, which the editor reads too.
  *
  * ## Visibility
  *
- * A statement on a PUBLIC draft makes it private IN THE SAME WRITE: a web copy is private only, and a draft holds no slot, so
- * nothing is counted. A clear never touches visibility: removing the source does not make a recipe public.
+ * Every write that SETS a source sets Private with it, in the same write: a web copy is private only, and a draft holds no
+ * slot, so nothing is counted. The policy does not read the stored visibility, so a draft that raced to public still ends
+ * private. A clear never touches visibility: removing the source does not make a recipe public.
  *
  * @pattern Specification — one pure predicate over the stored source and the statement
  */
-import { RecipeSourceType, RecipeVisibility, type RecipeSourceKind } from '@kitchensink/recipe-core';
+import { sourceIsCorrectable, type CorrectableSourceFacts } from '@kitchensink/recipe-core';
 
 import type { RecipeStatementInput } from '../recipes.schema.js';
 import { evaluateProvenance, type ResolvedProvenance } from './provenancePolicy.js';
 
-/** The facts of the stored recipe the decision reads. */
-export interface StoredSource {
-    /** The stored provenance label. */
-    readonly sourceType: RecipeSourceType;
-    /** The stored source kind, or `null`. */
-    readonly sourceKind: RecipeSourceKind | null;
-    /** When the recipe was first published, or `null` while it never was (ADR-0058). */
-    readonly firstPublishedAt: Date | null;
-    /** The stored visibility. */
-    readonly visibility: RecipeVisibility;
-}
+/** The facts of the stored recipe the decision reads: exactly what `sourceIsCorrectable` reads, the one lock rule. */
+export type StoredSource = CorrectableSourceFacts;
 
 /**
  * What a PATCH does to the source.
@@ -55,11 +48,6 @@ export type SourceCorrection =
     | { readonly kind: 'apply'; readonly provenance: ResolvedProvenance; readonly makePrivate: boolean }
     | { readonly kind: 'locked' }
     | { readonly kind: 'unusable' };
-
-/** Whether the stored source is one a pasted link may replace or remove: none, or a link the cook pasted earlier. */
-function isCookStated(stored: StoredSource): boolean {
-    return stored.sourceType === RecipeSourceType.USER_CREATED || stored.sourceKind === 'public_web';
-}
 
 /**
  * Decide what a PATCH's `statement` does. Pure.
@@ -78,7 +66,9 @@ export function evaluateSourceCorrection(input: {
         return { kind: 'unchanged' };
     }
 
-    if (stored.firstPublishedAt !== null || !isCookStated(stored)) {
+    // ONE lock rule, shared with the editor (`sourceIsCorrectable`, recipe-core): published once, not stated by link, or
+    // inherited by a clone.
+    if (!sourceIsCorrectable(stored)) {
         return { kind: 'locked' };
     }
 
@@ -95,6 +85,8 @@ export function evaluateSourceCorrection(input: {
     return {
         kind: 'apply',
         provenance: decision.provenance,
-        makePrivate: statement !== null && stored.visibility === RecipeVisibility.PUBLIC,
+        // Every write that SETS a source sets Private with it. It is not decided from a visibility read outside the lock: a
+        // draft that raced to public between that read and this write must still end private.
+        makePrivate: statement !== null,
     };
 }

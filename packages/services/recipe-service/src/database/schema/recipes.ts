@@ -24,6 +24,7 @@ import {
     varchar,
     type AnyPgColumn,
 } from 'drizzle-orm/pg-core';
+import { RECIPE_SOURCE_KINDS } from '@kitchensink/recipe-core';
 import type {
     RecipeDifficulty,
     RecipeMealType,
@@ -219,10 +220,21 @@ export const recipes = pgTable(
             'recipes_source_type_check',
             sql`${table.sourceType} IN ('user_created', 'imported_public', 'imported_physical', 'imported_paid')`,
         ),
-        check('recipes_source_kind_check', sql`${table.sourceKind} IN ('public_web', 'book', 'paid_site')`),
+        // The vocabulary is recipe-core's, spelled once; the literal list below is built from it, not retyped.
         check(
-            'recipes_web_source_has_address',
-            sql`${table.sourceKind} IS DISTINCT FROM 'public_web' OR (${table.sourceType} = 'imported_public' AND ${table.sourceUrl} IS NOT NULL)`,
+            'recipes_source_kind_check',
+            // A CHECK is DDL and cannot take a bound parameter. The spliced text is recipe-core's closed vocabulary (a
+            // compile-time constant list), never input.
+            // eslint-disable-next-line no-restricted-syntax -- DDL cannot be parameterised; the argument is a constant vocabulary
+            sql`${table.sourceKind} IN (${sql.raw(RECIPE_SOURCE_KINDS.map((kind) => `'${kind}'`).join(', '))})`,
+        ),
+        // Every kind is paired with its label; a web copy also needs its address (0065).
+        check(
+            'recipes_source_kind_pairs_source_type',
+            sql`${table.sourceKind} IS NULL
+                OR (${table.sourceKind} = 'public_web' AND ${table.sourceType} = 'imported_public' AND ${table.sourceUrl} IS NOT NULL)
+                OR (${table.sourceKind} = 'book' AND ${table.sourceType} = 'imported_physical')
+                OR (${table.sourceKind} = 'paid_site' AND ${table.sourceType} = 'imported_paid')`,
         ),
         index('idx_recipes_search_vector').using('gin', table.searchVector),
         // T118: partial owner index — every read path filters `deleted_at IS NULL`, so the plain index is

@@ -7,12 +7,14 @@
  *  1. `source_kind` exists, is NULL for a recipe that states none (the one spelling of "none"), and round-trips the
  *     three kinds the import vocabulary names.
  *  2. A value outside that vocabulary is REFUSED (`recipes_source_kind_check`).
- *  3. A web copy with no address, or one that is not `imported_public`, is REFUSED (`recipes_web_source_has_address`), so
- *     "a web copy no one can link to" cannot be written by any writer, the service included.
- *  4. A book or paid-site statement is NOT held to that rule: the CHECK constrains the web kind only.
+ *  3. Every kind is paired with its label (`recipes_source_kind_pairs_source_type`): `public_web` with `imported_public` AND an
+ *     address, `book` with `imported_physical`, `paid_site` with `imported_paid`. No other pairing can be written by any
+ *     writer, the service included.
+ *  4. `PRIVATE_ONLY_SQL`, the twin account erasure reads, agrees with `privateRuleOf` for every pair.
  */
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import pg from 'pg';
+import { PRIVATE_ONLY_SQL, RECIPE_SOURCE_KINDS, privateRuleOf } from '@kitchensink/recipe-core';
 import { recipeDb } from '../../support/roleDb.js';
 
 const roleDb = recipeDb();
@@ -86,15 +88,40 @@ describe('recipes.source_kind and its CHECKs (migration 0065)', () => {
     });
 
     it('refuses a web copy with no address', async () => {
-        await expect(insert('imported_public', null, 'public_web')).rejects.toThrow(/recipes_web_source_has_address/u);
+        await expect(insert('imported_public', null, 'public_web')).rejects.toThrow(
+            /recipes_source_kind_pairs_source_type/u,
+        );
     });
 
-    it.each(['user_created', 'imported_physical', 'imported_paid'])(
-        'refuses a web copy labelled %s',
-        async (sourceType) => {
-            await expect(insert(sourceType, 'https://example.com/recipe', 'public_web')).rejects.toThrow(
-                /recipes_web_source_has_address/u,
+    // Every kind is paired with its label: the full cross product, so a mutant that loosens one pairing fails one row.
+    const LABELS = ['user_created', 'imported_public', 'imported_physical', 'imported_paid'] as const;
+    const PAIRS = [
+        ['public_web', 'imported_public'],
+        ['book', 'imported_physical'],
+        ['paid_site', 'imported_paid'],
+    ] as const;
+
+    it.each(
+        PAIRS.flatMap(([kind, label]) =>
+            LABELS.filter((sourceType) => sourceType !== label).map((sourceType) => [kind, sourceType] as const),
+        ),
+    )('refuses the kind %s labelled %s', async (kind, sourceType) => {
+        await expect(insert(sourceType, 'https://example.com/recipe', kind)).rejects.toThrow(
+            /recipes_source_kind_pairs_source_type/u,
+        );
+    });
+
+    // The SQL twin account erasure reads (`PRIVATE_ONLY_SQL`) against `privateRuleOf`, for every pair, in a real database.
+    it.each(LABELS.flatMap((sourceType) => [...RECIPE_SOURCE_KINDS, null].map((kind) => [sourceType, kind] as const)))(
+        'PRIVATE_ONLY_SQL agrees with privateRuleOf for %s with kind %s',
+        async (sourceType, kind) => {
+            const { rows } = await pool.query<{ private_only: boolean }>(
+                `SELECT ${PRIVATE_ONLY_SQL} AS private_only
+                   FROM (VALUES ($1::text, $2::text)) AS recipes(source_type, source_kind)`,
+                [sourceType, kind],
             );
+
+            expect(rows[0]?.private_only).toBe(privateRuleOf(sourceType, kind) === 'privateOnly');
         },
     );
 });

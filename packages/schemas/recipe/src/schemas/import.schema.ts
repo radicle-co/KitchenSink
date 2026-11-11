@@ -64,7 +64,12 @@ import {
 } from '@kitchensink/recipe-core';
 
 import { parseProposalMatchSchema } from './parseJobs.schema.js';
-import { createRecipeRequestSchema, publicWebStatementSchema, recipeStepInputSchema } from './recipes.schema.js';
+import {
+    createRecipeRequestSchema,
+    publicWebStatementSchema,
+    recipeStatementSchema,
+    recipeStepInputSchema,
+} from './recipes.schema.js';
 
 // ── Bounds ───────────────────────────────────────────────────────────────────────────────────────
 
@@ -153,7 +158,8 @@ const paidSiteStatement = z.object({ kind: z.literal('paid_site'), citation: cit
  */
 export const importStatementSchema = z.discriminatedUnion('kind', [
     authoredStatement.strict(),
-    publicWebStatement.strict(),
+    // The REFINED member: the import refuses our own domain, localhost and an IP exactly as a recipe's own statement does.
+    recipeStatementSchema,
     bookStatement.strict(),
     paidSiteStatement.strict(),
 ]);

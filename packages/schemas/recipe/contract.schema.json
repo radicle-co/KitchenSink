@@ -433,9 +433,18 @@
                                 ]
                             },
                             "sourceKind": {
-                                "type": [
-                                    "string",
-                                    "null"
+                                "anyOf": [
+                                    {
+                                        "enum": [
+                                            "public_web",
+                                            "book",
+                                            "paid_site"
+                                        ],
+                                        "type": "string"
+                                    },
+                                    {
+                                        "type": "null"
+                                    }
                                 ]
                             },
                             "sourceType": {
@@ -11217,9 +11226,18 @@
                     ]
                 },
                 "sourceKind": {
-                    "type": [
-                        "string",
-                        "null"
+                    "anyOf": [
+                        {
+                            "enum": [
+                                "public_web",
+                                "book",
+                                "paid_site"
+                            ],
+                            "type": "string"
+                        },
+                        {
+                            "type": "null"
+                        }
                     ]
                 },
                 "sourceType": {

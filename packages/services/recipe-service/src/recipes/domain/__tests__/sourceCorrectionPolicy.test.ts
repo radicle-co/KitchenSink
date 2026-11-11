@@ -11,7 +11,7 @@
  *  3. **A statement on a public draft makes it private in the same write; a clear never touches visibility.**
  */
 import { describe, expect, it } from 'vitest';
-import { RecipeVisibility, type RecipeSourceKind, type RecipeSourceType } from '@kitchensink/recipe-core';
+import type { RecipeSourceKind, RecipeSourceType } from '@kitchensink/recipe-core';
 
 import { evaluateSourceCorrection, type StoredSource } from '../sourceCorrectionPolicy.js';
 
@@ -23,7 +23,7 @@ const NONE: StoredSource = {
     sourceType: 'user_created',
     sourceKind: null,
     firstPublishedAt: null,
-    visibility: RecipeVisibility.PUBLIC,
+    clonedFromId: null,
 };
 
 function stored(over: Partial<StoredSource>): StoredSource {
@@ -39,7 +39,7 @@ describe('evaluateSourceCorrection — a body with no statement', () => {
 });
 
 describe('evaluateSourceCorrection — a statement before the first publish', () => {
-    it('sets the four resolved columns and makes a PUBLIC draft private in the same write', () => {
+    it('sets the four resolved columns and sets Private in the same write', () => {
         expect(evaluateSourceCorrection({ statement: STATEMENT, stored: NONE })).toEqual({
             kind: 'apply',
             provenance: {
@@ -52,19 +52,19 @@ describe('evaluateSourceCorrection — a statement before the first publish', ()
         });
     });
 
-    it('does not rewrite the visibility of a draft that is already private', () => {
-        const decision = evaluateSourceCorrection({
-            statement: STATEMENT,
-            stored: stored({ visibility: RecipeVisibility.PRIVATE }),
+    // Set Private on EVERY write that sets a source, not from a visibility read outside the lock: a draft that raced to
+    // public between the read and the write must still end private.
+    it('sets Private whatever visibility the caller last saw, because the policy does not read it', () => {
+        expect(evaluateSourceCorrection({ statement: STATEMENT, stored: stored({}) })).toMatchObject({
+            kind: 'apply',
+            makePrivate: true,
         });
-
-        expect(decision).toMatchObject({ kind: 'apply', makePrivate: false });
     });
 
     it('replaces a web source the cook stated earlier', () => {
         const decision = evaluateSourceCorrection({
             statement: STATEMENT,
-            stored: stored({ ...WEB_COPY, visibility: RecipeVisibility.PRIVATE }),
+            stored: stored(WEB_COPY),
         });
 
         expect(decision).toMatchObject({ kind: 'apply', provenance: { sourceKind: 'public_web', sourceUrl: LINK } });
@@ -72,11 +72,11 @@ describe('evaluateSourceCorrection — a statement before the first publish', ()
 });
 
 describe('evaluateSourceCorrection — a clear (statement null) before the first publish', () => {
-    it('puts the source back to none and never touches the visibility, even from a public draft', () => {
+    it('puts the source back to none and never touches the visibility', () => {
         expect(
             evaluateSourceCorrection({
                 statement: null,
-                stored: stored({ ...WEB_COPY, visibility: RecipeVisibility.PUBLIC }),
+                stored: stored(WEB_COPY),
             }),
         ).toEqual({
             kind: 'apply',
@@ -101,6 +101,14 @@ describe('evaluateSourceCorrection — the source is locked', () => {
         expect(
             evaluateSourceCorrection({ statement: STATEMENT, stored: stored({ ...WEB_COPY, firstPublishedAt: AT }) }),
         ).toEqual({ kind: 'locked' });
+    });
+
+    it('for a web source INHERITED by a clone: cloning is not a way to relabel a recipe (ADR-0089)', () => {
+        for (const statement of [STATEMENT, null]) {
+            expect(
+                evaluateSourceCorrection({ statement, stored: stored({ ...WEB_COPY, clonedFromId: 'r-1' }) }),
+            ).toEqual({ kind: 'locked' });
+        }
     });
 
     it.each<[RecipeSourceType, RecipeSourceKind | null]>([

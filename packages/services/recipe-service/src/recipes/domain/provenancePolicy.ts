@@ -94,10 +94,17 @@ export interface ResolvedProvenance {
 export type ProvenanceDecision =
     | { readonly allowed: true; readonly provenance: ResolvedProvenance; readonly reason: string }
     | {
+          /** The caller lacks the grant the declaration needs (a `403`). */
           readonly allowed: false;
+          readonly denial: 'grant';
           readonly reason: string;
-          /** The grant that would have allowed it. ABSENT when no grant could: a statement that is not a usable source. */
-          readonly requiredScope?: string;
+          readonly requiredScope: string;
+      }
+    | {
+          /** The statement's link is not a usable web source, which no grant could change (a `400`). */
+          readonly allowed: false;
+          readonly denial: 'unusable';
+          readonly reason: string;
       };
 
 /** The provenance of a recipe whose author declared none — the shipped default, unchanged (004-FR-024). */
@@ -129,7 +136,7 @@ export function evaluateProvenance(input: ProvenancePolicyInput): ProvenanceDeci
         const parsed = parseSourceLink(statement.citation);
 
         if (!parsed.ok) {
-            return { allowed: false, reason: 'The source link is not a public web page address.' };
+            return { allowed: false, denial: 'unusable', reason: 'The source link is not a public web page address.' };
         }
 
         return {
@@ -161,6 +168,7 @@ export function evaluateProvenance(input: ProvenancePolicyInput): ProvenanceDeci
             if (!grantedScopes.includes(CURATOR_IMPORT_SCOPE)) {
                 return {
                     allowed: false,
+                    denial: 'grant',
                     reason: `Declaring an imported public-domain source requires the '${CURATOR_IMPORT_SCOPE}' grant.`,
                     requiredScope: CURATOR_IMPORT_SCOPE,
                 };

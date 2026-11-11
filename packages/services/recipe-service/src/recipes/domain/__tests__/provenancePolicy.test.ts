@@ -89,7 +89,10 @@ describe('evaluateProvenance — imported_public is grant-gated (004-FR-025 / AD
         const decision = evaluateProvenance({ declared: CURATED, grantedScopes: [] });
 
         expect(decision.allowed).toBe(false);
-        expect(decision.allowed === false && decision.requiredScope).toBe(CURATOR_IMPORT_SCOPE);
+        expect(decision.allowed === false && decision.denial).toBe('grant');
+        expect(decision.allowed === false && decision.denial === 'grant' && decision.requiredScope).toBe(
+            CURATOR_IMPORT_SCOPE,
+        );
     });
 
     it('ALLOWS a caller holding the curator grant, and passes the declared source fields through VERBATIM', () => {
@@ -154,7 +157,7 @@ describe('evaluateProvenance — a pasted web link as the cook’s statement (AD
         });
 
         expectDecision(decision, false);
-        expect(decision.allowed === false && decision.requiredScope).toBeUndefined();
+        expect(decision.allowed === false && decision.denial).toBe('unusable');
     });
 
     it('gives every other resolution a null source kind', () => {

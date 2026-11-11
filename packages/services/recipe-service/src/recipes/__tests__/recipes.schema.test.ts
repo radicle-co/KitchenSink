@@ -765,6 +765,12 @@ describe('createRecipeRequestSchema — the optional `statement` (ADR-0089)', ()
     it('is the SAME member the bulk import statement uses, not a second copy of the shape', () => {
         expect(importStatementSchema.safeParse(WEB).success).toBe(true);
         expect(recipeStatementSchema.safeParse(WEB).success).toBe(true);
+        // Composed REFINED: the import refuses what a recipe's own statement refuses (our domain, localhost, an IP).
+
+        for (const citation of ['https://commise.app/x', 'https://localhost/a', 'https://10.0.0.5/a']) {
+            expect(importStatementSchema.safeParse({ kind: 'public_web', citation }).success).toBe(false);
+        }
+
         expect(recipeStatementSchema.safeParse({ kind: 'authored' }).success).toBe(false);
         expect(recipeStatementSchema.safeParse({ kind: 'book', citation: 'A book' }).success).toBe(false);
     });

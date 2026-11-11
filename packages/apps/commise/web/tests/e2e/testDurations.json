@@ -553,6 +553,7 @@
     "chromium › recipeSourceAndScale.spec.ts › recipe detail — configurable serving size › the scaled note’s Reset returns the amounts to the recipe’s own servings": 2470,
     "chromium › recipeSourceAndScale.spec.ts › recipe detail — original source › shows no source affordance at all for a recipe that has none": 2285,
     "chromium › recipeSourceAndScale.spec.ts › recipe detail — original source › shows the source link to the recipe’s OWN OWNER, safely": 1850,
+    "chromium › recipeSourceFromPaste.spec.ts › a pasted web link sets the recipe’s Source (ADR-0089) › paste steps with a link → Source shown, Public unavailable → publish → a private recipe with its source": 5300,
     "chromium › recipeStepTimer.spec.ts › a step timer is entered in hours and minutes and the recipe reads it that way": 2434,
     "chromium › recipeStepTimer.spec.ts › a step`s instruction field has its line to itself at 320 px": 2497,
     "chromium › recipeUnsavedChangesGuard.spec.ts › a published recipe`s changes kept in this tab (D1, D7) › the browser`s unload prompt is armed only while the changes stand": 4396,

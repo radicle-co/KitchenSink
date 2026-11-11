@@ -58,6 +58,7 @@ ingredientVariantSearch.spec.ts	/, /recipes/[id]/edit, /recipes/new, /sign-in/[[
 layoutContainers.spec.ts	/, /sign-in/[[...sign-in]]
 mockupFidelity.spec.ts	*
 namelessLines.spec.ts	/, /recipes/[id], /recipes/[id]/versions, /sign-in/[[...sign-in]]
+needsReviewJump.spec.ts	/, /recipes/[id], /recipes/[id]/edit, /sign-in/[[...sign-in]]
 notFound.spec.ts	*
 overhaulLayout.spec.ts	/, /collections, /discover, /recipes, /recipes/[id], /recipes/[id]/edit, /sign-in/[[...sign-in]]
 paidFeatureGate.spec.ts	*

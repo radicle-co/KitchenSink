@@ -59,10 +59,11 @@ appId: ${APP_ID}
 - extendedWaitUntil:
       notVisible: 'You wrote'
       timeout: 20000
-- assertVisible: 'Edit 2 cups ${E2E_NEEDS_REVIEW_FOOD}.*'
+# The row names the unit as the line stores it ("cup"), so the pattern takes either number.
+- assertVisible: 'Edit 2 cups? ${E2E_NEEDS_REVIEW_FOOD}.*'
 
 # DONE keeps. Reopen the same row, change the amount again, and close the sheet with Done.
-- tapOn: 'Edit 2 cups ${E2E_NEEDS_REVIEW_FOOD}.*'
+- tapOn: 'Edit 2 cups? ${E2E_NEEDS_REVIEW_FOOD}.*'
 - extendedWaitUntil:
       visible: 'You wrote'
       timeout: 20000
@@ -78,7 +79,7 @@ appId: ${APP_ID}
 - extendedWaitUntil:
       notVisible: 'You wrote'
       timeout: 20000
-- assertVisible: 'Edit 7 cups ${E2E_NEEDS_REVIEW_FOOD}.*'
+- assertVisible: 'Edit 7 cups? ${E2E_NEEDS_REVIEW_FOOD}.*'
 
 # Leave with the close control, never Discard (it deletes the recipe). The next flow's reset deletes the probe either way.
 - tapOn: 'Close editor'

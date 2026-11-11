@@ -44,6 +44,7 @@ import { fillTemplate } from '../format/fillTemplate.js';
 import { photoMessages } from './messages.js';
 import { photoMenu } from './photoMenu.js';
 import {
+    failureSentences,
     isAtPhotoCap,
     isCoverPhoto,
     isQueueItemRemovable,
@@ -75,6 +76,7 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
     const pendingItems = visibleQueueItems(queueItems ?? []);
     const atCap = isAtPhotoCap(photos.length + pendingItems.length);
     const finished = uploadedCount(queueItems);
+    const failures = failureSentences(pendingItems);
 
     return (
         <section aria-label={m.heading} className="flex flex-col gap-3">
@@ -125,58 +127,57 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
                             const isCover = isCoverPhoto(photos, photo.id);
 
                             return (
-                                <li
-                                    key={photo.id}
-                                    className="relative overflow-hidden rounded-lg ring-1 ring-line-divider"
-                                >
-                                    <img
-                                        src={photo.url}
-                                        alt={fillTemplate(m.photoAlt, { index: index + 1 })}
-                                        loading="lazy"
-                                        decoding="async"
-                                        className="aspect-square w-full object-cover"
-                                    />
-                                    {/* U6: the cover status is text (never colour alone, WCAG 1.4.1); shown only on the
-                                    index-0 photo the server resolves as `coverPhotoUrl`, and only where the surface
-                                    offers cover selection. It sits at the foot-left, clear of the menu button. */}
-                                    {onSetCover !== undefined && isCover ? (
-                                        <span className="absolute bottom-2 left-2 rounded-full bg-action px-2 py-1 text-caption font-semibold text-on-action">
-                                            {m.coverBadge}
-                                        </span>
-                                    ) : null}
-                                    {/* Owner ruling 2026-10-17: ONE ⋯ menu button per tile (a 44 px disc) holds every
+                                <li key={photo.id} className="flex flex-col gap-1">
+                                    {/* The FRAME carries the photo and its ⋯ disc and nothing else (designer ruling
+                                    2026-11-11). Cover and Removing… are said in the slot under it. */}
+                                    <div className="relative overflow-hidden rounded-lg ring-1 ring-line-divider">
+                                        <img
+                                            src={photo.url}
+                                            alt={fillTemplate(m.photoAlt, { index: index + 1 })}
+                                            loading="lazy"
+                                            decoding="async"
+                                            className="aspect-square w-full object-cover"
+                                        />
+                                        {/* Owner ruling 2026-10-17: ONE ⋯ menu button per tile (a 44 px disc) holds every
                                     action. The cover is stated by the button's NAME (SC 4.1.2), as the radio it replaces
                                     stated it by `checked`. A removal in flight makes the button unavailable: it stays
                                     focusable (SC 2.4.3) and opens nothing. */}
-                                    <div className="absolute right-1 top-1">
-                                        <ActionMenu
-                                            appearance="disc"
-                                            triggerLabel={fillTemplate(isCover ? m.menuTriggerCover : m.menuTrigger, {
-                                                index: index + 1,
-                                            })}
-                                            title={fillTemplate(m.menuTitle, { index: index + 1 })}
-                                            closeLabel={fillTemplate(m.menuClose, { index: index + 1 })}
-                                            unavailable={removing}
-                                            {...photoMenu({
-                                                copy: m,
-                                                photoId: photo.id,
-                                                index,
-                                                count: photos.length,
-                                                reordering,
-                                                onRemovePhoto,
-                                                ...(onSetCover === undefined ? {} : { onSetCover }),
-                                                ...(onMovePhoto === undefined ? {} : { onMovePhoto }),
-                                                ...(onReplacePhoto === undefined ? {} : { onReplacePhoto }),
-                                            })}
-                                        />
+                                        <div className="absolute right-1 top-1">
+                                            <ActionMenu
+                                                appearance="disc"
+                                                triggerLabel={fillTemplate(
+                                                    isCover ? m.menuTriggerCover : m.menuTrigger,
+                                                    {
+                                                        index: index + 1,
+                                                    },
+                                                )}
+                                                title={fillTemplate(m.menuTitle, { index: index + 1 })}
+                                                closeLabel={fillTemplate(m.menuClose, { index: index + 1 })}
+                                                unavailable={removing}
+                                                {...photoMenu({
+                                                    copy: m,
+                                                    photoId: photo.id,
+                                                    index,
+                                                    count: photos.length,
+                                                    reordering,
+                                                    onRemovePhoto,
+                                                    ...(onSetCover === undefined ? {} : { onSetCover }),
+                                                    ...(onMovePhoto === undefined ? {} : { onMovePhoto }),
+                                                    ...(onReplacePhoto === undefined ? {} : { onReplacePhoto }),
+                                                })}
+                                            />
+                                        </div>
                                     </div>
+                                    {/* U6: the cover status is text (never colour alone, WCAG 1.4.1); shown only on the
+                                    index-0 photo the server resolves as `coverPhotoUrl`, and only where the surface
+                                    offers cover selection. */}
+                                    {onSetCover !== undefined && isCover ? (
+                                        <p className="px-1 text-caption font-semibold text-ink">{m.coverBadge}</p>
+                                    ) : null}
                                     {removing ? (
-                                        <span
-                                            role="status"
-                                            className="absolute inset-x-0 bottom-2 mx-2 rounded-full bg-photo-chip px-2 py-1 text-center text-caption font-medium text-ink"
-                                        >
+                                        <p role="status" className="px-1 text-caption text-ink-muted">
                                             {m.removing}
-                                        </span>
+                                        </p>
                                     ) : null}
                                 </li>
                             );
@@ -245,9 +246,6 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
                                         >
                                             {statusWord}
                                         </p>
-                                        {item.status === 'failed' && item.errorMessage !== undefined ? (
-                                            <p className="text-caption text-danger-text">{item.errorMessage}</p>
-                                        ) : null}
                                     </div>
                                     {/* Retry sits in the slot under the photo with the failure it recovers (designer ruling 2026-11-11), and stays a
                                     VISIBLE button, not a menu item: it is the one recovery for the
@@ -277,6 +275,10 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
                     </ul>
                 </div>
             )}
+
+            {/* A failure's reason, said ONCE, full width, under the grid while any tile has failed (designer ruling
+                2026-11-11). Each tile's alert still names its own reason for a screen reader (REQ-014). */}
+            {failures.length > 0 ? <p className="text-body-sm text-danger-text">{failures.join(' ')}</p> : null}
 
             {atCap ? (
                 <p className="text-body-sm text-ink-muted">{fillTemplate(m.maxReached, { max: MAX_RECIPE_PHOTOS })}</p>

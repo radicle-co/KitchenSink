@@ -91,7 +91,7 @@
         "packages/apps/commise/features/recipes/src/list/RecipeListFrame.native.tsx": 1,
         "packages/apps/commise/features/recipes/src/nutrition/RecipeCalorieChip.native.tsx": 1,
         "packages/apps/commise/features/recipes/src/nutrition/RecipeCalorieSkeleton.native.tsx": 1,
-        "packages/apps/commise/features/recipes/src/photos/RecipePhotoManager.native.tsx": 10,
+        "packages/apps/commise/features/recipes/src/photos/RecipePhotoManager.native.tsx": 6,
         "packages/apps/commise/features/recipes/src/versions/RecipeConflictView.native.tsx": 21,
         "packages/apps/commise/features/recipes/src/versions/RecipeVersionList.native.tsx": 8,
         "packages/apps/commise/features/recipes/src/versions/RecipeVersionListError.native.tsx": 1,

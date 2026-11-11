@@ -71,10 +71,10 @@ describe('HeroButton (web)', () => {
         render(<HeroButton icon="chevronLeft" label="Back to My recipes" href="/en/recipes" onPress={vi.fn()} />);
         const classes = screen.getByRole('link', { name: 'Back to My recipes' }).className.split(' ');
 
-        expect(classes).toEqual(expect.arrayContaining(['size-11', 'rounded-full', 'bg-photo-chip']));
+        expect(classes).toEqual(expect.arrayContaining(['size-[44px]', 'rounded-full', 'bg-photo-chip']));
         expect(classes.some((name) => name.startsWith('backdrop-blur'))).toBe(false);
         expect(classes).toContain('focus-visible:ring-2');
-        expect(HERO_DISC_CLASS.split(' ')).toEqual(expect.arrayContaining(['size-11', 'rounded-full']));
+        expect(HERO_DISC_CLASS.split(' ')).toEqual(expect.arrayContaining(['size-[44px]', 'rounded-full']));
     });
 
     it('hides its glyph from assistive technology', () => {
@@ -83,5 +83,17 @@ describe('HeroButton (web)', () => {
         expect(
             screen.getByRole('button', { name: 'More actions' }).querySelector('svg')?.getAttribute('aria-hidden'),
         ).toBe('true');
+    });
+});
+
+/**
+ * Designer ruling 2026-11-11: the disc is chrome over a photo, so it keeps its 1x size at every text size. On the web a
+ * `rem` size grows with the browser's text size (it covered half a photo tile at 200%), so the disc is sized in px.
+ * jsdom lays nothing out, so the class is the unit-level pin; `recipePhotos.spec.ts` measures it in a real browser.
+ */
+describe('HERO_DISC_CLASS — sized in px, not rem (2026-11-11)', () => {
+    it('sets a 44 px disc and no rem-based size', () => {
+        expect(HERO_DISC_CLASS.split(' ')).toContain('size-[44px]');
+        expect(HERO_DISC_CLASS).not.toMatch(/(?:^|\s)(?:size|w|h)-\d/u);
     });
 });

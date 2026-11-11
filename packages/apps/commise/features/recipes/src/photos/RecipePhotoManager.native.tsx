@@ -37,6 +37,7 @@ import { fillTemplate } from '../format/fillTemplate.js';
 import { photoMessages } from './messages.js';
 import { photoMenu } from './photoMenu.js';
 import {
+    failureSentences,
     isAtPhotoCap,
     isCoverPhoto,
     isQueueItemRemovable,
@@ -67,12 +68,10 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
 }) => {
     const m = useMessages(photoMessages);
     const { colors } = useTheme();
-    // Chrome on a photo is the `photoChip` disc under an `ink` label (`darkTheme.md` §1, §3.4).
-    const chip = { backgroundColor: colors.photoChip };
-    const ink = { color: colors.ink };
     const pendingItems = visibleQueueItems(queueItems ?? []);
     const atCap = isAtPhotoCap(photos.length + pendingItems.length);
     const finished = uploadedCount(queueItems);
+    const failures = failureSentences(pendingItems);
     // The grid's own width, once laid out (buildSpec §7.7: 3 columns below 600, 4 from 600). Not the window's: the
     // window is not the container, and until the first measure the grid holds the narrow reading.
     const [gridWidth, setGridWidth] = useState<number | undefined>(undefined);
@@ -127,56 +126,58 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
                         const isCover = isCoverPhoto(photos, photo.id);
 
                         return (
-                            <View key={photo.id} style={[styles.cell, { width: cellWidth }]}>
-                                <Image
-                                    source={{ uri: photo.url }}
-                                    accessibilityLabel={fillTemplate(m.photoAlt, { index: index + 1 })}
-                                    cachePolicy="memory-disk"
-                                    style={styles.photo}
-                                />
-                                {/* U6: cover status carried as TEXT (never colour alone); shown on the index-0 photo
-                                    only, and only where the surface offers cover selection. It sits at the foot-left,
-                                    clear of the menu button. */}
-                                {onSetCover !== undefined && isCover ? (
-                                    <Text
-                                        style={[
-                                            styles.coverBadge,
-                                            { backgroundColor: colors.action, color: colors.onAction },
-                                        ]}
-                                    >
-                                        {m.coverBadge}
-                                    </Text>
-                                ) : null}
-                                {/* Owner ruling 2026-10-17: ONE ⋯ menu button per tile (44 pt, 48 dp on Android) holds
+                            <View key={photo.id} style={{ width: cellWidth }}>
+                                {/* The FRAME carries the photo and its ⋯ disc and nothing else (designer ruling
+                                    2026-11-11). Cover and Removing… are said in the slot under it. */}
+                                <View style={styles.frame}>
+                                    <Image
+                                        source={{ uri: photo.url }}
+                                        accessibilityLabel={fillTemplate(m.photoAlt, { index: index + 1 })}
+                                        cachePolicy="memory-disk"
+                                        style={styles.photo}
+                                    />
+                                    {/* Owner ruling 2026-10-17: ONE ⋯ menu button per tile (44 pt, 48 dp on Android) holds
                                     every action, in a sheet. The cover is stated by the button's NAME (SC 4.1.2), as the
                                     radio it replaces stated it by `checked`. A removal in flight makes the button
                                     unavailable: it keeps the screen-reader cursor and opens nothing. */}
-                                <View style={styles.menuButton}>
-                                    <ActionMenu
-                                        appearance="disc"
-                                        triggerLabel={fillTemplate(isCover ? m.menuTriggerCover : m.menuTrigger, {
-                                            index: index + 1,
-                                        })}
-                                        title={fillTemplate(m.menuTitle, { index: index + 1 })}
-                                        closeLabel={fillTemplate(m.menuClose, { index: index + 1 })}
-                                        unavailable={removing}
-                                        {...photoMenu({
-                                            copy: m,
-                                            photoId: photo.id,
-                                            index,
-                                            count: photos.length,
-                                            reordering,
-                                            onRemovePhoto,
-                                            ...(onSetCover === undefined ? {} : { onSetCover }),
-                                            ...(onMovePhoto === undefined ? {} : { onMovePhoto }),
-                                            ...(onReplacePhoto === undefined ? {} : { onReplacePhoto }),
-                                        })}
-                                    />
+                                    <View style={styles.menuButton}>
+                                        <ActionMenu
+                                            appearance="disc"
+                                            triggerLabel={fillTemplate(isCover ? m.menuTriggerCover : m.menuTrigger, {
+                                                index: index + 1,
+                                            })}
+                                            title={fillTemplate(m.menuTitle, { index: index + 1 })}
+                                            closeLabel={fillTemplate(m.menuClose, { index: index + 1 })}
+                                            unavailable={removing}
+                                            {...photoMenu({
+                                                copy: m,
+                                                photoId: photo.id,
+                                                index,
+                                                count: photos.length,
+                                                reordering,
+                                                onRemovePhoto,
+                                                ...(onSetCover === undefined ? {} : { onSetCover }),
+                                                ...(onMovePhoto === undefined ? {} : { onMovePhoto }),
+                                                ...(onReplacePhoto === undefined ? {} : { onReplacePhoto }),
+                                            })}
+                                        />
+                                    </View>
                                 </View>
+                                {/* U6: cover status carried as TEXT (never colour alone); shown on the index-0 photo
+                                    only, and only where the surface offers cover selection. */}
+                                {onSetCover !== undefined && isCover ? (
+                                    <View style={styles.statusSlot}>
+                                        <DsText typeRole="caption" color="$ink">
+                                            {m.coverBadge}
+                                        </DsText>
+                                    </View>
+                                ) : null}
                                 {removing ? (
-                                    <Text accessibilityRole="text" style={[styles.removingBadge, chip, ink]}>
-                                        {m.removing}
-                                    </Text>
+                                    <View style={styles.statusSlot}>
+                                        <DsText typeRole="caption" color="$inkMuted">
+                                            {m.removing}
+                                        </DsText>
+                                    </View>
                                 ) : null}
                             </View>
                         );
@@ -244,11 +245,6 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
                                     >
                                         {statusWord}
                                     </DsText>
-                                    {item.status === 'failed' && item.errorMessage !== undefined ? (
-                                        <DsText typeRole="meta" color="$dangerText">
-                                            {item.errorMessage}
-                                        </DsText>
-                                    ) : null}
                                 </View>
                                 {/* Retry sits in the slot under the photo with the failure it recovers (designer ruling 2026-11-11), and stays a
                                     VISIBLE button, not a menu item: it is the one recovery for the
@@ -277,6 +273,14 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
                     })}
                 </View>
             )}
+
+            {/* A failure's reason, said ONCE, full width, under the grid while any tile has failed (designer ruling
+                2026-11-11). Each tile's alert still names its own reason for a screen reader (REQ-014). */}
+            {failures.length > 0 ? (
+                <DsText typeRole="meta" color="$dangerText">
+                    {failures.join(' ')}
+                </DsText>
+            ) : null}
 
             {atCap ? (
                 <Text style={[styles.muted, { color: colors.inkMuted }]}>
@@ -307,7 +311,6 @@ const styles = StyleSheet.create({
     error: { ...nativeTokens.type.meta },
     // Each cell claims its share of the row (`CELL_WIDTH`), minus the inter-cell gap.
     grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-    cell: { position: 'relative', aspectRatio: 1, borderRadius: nativeTokens.radius.lg, overflow: 'hidden' },
     // A queue cell's image box: square like a photo cell, but it does not hold the failure's message.
     frame: { position: 'relative', aspectRatio: 1, borderRadius: nativeTokens.radius.lg, overflow: 'hidden' },
     photo: { width: '100%', height: '100%' },
@@ -315,26 +318,4 @@ const styles = StyleSheet.create({
     statusSlot: { marginTop: 4, paddingHorizontal: 2 },
     // The tile's ⋯ menu button, top-right (`appearance="disc"`: 44 pt, 48 dp hit frame on Android).
     menuButton: { position: 'absolute', top: 2, right: 2 },
-    removingBadge: {
-        position: 'absolute',
-        bottom: 6,
-        left: 6,
-        right: 6,
-        textAlign: 'center',
-        ...nativeTokens.type.caption,
-        borderRadius: nativeTokens.radius.full,
-        paddingVertical: 2,
-        overflow: 'hidden',
-    },
-    // U6 cover badge (foot-left) — text on the solid `action` pill; clear of the top-right menu button.
-    coverBadge: {
-        position: 'absolute',
-        bottom: 6,
-        left: 6,
-        ...nativeTokens.type.label,
-        borderRadius: nativeTokens.radius.full,
-        paddingVertical: 2,
-        paddingHorizontal: 8,
-        overflow: 'hidden',
-    },
 });

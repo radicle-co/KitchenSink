@@ -157,9 +157,9 @@ function layOut(element: Element, width: number): void {
     act(() => handler({ nativeEvent: { layout: { x: 0, y: 0, width, height: 400 } } }));
 }
 
-/** The grid view: the parent of the first cell. */
+/** The grid view: the parent of the first cell. A cell holds the photo's frame and the slot under it (2026-11-11). */
 function gridOf(photoLabel: string): Element {
-    const cell = screen.getByLabelText(photoLabel).parentElement;
+    const cell = screen.getByLabelText(photoLabel).parentElement?.parentElement;
     const grid = cell?.parentElement;
 
     if (grid === null || grid === undefined) {
@@ -178,13 +178,16 @@ describe('RecipePhotoManager (native) — the grid columns (A-010)', () => {
     it('is three-up until the grid has been measured', () => {
         renderManager({ photos: threePhotos });
 
-        expect(getComputedStyle(screen.getByLabelText('Recipe photo 1').parentElement as Element).width).toBe('31%');
+        // The cell holds the photo's frame and the slot under it (designer ruling 2026-11-11), so it is two levels up.
+        expect(
+            getComputedStyle(screen.getByLabelText('Recipe photo 1').parentElement?.parentElement as Element).width,
+        ).toBe('31%');
     });
 
     it('stays three-up at 599 and goes four-up at 600', () => {
         renderManager({ photos: threePhotos });
         const grid = gridOf('Recipe photo 1');
-        const cell = screen.getByLabelText('Recipe photo 1').parentElement as Element;
+        const cell = screen.getByLabelText('Recipe photo 1').parentElement?.parentElement as Element;
 
         layOut(grid, 599);
         expect(getComputedStyle(cell).width).toBe('31%');
@@ -231,8 +234,9 @@ describe('RecipePhotoManager (native) — a failed upload’s message (E6)', () 
 
         expect(frame.contains(message)).toBe(false);
         expect(getComputedStyle(message).position).not.toBe('absolute');
-        expect(frame.parentElement?.contains(message)).toBe(true);
-        // REWRITTEN (designer ruling 2026-11-11): "Upload failed" left the photo too; it heads the same slot as the message.
+        // REWRITTEN (designer ruling 2026-11-11): the reason is said once, under the whole grid, not in the tile's slot,
+        // and "Upload failed" left the photo for the slot under it.
+        expect(frame.parentElement?.contains(message)).toBe(false);
         expect(frame.contains(screen.getByText('Upload failed'))).toBe(false);
     });
 });
@@ -264,7 +268,9 @@ describe('RecipePhotoManager (native) — the upload status sits under the tile 
         expect(frame.compareDocumentPosition(line) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     });
 
-    it('puts a failure’s status and its message in ONE slot under the photo', () => {
+    // REWRITTEN (designer ruling 2026-11-11, third answer): the slot shows only the short status. The reason moved to
+    // one line under the grid, and the slot's alert still names it for a screen reader (REQ-014).
+    it('shows only the status in the slot under the photo, and names the reason in its alert', () => {
         renderManager({
             queueItems: [
                 makeQueueItem({
@@ -281,7 +287,7 @@ describe('RecipePhotoManager (native) — the upload status sits under the tile 
         const slot = screen.getByRole('alert', { name: 'Upload failed. That photo is larger than 5 MB.' });
 
         expect(within(slot).getByText('Upload failed')).toBeTruthy();
-        expect(within(slot).getByText('That photo is larger than 5 MB.')).toBeTruthy();
+        expect(within(slot).queryByText('That photo is larger than 5 MB.')).toBeNull();
         expect((screen.getByLabelText('Photo burnt.png').parentElement as HTMLElement).contains(slot)).toBe(false);
     });
 
@@ -817,13 +823,15 @@ describe.each(['light', 'dark'] as const)('RecipePhotoManager (native) — the %
         );
     });
 
-    it('draws the cover badge on the action fill under its onAction label', () => {
+    // REWRITTEN (designer ruling 2026-11-11): "Cover" left the photo for the slot under it, so it is a line of ink text
+    // with no fill, not a badge on the action fill.
+    it('writes "Cover" in ink under the photo, with no fill', () => {
         systemScheme.current = scheme;
         renderManager({ photos: threePhotos, onSetCover: noop });
-        const badge = screen.getByText('Cover');
+        const line = screen.getByText('Cover');
 
-        expect(style(badge).backgroundColor).toBe(rgb(colours.action));
-        expect(style(badge).color).toBe(rgb(colours.onAction));
+        expect(resolvedColour(line, 'color')).toBe(rgb(colours.ink));
+        expect(['', 'rgba(0, 0, 0, 0)', 'transparent']).toContain(style(line).backgroundColor);
     });
 
     // REWRITTEN (designer ruling 2026-11-11): the status is a line of text under the tile, no longer a badge on the photo,
@@ -876,5 +884,88 @@ describe('RecipePhotoManager (native) — the upload caption', () => {
 
     it.each(['light', 'dark'] as const)('paints it in inkMuted in the %s scheme', (scheme) => {
         expect(resolvedColour(renderUploading(scheme), 'color')).toBe(rgb(rolesFor(scheme).inkMuted));
+    });
+});
+
+/**
+ * Designer ruling 2026-11-11, third answer. The photo carries the ⋯ disc and nothing else, on every tile: Cover and
+ * Removing… on a saved photo join the queue statuses in the short slot under the tile. A failure's sentence leaves the
+ * slot and is said ONCE, full width, under the grid, while any tile has failed.
+ */
+describe('RecipePhotoManager (native) — the photo carries only its ⋯ disc (2026-11-11)', () => {
+    const wired = {
+        photos: threePhotos,
+        onSetCover: noop,
+        onMovePhoto: noop,
+        onReplacePhoto: noop,
+    } satisfies Partial<RecipePhotoManagerProps>;
+
+    const frameOf = (index: number): HTMLElement =>
+        screen.getByLabelText(`Recipe photo ${String(index)}`).parentElement as HTMLElement;
+
+    it('draws no text and no control but the ⋯ disc on a saved photo: the cover, a removal, an idle tile', () => {
+        renderManager({ ...wired, removingPhotoId: 'ph_2' });
+
+        for (const index of [1, 2, 3]) {
+            const frame = frameOf(index);
+            expect(frame.textContent.trim()).toBe('');
+            expect(within(frame).getAllByRole('button')).toHaveLength(1);
+        }
+    });
+
+    it.each([
+        ['Cover', 1, {}],
+        ['Removing…', 2, { removingPhotoId: 'ph_2' }],
+    ] as const)('writes "%s" in the slot under photo %s', (word, index, extra) => {
+        renderManager({ ...wired, ...extra });
+
+        const frame = frameOf(index);
+        const line = screen.getByText(word);
+        const tile = frame.parentElement as HTMLElement;
+
+        expect(frame.contains(line)).toBe(false);
+        expect(tile.contains(line)).toBe(true);
+        expect(frame.compareDocumentPosition(line) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+        expect(getComputedStyle(line).position).not.toBe('absolute');
+    });
+
+    it('keeps the slot to the short status, and says a failure’s sentence once, full width, under the grid', () => {
+        renderManager({
+            queueItems: [
+                makeQueueItem({
+                    fileId: 1,
+                    fileName: 'a.png',
+                    previewUri: 'file:///a.png',
+                    status: 'failed',
+                    errorMessage: 'We couldn’t upload that photo.',
+                }),
+                makeQueueItem({
+                    fileId: 2,
+                    fileName: 'b.png',
+                    previewUri: 'file:///b.png',
+                    status: 'failed',
+                    errorMessage: 'We couldn’t upload that photo.',
+                }),
+            ],
+        });
+
+        // The grid holds the cells; a cell holds the photo frame and its slot.
+        const list = (screen.getByLabelText('Photo a.png').parentElement as HTMLElement).parentElement
+            ?.parentElement as HTMLElement;
+        const sentence = screen.getByText('We couldn’t upload that photo.');
+
+        expect(screen.getAllByText('We couldn’t upload that photo.')).toHaveLength(1);
+        expect(list.contains(sentence)).toBe(false);
+        expect(list.compareDocumentPosition(sentence) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+        // REQ-014: each tile's alert still names WHY for a screen reader, though the slot shows only the status.
+        expect(screen.getAllByRole('alert', { name: 'Upload failed. We couldn’t upload that photo.' })).toHaveLength(2);
+    });
+
+    it('drops the sentence once no tile has failed', () => {
+        renderManager({
+            queueItems: [makeQueueItem({ fileId: 1, fileName: 'a.png', status: 'uploading', errorMessage: 'Stale.' })],
+        });
+
+        expect(screen.queryByText('Stale.')).toBeNull();
     });
 });

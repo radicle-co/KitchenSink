@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { PRIVATE_ONLY_SQL, sourceIsCorrectable } from '../sourceRules.js';
+import { RECIPE_SOURCE_KINDS, RecipeSourceType, privateRuleOf } from '../recipe.types.js';
+import { PRIVATE_ONLY_SOURCE_KEYS, privateOnlySourceKey, sourceIsCorrectable } from '../sourceRules.js';
 
 /**
  * ADR-0089: ONE rule says whether a recipe's source can still be changed by the cook, read by the service policy and by
@@ -47,12 +48,38 @@ describe('sourceIsCorrectable', () => {
     });
 });
 
-describe('PRIVATE_ONLY_SQL — the SQL twin of the private-only rule', () => {
-    // Derived from `privateRuleOf` over every (sourceType, sourceKind) pair, so the two cannot drift; a real database
-    // evaluates it against every pair in `recipeSourceKind.e2e.test.ts`.
-    it('names exactly the private-only labels, NULL-safe', () => {
-        expect(PRIVATE_ONLY_SQL).toBe(
-            "COALESCE((source_type = 'imported_public' AND source_kind IN ('public_web')) OR source_type = 'imported_physical' OR source_type = 'imported_paid', false)",
+describe('PRIVATE_ONLY_SOURCE_KEYS — the private-only rule as DATA a query binds', () => {
+    // Derived from `privateRuleOf` over every (sourceType, sourceKind) pair, so the two cannot drift. A query binds these
+    // as parameters; no SQL text crosses the package boundary.
+    const KINDS = [...RECIPE_SOURCE_KINDS, null] as const;
+
+    it.each(Object.values(RecipeSourceType).flatMap((type) => KINDS.map((kind) => [type, kind] as const)))(
+        'key membership agrees with privateRuleOf for %s with kind %s',
+        (sourceType, sourceKind) => {
+            expect(PRIVATE_ONLY_SOURCE_KEYS.includes(privateOnlySourceKey(sourceType, sourceKind))).toBe(
+                privateRuleOf(sourceType, sourceKind) === 'privateOnly',
+            );
+        },
+    );
+
+    it('spells a missing kind as the empty string, and joins the pair with a colon', () => {
+        expect(privateOnlySourceKey('imported_physical', null)).toBe('imported_physical:');
+        expect(privateOnlySourceKey('imported_public', 'public_web')).toBe('imported_public:public_web');
+    });
+
+    it('lists exactly the private-only pairs: the whole book and paid-site label, and the web copy', () => {
+        expect([...PRIVATE_ONLY_SOURCE_KEYS].sort()).toEqual(
+            [
+                'imported_paid:',
+                'imported_paid:book',
+                'imported_paid:paid_site',
+                'imported_paid:public_web',
+                'imported_physical:',
+                'imported_physical:book',
+                'imported_physical:paid_site',
+                'imported_physical:public_web',
+                'imported_public:public_web',
+            ].sort(),
         );
     });
 });

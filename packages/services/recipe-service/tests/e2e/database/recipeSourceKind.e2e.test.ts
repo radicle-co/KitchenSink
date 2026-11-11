@@ -10,11 +10,11 @@
  *  3. Every kind is paired with its label (`recipes_source_kind_pairs_source_type`): `public_web` with `imported_public` AND an
  *     address, `book` with `imported_physical`, `paid_site` with `imported_paid`. No other pairing can be written by any
  *     writer, the service included.
- *  4. `PRIVATE_ONLY_SQL`, the twin account erasure reads, agrees with `privateRuleOf` for every pair.
+ *  4. `PRIVATE_ONLY_SOURCE_KEYS`, bound the way account erasure binds it, agrees with `privateRuleOf` for every pair.
  */
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import pg from 'pg';
-import { PRIVATE_ONLY_SQL, RECIPE_SOURCE_KINDS, privateRuleOf } from '@kitchensink/recipe-core';
+import { PRIVATE_ONLY_SOURCE_KEYS, RECIPE_SOURCE_KINDS, privateRuleOf } from '@kitchensink/recipe-core';
 import { recipeDb } from '../../support/roleDb.js';
 
 const roleDb = recipeDb();
@@ -111,14 +111,16 @@ describe('recipes.source_kind and its CHECKs (migration 0065)', () => {
         );
     });
 
-    // The SQL twin account erasure reads (`PRIVATE_ONLY_SQL`) against `privateRuleOf`, for every pair, in a real database.
+    // The BOUND form account erasure uses (`PRIVATE_ONLY_SOURCE_KEYS`, the key built in SQL exactly as the worker builds it)
+    // against `privateRuleOf`, for every pair, in a real database.
     it.each(LABELS.flatMap((sourceType) => [...RECIPE_SOURCE_KINDS, null].map((kind) => [sourceType, kind] as const)))(
-        'PRIVATE_ONLY_SQL agrees with privateRuleOf for %s with kind %s',
+        'the bound private-only keys agree with privateRuleOf for %s with kind %s',
         async (sourceType, kind) => {
             const { rows } = await pool.query<{ private_only: boolean }>(
-                `SELECT ${PRIVATE_ONLY_SQL} AS private_only
+                `SELECT (source_type || ':' || COALESCE(source_kind, '')) IN
+                        (SELECT jsonb_array_elements_text($3::jsonb)) AS private_only
                    FROM (VALUES ($1::text, $2::text)) AS recipes(source_type, source_kind)`,
-                [sourceType, kind],
+                [sourceType, kind, JSON.stringify(PRIVATE_ONLY_SOURCE_KEYS)],
             );
 
             expect(rows[0]?.private_only).toBe(privateRuleOf(sourceType, kind) === 'privateOnly');

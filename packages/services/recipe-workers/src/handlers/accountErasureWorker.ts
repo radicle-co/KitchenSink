@@ -3,7 +3,7 @@ import type { SQSHandler, SQSRecord } from 'aws-lambda';
 import { DeleteObjectsCommand, ListObjectsV2Command, S3Client } from '@aws-sdk/client-s3';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import {
-    PRIVATE_ONLY_SQL,
+    PRIVATE_ONLY_SOURCE_KEYS,
     cdnOwnerPrefixInvalidationPath,
     erasureQueueMessageKind,
     ownerMediaPrefix,
@@ -687,6 +687,7 @@ export const eraseRecipeRows = async (
     // yields no rows, so the flip safely matches nothing. Parameterized throughout — no SQL built from the
     // (client-originated) ids.
     const publishElectionJson = JSON.stringify([...publishRecipeIds]);
+    const privateOnlyKeysJson = JSON.stringify(PRIVATE_ONLY_SOURCE_KEYS);
 
     // The owner-only (removed) predicate — the exact negation of "truly public". Named once so the removed-set
     // SELECT, the clone-detach subqueries, and the DELETE all key on the IDENTICAL two-axis rule; a drift
@@ -713,8 +714,9 @@ export const eraseRecipeRows = async (
         //    0064 would roll this whole transaction back, stranding the erasure), and a dead author's private foods must
         //    stay unreferenced so they are deleted. Such an elected recipe is removed with the owner-only set below.
         //    ⛔ AND ONLY a recipe that may be public at all (ADR-0089): a book, a paid-site recipe or a copy of a web page is
-        //    private-only, and a donation makes it public. recipe-core's SQL twin of `privateRuleOf` says which, so the rule
-        //    is not copied here. Such an elected recipe is removed with the owner-only set below, exactly as one that holds a
+        //    private-only, and a donation makes it public. recipe-core's private-only keys, derived from `privateRuleOf`,
+        //    say which; they are bound as ONE jsonb parameter like the election, so the rule is not copied here and no SQL
+        //    text is spliced. A NULL kind is the empty string in the key, so it is never an unknown. Such an elected recipe is removed with the owner-only set below, exactly as one that holds a
         //    private food is. (Until now a donated book or paid-site recipe was published.)
         await tx.execute(sql`
             UPDATE recipes
@@ -722,11 +724,8 @@ export const eraseRecipeRows = async (
             WHERE id IN (SELECT jsonb_array_elements_text(${publishElectionJson}::jsonb)::uuid)
               AND owner_id = ${ownerId}
               AND NOT recipe_holds_private_food(id)
-              AND NOT ${
-                  // A constant SQL fragment derived from recipe-core's rule, never input; it names columns, so it cannot be a bound value.
-                  // eslint-disable-next-line no-restricted-syntax -- the argument is a build-time constant, not a request value
-                  sql.raw(PRIVATE_ONLY_SQL)
-              }
+              AND (source_type || ':' || COALESCE(source_kind, ''))
+                  NOT IN (SELECT jsonb_array_elements_text(${privateOnlyKeysJson}::jsonb))
         `);
 
         // 2. The removed set = the owner's rows that are NOT truly-public (owner-only, non-donated). Captured

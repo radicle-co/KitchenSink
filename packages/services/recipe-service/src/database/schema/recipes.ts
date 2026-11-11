@@ -8,7 +8,7 @@
  * `VARCHAR(255) NOT NULL` — no FK, no user replication. `search_vector` is a plain (nullable) tsvector
  * maintained by a PostgreSQL trigger (see 0001 migration), NOT a generated column.
  */
-import { sql, type InferInsertModel, type InferSelectModel } from 'drizzle-orm';
+import { inArray, sql, type InferInsertModel, type InferSelectModel } from 'drizzle-orm';
 import {
     boolean,
     check,
@@ -220,14 +220,8 @@ export const recipes = pgTable(
             'recipes_source_type_check',
             sql`${table.sourceType} IN ('user_created', 'imported_public', 'imported_physical', 'imported_paid')`,
         ),
-        // The vocabulary is recipe-core's, spelled once; the literal list below is built from it, not retyped.
-        check(
-            'recipes_source_kind_check',
-            // A CHECK is DDL and cannot take a bound parameter. The spliced text is recipe-core's closed vocabulary (a
-            // compile-time constant list), never input.
-            // eslint-disable-next-line no-restricted-syntax -- DDL cannot be parameterised; the argument is a constant vocabulary
-            sql`${table.sourceKind} IN (${sql.raw(RECIPE_SOURCE_KINDS.map((kind) => `'${kind}'`).join(', '))})`,
-        ),
+        // The vocabulary is recipe-core's, spelled once, as `recipeImports.ts` does for its own kind column.
+        check('recipes_source_kind_check', inArray(table.sourceKind, [...RECIPE_SOURCE_KINDS])),
         // Every kind is paired with its label; a web copy also needs its address (0065).
         check(
             'recipes_source_kind_pairs_source_type',

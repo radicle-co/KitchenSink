@@ -113,7 +113,8 @@ the editor. This ADR does not decide the card. When the read path ships it repla
   `public_web` statement stores `source_kind = 'public_web'`, so the rule above holds for it too.
 - **Account erasure no longer donates a private-only recipe.** The donate step flipped an elected owner-only recipe to
   public, whatever its label. That made a book or paid-site recipe public, which ADR-0073 and 004-FR-014a forbid. It now
-  skips a private-only recipe with `PRIVATE_ONLY_SQL`, recipe-core's SQL twin of `privateRuleOf`, derived from it. The
+  skips a private-only recipe. It matches `PRIVATE_ONLY_SOURCE_KEYS`, which recipe-core derives from `privateRuleOf`,
+  and binds them as one parameter. No SQL text is spliced. The
   skipped recipe is removed with the owner-only set, like one that holds a private food. A book, a paid-site recipe and a
   web copy are deleted at erasure, and the cook's election to donate them is not honoured. The curator's text and a recipe
   the cook wrote are still donated.

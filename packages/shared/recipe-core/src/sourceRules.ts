@@ -4,7 +4,7 @@
  * DESIGN PATTERN: **Specification**. Each is one authoritative, pure statement: the service policy, the editor and the
  * erasure worker import it, so none of them keeps its own copy.
  */
-import { RECIPE_SOURCE_KINDS, RecipeSourceType, privateRuleOf } from './recipe.types.js';
+import { RECIPE_SOURCE_KINDS, RecipeSourceType, privateRuleOf, type RecipeSourceKind } from './recipe.types.js';
 
 /** The facts of a stored recipe that decide whether its source can still change. */
 export interface CorrectableSourceFacts {
@@ -42,37 +42,28 @@ export function sourceIsCorrectable(recipe: CorrectableSourceFacts): boolean {
     return statedByLinkOrNone && !inheritedByClone;
 }
 
-/** Every `(sourceType, sourceKind)` shape a row can hold, `null` kind included. */
-function privateOnlyTerms(): string[] {
-    const kinds = [...RECIPE_SOURCE_KINDS, null] as const;
-
-    return Object.values(RecipeSourceType).flatMap((sourceType) => {
-        const privateKinds = kinds.filter((kind) => privateRuleOf(sourceType, kind) === 'privateOnly');
-
-        if (privateKinds.length === 0) {
-            return [];
-        }
-
-        if (privateKinds.length === kinds.length) {
-            return [`source_type = '${sourceType}'`];
-        }
-
-        const named = privateKinds.filter((kind): kind is NonNullable<typeof kind> => kind !== null);
-        const kindTests = [
-            ...(named.length > 0 ? [`source_kind IN (${named.map((kind) => `'${kind}'`).join(', ')})`] : []),
-            ...(privateKinds.includes(null) ? ['source_kind IS NULL'] : []),
-        ];
-
-        return [`(source_type = '${sourceType}' AND ${kindTests.join(' OR ')})`];
-    });
+/**
+ * The key a query matches a row's source by: `<sourceType>:<sourceKind>`, with an empty kind for none. ONE function builds
+ * it, here for {@link PRIVATE_ONLY_SOURCE_KEYS} and in SQL as `source_type || ':' || COALESCE(source_kind, '')`.
+ *
+ * @param sourceType - The recipe's provenance label.
+ * @param sourceKind - What the cook said the source is, or `null`.
+ * @returns The key. Pure.
+ */
+export function privateOnlySourceKey(sourceType: RecipeSourceType, sourceKind: RecipeSourceKind | null): string {
+    return `${sourceType}:${sourceKind ?? ''}`;
 }
 
 /**
- * The SQL twin of {@link privateRuleOf}`(...) === 'privateOnly'`, over the columns `source_type` and `source_kind` of
- * `recipes`. A boolean that is never NULL (a NULL kind makes no comparison unknown), so `NOT (...)` is safe in a WHERE.
+ * The private-only rule as DATA: the key of every `(sourceType, sourceKind)` pair, `null` kind included, for which
+ * {@link privateRuleOf} answers `privateOnly`. DERIVED over the cross product, so the TypeScript rule and what a query
+ * matches cannot drift.
  *
- * DERIVED from `privateRuleOf` over every pair, not hand-written, so the TypeScript rule and the SQL one cannot drift.
- * Account erasure reads it to keep a private-only recipe out of the donated set (a donation makes a recipe public).
- * `recipeSourceKind.e2e.test.ts` evaluates it against every pair in a real database.
+ * Account erasure binds it as a parameter to keep a private-only recipe out of the donated set (a donation makes a recipe
+ * public). It is data and not SQL text: no query text crosses the package boundary, and nothing is spliced into a statement.
  */
-export const PRIVATE_ONLY_SQL = `COALESCE(${privateOnlyTerms().join(' OR ')}, false)`;
+export const PRIVATE_ONLY_SOURCE_KEYS: readonly string[] = Object.values(RecipeSourceType).flatMap((sourceType) =>
+    [...RECIPE_SOURCE_KINDS, null]
+        .filter((sourceKind) => privateRuleOf(sourceType, sourceKind) === 'privateOnly')
+        .map((sourceKind) => privateOnlySourceKey(sourceType, sourceKind)),
+);

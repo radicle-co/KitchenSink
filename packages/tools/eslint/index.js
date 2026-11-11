@@ -338,6 +338,10 @@ const PACKAGE_INTERNALS_PATTERN = {
         // `registeredMobileScreens` gives the screen recorder's guard (mobile `screenTrace.integration.test.ts`) the selector's own
         // list of registered screens.
         '!@kitchensink/*/registeredMobileScreens',
+        // `checkScope` (`ownerOf`) and `checkScopeGraph` (the workspaces, task facts and package filters) give the ADR-0091
+        // graph guards in `repoGuards` the changed-only selector's own graph, so they cannot check a different one.
+        '!@kitchensink/*/checkScope',
+        '!@kitchensink/*/checkScopeGraph',
         // `hostLock` is the one-orchestrator-per-machine lock; the web door takes its own file with it (ADR-0088).
         '!@kitchensink/*/hostLock',
         // `poolAdmin` (2026-10-18): the only writer of a pool user's `public_metadata`, which the CI job that rebuilds the

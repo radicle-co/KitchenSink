@@ -55,10 +55,31 @@ async function turbo(repo: string, args: readonly string[]): Promise<unknown> {
     return JSON.parse(stdout.slice(stdout.indexOf('{')));
 }
 
-async function listPackages(repo: string, filters: readonly string[]): Promise<string[]> {
+/**
+ * The packages a set of turbo filters selects (a union, as turbo reads repeated `--filter` flags).
+ *
+ * @sideEffect Runs turbo.
+ * @param repo - The repository root.
+ * @param filters - `--filter` flags.
+ * @returns The names.
+ */
+export async function listPackages(repo: string, filters: readonly string[]): Promise<string[]> {
     const parsed = lsSchema.parse(await turbo(repo, ['ls', ...filters, '--output=json']));
 
     return parsed.packages.items.map((item) => item.name);
+}
+
+/**
+ * Every workspace turbo knows.
+ *
+ * @sideEffect Runs turbo.
+ * @param repo - The repository root.
+ * @returns The workspaces.
+ */
+export async function loadWorkspaces(repo: string): Promise<Workspace[]> {
+    const ls = lsSchema.parse(await turbo(repo, ['ls', '--output=json']));
+
+    return ls.packages.items.map((item) => ({ name: item.name, dir: item.path }));
 }
 
 /**
@@ -77,7 +98,7 @@ const outsideInput = (directory: string, input: string): string | undefined =>
  * @returns The workspaces and the task's facts.
  */
 export async function loadTaskGraph(repo: string, task: string): Promise<TaskGraph> {
-    const ls = lsSchema.parse(await turbo(repo, ['ls', '--output=json']));
+    const workspaces = await loadWorkspaces(repo);
     const tasks = [...new Set<string>([task, ...FAST_TASKS])];
     const dry = drySchema.parse(await turbo(repo, ['run', ...tasks, '--dry=json']));
     const real = dry.tasks
@@ -93,7 +114,7 @@ export async function loadTaskGraph(repo: string, task: string): Promise<TaskGra
         }));
 
     return {
-        workspaces: ls.packages.items.map((item) => ({ name: item.name, dir: item.path })),
+        workspaces,
         facts: real
             .filter((entry) => entry.task === task)
             .map(({ package: name, cache, outsideInputs }) => ({ package: name, cache, outsideInputs })),

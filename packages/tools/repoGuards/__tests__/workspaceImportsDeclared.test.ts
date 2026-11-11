@@ -16,20 +16,15 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
+import { ownerOf } from '@kitchensink/e2e-plan/checkScope';
+import { loadWorkspaces } from '@kitchensink/e2e-plan/checkScopeGraph';
 import { describe, expect, it } from 'vitest';
 
 import { repoRoot } from './serviceSources.js';
-import {
-    declaredDependencies,
-    isSource,
-    moduleSpecifiers,
-    ownerOf,
-    trackedPackageFiles,
-    workspaces,
-} from './workspaceSourceScan.js';
+import { declaredDependencies, isSource, moduleSpecifiers, trackedPackageFiles } from './workspaceSourceScan.js';
 
-const WORKSPACES = workspaces();
-const NAMES = new Set(WORKSPACES.map((workspace) => workspace.name));
+const WORKSPACES = await loadWorkspaces(repoRoot);
+const DIRS = new Map(WORKSPACES.map((workspace) => [workspace.name, workspace.dir]));
 const SCOPED = /^(@(?:commise|kitchensink)\/[^/]+)/u;
 
 describe('moduleSpecifiers', () => {
@@ -73,19 +68,20 @@ describe('workspace imports', () => {
 
         for (const file of sources) {
             const owner = ownerOf(file, WORKSPACES);
-            const text = owner === undefined ? '' : readFileSync(join(repoRoot, file), 'utf8');
+            const dir = owner === undefined ? undefined : DIRS.get(owner);
+            const text = dir === undefined ? '' : readFileSync(join(repoRoot, file), 'utf8');
 
-            if (owner === undefined || !/@(?:commise|kitchensink)\//u.test(text)) {
+            if (owner === undefined || dir === undefined || !/@(?:commise|kitchensink)\//u.test(text)) {
                 continue;
             }
 
-            const declared = declaredDependencies(owner.dir);
+            const declared = declaredDependencies(dir);
 
             for (const specifier of moduleSpecifiers(file, text)) {
                 const name = SCOPED.exec(specifier)?.[1];
 
-                if (name !== undefined && NAMES.has(name) && name !== owner.name && !declared.has(name)) {
-                    undeclared.add(`${file} imports ${name}, which ${owner.dir}/package.json does not declare`);
+                if (name !== undefined && DIRS.has(name) && name !== owner && !declared.has(name)) {
+                    undeclared.add(`${file} imports ${name}, which ${dir}/package.json does not declare`);
                 }
             }
         }

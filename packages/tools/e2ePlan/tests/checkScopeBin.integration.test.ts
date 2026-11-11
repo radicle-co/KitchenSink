@@ -9,7 +9,8 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 const BIN = resolve(import.meta.dirname, '../bin/checkScope.ts');
-const LEAF = JSON.stringify(['packages/tools/e2ePlan/__tests__/env.test.ts']);
+// A package nothing depends on. e2e-plan is not one: repo-guards' graph guards import it (ADR-0091).
+const LEAF = JSON.stringify(['packages/tools/cookbook-import/src/runImport.ts']);
 
 const scope = (env: Record<string, string>, ...args: string[]) =>
     spawnSync('npx', ['tsx', BIN, ...args], {
@@ -24,7 +25,7 @@ describe('bin/checkScope.ts', () => {
     it('lists the changed package and what depends on it, and nothing unrelated', () => {
         const packages = listed(scope({ CHECK_SCOPE_FILES: LEAF }, 'list', 'format:check'));
 
-        expect(packages).toContain('@kitchensink/e2e-plan');
+        expect(packages).toContain('@kitchensink/cookbook-import');
         expect(packages).not.toContain('@kitchensink/food-service');
     });
 
@@ -61,7 +62,7 @@ describe('bin/checkScope.ts', () => {
 
         expect(result.status).toBe(0);
         expect([...new Set(dry.tasks.map((task) => task.package))].sort()).toEqual(selected);
-        expect(selected).toContain('@kitchensink/e2e-plan');
+        expect(selected).toContain('@kitchensink/cookbook-import');
         expect(selected.length).toBeLessThan(10);
     });
 

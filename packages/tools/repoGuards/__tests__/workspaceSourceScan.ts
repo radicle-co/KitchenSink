@@ -1,11 +1,12 @@
 /**
- * What the two ADR-0091 graph-completeness guards read: the workspaces as turbo sees them, each tracked source file,
- * the manifest that governs it, and the module names and file paths written in it.
+ * What the two ADR-0091 graph-completeness guards read: each tracked source file, the manifest that governs it, and the
+ * module names and file paths written in it. The workspaces, and which one owns a path, come from the selector itself
+ * (`@kitchensink/e2e-plan/checkScopeGraph` and `/checkScope`), so the guards check the graph it walks.
  *
  * Both guards keep the changed-only selector honest. It walks turbo's package graph, so a workspace import nobody
  * declared and a test that reads another package's files without saying so are each a change it cannot see.
  *
- * @pattern Adapter over the turbo CLI and the TypeScript parser
+ * @pattern Adapter over git and the TypeScript parser
  */
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
@@ -14,66 +15,6 @@ import { dirname, join, normalize } from 'node:path';
 import ts from 'typescript';
 
 import { repoRoot } from './serviceSources.js';
-
-export interface Workspace {
-    readonly name: string;
-    readonly dir: string;
-}
-
-/**
- * Runs turbo and parses its JSON answer.
- *
- * @sideEffect Runs turbo.
- * @param args - turbo arguments, ending in a JSON output flag.
- * @returns The parsed answer.
- */
-export function turboJson(args: readonly string[]): unknown {
-    const stdout = execFileSync(join(repoRoot, 'node_modules', '.bin', 'turbo'), [...args], {
-        cwd: repoRoot,
-        encoding: 'utf8',
-        maxBuffer: 256 * 1024 * 1024,
-        env: { ...process.env, TURBO_TELEMETRY_DISABLED: '1' },
-    });
-
-    return JSON.parse(stdout.slice(stdout.indexOf('{')));
-}
-
-/**
- * The packages a turbo filter selects, by name.
- *
- * @sideEffect Runs turbo.
- * @param filters - `--filter` flags.
- * @returns The names.
- */
-export function turboPackages(filters: readonly string[]): string[] {
-    const parsed = turboJson(['ls', ...filters, '--output=json']) as { packages: { items: { name: string }[] } };
-
-    return parsed.packages.items.map((item) => item.name);
-}
-
-/**
- * Every workspace, deepest folder first, so the first match for a path is its owner.
- *
- * @sideEffect Runs turbo.
- * @returns The workspaces.
- */
-export function workspaces(): Workspace[] {
-    const parsed = turboJson(['ls', '--output=json']) as { packages: { items: { name: string; path: string }[] } };
-
-    return parsed.packages.items
-        .map((item) => ({ name: item.name, dir: item.path }))
-        .sort((a, b) => b.dir.length - a.dir.length);
-}
-
-/**
- * The workspace a repo-relative path sits in.
- *
- * @param path - Repo-relative path.
- * @param all - From {@link workspaces}.
- * @returns The owner, or undefined.
- */
-export const ownerOf = (path: string, all: readonly Workspace[]): Workspace | undefined =>
-    all.find((workspace) => path === workspace.dir || path.startsWith(`${workspace.dir}/`));
 
 /**
  * Tracked files under `packages/`.

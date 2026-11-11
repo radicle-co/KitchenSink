@@ -20,54 +20,24 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
+import { ownerOf, type TaskFacts } from '@kitchensink/e2e-plan/checkScope';
+import { listPackages, loadTaskGraph } from '@kitchensink/e2e-plan/checkScopeGraph';
 import picomatch from 'picomatch';
 import { describe, expect, it } from 'vitest';
 
 import { repoRoot } from './serviceSources.js';
-import {
-    isSource,
-    ownerOf,
-    pathLiterals,
-    pathTarget,
-    trackedPackageFiles,
-    turboJson,
-    turboPackages,
-    workspaces,
-} from './workspaceSourceScan.js';
+import { isSource, pathLiterals, pathTarget, trackedPackageFiles } from './workspaceSourceScan.js';
 
-const WORKSPACES = workspaces();
+const FAST_TEST_TASKS = ['test', 'test:integration'] as const;
+const GRAPHS = await Promise.all(
+    FAST_TEST_TASKS.map(async (task) => [task, await loadTaskGraph(repoRoot, task)] as const),
+);
+const WORKSPACES = GRAPHS[0][1].workspaces;
 
-interface TaskDefinition {
-    readonly cache: boolean;
-    /** Declared outside inputs, repo-relative. */
-    readonly outside: readonly string[];
-}
-
-/** turbo's resolved `test` and `test:integration` definitions, by `package#task`. */
-function taskDefinitions(): Map<string, TaskDefinition> {
-    const dry = turboJson(['run', 'test', 'test:integration', '--dry=json']) as {
-        tasks: {
-            taskId: string;
-            directory: string;
-            command: string;
-            resolvedTaskDefinition: { cache: boolean; inputs: string[] | null };
-        }[];
-    };
-
-    return new Map(
-        dry.tasks
-            .filter((task) => task.command !== '<NONEXISTENT>')
-            .map((task) => [
-                task.taskId,
-                {
-                    cache: task.resolvedTaskDefinition.cache,
-                    outside: (task.resolvedTaskDefinition.inputs ?? [])
-                        .filter((input) => input.startsWith('../'))
-                        .map((input) => join(task.directory, input)),
-                },
-            ]),
-    );
-}
+/** The selector's own facts for each fast test task, by `package#task`. */
+const DEFINITIONS = new Map<string, TaskFacts>(
+    GRAPHS.flatMap(([task, graph]) => graph.facts.map((fact) => [`${fact.package}#${task}`, fact] as const)),
+);
 
 const NOT_FAST = /\/tests\/(e2e|load|deployed)\/|\.e2e\.test\.|\.spec\.ts$/u;
 const TEST_FILE = /\.test\.[cm]?[jt]sx?$|\/(__tests__|tests)\//u;
@@ -117,17 +87,16 @@ describe('pathLiterals', () => {
 });
 
 describe('fast-tier tests that read outside their package', () => {
-    const definitions = taskDefinitions();
     const dependencies = new Map<string, Set<string>>();
 
-    const closureOf = (name: string): Set<string> => {
+    const closureOf = async (name: string): Promise<Set<string>> => {
         const known = dependencies.get(name);
 
         if (known !== undefined) {
             return known;
         }
 
-        const found = new Set(turboPackages([`--filter=${name}...`]));
+        const found = new Set(await listPackages(repoRoot, [`--filter=${name}...`]));
 
         dependencies.set(name, found);
 
@@ -139,16 +108,16 @@ describe('fast-tier tests that read outside their package', () => {
     );
 
     it('scans the tree it claims to', () => {
-        expect(definitions.size).toBeGreaterThan(40);
+        expect(DEFINITIONS.size).toBeGreaterThan(40);
         expect(files.length).toBeGreaterThan(1000);
     });
 
-    it('declare the read in turbo.json, or turn the cache off', () => {
+    it('declare the read in turbo.json, or turn the cache off', async () => {
         const undeclared = new Set<string>();
 
         for (const file of files) {
             const owner = ownerOf(file, WORKSPACES);
-            const task = owner === undefined ? undefined : definitions.get(`${owner.name}#${taskOf(file)}`);
+            const task = owner === undefined ? undefined : DEFINITIONS.get(`${owner}#${taskOf(file)}`);
             const text = task === undefined || !task.cache ? '' : readFileSync(join(repoRoot, file), 'utf8');
 
             if (owner === undefined || task === undefined || !task.cache || !READS_FILES.test(text)) {
@@ -165,12 +134,12 @@ describe('fast-tier tests that read outside their package', () => {
 
                 const reached = ownerOf(target, WORKSPACES);
 
-                if (reached !== undefined && closureOf(owner.name).has(reached.name)) {
+                if (reached !== undefined && (await closureOf(owner)).has(reached)) {
                     continue;
                 }
 
-                if (!covers(task.outside, target)) {
-                    undeclared.add(`${owner.name}#${taskOf(file)} reads ${target} (${file})`);
+                if (!covers(task.outsideInputs, target)) {
+                    undeclared.add(`${owner}#${taskOf(file)} reads ${target} (${file})`);
                 }
             }
         }

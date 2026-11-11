@@ -155,6 +155,8 @@ skipped job red except the sandbox jobs (owner rule, 2026-10-03).
 - `repoGuards`' `testReadsDeclared.test.ts` covers cacheable `test` and `test:integration` files. It looks for reads
   of paths outside the file's package and outside the packages it depends on. If turbo.json does not declare such a
   path as an input, the guard fails.
+- Both guards read the workspaces, the task facts and path ownership through the selector's own exports
+  (`@kitchensink/e2e-plan/checkScope` and `/checkScopeGraph`). They check the graph the selector walks, not a copy.
 
 ## Consequences
 

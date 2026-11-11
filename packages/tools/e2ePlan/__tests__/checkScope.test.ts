@@ -4,7 +4,7 @@ import { dirname, relative, resolve } from 'node:path';
 import picomatch from 'picomatch';
 import { describe, expect, it } from 'vitest';
 
-import { SELECTOR_SOURCES, scopeTask, type TaskFacts, type Workspace } from '../src/checkScope.js';
+import { ownerOf, SELECTOR_SOURCES, scopeTask, type TaskFacts, type Workspace } from '../src/checkScope.js';
 
 const WORKSPACES: readonly Workspace[] = [
     { name: '@commise/web', dir: 'packages/apps/commise/web' },
@@ -215,5 +215,17 @@ describe('scopeTask', () => {
             { id: '@commise/query', because: 'packages/apps/commise/query/src/a.ts is in it', dependents: true },
             { id: '@kitchensink/repo-guards', because: 'turbo cannot cache it, so it always runs', dependents: false },
         ]);
+    });
+});
+
+describe('ownerOf', () => {
+    it('gives a path to the deepest workspace that holds it, the workspace folder itself included', () => {
+        expect(ownerOf('packages/tools/e2ePlan/src/a.ts', WORKSPACES)).toBe('@kitchensink/e2e-plan');
+        expect(ownerOf('packages/tools/e2ePlan', WORKSPACES)).toBe('@kitchensink/e2e-plan');
+        expect(ownerOf('packages/apps/commise/features/recipes/src/a.ts', WORKSPACES)).toBe(
+            '@commise/features-recipes',
+        );
+        expect(ownerOf('packages/tools/e2ePlanOther/a.ts', WORKSPACES)).toBeUndefined();
+        expect(ownerOf('docs/a.md', WORKSPACES)).toBeUndefined();
     });
 });

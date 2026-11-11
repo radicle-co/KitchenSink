@@ -15,7 +15,9 @@
         "./packLanes": "./src/packLanes.ts",
         "./ciMatrix": "./src/ciMatrix.ts",
         "./registeredMobileScreens": "./src/registeredMobileScreens.ts",
-        "./hostMemory": "./src/hostMemory.ts"
+        "./hostMemory": "./src/hostMemory.ts",
+        "./checkScope": "./src/checkScope.ts",
+        "./checkScopeGraph": "./src/checkScopeGraph.ts"
     },
     "scripts": {
         "test": "vitest run",

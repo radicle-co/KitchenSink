@@ -33,6 +33,7 @@
         "@kitchensink/clerk-verify": "*",
         "@kitchensink/db-schema-guard": "*",
         "@kitchensink/e2e-fixtures": "*",
+        "@kitchensink/e2e-plan": "*",
         "@kitchensink/e2e-seed": "*",
         "@kitchensink/eslint": "*",
         "@kitchensink/loadtest": "*",

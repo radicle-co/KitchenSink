@@ -84,17 +84,20 @@ const isUnder = (path: string, dir: string): boolean => path.startsWith(`${dir}/
 /**
  * The workspace that owns a path: the deepest workspace folder that contains it. A folder nested inside a workspace
  * that is not one itself (a service's `infra/`, with its own `package.json`) belongs to the workspace around it,
- * because no other workspace can import it.
+ * because no other workspace can import it. The ADR-0091 graph guards in `repoGuards` use this same function, so they
+ * check the graph the selector walks.
  *
  * @param path - Repo-relative path.
  * @param workspaces - Every workspace.
  * @returns The owner's name, or undefined when no workspace contains the path.
  */
-function ownerOf(path: string, workspaces: readonly Workspace[]): string | undefined {
+export function ownerOf(path: string, workspaces: readonly Workspace[]): string | undefined {
     let best: Workspace | undefined;
 
     for (const workspace of workspaces) {
-        if (isUnder(path, workspace.dir) && (best === undefined || workspace.dir.length > best.dir.length)) {
+        const holds = path === workspace.dir || isUnder(path, workspace.dir);
+
+        if (holds && (best === undefined || workspace.dir.length > best.dir.length)) {
             best = workspace;
         }
     }

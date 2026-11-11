@@ -122,12 +122,14 @@ const GOD_FILE_EXEMPTIONS: readonly GodFileExemption[] = [
             'the same boundary. GREW 2026-10-26 (paste quota, slots and import): the recipe client added four ' +
             'classes (15 to 19) for the paste quota, slots and import: `ImportQuotaExceededError`, ' +
             '`ImportCursorMovedError`, `ImportItemAlreadySavedError` and `PrivateSlotsFullError`, each a distinct ' +
-            'refusal of the same boundary that a cook is told about in a different sentence.',
+            'refusal of the same boundary that a cook is told about in a different sentence. GREW 2026-11-11 (bulk ' +
+            'import contract): the recipe client added `ImportItemLockedError`, the 409 for a changed recipe sent for an ' +
+            'item already being processed, which a surface treats differently from the other import 409s.',
         files: [
             { file: 'packages/apps/commise/features/account/src/authState.errors.ts', classes: 2, components: 0 },
             { file: 'packages/apps/commise/features/account/src/errors.ts', classes: 7, components: 0 },
             { file: 'packages/clients/food-service/src/errors.ts', classes: 18, components: 0 },
-            { file: 'packages/clients/recipe-service/src/errors.ts', classes: 20, components: 0 },
+            { file: 'packages/clients/recipe-service/src/errors.ts', classes: 21, components: 0 },
             { file: 'packages/clients/bedrock/src/errors.ts', classes: 6, components: 0 },
             { file: 'packages/clients/usda/src/errors.ts', classes: 7, components: 0 },
             { file: 'packages/services/food-service/src/foods/dao/dao.errors.ts', classes: 3, components: 0 },

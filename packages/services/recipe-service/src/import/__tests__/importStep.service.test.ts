@@ -322,6 +322,64 @@ describe('ImportStepService.step — the cuisine the save will use (ADR-0072 §3
     });
 });
 
+describe('ImportStepService.step — the servings and times the save will send (ADR-0072 §3 as amended 2026-11-11)', () => {
+    const matched = (overrides: Parameters<typeof makeItem>[0]) =>
+        makeItem({ stage: 'matched', matchedAt: new Date(), ...overrides });
+    const stepOf = (item: ReturnType<typeof matched>) => build({ item }).service.step(COOK, CALLER, IMPORT_ID, 0);
+
+    it("shows the file's servings and times when the cook gave none, with the file's total", async () => {
+        const step = await stepOf(
+            matched({
+                payload: {
+                    title: 'Soup',
+                    servings: 4,
+                    prepTimeMinutes: 10,
+                    cookTimeMinutes: 20,
+                    totalTimeMinutes: 45,
+                },
+            }),
+        );
+
+        expect(step).toMatchObject({ servings: 4, prepTimeMinutes: 10, cookTimeMinutes: 20, totalTimeMinutes: 45 });
+    });
+
+    it("shows the cook's servings and times over the file's, and the total they add up to", async () => {
+        const step = await stepOf(
+            matched({
+                servings: 2,
+                prepTimeMinutes: 5,
+                cookTimeMinutes: 7,
+                payload: { title: 'Soup', servings: 4, prepTimeMinutes: 10, cookTimeMinutes: 20 },
+            }),
+        );
+
+        expect(step).toMatchObject({ servings: 2, prepTimeMinutes: 5, cookTimeMinutes: 7, totalTimeMinutes: 12 });
+    });
+
+    it('⛔ shows null for each one neither gave: nothing is made up (no 1 serving, no 0 minutes)', async () => {
+        const step = await stepOf(matched({ payload: { title: 'Soup' } }));
+
+        expect(step).toMatchObject({
+            servings: null,
+            prepTimeMinutes: null,
+            cookTimeMinutes: null,
+            totalTimeMinutes: null,
+        });
+    });
+
+    it('shows only a total when the file states only a total: prep and cook stay unknown', async () => {
+        const step = await stepOf(matched({ payload: { title: 'Soup', totalTimeMinutes: 30 } }));
+
+        expect(step).toMatchObject({ prepTimeMinutes: null, cookTimeMinutes: null, totalTimeMinutes: 30 });
+    });
+
+    it("shows a saved item's step with only what the cook gave, its payload being gone", async () => {
+        const step = await stepOf(matched({ stage: 'saved', savedAt: new Date(), payload: null, servings: 3 }));
+
+        expect(step).toMatchObject({ servings: 3, prepTimeMinutes: null, totalTimeMinutes: null });
+    });
+});
+
 describe('ImportStepService.recordChoices', () => {
     it('records the choices and answers the step', async () => {
         const { service, itemsDal } = build();
@@ -337,6 +395,22 @@ describe('ImportStepService.recordChoices', () => {
         await service.recordChoices(COOK, CALLER, IMPORT_ID, 0, { cuisine: 'Thai' });
 
         expect(itemsDal.recordChoices).toHaveBeenCalledWith(IMPORT_ID, 0, { cuisine: 'Thai' });
+    });
+
+    it('passes servings and times to the item as decisions of the cook', async () => {
+        const { service, itemsDal } = build();
+
+        await service.recordChoices(COOK, CALLER, IMPORT_ID, 0, {
+            servings: 6,
+            prepTimeMinutes: 0,
+            cookTimeMinutes: 30,
+        });
+
+        expect(itemsDal.recordChoices).toHaveBeenCalledWith(IMPORT_ID, 0, {
+            servings: 6,
+            prepTimeMinutes: 0,
+            cookTimeMinutes: 30,
+        });
     });
 
     it('maps a saved item to IMPORT_ITEM_ALREADY_SAVED and a missing one to not found', async () => {

@@ -17,7 +17,7 @@ const BASE: ImportVersionFacts = {
         reviewClosed: false,
         expectedTotal: 10,
     },
-    counts: { total: 10, received: 4, parsing: 2, matched: 1, saved: 3 },
+    counts: { total: 10, received: 4, parsing: 2, matched: 1, saved: 3, refused: 0 },
     allowance: { limit: 1000, used: 6, resetsAt: '2026-10-27T12:00:00.000Z' },
     pause: null,
     items: [
@@ -50,6 +50,7 @@ describe('importViewVersionOf', () => {
             pause: BASE.pause,
             allowance: { resetsAt: BASE.allowance.resetsAt, used: BASE.allowance.used, limit: BASE.allowance.limit },
             counts: {
+                refused: BASE.counts.refused,
                 saved: BASE.counts.saved,
                 matched: BASE.counts.matched,
                 parsing: BASE.counts.parsing,
@@ -80,6 +81,7 @@ describe('importViewVersionOf', () => {
         ['the header: match mode', { header: { ...BASE.header, matchMode: 'bindBest' } }],
         ['the header: visibility', { header: { ...BASE.header, visibility: 'public' } }],
         ['the counts', { counts: { ...BASE.counts, saved: 4 } }],
+        ['⛔ the refused count (a recipe the import will not take)', { counts: { ...BASE.counts, refused: 1 } }],
         ['the allowance spent', { allowance: { ...BASE.allowance, used: 7 } }],
         ['the allowance reset', { allowance: { ...BASE.allowance, resetsAt: null } }],
         ['the pause', { pause: { reason: 'outOfSlots' } }],

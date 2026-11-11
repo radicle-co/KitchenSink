@@ -299,6 +299,12 @@ describe('recipe-service schema — table contracts (T011–T014, T118, T119, T1
             // What Publish needs (0068): the cook's cuisine, and the revision at which the save held the item for one.
             cuisine: { type: 'text', notNull: false },
             held_at_rev: { type: 'integer', notNull: false },
+            // What the cook gives for a file that states none (0068): servings and the two times, each nullable (NULL = none given).
+            servings: { type: 'integer', notNull: false },
+            prep_time_minutes: { type: 'integer', notNull: false },
+            cook_time_minutes: { type: 'integer', notNull: false },
+            // Why the import refuses the recipe, set when the item is written (0068). Never leaves `received`.
+            refusal: { type: 'text', notNull: false },
             created_at: { type: 'timestampwithtimezone', notNull: true },
             updated_at: { type: 'timestampwithtimezone', notNull: true },
         });

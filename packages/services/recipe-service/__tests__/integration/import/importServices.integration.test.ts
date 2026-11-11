@@ -12,9 +12,12 @@
  *    import saves (migration 0067: name, shown words, note) and a review the spend ceiling refused this month
  *    (`reviewBudgetSpent`, owner ruling 2026-10-26).
  *  - **The allowance asks one flat limit.** The view reads the ledger through `stateOf(db, user, 'bulk')`: no tier rides it.
- *  - **What Publish needs holds an item, through every service at once** (ADR-0072 §3 as amended 2026-11-11). An advance
- *    holds an item whose file states no cuisine and never calls the create path, the view names `needsCuisine` in a shape
- *    the published contract accepts, the step shows the cuisine as `null`, and the cook's cuisine reaches the item.
+ *  - **What the save needs holds an item, through every service at once** (ADR-0072 §3 as amended 2026-11-11). An advance
+ *    holds an item whose file states no cuisine, servings or times and never calls the create path, the view names
+ *    `needsCuisine`, `needsServings` or `needsTimes` in a shape the published contract accepts, the step shows each as `null`,
+ *    and the cook's choice reaches the item and releases the hold: the same item then saves with exactly those values.
+ *  - **A recipe with no ingredient line or no step is REFUSED** (owner ruling 2026-11-11): the view names `noIngredients` or
+ *    `noSteps`, counts it under `refused`, and an advance does not save it.
  *
  * Whether the DATABASE keeps the claims right is the LOCAL e2e tier's (`tests/e2e/import/`).
  */
@@ -127,7 +130,10 @@ async function compile() {
             { provide: ParseJobsService, useValue: { createPrepaid: vi.fn(), retry: vi.fn() } },
             { provide: PARSE_JOB_MATCHES_DAL, useValue: { findForJob: vi.fn(async () => []) } },
             { provide: MatchProposalService, useValue: { proposeForJobs: vi.fn() } },
-            { provide: IngredientsService, useValue: { addByRef: vi.fn(), createFreeform: vi.fn() } },
+            {
+                provide: IngredientsService,
+                useValue: { addByRef: vi.fn(), createFreeform: vi.fn(async () => ({ id: 'I-free' })) },
+            },
             { provide: RecipesService, useValue: recipes },
             { provide: IngredientRebindService, useValue: { rebind: vi.fn() } },
         ],
@@ -150,7 +156,7 @@ beforeEach(() => {
     const header = makeHeader();
 
     imports.findHeader.mockResolvedValue(header);
-    imports.countsByStage.mockResolvedValue({ total: 1, received: 0, parsing: 0, matched: 1, saved: 0 });
+    imports.countsByStage.mockResolvedValue({ total: 1, received: 0, parsing: 0, matched: 1, saved: 0, refused: 0 });
     imports.verdictFingerprint.mockResolvedValue({ count: 0, latest: null });
     imports.countUnsavedPrivate.mockResolvedValue(0);
     items.findPage.mockResolvedValue([makeListedItem({ stage: 'matched', matchedAt: new Date() })]);
@@ -247,7 +253,7 @@ describe('the import services under the real injector', () => {
         expect(step.lines[0]?.match).toHaveProperty('reviewResetsAt');
     });
 
-    describe('⛔ what Publish needs (ADR-0072 §3 as amended 2026-11-11)', () => {
+    describe('⛔ what the save needs (ADR-0072 §3 as amended 2026-11-11)', () => {
         const noCuisine = makeItem({
             stage: 'matched',
             matchedAt: new Date(Date.now() - 60_000),
@@ -274,7 +280,17 @@ describe('the import services under the real injector', () => {
                     stage: 'matched',
                     matchedAt: new Date(),
                     statementKind: 'authored',
-                    publishFacts: { fileCuisine: null, ingredientLineCount: 1, stepCount: 1 },
+                    saveFacts: {
+                        file: {
+                            cuisine: null,
+                            servings: 4,
+                            prepTimeMinutes: 1,
+                            cookTimeMinutes: 1,
+                            totalTimeMinutes: 2,
+                        },
+                        ingredientLineCount: 1,
+                        stepCount: 1,
+                    },
                 }),
             ]);
             const { service } = await compile();
@@ -282,6 +298,106 @@ describe('the import services under the real injector', () => {
 
             expect(importViewSchema.parse(view)).toEqual(view);
             expect(view.items[0]?.issue).toEqual({ reason: 'needsCuisine' });
+        });
+
+        const filed = {
+            title: 'Soup',
+            cuisine: 'Thai',
+            ingredientLines: ['2 cups milk'],
+            steps: [{ instruction: 'Heat.' }],
+        };
+        const savable = (patch: Parameters<typeof makeItem>[0]) =>
+            makeItem({
+                stage: 'matched',
+                matchedAt: new Date(Date.now() - 60_000),
+                allowanceSpentAt: new Date(),
+                statementKind: 'authored',
+                decisionRev: 4,
+                payload: filed,
+                ...patch,
+            });
+
+        it("⛔ an advance holds an item whose file states no servings or no times, and the cook's choices release it", async () => {
+            lines.findForItem.mockResolvedValue([makeLine({ id: 'L0' })]);
+
+            const { advancer } = await compile();
+
+            for (const gap of [{}, { servings: 4 }]) {
+                items.holdItem.mockClear();
+                items.findSaveCandidates.mockResolvedValue([savable(gap)]);
+                await advancer.advance(COOK, CALLER, IMPORT_ID);
+
+                expect(items.holdItem).toHaveBeenCalledWith(IMPORT_ID, 0, 4);
+            }
+
+            expect(recipes.create).not.toHaveBeenCalled();
+
+            // The cook gives them in the wizard: a decision (the revision moves), and the save sends exactly those values.
+            items.holdItem.mockClear();
+            items.findSaveCandidates.mockResolvedValue([
+                savable({ decisionRev: 5, servings: 3, prepTimeMinutes: 0, cookTimeMinutes: 25 }),
+            ]);
+            await advancer.advance(COOK, CALLER, IMPORT_ID);
+
+            expect(items.holdItem).not.toHaveBeenCalled();
+            expect(recipes.create.mock.calls[0]?.[1]).toMatchObject({
+                servings: 3,
+                prepTimeMinutes: 0,
+                cookTimeMinutes: 25,
+                totalTimeMinutes: 25,
+            });
+        });
+
+        it('the view names needsServings and needsTimes in a shape the published contract accepts', async () => {
+            const listed = (file: Parameters<typeof makeListedItem>[0]) =>
+                makeListedItem({ stage: 'matched', matchedAt: new Date(), statementKind: 'authored', ...file });
+            const base = { cuisine: 'Thai', servings: 4, prepTimeMinutes: 1, cookTimeMinutes: 1, totalTimeMinutes: 2 };
+
+            items.findPage.mockResolvedValue([
+                listed({
+                    ordinal: 0,
+                    saveFacts: { file: { ...base, servings: null }, ingredientLineCount: 1, stepCount: 1 },
+                }),
+                listed({
+                    ordinal: 1,
+                    saveFacts: { file: { ...base, prepTimeMinutes: null }, ingredientLineCount: 1, stepCount: 1 },
+                }),
+            ]);
+
+            const { service } = await compile();
+            const view = await service.getView(COOK, IMPORT_ID, {});
+
+            expect(importViewSchema.parse(view)).toEqual(view);
+            expect(view.items.map((item) => item.issue)).toEqual([
+                { reason: 'needsServings' },
+                { reason: 'needsTimes' },
+            ]);
+        });
+
+        it('⛔ a refused recipe is named, counted and never saved: the view parses, and an advance does not touch it', async () => {
+            imports.countsByStage.mockResolvedValue({
+                total: 2,
+                received: 0,
+                parsing: 0,
+                matched: 0,
+                saved: 0,
+                refused: 2,
+            });
+            items.findPage.mockResolvedValue([
+                makeListedItem({ ordinal: 0, stage: 'received', refusal: 'noIngredients' }),
+                makeListedItem({ ordinal: 1, stage: 'received', refusal: 'noSteps' }),
+            ]);
+
+            const { service, advancer } = await compile();
+            const view = await service.getView(COOK, IMPORT_ID, {});
+
+            expect(importViewSchema.parse(view)).toEqual(view);
+            expect(view.counts).toMatchObject({ total: 2, received: 0, refused: 2 });
+            expect(view.items.map((item) => item.issue)).toEqual([{ reason: 'noIngredients' }, { reason: 'noSteps' }]);
+
+            await advancer.advance(COOK, CALLER, IMPORT_ID);
+
+            expect(recipes.create).not.toHaveBeenCalled();
         });
 
         it("the step shows no cuisine, and the cook's cuisine reaches the item as a decision", async () => {
@@ -297,6 +413,34 @@ describe('the import services under the real injector', () => {
             await steps.recordChoices(COOK, CALLER, IMPORT_ID, 0, { cuisine: 'Thai' });
 
             expect(items.recordChoices).toHaveBeenCalledWith(IMPORT_ID, 0, { cuisine: 'Thai' });
+        });
+
+        it("the step shows servings and times as null, and the cook's servings and times reach the item as decisions", async () => {
+            items.findItem.mockResolvedValue(savable({ payload: { title: 'Soup' } }));
+            items.recordChoices.mockResolvedValue('ok');
+            lines.findForItem.mockResolvedValue([]);
+            const { steps } = await compile();
+            const step = await steps.step(COOK, CALLER, IMPORT_ID, 0);
+
+            expect(importStepResponseSchema.parse(step)).toEqual(step);
+            expect(step).toMatchObject({
+                servings: null,
+                prepTimeMinutes: null,
+                cookTimeMinutes: null,
+                totalTimeMinutes: null,
+            });
+
+            await steps.recordChoices(COOK, CALLER, IMPORT_ID, 0, {
+                servings: 6,
+                prepTimeMinutes: 0,
+                cookTimeMinutes: 30,
+            });
+
+            expect(items.recordChoices).toHaveBeenCalledWith(IMPORT_ID, 0, {
+                servings: 6,
+                prepTimeMinutes: 0,
+                cookTimeMinutes: 30,
+            });
         });
     });
 });

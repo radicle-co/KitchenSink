@@ -187,6 +187,7 @@ describe('the bulk-import tables (LOCAL e2e; migrations 0059, 0060, 0066, 0067, 
             expect(await columnsOf('recipe_import_items')).toEqual([
                 'allowance_spent_at',
                 'citation',
+                'cook_time_minutes',
                 'created_at',
                 'cuisine',
                 'decision_rev',
@@ -197,9 +198,12 @@ describe('the bulk-import tables (LOCAL e2e; migrations 0059, 0060, 0066, 0067, 
                 'parse_generation',
                 'parse_job_id',
                 'payload',
+                'prep_time_minutes',
                 'recipe_id',
+                'refusal',
                 'review',
                 'saved_at',
+                'servings',
                 'source_kind',
                 'stage',
                 'statement_kind',
@@ -420,6 +424,90 @@ describe('the bulk-import tables (LOCAL e2e; migrations 0059, 0060, 0066, 0067, 
                 ['a blank cuisine (the create route refuses one too)', { cuisine: '  ' }],
                 ['an empty cuisine', { cuisine: '' }],
                 ['a negative hold revision', { held_at_rev: -1 }],
+            ])('refuses %s', async (_name, extra) => {
+                const importId = await newImport();
+
+                await refused(
+                    insert('recipe_import_items', receivedItem(importId, 0, extra as Columns)),
+                    CHECK_VIOLATION,
+                );
+            });
+        });
+
+        describe("the refusal and the cook's servings and times (0068, ADR-0072 §3 as amended 2026-11-11)", () => {
+            it('keeps a refusal on a received item, and a bare item has none', async () => {
+                const importId = await newImport();
+                const noIngredients = await insert(
+                    'recipe_import_items',
+                    receivedItem(importId, 0, { refusal: 'noIngredients' }),
+                );
+                const noSteps = await insert('recipe_import_items', receivedItem(importId, 1, { refusal: 'noSteps' }));
+                const bare = await insert('recipe_import_items', receivedItem(importId, 2));
+
+                expect([noIngredients['refusal'], noSteps['refusal'], bare['refusal']]).toEqual([
+                    'noIngredients',
+                    'noSteps',
+                    null,
+                ]);
+            });
+
+            it('refuses a refusal value the service does not know', async () => {
+                const importId = await newImport();
+
+                await refused(
+                    insert('recipe_import_items', receivedItem(importId, 0, { refusal: 'tooBig' })),
+                    CHECK_VIOLATION,
+                );
+            });
+
+            it.each([
+                ['parsing', { stage: 'parsing', allowance_spent_at: new Date() }],
+                ['matched', { stage: 'matched', allowance_spent_at: new Date(), matched_at: new Date() }],
+            ])(
+                '⛔ refuses a refusal on an item that is already %s: a refused item never leaves received',
+                async (_stage, extra) => {
+                    const importId = await newImport();
+
+                    await refused(
+                        insert('recipe_import_items', receivedItem(importId, 0, { ...extra, refusal: 'noSteps' })),
+                        CHECK_VIOLATION,
+                    );
+                },
+            );
+
+            it('allows a refusal on a received item that already paid (a paid item may be replaced by an empty recipe)', async () => {
+                const importId = await newImport();
+                const row = await insert(
+                    'recipe_import_items',
+                    receivedItem(importId, 0, { allowance_spent_at: new Date(), refusal: 'noIngredients' }),
+                );
+
+                expect(row['refusal']).toBe('noIngredients');
+            });
+
+            it("keeps the cook's servings and times, and all three are optional", async () => {
+                const importId = await newImport();
+                const chosen = await insert(
+                    'recipe_import_items',
+                    receivedItem(importId, 0, { servings: 4, prep_time_minutes: 0, cook_time_minutes: 30 }),
+                );
+                const bare = await insert('recipe_import_items', receivedItem(importId, 1));
+
+                expect([chosen['servings'], chosen['prep_time_minutes'], chosen['cook_time_minutes']]).toEqual([
+                    4, 0, 30,
+                ]);
+                expect([bare['servings'], bare['prep_time_minutes'], bare['cook_time_minutes']]).toEqual([
+                    null,
+                    null,
+                    null,
+                ]);
+            });
+
+            it.each([
+                ['zero servings', { servings: 0 }],
+                ['negative servings', { servings: -1 }],
+                ['negative prep minutes', { prep_time_minutes: -1 }],
+                ['negative cook minutes', { cook_time_minutes: -1 }],
             ])('refuses %s', async (_name, extra) => {
                 const importId = await newImport();
 

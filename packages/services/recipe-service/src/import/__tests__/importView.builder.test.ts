@@ -23,7 +23,7 @@ import { makeHeader, makeListedItem, makePrincipal, UNLIMITED_PRIVATE_SLOTS } fr
 import type { ListedImportItem } from '../dal/recipeImportItems.dal.js';
 
 const ALLOWANCE = { limit: 1000, used: 7, resetsAt: '2026-10-27T12:00:00.000Z' };
-const COUNTS = { total: 3, received: 2, parsing: 0, matched: 1, saved: 0 };
+const COUNTS = { total: 3, received: 2, parsing: 0, matched: 1, saved: 0, refused: 0 };
 
 function build(options: {
     readonly items?: readonly ListedImportItem[];
@@ -144,63 +144,103 @@ describe('ImportViewBuilder', () => {
     });
 
     describe('an item’s issue', () => {
-        it('⛔ names a matched item whose file states no cuisine and the cook gave none (ADR-0072 §3 as amended 2026-11-11)', async () => {
-            const answered = await view({
-                items: [
-                    makeListedItem({
-                        stage: 'matched',
-                        matchedAt: new Date(),
-                        statementKind: 'authored',
-                        publishFacts: { fileCuisine: null, ingredientLineCount: 2, stepCount: 1 },
-                    }),
-                ],
+        /** A matched, stated item whose file states the given facts (everything, unless a test takes one away). */
+        const matchedItem = (
+            file: Partial<ListedImportItem['saveFacts']['file']>,
+            overrides: Partial<ListedImportItem> = {},
+        ) =>
+            makeListedItem({
+                stage: 'matched',
+                matchedAt: new Date(),
+                statementKind: 'authored',
+                saveFacts: {
+                    file: {
+                        cuisine: 'Thai',
+                        servings: 4,
+                        prepTimeMinutes: 10,
+                        cookTimeMinutes: 20,
+                        totalTimeMinutes: 30,
+                        ...file,
+                    },
+                    ingredientLineCount: 2,
+                    stepCount: 1,
+                },
+                ...overrides,
             });
+        const issueOf = async (item: ListedImportItem) => (await view({ items: [item] })).items[0]?.issue;
 
-            expect(answered.items[0]?.issue).toEqual({ reason: 'needsCuisine' });
+        it('⛔ names a matched item whose file states no cuisine and the cook gave none (ADR-0072 §3 as amended 2026-11-11)', async () => {
+            expect(await issueOf(matchedItem({ cuisine: null }))).toEqual({ reason: 'needsCuisine' });
         });
 
         it("reads the cook's cuisine over a file that states none, so a given cuisine clears the issue", async () => {
-            const answered = await view({
-                items: [
-                    makeListedItem({
-                        stage: 'matched',
-                        matchedAt: new Date(),
-                        statementKind: 'authored',
-                        cuisine: 'Thai',
-                        publishFacts: { fileCuisine: null, ingredientLineCount: 2, stepCount: 1 },
-                    }),
-                ],
-            });
-
-            expect(answered.items[0]?.issue).toBeNull();
+            expect(await issueOf(matchedItem({ cuisine: null }, { cuisine: 'Thai' }))).toBeNull();
         });
 
-        it('names a recipe with no step, and lifts the cuisine for a public-domain web import as Publish does', async () => {
-            const noSteps = await view({
-                items: [
-                    makeListedItem({
-                        stage: 'matched',
-                        matchedAt: new Date(),
-                        statementKind: 'authored',
-                        publishFacts: { fileCuisine: 'Thai', ingredientLineCount: 2, stepCount: 0 },
-                    }),
-                ],
+        it('lifts the cuisine for a public-domain web import as Publish does', async () => {
+            expect(
+                await issueOf(
+                    matchedItem(
+                        { cuisine: null },
+                        { statementKind: 'source', sourceKind: 'public_web', citation: 'https://example.org/r' },
+                    ),
+                ),
+            ).toBeNull();
+        });
+
+        it('⛔ names servings and times the file does not state, and the cook clears each by giving it (a 0 is a value)', async () => {
+            expect(await issueOf(matchedItem({ servings: null }))).toEqual({ reason: 'needsServings' });
+            expect(await issueOf(matchedItem({ servings: null }, { servings: 2 }))).toBeNull();
+            expect(await issueOf(matchedItem({ prepTimeMinutes: null, totalTimeMinutes: null }))).toEqual({
+                reason: 'needsTimes',
             });
-            const publicDomain = await view({
-                items: [
-                    makeListedItem({
-                        stage: 'matched',
-                        matchedAt: new Date(),
-                        statementKind: 'source',
-                        sourceKind: 'public_web',
-                        citation: 'https://example.org/r',
-                        publishFacts: { fileCuisine: null, ingredientLineCount: 2, stepCount: 1 },
-                    }),
-                ],
+            expect(
+                await issueOf(
+                    matchedItem(
+                        { prepTimeMinutes: null, cookTimeMinutes: null },
+                        { prepTimeMinutes: 0, cookTimeMinutes: 0 },
+                    ),
+                ),
+            ).toBeNull();
+        });
+
+        it('a file that states only a total still needs times: the total is not prep and cook', async () => {
+            expect(await issueOf(matchedItem({ prepTimeMinutes: null, cookTimeMinutes: null }))).toEqual({
+                reason: 'needsTimes',
+            });
+        });
+
+        it('⛔ names a refused recipe by its stored refusal, even unpaid with the allowance spent', async () => {
+            const refused = (refusal: 'noIngredients' | 'noSteps') =>
+                makeListedItem({ stage: 'received', refusal, allowanceSpentAt: null });
+            const spent = await view({
+                items: [refused('noIngredients'), refused('noSteps')],
+                allowance: { ...ALLOWANCE, used: ALLOWANCE.limit },
             });
 
-            expect(noSteps.items[0]?.issue).toEqual({ reason: 'needsSteps' });
-            expect(publicDomain.items[0]?.issue).toBeNull();
+            expect(spent.items.map((item) => item.issue)).toEqual([{ reason: 'noIngredients' }, { reason: 'noSteps' }]);
+        });
+
+        it('⛔ builds a view over a saved item, whose payload is gone, without judging its save facts', async () => {
+            const saved = makeListedItem({
+                stage: 'saved',
+                savedAt: new Date(),
+                matchedAt: new Date(),
+                statementKind: 'authored',
+                saveFacts: {
+                    file: {
+                        cuisine: null,
+                        servings: null,
+                        prepTimeMinutes: null,
+                        cookTimeMinutes: null,
+                        totalTimeMinutes: null,
+                    },
+                    ingredientLineCount: 0,
+                    stepCount: 0,
+                },
+            });
+
+            expect(await issueOf(saved)).toBeNull();
         });
 
         it('names a matched item with no statement', async () => {

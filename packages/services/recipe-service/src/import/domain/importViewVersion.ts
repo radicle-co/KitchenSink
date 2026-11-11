@@ -42,6 +42,7 @@ export interface ImportVersionFacts {
         readonly parsing: number;
         readonly matched: number;
         readonly saved: number;
+        readonly refused: number;
     };
     readonly allowance: { readonly limit: number; readonly used: number; readonly resetsAt: string | null };
     readonly pause: { readonly reason: string } | null;
@@ -67,7 +68,7 @@ export function importViewVersionOf(facts: ImportVersionFacts, sha256Hex: (text:
         header.cursorOrdinal,
         header.reviewClosed,
         header.expectedTotal,
-        [counts.total, counts.received, counts.parsing, counts.matched, counts.saved],
+        [counts.total, counts.received, counts.parsing, counts.matched, counts.saved, counts.refused],
         [allowance.limit, allowance.used, allowance.resetsAt],
         pause === null ? null : pause.reason,
         facts.items.map((item) => [

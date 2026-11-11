@@ -10,8 +10,8 @@
  *     the units it marks). When the day is spent nothing is paid and the call goes on to the work it can still do; it
  *     answers `200` with the allowance in the view (never a `429`), so the client keeps the progress it paid for.
  *  2. **PARSE**: give each paid item without a job one, created under an id DERIVED from (import, ordinal, generation) so a
- *     retry after a crash finds the same job instead of paying for a second. No ingredient lines means nothing to parse and no
- *     charge.
+ *     retry after a crash finds the same job instead of paying for a second. A REFUSED recipe (no ingredient line or no step,
+ *     ADR-0072 §3) is never paid for or parsed: the queries leave it out.
  *  3. **MATCH**: match the finished jobs' foods under ONE deadline (`proposeForJobs`), and copy a complete job's matches into
  *     the import's own rows (the snapshot), because the job lives a day. An expired job is let go (the generation moves) and
  *     replaced without charging the item again.
@@ -30,10 +30,10 @@
  *  - **A private save is not even tried when the cook has no slot** (ADR-0073); the authoritative check is the create path's, and
  *    its `PRIVATE_SLOTS_FULL` denial pauses the rest of the private saves in the call.
  *  - **An item that cannot save yet goes to the back of the line** (`deferItem`), so the items behind it are not starved.
- *  - **An item that lacks what Publish needs is HELD, not deferred** (ADR-0072 §3 as amended 2026-11-11). Only the cook can
- *    give a cuisine, so looking at it again would re-queue it forever. `holdItem` records the revision the save read, the
+ *  - **An item that lacks a cuisine, servings or times is HELD, not deferred** (ADR-0072 §3 as amended 2026-11-11). Only the
+ *    cook can give them, so looking at it again would re-queue it forever. `holdItem` records the revision the save read, the
  *    candidates leave it out while that revision stands, and the cook's next decision moves the revision and releases it.
- *    Nothing fills the gap: no default cuisine, no AI pick, and no draft save.
+ *    Nothing fills the gap: no default cuisine, no "1 serving", no "0 minutes", no AI pick, and no draft save.
  */
 import { HttpException } from '@nestjs/common';
 import { Inject, Injectable, Logger } from '@nestjs/common';
@@ -76,7 +76,7 @@ import {
     RECIPE_IMPORTS_DAL,
 } from './import.tokens.js';
 import { IMPORT_DEFAULT_PAGE_SIZE, type ImportAdvanceLimits } from './domain/importLimits.js';
-import { importCuisineOf, importPublishGapOf } from './domain/importPublishGap.js';
+import { fileSaveFactsOf, importSaveFactsOf, importSaveGapOf } from './domain/importSaveGap.js';
 import { isReadyToSave } from './domain/importSaveReadiness.js';
 import { provenanceOfStatement, statementOfColumns } from './domain/importStatement.js';
 import { visibilityRefusedFor } from './domain/importVisibility.js';
@@ -88,7 +88,7 @@ import { ImportViewBuilder } from './importView.builder.js';
 import { PRIVATE_SLOTS, isPrivateSlotsFull, type PrivateSlotsPort } from './privateSlots.port.js';
 import { ownedImport } from './importOwnership.js';
 
-/** What a save attempt came to. `held`: the item lacks what Publish needs and waits for the cook, out of the queue. */
+/** What a save attempt came to. `held`: the item lacks a cuisine, servings or times and waits for the cook, out of the queue. */
 type SaveOutcome = 'saved' | 'waiting' | 'paused' | 'held';
 
 /** The lines of a stored payload, which is all the parse step needs from it. */
@@ -178,7 +178,6 @@ export class ImportAdvanceService {
             | 'holdItem'
             | 'attachJob'
             | 'detachExpiredJob'
-            | 'markMatchedWithoutLines'
             | 'snapshot'
             | 'claimSave'
         >,
@@ -251,14 +250,8 @@ export class ImportAdvanceService {
     }
 
     private async startParsing(principal: Principal, header: ImportHeader, item: ImportItem): Promise<void> {
+        // A refused recipe (no ingredient line) never gets here: `findNeedingJob` leaves it out, so there is always a line to parse.
         const payload = payloadLinesSchema.parse(item.payload);
-
-        if (payload.ingredientLines.length === 0) {
-            // Nothing is sent for parsing, so no LLM spend starts and nothing is charged.
-            await this.items.markMatchedWithoutLines(header.id, item.ordinal);
-
-            return;
-        }
 
         const jobId = importJobIdOf(header.id, item.ordinal, item.parseGeneration, sha256Hex);
 
@@ -421,7 +414,7 @@ export class ImportAdvanceService {
      * Save one matched item, PUBLISHED, if it is ready and allowed.
      *
      * @returns `saved` (this call or a racing one); `waiting` (not ready, no statement, visibility refused, food could not be
-     *   asked); `paused` (no private slot); `held` (it lacks what Publish needs; held at the revision read).
+     *   asked); `paused` (no private slot); `held` (it lacks a cuisine, servings or times; held at the revision read).
      */
     private async saveOne(
         principal: Principal,
@@ -448,16 +441,22 @@ export class ImportAdvanceService {
         }
 
         const recipe = importRecipeSchema.parse(item.payload);
-        const cuisine = importCuisineOf(item.cuisine, recipe.cuisine);
+        const resolved = importSaveFactsOf(item, fileSaveFactsOf(item.payload));
+        const { cuisine, servings, prepTimeMinutes, cookTimeMinutes, totalTimeMinutes } = resolved;
 
-        // Before the match read, which asks food and the review gate: a recipe that cannot be published waits for the cook.
+        // Before the match read, which asks food and the review gate: a recipe that cannot be saved waits for the cook. The
+        // null tests narrow the types; the gap already holds on any of them (the total is known whenever prep and cook are).
         if (
-            importPublishGapOf({
+            importSaveGapOf({
                 statement,
-                cuisine,
+                ...resolved,
                 ingredientLineCount: recipe.ingredientLines.length,
                 stepCount: recipe.steps.length,
-            }) !== null
+            }) !== null ||
+            servings === null ||
+            prepTimeMinutes === null ||
+            cookTimeMinutes === null ||
+            totalTimeMinutes === null
         ) {
             return this.hold(header, item);
         }
@@ -515,12 +514,12 @@ export class ImportAdvanceService {
             ...(recipe.mealType === undefined ? {} : { mealType: recipe.mealType }),
             status: 'published',
             visibility: requested === 'public' ? RecipeVisibility.PUBLIC : RecipeVisibility.PRIVATE,
-            // The create route requires these and another app's export often states none. They are not what Publish needs,
-            // so the neutral values stand in (one serving, no time stated) and the cook edits them in the editor.
-            servings: recipe.servings ?? 1,
-            prepTimeMinutes: recipe.prepTimeMinutes ?? 0,
-            cookTimeMinutes: recipe.cookTimeMinutes ?? 0,
-            totalTimeMinutes: recipe.totalTimeMinutes ?? (recipe.prepTimeMinutes ?? 0) + (recipe.cookTimeMinutes ?? 0),
+            // The create route requires these and another app's export often states none. Nothing makes one up: an absent one
+            // held the item above, so these are the cook's choice or the file's, never a neutral stand-in.
+            servings,
+            prepTimeMinutes,
+            cookTimeMinutes,
+            totalTimeMinutes,
             ...(recipe.tags === undefined ? {} : { tags: recipe.tags }),
             ...(recipe.dietaryFlags === undefined ? {} : { dietaryFlags: recipe.dietaryFlags }),
             ingredients: built.lines,
@@ -581,7 +580,7 @@ export class ImportAdvanceService {
     }
 
     /**
-     * Hold an item that lacks what Publish needs, at the revision the save read (a decision since then leaves it unheld).
+     * Hold an item that lacks a cuisine, servings or times, at the revision the save read (a decision since then leaves it unheld).
      *
      * @sideEffect Writes the hold.
      */

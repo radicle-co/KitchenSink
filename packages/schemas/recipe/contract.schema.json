@@ -3930,6 +3930,11 @@
                                         "minimum": 0,
                                         "type": "integer"
                                     },
+                                    "refused": {
+                                        "maximum": 9007199254740991,
+                                        "minimum": 0,
+                                        "type": "integer"
+                                    },
                                     "saved": {
                                         "maximum": 9007199254740991,
                                         "minimum": 0,
@@ -3946,7 +3951,8 @@
                                     "received",
                                     "parsing",
                                     "matched",
-                                    "saved"
+                                    "saved",
+                                    "refused"
                                 ],
                                 "type": "object"
                             },
@@ -4119,6 +4125,18 @@
                 "step": {
                     "additionalProperties": false,
                     "properties": {
+                        "cookTimeMinutes": {
+                            "anyOf": [
+                                {
+                                    "maximum": 9007199254740991,
+                                    "minimum": -9007199254740991,
+                                    "type": "integer"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ]
+                        },
                         "cuisine": {
                             "anyOf": [
                                 {
@@ -4542,6 +4560,18 @@
                             "minimum": 0,
                             "type": "integer"
                         },
+                        "prepTimeMinutes": {
+                            "anyOf": [
+                                {
+                                    "maximum": 9007199254740991,
+                                    "minimum": -9007199254740991,
+                                    "type": "integer"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ]
+                        },
                         "review": {
                             "enum": [
                                 "pending",
@@ -4549,6 +4579,18 @@
                                 "skipped"
                             ],
                             "type": "string"
+                        },
+                        "servings": {
+                            "anyOf": [
+                                {
+                                    "maximum": 9007199254740991,
+                                    "minimum": -9007199254740991,
+                                    "type": "integer"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ]
                         },
                         "stage": {
                             "enum": [
@@ -4657,6 +4699,18 @@
                         "title": {
                             "type": "string"
                         },
+                        "totalTimeMinutes": {
+                            "anyOf": [
+                                {
+                                    "maximum": 9007199254740991,
+                                    "minimum": -9007199254740991,
+                                    "type": "integer"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ]
+                        },
                         "visibility": {
                             "anyOf": [
                                 {
@@ -4680,6 +4734,10 @@
                         "statement",
                         "visibility",
                         "cuisine",
+                        "servings",
+                        "prepTimeMinutes",
+                        "cookTimeMinutes",
+                        "totalTimeMinutes",
                         "lines"
                     ],
                     "type": "object"
@@ -5396,6 +5454,18 @@
             "$schema": "https://json-schema.org/draft/2020-12/schema",
             "additionalProperties": false,
             "properties": {
+                "cookTimeMinutes": {
+                    "anyOf": [
+                        {
+                            "maximum": 9007199254740991,
+                            "minimum": -9007199254740991,
+                            "type": "integer"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ]
+                },
                 "cuisine": {
                     "anyOf": [
                         {
@@ -5819,6 +5889,18 @@
                     "minimum": 0,
                     "type": "integer"
                 },
+                "prepTimeMinutes": {
+                    "anyOf": [
+                        {
+                            "maximum": 9007199254740991,
+                            "minimum": -9007199254740991,
+                            "type": "integer"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ]
+                },
                 "review": {
                     "enum": [
                         "pending",
@@ -5826,6 +5908,18 @@
                         "skipped"
                     ],
                     "type": "string"
+                },
+                "servings": {
+                    "anyOf": [
+                        {
+                            "maximum": 9007199254740991,
+                            "minimum": -9007199254740991,
+                            "type": "integer"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ]
                 },
                 "stage": {
                     "enum": [
@@ -5934,6 +6028,18 @@
                 "title": {
                     "type": "string"
                 },
+                "totalTimeMinutes": {
+                    "anyOf": [
+                        {
+                            "maximum": 9007199254740991,
+                            "minimum": -9007199254740991,
+                            "type": "integer"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ]
+                },
                 "visibility": {
                     "anyOf": [
                         {
@@ -5957,6 +6063,10 @@
                 "statement",
                 "visibility",
                 "cuisine",
+                "servings",
+                "prepTimeMinutes",
+                "cookTimeMinutes",
+                "totalTimeMinutes",
                 "lines"
             ],
             "type": "object"
@@ -5983,6 +6093,11 @@
                             "minimum": 0,
                             "type": "integer"
                         },
+                        "refused": {
+                            "maximum": 9007199254740991,
+                            "minimum": 0,
+                            "type": "integer"
+                        },
                         "saved": {
                             "maximum": 9007199254740991,
                             "minimum": 0,
@@ -5999,7 +6114,8 @@
                         "received",
                         "parsing",
                         "matched",
-                        "saved"
+                        "saved",
+                        "refused"
                     ],
                     "type": "object"
                 },
@@ -6440,6 +6556,11 @@
                             "minimum": 0,
                             "type": "integer"
                         },
+                        "refused": {
+                            "maximum": 9007199254740991,
+                            "minimum": 0,
+                            "type": "integer"
+                        },
                         "saved": {
                             "maximum": 9007199254740991,
                             "minimum": 0,
@@ -6456,7 +6577,8 @@
                         "received",
                         "parsing",
                         "matched",
-                        "saved"
+                        "saved",
+                        "refused"
                     ],
                     "type": "object"
                 },
@@ -13162,6 +13284,11 @@
                     "items": {
                         "additionalProperties": false,
                         "properties": {
+                            "cookTimeMinutes": {
+                                "maximum": 2147483647,
+                                "minimum": 0,
+                                "type": "integer"
+                            },
                             "cuisine": {
                                 "maxLength": 100,
                                 "minLength": 1,
@@ -13170,6 +13297,16 @@
                             "ordinal": {
                                 "maximum": 2147483646,
                                 "minimum": 0,
+                                "type": "integer"
+                            },
+                            "prepTimeMinutes": {
+                                "maximum": 2147483647,
+                                "minimum": 0,
+                                "type": "integer"
+                            },
+                            "servings": {
+                                "exclusiveMinimum": 0,
+                                "maximum": 2147483647,
                                 "type": "integer"
                             },
                             "statement": {
@@ -13280,10 +13417,25 @@
             "$schema": "https://json-schema.org/draft/2020-12/schema",
             "additionalProperties": false,
             "properties": {
+                "cookTimeMinutes": {
+                    "maximum": 2147483647,
+                    "minimum": 0,
+                    "type": "integer"
+                },
                 "cuisine": {
                     "maxLength": 100,
                     "minLength": 1,
                     "type": "string"
+                },
+                "prepTimeMinutes": {
+                    "maximum": 2147483647,
+                    "minimum": 0,
+                    "type": "integer"
+                },
+                "servings": {
+                    "exclusiveMinimum": 0,
+                    "maximum": 2147483647,
+                    "type": "integer"
                 },
                 "statement": {
                     "oneOf": [

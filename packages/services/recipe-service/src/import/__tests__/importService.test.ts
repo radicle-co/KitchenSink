@@ -191,7 +191,7 @@ describe('ImportService.getView', () => {
 describe('ImportService.list', () => {
     const header = (suffix: string, createdAtIso: string) => ({
         ...makeHeader({ id: `66666666-6666-4666-8666-0000000000${suffix}`, createdAtIso }),
-        counts: { total: 1, received: 1, parsing: 0, matched: 0, saved: 0 },
+        counts: { total: 1, received: 1, parsing: 0, matched: 0, saved: 0, refused: 0 },
     });
 
     it('lists the caller’s imports newest first and says where the next page starts', async () => {
@@ -230,7 +230,7 @@ describe('ImportService.list', () => {
             matchMode: 'keepAsWritten',
             visibility: 'public',
             expectedTotal: 3,
-            counts: { total: 1, received: 1, parsing: 0, matched: 0, saved: 0 },
+            counts: { total: 1, received: 1, parsing: 0, matched: 0, saved: 0, refused: 0 },
             createdAt: '2026-10-26T12:00:00.000Z',
             updatedAt: '2026-10-26T12:05:00.000Z',
         });

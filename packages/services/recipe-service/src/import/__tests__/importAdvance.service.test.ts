@@ -87,10 +87,13 @@ async function runAfterWrite(
 
 const BOOK = { statementKind: 'source', sourceKind: 'book', citation: 'Joy, p. 12' } as const;
 
-/** A recipe as the file states it: everything Publish needs, a cuisine included, unless a test takes it away. */
+/** A recipe as the file states it: everything the save needs, a cuisine, servings and times included, unless a test takes it away. */
 const recipe = (lines: readonly string[] = ['2 cups whole milk'], title = 'Soup') => ({
     title,
     cuisine: 'French',
+    servings: 4,
+    prepTimeMinutes: 10,
+    cookTimeMinutes: 20,
     ingredientLines: lines,
     steps: [{ instruction: 'Mix.', timerSeconds: 30 }],
 });
@@ -125,7 +128,7 @@ function itemStore(initial: readonly ImportItem[]) {
         calls,
         payUnpaid: vi.fn(async (_user: string, _importId: string, request: { limit: number }): Promise<PayOutcome> => {
             const unpaid = [...items.values()]
-                .filter((item) => item.stage === 'received' && item.allowanceSpentAt === null && hasLines(item))
+                .filter((item) => item.stage === 'received' && item.allowanceSpentAt === null && item.refusal === null)
                 .sort((a, b) => a.ordinal - b.ordinal)
                 .slice(0, request.limit);
 
@@ -143,7 +146,8 @@ function itemStore(initial: readonly ImportItem[]) {
                     (item) =>
                         (item.stage === 'received' || item.stage === 'parsing') &&
                         item.parseJobId === null &&
-                        (item.allowanceSpentAt !== null || !hasLines(item)),
+                        item.refusal === null &&
+                        item.allowanceSpentAt !== null,
                 )
                 .sort((a, b) => a.updatedAt.getTime() - b.updatedAt.getTime() || a.ordinal - b.ordinal)
                 .slice(0, limit),
@@ -202,11 +206,6 @@ function itemStore(initial: readonly ImportItem[]) {
 
             return true;
         }),
-        markMatchedWithoutLines: vi.fn(async (_importId: string, ordinal: number) => {
-            set(ordinal, { stage: 'matched', matchedAt: new Date() });
-
-            return true;
-        }),
         snapshot: vi.fn(async (_importId: string, ordinal: number, lines: readonly unknown[]) => {
             if (items.get(ordinal)?.stage !== 'parsing') {
                 return false;
@@ -235,12 +234,6 @@ function itemStore(initial: readonly ImportItem[]) {
     };
 
     return store;
-}
-
-function hasLines(item: ImportItem): boolean {
-    const lines = (item.payload as { ingredientLines?: unknown[] } | null)?.ingredientLines;
-
-    return Array.isArray(lines) && lines.length > 0;
 }
 
 /** A received item, with its payload. */
@@ -535,13 +528,21 @@ describe('ImportAdvanceService — paying and giving each item its parse job', (
         );
     });
 
-    it('⛔ matches a recipe with NO ingredient lines at once and never charges it', async () => {
-        const { answered, parseJobs, store } = run({ items: [received(0, [])] });
+    // Rewritten 2026-11-11: it pinned a recipe with no ingredient lines being matched at once. Owner ruling: such a recipe is
+    // REFUSED at import (a stored `refusal`), so it is never paid for, parsed, matched or saved. It never reaches the save.
+    it('⛔ never pays for, parses or matches a REFUSED recipe, and leaves it received', async () => {
+        const { answered, parseJobs, store, recipes } = run({
+            items: [received(0, [], { refusal: 'noIngredients' }), received(1, undefined, { refusal: 'noSteps' })],
+        });
 
         await answered;
 
-        expect(store.markMatchedWithoutLines).toHaveBeenCalledWith(IMPORT_ID, 0);
         expect(parseJobs.createPrepaid).not.toHaveBeenCalled();
+        expect(recipes.create).not.toHaveBeenCalled();
+        expect([0, 1].map((ordinal) => store.items.get(ordinal))).toMatchObject([
+            { stage: 'received', allowanceSpentAt: null },
+            { stage: 'received', allowanceSpentAt: null },
+        ]);
     });
 
     it('leaves an unpaid item alone when the allowance is spent (the view explains the wait)', async () => {
@@ -772,8 +773,9 @@ describe('ImportAdvanceService — saving what is ready', () => {
         ...extra,
     });
 
-    // Rewritten 2026-11-11: it pinned a DRAFT save. ADR-0072 §3 saves every item PUBLISHED, never as a draft, so it now pins
-    // the published save and the file's cuisine it carries.
+    // Rewritten 2026-11-11: it pinned a DRAFT save, then a PUBLISHED save that filled absent servings with 1 and absent times
+    // with 0. ADR-0072 §3 (owner ruling 2026-11-11) makes nothing up: the file here states them, the save sends them as stated,
+    // and the next tests prove an ABSENT one holds the item instead.
     it('⛔ saves a ready item as ONE PUBLISHED recipe through the create path with the provenance the statement sets', async () => {
         const { answered, recipes } = run(world());
 
@@ -790,10 +792,10 @@ describe('ImportAdvanceService — saving what is ready', () => {
             status: 'published',
             cuisine: 'French',
             visibility: RecipeVisibility.PRIVATE,
-            servings: 1,
-            prepTimeMinutes: 0,
-            cookTimeMinutes: 0,
-            totalTimeMinutes: 0,
+            servings: 4,
+            prepTimeMinutes: 10,
+            cookTimeMinutes: 20,
+            totalTimeMinutes: 30,
             steps: [{ instruction: 'Mix.', timerSeconds: 30 }],
         });
         expect(imported).toMatchObject({
@@ -1120,7 +1122,7 @@ describe('ImportAdvanceService — saving what is ready', () => {
         expect(ingredients.addByRef.mock.calls[0]?.[1]).toEqual({ kind: 'variant', id: 'V-flat' });
     });
 
-    describe('⛔ what Publish needs: a gap holds the item for the cook (ADR-0072 §3 as amended 2026-11-11)', () => {
+    describe('⛔ what the save needs: a gap holds the item for the cook (ADR-0072 §3 as amended 2026-11-11)', () => {
         const noCuisine = () =>
             matched(0, { payload: { ...recipe(payloadLines), cuisine: undefined }, decisionRev: 7 });
 
@@ -1144,16 +1146,96 @@ describe('ImportAdvanceService — saving what is ready', () => {
             expect(store.deferItem).not.toHaveBeenCalled();
         });
 
-        it('holds a recipe with no step, and one with no ingredient line, the same way', async () => {
+        it('⛔ holds a recipe whose file states no servings, never saving it as 1 serving', async () => {
+            const { answered, recipes, store } = run(
+                world({
+                    items: [matched(0, { payload: { ...recipe(payloadLines), servings: undefined }, decisionRev: 7 })],
+                }),
+            );
+
+            await answered;
+
+            expect(recipes.create).not.toHaveBeenCalled();
+            expect(store.holdItem).toHaveBeenCalledWith(IMPORT_ID, 0, 7);
+        });
+
+        it.each([
+            ['prep', { prepTimeMinutes: undefined }],
+            ['cook', { cookTimeMinutes: undefined }],
+            [
+                'both, with only a total stated',
+                { prepTimeMinutes: undefined, cookTimeMinutes: undefined, totalTimeMinutes: 30 },
+            ],
+        ])('⛔ holds a recipe whose file states no %s time, never saving it as 0 minutes', async (_name, absent) => {
+            const { answered, recipes, store } = run(
+                world({ items: [matched(0, { payload: { ...recipe(payloadLines), ...absent }, decisionRev: 7 })] }),
+            );
+
+            await answered;
+
+            expect(recipes.create).not.toHaveBeenCalled();
+            expect(store.holdItem).toHaveBeenCalledWith(IMPORT_ID, 0, 7);
+        });
+
+        it('saves a 0 the file states as the value it is: a recipe with no prep time is not held', async () => {
+            const { answered, recipes } = run(
+                world({ items: [{ ...item(), payload: { ...recipe(payloadLines), prepTimeMinutes: 0 } }] }),
+            );
+
+            await answered;
+
+            expect(recipes.create.mock.calls[0]?.[1]).toMatchObject({
+                prepTimeMinutes: 0,
+                cookTimeMinutes: 20,
+                totalTimeMinutes: 20,
+            });
+        });
+
+        it("saves the cook's servings and times over the file's, and the total derived from them", async () => {
+            const { answered, recipes } = run(
+                world({
+                    items: [
+                        {
+                            ...item(),
+                            payload: { ...recipe(payloadLines), totalTimeMinutes: undefined },
+                            servings: 2,
+                            prepTimeMinutes: 5,
+                            cookTimeMinutes: 7,
+                        },
+                    ],
+                }),
+            );
+
+            await answered;
+
+            expect(recipes.create.mock.calls[0]?.[1]).toMatchObject({
+                servings: 2,
+                prepTimeMinutes: 5,
+                cookTimeMinutes: 7,
+                totalTimeMinutes: 12,
+            });
+        });
+
+        it("saves the FILE's total when it states one, even if prep and cook do not add up to it", async () => {
+            const { answered, recipes } = run(
+                world({ items: [{ ...item(), payload: { ...recipe(payloadLines), totalTimeMinutes: 90 } }] }),
+            );
+
+            await answered;
+
+            expect(recipes.create.mock.calls[0]?.[1]).toMatchObject({ totalTimeMinutes: 90 });
+        });
+
+        it('⛔ an item that was REFUSED never gets here: one that does is a defect that is logged and left, never a hold', async () => {
             const noSteps = run(world({ items: [matched(0, { payload: { ...recipe(payloadLines), steps: [] } })] }));
             const noLines = run(world({ items: [matched(0, { payload: recipe([]) })], lines: { 0: [] } }));
 
             await Promise.all([noSteps.answered, noLines.answered]);
 
             expect(noSteps.recipes.create).not.toHaveBeenCalled();
-            expect(noSteps.store.holdItem).toHaveBeenCalledOnce();
+            expect(noSteps.store.holdItem).not.toHaveBeenCalled();
             expect(noLines.recipes.create).not.toHaveBeenCalled();
-            expect(noLines.store.holdItem).toHaveBeenCalledOnce();
+            expect(noLines.store.holdItem).not.toHaveBeenCalled();
         });
 
         it('⛔ never re-queues a held item: the next calls do not look at it, until a decision of the cook releases it', async () => {

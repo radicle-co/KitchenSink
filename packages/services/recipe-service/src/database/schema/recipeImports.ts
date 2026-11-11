@@ -55,6 +55,9 @@ export const IMPORT_MATCHED_BY = ['curated', 'memo', 'lexical'] as const;
 /** Where the review gate's request stands for a snapshot line. */
 export const IMPORT_LINE_REVIEWS = ['owed', 'refused'] as const;
 
+/** Why an import refuses a recipe outright: no ingredient line, or no step (0068). Mirrors `ImportRefusal`. */
+export const IMPORT_REFUSALS = ['noIngredients', 'noSteps'] as const;
+
 /** One stage of an item. */
 export type ImportStage = (typeof IMPORT_STAGES)[number];
 
@@ -123,6 +126,14 @@ export const recipeImportItems = pgTable(
         cuisine: text('cuisine'),
         /** The `decision_rev` at which the save found the item short of what Publish needs; skipped while it is current (0068). */
         heldAtRev: integer('held_at_rev'),
+        /** The servings the cook gave in the import, replacing the file's (0068). */
+        servings: integer('servings'),
+        /** The prep minutes the cook gave in the import, replacing the file's (0068). */
+        prepTimeMinutes: integer('prep_time_minutes'),
+        /** The cook minutes the cook gave in the import, replacing the file's (0068). */
+        cookTimeMinutes: integer('cook_time_minutes'),
+        /** Why the import refuses the recipe, set when the item is written; a refused item never leaves `received` (0068). */
+        refusal: text('refusal'),
         createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
         updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
     },
@@ -132,6 +143,23 @@ export const recipeImportItems = pgTable(
         check('recipe_import_items_parse_generation_check', sql`${table.parseGeneration} >= 0`),
         check('recipe_import_items_decision_rev_check', sql`${table.decisionRev} >= 0`),
         check('recipe_import_items_held_at_rev_check', sql`${table.heldAtRev} IS NULL OR ${table.heldAtRev} >= 0`),
+        check('recipe_import_items_servings_check', sql`${table.servings} IS NULL OR ${table.servings} >= 1`),
+        check(
+            'recipe_import_items_prep_time_minutes_check',
+            sql`${table.prepTimeMinutes} IS NULL OR ${table.prepTimeMinutes} >= 0`,
+        ),
+        check(
+            'recipe_import_items_cook_time_minutes_check',
+            sql`${table.cookTimeMinutes} IS NULL OR ${table.cookTimeMinutes} >= 0`,
+        ),
+        check(
+            'recipe_import_items_refusal_check',
+            sql`${table.refusal} IS NULL OR ${table.refusal} IN ('noIngredients', 'noSteps')`,
+        ),
+        check(
+            'recipe_import_items_refusal_only_received',
+            sql`${table.refusal} IS NULL OR ${table.stage} = 'received'`,
+        ),
         check('recipe_import_items_cuisine_check', sql`${table.cuisine} IS NULL OR btrim(${table.cuisine}) <> ''`),
         check('recipe_import_items_title_check', sql`btrim(${table.title}) <> ''`),
         check('recipe_import_items_stage_check', inArray(table.stage, [...IMPORT_STAGES])),

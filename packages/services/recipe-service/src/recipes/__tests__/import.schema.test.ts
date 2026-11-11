@@ -45,6 +45,7 @@ import {
     importStatementViewSchema,
     importStepLineSchema,
     importStepResponseSchema,
+    importSummarySchema,
     importToCheckResponseSchema,
     importToCheckCountResponseSchema,
     importListResponseSchema,
@@ -56,6 +57,7 @@ import {
     recordImportChoicesRequestSchema,
 } from '../import.schema.js';
 import { parseProposalMatchSchema } from '../parseJobs.schema.js';
+import { createRecipeRequestSchema } from '../recipes.schema.js';
 
 const RECIPE = {
     title: 'Tomato soup',
@@ -339,12 +341,84 @@ describe('⛔ the cuisine a recipe needs to be published (ADR-0072 §3 as amende
             statement: null,
             visibility: null,
             cuisine: 'Italian',
+            servings: null,
+            prepTimeMinutes: null,
+            cookTimeMinutes: null,
+            totalTimeMinutes: null,
             lines: [],
         };
 
         expect(importStepResponseSchema.parse(step).cuisine).toBe('Italian');
         expect(importStepResponseSchema.parse({ ...step, cuisine: null }).cuisine).toBeNull();
         expect(importStepResponseSchema.safeParse({ ...step, cuisine: undefined }).success).toBe(false);
+    });
+});
+
+describe('⛔ the servings and times a recipe needs to be saved (ADR-0072 §3 as amended 2026-11-11)', () => {
+    // The create route needs servings and the three times, and a file often states none. The cook gives them here, with the
+    // create route's own bounds, and nothing makes one up.
+    it('a choices body may carry servings and times alone or together, a 0 minutes included', () => {
+        expect(recordImportChoicesRequestSchema.safeParse({ servings: 4 }).success).toBe(true);
+        expect(recordImportChoicesRequestSchema.safeParse({ prepTimeMinutes: 0 }).success).toBe(true);
+        expect(recordImportChoicesRequestSchema.safeParse({ cookTimeMinutes: 30 }).success).toBe(true);
+        expect(
+            recordImportChoicesBatchRequestSchema.safeParse({
+                items: [{ ordinal: 0, servings: 2, prepTimeMinutes: 5, cookTimeMinutes: 10 }],
+            }).success,
+        ).toBe(true);
+    });
+
+    it.each([
+        ['zero servings', { servings: 0 }],
+        ['fractional servings', { servings: 1.5 }],
+        ['negative minutes', { prepTimeMinutes: -1 }],
+        ['fractional minutes', { cookTimeMinutes: 2.5 }],
+        ['a blank servings', { servings: '' }],
+        ['a total (it is derived, never chosen)', { totalTimeMinutes: 30 }],
+    ])('refuses %s, as the create route does', (_name, body) => {
+        expect(recordImportChoicesRequestSchema.safeParse(body).success).toBe(false);
+        expect(recordImportChoicesBatchRequestSchema.safeParse({ items: [{ ordinal: 0, ...body }] }).success).toBe(
+            false,
+        );
+    });
+
+    it("the bounds are the create route's own, value for value (picked, not copied)", () => {
+        const probes = [-1, 0, 1, 2, 99, 100, 1_000, 10_000, 100_000, 2_147_483_647, 2_147_483_648];
+
+        for (const field of ['servings', 'prepTimeMinutes', 'cookTimeMinutes'] as const) {
+            for (const value of probes) {
+                expect(recordImportChoicesRequestSchema.safeParse({ [field]: value }).success).toBe(
+                    createRecipeRequestSchema.shape[field].safeParse(value).success,
+                );
+            }
+        }
+    });
+
+    it('the wizard step shows the four resolved facts, each nullable, and requires them', () => {
+        const step = {
+            ordinal: 0,
+            title: 'Soup',
+            stage: 'matched',
+            review: 'pending',
+            statement: null,
+            visibility: null,
+            cuisine: null,
+            servings: 4,
+            prepTimeMinutes: 0,
+            cookTimeMinutes: null,
+            totalTimeMinutes: null,
+            lines: [],
+        };
+
+        expect(importStepResponseSchema.parse(step)).toMatchObject({ servings: 4, prepTimeMinutes: 0 });
+        expect(importStepResponseSchema.safeParse({ ...step, servings: undefined }).success).toBe(false);
+    });
+
+    it('the import counts a refused recipe, and requires the count', () => {
+        const counts = { total: 3, received: 1, parsing: 0, matched: 0, saved: 0, refused: 2 };
+
+        expect(importSummarySchema.shape.counts.parse(counts)).toEqual(counts);
+        expect(importViewSchema.shape.counts.safeParse({ ...counts, refused: undefined }).success).toBe(false);
     });
 });
 
@@ -460,7 +534,7 @@ describe('responses are loose and reuse the paste match view', () => {
         expectedTotal: 2,
         allowance: { limit: 1000, used: 3, resetsAt: null },
         pause: null,
-        counts: { total: 2, received: 1, parsing: 0, matched: 0, saved: 1 },
+        counts: { total: 2, received: 1, parsing: 0, matched: 0, saved: 1, refused: 0 },
         items: [
             {
                 ordinal: 0,
@@ -597,6 +671,10 @@ describe('responses are loose and reuse the paste match view', () => {
             statement: null,
             visibility: null,
             cuisine: null,
+            servings: null,
+            prepTimeMinutes: null,
+            cookTimeMinutes: null,
+            totalTimeMinutes: null,
             lines: [line],
         };
 
@@ -695,6 +773,10 @@ describe('a pick answers whether it applied (a stale pick is not an error and no
         statement: null,
         visibility: null,
         cuisine: null,
+        servings: null,
+        prepTimeMinutes: null,
+        cookTimeMinutes: null,
+        totalTimeMinutes: null,
         lines: [],
     };
 
@@ -740,7 +822,7 @@ describe('ADR-0072 service lane additions to the contract', () => {
         expectedTotal: 2,
         allowance: { limit: 1000, used: 3, resetsAt: null },
         pause: null,
-        counts: { total: 2, received: 1, parsing: 0, matched: 0, saved: 1 },
+        counts: { total: 2, received: 1, parsing: 0, matched: 0, saved: 1, refused: 0 },
         items: [],
         nextAfter: null,
     };
@@ -774,6 +856,10 @@ describe('ADR-0072 service lane additions to the contract', () => {
             statement: null,
             visibility: null,
             cuisine: null,
+            servings: null,
+            prepTimeMinutes: null,
+            cookTimeMinutes: null,
+            totalTimeMinutes: null,
             lines: [line],
         };
         const flagged = {
@@ -815,7 +901,7 @@ describe('ADR-0072 service lane additions to the contract', () => {
             matchMode: 'review',
             visibility: 'public',
             expectedTotal: 864,
-            counts: { total: 864, received: 800, parsing: 0, matched: 0, saved: 64 },
+            counts: { total: 864, received: 800, parsing: 0, matched: 0, saved: 64, refused: 0 },
             createdAt: '2026-10-26T12:00:00.000Z',
             updatedAt: '2026-10-26T13:00:00.000Z',
         };

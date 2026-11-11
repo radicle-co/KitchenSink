@@ -3838,6 +3838,7 @@
                                 },
                                 {
                                     "additionalProperties": false,
+                                    "description": "Client-side only: what a client reads for a statement kind newer than it knows. The server never sends it.",
                                     "properties": {
                                         "kind": {
                                             "const": "unrecognised",
@@ -4118,6 +4119,17 @@
                 "step": {
                     "additionalProperties": false,
                     "properties": {
+                        "cuisine": {
+                            "anyOf": [
+                                {
+                                    "minLength": 1,
+                                    "type": "string"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ]
+                        },
                         "lines": {
                             "items": {
                                 "additionalProperties": false,
@@ -4623,6 +4635,7 @@
                                         },
                                         {
                                             "additionalProperties": false,
+                                            "description": "Client-side only: what a client reads for a statement kind newer than it knows. The server never sends it.",
                                             "properties": {
                                                 "kind": {
                                                     "const": "unrecognised",
@@ -4666,6 +4679,7 @@
                         "review",
                         "statement",
                         "visibility",
+                        "cuisine",
                         "lines"
                     ],
                     "type": "object"
@@ -4959,6 +4973,7 @@
                 },
                 {
                     "additionalProperties": false,
+                    "description": "Client-side only: what a client reads for a statement kind newer than it knows. The server never sends it.",
                     "properties": {
                         "kind": {
                             "const": "unrecognised",
@@ -5381,6 +5396,17 @@
             "$schema": "https://json-schema.org/draft/2020-12/schema",
             "additionalProperties": false,
             "properties": {
+                "cuisine": {
+                    "anyOf": [
+                        {
+                            "minLength": 1,
+                            "type": "string"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ]
+                },
                 "lines": {
                     "items": {
                         "additionalProperties": false,
@@ -5886,6 +5912,7 @@
                                 },
                                 {
                                     "additionalProperties": false,
+                                    "description": "Client-side only: what a client reads for a statement kind newer than it knows. The server never sends it.",
                                     "properties": {
                                         "kind": {
                                             "const": "unrecognised",
@@ -5929,6 +5956,7 @@
                 "review",
                 "statement",
                 "visibility",
+                "cuisine",
                 "lines"
             ],
             "type": "object"
@@ -6588,6 +6616,7 @@
                                             },
                                             {
                                                 "additionalProperties": false,
+                                                "description": "Client-side only: what a client reads for a statement kind newer than it knows. The server never sends it.",
                                                 "properties": {
                                                     "kind": {
                                                         "const": "unrecognised",
@@ -13133,6 +13162,11 @@
                     "items": {
                         "additionalProperties": false,
                         "properties": {
+                            "cuisine": {
+                                "maxLength": 100,
+                                "minLength": 1,
+                                "type": "string"
+                            },
                             "ordinal": {
                                 "maximum": 2147483646,
                                 "minimum": 0,
@@ -13246,6 +13280,11 @@
             "$schema": "https://json-schema.org/draft/2020-12/schema",
             "additionalProperties": false,
             "properties": {
+                "cuisine": {
+                    "maxLength": 100,
+                    "minLength": 1,
+                    "type": "string"
+                },
                 "statement": {
                     "oneOf": [
                         {

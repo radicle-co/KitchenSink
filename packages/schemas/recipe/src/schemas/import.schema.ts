@@ -62,6 +62,7 @@ import { z } from 'zod';
 import {
     boundBySchema,
     ingredientQuantitySchema,
+    recipeCuisineSchema,
     recipeIngredientDisplayTextSchema,
     recipeIngredientNoteSchema,
     recipeStepInstructionSchema,
@@ -187,7 +188,11 @@ const KNOWN_STATEMENT_KINDS: readonly string[] = importStatementSchema.options.m
  * over the newer one) and never a bare `{ kind: string }` (which breaks narrowing for every consumer). A client shows it as
  * a statement it cannot edit and never sends it back: the request schema stays closed.
  */
-const unrecognisedStatement = z.object({ kind: z.literal('unrecognised') });
+const unrecognisedStatement = z
+    .object({ kind: z.literal('unrecognised') })
+    .describe(
+        'Client-side only: what a client reads for a statement kind newer than it knows. The server never sends it.',
+    );
 
 /** Whether a value is a statement whose kind is a string this contract does not know. Pure. */
 const hasUnknownKind = (value: unknown): boolean =>
@@ -427,19 +432,26 @@ export const importPickRequestSchema = z.strictObject({
 /** Body of `PUT …/items/{ordinal}/pick`. */
 export type ImportPickRequest = z.infer<typeof importPickRequestSchema>;
 
+/** Whether a choices body says anything: a statement, a visibility or a cuisine. */
+const saysSomething = (body: { statement?: unknown; visibility?: unknown; cuisine?: unknown }): boolean =>
+    body.statement !== undefined || body.visibility !== undefined || body.cuisine !== undefined;
+
 /**
  * Body of `POST /api/v1/import/{importId}/items/{ordinal}`: the cook's choices on one item — what they say about the
- * recipe, and whether it is public or private. At least one; `visibility: null` clears the recipe's own choice so it
- * follows the import again.
+ * recipe, whether it is public or private, and its cuisine. At least one; `visibility: null` clears the recipe's own choice
+ * so it follows the import again.
+ *
+ * `cuisine` exists because the import saves every recipe PUBLISHED (ADR-0072 §3) and Publish needs one: a file that states
+ * none holds the item under "Needs a cuisine" until the cook gives it (ADR-0072 §3 as amended 2026-11-11). It replaces the
+ * file's cuisine for this recipe. Nothing picks one for the cook.
  */
 export const recordImportChoicesRequestSchema = z
     .strictObject({
         statement: importStatementSchema.optional(),
         visibility: recipeVisibilitySchema.nullable().optional(),
+        cuisine: recipeCuisineSchema.optional(),
     })
-    .refine((body) => body.statement !== undefined || body.visibility !== undefined, {
-        message: 'send a statement, a visibility, or both',
-    });
+    .refine(saysSomething, { message: 'send a statement, a visibility, a cuisine, or several' });
 
 /** Body of `POST …/items/{ordinal}`. */
 export type RecordImportChoicesRequest = z.infer<typeof recordImportChoicesRequestSchema>;
@@ -457,10 +469,9 @@ export const recordImportChoicesBatchRequestSchema = z.strictObject({
                     ordinal: importOrdinalSchema,
                     statement: importStatementSchema.optional(),
                     visibility: recipeVisibilitySchema.nullable().optional(),
+                    cuisine: recipeCuisineSchema.optional(),
                 })
-                .refine((entry) => entry.statement !== undefined || entry.visibility !== undefined, {
-                    message: 'send a statement, a visibility, or both',
-                }),
+                .refine(saysSomething, { message: 'send a statement, a visibility, a cuisine, or several' }),
         )
         .min(1)
         .max(MAX_IMPORT_CHOICES_PER_REQUEST)
@@ -527,7 +538,7 @@ export const importItemSummarySchema = z.object({
     recipeId: z.uuid().nullable(),
     /**
      * Why the item cannot be saved yet, as an opaque key the clients localize (`visibilityRefused`, `waitingForAllowance`,
-     * a pick the server rejected, a review that is stuck), or `null`. The stage enum is closed and parsed strictly, so a
+     * `needsCuisine` and the other publish requirements, a pick the server rejected, a review that is stuck), or `null`. The stage enum is closed and parsed strictly, so a
      * new stuck state arrives as a new key here and never as a new stage.
      */
     issue: z.object({ reason: z.string().min(1) }).nullable(),
@@ -658,6 +669,8 @@ export const importStepResponseSchema = z.object({
     review: importReviewMarkSchema,
     statement: importStatementViewSchema.nullable(),
     visibility: recipeVisibilitySchema.nullable(),
+    /** The cuisine the save will use: the cook's choice, else the file's, else `null` (the item then needs one). */
+    cuisine: z.string().min(1).nullable(),
     lines: z.array(importStepLineSchema),
 });
 

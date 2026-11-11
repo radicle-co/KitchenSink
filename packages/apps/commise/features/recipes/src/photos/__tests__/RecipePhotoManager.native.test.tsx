@@ -307,6 +307,55 @@ describe('RecipePhotoManager (native) — the upload status sits under the tile 
     });
 });
 
+/**
+ * Designer ruling 2026-11-11, second half: Retry joins the status in the slot under the tile. At the largest text the
+ * Retry pill over the photo spilled past the tile and covered the ⋯ disc. The frame now holds the photo and the tile's
+ * own ⋯ menu, and nothing else, in every state.
+ */
+describe('RecipePhotoManager (native) — nothing but the ⋯ menu is drawn over the photo (2026-11-11)', () => {
+    it.each([
+        ['queued', false],
+        ['waiting', false],
+        ['uploading', false],
+        ['failed', false],
+        ['failed', true],
+    ] as const)('a %s tile (retryable: %s) draws no text and no other control on the photo', (status, retryable) => {
+        renderManager({
+            queueItems: [
+                makeQueueItem({ fileId: 1, fileName: 'a.png', status, retryable, previewUri: 'file:///a.png' }),
+            ],
+        });
+
+        const frame = screen.getByLabelText('Photo a.png').parentElement as HTMLElement;
+        const menu = within(frame).queryAllByRole('button', { name: 'Actions for a.png' });
+
+        expect(frame.textContent.trim()).toBe('');
+        expect(within(frame).queryAllByRole('button')).toEqual(menu);
+    });
+
+    it('puts Retry in the slot under the photo, after the failure it recovers', () => {
+        renderManager({
+            queueItems: [
+                makeQueueItem({
+                    fileId: 7,
+                    fileName: 'burnt.png',
+                    status: 'failed',
+                    retryable: true,
+                    previewUri: 'file:///burnt.png',
+                }),
+            ],
+        });
+
+        const frame = screen.getByLabelText('Photo burnt.png').parentElement as HTMLElement;
+        const retry = screen.getByRole('button', { name: /Retry upload of burnt\.png/u });
+        const status = screen.getByRole('alert', { name: /^Upload failed/u });
+
+        expect(frame.contains(retry)).toBe(false);
+        expect(frame.parentElement?.contains(retry)).toBe(true);
+        expect(status.compareDocumentPosition(retry) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+});
+
 describe('RecipePhotoManager (native) — populated', () => {
     it('renders one image per photo, with indexed accessible names', () => {
         renderManager({ photos: threePhotos });

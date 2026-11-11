@@ -224,30 +224,9 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
                                             />
                                         </View>
                                     ) : null}
-                                    {/* Retry stays a VISIBLE button, not a menu item: it is the one recovery for the
-                                    tile's headline state, so it is one tap at the design system's `Button` size
-                                    (48 dp on Android). Only where it can plausibly succeed: the queue re-validates on
-                                    retry, so a client-rejected file (too large / wrong type) would re-fail
-                                    identically. See `retryable`. */}
-                                    {item.status === 'failed' && item.retryable ? (
-                                        <View style={styles.queueControls}>
-                                            <Button
-                                                variant="secondary"
-                                                size="md"
-                                                icon="refreshCw"
-                                                width="fill"
-                                                accessibilityLabel={fillTemplate(m.queueRetryLabel, {
-                                                    fileName: item.fileName,
-                                                })}
-                                                onPress={() => onRetryQueueItem?.(item.fileId)}
-                                            >
-                                                {m.queueRetry}
-                                            </Button>
-                                        </View>
-                                    ) : null}
                                 </View>
                                 {/* The status, and a failure's message, in ONE slot UNDER the photo (designer ruling 2026-11-11):
-                                    nothing sits on the image, so the ⋯ disc never covers it, and the line wraps across
+                                    nothing but the tile's ⋯ menu sits on the image, and the line wraps across
                                     the cell's width at every text size. Text, never colour alone, says which state. */}
                                 <View
                                     accessible
@@ -271,6 +250,28 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
                                         </DsText>
                                     ) : null}
                                 </View>
+                                {/* Retry sits in the slot under the photo with the failure it recovers (designer ruling 2026-11-11), and stays a
+                                    VISIBLE button, not a menu item: it is the one recovery for the
+                                    tile's headline state, so it is one tap at the design system's `Button` size
+                                    (48 dp on Android). Only where it can plausibly succeed: the queue re-validates on
+                                    retry, so a client-rejected file (too large / wrong type) would re-fail
+                                    identically. See `retryable`. */}
+                                {item.status === 'failed' && item.retryable ? (
+                                    <View style={styles.statusSlot}>
+                                        <Button
+                                            variant="secondary"
+                                            size="md"
+                                            icon="refreshCw"
+                                            width="fill"
+                                            accessibilityLabel={fillTemplate(m.queueRetryLabel, {
+                                                fileName: item.fileName,
+                                            })}
+                                            onPress={() => onRetryQueueItem?.(item.fileId)}
+                                        >
+                                            {m.queueRetry}
+                                        </Button>
+                                    </View>
+                                ) : null}
                             </View>
                         );
                     })}
@@ -312,7 +313,6 @@ const styles = StyleSheet.create({
     photo: { width: '100%', height: '100%' },
     // The status line's slot under the tile; React Native styling until this file moves to Tamagui whole (ADR-0080).
     statusSlot: { marginTop: 4, paddingHorizontal: 2 },
-    queueControls: { position: 'absolute', bottom: 6, left: 6, right: 6 },
     // The tile's ⋯ menu button, top-right (`appearance="disc"`: 44 pt, 48 dp hit frame on Android).
     menuButton: { position: 'absolute', top: 2, right: 2 },
     removingBadge: {

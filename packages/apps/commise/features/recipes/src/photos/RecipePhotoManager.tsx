@@ -190,7 +190,7 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
                                     it (E6), on the page background, so its contrast never depends on the photo
                                     under it. */}
                                     <div
-                                        className={`relative flex aspect-square flex-col items-center justify-center gap-2 overflow-hidden rounded-lg ${surfaceToneClass('muted')} ring-1 ring-line-divider`}
+                                        className={`relative aspect-square overflow-hidden rounded-lg ${surfaceToneClass('muted')} ring-1 ring-line-divider`}
                                     >
                                         {item.previewUri !== undefined ? (
                                             <img
@@ -227,30 +227,9 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
                                                 />
                                             </div>
                                         ) : null}
-                                        {/* Retry stays a VISIBLE button, not a menu item: it is the one recovery for the
-                                    tile's headline state, so it is one tap at the design system's `Button` size.
-                                    Offered ONLY where it can plausibly succeed: the queue re-validates on retry by
-                                    design, so a client-rejected file (too large / wrong type) would re-fail
-                                    identically — a dead affordance. `retryable` is the queue's own discriminator. */}
-                                        {item.status === 'failed' && item.retryable ? (
-                                            <div className="relative w-full px-2">
-                                                <Button
-                                                    variant="secondary"
-                                                    size="md"
-                                                    icon="refreshCw"
-                                                    width="fill"
-                                                    accessibilityLabel={fillTemplate(m.queueRetryLabel, {
-                                                        fileName: item.fileName,
-                                                    })}
-                                                    onPress={() => onRetryQueueItem?.(item.fileId)}
-                                                >
-                                                    {m.queueRetry}
-                                                </Button>
-                                            </div>
-                                        ) : null}
                                     </div>
                                     {/* The status, and a failure's message, in ONE slot UNDER the photo (designer ruling
-                                    2026-11-11): nothing sits on the image, so the ⋯ disc never covers it. Text, never
+                                    2026-11-11): nothing but the tile's ⋯ menu sits on the image. Text, never
                                     colour alone, says which state. */}
                                     <div
                                         role={item.status === 'failed' ? 'alert' : 'status'}
@@ -270,6 +249,28 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
                                             <p className="text-caption text-danger-text">{item.errorMessage}</p>
                                         ) : null}
                                     </div>
+                                    {/* Retry sits in the slot under the photo with the failure it recovers (designer ruling 2026-11-11), and stays a
+                                    VISIBLE button, not a menu item: it is the one recovery for the
+                                tile's headline state, so it is one tap at the design system's `Button` size.
+                                Offered ONLY where it can plausibly succeed: the queue re-validates on retry by
+                                design, so a client-rejected file (too large / wrong type) would re-fail
+                                identically — a dead affordance. `retryable` is the queue's own discriminator. */}
+                                    {item.status === 'failed' && item.retryable ? (
+                                        <div className="px-1">
+                                            <Button
+                                                variant="secondary"
+                                                size="md"
+                                                icon="refreshCw"
+                                                width="fill"
+                                                accessibilityLabel={fillTemplate(m.queueRetryLabel, {
+                                                    fileName: item.fileName,
+                                                })}
+                                                onPress={() => onRetryQueueItem?.(item.fileId)}
+                                            >
+                                                {m.queueRetry}
+                                            </Button>
+                                        </div>
+                                    ) : null}
                                 </li>
                             );
                         })}

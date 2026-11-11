@@ -209,6 +209,10 @@ APK="${MAESTRO_ANDROID_APK:-packages/apps/commise/mobile/android/app/build/outpu
 #     stub, so the component tiers can only drive a fake dispatcher, and NOTHING but a device can observe that
 #     an open RN `Modal` consumes the key itself before any `BackHandler` subscription is reached.
 #
+#   - `recipes/needsReviewJump` follows `ambiguityReview`: the same owner-only review surface, one line, one sheet. It is
+#     LOCAL ONLY (`MAESTRO_LOCAL_ONLY_FLOWS` below): it is in the plan so the inventory, the shard table and the screens table
+#     hold it, and every DEPLOYED selection drops it before packing and says so.
+#
 # NOT in this plan, and each for a stated reason (the inventory test enforces that the list of reasons stays
 # exhaustive):
 #   - `auth/signin.yaml` / `auth/signinHome.yaml` / `recipes/common/clearTitle.yaml` — reusable `runFlow` SUB-flows,
@@ -291,6 +295,7 @@ recipes:recipes/ingredientCandidates
 recipes:recipes/ingredientRemoteFoods
 recipes:recipes/pinnedActionBar
 recipes:recipes/ambiguityReview
+recipes:recipes/needsReviewJump
 recipes:recipes/photos
 recipes:recipes/photosOnCreate
 recipes:recipes/accessibility
@@ -392,6 +397,60 @@ maestro_local_summary() {
         [ -n "$row" ] || continue
         printf 'not run locally: needs sandbox - %s (%s)\n' "${row%%|*}" "${row#*|}"
     done
+}
+
+# ── THE FLOWS A DEPLOYED RUN MUST NOT RUN ──────────────────────────────────────────────────────────────────────
+#
+# `<flow>|<reason>`, one per line: flows that need something only the LOCAL stack can supply. The mirror of
+# MAESTRO_SANDBOX_ONLY_FLOWS, in the other direction. `recipes/needsReviewJump` needs a verification verdict that the Bedrock
+# worker writes in a deployed stage and nothing writes locally, so its reset (`e2e-seed reset --mode needsReview`) inserts the
+# row into the LOCAL recipe database and REFUSES any non-loopback database, recipe API or food API host (`requireLocalSeedTarget`).
+# Run against a deployed stage that reset would fail, and a failed reset STOPS THE SHARD (`maestro_run_flow_list`), taking every
+# flow behind it down. So a deployed selection drops these flows BEFORE packing, prints each as `local-only=`, and a local run
+# (`MAESTRO_LOCAL=1`) keeps them. It is NOT a platform exclusion: that table is held equal to the flows reaching an Android-only
+# command, and these flows run on both platforms.
+# ⛔ Never add a flow here to get a deployed run green. An entry is a statement that the flow needs the local stack.
+MAESTRO_LOCAL_ONLY_FLOWS="recipes/needsReviewJump|stores a verification verdict straight into the LOCAL recipe database (the Bedrock worker that writes it runs only in a deployed stage), and e2e-seed refuses that write for any database, recipe API or food API host that is not loopback"
+
+# maestro_local_only_flows
+#
+# The rows of MAESTRO_LOCAL_ONLY_FLOWS as `<flow>|<reason>` lines. Pure.
+maestro_local_only_flows() {
+    printf '%s\n' "$MAESTRO_LOCAL_ONLY_FLOWS"
+}
+
+# maestro_deployed_flows <flow> …
+#
+# THE DEPLOYED FILTER, as a PURE function: one `flow=` line per flow a deployed run may run and one `local-only=<flow>|<reason>`
+# line per flow that needs the local stack, in the order given. Exit 2 with nothing on stdout for no flows, or when NOTHING is
+# left: answering "run nothing" is the green-over-no-work outcome this script refuses everywhere else.
+maestro_deployed_flows() {
+    if [ "$#" -eq 0 ]; then
+        echo 'runMaestroFlows.sh: no flows to filter for a deployed run - refusing to report a run over no flows' >&2
+
+        return 2
+    fi
+
+    local flow row kept=0 out=''
+
+    for flow in "$@"; do
+        row=$(maestro_local_only_flows | awk -F '|' -v f="$flow" '$1 == f { print; exit }')
+
+        if [ -n "$row" ]; then
+            out="${out}local-only=${row}"$'\n'
+        else
+            out="${out}flow=${flow}"$'\n'
+            kept=$((kept + 1))
+        fi
+    done
+
+    if [ "$kept" -eq 0 ]; then
+        echo 'runMaestroFlows.sh: a deployed run can serve NONE of these flows - refusing to report a run over no flows' >&2
+
+        return 2
+    fi
+
+    printf '%s' "$out"
 }
 
 # Maestro's iOS XCUITest runner, as Maestro names it (`LocalXCTestInstaller.UI_TEST_RUNNER_APP_BUNDLE_ID`, read
@@ -538,6 +597,9 @@ EMPTY_LIBRARY_FLOWS=" recipes/emptyLibrary "
 # The flows whose reset also seeds the gate-AMBIGUOUS probe recipe (`reset.ts --mode ambiguity`). Only these hold it, so
 # every other flow's `^4 recipes$` count stays true (plan 013 C3, owner decision 2026-10-19).
 AMBIGUITY_FLOWS=" recipes/ambiguityReview "
+# The flows whose reset also seeds the NEEDS_REVIEW probe recipe (`reset.ts --mode needsReview`). LOCAL ONLY: that reset writes a
+# verdict row into the local recipe database and refuses any other target (MAESTRO_LOCAL_ONLY_FLOWS).
+NEEDS_REVIEW_FLOWS=" recipes/needsReviewJump "
 # The flows whose reset adds the signer's filler recipes AND the tall recipe (`reset.ts --mode library`): the flow that needs a
 # Recipes list longer than a screen, and the flow that needs a recipe page longer than a screen. Only these hold them, so every other flow's `^4 recipes$` count stays true.
 LONG_LIBRARY_FLOWS=" recipes/headerScrollsAway recipes/pinnedIngredients "
@@ -818,8 +880,9 @@ maestro_platform_flows() {
 # The whole "which flows run on THIS runner" decision, as a PURE composition: select (the selector) → filter
 # (the platform) → partition (the shard). Prints `selection-reason=` and `shard-reason=` lines, then `flow=`
 # for this shard's flows, `skipped=` for flows the selector did not choose, `excluded=` for flows the platform
-# cannot run, `deferred=` for flows another shard runs, and — under `MAESTRO_LOCAL=1` only — `needs-sandbox=<flow>|<reason>`
-# for flows the local stack cannot serve. Run mode consumes exactly this, and the guards
+# cannot run, `deferred=` for flows another shard runs, `local-only=<flow>|<reason>` for flows that need the local stack (every
+# run but `MAESTRO_LOCAL=1`), and — under `MAESTRO_LOCAL=1` only — `needs-sandbox=<flow>|<reason>` for flows the local stack
+# cannot serve. Run mode consumes exactly this, and the guards
 # execute it, so the composition CI runs is the composition that is tested.
 #
 # Exit 2 on any stage's refusal, with that stage's reason on stderr and NOTHING on stdout — a partial verdict
@@ -856,6 +919,15 @@ maestro_shard_selection() {
         kept=$(printf '%s\n' "$local_verdict" | sed -n 's/^flow=//p' | tr '\n' ' ')
     fi
 
+    # ⛔ A DEPLOYED run (everything but `MAESTRO_LOCAL=1`) drops the flows that need the local stack BEFORE packing, for the
+    # reason MAESTRO_LOCAL_ONLY_FLOWS gives: their reset refuses a deployed target, and a failed reset stops the shard.
+    local deployed_verdict=''
+    if [ "${MAESTRO_LOCAL:-}" != '1' ]; then
+        # shellcheck disable=SC2086 # `kept` is a space-separated list of flow names
+        deployed_verdict=$(maestro_deployed_flows $kept) || return 2
+        kept=$(printf '%s\n' "$deployed_verdict" | sed -n 's/^flow=//p' | tr '\n' ' ')
+    fi
+
     # shellcheck disable=SC2086 # `kept` is a space-separated list of flow names
     sharded=$(maestro_pack_flows "$platform" "$FLOW_PLAN" "$index" "$count" $kept) || return 2
 
@@ -865,6 +937,7 @@ maestro_shard_selection() {
     printf '%s\n' "$verdict" | grep '^skipped=' || true
     printf '%s\n' "$filtered" | grep '^excluded=' || true
     printf '%s\n' "$local_verdict" | grep '^needs-sandbox=' || true
+    printf '%s\n' "$deployed_verdict" | grep '^local-only=' || true
 }
 
 # maestro_positive_integer <value>
@@ -1169,6 +1242,12 @@ maestro_shard_matrix() {
         # shellcheck disable=SC2046 # one flow name per word, and flow names carry no whitespace
         selected_count=$(maestro_platform_flows "$platform" $(printf '%s\n' "$verdict" | sed -n 's/^flow=//p') |
             grep -c '^flow=' || true)
+        # A deployed run does not run the flows that need the local stack, so they are not packable either.
+        if [ "${MAESTRO_LOCAL:-}" != '1' ]; then
+            # shellcheck disable=SC2046 # one flow name per word
+            selected_count=$(maestro_deployed_flows $(maestro_platform_flows "$platform" \
+                $(printf '%s\n' "$verdict" | sed -n 's/^flow=//p') | sed -n 's/^flow=//p') | grep -c '^flow=' || true)
+        fi
         packable=$((selected_count - spine_count))
 
         # PACKABLE = 0 CLAMPS TO ONE SHARD. `maestro_positive_integer` is false for 0, so a selection of
@@ -1749,7 +1828,7 @@ maestro_run_flows() {
     echo "::notice::maestro flows — $(printf '%s\n' "$verdict" | sed -n 's/^selection-reason=//p')"
     echo "::notice::maestro shard — $(printf '%s\n' "$verdict" | sed -n 's/^shard-reason=//p')"
 
-    local flows skipped deferred excluded row
+    local flows skipped deferred excluded local_only row
     flows=$(printf '%s\n' "$verdict" | sed -n 's/^flow=//p' | tr '\n' ' ')
     skipped=$(printf '%s\n' "$verdict" | sed -n 's/^skipped=//p' | tr '\n' ' ')
     deferred=$(printf '%s\n' "$verdict" | sed -n 's/^deferred=//p' | tr '\n' ' ')
@@ -1779,6 +1858,14 @@ maestro_run_flows() {
     fi
     if [ -n "${deferred//[[:space:]]/}" ]; then
         echo "deferred to other shards: ${deferred% }"
+    fi
+    # A deployed run names the flows it left to the local stack, so a green run never reads as covering them.
+    local_only=$(printf '%s\n' "$verdict" | sed -n 's/^local-only=//p')
+    if [ -n "${local_only//[[:space:]]/}" ]; then
+        while IFS= read -r row; do
+            [ -n "$row" ] || continue
+            echo "::notice::not run on a deployed stage: ${row%%|*} — local only (${row#*|})"
+        done <<<"$local_only"
     fi
     # A local lane names what the local stack could not serve, so a green lane never reads as covering it.
     # shellcheck disable=SC2046 # one flow name per word
@@ -1830,7 +1917,7 @@ maestro_announce_sandbox_stopped() {
 
 # maestro_seed_reset <mode>
 #
-# Reset the shard's seeded world before one flow (`e2e-seed reset --mode <mode>`: `seeded`, `empty` or `ambiguity`). The
+# Reset the shard's seeded world before one flow (`e2e-seed reset --mode <mode>`: `seeded`, `empty`, `ambiguity`, `library` or `needsReview`). The
 # ONE place this script runs Node: it goes through `packages/tools/e2e-seed/runCli.sh`, which runs the bundle CI built
 # when `E2E_SEED_CLI_DIR` is set (a Maestro shard installs no `node_modules`) and the source through `tsx` when it is not
 # (a developer's machine). `maestroSeedCli.test.ts` holds that this is the script's only call to it.
@@ -1932,9 +2019,14 @@ maestro_run_flow_list() {
                 case "$AMBIGUITY_FLOWS" in
                     *" ${f} "*) reseed_mode=ambiguity ;;
                     *)
-                        case "$LONG_LIBRARY_FLOWS" in
-                            *" ${f} "*) reseed_mode=library ;;
-                            *) reseed_mode=seeded ;;
+                        case "$NEEDS_REVIEW_FLOWS" in
+                            *" ${f} "*) reseed_mode=needsReview ;;
+                            *)
+                                case "$LONG_LIBRARY_FLOWS" in
+                                    *" ${f} "*) reseed_mode=library ;;
+                                    *) reseed_mode=seeded ;;
+                                esac
+                                ;;
                         esac
                         ;;
                 esac
@@ -2088,6 +2180,13 @@ if [ "${BASH_SOURCE[0]}" = "$0" ]; then
             shift
             maestro_local_flows "$@"
             ;;
+        local-only)
+            maestro_local_only_flows
+            ;;
+        deployed-flows)
+            shift
+            maestro_deployed_flows "$@"
+            ;;
         local-summary)
             shift
             maestro_local_summary "$@"
@@ -2158,7 +2257,7 @@ if [ "${BASH_SOURCE[0]}" = "$0" ]; then
             printf '%s\n' $FLOW_PLAN
             ;;
         *)
-            echo "usage: runMaestroFlows.sh [select|select-plan|shard|shard-plan|shard-matrix|shard-selection|platform-flows|sandbox-only|local-flows|local-summary|exclusions|plan|platforms|max-shards|erasure-shard|erasing-flows|erasure-subject|role-flows|pack|weights|default-weight|flow-cost|driver-port|run-one] …" >&2
+            echo "usage: runMaestroFlows.sh [select|select-plan|shard|shard-plan|shard-matrix|shard-selection|platform-flows|sandbox-only|local-only|local-flows|deployed-flows|local-summary|exclusions|plan|platforms|max-shards|erasure-shard|erasing-flows|erasure-subject|role-flows|pack|weights|default-weight|flow-cost|driver-port|run-one] …" >&2
             exit 2
             ;;
     esac

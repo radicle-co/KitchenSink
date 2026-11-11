@@ -62,6 +62,8 @@ import { z } from 'zod';
 import {
     boundBySchema,
     ingredientQuantitySchema,
+    recipeIngredientDisplayTextSchema,
+    recipeIngredientNoteSchema,
     recipeStepInstructionSchema,
     recipeVisibilitySchema,
     MAX_PARSE_JOB_LINES,
@@ -585,8 +587,17 @@ export const importStepLineSchema = z.object({
     foodIndex: z.number().int().nonnegative(),
     /** The line as the file stated it. */
     sourceLine: z.string(),
-    /** The ingredient phrase the parse lifted out of it. */
+    /** The ingredient phrase the parse lifted out of it: what the match was asked. */
     phrase: z.string(),
+    /**
+     * The row the import saves, as the editor saves a pasted row (recipe-core's `pastedLineRowOf`): `name` is the food's
+     * name with a leading size word moved into the unit, and a line kept as written is saved under it; `displayText` is the
+     * cook's words when the parse chose them as the shown name; `note` is a dimension in parentheses, never the unit (owner
+     * ruling 2026-11-08). The wizard shows the line as it will be saved, so it never reads "3 large large eggs".
+     */
+    name: z.string().regex(/\S/u),
+    displayText: recipeIngredientDisplayTextSchema.optional(),
+    note: recipeIngredientNoteSchema.optional(),
     measure: z.object({ quantity: ingredientQuantitySchema, unit: z.string(), preparation: z.string().optional() }),
     /** Pass this back as `against` when picking. */
     judgementDigest: z.string().min(1),

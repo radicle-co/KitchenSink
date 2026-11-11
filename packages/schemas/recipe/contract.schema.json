@@ -4127,6 +4127,10 @@
                                             }
                                         ]
                                     },
+                                    "displayText": {
+                                        "minLength": 1,
+                                        "type": "string"
+                                    },
                                     "flag": {
                                         "anyOf": [
                                             {
@@ -4416,6 +4420,14 @@
                                         ],
                                         "type": "object"
                                     },
+                                    "name": {
+                                        "pattern": "\\S",
+                                        "type": "string"
+                                    },
+                                    "note": {
+                                        "minLength": 1,
+                                        "type": "string"
+                                    },
                                     "phrase": {
                                         "type": "string"
                                     },
@@ -4488,6 +4500,7 @@
                                     "foodIndex",
                                     "sourceLine",
                                     "phrase",
+                                    "name",
                                     "measure",
                                     "judgementDigest",
                                     "match",
@@ -4942,6 +4955,10 @@
                         }
                     ]
                 },
+                "displayText": {
+                    "minLength": 1,
+                    "type": "string"
+                },
                 "flag": {
                     "anyOf": [
                         {
@@ -5231,6 +5248,14 @@
                     ],
                     "type": "object"
                 },
+                "name": {
+                    "pattern": "\\S",
+                    "type": "string"
+                },
+                "note": {
+                    "minLength": 1,
+                    "type": "string"
+                },
                 "phrase": {
                     "type": "string"
                 },
@@ -5303,6 +5328,7 @@
                 "foodIndex",
                 "sourceLine",
                 "phrase",
+                "name",
                 "measure",
                 "judgementDigest",
                 "match",
@@ -5337,6 +5363,10 @@
                                         "type": "null"
                                     }
                                 ]
+                            },
+                            "displayText": {
+                                "minLength": 1,
+                                "type": "string"
                             },
                             "flag": {
                                 "anyOf": [
@@ -5627,6 +5657,14 @@
                                 ],
                                 "type": "object"
                             },
+                            "name": {
+                                "pattern": "\\S",
+                                "type": "string"
+                            },
+                            "note": {
+                                "minLength": 1,
+                                "type": "string"
+                            },
                             "phrase": {
                                 "type": "string"
                             },
@@ -5699,6 +5737,7 @@
                             "foodIndex",
                             "sourceLine",
                             "phrase",
+                            "name",
                             "measure",
                             "judgementDigest",
                             "match",

@@ -242,6 +242,9 @@ for (const colorScheme of ['light', 'dark'] as const) {
 
                 expect(fit.oneLine, 'the label is one line').toBe(true);
                 expect(fit.inside, 'the label fits its tab').toBe(true);
+                // And the tab is on screen: a rem minimum width pushed You and Discover past 320 at this text size.
+                const box = await link.boundingBox();
+                expect((box?.x ?? 0) + (box?.width ?? 0), 'the tab ends inside the screen').toBeLessThanOrEqual(320.5);
             }
         });
 

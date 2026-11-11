@@ -323,13 +323,16 @@ describe('HomeTabBar (web) — the You tab', () => {
         expect(you().querySelector('[data-you-disc]')?.className).not.toContain('ring-2');
     });
 
-    it('is at least 80 px wide and 56 px tall, so four fit at 320 CSS px', () => {
+    it('takes an equal share of the bar and is at least 56 px tall, so four fit at 320 CSS px', () => {
         renderBar();
 
         for (const link of within(bar()).getAllByRole('link')) {
-            expect(link.className).toContain('min-w-20');
+            // Equal shares of the bar (`flex-1`), with no rem minimum: a rem minimum grows with the browser's text size, so
+            // at 200% four `min-w-20` tabs are 640 px and push You and Discover off a 320 px screen. Four shares of 320 are 80.
+            expect(link.className).toContain('flex-1');
+            expect(link.className).toContain('min-w-0');
             expect(link.className).toContain('min-h-14');
-            expect(link.className).not.toContain('min-w-24');
+            expect(link.className).not.toMatch(/min-w-(?:20|24)/u);
         }
     });
 

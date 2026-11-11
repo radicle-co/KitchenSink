@@ -109,7 +109,7 @@ export function HomeTabBar({ chrome, locale, liveCapabilities, activeId, profile
                         href={href}
                         aria-current={active ? 'page' : undefined}
                         onClick={onTabClick(item.id)}
-                        className={`relative flex min-h-14 min-w-20 flex-1 flex-col items-center justify-start gap-1 rounded-md pt-2 [@media(max-height:479px)]:min-h-12 [@media(max-height:479px)]:flex-row [@media(max-height:479px)]:justify-center [@media(max-height:479px)]:gap-2 [@media(max-height:479px)]:pt-0 ${FOCUS_RING_CLASS.inset} ${
+                        className={`relative flex min-h-14 min-w-0 flex-1 flex-col items-center justify-start gap-1 rounded-md pt-2 [@media(max-height:479px)]:min-h-12 [@media(max-height:479px)]:flex-row [@media(max-height:479px)]:justify-center [@media(max-height:479px)]:gap-2 [@media(max-height:479px)]:pt-0 ${FOCUS_RING_CLASS.inset} ${
                             active ? 'text-ink' : 'text-ink-muted'
                         }`}
                     >

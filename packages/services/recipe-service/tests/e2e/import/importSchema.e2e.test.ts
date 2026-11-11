@@ -42,7 +42,7 @@ const UNIQUE_VIOLATION = '23505';
 
 type Columns = Record<string, unknown>;
 
-describe('the bulk-import tables (LOCAL e2e; migrations 0059, 0060)', () => {
+describe('the bulk-import tables (LOCAL e2e; migrations 0059, 0060, 0066)', () => {
     let pool: pg.Pool;
 
     beforeAll(async () => {
@@ -187,9 +187,11 @@ describe('the bulk-import tables (LOCAL e2e; migrations 0059, 0060)', () => {
                 'allowance_spent_at',
                 'citation',
                 'created_at',
+                'decision_rev',
                 'import_id',
                 'matched_at',
                 'ordinal',
+                'parse_generation',
                 'parse_job_id',
                 'payload',
                 'recipe_id',
@@ -229,6 +231,7 @@ describe('the bulk-import tables (LOCAL e2e; migrations 0059, 0060)', () => {
                 'quantity_high',
                 'review',
                 'rung',
+                'saved_verification_key',
                 'source_line',
                 'stated_quantity',
                 'stated_quantity_high',
@@ -254,13 +257,16 @@ describe('the bulk-import tables (LOCAL e2e; migrations 0059, 0060)', () => {
             const result = await pool.query(
                 `SELECT indexdef FROM pg_indexes
                   WHERE tablename IN ('recipe_imports', 'recipe_import_items', 'ingredients')
-                    AND indexname IN ('recipe_imports_user_created_idx', 'recipe_import_items_parse_job_idx',
+                    AND indexname IN ('recipe_imports_user_created_idx', 'recipe_imports_updated_idx',
+                                      'recipe_import_items_parse_job_idx',
                                       'recipe_import_items_recipe_idx', 'ingredients_import_line_idx')`,
             );
             const defs = result.rows.map((row: { indexdef: string }) => row.indexdef).join('\n');
 
-            expect(result.rowCount).toBe(4);
+            expect(result.rowCount).toBe(5);
             expect(defs).toMatch(/\(user_id, created_at\)/u);
+            // The purge (ADR-0072 §11) finds imports idle for 30 days by this key, and must not scan every import.
+            expect(defs).toMatch(/recipe_imports_updated_idx.*\(updated_at\)/su);
             expect(defs).toMatch(/UNIQUE INDEX recipe_import_items_parse_job_idx.*\(parse_job_id\).*WHERE/su);
             expect(defs).toMatch(/UNIQUE INDEX recipe_import_items_recipe_idx.*\(recipe_id\).*WHERE/su);
             expect(defs).toMatch(/ingredients_import_line_idx.*\(import_line_id\).*WHERE/su);
@@ -362,6 +368,26 @@ describe('the bulk-import tables (LOCAL e2e; migrations 0059, 0060)', () => {
             const { title: _title, ...withoutTitle } = receivedItem(importId, 0);
 
             await refused(insert('recipe_import_items', withoutTitle), '23502');
+        });
+
+        it('numbers the parse job generation from 0 and refuses a negative one', async () => {
+            const importId = await newImport();
+            const item = await insert('recipe_import_items', receivedItem(importId, 0));
+
+            expect(item['parse_generation']).toBe(0);
+            await expect(
+                insert('recipe_import_items', receivedItem(importId, 1, { parse_generation: -1 })),
+            ).rejects.toMatchObject({ code: CHECK_VIOLATION });
+        });
+
+        it('numbers the decision revision from 0 and refuses a negative one', async () => {
+            const importId = await newImport();
+            const item = await insert('recipe_import_items', receivedItem(importId, 0));
+
+            expect(item['decision_rev']).toBe(0);
+            await expect(
+                insert('recipe_import_items', receivedItem(importId, 1, { decision_rev: -1 })),
+            ).rejects.toMatchObject({ code: CHECK_VIOLATION });
         });
 
         it('refuses a negative ordinal', async () => {

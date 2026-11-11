@@ -363,6 +363,16 @@ const accounts: readonly ColumnAccount[] = [
         fields: [{ field: 'ImportItemInput.ordinal', schema: importItemInputSchema.shape.ordinal }],
     },
     {
+        table: 'recipe_import_items',
+        column: 'parse_generation',
+        why: 'Server-incremented, once, when the item’s parse job expired before the item was matched (each bump needs a day of waiting); no wire field sets it.',
+    },
+    {
+        table: 'recipe_import_items',
+        column: 'decision_rev',
+        why: 'Server-incremented by each write of the cook’s decisions on the item (a request can write a few per second at most, and an item is saved once); no wire field sets it.',
+    },
+    {
         table: 'recipe_import_lines',
         column: 'ordinal',
         why: 'Copied from the item the line belongs to (the composite FK holds it to an existing item); no wire field sets it.',

@@ -159,6 +159,10 @@ export const recipeErrorCodeSchema = z.enum([
     'PRIVATE_SLOTS_FULL',
     /** A write would leave a published public recipe holding a private food; `details.lines` names each (ADR-0029 section 4). */
     'PRIVATE_FOODS_ON_PUBLIC_RECIPE',
+    /** ADR-0072 §3 — a different recipe for an item past `received`. `details.ordinal` and `details.stage` name it. */
+    'IMPORT_ITEM_LOCKED',
+    /** ADR-0072 §1 — the client-minted import id is already the caller's import, with different choices. */
+    'IMPORT_ID_IN_USE',
 
     // ── Auth and account-lifecycle codes, which are NOT recipe-domain errors ──
     /** No, invalid, expired, or wrong-authorized-party bearer token. */
@@ -317,6 +321,16 @@ export const recipeApiErrorSchema = z.discriminatedUnion('code', [
         .loose(),
     z
         .object({
+            code: z.literal('IMPORT_ITEM_LOCKED'),
+            message: z.string(),
+            /** The item and where it stands (`received` is the only stage that accepts a different recipe, and `saved` is the other code). REQUIRED. */
+            details: z
+                .object({ ordinal: z.number().int().nonnegative(), stage: z.enum(['parsing', 'matched']) })
+                .loose(),
+        })
+        .loose(),
+    z
+        .object({
             code: z.literal('VERSION_LINE_UNRESTORABLE'),
             message: z.string(),
             /** The 0-based positions, in the snapshot, of the lines that cannot be restored. */
@@ -347,6 +361,7 @@ export const recipeApiErrorSchema = z.discriminatedUnion('code', [
     bare('PARSE_JOB_NOT_FOUND'),
     bare('PARSE_JOB_EXPIRED'),
     bare('IMPORT_NOT_FOUND'),
+    bare('IMPORT_ID_IN_USE'),
     bare('UNAUTHORIZED'),
     bare('IDENTITY_SYNC_PENDING'),
     bare('FORBIDDEN'),

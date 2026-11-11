@@ -419,6 +419,38 @@ export function isPrivateSlotsFullError(error: unknown): error is PrivateSlotsFu
     return error instanceof PrivateSlotsFullError;
 }
 
+/**
+ * `409 IMPORT_ITEM_LOCKED` — a different recipe was sent for an item already being processed (ADR-0072 §3). The recipe
+ * the item holds is what its paid parse and its match snapshot were made from, so it is not replaced.
+ *
+ * ITS OWN TYPE: resending the same body meets the same refusal, and the remedy is to keep what the server holds (the
+ * client's copy of the file is no longer the item's source of truth). Distinct from {@link ImportItemAlreadySavedError},
+ * where the item is finished and an edit belongs in the editor.
+ */
+export class ImportItemLockedError extends RecipeServiceClientError {
+    /** The item that is locked. */
+    public readonly ordinal: number;
+    /** Where it stands: `parsing` or `matched`. */
+    public readonly stage: 'parsing' | 'matched';
+
+    public constructor(
+        ordinal: number,
+        stage: 'parsing' | 'matched',
+        message = 'This import item is already being processed',
+    ) {
+        super(message, 409, 'IMPORT_ITEM_LOCKED');
+        this.name = 'ImportItemLockedError';
+        this.ordinal = ordinal;
+        this.stage = stage;
+        Object.setPrototypeOf(this, ImportItemLockedError.prototype);
+    }
+}
+
+/** Type guard for {@link ImportItemLockedError}. */
+export function isImportItemLockedError(error: unknown): error is ImportItemLockedError {
+    return error instanceof ImportItemLockedError;
+}
+
 /** Type guard for {@link ImportQuotaExceededError}. */
 export function isImportQuotaExceededError(error: unknown): error is ImportQuotaExceededError {
     return error instanceof ImportQuotaExceededError;

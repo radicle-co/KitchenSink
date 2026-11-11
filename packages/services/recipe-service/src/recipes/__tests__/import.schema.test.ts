@@ -44,7 +44,11 @@ import {
     importStatementSchema,
     importStepResponseSchema,
     importToCheckResponseSchema,
+    importToCheckCountResponseSchema,
+    importListResponseSchema,
     importViewSchema,
+    recordImportChoicesBatchRequestSchema,
+    MAX_IMPORT_CHOICES_PER_REQUEST,
     leaveImportRequestSchema,
     putImportItemsRequestSchema,
     recordImportChoicesRequestSchema,
@@ -155,6 +159,14 @@ describe('putImportItemsRequestSchema', () => {
         expect(putImportItemsRequestSchema.safeParse({ items: [ITEM] }).success).toBe(true);
         expect(putImportItemsRequestSchema.safeParse({ items: [] }).success).toBe(false);
         expect(putImportItemsRequestSchema.safeParse({ items: [ITEM], matchMode: 'review' }).success).toBe(false);
+    });
+});
+
+describe('importRecipeSchema — a title the list can show', () => {
+    it('⛔ refuses a blank title: the item table’s CHECK would answer it with a 500 (23514), so the wire refuses it first', () => {
+        expect(importRecipeSchema.safeParse({ title: '   ', ingredientLines: [], steps: [] }).success).toBe(false);
+        expect(importRecipeSchema.safeParse({ title: '\u200b', ingredientLines: [], steps: [] }).success).toBe(true);
+        expect(importRecipeSchema.safeParse({ title: ' x ', ingredientLines: [], steps: [] }).success).toBe(true);
     });
 });
 
@@ -398,6 +410,7 @@ describe('responses are loose and reuse the paste match view', () => {
         version: 'abc123',
         expectedTotal: 2,
         allowance: { limit: 1000, used: 3, resetsAt: null },
+        pause: null,
         counts: { total: 2, received: 1, parsing: 0, matched: 0, saved: 1 },
         items: [
             {
@@ -601,5 +614,140 @@ describe('the read queries page, and a blank value is not zero', () => {
         expect(importListQuerySchema.safeParse({}).success).toBe(true);
         expect(importListQuerySchema.safeParse({ after: '' }).success).toBe(false);
         expect(importListQuerySchema.safeParse({ limit: '501' }).success).toBe(false);
+    });
+});
+
+describe('ADR-0072 service lane additions to the contract', () => {
+    const view = {
+        id: '66666666-6666-4666-8666-000000000001',
+        matchMode: 'keepAsWritten',
+        visibility: 'private',
+        cursorOrdinal: 0,
+        reviewClosed: false,
+        version: 'abc123',
+        expectedTotal: 2,
+        allowance: { limit: 1000, used: 3, resetsAt: null },
+        pause: null,
+        counts: { total: 2, received: 1, parsing: 0, matched: 0, saved: 1 },
+        items: [],
+        nextAfter: null,
+    };
+
+    it('⛔ the view says whether the import is paused, as an opaque key, and a pause is required (null when running)', () => {
+        expect(importViewSchema.safeParse(view).success).toBe(true);
+        expect(importViewSchema.safeParse({ ...view, pause: { reason: 'outOfSlots' } }).success).toBe(true);
+        expect(importViewSchema.safeParse({ ...view, pause: { reason: '' } }).success).toBe(false);
+        expect(importViewSchema.safeParse({ ...view, pause: undefined }).success).toBe(false);
+    });
+
+    it('⛔ a match is null when food could not be asked, on the step, the flagged line and the to-check line', () => {
+        const line = {
+            lineIndex: 0,
+            foodIndex: 0,
+            sourceLine: '1 cup milk',
+            phrase: 'milk',
+            measure: { quantity: { kind: 'exact', value: 1 }, unit: 'cup' },
+            judgementDigest: 'jd',
+            match: null,
+            flag: null,
+            pick: null,
+            boundBy: null,
+        };
+        const step = {
+            ordinal: 0,
+            title: 'Soup',
+            stage: 'matched',
+            review: 'pending',
+            statement: null,
+            visibility: null,
+            lines: [line],
+        };
+        const flagged = {
+            ordinal: 0,
+            lineIndex: 0,
+            foodIndex: 0,
+            title: 'Soup',
+            sourceLine: '1 cup milk',
+            recipeId: null,
+            judgementDigest: 'jd',
+            bound: { kind: 'root', id: 'f1', name: null },
+            boundBy: 'exact',
+            flag: { state: 'checking' },
+            match: null,
+        };
+        const waiting = {
+            ordinal: 0,
+            lineIndex: 0,
+            foodIndex: 0,
+            title: 'Soup',
+            sourceLine: '1 cup milk',
+            judgementDigest: 'jd',
+            match: null,
+        };
+
+        expect(importStepResponseSchema.safeParse(step).success).toBe(true);
+        expect(importFlaggedResponseSchema.safeParse({ lines: [flagged], nextAfter: null }).success).toBe(true);
+        expect(importToCheckResponseSchema.safeParse({ lines: [waiting], nextAfter: null }).success).toBe(true);
+        // Absent is still not null: the key is required, so a server that forgot it fails the client's parse.
+        expect(
+            importToCheckResponseSchema.safeParse({ lines: [{ ...waiting, match: undefined }], nextAfter: null })
+                .success,
+        ).toBe(false);
+    });
+
+    it('lists the cook’s imports, paged, so a second device can resume', () => {
+        const summary = {
+            id: view.id,
+            matchMode: 'review',
+            visibility: 'public',
+            expectedTotal: 864,
+            counts: { total: 864, received: 800, parsing: 0, matched: 0, saved: 64 },
+            createdAt: '2026-10-26T12:00:00.000Z',
+            updatedAt: '2026-10-26T13:00:00.000Z',
+        };
+
+        expect(importListResponseSchema.safeParse({ imports: [summary], nextAfter: null }).success).toBe(true);
+        expect(importListResponseSchema.safeParse({ imports: [], nextAfter: 'opaque' }).success).toBe(true);
+        expect(
+            importListResponseSchema.safeParse({ imports: [{ ...summary, id: 'x' }], nextAfter: null }).success,
+        ).toBe(false);
+        expect(importListResponseSchema.safeParse({ imports: [summary] }).success).toBe(false);
+    });
+
+    it('counts the lines waiting on the cook across the whole library', () => {
+        expect(importToCheckCountResponseSchema.safeParse({ count: 0 }).success).toBe(true);
+        expect(importToCheckCountResponseSchema.safeParse({ count: 7 }).success).toBe(true);
+        expect(importToCheckCountResponseSchema.safeParse({ count: -1 }).success).toBe(false);
+        expect(importToCheckCountResponseSchema.safeParse({ count: 1.5 }).success).toBe(false);
+    });
+
+    describe('the batch of choices (“make the rest public” is one list and one confirm)', () => {
+        const entry = {
+            ordinal: 3,
+            statement: { kind: 'public_web', citation: 'https://example.com/r' },
+            visibility: 'public',
+        };
+
+        it('takes 1..MAX entries, each a statement, a visibility or both, with distinct ordinals', () => {
+            expect(recordImportChoicesBatchRequestSchema.safeParse({ items: [entry] }).success).toBe(true);
+            expect(recordImportChoicesBatchRequestSchema.safeParse({ items: [] }).success).toBe(false);
+            expect(
+                recordImportChoicesBatchRequestSchema.safeParse({
+                    items: Array.from({ length: MAX_IMPORT_CHOICES_PER_REQUEST + 1 }, (_, ordinal) => ({
+                        ...entry,
+                        ordinal,
+                    })),
+                }).success,
+            ).toBe(false);
+            expect(recordImportChoicesBatchRequestSchema.safeParse({ items: [entry, entry] }).success).toBe(false);
+            expect(recordImportChoicesBatchRequestSchema.safeParse({ items: [{ ordinal: 1 }] }).success).toBe(false);
+        });
+
+        it('is strict: an invented key is a 400 and boundBy can never ride it', () => {
+            expect(
+                recordImportChoicesBatchRequestSchema.safeParse({ items: [{ ...entry, boundBy: 'cook' }] }).success,
+            ).toBe(false);
+            expect(recordImportChoicesBatchRequestSchema.safeParse({ items: [entry], extra: 1 }).success).toBe(false);
+        });
     });
 });

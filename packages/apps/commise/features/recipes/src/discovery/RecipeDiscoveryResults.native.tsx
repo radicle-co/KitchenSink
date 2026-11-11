@@ -25,10 +25,19 @@ import { nativeTokens } from '@commise/ui/native';
 import { PendingBar } from '@commise/ui/pending-bar';
 import { RefreshNotice } from '@commise/ui/refresh-notice';
 import type { ScrollBind } from '@commise/ui/scroll-host';
+import { Text as DsText } from '@commise/ui/text';
 import { useTheme } from '@commise/ui/theme';
 import { FlashList } from '@shopify/flash-list';
 import type { FC, ReactElement } from 'react';
-import { RefreshControl, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import {
+    RefreshControl,
+    ScrollView,
+    StyleSheet,
+    Text,
+    View,
+    useWindowDimensions,
+    type RefreshControlProps,
+} from 'react-native';
 
 import { GRID_GAP, libraryGridColumnsOf } from '../card/cardGridLayout.js';
 import { toRecipeCardModel } from '../card/model.js';
@@ -46,17 +55,25 @@ const NoResult: FC<{
     readonly query: string;
     readonly noResult: DiscoveryNoResultControls;
     readonly scrollBind: ScrollBind | undefined;
-}> = ({ kind, query, noResult, scrollBind }) => {
+    /** Pull-to-refresh: the one way to re-check an empty catalogue without leaving the screen. */
+    readonly refreshControl: ReactElement<RefreshControlProps> | undefined;
+}> = ({ kind, query, noResult, scrollBind, refreshControl }) => {
     const discovery = useMessages(discoveryMessages);
     const { colors } = useTheme();
     const narrowed = kind !== undefined;
 
     return (
-        <ScrollView {...scrollBind} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.noResult}>
+        <ScrollView
+            {...scrollBind}
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={styles.noResult}
+            refreshControl={refreshControl}
+        >
             <View collapsable={false} accessibilityLiveRegion="polite" role="status" style={styles.status}>
-                <Text role="heading" aria-level={2} style={[styles.sectionTitle, { color: colors.ink }]}>
+                {/* The design-system Text: its `sectionTitle` scale ceiling keeps it below the page's large title. */}
+                <DsText role="heading" aria-level={2} typeRole="sectionTitle">
                     {noResultTitleOf(kind, query, discovery)}
-                </Text>
+                </DsText>
                 {kind === 'query' ? (
                     <Text style={[styles.body, { color: colors.inkMuted }]}>{discovery.noMatchQueryBody}</Text>
                 ) : null}
@@ -133,7 +150,15 @@ export const RecipeDiscoveryResults: FC<RecipeDiscoveryResultsProps> = ({
     if (browsing) {
         body = <>{browseSlot}</>;
     } else if (results.length === 0) {
-        body = <NoResult kind={kind} query={query} noResult={noResult} scrollBind={scrollBind} />;
+        body = (
+            <NoResult
+                kind={kind}
+                query={query}
+                noResult={noResult}
+                scrollBind={scrollBind}
+                refreshControl={refreshControl}
+            />
+        );
     } else {
         // FlashList (U4): the wrapping grid (U7), and v2 auto-measures — no `estimatedItemSize`. Width-derived columns, so
         // a tablet gets the columns a tablet holds rather than a phone layout stretched.
@@ -212,7 +237,6 @@ const styles = StyleSheet.create({
     status: { gap: nativeTokens.spacing[3], alignItems: 'flex-start', paddingVertical: nativeTokens.spacing[6] },
     actions: { flexDirection: 'row', flexWrap: 'wrap', gap: nativeTokens.spacing[3] },
     tryThese: { gap: nativeTokens.spacing[3] },
-    sectionTitle: { ...nativeTokens.type.sectionTitle },
     body: { ...nativeTokens.type.body },
     label: { ...nativeTokens.type.label },
 });

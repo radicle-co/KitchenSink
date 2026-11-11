@@ -11,12 +11,14 @@ import { RecipeServiceClient } from '../client.js';
 import {
     ImportCursorMovedError,
     ImportItemAlreadySavedError,
+    ImportItemLockedError,
     NotFoundError,
     ParseJobExpiredError,
     RecipeServiceClientError,
     UnexpectedResponseError,
     isImportCursorMovedError,
     isImportItemAlreadySavedError,
+    isImportItemLockedError,
 } from '../errors.js';
 import { shouldRetryRecipeServiceFailure } from '../retryPolicy.js';
 import { stubFetch } from './utils/fetchDouble.js';
@@ -105,5 +107,31 @@ describe('IMPORT_NOT_FOUND', () => {
 
         expect(error).toBeInstanceOf(NotFoundError);
         expect(error).toMatchObject({ status: 404, code: 'IMPORT_NOT_FOUND' });
+    });
+});
+
+describe('ImportItemLockedError', () => {
+    it('carries the status, the code, the item and where it stands', () => {
+        expect(new ImportItemLockedError(2, 'matched')).toMatchObject({
+            status: 409,
+            code: 'IMPORT_ITEM_LOCKED',
+            ordinal: 2,
+            stage: 'matched',
+        });
+    });
+
+    it('is mapped from the wire and is not retried: the held recipe is what its parse was made from', async () => {
+        const error = await failureOf(409, {
+            code: 'IMPORT_ITEM_LOCKED',
+            message: 'locked',
+            details: { ordinal: 2, stage: 'parsing' },
+        });
+
+        expect(error).toBeInstanceOf(ImportItemLockedError);
+        expect((error as ImportItemLockedError).stage).toBe('parsing');
+        expect(shouldRetryRecipeServiceFailure(error)).toBe(false);
+        expect(isImportItemLockedError(error)).toBe(true);
+        expect(isImportItemLockedError(new ImportItemAlreadySavedError(2))).toBe(false);
+        expect(isImportItemAlreadySavedError(new ImportItemLockedError(2, 'parsing'))).toBe(false);
     });
 });

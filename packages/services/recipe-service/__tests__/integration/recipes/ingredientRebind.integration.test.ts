@@ -25,6 +25,7 @@ import {
 } from '../../../src/__fixtures__/index.js';
 import { ErasureJobsDal } from '../../../src/account/dal/erasureJobs.dal.js';
 import type { BoundArm } from '../../../src/database/schema/foodLookupArm.js';
+import type { IngredientRow } from '../../../src/database/schema/index.js';
 import { makeRootArm } from '../../../src/ingredients/__fixtures__/foodLookups.fixture.js';
 import { FoodLookupsDal } from '../../../src/ingredients/dal/foodLookups.dal.js';
 import { ResolutionMappingsDal } from '../../../src/ingredients/resolution/resolutionMappings.dal.js';
@@ -50,6 +51,8 @@ let booted: BootedServiceApp;
 let storedVersion = 3;
 /** Runs when the command binds its target: after the version check, before the answer. */
 let onBind: () => void = () => undefined;
+/** Who bound line 0 (`ingredients.bound_by`). `null` is a line with no recorded origin. */
+let line0BoundBy: IngredientRow['boundBy'] = null;
 
 /** The recipe at `version`: line 0 holds the brisket and carries an imported phrase, line 1 the shoulder. */
 function aggregateAt(version: number): RecipeAggregate {
@@ -66,6 +69,7 @@ function aggregateAt(version: number): RecipeAggregate {
                 quantity: '500',
                 unit: 'g',
                 sourcePhrase: index === 0 ? 'beef brisket' : null,
+                boundBy: index === 0 ? line0BoundBy : null,
                 sortOrder: index,
             }),
         ),
@@ -157,6 +161,7 @@ beforeAll(async () => {
 afterEach(() => {
     storedVersion = 3;
     onBind = () => undefined;
+    line0BoundBy = null;
     vi.clearAllMocks();
 });
 
@@ -215,5 +220,31 @@ describe('POST /api/v1/recipes/{id}/ingredients/{position}/rebind — a no-op re
         expect(findOrCreateBound).not.toHaveBeenCalled();
         expect(transaction).not.toHaveBeenCalled();
         expect(runInTransaction).not.toHaveBeenCalled();
+    });
+});
+
+describe('POST /api/v1/recipes/{id}/ingredients/{position}/rebind — confirming a line the import bound (integration)', () => {
+    it('⛔ records the correction and writes the recipe when the cook picks the food the import chose (ADR-0072 §5)', async () => {
+        line0BoundBy = 'autoBest';
+        runInTransaction.mockImplementationOnce(async (): Promise<never> => {
+            throw new Error('the correction was reached');
+        });
+
+        await rebindToSameFood(3);
+
+        // The same food is NOT a no-op here: the cook confirming the import's choice is a decision to record. (The
+        // double refuses the correction's transaction, so the request ends there; reaching it is what this proves.)
+        expect(findOrCreateBound).toHaveBeenCalledTimes(1);
+        expect(runInTransaction).toHaveBeenCalledTimes(1);
+    });
+
+    it('stays a no-op for a line the cook already bound', async () => {
+        line0BoundBy = 'cook';
+
+        const res = await rebindToSameFood(3);
+
+        expect(res.status).toBe(200);
+        expect(runInTransaction).not.toHaveBeenCalled();
+        expect(transaction).not.toHaveBeenCalled();
     });
 });

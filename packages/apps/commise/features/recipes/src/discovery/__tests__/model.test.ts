@@ -21,6 +21,7 @@ import {
     discoverySortLabel,
     formatDiscoveryResultsSummary,
     isDiscoveryBrowsing,
+    isDiscoveryCatalogueEmpty,
     isDiscoverySearching,
     recipeIdPagesOf,
     type RecipeDiscoveryCriteria,
@@ -124,6 +125,27 @@ describe('isDiscoveryBrowsing', () => {
     it('stops browsing while a query or a filter is active', () => {
         expect(isDiscoveryBrowsing(criteria({ query: 'lamb' }))).toBe(false);
         expect(isDiscoveryBrowsing(criteria({ filters: { tags: ['quick'] } }))).toBe(false);
+    });
+});
+
+describe('isDiscoveryCatalogueEmpty (buildSpec §4.6 "Empty catalogue")', () => {
+    it('is true when nothing narrowed the search and its first page settled with no recipe', () => {
+        expect(isDiscoveryCatalogueEmpty(criteria(), page())).toBe(true);
+        // A rail's "see all" changes what renders, not what is fetched: the catalogue is just as empty.
+        expect(isDiscoveryCatalogueEmpty(criteria({ browseDismissed: true }), page())).toBe(true);
+    });
+
+    it('is false once the catalogue holds a recipe', () => {
+        expect(isDiscoveryCatalogueEmpty(criteria(), page('r1'))).toBe(false);
+    });
+
+    it('is false before the search has settled — an unanswered search says nothing about the catalogue', () => {
+        expect(isDiscoveryCatalogueEmpty(criteria(), undefined)).toBe(false);
+    });
+
+    it('is false for an empty answer to a query or a filter — that is a no-match, not an empty catalogue', () => {
+        expect(isDiscoveryCatalogueEmpty(criteria({ query: 'lamb' }), page())).toBe(false);
+        expect(isDiscoveryCatalogueEmpty(criteria({ filters: { tags: ['quick'] } }), page())).toBe(false);
     });
 });
 

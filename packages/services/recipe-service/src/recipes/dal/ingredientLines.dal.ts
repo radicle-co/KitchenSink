@@ -12,7 +12,7 @@
  */
 import { asc, eq, inArray } from 'drizzle-orm';
 
-import type { IngredientQuantity, StatedMeasure } from '@kitchensink/recipe-core';
+import type { BoundBy, IngredientQuantity, StatedMeasure } from '@kitchensink/recipe-core';
 
 import type { RecipeDrizzle } from '../../database/client.js';
 import { foodLookups, ingredients, unresolvedFoods, type IngredientRow } from '../../database/schema/index.js';
@@ -49,6 +49,13 @@ export interface IngredientLineInput {
     sourcePhrase?: string;
     /** What the SOURCE printed, when {@link quantity}/{@link unit} are a RESTATEMENT of it (migration 0027). */
     statedMeasure?: StatedMeasure;
+    /**
+     * Who bound the line to its food (`ingredients.bound_by`, ADR-0072 §5). Decided by the SAVE PATH from the carry-forward
+     * rule and never accepted from a client. `null` is the one spelling of "no recorded origin" (a line kept as written).
+     */
+    boundBy?: BoundBy | null;
+    /** The bulk-import snapshot line this ingredient came from (`ingredients.import_line_id`), or `null`. Provenance only. */
+    importLineId?: string | null;
     sortOrder: number;
     /** Per-line user-entered nutrition override (FR-007a) — absolute for this line's quantity. */
     userCalories?: number;
@@ -161,6 +168,8 @@ export class IngredientLinesDal {
                     groupLabel: line.groupLabel ?? null,
                     sourceLine: line.sourceLine ?? null,
                     sourcePhrase: line.sourcePhrase ?? null,
+                    boundBy: line.boundBy ?? null,
+                    importLineId: line.importLineId ?? null,
                     // All THREE stated columns on every line, `null` included, through the ONE adapter.
                     ...statedMeasureColumns(line.statedMeasure),
                     sortOrder: line.sortOrder,

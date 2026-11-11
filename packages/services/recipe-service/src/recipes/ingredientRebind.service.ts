@@ -17,13 +17,22 @@
  * one the caller sent: an editor adopts the version a command answers (ADR-0045), and a later read would hand it a
  * write it never merged.
  *
+ * ⛔ EXCEPT a line the bulk import BOUND (ADR-0072 §5): its stored `bound_by` is `exact`, `curated`, `review`, `default` or
+ * `autoBest`, and the cook picking that same food is the cook CONFIRMING it. That writes `cook` (and records the correction
+ * they taught), so the line stops being listed as flagged. A line already `cook`'s, or with no recorded origin, stays a
+ * no-op: re-saving would mint a version for nothing.
+ *
+ * The moved line is told to the update path as a `cook` directive at its position, with the stored import link passed on
+ * purpose (the carry-forward rule clears it on a food change unless the rebind keeps it). The directive is an argument, never
+ * a field of the request body.
+ *
  * ⚠️ The version can move between the check (1) and the update's own compare-and-swap. A correction written in that
  * window survives the resulting 409; it records what the cook said the phrase means, which stays true.
  *
  * @pattern Command handler — the request body is the Command; this runs it through the recipe update path
  */
 import { Injectable, Logger } from '@nestjs/common';
-import type { Ingredient } from '@kitchensink/recipe-core';
+import { isBoundBy, type Ingredient } from '@kitchensink/recipe-core';
 
 import type { CallerToken } from '../auth/CallerToken.js';
 import type { Principal } from '../auth/principal.js';
@@ -36,6 +45,7 @@ import { IngredientsService } from '../ingredients/ingredients.service.js';
 import { ResolutionMappingsService } from '../ingredients/resolution/resolutionMappings.service.js';
 import type { FoodRef } from '../database/schema/foodLookupArm.js';
 import type { IngredientRow } from '../database/schema/index.js';
+import type { LineOriginDirective } from './domain/bindingOriginCarryForward.js';
 import { correctionPhraseOf, toLineRequest } from './domain/ingredientRebind.js';
 import type { RecipeResponse } from './dto/recipeResponse.dto.js';
 import { RecipeDetailAssembler } from './recipeDetail.assembler.js';
@@ -112,7 +122,10 @@ export class IngredientRebindService {
 
         const target = await this.bindTarget(principal.userId, body.target, caller);
 
-        if (target.id === line.foodLookupId) {
+        const confirmsAnImportedBinding =
+            target.id === line.foodLookupId && isBoundBy(line.boundBy) && line.boundBy !== 'cook';
+
+        if (target.id === line.foodLookupId && !confirmsAnImportedBinding) {
             // Re-saving would mint a version for nothing; the answer is the checked aggregate (module doc).
             const photos = await this.detailAssembler.loadPhotoRows(recipeId);
 
@@ -125,6 +138,10 @@ export class IngredientRebindService {
 
         await this.recordCorrection(principal, line, target, caller);
 
+        const cook: LineOriginDirective = {
+            kind: 'cook',
+            ...(line.importLineId === null ? {} : { importLineId: line.importLineId }),
+        };
         const response = await this.recipes.update(
             principal,
             recipeId,
@@ -135,10 +152,15 @@ export class IngredientRebindService {
                 ),
             },
             caller,
-            { snapshot: { changeSummary: 'Changed ingredient' } },
+            {
+                snapshot: { changeSummary: confirmsAnImportedBinding ? 'Confirmed ingredient' : 'Changed ingredient' },
+                lineOrigins: new Map([[aggregate.ingredients.indexOf(line), cook]]),
+            },
         );
 
-        await this.deleteLeftBinding(line.foodLookupId);
+        if (!confirmsAnImportedBinding) {
+            await this.deleteLeftBinding(line.foodLookupId);
+        }
 
         return response;
     }

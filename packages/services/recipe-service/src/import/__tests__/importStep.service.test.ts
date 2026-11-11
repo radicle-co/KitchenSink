@@ -219,13 +219,6 @@ describe('ImportStepService.step', () => {
         expect(step.lines[1]).toMatchObject({ name: 'pie pastry', displayText: 'my pie pastry', note: '9 inch' });
     });
 
-    it('a line snapshotted before the row was kept shows its phrase as its name', async () => {
-        const { service } = build({ lines: [makeLine({ id: 'L0', name: null })] });
-        const step = await service.step(COOK, CALLER, IMPORT_ID, 0);
-
-        expect(step.lines[0]?.name).toBe('whole milk');
-    });
-
     it('reads a source that stated no amount as an absent quantity, never a fabricated 1', async () => {
         const { service } = build({ lines: [makeLine({ id: 'L0', quantity: null, quantityHigh: null, unit: '' })] });
         const step = await service.step(COOK, CALLER, IMPORT_ID, 0);

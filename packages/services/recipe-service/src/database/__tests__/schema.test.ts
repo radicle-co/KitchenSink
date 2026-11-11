@@ -326,7 +326,7 @@ describe('recipe-service schema — table contracts (T011–T014, T118, T119, T1
             stated_unit: { type: 'text', notNull: false },
             preparation: { type: 'text', notNull: false },
             // The row the editor saves (0067's header): the cook's words, never a name food gave.
-            name: { type: 'text', notNull: false },
+            name: { type: 'text', notNull: true },
             display_text: { type: 'text', notNull: false },
             note: { type: 'text', notNull: false },
             matched_by: { type: 'text', notNull: false },

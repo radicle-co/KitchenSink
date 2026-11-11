@@ -45,7 +45,6 @@ import {
 import { decodeLineCursor, encodeLineCursor, type LineCursor } from './domain/importPaging.js';
 import { fileCuisineOf, importCuisineOf } from './domain/importPublishGap.js';
 import { statementOfColumns } from './domain/importStatement.js';
-import { savedNameOf } from './domain/snapshotLines.js';
 import { ImportLineView, type FlaggedRead } from './importLineView.js';
 import { RECIPE_IMPORT_ITEMS_DAL, RECIPE_IMPORT_LINES_DAL, RECIPE_IMPORTS_DAL } from './import.tokens.js';
 import { ownedImport } from './importOwnership.js';
@@ -440,7 +439,7 @@ export class ImportStepService {
                 foodIndex: line.foodIndex,
                 sourceLine: line.sourceLine,
                 phrase: line.phrase,
-                name: savedNameOf(line),
+                name: line.name,
                 ...(line.displayText === null ? {} : { displayText: line.displayText }),
                 ...(line.note === null ? {} : { note: line.note }),
                 measure: {

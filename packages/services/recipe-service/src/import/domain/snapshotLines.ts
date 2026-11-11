@@ -25,15 +25,7 @@ import { quantityColumns } from '../../recipes/dal/quantityColumns.js';
 import { isDefaultRung, matchJudgementDigestOf } from '../../recipes/domain/matchProposal.js';
 import { isCurrentMatch, slotKey, type ParseJobMatch } from '../../recipes/domain/parseJobMatch.js';
 import { projectProposal, type ParseJobRecord } from '../../recipes/parseJobs.service.js';
-import type { ImportLine, NewImportLine } from '../dal/recipeImportLines.dal.js';
-
-/**
- * The name a snapshot line's food is saved and shown under: the row's name (migration 0067), or its phrase for a line
- * snapshotted before the row was kept. The one reading of that fallback, for the save and the wizard alike. Pure.
- */
-export function savedNameOf(line: Pick<ImportLine, 'name' | 'phrase'>): string {
-    return line.name ?? line.phrase;
-}
+import type { NewImportLine } from '../dal/recipeImportLines.dal.js';
 
 /**
  * The snapshot lines of a parsed job.

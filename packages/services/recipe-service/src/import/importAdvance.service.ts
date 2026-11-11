@@ -82,7 +82,7 @@ import { provenanceOfStatement, statementOfColumns } from './domain/importStatem
 import { visibilityRefusedFor } from './domain/importVisibility.js';
 import { foodRefOfId, lineFactsOf, type SnapshotPick } from './domain/importLineFacts.js';
 import { savedVerdictKeysOf } from './domain/savedVerdictKeys.js';
-import { savedNameOf, snapshotLinesOf } from './domain/snapshotLines.js';
+import { snapshotLinesOf } from './domain/snapshotLines.js';
 import { ImportLineView } from './importLineView.js';
 import { ImportViewBuilder } from './importView.builder.js';
 import { PRIVATE_SLOTS, isPrivateSlotsFull, type PrivateSlotsPort } from './privateSlots.port.js';
@@ -655,7 +655,7 @@ export class ImportAdvanceService {
         const ingredientId =
             admission.kind === 'bound'
                 ? admission.bindingId
-                : (await this.ingredients.createFreeform(freeformNameOf(savedNameOf(line), rawLine))).id;
+                : (await this.ingredients.createFreeform(freeformNameOf(line.name, rawLine))).id;
 
         return {
             line: {

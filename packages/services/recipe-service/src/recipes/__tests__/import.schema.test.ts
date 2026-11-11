@@ -301,6 +301,53 @@ describe('importStatementSchema — the per-recipe statement (ADR-0072 §9)', ()
     });
 });
 
+describe('⛔ the cuisine a recipe needs to be published (ADR-0072 §3 as amended 2026-11-11)', () => {
+    // An imported recipe is saved PUBLISHED, and Publish needs a cuisine. A file often states none, so the cook gives it
+    // here, one recipe at a time or in a batch. Nothing makes one up.
+    it('a choices body may carry a cuisine alone, or with a statement and a visibility', () => {
+        expect(recordImportChoicesRequestSchema.safeParse({ cuisine: 'Italian' }).success).toBe(true);
+        expect(
+            recordImportChoicesRequestSchema.safeParse({
+                cuisine: 'Italian',
+                statement: { kind: 'authored' },
+                visibility: 'private',
+            }).success,
+        ).toBe(true);
+        expect(
+            recordImportChoicesBatchRequestSchema.safeParse({ items: [{ ordinal: 0, cuisine: 'Thai' }] }).success,
+        ).toBe(true);
+    });
+
+    it('refuses a blank cuisine, as the create route does', () => {
+        expect(recordImportChoicesRequestSchema.safeParse({ cuisine: '' }).success).toBe(false);
+        expect(recordImportChoicesBatchRequestSchema.safeParse({ items: [{ ordinal: 0, cuisine: '' }] }).success).toBe(
+            false,
+        );
+    });
+
+    it('still refuses a body that says nothing', () => {
+        expect(recordImportChoicesRequestSchema.safeParse({}).success).toBe(false);
+        expect(recordImportChoicesBatchRequestSchema.safeParse({ items: [{ ordinal: 0 }] }).success).toBe(false);
+    });
+
+    it('the wizard step shows the cuisine the save will use, or null', () => {
+        const step = {
+            ordinal: 0,
+            title: 'Soup',
+            stage: 'matched',
+            review: 'pending',
+            statement: null,
+            visibility: null,
+            cuisine: 'Italian',
+            lines: [],
+        };
+
+        expect(importStepResponseSchema.parse(step).cuisine).toBe('Italian');
+        expect(importStepResponseSchema.parse({ ...step, cuisine: null }).cuisine).toBeNull();
+        expect(importStepResponseSchema.safeParse({ ...step, cuisine: undefined }).success).toBe(false);
+    });
+});
+
 describe('recordImportChoicesRequestSchema (POST …/items/{ordinal})', () => {
     it('accepts a statement, a visibility, or both', () => {
         expect(recordImportChoicesRequestSchema.safeParse({ statement: { kind: 'authored' } }).success).toBe(true);
@@ -549,6 +596,7 @@ describe('responses are loose and reuse the paste match view', () => {
             review: 'pending',
             statement: null,
             visibility: null,
+            cuisine: null,
             lines: [line],
         };
 
@@ -646,6 +694,7 @@ describe('a pick answers whether it applied (a stale pick is not an error and no
         review: 'pending',
         statement: null,
         visibility: null,
+        cuisine: null,
         lines: [],
     };
 
@@ -724,6 +773,7 @@ describe('ADR-0072 service lane additions to the contract', () => {
             review: 'pending',
             statement: null,
             visibility: null,
+            cuisine: null,
             lines: [line],
         };
         const flagged = {

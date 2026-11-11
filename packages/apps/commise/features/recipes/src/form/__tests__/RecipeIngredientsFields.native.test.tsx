@@ -570,7 +570,7 @@ describe('RecipeIngredientsFields (native) — the row editor on a phone: a shee
         );
         const sheet = dialogTitled('Arborio rice');
 
-        expect(within(sheet).getByRole('group', { name: en.statusNeedsReview })).toBeTruthy();
+        expect(within(sheet).getByText(en.statusNeedsReview)).toBeTruthy();
         expect(within(sheet).getByText(en.statusExplainNeedsReview)).toBeTruthy();
         expect(within(sheet).getByText(en.rowYouWroteLabel)).toBeTruthy();
         expect(within(sheet).getByText('2 cups rice, or so')).toBeTruthy();
@@ -582,7 +582,8 @@ describe('RecipeIngredientsFields (native) — the row editor on a phone: a shee
         render(<StatefulLeaf initial={[RICE]} initialLine={key} originalLines={new Map([[key, 'stale']])} />);
         const sheet = dialogTitled('Arborio rice');
 
-        expect(within(sheet).queryByRole('group', { name: en.statusNeedsReview })).toBeNull();
+        expect(within(sheet).queryByText(en.statusNeedsReview)).toBeNull();
+        expect(within(sheet).queryByText(en.statusExplainNeedsReview)).toBeNull();
         expect(within(sheet).queryByText('stale')).toBeNull();
     });
 

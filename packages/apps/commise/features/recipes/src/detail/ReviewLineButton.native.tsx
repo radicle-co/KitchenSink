@@ -10,6 +10,7 @@
  */
 import { useMessages } from '@commise/i18n/react';
 import { Icon } from '@commise/ui/icon';
+import { touchFloor } from '@commise/ui/layout';
 import { PressScale } from '@commise/ui/press-scale';
 import { StatusBadge } from '@commise/ui/status-badge';
 import type { FC } from 'react';
@@ -36,7 +37,8 @@ export const ReviewLineButton: FC<ReviewLineButtonProps> = ({ food, onPress }) =
             accessibilityLabel={fillTemplate(detail.needsReviewLinkLabel, { food })}
             onPress={onPress}
         >
-            <XStack minHeight={44} alignItems="center" gap="$1">
+            {/* The floor is read at render: 44 pt on iOS, 48 dp on Android (`touchFloor()`). */}
+            <XStack minHeight={touchFloor()} alignItems="center" gap="$1">
                 <StatusBadge status="attention">{detail.needsReviewBadge}</StatusBadge>
                 <Icon name="chevronRight" size={16} tone="inkMuted" />
             </XStack>

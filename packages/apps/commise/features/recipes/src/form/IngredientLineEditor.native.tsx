@@ -67,8 +67,9 @@ export const IngredientLineEditor: FC<IngredientLineEditorProps> = ({ view, inde
     return (
         <YStack gap="$3">
             {view.needsReview && (
-                // The notice heads the editor: what is wrong, then the cook's own words, in a focusable group.
-                <YStack role="group" aria-label={m.statusNeedsReview} focusable gap="$1">
+                // The notice heads the editor: what is wrong, then the cook's own words. Its badge says its name, so the
+                // stack takes none (`docs/design/nativeContainerNames.md` N1).
+                <YStack gap="$1">
                     <YStack alignSelf="flex-start">
                         <StatusBadge status="attention">{m.statusNeedsReview}</StatusBadge>
                     </YStack>

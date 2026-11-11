@@ -1,5 +1,5 @@
 /**
- * The key a verdict about a SAVED recipe line lives under (ADR-0072 §6).
+ * The key a verdict about a SAVED recipe line lives under (ADR-0072 §4 and §6).
  *
  * DESIGN PATTERN: **Specification**, pure. One authority for "which verdict is this line's": `verifiedLineIdentity` says
  * what a verdict is ABOUT (the source text, the bound food, the measure) and `verificationKey` hashes it. The recipe detail

@@ -10,7 +10,7 @@
  *    or the import holds a job the caller does not own) is one entry in the answer, not a thrown error: the other jobs'
  *    matches are still wanted.
  *  - **`matchesComplete` is the importer's gate for taking a snapshot.** It is true only when every owed food of the job has a
- *    current match row, so a tier outage (which stores nothing, ADR-0071 rule 4) leaves the job incomplete rather than
+ *    current match row, so a tier outage (which stores nothing, ADR-0071 rule 6) leaves the job incomplete rather than
  *    snapshotting a "no match" that was really an outage.
  *  - **`propose(jobId)` is unchanged**: it delegates, and still throws for a stranger's job and an expired one.
  */

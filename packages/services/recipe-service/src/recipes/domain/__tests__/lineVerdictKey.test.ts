@@ -1,5 +1,5 @@
 /**
- * The key a verdict about a SAVED line lives under (ADR-0072 §6).
+ * The key a verdict about a SAVED line lives under (ADR-0072 §4 and §6).
  *
  * ONE authority for "which verdict is this line's": the recipe detail reads a line's verdict with it, and the bulk import
  * stores it beside the saved line so the flagged list and the view's version can read verdicts in SQL. The mutation: a second

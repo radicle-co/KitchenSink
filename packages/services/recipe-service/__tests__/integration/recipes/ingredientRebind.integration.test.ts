@@ -25,7 +25,7 @@ import {
 } from '../../../src/__fixtures__/index.js';
 import { ErasureJobsDal } from '../../../src/account/dal/erasureJobs.dal.js';
 import type { BoundArm } from '../../../src/database/schema/foodLookupArm.js';
-import type { IngredientLineRow } from '../../../src/database/schema/index.js';
+import type { IngredientRow } from '../../../src/database/schema/index.js';
 import { makeRootArm } from '../../../src/ingredients/__fixtures__/foodLookups.fixture.js';
 import { FoodLookupsDal } from '../../../src/ingredients/dal/foodLookups.dal.js';
 import { ResolutionMappingsDal } from '../../../src/ingredients/resolution/resolutionMappings.dal.js';
@@ -52,7 +52,7 @@ let storedVersion = 3;
 /** Runs when the command binds its target: after the version check, before the answer. */
 let onBind: () => void = () => undefined;
 /** Who bound line 0 (`ingredients.bound_by`). `null` is a line with no recorded origin. */
-let line0BoundBy: IngredientLineRow['boundBy'] = null;
+let line0BoundBy: IngredientRow['boundBy'] = null;
 
 /** The recipe at `version`: line 0 holds the brisket and carries an imported phrase, line 1 the shoulder. */
 function aggregateAt(version: number): RecipeAggregate {

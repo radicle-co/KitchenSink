@@ -3,7 +3,7 @@
     "version": "0.0.0",
     "private": true,
     "type": "module",
-    "description": "Pure planning for the end-to-end suites: how many parallel lanes the machine and the test pool can carry, and which Playwright specs and Maestro flows a change affects",
+    "description": "Pure planning for the test suites: how many parallel lanes the machine and the test pool can carry, which Playwright specs and Maestro flows a change affects, and which packages and files the fast tiers check (ADR-0091)",
     "main": "./src/lanePlan.ts",
     "types": "./src/lanePlan.ts",
     "exports": {
@@ -25,7 +25,8 @@
         "format:check": "prettier --check .",
         "test:integration": "vitest run --config vitest.integration.config.ts",
         "plan": "tsx bin/plan.ts",
-        "ci:mobile": "tsx bin/ciMatrix.ts"
+        "ci:mobile": "tsx bin/ciMatrix.ts",
+        "scope": "tsx bin/checkScope.ts"
     },
     "devDependencies": {
         "@kitchensink/eslint": "*",

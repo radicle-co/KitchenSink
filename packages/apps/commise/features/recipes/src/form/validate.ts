@@ -17,6 +17,7 @@ import {
 } from '@kitchensink/recipe-core';
 
 import { DESCRIPTION_MAX_LENGTH, TITLE_MAX_LENGTH } from './limits.js';
+import { draftSourceOf } from './sourceLink.js';
 import { type RecipeFormValues } from './values.js';
 import { draftQuantityVerdict } from './quantity.js';
 
@@ -45,6 +46,13 @@ export type RecipeFormErrorCode =
     | 'servingsPositive'
     | 'timesNonNegative';
 
+/**
+ * Why the Source field is not usable (ADR-0089): the text is not a web link, or it is a link to this app. Its own type, not a
+ * {@link RecipeFormErrorCode}: the Source row's copy is `editorMessages.source`, where the cook reads it, so no second copy
+ * of these sentences sits in `recipeFormMessages.errors`.
+ */
+export type RecipeSourceErrorCode = 'sourceInvalid' | 'sourceOwnSite';
+
 /** Field-level validation errors (an error CODE per invalid field; absent when valid). */
 export interface RecipeFormErrors {
     title?: RecipeFormErrorCode;
@@ -54,6 +62,7 @@ export interface RecipeFormErrors {
     steps?: RecipeFormErrorCode;
     servings?: RecipeFormErrorCode;
     times?: RecipeFormErrorCode;
+    source?: RecipeSourceErrorCode;
 }
 
 // Field-level validators COMPOSED from `@kitchensink/recipe-core`'s bound Value Objects (parse-don't-validate,
@@ -209,6 +218,13 @@ export const validateRecipeForm = (values: RecipeFormValues, pendingEntryText: s
 
     if (values.prepTimeMinutes < 0 || values.cookTimeMinutes < 0) {
         errors.times = 'timesNonNegative';
+    }
+
+    // ADR-0089: a Source the server would refuse blocks Publish; a draft still saves, because the link is simply not sent.
+    const source = draftSourceOf(values);
+
+    if (source.kind === 'refused') {
+        errors.source = source.reason === 'ownSite' ? 'sourceOwnSite' : 'sourceInvalid';
     }
 
     return errors;

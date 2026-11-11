@@ -32,6 +32,7 @@ export const RecipeVisibilityField: FC<RecipeVisibilityFieldProps> = ({
     onPremiumRequired,
     onConfirmPublic,
     onFreeASlot,
+    webSource,
 }) => {
     const { visibility: v } = useMessages(editorMessages);
     const { colors } = useTheme();
@@ -43,6 +44,7 @@ export const RecipeVisibilityField: FC<RecipeVisibilityFieldProps> = ({
         facts,
         refusal: privateRefusal,
         messages: v,
+        ...(webSource === undefined ? {} : { webSource }),
     });
 
     const choose = (chosen: RecipeVisibility): void => {

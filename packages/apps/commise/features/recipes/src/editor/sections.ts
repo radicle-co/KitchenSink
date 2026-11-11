@@ -31,6 +31,7 @@ const FIELD_SECTION: Readonly<Record<keyof RecipeFormErrors, EditorSectionId>> =
     times: 'details',
     ingredients: 'ingredients',
     steps: 'steps',
+    source: 'photos',
 };
 
 /**
@@ -51,18 +52,13 @@ export function sectionOfField(field: keyof RecipeFormErrors): EditorSectionId {
  * @returns The section's own errors (empty when it holds none). Pure.
  */
 export function errorsInSection(errors: RecipeFormErrors, section: EditorSectionId): RecipeFormErrors {
-    // A null prototype: the keys are the validator's, but an accumulator indexed by keys never takes the `__proto__` setter.
-    const inSection = Object.create(null) as RecipeFormErrors;
-
-    for (const field of Object.keys(FIELD_SECTION) as (keyof RecipeFormErrors)[]) {
-        const code = errors[field];
-
-        if (code !== undefined && FIELD_SECTION[field] === section) {
-            inSection[field] = code;
-        }
-    }
-
-    return inSection;
+    // `fromEntries` defines own data properties, so a key like `__proto__` never reaches the prototype setter. The field
+    // names are the validator's, and one with no section here belongs to no section.
+    return Object.fromEntries(
+        Object.entries(errors).filter(
+            ([field, code]) => code !== undefined && FIELD_SECTION[field as keyof RecipeFormErrors] === section,
+        ),
+    );
 }
 
 /**

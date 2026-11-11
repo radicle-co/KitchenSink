@@ -16,6 +16,7 @@ export const servingsErrorId = 'recipe-servings-error';
 export const timesErrorId = 'recipe-times-error';
 export const ingredientsErrorId = 'recipe-ingredients-error';
 export const stepsErrorId = 'recipe-steps-error';
+export const sourceErrorId = 'recipe-source-error';
 
 /**
  * The id of ONE ingredient row's unit note — the `classifyUnit` verdict a non-canonical unit carries (U25).

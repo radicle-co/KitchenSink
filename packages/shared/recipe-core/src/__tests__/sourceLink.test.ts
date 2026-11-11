@@ -76,6 +76,47 @@ describe('parseSourceLink', () => {
     });
 });
 
+// A hostile citation is read on the request path of POST, PATCH and the import route, and in the editor on every keystroke. Its
+// cost must be linear in the text: a regex over a long run of trailing punctuation was quadratic (a 99k-character citation
+// took about 2 s). The bound is generous, because a correct reader returns in about a millisecond.
+describe('parseSourceLink — a hostile length costs next to nothing', () => {
+    const FAST_MS = 50;
+
+    const timed = (text: string) => {
+        const started = performance.now();
+        const result = parseSourceLink(text);
+
+        return { result, ms: performance.now() - started };
+    };
+
+    it.each([
+        ['a 1 MB run of "!"', '!'.repeat(1_000_000)],
+        ['an address followed by a 1 MB run of "!"', `https://example.com/a${'!'.repeat(1_000_000)}`],
+        ['a 1 MB run of mixed trailing punctuation', `https://example.com/a${'.,;:!?)]}>\'"'.repeat(100_000)}`],
+        ['an address, 1 MB of spaces, then more text', `https://example.com/a${' '.repeat(1_000_000)}b`],
+    ])('refuses %s as invalid, fast', (_name, text) => {
+        const { result, ms } = timed(text);
+
+        expect(result).toEqual({ ok: false, reason: 'invalid' });
+        expect(ms).toBeLessThan(FAST_MS);
+    });
+
+    it('still reads an address at the length cap followed by sentence punctuation', () => {
+        const url = `https://example.com/${'a'.repeat(SOURCE_LINK_MAX_LENGTH - 'https://example.com/'.length - 1)}`;
+
+        expect(parseSourceLink(`${url}.`)).toMatchObject({ ok: true });
+    });
+
+    it('extractSourceLink also leaves a hostile long line alone, fast', () => {
+        const line = `Source: https://example.com/a${'!'.repeat(1_000_000)}`;
+        const started = performance.now();
+        const result = extractSourceLink(line);
+
+        expect(performance.now() - started).toBeLessThan(FAST_MS);
+        expect(result).toEqual({ ownSiteLeftOut: false, remaining: line });
+    });
+});
+
 describe('extractSourceLink', () => {
     it('removes a line that is only a link and returns the rest', () => {
         const result = extractSourceLink('Tomato soup\nhttps://www.allrecipes.com/recipe/1/\n1 cup water');

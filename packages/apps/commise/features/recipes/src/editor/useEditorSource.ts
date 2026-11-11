@@ -34,7 +34,7 @@ import { editorMessages, type EditorMessages } from './messages.js';
 export type PasteOrigin = 'ingredients' | 'steps';
 
 /** What the last paste said. */
-export interface SourceNotice {
+interface SourceNotice {
     readonly kind: PastedSourceNote['kind'];
     readonly text: string;
     /** New for each notice, so the live region speaks a repeat. */

@@ -51,7 +51,34 @@ export interface SourceLinkExtraction {
 const INVALID: SourceLinkResult = { ok: false, reason: 'invalid' };
 
 /** Sentence punctuation that sticks to the end of a pasted address. */
-const TRAILING_PUNCTUATION = /[.,;:!?)\]}>'"]+$/;
+const TRAILING_PUNCTUATION = new Set(['.', ',', ';', ':', '!', '?', ')', ']', '}', '>', "'", '"']);
+
+/**
+ * How many characters of trailing punctuation an address may carry past {@link SOURCE_LINK_MAX_LENGTH} before it is refused
+ * unread. A sentence adds a few; anything longer is not a pasted address. Checked BEFORE any scan of the text, so a hostile
+ * length costs one comparison.
+ */
+const PUNCTUATION_ALLOWANCE = 16;
+
+/**
+ * The most characters the Source field takes: a little over {@link SOURCE_LINK_MAX_LENGTH}, so an address that is too long
+ * is still SHOWN as invalid rather than silently cut to a valid one, and a hostile paste cannot freeze the page.
+ */
+export const SOURCE_LINK_INPUT_MAX_LENGTH = SOURCE_LINK_MAX_LENGTH + PUNCTUATION_ALLOWANCE;
+
+/** The most characters of a pasted line worth testing as "only a link". */
+const MAX_LINK_LINE = SOURCE_LINK_MAX_LENGTH + PUNCTUATION_ALLOWANCE + 32;
+
+/** `text` without the sentence punctuation at its end, in one linear pass (a regex over a long run is not linear). */
+function withoutTrailingPunctuation(text: string): string {
+    let end = text.length;
+
+    while (end > 0 && TRAILING_PUNCTUATION.has(text.charAt(end - 1))) {
+        end -= 1;
+    }
+
+    return text.slice(0, end);
+}
 
 /** A line that is only a link, optionally after a short label such as `Source:`. */
 const LINK_ONLY_LINE = /^\s*(?:[\p{L} ]{1,24}:\s*)?(https?:\/\/\S+)\s*$/iu;
@@ -67,7 +94,15 @@ const LINK_ONLY_LINE = /^\s*(?:[\p{L} ]{1,24}:\s*)?(https?:\/\/\S+)\s*$/iu;
  * @returns The link, or why it is not one. Pure.
  */
 export function parseSourceLink(text: string): SourceLinkResult {
-    const candidate = text.trim().replace(TRAILING_PUNCTUATION, '');
+    // ⛔ Length FIRST. This runs on the request path of POST, PATCH and the import route and in the editor on every
+    // keystroke, so its cost must not depend on how much hostile text it is handed. Trim, refuse by length, only then scan.
+    const trimmed = text.trim();
+
+    if (trimmed === '' || trimmed.length > SOURCE_LINK_INPUT_MAX_LENGTH) {
+        return INVALID;
+    }
+
+    const candidate = withoutTrailingPunctuation(trimmed);
 
     if (candidate === '' || candidate.length > SOURCE_LINK_MAX_LENGTH || /\s/.test(candidate)) {
         return INVALID;
@@ -111,7 +146,8 @@ export function extractSourceLink(pasted: string): SourceLinkExtraction {
     const kept: string[] = [];
 
     for (const line of pasted.split(/\r?\n/)) {
-        const address = LINK_ONLY_LINE.exec(line)?.[1];
+        // A line this long is not "only a link": it stays text, and the pattern never runs over it.
+        const address = line.length > MAX_LINK_LINE ? undefined : LINK_ONLY_LINE.exec(line)?.[1];
         const parsed = address === undefined ? undefined : parseSourceLink(address);
 
         if (parsed?.ok === true && link === undefined) {

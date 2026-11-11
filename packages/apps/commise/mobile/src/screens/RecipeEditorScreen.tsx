@@ -192,7 +192,8 @@ function RecipeEditorSession({
     const knownPaidFeatures = knownPaidFeaturesOf(profile);
     // ADR-0073: which rule the recipe's Private is under, where the cook stands on private slots (the server's read), and
     // the refusal that is KNOWN - what the session must not send.
-    // The STORED kind for now: the editor builder passes the DRAFT's own once the source row exists (ADR-0089).
+    // Only `standing` and `refusal` are read from this. The Private RULE the surface uses follows the DRAFT's source
+    // (`source.privateRule`, ADR-0089), not the stored kind passed here.
     const recipePrivate = useRecipePrivate({
         sourceType: seed.recipe?.sourceType,
         sourceKind: seed.recipe?.sourceKind ?? null,

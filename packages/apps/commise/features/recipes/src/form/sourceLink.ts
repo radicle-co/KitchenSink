@@ -36,7 +36,7 @@ type StoredRecipe = Pick<
 >;
 
 /** The Source field's text as the draft holds it, `''` when there is none. Pure. */
-export const sourceTextOf = (values: Pick<RecipeFormValues, 'sourceLink'>): string => values.sourceLink ?? '';
+const sourceTextOf = (values: Pick<RecipeFormValues, 'sourceLink'>): string => values.sourceLink ?? '';
 
 /** The draft's source: nothing, a proved web link, or text that is not one. */
 export type DraftSource =

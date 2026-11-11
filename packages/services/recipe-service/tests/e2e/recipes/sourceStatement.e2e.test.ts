@@ -20,8 +20,7 @@ import { bootRecipeApp, type BootedRecipeApp } from '../harness.js';
 import { createRecipeDrizzle, type RecipeDrizzle } from '../../../src/database/client.js';
 import { recipes, type RecipeRow } from '../../../src/database/schema/index.js';
 import { RecipesService } from '../../../src/recipes/recipes.service.js';
-import { CURATOR_IMPORT_SCOPE } from '../../../src/recipes/recipes.schema.js';
-import type { CreateRecipeDto } from '../../../src/recipes/dto/createRecipe.dto.js';
+import { CURATOR_IMPORT_SCOPE, createRecipeRequestSchema } from '../../../src/recipes/recipes.schema.js';
 import type { Principal } from '../../../src/auth/principal.js';
 import { recipeDb } from '../../support/roleDb.js';
 
@@ -164,7 +163,7 @@ describe('a pasted web link as the recipe source (e2e)', () => {
     it('a caller holding the curator grant who states a link gets a web copy, never the curator reading', async () => {
         const created = await service.create(
             principal([CURATOR_IMPORT_SCOPE]),
-            body({ statement: STATEMENT, visibility: 'private' }) as unknown as CreateRecipeDto,
+            createRecipeRequestSchema.parse(body({ statement: STATEMENT, visibility: 'private' })),
             undefined,
         );
         const row = await readRow(created.id);

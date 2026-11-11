@@ -51,7 +51,7 @@ export type RecipeFormErrorCode =
  * {@link RecipeFormErrorCode}: the Source row's copy is `editorMessages.source`, where the cook reads it, so no second copy
  * of these sentences sits in `recipeFormMessages.errors`.
  */
-export type RecipeSourceErrorCode = 'sourceInvalid' | 'sourceOwnSite';
+type RecipeSourceErrorCode = 'sourceInvalid' | 'sourceOwnSite';
 
 /** Field-level validation errors (an error CODE per invalid field; absent when valid). */
 export interface RecipeFormErrors {

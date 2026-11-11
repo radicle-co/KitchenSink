@@ -8,6 +8,8 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { SOURCE_LINK_INPUT_MAX_LENGTH, SOURCE_LINK_MAX_LENGTH } from '@kitchensink/recipe-core';
+
 import { editorMessages } from '../../editor/messages.js';
 import type { SourceRowModel } from '../sourceLink.js';
 import { RecipeSourceField } from '../RecipeSourceField.js';
@@ -40,6 +42,14 @@ describe('RecipeSourceField (web)', () => {
         expect(field().getAttribute('autocorrect')).toBe('off');
         expect(describedBy(field())).toContain(m.hint);
         expect(screen.queryByRole('button', { name: m.remove })).toBeNull();
+    });
+
+    // The reader refuses an address past the cap unread, so the field stops a hostile paste from freezing the page.
+    it('caps how much text the field takes, a little over the longest source link', () => {
+        renderRow({ kind: 'empty', text: '' });
+
+        expect(field().maxLength).toBe(SOURCE_LINK_INPUT_MAX_LENGTH);
+        expect(SOURCE_LINK_INPUT_MAX_LENGTH).toBeGreaterThan(SOURCE_LINK_MAX_LENGTH);
     });
 
     it('typing reports the text', async () => {

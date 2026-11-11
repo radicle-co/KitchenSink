@@ -19,6 +19,7 @@ import { FieldLabel, Input } from '@commise/ui/input';
 import { touchFloor } from '@commise/ui/layout';
 import { PressScale } from '@commise/ui/press-scale';
 import { Text } from '@commise/ui/text';
+import { SOURCE_LINK_INPUT_MAX_LENGTH } from '@kitchensink/recipe-core';
 import type { FC } from 'react';
 import { styled, YStack } from 'tamagui';
 
@@ -97,6 +98,7 @@ export const RecipeSourceField: FC<RecipeSourceFieldNativeProps> = ({
                 label={m.label}
                 hint={pasted ? `${status} ${m.fromPaste}` : status}
                 inputMode="url"
+                maxLength={SOURCE_LINK_INPUT_MAX_LENGTH}
                 autoCapitalize="none"
                 autoCorrect={false}
                 autoComplete="off"

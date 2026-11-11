@@ -263,7 +263,7 @@ export function provenanceNotPermitted(reason: string, details?: Record<string, 
 }
 
 /** `details.reason` of the `FORBIDDEN` a locked source answers with: the stable key a client branches on (ADR-0089). */
-export const SOURCE_LOCKED_REASON = 'SOURCE_LOCKED';
+const SOURCE_LOCKED_REASON = 'SOURCE_LOCKED';
 
 /**
  * `FORBIDDEN` with `details.reason: 'SOURCE_LOCKED'` (→ 403) — a `PATCH` tried to change the source of a recipe that was

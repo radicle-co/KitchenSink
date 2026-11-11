@@ -15,6 +15,7 @@
 import { useMessages } from '@commise/i18n/react';
 import { Button } from '@commise/ui/button';
 import { FieldLabel, Input, fieldHintId } from '@commise/ui/input';
+import { SOURCE_LINK_INPUT_MAX_LENGTH } from '@kitchensink/recipe-core';
 import type { FC } from 'react';
 
 import { editorMessages } from '../editor/messages.js';
@@ -70,6 +71,7 @@ export const RecipeSourceField: FC<RecipeSourceFieldProps> = ({
                 id={sourceFieldId}
                 value={row.text}
                 inputMode="url"
+                maxLength={SOURCE_LINK_INPUT_MAX_LENGTH}
                 autoCapitalize="none"
                 autoCorrect={false}
                 autoComplete="off"

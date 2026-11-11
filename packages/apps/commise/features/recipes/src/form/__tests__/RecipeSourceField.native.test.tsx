@@ -9,6 +9,7 @@ import { cleanup, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { recordedTextInput, recordedTextInputs } from '@commise/ui/testing/record-text-inputs';
+import { SOURCE_LINK_INPUT_MAX_LENGTH } from '@kitchensink/recipe-core';
 
 // react-native-web drops `accessibilityHint`, so the field is wrapped to record the accessibility props a screen reader is
 // actually given (`recordedTextInput`).
@@ -57,6 +58,12 @@ describe('RecipeSourceField (native)', () => {
         expect(screen.getByText(m.hint)).toBeTruthy();
         expect(recordedTextInput(sourceFieldId).accessibilityHint).toBe(m.hint);
         expect(screen.queryByRole('button', { name: m.remove })).toBeNull();
+    });
+
+    it('caps how much text the field takes, a little over the longest source link', () => {
+        renderRow({ kind: 'empty', text: '' });
+
+        expect(field().maxLength).toBe(SOURCE_LINK_INPUT_MAX_LENGTH);
     });
 
     it('typing reports the text', () => {

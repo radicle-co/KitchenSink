@@ -141,7 +141,7 @@ export interface UpdateRecipeInput {
     status?: RecipeStatus;
     /**
      * Replace the recipe's source (ADR-0089): all four columns are written together, so a web copy can never be half
-     * written (`recipes_web_source_has_address`). ABSENT leaves the source alone; the service sends it only inside the
+     * written (`recipes_source_kind_pairs_source_type`). ABSENT leaves the source alone; the service sends it only inside the
      * correction window, which the policy (`evaluateSourceCorrection`) decides, not this DAL.
      */
     provenance?: {

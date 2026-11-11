@@ -210,7 +210,13 @@ export type { Viewer } from './viewer.js';
 export { canClone, canRate, isOwner } from './recipeAccessPolicy.js';
 export { PRIVATE_ONLY_SOURCE_KEYS, privateOnlySourceKey, sourceIsCorrectable } from './sourceRules.js';
 export type { CorrectableSourceFacts } from './sourceRules.js';
-export { OWN_SITE_DOMAIN, SOURCE_LINK_MAX_LENGTH, extractSourceLink, parseSourceLink } from './sourceLink.js';
+export {
+    OWN_SITE_DOMAIN,
+    SOURCE_LINK_INPUT_MAX_LENGTH,
+    SOURCE_LINK_MAX_LENGTH,
+    extractSourceLink,
+    parseSourceLink,
+} from './sourceLink.js';
 export type { SourceLink, SourceLinkExtraction, SourceLinkRefusal, SourceLinkResult } from './sourceLink.js';
 export {
     ABSENT_QUANTITY,

@@ -787,6 +787,19 @@ describe('createRecipeRequestSchema — the optional `statement` (ADR-0089)', ()
         expect(createAccepts({ statement: { ...WEB, citation } })).toBe(false);
     });
 
+    // zod runs a refinement after `.max` has already failed, so the citation reader sees whatever length arrives. A 99k-character
+    // citation used to cost about 2 s per request on POST, PATCH and the import route.
+    it.each([
+        ['a 1 MB run of "!"', `https://example.com/a${'!'.repeat(1_000_000)}`],
+        ['99k characters of address', `https://example.com/${'a'.repeat(99_000)}`],
+    ])('refuses an oversize citation (%s) quickly', (_name, citation) => {
+        const started = performance.now();
+        const result = recipeStatementSchema.safeParse({ kind: 'public_web', citation });
+
+        expect(result.success).toBe(false);
+        expect(performance.now() - started).toBeLessThan(50);
+    });
+
     it('REFUSES a missing citation and a stray key (the member is strict)', () => {
         expect(createAccepts({ statement: { kind: 'public_web' } })).toBe(false);
         expect(createAccepts({ statement: { ...WEB, sourceType: 'imported_public' } })).toBe(false);

@@ -421,7 +421,7 @@ All NEW unless marked. Shell keys live in both `webMessages` and `mobileMessages
 
 | Key                                                                                                                            | String                                                                                           | Where                                         |
 | ------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------ | --------------------------------------------- |
-| `shell.tabs.home` / `.recipes` / `.discover`                                                                                   | Home / Recipes / Discover                                                                        | tab bar, sidebar                              |
+| `shell.tabs.home` / `.recipes` / `.discover` / `.you`                                                                          | Home / Recipes / Discover / You                                                                  | tab bar, sidebar                              |
 | `shell.newRecipe` / `shell.newCollection`                                                                                      | New recipe / New collection                                                                      | FAB, sidebar                                  |
 | `shell.collapse` / `shell.expand`                                                                                              | Collapse / Expand sidebar                                                                        | sidebar foot                                  |
 | `shell.backTo`                                                                                                                 | Back to {parent}                                                                                 | every back control                            |
@@ -462,16 +462,17 @@ All NEW unless marked. Shell keys live in both `webMessages` and `mobileMessages
 
 ### 3.1 Destinations
 
-The tabs are Home, Recipes and Discover (owner). Profile opens from the avatar. Meal Plan and Shopping become tabs 4
-and 5 when they ship, labelled "Plan" and "Shop". Nutrition sits inside Plan, never as a sixth tab. No navigation shows
+The tabs are Home, Recipes, Discover and You (owner; You added 2026-11-11, ownerFeedback N3). You opens Profile, and
+its icon is the cook's avatar. No title row carries an avatar. Meal Plan and Shopping become tabs before You when they
+ship, labelled "Plan" and "Shop", so You stays last. Nutrition sits inside Plan, never as another tab. No navigation shows
 an unbuilt destination, a "Soon" item, a bell or a search button.
 
-| Destination       | Holds                                             | Web URL (`/{locale}`…)     | Native root                                   |
-| ----------------- | ------------------------------------------------- | -------------------------- | --------------------------------------------- |
-| Home              | greeting, recent recipes, the FR-046 placeholders | `/`                        | `home` stack                                  |
-| Recipes           | two segments: My recipes · Collections            | `/recipes`, `/collections` | `recipes` stack                               |
-| Discover          | the public catalogue: search, filters, rails      | `/discover`                | `discover` stack                              |
-| Profile (utility) | profile, preferences, session, danger zone        | `/profile`                 | pushed onto the current stack from the avatar |
+| Destination   | Holds                                             | Web URL (`/{locale}`…)     | Native root                  |
+| ------------- | ------------------------------------------------- | -------------------------- | ---------------------------- |
+| Home          | greeting, recent recipes, the FR-046 placeholders | `/`                        | `home` stack                 |
+| Recipes       | two segments: My recipes · Collections            | `/recipes`, `/collections` | `recipes` stack              |
+| Discover      | the public catalogue: search, filters, rails      | `/discover`                | `discover` stack             |
+| You (Profile) | profile, preferences, session, danger zone        | `/profile`                 | `profile` stack (a tab root) |
 
 **Pushed screens:** recipe detail `/recipes/{id}`, version history `/recipes/{id}/versions`, collection detail
 `/collections/{id}`, legal sources `/legal/sources`.
@@ -486,23 +487,27 @@ parent screen.
 ```
 compact / medium (< 840)                         expanded, collapsed by the user  expanded (≥ 840, default)
 ┌──────────────────────────────────┐            ┌────┬─────────────────────┐      ┌ sidebar 256 ─┬ main ──────────┐
-│ (no top bar)                     │            │ ⊕  │ Recipes        H1   │      │ Commise      │ Recipes   H1   │
-│ Recipes                     (E)  │ H1+avatar  │ ⌂  │ …                   │      │[+ New recipe]│ …              │
-│ …content…                        │            │ ▤▌ │                     │      │ ⌂ Home       │                │
-│                         (+ New…) │ FAB        │ ◎  │                     │      │ ▤ Recipes  ▌ │                │
-├──────────────────────────────────┤            │ ── │                     │      │ ◎ Discover   │                │
-│ ⌂ Home    ▤ Recipes   ◎ Discover │ 64+safe    │ (E)│                     │      │ ──────────── │                │
-└──────────────────────────────────┘            │ »  │                     │      │ (E) Eliza M. │                │
-                                                └────┴─────────────────────┘      │ « Collapse   │                │
-                                                                                   └──────────────┴────────────────┘
+│ (no top bar)                     │            │ (E)│ Recipes        H1   │      │ (E) Eliza M. │ Recipes   H1   │
+│ Recipes                          │ H1         │ ⊕  │ …                   │      │[+ New recipe]│ …              │
+│ …content…                        │            │ ⌂  │                     │      │ ⌂ Home       │                │
+│                         (+ New…) │ FAB        │ ▤▌ │                     │      │ ▤ Recipes  ▌ │                │
+├──────────────────────────────────┤            │ ◎  │                     │      │ ◎ Discover   │                │
+│ ⌂ Home  ▤ Recipes  ◎ Discover (E)You│ 64+safe │ »  │                     │      │ « Collapse   │                │
+└──────────────────────────────────┘            └────┴─────────────────────┘      └──────────────┴────────────────┘
 ```
 
 **Bottom tab bar** (web below 840, native always). Files: `web/src/components/home/chrome/HomeTabBar.tsx`,
 `mobile/src/components/home/chrome/HomeTabBar.tsx`.
 
-- 64 px plus the safe-area inset. Level 2 surface (§1.6). Three items, each at least 96 × 56 at 320.
+- 64 px plus the safe-area inset. Level 2 surface (§1.6). Four items, Home, Recipes, Discover and You, each at least
+  80 × 56 at 320.
 - Item: 24 px glyph over a 12 px `caption` label at weight 500. Labels are `room`. They never wrap and never truncate.
-  "Discover" is the longest English label. At +35% it still fits in 96 px.
+  "Discover" is the longest English label. At +35% it still fits in 80 px.
+- **You** (2026-11-11, N3): label "You" (`shell.tabs.you`), linking to `/profile`. Its glyph is the cook's avatar, a
+  24 px disc with the same content rules as the chrome `Avatar` (initials in a 10 px label on `action` fill, a `pearl`
+  disc while the profile loads, the 20 px outline `user` glyph with no name). Active: a 2 px `ink` ring around the
+  disc stands in for the filled glyph, with the label and `hereBar` as for the other tabs. Its name is the visible label,
+  "You" (SC 2.5.3).
 - Active: filled glyph in `ink`, label in `ink` at 600, and a 32 × 3 px `hereBar` above the glyph. Inactive: outline
   glyph and label in `inkMuted`. `aria-current="page"` on web, `accessibilityState.selected` on native.
 - Targets: 48 dp on Android, 44 pt on iOS and web.
@@ -517,15 +522,15 @@ compact / medium (< 840)                         expanded, collapsed by the user
   inside it if it is ever taller than the window.
 - Width 256 expanded (the default), 80 collapsed. The user's choice persists per device.
 - Order, top to bottom:
-    1. Wordmark, 64 px.
+    1. The **profile row**, 64 px, where the wordmark was (there is no wordmark): 32 px avatar and the display name
+       (`label`, `truncate:1`), linking to `/profile`, named "Profile, {name}" ("Profile" with no name). On `/profile`
+       it takes the active style of the nav rows. Collapsed: the avatar alone, with the same name.
     2. **New recipe** (§3.4): a full-width `Button variant="primary" size="md"` with the `plus` glyph. Collapsed: a 56
        px round icon button named "New recipe", with a tooltip on hover and on focus. The tooltip can be dismissed with
        Escape and stays while hovered (SC 1.4.13).
     3. Home, Recipes, Discover: 44 px rows, 24 px glyph, `label` text. Active: a `seafoam` 10% fill,
        `ink` label at 600, a 3 px `hereBar` on the start edge, `aria-current="page"`.
-    4. A divider (`lineDivider`), then the **profile row**: 32 px avatar, display name (`truncate:1`), linking to
-       `/profile`. Collapsed: the avatar alone, named "Profile, {name}".
-    5. The collapse control on the foot, a 44 px row: `chevrons-left` plus "Collapse". Collapsed: the glyph alone,
+    4. The collapse control on the foot, a 44 px row: `chevrons-left` plus "Collapse". Collapsed: the glyph alone,
        named "Expand sidebar". `aria-expanded` reflects the state (E34).
 - There is **no top bar** at 840 and wider. The page's large title is the H1 at the top of `<main>`.
 - The hamburger drawer (`HomeMobileNav.tsx`) is deleted. The top-bar bell and search buttons are deleted (E13).
@@ -552,7 +557,10 @@ phone, top of page               phone, scrolled (pushed screen only)      840+ 
   aligned to the title's first baseline. `back` becomes an eyebrow link above the H1: "‹ {Parent}". The title block is
   `flex: 1 1 18rem; min-width: 0`. The action is `flex: 0 0 auto`. Without room, the row moves the action **as a
   group** below the title (re-layout, never a wrap inside a button).
-- **Top-level `action`** is the avatar (32 px disc in a 44 × 44 target, initials in `label` on `action` fill, 4.67:1).
+- **No title row carries the avatar** (2026-11-11, N3). Profile is the You tab below 840 and the sidebar's first row
+  at 840 and wider (§3.1, §3.2). A top-level page has no `action` unless it has its own. The chrome `Avatar` below is
+  now drawn by the You tab and the sidebar row (32 px disc in a 44 × 44 target, initials in `label` on `action` fill,
+  4.67:1).
   It loads as a `pearl` disc. With no name it shows a 20 px `user` glyph, on both platforms (native's `'·'` at
   `mobile/src/components/home/chrome/HomeTopBar.tsx:85` goes, M8). Name: "Profile, {name}" or "Profile" (NEW
   `shell.profileButton` / `shell.profileButtonNoName`).
@@ -759,7 +767,7 @@ phone 390                                 840+ (main ≥ 960)
 | -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------ |
 | H1             | the greeting in `largeTitle` via `LargeTitleHeader`. No card, no gradient box. With no display name: "Good afternoon"                                                                                                                                                                                                                               | wrap:2             |
 | Subtitle       | the date, `meta`, `inkMuted`                                                                                                                                                                                                                                                                                                                        | truncate:1         |
-| Action         | the avatar (§3.3). Not at 840+ (the sidebar has it)                                                                                                                                                                                                                                                                                                 | `room`             |
+| Action         | none. Profile is in the navigation (§3.1)                                                                                                                                                                                                                                                                                                           | `room`             |
 | Recent recipes | H2 `sectionTitle`, "See all" ghost link at the end of the heading row (visible "See all", name "See all recipes", SC 2.5.3), to My recipes. Up to 4 recipes (FR-046). **Compact** cards: 2 columns below a 600 container (2 × 2), 4 columns from 600                                                                                                | title truncate:2   |
 | Coming soon    | H2 "Coming soon", one line of `body`: "Meal plans, a grocery list and daily nutrition are on the way." Then the three FR-046 placeholders in their real shape, **static** `pearl`, no pulse. A neutral "Soon" badge sits next to each title. `@wide`: nutrition and resume side by side 1 : 2, the week strip full width under them. Below: stacked | body wrap          |
 | Week strip     | `repeat(7, 1fr)`, minimum tile 36 px. Narrow day names ("M") below `@regular`, short ("Mon") above. Accessible name is the full weekday                                                                                                                                                                                                             | never clips at 320 |
@@ -797,7 +805,7 @@ phone 320                                    840+ (main 960), grid view
 
 | Element     | Spec                                                                                                                                                                                                                                                                                                            | Rule                                                                               |
 | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| H1          | "Recipes" (`largeTitle`), avatar as `action` below 840                                                                                                                                                                                                                                                          | wrap:2                                                                             |
+| H1          | "Recipes" (`largeTitle`). No avatar (§3.1)                                                                                                                                                                                                                                                                      | wrap:2                                                                             |
 | Segments    | `SegmentedControl` route form: My recipes (`/recipes`) · Collections (`/collections`). Labels: existing `tabMine` and NEW `list.tabCollections` "Collections" in `features/recipes/src/messages.ts`. `tabCommunity` is deleted                                                                                  | `room`. At 320 each segment is 136 px. German "Meine Rezepte" and "Sammlungen" fit |
 | Search      | `SearchField`, label "Search your recipes" (visually hidden), `searchPlaceholder` (existing) becomes "Search your recipes". Sticky at the top edge on phones while the list scrolls. `/` focuses it on web (§10)                                                                                                | placeholder truncate:1                                                             |
 | Facet chips | `ChipRow overflow="scroll"` below a 600 container, `wrap` (2 lines) from 600. `Chip kind="filter"`, with counts. "All" clears the others. Labels sentence case from the facet value ("Under 30 min", not "Quick (<30m)")                                                                                        | chip label `room`, max 24 visible characters                                       |
@@ -843,7 +851,7 @@ phone 390                                    840+ (main 960)
 └──────────────────────────────────┘         └──────────────────────────────────────────────────────┘
 ```
 
-- **H1** "Discover" via `LargeTitleHeader`, avatar as `action` below 840. No segments.
+- **H1** "Discover" via `LargeTitleHeader`. No avatar (§3.1). No segments.
 - **Search:** `SearchField`, label "Search recipes" (existing `searchPlaceholder` in `discovery/messages.ts` → "Search
   recipes"). `/` focuses it on web.
 - **Below a 960 container:** one row under the search with **Filters** (`Button secondary sm`, `sliders-horizontal`;
@@ -1917,7 +1925,7 @@ phone 390, and 840+ in content-reading (640), left-aligned
 
 - One page, one column at every width, `content-reading`. No section nav. `/settings` and `/account` are deleted
   (§3.1). Native: `AccountSettings.tsx` becomes these sections, and `AppRoot`'s `'account'` destination goes.
-- Header: back "Back to {parent}" on phones (Profile is pushed). H1 "Profile". Then a 72 px avatar (the photo, else initials, else
+- Header: no back control (Profile is the You tab root, and the sidebar's first row at 840+). H1 "Profile". Then a 72 px avatar (the photo, else initials, else
   the `user` glyph; the photo controls are §9.1a, on both platforms), the display name (`sectionTitle`, wrap:2), the
   `@username` and the email
   (`meta`, `overflow-wrap: anywhere`, because it is one unbroken string).

@@ -51,6 +51,7 @@ import { z } from 'zod';
 
 import {
     IDENTITY_SYNC_PENDING_CODE,
+    IMPORT_LOCKED_STAGES,
     privateFoodLinesDetailsSchema,
     publishRequirementsUnmetDetailsSchema,
     versionConflictDetailsSchema,
@@ -324,9 +325,7 @@ export const recipeApiErrorSchema = z.discriminatedUnion('code', [
             code: z.literal('IMPORT_ITEM_LOCKED'),
             message: z.string(),
             /** The item and where it stands (`received` is the only stage that accepts a different recipe, and `saved` is the other code). REQUIRED. */
-            details: z
-                .object({ ordinal: z.number().int().nonnegative(), stage: z.enum(['parsing', 'matched']) })
-                .loose(),
+            details: z.object({ ordinal: z.number().int().nonnegative(), stage: z.enum(IMPORT_LOCKED_STAGES) }).loose(),
         })
         .loose(),
     z

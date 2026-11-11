@@ -458,8 +458,8 @@ export type RecordImportChoicesRequest = z.infer<typeof recordImportChoicesReque
 
 /**
  * Body of `POST /api/v1/import/{importId}/choices`: the same choices for several items at once, each item carrying its OWN
- * statement (a statement is per recipe; one for a whole file is not the attestation 004 FR-014a asks for). Each entry is
- * a statement, a visibility or both, and an ordinal appears once.
+ * statement (a statement is per recipe; one for a whole file is not the attestation 004 FR-014a asks for). Each entry
+ * carries at least one of a statement, a visibility and a cuisine, and an ordinal appears once.
  */
 export const recordImportChoicesBatchRequestSchema = z.strictObject({
     items: z
@@ -524,6 +524,15 @@ const foodRefViewSchema = z.object({
     name: z.string().min(1).nullable(),
 });
 
+/** How many of an import's items stand at each stage; `total` is how many have ARRIVED. */
+const importCountsSchema = z.object({
+    total: z.number().int().nonnegative(),
+    received: z.number().int().nonnegative(),
+    parsing: z.number().int().nonnegative(),
+    matched: z.number().int().nonnegative(),
+    saved: z.number().int().nonnegative(),
+});
+
 /** One item as the list shows it. */
 export const importItemSummarySchema = z.object({
     ordinal: z.number().int().nonnegative(),
@@ -586,13 +595,7 @@ export const importViewSchema = z.object({
      * allowance's own pause is NOT here: it reads from `allowance`. A new key is an additive value, never a new field.
      */
     pause: z.object({ reason: z.string().min(1) }).nullable(),
-    counts: z.object({
-        total: z.number().int().nonnegative(),
-        received: z.number().int().nonnegative(),
-        parsing: z.number().int().nonnegative(),
-        matched: z.number().int().nonnegative(),
-        saved: z.number().int().nonnegative(),
-    }),
+    counts: importCountsSchema,
     items: z.array(importItemSummarySchema),
     /** The last ordinal on this page when more follow (pass it as `after`), else `null`. */
     nextAfter: z.number().int().nonnegative().nullable(),
@@ -747,13 +750,7 @@ export const importSummarySchema = z.object({
     matchMode: importMatchModeSchema,
     visibility: recipeVisibilitySchema,
     expectedTotal: z.number().int().positive(),
-    counts: z.object({
-        total: z.number().int().nonnegative(),
-        received: z.number().int().nonnegative(),
-        parsing: z.number().int().nonnegative(),
-        matched: z.number().int().nonnegative(),
-        saved: z.number().int().nonnegative(),
-    }),
+    counts: importCountsSchema,
     createdAt: z.iso.datetime(),
     /** The last time the cook or a step wrote to the import. The working data is purged 30 days after it (ADR-0072 §12). */
     updatedAt: z.iso.datetime(),

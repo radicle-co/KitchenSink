@@ -1627,6 +1627,15 @@ export const recipeErrorCodeSchema = z.enum([
 ]);
 
 /**
+ * Where an `IMPORT_ITEM_LOCKED` item stands (its `details.stage`): past `received`, not yet `saved`. The ONE statement of the
+ * vocabulary, read by the service's error schema and factory and by the client's error.
+ */
+export const IMPORT_LOCKED_STAGES = ['parsing', 'matched'] as const;
+
+/** One stage an item can be locked at. */
+export type ImportLockedStage = (typeof IMPORT_LOCKED_STAGES)[number];
+
+/**
  * Structured domain error contract for recipe operations.
  */
 export interface RecipeError {

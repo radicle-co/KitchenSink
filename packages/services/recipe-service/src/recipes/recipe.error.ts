@@ -9,6 +9,7 @@
 import { HttpException } from '@nestjs/common';
 import {
     RecipeErrorCode,
+    type ImportLockedStage,
     type PrivateFoodLine,
     type PublishRequirement,
     type RecipeError,
@@ -189,7 +190,7 @@ export function importItemAlreadySaved(ordinal: number): RecipeDomainError {
  * @param stage - Where it stands: `parsing` or `matched` (a saved item is {@link importItemAlreadySaved}).
  * @returns The error.
  */
-export function importItemLocked(ordinal: number, stage: 'parsing' | 'matched'): RecipeDomainError {
+export function importItemLocked(ordinal: number, stage: ImportLockedStage): RecipeDomainError {
     return new RecipeDomainError(
         RecipeErrorCode.IMPORT_ITEM_LOCKED,
         `Import item ${String(ordinal)} is already being processed and its recipe cannot be replaced.`,

@@ -18,7 +18,12 @@
  * a forward-compatible deploy into a client-side type error. The typed narrowing happens once, in
  * `client.ts`'s `errorForCode`, whose `switch` IS exhaustive over the published set.
  */
-import type { PrivateFoodLine, PublishRequirement, VersionConflictSide } from '@kitchensink/recipe-core';
+import type {
+    ImportLockedStage,
+    PrivateFoodLine,
+    PublishRequirement,
+    VersionConflictSide,
+} from '@kitchensink/recipe-core';
 
 import type { PullDiff } from './types.js';
 
@@ -431,11 +436,11 @@ export class ImportItemLockedError extends RecipeServiceClientError {
     /** The item that is locked. */
     public readonly ordinal: number;
     /** Where it stands: `parsing` or `matched`. */
-    public readonly stage: 'parsing' | 'matched';
+    public readonly stage: ImportLockedStage;
 
     public constructor(
         ordinal: number,
-        stage: 'parsing' | 'matched',
+        stage: ImportLockedStage,
         message = 'This import item is already being processed',
     ) {
         super(message, 409, 'IMPORT_ITEM_LOCKED');

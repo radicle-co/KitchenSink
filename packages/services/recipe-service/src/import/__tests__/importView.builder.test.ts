@@ -321,6 +321,15 @@ describe('ImportViewBuilder', () => {
             expect(after.version).not.toBe(before.version);
         });
 
+        // Every advance now moves the import's activity clock (ADR-0072 §9's purge clock). The view does not show that clock,
+        // so an advance that changed nothing the cook can see must answer the version the client already holds.
+        it('⛔ does not move when only the activity clock does', async () => {
+            const a = await view({}, makeHeader({ updatedAt: new Date('2026-10-26T12:00:00.000Z') }));
+            const b = await view({}, makeHeader({ updatedAt: new Date('2026-10-26T12:05:00.000Z') }));
+
+            expect(b.version).toBe(a.version);
+        });
+
         it('moves when the allowance does, so a paused import is seen to resume', async () => {
             const a = await view({});
             const b = await view({ allowance: { ...ALLOWANCE, used: 8 } });

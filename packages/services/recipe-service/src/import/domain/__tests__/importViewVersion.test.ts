@@ -16,7 +16,6 @@ const BASE: ImportVersionFacts = {
         cursorOrdinal: 3,
         reviewClosed: false,
         expectedTotal: 10,
-        updatedAt: '2026-10-26T12:00:00.000Z',
     },
     counts: { total: 10, received: 4, parsing: 2, matched: 1, saved: 3 },
     allowance: { limit: 1000, used: 6, resetsAt: '2026-10-27T12:00:00.000Z' },
@@ -58,7 +57,6 @@ describe('importViewVersionOf', () => {
                 total: BASE.counts.total,
             },
             header: {
-                updatedAt: BASE.header.updatedAt,
                 id: BASE.header.id,
                 expectedTotal: BASE.header.expectedTotal,
                 matchMode: BASE.header.matchMode,
@@ -79,7 +77,6 @@ describe('importViewVersionOf', () => {
     const changes: readonly [string, Partial<ImportVersionFacts>][] = [
         ['the header: cursor', { header: { ...BASE.header, cursorOrdinal: 4 } }],
         ['the header: review closed', { header: { ...BASE.header, reviewClosed: true } }],
-        ['the header: activity clock', { header: { ...BASE.header, updatedAt: '2026-10-26T12:00:01.000Z' } }],
         ['the header: match mode', { header: { ...BASE.header, matchMode: 'bindBest' } }],
         ['the header: visibility', { header: { ...BASE.header, visibility: 'public' } }],
         ['the counts', { counts: { ...BASE.counts, saved: 4 } }],

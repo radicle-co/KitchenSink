@@ -194,16 +194,26 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
                   onFocusRequestHandled: photos.onFinishFocusHandled,
               };
 
-    // The page asks before a leave that would lose photos only where the navigator cannot (see `leaveAsk`).
+    // × (`requestLeave`: its `proceed` checkpoints the exit, then closes) and "My recipes". On web the page asks first. On
+    // native the route guard asks, so × while a photo is at risk only navigates: a cook who answers Stay has not left, and
+    // the session's unmount runs the exit checkpoint for a leave that goes ahead (see `leaveAsk`).
     const requestLeave = (proceed: () => void): void => {
         if (leaveAsk === 'inPage') {
             photos.leave.request(proceed);
+        } else if (photos.atRisk) {
+            onClose();
         } else {
             proceed();
         }
     };
 
-    const openMyRecipes = (): void => requestLeave(onOpenMyRecipes);
+    const openMyRecipes = (): void => {
+        if (leaveAsk === 'inPage') {
+            photos.leave.request(onOpenMyRecipes);
+        } else {
+            onOpenMyRecipes();
+        }
+    };
 
     const sections: Readonly<Record<EditorSectionId, ReactNode>> = {
         details: (

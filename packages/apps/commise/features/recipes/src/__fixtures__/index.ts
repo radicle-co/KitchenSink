@@ -175,9 +175,6 @@ export function makeRecipeFormValues(overrides: Partial<RecipeFormValues> = {}):
             },
         ],
         steps: [{ instruction: 'Combine the ingredients.' }],
-        // No pending photo picks by default (U33): the common draft is one that has nothing waiting to
-        // upload, and a test that wants the flush path must say so explicitly.
-        photos: [],
         ...overrides,
     };
 }

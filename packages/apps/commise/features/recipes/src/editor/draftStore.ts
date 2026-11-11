@@ -65,12 +65,12 @@ export function draftQuarantineKeyFor(subject: string): string {
 }
 
 /**
- * The form's values as the draft keeps them: everything but the photo picks, whose bytes are not in the form, and each
- * line's `foodVisibility`, which is food's LIVE answer and goes stale the moment staff approve a food. A draft that kept it
- * would go on calling an approved food private.
+ * The form's values as the draft keeps them: everything but each line's `foodVisibility`, which is food's LIVE answer and
+ * goes stale the moment staff approve a food. A draft that kept it would go on calling an approved food private. Photos are
+ * not form values: a pick waits in the editor's photo queue, because its bytes cannot live in the draft (ADR-0057).
  */
 export type DraftValues = Flat<
-    Omit<RecipeFormValues, 'photos' | 'ingredients'> & {
+    Omit<RecipeFormValues, 'ingredients'> & {
         readonly ingredients: readonly Flat<Omit<RecipeFormValues['ingredients'][number], 'foodVisibility'>>[];
     }
 >;
@@ -177,14 +177,12 @@ type Drafts = Readonly<Record<string, DraftMemento>>;
  * The form's values as a draft keeps them.
  *
  * @param values - The editor's values.
- * @returns The same values without the photo picks. Pure.
+ * @returns The same values without each line's live food visibility. Pure.
  */
 export function toDraftValues(values: RecipeFormValues): DraftValues {
-    const { photos: _photos, ...kept } = values;
-
-    // `kept` still holds `ingredients`, so overriding it leaves its key where it was: the discard guard compares by
-    // `JSON.stringify`, which reads key order.
-    return { ...kept, ingredients: kept.ingredients.map(({ foodVisibility: _live, ...line }) => line) };
+    // Overriding `ingredients` leaves its key where it was: the discard guard compares by `JSON.stringify`, which reads
+    // key order.
+    return { ...values, ingredients: values.ingredients.map(({ foodVisibility: _live, ...line }) => line) };
 }
 
 /** What a server write answered, as the draft records it. */

@@ -223,7 +223,4 @@ export const toRecipeFormValues = (detail: RecipeDetail): RecipeFormValues => ({
         instruction: step.instruction,
         ...(step.timerSeconds === undefined ? {} : { timerSeconds: step.timerSeconds }),
     })),
-    // EMPTY, not `detail.photos`: the field is always empty (see `RecipeFormValues.photos`), and a recipe's gallery is
-    // owned by `useRecipePhotos`. Seeding it would make the discard guard call an untouched edit form dirty.
-    photos: [],
 });

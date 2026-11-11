@@ -123,7 +123,6 @@ describe('useRecipeEditorSession — the hand-offs, through the navigation port'
             result.current.editor.setValues({
                 ...toRecipeFormValues(complete()),
                 visibility: RecipeVisibility.PRIVATE,
-                photos: [],
             });
         });
         act(() => {
@@ -259,7 +258,6 @@ describe('useRecipeEditorSession — the hand-offs, through the navigation port'
             result.current.editor.setValues({
                 ...toRecipeFormValues(complete()),
                 visibility: RecipeVisibility.PRIVATE,
-                photos: [],
             });
         });
         act(() => {
@@ -298,7 +296,6 @@ describe('useRecipeEditorSession — the hand-offs, through the navigation port'
             view.result.current.editor.setValues({
                 ...toRecipeFormValues(published),
                 visibility: RecipeVisibility.PRIVATE,
-                photos: [],
             });
         });
 
@@ -317,7 +314,6 @@ describe('useRecipeEditorSession — the hand-offs, through the navigation port'
             result.current.editor.setValues({
                 ...toRecipeFormValues(complete()),
                 visibility: RecipeVisibility.PRIVATE,
-                photos: [],
             });
         });
         act(() => {
@@ -401,6 +397,47 @@ describe('useRecipeEditorSession — the hand-offs, through the navigation port'
         await settle();
 
         expect(port.submitted.map((intent) => intent.intentKind)).toEqual(['create']);
+    });
+
+    /**
+     * ⛔ A LEAVE THE ROUTE GUARD HOLDS IS NOT A LEAVE YET (PR #180 follow-up). On native, Back and the edge swipe reach
+     * `beforeRemove` before `PreventLeave` asks about a photo not uploaded yet. If the cook answers Stay, nothing may have
+     * run the exit checkpoint: it marks the editor as leaving and releases a waiting paste early. The unmount runs the exit
+     * for a leave that does go ahead.
+     */
+    it('⛔ a leave heard while a photo is at risk writes nothing; the unmount that follows a real leave does', async () => {
+        vi.stubGlobal('fetch', () => new Promise<never>(() => undefined));
+        const { result, port, leave, unmount } = mount({ recipe: complete() });
+
+        act(() => {
+            result.current.photos.manager.enqueuePicked(
+                [
+                    {
+                        blob: new Blob(['x'], { type: 'image/png' }),
+                        fileName: 'a.png',
+                        contentType: 'image/png',
+                        fileSize: 1,
+                    },
+                ],
+                'add',
+            );
+        });
+        // A change after the pick: the exit checkpoint would write it, so a write is how a premature exit shows.
+        act(() => {
+            result.current.editor.setField('description', 'Creamier.');
+        });
+        expect(result.current.photos.atRisk).toBe(true);
+
+        act(() => {
+            leave();
+        });
+        await settle();
+        expect(port.submitted).toHaveLength(0);
+
+        unmount();
+        await settle();
+        expect(port.submitted.map((intent) => intent.intentKind)).toEqual(['update']);
+        vi.unstubAllGlobals();
     });
 
     /** Native hears `beforeRemove`, then unmounts: the second exit meets the first one's write on the wire and does nothing. */

@@ -297,6 +297,35 @@ describe('RecipeEditorSurface — photos', () => {
         expect(props.onClose).toHaveBeenCalledOnce();
     });
 
+    /**
+     * ⛔ PR #180 follow-up: on native, × used to run the exit checkpoint and THEN navigate, so the route guard asked after
+     * the editor had already recorded a leave. While a photo is at risk, × only navigates; the guard asks, and the unmount
+     * runs the exit checkpoint for a leave that goes ahead. With nothing at risk, × checkpoints as before.
+     */
+    it('native: × with a photo at risk navigates without the exit checkpoint', async () => {
+        const checkpoint = vi.fn<UseRecipeEditorResult['checkpoint']>();
+        const { props } = mount({
+            leaveAsk: 'byNavigator',
+            editorOver: { checkpoint },
+            photosOver: (photos) => ({ ...photos, atRisk: true }),
+        });
+
+        await userEvent.click(screen.getByRole('button', { name: 'Close editor' }));
+
+        expect(props.onClose).toHaveBeenCalledOnce();
+        expect(checkpoint).not.toHaveBeenCalledWith('editorExit');
+    });
+
+    it('native: × with nothing at risk checkpoints the exit, then leaves', async () => {
+        const checkpoint = vi.fn<UseRecipeEditorResult['checkpoint']>();
+        const { props } = mount({ leaveAsk: 'byNavigator', editorOver: { checkpoint } });
+
+        await userEvent.click(screen.getByRole('button', { name: 'Close editor' }));
+
+        expect(checkpoint).toHaveBeenCalledWith('editorExit');
+        expect(props.onClose).toHaveBeenCalledOnce();
+    });
+
     it('during a finish that waits for photos, shows only Photos & publish, without the visibility choice', () => {
         mount({
             photosOver: (photos) => ({ ...photos, finish: { kind: 'uploading' } }),
@@ -425,6 +454,28 @@ describe('RecipeEditorSurface — the Private choice', () => {
 
         act(() => request.mock.lastCall?.[0]());
         expect(props.onOpenMyRecipes).toHaveBeenCalledOnce();
+    });
+
+    it('native: "My recipes" with a photo at risk goes to My recipes and lets the route guard ask', async () => {
+        const user = userEvent.setup();
+        const request = vi.fn<(proceed: () => void) => void>();
+        const { props } = mount(
+            {
+                seed: PUBLISHED_PUBLIC,
+                paidFeatures: 'upsell',
+                knownPaidFeatures: 'upsell',
+                leaveAsk: 'byNavigator',
+                photosOver: (photos) => ({ ...photos, atRisk: true, leave: { ...photos.leave, request } }),
+            },
+            withSlots(50),
+        );
+
+        expect(await screen.findByText('Not available. All 50 of your private slots are in use.')).toBeTruthy();
+        await user.click(screen.getByRole('button', { name: /Make a private recipe public/u }));
+
+        expect(request).not.toHaveBeenCalled();
+        expect(props.onOpenMyRecipes).toHaveBeenCalledOnce();
+        expect(props.onClose).not.toHaveBeenCalled();
     });
 
     describe('a private DRAFT with every slot used (ADR-0073 section 12)', () => {

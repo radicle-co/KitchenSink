@@ -110,7 +110,6 @@ export class ImportViewBuilder {
                         cursorOrdinal,
                         reviewClosed: base.reviewClosed,
                         expectedTotal: header.expectedTotal,
-                        updatedAt: header.updatedAt.toISOString(),
                     },
                     counts,
                     allowance,

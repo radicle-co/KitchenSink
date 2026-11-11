@@ -9,6 +9,9 @@
  * The digest is taken over a FIXED-ORDER TUPLE, not over an object, so it does not depend on key order (jsonb reorders keys, a
  * spread reorders them again) and needs no canonical-JSON library. It covers the WHOLE import's facts, not only the page that
  * was asked for, except `items` and `nextAfter`, which are the page.
+ *
+ * ⛔ The header's activity clock (`updated_at`) is NOT in it. The view does not show it, and every `advance` moves it (it is
+ * ADR-0072 §9's purge clock), so it would change the version on every advance that changed nothing the cook can see.
  */
 
 /** One item of the page, as the digest reads it. */
@@ -32,8 +35,6 @@ export interface ImportVersionFacts {
         readonly cursorOrdinal: number | null;
         readonly reviewClosed: boolean;
         readonly expectedTotal: number;
-        /** The activity clock: every write route bumps it. */
-        readonly updatedAt: string;
     };
     readonly counts: {
         readonly total: number;
@@ -66,7 +67,6 @@ export function importViewVersionOf(facts: ImportVersionFacts, sha256Hex: (text:
         header.cursorOrdinal,
         header.reviewClosed,
         header.expectedTotal,
-        header.updatedAt,
         [counts.total, counts.received, counts.parsing, counts.matched, counts.saved],
         [allowance.limit, allowance.used, allowance.resetsAt],
         pause === null ? null : pause.reason,

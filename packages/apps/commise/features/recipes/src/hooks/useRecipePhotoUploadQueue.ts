@@ -92,10 +92,11 @@ type StoredStatus = 'queued' | 'ok' | 'failed';
 export type RecipePhotoQueueStatus = StoredStatus | 'uploading' | 'waiting';
 
 /**
- * Why the queue may not start an upload yet. A new recipe has no server id until its first checkpoint, so a photo picked
- * before then has nothing to presign against and WAITS in the queue (owner ruling U33: photos behave like every other
- * field, so the picker is never withheld). `untilDraftFloor` is the case the cook can act on — the first checkpoint needs
- * the draft floor (`meetsDraftFloor`: a title, positive servings…) — and is shown as `waiting`; `untilSaved` is the short gap while the create is on its way, shown as `queued`.
+ * Why the queue may not start an upload yet. A new recipe has no server id until its first checkpoint, so a photo
+ * picked before then has nothing to presign against and WAITS in the queue (owner ruling U33: photos behave like every
+ * other field, so the picker is never withheld). `untilDraftFloor` is the case the cook can act on: the first
+ * checkpoint needs the draft floor (`meetsDraftFloor`: a title, positive servings…), and it is shown as `waiting`.
+ * `untilSaved` is the short gap while the create is on its way, shown as `queued`.
  */
 export type RecipePhotoQueueHold = 'none' | 'untilSaved' | 'untilDraftFloor';
 
@@ -367,7 +368,7 @@ function queueReducer(state: QueueState, action: QueueAction): QueueState {
     }
 }
 
-/** The status a stored item shows: the active file is `uploading`, and a queued one waits on a draft below its floor. */
+/** The status a stored item shows: the active file is `uploading`, and a queued one waits for the draft floor. */
 function publicStatusOf(item: StoredItem, active: boolean, hold: RecipePhotoQueueHold): RecipePhotoQueueStatus {
     if (active) {
         return 'uploading';

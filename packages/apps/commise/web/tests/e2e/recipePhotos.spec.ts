@@ -491,11 +491,17 @@ test.describe('recipe photos on a NEW recipe (U33)', () => {
         await expect(page.getByRole('button', { name: 'Publish', exact: true })).toHaveCount(0);
         await expect(page).toHaveURL(CREATED_URL);
 
-        // The page is short now (only Photos & publish), and the bar holding the one way on still sits on the bottom edge,
-        // where it was, rather than floating under the section (staff-ux EVALUATE 2026-11-11).
-        const bar = await page.getByRole('group', { name: 'Recipe actions' }).boundingBox();
+        // The page is short now (only Photos & publish), and the bar holding the one way on still sits on the bottom
+        // edge, where it was, rather than floating under the section (staff-ux EVALUATE 2026-11-11).
+        const actions = page.getByRole('group', { name: 'Recipe actions' });
+        await expect(actions).toBeInViewport({ ratio: 1 });
+        const bar = await actions.boundingBox();
         const viewport = page.viewportSize();
-        expect(bar === null || viewport === null ? 0 : viewport.height - (bar.y + bar.height)).toBeLessThan(24);
+        expect(bar).not.toBeNull();
+        expect(viewport).not.toBeNull();
+        const gap = (viewport?.height ?? 0) - ((bar?.y ?? 0) + (bar?.height ?? 0));
+        expect(gap).toBeGreaterThanOrEqual(0);
+        expect(gap).toBeLessThan(24);
 
         await finishWithout.click();
 

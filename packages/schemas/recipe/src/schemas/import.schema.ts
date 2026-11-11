@@ -758,7 +758,10 @@ export const importSummarySchema = z.object({
         saved: z.number().int().nonnegative(),
     }),
     createdAt: z.iso.datetime(),
-    /** The last time the cook or a step wrote to the import. The working data is purged 30 days after it (ADR-0072 §12). */
+    /**
+     * The import's last activity: every `advance` moves it, and so does every write by the cook. The working data is purged
+     * 30 days after it (ADR-0072 §9).
+     */
     updatedAt: z.iso.datetime(),
 });
 
@@ -782,7 +785,7 @@ export type ImportListResponse = z.infer<typeof importListResponseSchema>;
  * `GET /api/v1/import/to-check-count`: how many lines, across every import the caller still holds, were saved as written and
  * wait for the cook to pick a food or keep them (the “{count} to check” at the top of My recipes). A line leaves the count
  * when the cook picks or keeps it, or edits it into a food in the editor; it also leaves when its import's working data is
- * purged (ADR-0072 §12).
+ * purged (ADR-0072 §9).
  */
 export const importToCheckCountResponseSchema = z.object({ count: z.number().int().nonnegative() });
 

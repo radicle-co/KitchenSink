@@ -70,6 +70,7 @@ const imports = {
     findHeader: vi.fn(),
     listHeaders: vi.fn(),
     deleteHeader: vi.fn(),
+    touch: vi.fn(),
     moveCursor: vi.fn(),
     closeReview: vi.fn(),
     countsByStage: vi.fn(),
@@ -206,6 +207,8 @@ describe('the import services under the real injector', () => {
             limit: DEFAULT_IMPORT_ADVANCE_LIMITS.payBatch,
             isPremium: false,
         });
+        // ADR-0072 §9's purge clock moves on every advance, through the real injector's wiring.
+        expect(imports.touch).toHaveBeenCalledWith(IMPORT_ID);
     });
 
     it('⛔ the step carries the row the import saves through the real line view, and parses', async () => {

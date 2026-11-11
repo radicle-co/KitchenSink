@@ -166,7 +166,7 @@ export class ImportAdvanceService {
     private readonly logger = new Logger(ImportAdvanceService.name);
 
     public constructor(
-        @Inject(RECIPE_IMPORTS_DAL) private readonly imports: Pick<RecipeImportsDal, 'findHeader'>,
+        @Inject(RECIPE_IMPORTS_DAL) private readonly imports: Pick<RecipeImportsDal, 'findHeader' | 'touch'>,
         @Inject(RECIPE_IMPORT_ITEMS_DAL)
         private readonly items: Pick<
             RecipeImportItemsDal,
@@ -205,12 +205,16 @@ export class ImportAdvanceService {
      * @returns The view, whatever the step did or did not get to (the allowance included).
      * @throws `IMPORT_NOT_FOUND` for a stranger's or an absent import. An unexpected failure of one item does not throw: it is
      *   logged, and the item waits.
-     * @sideEffect Spends allowance units, creates parse jobs and SQS messages, searches food and binds foods as the cook,
-     *   writes snapshots and recipes.
+     * @sideEffect Moves the import's activity clock, spends allowance units, creates parse jobs and SQS messages, searches food
+     *   and binds foods as the cook, writes snapshots and recipes.
      */
     public async advance(principal: Principal, caller: CallerToken | undefined, importId: string): Promise<ImportView> {
         const header = await ownedImport(this.imports, principal, importId);
         const deadlineAt = this.limits.now() + this.limits.deadlineMs;
+
+        // ADR-0072 §9: the working data is purged 30 days after the last advance, so every advance moves the clock, even one
+        // that finds nothing to write (every item waiting on the cook's review).
+        await this.imports.touch(header.id);
 
         await this.payAndStartParsing(principal, header, deadlineAt);
         await this.matchParsing(principal, caller, header, deadlineAt);

@@ -149,7 +149,8 @@ type Commands = unknown;
  *
  * Walks the shapes Maestro nests commands in: a bare string command (`- back`), a single-key mapping
  * (`- pressKey: Back`), `runFlow` as a path or as `{ file }` / `{ commands }`, and `repeat` / `retry` blocks
- * with `commands`. `seen` stops a sub-flow cycle from recursing forever.
+ * with `commands`. A `runFlow` gated by `when: platform: Android` is skipped: it never runs on iOS. `seen` stops a
+ * sub-flow cycle from recursing forever.
  *
  * @param commands - A command list (or a single command).
  * @param fromFlow - The flow file the commands live in, slash-separated, without extension — sub-flow paths
@@ -185,6 +186,13 @@ function reachesAndroidOnly(
         }
 
         if (name === 'runFlow' || name === 'repeat' || name === 'retry') {
+            // A branch gated to Android never runs on an iOS Simulator, so what it holds cannot fail there.
+            const platform = (argument as { when?: { platform?: unknown } } | null)?.when?.platform;
+
+            if (typeof platform === 'string' && platform.toLowerCase() === 'android') {
+                return false;
+            }
+
             const file =
                 typeof argument === 'string'
                     ? argument
@@ -236,6 +244,9 @@ describe('the Android-only detector — proved on command shapes before it is tr
         pressKeyEnter: `${header}- pressKey: Enter\n- tapOn: 'Back'\n`,
         textBackIsNotTheKey: `${header}- tapOn:\n      text: 'Back'\n      above:\n          text: 'Step 1 of 4'\n`,
         conditional: `${header}- runFlow:\n      when:\n          notVisible: 'x'\n      commands:\n          - pressKey: Back\n`,
+        androidBranch: `${header}- runFlow:\n      when:\n          platform: Android\n      commands:\n          - pressKey: Back\n- runFlow:\n      when:\n          platform: iOS\n      commands:\n          - swipe:\n                start: 1%, 50%\n                end: 85%, 50%\n`,
+        iosBranch: `${header}- runFlow:\n      when:\n          platform: iOS\n      commands:\n          - pressKey: Back\n`,
+        androidBranchFile: `${header}- runFlow:\n      when:\n          platform: android\n      file: common/sub.yaml\n`,
         repeated: `${header}- repeat:\n      times: 2\n      commands:\n          - back\n`,
         hook: 'appId: io.commise.mobile\nonFlowComplete:\n    - back\n---\n- launchApp\n',
         airplane: `${header}- setAirplaneMode: enabled\n`,
@@ -267,6 +278,9 @@ describe('the Android-only detector — proved on command shapes before it is tr
         ['pressKeyEnter', false],
         ['textBackIsNotTheKey', false],
         ['conditional', true],
+        ['androidBranch', false],
+        ['iosBranch', true],
+        ['androidBranchFile', false],
         ['repeated', true],
         ['hook', true],
         ['airplane', true],

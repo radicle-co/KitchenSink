@@ -1,0 +1,18 @@
+appId: ${APP_ID}
+---
+# Reusable sub-flow: leave the current screen the way a person does, not with an on-screen control. Android presses the
+# system Back key; iOS swipes in from the left edge. Both reach the navigator's `beforeRemove`, which is where a route
+# guard asks before the screen goes.
+- runFlow:
+      when:
+          platform: Android
+      commands:
+          - pressKey: Back
+- runFlow:
+      when:
+          platform: iOS
+      commands:
+          - swipe:
+                start: 1%, 50%
+                end: 85%, 50%
+                duration: 500

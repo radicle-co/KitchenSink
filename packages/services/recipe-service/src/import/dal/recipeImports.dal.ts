@@ -11,7 +11,8 @@
  *  3. **The cursor move is a compare-and-swap** (`WHERE cursor_ordinal = :from`): of two devices racing from one position,
  *     exactly one moves, and the loser is told where the cursor is now. The mark on the item left moves in the SAME
  *     transaction.
- *  4. **`updated_at` is the activity clock** the 30-day purge reads (ADR-0072 §12): every write bumps it, every read leaves it.
+ *  4. **`updated_at` is the activity clock** the 30-day purge reads (ADR-0072 §9): every write and every advance bumps it,
+ *     and every read leaves it.
  *  5. **The verdict fingerprint is read in SQL**, by either key a line holds, so the view's `version` costs one aggregate and
  *     never a hash per line.
  */

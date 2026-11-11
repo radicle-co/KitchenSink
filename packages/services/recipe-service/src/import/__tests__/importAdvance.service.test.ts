@@ -299,7 +299,10 @@ interface World {
 function build(world: World = {}) {
     const header = makeHeader({ ...(world.header ?? {}) });
     const store = itemStore(world.items ?? []);
-    const imports = { findHeader: vi.fn<RecipeImportsDal['findHeader']>(async () => header) };
+    const imports = {
+        findHeader: vi.fn<RecipeImportsDal['findHeader']>(async () => header),
+        touch: vi.fn<RecipeImportsDal['touch']>(async () => undefined),
+    };
     const lines = {
         findForItem: vi.fn(async (_importId: string, ordinal: number) => [...(world.lines?.[ordinal] ?? [])]),
         setSavedKeys: vi.fn(async (_tx: unknown, _entries: readonly { id: string; key: string }[]) => undefined),
@@ -464,16 +467,19 @@ describe('ImportAdvanceService — paying and giving each item its parse job', (
         ['⛔ a VIP on Free billing', ['vip'] as const, true],
         ['an admin, who is not a paid plan', ['admin'] as const, false],
         ['a free cook', [] as const, false],
-    ] satisfies readonly (readonly [string, readonly Role[], boolean])[])('%s pays under the plan it holds', async (_name, roles, isPremium) => {
-        const { answered, store } = run({ items: [received(0)], roles });
+    ] satisfies readonly (readonly [string, readonly Role[], boolean])[])(
+        '%s pays under the plan it holds',
+        async (_name, roles, isPremium) => {
+            const { answered, store } = run({ items: [received(0)], roles });
 
-        await answered;
+            await answered;
 
-        expect(store.payUnpaid.mock.calls[0]?.[2]).toStrictEqual({
-            limit: DEFAULT_IMPORT_ADVANCE_LIMITS.payBatch,
-            isPremium,
-        });
-    });
+            expect(store.payUnpaid.mock.calls[0]?.[2]).toStrictEqual({
+                limit: DEFAULT_IMPORT_ADVANCE_LIMITS.payBatch,
+                isPremium,
+            });
+        },
+    );
 
     it('⛔ creates each paid item’s job under the DERIVED id, from the TRIMMED lines, and names it on the item', async () => {
         const { answered, parseJobs, store } = run({ items: [received(3, ['  2 cups whole milk  ', '1 tsp salt'])] });
@@ -1479,6 +1485,21 @@ describe('ImportAdvanceService.advance — the whole step', () => {
 
         await expect(service.advance(COOK, CALLER, IMPORT_ID)).rejects.toMatchObject({ code: 'IMPORT_NOT_FOUND' });
         expect(store.payUnpaid).not.toHaveBeenCalled();
+        expect(imports.touch).not.toHaveBeenCalled();
+    });
+
+    // Review finding 3 on #185-#188: ADR-0072 §9 purges an import 30 days after its last `advance`, but an advance that wrote
+    // nothing (every item waiting on the cook's review) left `updated_at` where it was, so an import the cook was still
+    // working through aged out from its last write instead.
+    it('⛔ moves the activity clock on every advance, even one that writes nothing else', async () => {
+        const { service, imports, recipes } = build({
+            items: [matched(0, { stage: 'saved', savedAt: new Date(), recipeId: 'R' })],
+        });
+
+        await service.advance(COOK, CALLER, IMPORT_ID);
+
+        expect(imports.touch).toHaveBeenCalledExactlyOnceWith(IMPORT_ID);
+        expect(recipes.create).not.toHaveBeenCalled();
     });
 
     it('does nothing and answers the view for an import whose items are all saved', async () => {

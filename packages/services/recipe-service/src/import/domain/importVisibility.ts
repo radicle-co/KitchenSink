@@ -14,9 +14,8 @@ import { RecipeVisibility } from '@kitchensink/recipe-core';
 
 import type { ContainmentSubject } from '../../common/containmentPolicy.js';
 import { evaluateVisibility } from '../../recipes/domain/visibilityPolicy.js';
-import type { ImportStatement, ImportStatementView } from '../../recipes/import.schema.js';
 import type { ImportVisibility } from '../dal/recipeImports.dal.js';
-import { provenanceOfStatement } from './importStatement.js';
+import { provenanceOfStatement, type KnownImportStatement } from './importStatement.js';
 
 /** What the policy needs to know about the cook. */
 export interface VisibilityFacts extends ContainmentSubject {
@@ -33,7 +32,7 @@ export interface VisibilityFacts extends ContainmentSubject {
  */
 export function visibilityRefusedFor(
     facts: VisibilityFacts,
-    statement: ImportStatement | ImportStatementView,
+    statement: KnownImportStatement,
     requested: ImportVisibility,
 ): boolean {
     const decision = evaluateVisibility({

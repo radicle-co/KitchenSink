@@ -57,9 +57,10 @@ export const IMPORT_PURGE_BATCH_SIZE = 3;
 /**
  * The purge's metrics.
  *
- * ⛔ MUST EQUAL `IMPORT_METRIC_NAMESPACE`, `IMPORTS_PURGED_METRIC_NAME` and `OLDEST_IMPORT_AGE_METRIC_NAME` in
- * `infra/lib/RecipeWorkersStack.ts`: a divergence fails nothing at deploy time and leaves the alarm watching a metric nobody
- * publishes. `serviceInfraWiringInvariants` W3 asserts the names against this source.
+ * ⛔ The namespace and the age name MUST EQUAL `IMPORT_METRIC_NAMESPACE` and `OLDEST_IMPORT_AGE_METRIC_NAME` in
+ * `infra/lib/RecipeWorkersStack.ts`, whose alarm watches the age: a divergence fails nothing at deploy time and leaves the
+ * alarm watching a metric nobody publishes. `serviceInfraWiringInvariants` W3 checks that the alarmed name is emitted; the
+ * namespace is paired by this comment. The purged count has no alarm, so it has no twin there.
  */
 export const IMPORT_METRIC_NAMESPACE = 'Commise/RecipeImport';
 export const IMPORTS_PURGED_METRIC_NAME = 'BulkImportsPurged';

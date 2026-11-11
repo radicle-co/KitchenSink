@@ -7,6 +7,8 @@
  */
 import { describe, expect, it, vi } from 'vitest';
 
+import type { EmfMetric } from '../../common/metrics.js';
+
 import {
     IMPORT_PURGE_AFTER_DAYS,
     IMPORT_PURGE_BATCH_SIZE,
@@ -127,7 +129,7 @@ describe('runImportPurge', () => {
     }
 
     it('⛔ publishes the purged count EVERY tick, zero included, so a stopped purge is not mistaken for an idle one', async () => {
-        const emit = vi.fn();
+        const emit = vi.fn<(metric: EmfMetric) => void>();
 
         await runImportPurge({ pool: poolWith({ purged: 0 }), stage: STAGE, emit });
 
@@ -141,7 +143,7 @@ describe('runImportPurge', () => {
     });
 
     it('publishes how many imports it deleted, and the age of the oldest import left, after the delete', async () => {
-        const emit = vi.fn();
+        const emit = vi.fn<(metric: EmfMetric) => void>();
         const pool = poolWith({ purged: 2, ageSeconds: 86_400 });
 
         await runImportPurge({ pool, stage: STAGE, emit });
@@ -167,24 +169,20 @@ describe('runImportPurge', () => {
     });
 
     it('⛔ still publishes the oldest age when the purge fails, then fails the tick: the age is how a broken purge shows', async () => {
-        const emit = vi.fn();
+        const emit = vi.fn<(metric: EmfMetric) => void>();
 
         await expect(
             runImportPurge({ pool: poolWith({ purgeFails: true, ageSeconds: 3_000_000 }), stage: STAGE, emit }),
         ).rejects.toThrow('purge failed');
 
-        expect(emit.mock.calls.map(([metric]) => (metric as { name: string }).name)).toStrictEqual([
-            OLDEST_IMPORT_AGE_METRIC_NAME,
-        ]);
+        expect(emit.mock.calls.map(([metric]) => metric.name)).toStrictEqual([OLDEST_IMPORT_AGE_METRIC_NAME]);
     });
 
     it('swallows its own age-read failure, so observation never fails a purge that worked', async () => {
-        const emit = vi.fn();
+        const emit = vi.fn<(metric: EmfMetric) => void>();
 
         await runImportPurge({ pool: poolWith({ purged: 1, ageFails: true }), stage: STAGE, emit });
 
-        expect(emit.mock.calls.map(([metric]) => (metric as { name: string }).name)).toStrictEqual([
-            IMPORTS_PURGED_METRIC_NAME,
-        ]);
+        expect(emit.mock.calls.map(([metric]) => metric.name)).toStrictEqual([IMPORTS_PURGED_METRIC_NAME]);
     });
 });

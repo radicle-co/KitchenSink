@@ -419,11 +419,19 @@ export async function runMaintenanceSweeps(deps: {
  * @sideEffect Whatever `drain` and `sweeps` do.
  */
 export async function runDrainTick(drain: () => Promise<unknown>, sweeps: () => Promise<void>): Promise<void> {
-    const [drained] = await Promise.allSettled([drain()]);
-    const [swept] = await Promise.allSettled([sweeps()]);
-    const failures = [drained, swept].flatMap((outcome): unknown[] =>
-        outcome?.status === 'rejected' ? [outcome.reason] : [],
-    );
+    const failures: unknown[] = [];
+
+    try {
+        await drain();
+    } catch (error) {
+        failures.push(error);
+    }
+
+    try {
+        await sweeps();
+    } catch (error) {
+        failures.push(error);
+    }
 
     if (failures.length > 1) {
         throw new AggregateError(failures, 'the band drain and its maintenance sweeps both failed');

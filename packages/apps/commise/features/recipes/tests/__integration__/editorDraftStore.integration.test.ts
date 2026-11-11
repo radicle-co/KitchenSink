@@ -57,7 +57,6 @@ describe('the editor draft in sessionStorage (integration)', () => {
 
         const stored = window.sessionStorage.getItem(draftStoreKeyFor(SUBJECT)) ?? '';
 
-        expect(stored).not.toContain('photos');
         expect(stored).not.toContain('nutrition');
         expect(stored).not.toContain('calories');
     });

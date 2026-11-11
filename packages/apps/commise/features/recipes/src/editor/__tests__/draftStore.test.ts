@@ -48,7 +48,7 @@ function memento(over: Partial<DraftMemento> = {}): DraftMemento {
 
 describe('the persisted format', () => {
     /**
-     * ⛔ THE SCHEMA PARSES EXACTLY THE FORM'S VALUES, minus the photo picks. A field added to `RecipeFormValues` and
+     * ⛔ THE SCHEMA PARSES EXACTLY THE FORM'S VALUES, minus the live food visibility. A field added to `RecipeFormValues` and
      * not here fails `tsc`, so a draft can never silently drop it on reload.
      */
     it('⛔ parses exactly the form values minus the live food visibility (compile-time identity)', () => {

@@ -250,6 +250,7 @@ describe('RecipeDeleteDialog (native) — a short window', () => {
         ]) {
             expect(action.closest('[data-keyboard-avoider]')).not.toBeNull();
         }
+
         // The copy's region lets a first tap through with the keyboard up.
         expect(
             screen

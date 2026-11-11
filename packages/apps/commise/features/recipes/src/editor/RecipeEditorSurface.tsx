@@ -196,7 +196,8 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
 
     // × (`requestLeave`: its `proceed` checkpoints the exit, then closes) and "My recipes". On web the page asks first. On
     // native the route guard asks, so × while a photo is at risk only navigates: a cook who answers Stay has not left, and
-    // the session's unmount runs the exit checkpoint for a leave that goes ahead (see `leaveAsk`).
+    // the session's unmount runs the exit checkpoint for a leave that goes ahead (see `leaveAsk`). So on that one branch
+    // `proceed` is NOT called: the checkpoint it would run belongs to the unmount instead.
     const requestLeave = (proceed: () => void): void => {
         if (leaveAsk === 'inPage') {
             photos.leave.request(proceed);

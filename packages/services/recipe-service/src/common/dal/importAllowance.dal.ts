@@ -38,16 +38,15 @@ import {
     describeImportAllowance,
     evaluateImportAllowance,
     importAllowanceWindowStart,
+    type ImportAllowanceScope,
     type ImportAllowanceState,
 } from '../importAllowancePolicy.js';
 
-/** What a caller asks the allowance for. */
-export interface AdmitRequest {
-    /** What is spending the unit. */
-    readonly channel: ImportAllowanceChannel;
-    /** How many units: a positive integer (the policy throws otherwise). More than the room left is admitted in part. */
-    readonly units: number;
-}
+/**
+ * What a caller asks the allowance for: the scope spending (its channel, and the plan where the channel's limit depends on
+ * it) and how many units, a positive integer (the policy throws otherwise). More than the room left is admitted in part.
+ */
+export type AdmitRequest = ImportAllowanceScope & { readonly units: number };
 
 /**
  * The outcome of an admission. A refusal wrote no ledger row (the user's expired rows may still have been pruned).
@@ -130,7 +129,7 @@ export class ImportAllowanceDal {
         const windowEvents = rows.map((row) => ({ ...row, channel: channelOf(row.channel) }));
 
         const decision = evaluateImportAllowance({
-            channel: request.channel,
+            ...request,
             windowEvents,
             requestedUnits: request.units,
             now,
@@ -156,14 +155,15 @@ export class ImportAllowanceDal {
      *
      * @param reader - The client (or a transaction).
      * @param userId - The verified app-user ULID.
-     * @param channel - The channel.
+     * @param scope - The channel, and the plan where its limit depends on it.
      * @returns The state. @sideEffect Reads the database clock and the ledger.
      */
     public async stateOf(
         reader: Pick<Writer, 'select'>,
         userId: string,
-        channel: ImportAllowanceChannel,
+        scope: ImportAllowanceScope,
     ): Promise<ImportAllowanceState> {
+        const { channel } = scope;
         const now = await this.readClock(reader);
         const rows = await reader
             .select({
@@ -182,7 +182,7 @@ export class ImportAllowanceDal {
             .orderBy(asc(importAllowanceEvents.createdAt));
 
         return describeImportAllowance({
-            channel,
+            ...scope,
             windowEvents: rows.map((row) => ({ ...row, channel: channelOf(row.channel) })),
             now,
         });

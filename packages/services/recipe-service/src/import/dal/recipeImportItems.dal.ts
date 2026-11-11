@@ -511,11 +511,15 @@ export class RecipeImportItemsDal {
      *
      * @param userId - The verified caller; only their import is paid for.
      * @param importId - The import.
-     * @param request - The most items to pay now.
+     * @param request - The most items to pay now, and whether the cook holds a paid plan (the bulk limit is per plan).
      * @returns The items paid (fewer than `limit` when the day's room ran short), `nothing` when none was unpaid, or `refused`.
      * @sideEffect Locks the unpaid items, then the user's allowance; writes the ledger and `allowance_spent_at`.
      */
-    public async payUnpaid(userId: string, importId: string, request: { readonly limit: number }): Promise<PayOutcome> {
+    public async payUnpaid(
+        userId: string,
+        importId: string,
+        request: { readonly limit: number; readonly isPremium: boolean },
+    ): Promise<PayOutcome> {
         return this.db.transaction(async (tx): Promise<PayOutcome> => {
             await lockImportHeader(tx, importId);
 
@@ -539,6 +543,7 @@ export class RecipeImportItemsDal {
 
             const admission = await this.allowance.admit(tx, userId, {
                 channel: 'bulk',
+                isPremium: request.isPremium,
                 units: unpaid.rows.length,
             });
 

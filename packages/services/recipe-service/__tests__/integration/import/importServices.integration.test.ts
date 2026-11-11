@@ -182,14 +182,19 @@ describe('the import services under the real injector', () => {
         expect([service, steps, advancer].every((resolved) => resolved !== undefined)).toBe(true);
     });
 
-    it('a view parses against the published contract, and its allowance is read with one flat limit', async () => {
+    // Rewritten 2026-11-11: it pinned ONE flat limit. Bulk is 200 a day on Free and 1,000 on a paid plan (owner ruling), so
+    // the view reads the allowance under the caller's plan.
+    it('a view parses against the published contract, and its allowance is read under the caller’s plan', async () => {
         const { service } = await compile();
         const view = await service.getView(COOK, IMPORT_ID, {});
 
         expect(importViewSchema.parse(view)).toEqual(view);
         expect(view.allowance).toEqual(ALLOWANCE);
-        expect(allowance.stateOf).toHaveBeenCalledWith(DB, USER, 'bulk');
-        expect(allowance.stateOf.mock.calls[0]).toHaveLength(3);
+        expect(allowance.stateOf).toHaveBeenCalledWith(DB, USER, { channel: 'bulk', isPremium: false });
+
+        await service.getView(makePrincipal({ roles: ['vip'] }), IMPORT_ID, {});
+
+        expect(allowance.stateOf).toHaveBeenLastCalledWith(DB, USER, { channel: 'bulk', isPremium: true });
     });
 
     it('an advance with nothing to do answers the view, which parses', async () => {
@@ -199,6 +204,7 @@ describe('the import services under the real injector', () => {
         expect(importViewSchema.parse(view)).toEqual(view);
         expect(items.payUnpaid).toHaveBeenCalledWith(USER, IMPORT_ID, {
             limit: DEFAULT_IMPORT_ADVANCE_LIMITS.payBatch,
+            isPremium: false,
         });
     });
 

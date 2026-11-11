@@ -6,55 +6,17 @@
  * stacked, and the inline panel on a tablet sits inside it.
  */
 import { cleanup, render, screen } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 
+import { makeRowLineEditorView } from '../../__fixtures__/rowLineEditorView.js';
 import { IngredientLineEditor } from '../IngredientLineEditor.js';
 import { recipeFormMessages } from '../messages.js';
-import type { RowLineEditorView } from '../ingredientRowView.js';
 
 afterEach(cleanup);
 
 const m = recipeFormMessages.en;
 
-const view: RowLineEditorView = {
-    title: 'Flour',
-    closeLabel: 'Close',
-    food: 'Flour',
-    ids: {
-        amount: 'amount-1',
-        amountHigh: 'amountHigh-1',
-        unit: 'unit-1',
-        displayText: 'displayText-1',
-        note: 'note-1',
-        prep: 'prep-1',
-    },
-    amountLow: '2',
-    amountHigh: '3',
-    rangeShown: true,
-    amountInvalid: false,
-    amountNote: undefined,
-    unit: 'cup',
-    unitSuggestions: ['cup'],
-    unitNote: undefined,
-    displayText: '',
-    displayTextPlaceholder: 'Flour',
-    note: '',
-    prep: '',
-    describedBy: { quantity: undefined, quantityHigh: undefined, unit: undefined },
-    detailsOffered: false,
-    detailsOpen: false,
-    onAmountLow: vi.fn(),
-    onAmountHigh: vi.fn(),
-    onAddRange: vi.fn(),
-    onRemoveRange: vi.fn(),
-    onUnit: vi.fn(),
-    onPrep: vi.fn(),
-    onDisplayText: vi.fn(),
-    onNote: vi.fn(),
-    onChangeFood: undefined,
-    onToggleDetails: vi.fn(),
-    onDone: vi.fn(),
-};
+const view = makeRowLineEditorView();
 
 const pairOf = (label: string): HTMLElement => screen.getByLabelText(label).parentElement?.parentElement as HTMLElement;
 

@@ -2,8 +2,9 @@
 
 /**
  * @module @commise/features-recipes/layout — the web container class of `<main>`, the space every surface's cards get
- * (`docs/design/uiOverhaul/buildSpec.md` §1.2). The shell makes `<main>` the `main` container and pads it, so its
- * content box is the width the content gets — the same width `@regular/main:` and `@wide/main:` read in CSS.
+ * (`docs/design/uiOverhaul/buildSpec.md` §1.2). The element measured is the one `MainElementContext` names (the shell's
+ * `<main>`, or a `MainColumn`), the `main` container whose content box is the width the content gets — the same width
+ * `@regular/main:` and `@wide/main:` read in CSS.
  *
  * A JavaScript reading is needed only where the class picks a COMPONENT, not a style: `cardVariantOf` and the library's
  * default view. It is `narrow` on the server and until `<main>` is measured, so a server render and its hydration agree.

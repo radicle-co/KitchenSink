@@ -546,8 +546,8 @@ test.describe('the editor form fields (A-007, A-008, A-009, E15, P3, P4)', () =>
         await expect(page.getByText('3 cloves · garlic')).toBeVisible();
     });
 
-    // The placement is picked in JavaScript from `<main>`'s measured width (`useMainContainerClass`, a ResizeObserver
-    // source that reads `narrow` until `<main>` is measured), so it moves a frame or more after a load or a resize, and
+    // The placement is picked in JavaScript from the main container's measured width (`useMainContainerClass`, a ResizeObserver
+    // source that reads `narrow` until the container is measured), so it moves a frame or more after a load or a resize, and
     // the button is unmounted from one place and mounted in the other. Each layout is therefore read until it holds
     // (for a bounded 5 s, so a layout that never arrives still fails here), and an absent box fails rather than reading
     // as 0.

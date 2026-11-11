@@ -42,6 +42,7 @@ import {
     importPickRequestSchema,
     importRecipeSchema,
     importStatementSchema,
+    importStepLineSchema,
     importStepResponseSchema,
     importToCheckResponseSchema,
     importToCheckCountResponseSchema,
@@ -461,12 +462,39 @@ describe('responses are loose and reuse the paste match view', () => {
         );
     });
 
+    it('⛔ carries the row the import saves: its name, and the shown words and note the parse gave (owner ruling 2026-11-08)', () => {
+        const line = {
+            lineIndex: 0,
+            foodIndex: 0,
+            sourceLine: '1 (9 inch) double-crust pie pastry',
+            phrase: '9 inch double-crust pie pastry',
+            name: 'double-crust pie pastry',
+            note: '9 inch',
+            measure: { quantity: { kind: 'exact', value: 1 }, unit: '' },
+            judgementDigest: 'jd',
+            match: null,
+            flag: null,
+            pick: null,
+            boundBy: null,
+        };
+
+        expect(importStepLineSchema.safeParse(line).success).toBe(true);
+        expect(importStepLineSchema.safeParse({ ...line, displayText: 'my pie pastry' }).success).toBe(true);
+        // The name is what a line kept as written is saved under, so it is never missing or blank.
+        expect(importStepLineSchema.safeParse({ ...line, name: undefined }).success).toBe(false);
+        expect(importStepLineSchema.safeParse({ ...line, name: '  ' }).success).toBe(false);
+        // A blank shown name or note is refused, as on a recipe line.
+        expect(importStepLineSchema.safeParse({ ...line, displayText: '' }).success).toBe(false);
+        expect(importStepLineSchema.safeParse({ ...line, note: '' }).success).toBe(false);
+    });
+
     it('uses the paste match view, not a second copy of it', () => {
         const line = {
             lineIndex: 0,
             foodIndex: 0,
             sourceLine: '2 cups tomatoes',
             phrase: 'tomatoes',
+            name: 'tomatoes',
             measure: { quantity: { kind: 'exact', value: 2 }, unit: 'cup' },
             judgementDigest: 'jd',
             match: {
@@ -646,6 +674,7 @@ describe('ADR-0072 service lane additions to the contract', () => {
             foodIndex: 0,
             sourceLine: '1 cup milk',
             phrase: 'milk',
+            name: 'milk',
             measure: { quantity: { kind: 'exact', value: 1 }, unit: 'cup' },
             judgementDigest: 'jd',
             match: null,

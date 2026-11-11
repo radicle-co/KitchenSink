@@ -60,10 +60,11 @@ import {
     recipeVisibilitySchema,
     MAX_PARSE_JOB_LINES,
     PARSE_JOB_LINE_MAX_CHARS,
+    SOURCE_LINK_MAX_LENGTH,
 } from '@kitchensink/recipe-core';
 
 import { parseProposalMatchSchema } from './parseJobs.schema.js';
-import { createRecipeRequestSchema, recipeStepInputSchema } from './recipes.schema.js';
+import { createRecipeRequestSchema, publicWebStatementSchema, recipeStepInputSchema } from './recipes.schema.js';
 
 // ── Bounds ───────────────────────────────────────────────────────────────────────────────────────
 
@@ -95,8 +96,8 @@ export const MAX_IMPORT_STEPS = 200;
 /** The longest one step's instruction, in characters. Bounds the stored document; a longer one is rejected, never truncated. */
 export const MAX_IMPORT_STEP_CHARS = 5_000;
 
-/** The longest citation, in characters. Mirrors the `recipe_import_items` CHECK. */
-export const IMPORT_MAX_CITATION_LENGTH = 2_000;
+/** The longest citation, in characters. Mirrors the `recipe_import_items` CHECK, and is the longest source link too. */
+export const IMPORT_MAX_CITATION_LENGTH = SOURCE_LINK_MAX_LENGTH;
 
 /** The most item rows one `GET` returns. */
 export const MAX_IMPORT_PAGE_SIZE = 500;
@@ -132,11 +133,9 @@ const citationTextSchema = z
     .max(IMPORT_MAX_CITATION_LENGTH)
     .refine(hasText, { message: 'citation is blank' });
 
-/** A public web page's citation is its address, http(s) only: a `javascript:` or `file:` URL is not a source. */
-const citationUrlSchema = z.url({ protocol: /^https?$/ }).max(IMPORT_MAX_CITATION_LENGTH);
-
 const authoredStatement = z.object({ kind: z.literal('authored') });
-const publicWebStatement = z.object({ kind: z.literal('public_web'), citation: citationUrlSchema });
+// The public-web member is `recipes.schema.ts`'s, the one a recipe's own `statement` uses (ADR-0089): one spelling of it.
+const publicWebStatement = publicWebStatementSchema;
 const bookStatement = z.object({ kind: z.literal('book'), citation: citationTextSchema });
 const paidSiteStatement = z.object({ kind: z.literal('paid_site'), citation: citationTextSchema });
 

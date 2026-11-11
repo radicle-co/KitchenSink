@@ -50,6 +50,7 @@ describe('evaluateProvenance — an absent declaration (004-FR-024: existing beh
                 sourceType: RecipeSourceType.USER_CREATED,
                 sourceUrl: null,
                 sourceAttribution: null,
+                sourceKind: null,
             });
         }
     });
@@ -67,6 +68,7 @@ describe('evaluateProvenance — an explicit user_created declaration', () => {
             sourceType: RecipeSourceType.USER_CREATED,
             sourceUrl: null,
             sourceAttribution: null,
+            sourceKind: null,
         });
     });
 });
@@ -98,6 +100,7 @@ describe('evaluateProvenance — imported_public is grant-gated (004-FR-025 / AD
             sourceType: RecipeSourceType.IMPORTED_PUBLIC,
             sourceUrl: CURATED.sourceUrl,
             sourceAttribution: CURATED.sourceAttribution,
+            sourceKind: null,
         });
     });
 
@@ -106,5 +109,59 @@ describe('evaluateProvenance — imported_public is grant-gated (004-FR-025 / AD
             evaluateProvenance({ declared: CURATED, grantedScopes: ['admin:users', CURATOR_IMPORT_SCOPE] }),
             true,
         );
+    });
+
+    it('keeps the curator reading with NO source kind, so the curator’s text stays distinct from a web copy (ADR-0089)', () => {
+        const decision = evaluateProvenance({ declared: CURATED, grantedScopes: [CURATOR_IMPORT_SCOPE] });
+
+        expect(decision.allowed && decision.provenance.sourceKind).toBeNull();
+    });
+});
+
+describe('evaluateProvenance — a pasted web link as the cook’s statement (ADR-0089)', () => {
+    const WEB = { kind: 'public_web', citation: 'https://www.allrecipes.com/recipe/1/soup/' } as const;
+
+    it.each([[[]], [['admin:users']], [[CURATOR_IMPORT_SCOPE]]])(
+        'is ALLOWED for any caller (grants %j) and resolves to a web copy of the registrable domain',
+        (grantedScopes) => {
+            const decision = evaluateProvenance({ declared: undefined, statement: WEB, grantedScopes });
+
+            expectDecision(decision, true);
+            expect(decision.allowed && decision.provenance).toEqual({
+                sourceType: RecipeSourceType.IMPORTED_PUBLIC,
+                sourceUrl: 'https://www.allrecipes.com/recipe/1/soup/',
+                sourceAttribution: 'allrecipes.com',
+                sourceKind: 'public_web',
+            });
+        },
+    );
+
+    it('⛔ never reads the curator grant: grant + statement is a web copy, not the curator reading', () => {
+        const decision = evaluateProvenance({
+            declared: undefined,
+            statement: WEB,
+            grantedScopes: [CURATOR_IMPORT_SCOPE],
+        });
+
+        expect(decision.allowed && decision.provenance.sourceKind).toBe('public_web');
+    });
+
+    it('refuses an address that is not a usable source (our own site), whatever the schema let through', () => {
+        const decision = evaluateProvenance({
+            declared: undefined,
+            statement: { kind: 'public_web', citation: 'https://commise.app/recipes/1' },
+            grantedScopes: [],
+        });
+
+        expectDecision(decision, false);
+        expect(decision.allowed === false && decision.requiredScope).toBeUndefined();
+    });
+
+    it('gives every other resolution a null source kind', () => {
+        for (const declared of [undefined, { sourceType: RecipeSourceType.USER_CREATED } as const]) {
+            const decision = evaluateProvenance({ declared, grantedScopes: [] });
+
+            expect(decision.allowed && decision.provenance.sourceKind).toBeNull();
+        }
     });
 });

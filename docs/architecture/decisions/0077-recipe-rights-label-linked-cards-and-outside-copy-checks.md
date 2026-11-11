@@ -6,6 +6,9 @@
 - **Amended by:** [ADR-0078](0078-a-live-site-claim-clears-the-own-site-hit.md): §4's rule for a blogger who imports
   their own posts. A live site claim (026) now clears the hit on the recipe's own origin page. Any other hit, model
   item or photo signal still goes to a person. Every other decision here stands.
+- **Amended by:** [ADR-0089](0089-a-pasted-web-link-sets-the-source-and-a-web-copy-stays-private.md): §3. The linked card
+  has no read path yet, so a recipe copied from a web page (a pasted link) is private only, and the "public as a linked
+  card" state is not offered until that path ships. Every other part stands.
 - **Amends:** [ADR-0072](0072-bulk-recipe-import.md) §9, its list of source statements. Two statements are added, and
   a family or friend recipe is no longer labelled like a paid source. §6 below also removes §9's rule that a web
   import goes private only with Pro and a substantive edit. Every other part of §9 stands.
@@ -113,7 +116,8 @@ ADR-0072 §9's statement list becomes six statements. The table replaces §9's t
 
 ### 3. A recipe from someone else's web page is private in full, or public as a linked card
 
-A recipe imported from someone else's web page has exactly two states.
+A recipe imported from someone else's web page has exactly two states. Until the card's read path ships, only the first
+is offered (ADR-0089): a recipe with a pasted web link is private only, and the server refuses Public for it.
 
 - **Private:** the full recipe, for the cook and their household.
 - **Public as a linked card**, for other signed-in cooks. The card holds exactly this: the title, servings, times,

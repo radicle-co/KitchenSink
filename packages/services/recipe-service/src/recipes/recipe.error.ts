@@ -262,6 +262,50 @@ export function provenanceNotPermitted(reason: string, details?: Record<string, 
     return apiError('FORBIDDEN', reason, details);
 }
 
+/** `details.reason` of the `FORBIDDEN` a locked source answers with: the stable key a client branches on (ADR-0089). */
+export const SOURCE_LOCKED_REASON = 'SOURCE_LOCKED';
+
+/**
+ * `FORBIDDEN` with `details.reason: 'SOURCE_LOCKED'` (→ 403) — a `PATCH` tried to change the source of a recipe that was
+ * first published (or whose source the cook did not state), so it can no longer change (ADR-0089, ADR-0058).
+ *
+ * ⚠️ A 403 and NOT a 409, and not a new published code. An installed client reads an unknown 409 as a version conflict (the
+ * same reason `PRIVATE_SLOTS_FULL` is a 403), and a new member of `recipeErrorCodeSchema` would widen a contract both apps
+ * consume for a refusal the editor already prevents (it shows no field once `firstPublishedAt` is present). `FORBIDDEN` is
+ * "authenticated, but not permitted", which is this case; `details.reason` is the stable key.
+ *
+ * @returns The exception to throw.
+ */
+export function sourceLocked(): HttpException {
+    return provenanceNotPermitted('The source of a recipe cannot be changed after it was first published.', {
+        reason: SOURCE_LOCKED_REASON,
+    });
+}
+
+/**
+ * `VALIDATION_FAILED` (→ 400) — a create body carried both the curator's `source` and the cook's `statement`. They are two
+ * ways of saying where a recipe came from, so a body naming both has said two things. It is answered here, not by a
+ * refinement on the create schema, because a refined object cannot be picked from (`importRecipeSchema` picks from it).
+ *
+ * @returns The exception to throw.
+ */
+export function sourceAndStatementTogether(): HttpException {
+    return apiError('VALIDATION_FAILED', 'Send either source or statement, not both.', {
+        fields: ['statement: cannot be sent together with source'],
+    });
+}
+
+/**
+ * `VALIDATION_FAILED` (→ 400) — a statement's link is not a usable web source. The wire schema refuses it first; this is the
+ * answer for the policy's own refusal, so the policy stays total without a path that returns a 500.
+ *
+ * @param reason - The policy's deny-reason.
+ * @returns The exception to throw.
+ */
+export function sourceNotUsable(reason: string): HttpException {
+    return apiError('VALIDATION_FAILED', reason, { fields: [`statement.citation: ${reason}`] });
+}
+
 /**
  * `PRIVATE_SLOTS_FULL` (→ 403) - a free cook has no private slot left (ADR-0073). NOTHING was written.
  *

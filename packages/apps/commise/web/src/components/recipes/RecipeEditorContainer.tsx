@@ -339,7 +339,12 @@ const RecipeEditorSession: FC<RecipeEditorSessionProps> = ({ locale, mode, draft
     const knownPaidFeatures = knownPaidFeaturesOf(profile);
     // ADR-0073: which rule the recipe's Private is under, where the cook stands on private slots (the server's read), and
     // the refusal that is KNOWN - what the session must not send.
-    const recipePrivate = useRecipePrivate({ sourceType: seed.recipe?.sourceType, knownPaidFeatures });
+    // The STORED kind for now: the editor builder passes the DRAFT's own once the source row exists (ADR-0089).
+    const recipePrivate = useRecipePrivate({
+        sourceType: seed.recipe?.sourceType,
+        sourceKind: seed.recipe?.sourceKind ?? null,
+        knownPaidFeatures,
+    });
     const [initialSection] = useState<EditorSectionId | undefined>(() => sectionFromHash(window.location.hash));
     // The session's navigation port, on the Next router.
     const navigation: EditorNavigation = {

@@ -79,7 +79,7 @@ const RECIPE_COLUMNS = sql`
     recipes.id, recipes.owner_id, recipes.title, recipes.description, recipes.prep_time_minutes,
     recipes.cook_time_minutes, recipes.total_time_minutes, recipes.servings, recipes.difficulty, recipes.meal_type,
     recipes.average_rating, recipes.rating_count, recipes.visibility, recipes.status, recipes.first_published_at,
-    recipes.source_type,
+    recipes.source_type, recipes.source_kind,
     recipes.source_url, recipes.source_attribution, recipes.cloned_from_id, recipes.has_substantive_edit,
     recipes.cuisine, recipes.dietary_flags, recipes.tags,
     -- ⛔ NO has_partial_nutrition / lead_calories_per_serving (U10, migration 0019). Selecting a dropped
@@ -155,6 +155,7 @@ interface RawRecipeSearchRow {
     status: string;
     first_published_at: Date | string | null;
     source_type: string;
+    source_kind: string | null;
     source_url: string | null;
     source_attribution: string | null;
     cloned_from_id: string | null;
@@ -209,6 +210,7 @@ function toRecipeRowInput(row: RawRecipeSearchRow): RecipeRowInput {
         status: row.status,
         firstPublishedAt: row.first_published_at,
         sourceType: row.source_type,
+        sourceKind: row.source_kind,
         sourceUrl: row.source_url,
         sourceAttribution: row.source_attribution,
         clonedFromId: row.cloned_from_id,

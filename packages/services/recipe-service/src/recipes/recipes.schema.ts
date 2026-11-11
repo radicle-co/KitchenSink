@@ -69,6 +69,8 @@ import {
     MAX_RECIPE_LIST_PAGE_SIZE,
     MAX_RECIPE_TAGS,
     RecipeSourceType,
+    SOURCE_LINK_MAX_LENGTH,
+    parseSourceLink,
 } from '@kitchensink/recipe-core';
 
 // ── Nested request shapes ─────────────────────────────────────────────────────────────────────────
@@ -293,6 +295,42 @@ export const recipeSourceInputSchema = z.discriminatedUnion('sourceType', [
 export type RecipeSourceInput = z.infer<typeof recipeSourceInputSchema>;
 
 /**
+ * A public web page's citation is its address, http(s) only: a `javascript:` or `file:` URL is not a source.
+ *
+ * The statement's `public_web` member below is the ONE spelling of "copied from a public web page": the bulk import
+ * (`import.schema.ts`, ADR-0072 section 9) composes it into its own statement union, and a recipe's own `statement`
+ * (ADR-0089) uses it as it stands. It lives here, not in `import.schema.ts`, because that file composes THIS one.
+ */
+const citationUrlSchema = z.url({ protocol: /^https?$/ }).max(SOURCE_LINK_MAX_LENGTH);
+
+/** "Copied from a public web page", with its address. Loose, so a response read tolerates a newer server's field. */
+export const publicWebStatementSchema = z.object({ kind: z.literal('public_web'), citation: citationUrlSchema });
+
+/**
+ * What a cook says about where THIS recipe came from, on a create or an update (ADR-0089): the address they pasted.
+ *
+ * ⚠️ NOT the curator's `source` ({@link recipeSourceInputSchema}). That one is grant-gated and carries its own attribution;
+ * this one is open to any cook and the server derives the label, the address and the site from it (`evaluateProvenance`).
+ * The two never travel together: a body carrying both is a `400` (the service answers it, because a refinement on the
+ * create body would stop `importRecipeSchema` picking from it).
+ *
+ * One member today. A book or a paid site joins as another member of the same statement vocabulary when it has a surface.
+ *
+ * ⛔ The citation must be a usable source, not just an address: our own site, `localhost` and a bare IP are refused here,
+ * by the same reading (`parseSourceLink`) the editor uses, so the client's "that is not a source" and the server's `400`
+ * are one rule. The refinement sits on this member, which nothing picks from.
+ */
+export const recipeStatementSchema = publicWebStatementSchema
+    .strict()
+    .refine((statement) => parseSourceLink(statement.citation).ok, {
+        message: 'citation is not a public web page address',
+        path: ['citation'],
+    });
+
+/** A recipe's statement, as a create or an update request carries it. */
+export type RecipeStatementInput = z.infer<typeof recipeStatementSchema>;
+
+/**
  * Body of `POST /api/v1/recipes`.
  *
  * `ownerId` is deliberately absent and unaccepted: ownership comes from the verified principal, so there is no
@@ -359,6 +397,8 @@ export const createRecipeRequestSchema = createRecipeRequestBaseSchema
     // provenance field on `PATCH`, and provenance is a create-time fact.
     .extend({
         source: recipeSourceInputSchema.optional(),
+        // The cook's pasted web link (ADR-0089). Never together with `source`: the service answers that `400`.
+        statement: recipeStatementSchema.optional(),
         // ⚠️ OVERRIDES the base's `ingredients` key with the widened element — see
         // `createRecipeIngredientInputSchema`. The cardinality bound is restated because `.extend()` replaces
         // the whole field; `ingredientArrayCap.test.ts`-style identity is preserved by composing the SAME
@@ -393,6 +433,11 @@ export const updateRecipeRequestSchema = createRecipeRequestBaseSchema.omit({ vi
     // Three-state again (owner rulings 2026-10-13): a cook who empties the Cuisine field must be able to clear it.
     // Clearing the cuisine of a PUBLISHED recipe that needs one is refused by the publish policy, not here.
     cuisine: recipeCuisineSchema.nullable().optional(),
+    // Three-state, and ONLY until the first publish (ADR-0089, ADR-0058's fact): ABSENT leaves the source alone, a statement
+    // sets it, and an explicit `null` removes it. The editor's draft checkpoints may create the row before the cook pastes
+    // the link, so the link has to be settable on a draft; after the first publish the source is frozen and the service
+    // answers `403 FORBIDDEN` (`details.reason: 'SOURCE_LOCKED'`). `source` is still never accepted here.
+    statement: recipeStatementSchema.nullable().optional(),
 });
 
 /** Request body for updating a recipe. */

@@ -74,7 +74,11 @@ interface HarnessProps {
 function Harness(props: HarnessProps): ReactElement {
     const { seed, paidFeatures, knownPaidFeatures, renderPhotos, onClose, onOpenMyRecipes } = props;
     // What the app's container does: the rule, the slot standing and the known refusal, from one hook.
-    const recipePrivate = useRecipePrivate({ sourceType: seed.recipe?.sourceType, knownPaidFeatures });
+    const recipePrivate = useRecipePrivate({
+        sourceType: seed.recipe?.sourceType,
+        sourceKind: seed.recipe?.sourceKind ?? null,
+        knownPaidFeatures,
+    });
     const session = useRecipeEditorSession({
         seed,
         locale: 'en',

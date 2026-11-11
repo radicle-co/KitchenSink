@@ -38,7 +38,9 @@ function mount(
             <RecipeServiceProvider client={client}>{children}</RecipeServiceProvider>
         </QueryClientProvider>
     );
-    const view = renderHook(() => useRecipePrivate({ sourceType, knownPaidFeatures: known }), { wrapper });
+    const view = renderHook(() => useRecipePrivate({ sourceType, sourceKind: null, knownPaidFeatures: known }), {
+        wrapper,
+    });
 
     return { ...view, getPrivateSlots };
 }

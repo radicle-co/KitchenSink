@@ -27,6 +27,7 @@ import {
 import type {
     RecipeDifficulty,
     RecipeMealType,
+    RecipeSourceKind,
     RecipeSourceType,
     RecipeStatus,
     RecipeVisibility,
@@ -135,6 +136,10 @@ export const recipes = pgTable(
         // change it after, for every writer, so a demotion cannot reopen in-place overwrites.
         firstPublishedAt: timestamp('first_published_at', { withTimezone: true }),
         sourceType: text('source_type').$type<RecipeSourceType>().notNull().default('user_created'),
+        // What the cook said the source is (ADR-0089, 0065 migration): `public_web`, `book` or `paid_site`. NULL: no
+        // statement, which includes the curator's public-domain text. The vocabulary is recipe-core's, as the import
+        // tables' is; `public_web` is only ever stored with `imported_public` and an address (CHECK below).
+        sourceKind: text('source_kind').$type<RecipeSourceKind>(),
         sourceUrl: text('source_url'),
         sourceAttribution: text('source_attribution'),
         clonedFromId: uuid('cloned_from_id').references((): AnyPgColumn => recipes.id),
@@ -213,6 +218,11 @@ export const recipes = pgTable(
         check(
             'recipes_source_type_check',
             sql`${table.sourceType} IN ('user_created', 'imported_public', 'imported_physical', 'imported_paid')`,
+        ),
+        check('recipes_source_kind_check', sql`${table.sourceKind} IN ('public_web', 'book', 'paid_site')`),
+        check(
+            'recipes_web_source_has_address',
+            sql`${table.sourceKind} IS DISTINCT FROM 'public_web' OR (${table.sourceType} = 'imported_public' AND ${table.sourceUrl} IS NOT NULL)`,
         ),
         index('idx_recipes_search_vector').using('gin', table.searchVector),
         // T118: partial owner index — every read path filters `deleted_at IS NULL`, so the plain index is

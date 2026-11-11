@@ -35,14 +35,18 @@
  * authority — a stronger control than "the server fetched a URL the caller chose", which attributes content
  * the caller may have written.
  */
-import { RecipeSourceType } from '@kitchensink/recipe-core';
+import { RecipeSourceType, parseSourceLink, type RecipeSourceKind } from '@kitchensink/recipe-core';
 
-import { CURATOR_IMPORT_SCOPE, type RecipeSourceInput } from '../recipes.schema.js';
+import { CURATOR_IMPORT_SCOPE, type RecipeSourceInput, type RecipeStatementInput } from '../recipes.schema.js';
 
-/** The complete input to a provenance decision. */
-export interface ProvenancePolicyInput {
-    /** The provenance the caller declared, or `undefined` when the body carried none. */
-    readonly declared: RecipeSourceInput | undefined;
+/**
+ * The complete input to a provenance decision.
+ *
+ * ⛔ A UNION, so "both" is unrepresentable (ADR-0089). A caller either DECLARES a provenance (the curator's `source`, which
+ * the grant gates) or STATES one (the cook's pasted web link, `statement`, which no grant gates and which never reads the
+ * grant). A body carrying both is a `400` before this policy is asked, and the type refuses to build it anyway.
+ */
+export type ProvenancePolicyInput = {
     /**
      * Every grant the caller holds.
      *
@@ -51,7 +55,18 @@ export interface ProvenancePolicyInput {
      * never a grant.
      */
     readonly grantedScopes: readonly string[];
-}
+} & (
+    | {
+          /** The provenance the caller declared, or `undefined` when the body carried none. */
+          readonly declared: RecipeSourceInput | undefined;
+          readonly statement?: undefined;
+      }
+    | {
+          readonly declared?: undefined;
+          /** The cook's statement: a pasted link to the public web page the recipe was copied from. */
+          readonly statement: RecipeStatementInput;
+      }
+);
 
 /** The provenance the service will persist, fully resolved. `null` means "no such source", never `''`. */
 export interface ResolvedProvenance {
@@ -61,6 +76,11 @@ export interface ResolvedProvenance {
     readonly sourceUrl: string | null;
     /** The human-readable credit, or `null` for content with no external source. */
     readonly sourceAttribution: string | null;
+    /**
+     * What the cook said the source is, or `null`. ONLY a statement sets it: the curator's reading keeps `null`, which is
+     * what tells the curator's public-domain text (may be public) from a web copy (private only) under the same label.
+     */
+    readonly sourceKind: RecipeSourceKind | null;
 }
 
 /**
@@ -73,13 +93,19 @@ export interface ResolvedProvenance {
  */
 export type ProvenanceDecision =
     | { readonly allowed: true; readonly provenance: ResolvedProvenance; readonly reason: string }
-    | { readonly allowed: false; readonly reason: string; readonly requiredScope: string };
+    | {
+          readonly allowed: false;
+          readonly reason: string;
+          /** The grant that would have allowed it. ABSENT when no grant could: a statement that is not a usable source. */
+          readonly requiredScope?: string;
+      };
 
 /** The provenance of a recipe whose author declared none — the shipped default, unchanged (004-FR-024). */
 const UNDECLARED: ResolvedProvenance = {
     sourceType: RecipeSourceType.USER_CREATED,
     sourceUrl: null,
     sourceAttribution: null,
+    sourceKind: null,
 };
 
 /**
@@ -94,7 +120,29 @@ const UNDECLARED: ResolvedProvenance = {
  * @returns An allow decision carrying the resolved provenance, or a denial naming the scope required.
  */
 export function evaluateProvenance(input: ProvenancePolicyInput): ProvenanceDecision {
-    const { declared, grantedScopes } = input;
+    const { declared, statement, grantedScopes } = input;
+
+    if (statement !== undefined) {
+        // ⛔ The statement branch NEVER reads `grantedScopes`: a cook states where a copy came from, and the label says
+        // exactly that (ADR-0072 section 9). It is a web copy whatever else the caller holds, so a curator who states a link
+        // gets a private web copy, not the curator's public-domain reading.
+        const parsed = parseSourceLink(statement.citation);
+
+        if (!parsed.ok) {
+            return { allowed: false, reason: 'The source link is not a public web page address.' };
+        }
+
+        return {
+            allowed: true,
+            provenance: {
+                sourceType: RecipeSourceType.IMPORTED_PUBLIC,
+                sourceUrl: parsed.link.url,
+                sourceAttribution: parsed.link.site,
+                sourceKind: statement.kind,
+            },
+            reason: 'The cook stated that this recipe was copied from a public web page.',
+        };
+    }
 
     if (declared === undefined) {
         return { allowed: true, provenance: UNDECLARED, reason: 'No provenance declared; the author is the source.' };
@@ -124,6 +172,8 @@ export function evaluateProvenance(input: ProvenancePolicyInput): ProvenanceDeci
                     sourceType: RecipeSourceType.IMPORTED_PUBLIC,
                     sourceUrl: declared.sourceUrl,
                     sourceAttribution: declared.sourceAttribution,
+                    // The curator's reading is the one `imported_public` with NO kind (ADR-0089).
+                    sourceKind: null,
                 },
                 reason: 'The caller holds the curator grant for public-domain imports.',
             };

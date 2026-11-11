@@ -5524,6 +5524,12 @@ components:
             - imported_public
             - imported_physical
             - imported_paid
+        sourceKind:
+          type: string
+          enum:
+            - public_web
+            - book
+            - paid_site
         sourceUrl:
           type: string
           format: uri
@@ -5669,6 +5675,12 @@ components:
             - imported_public
             - imported_physical
             - imported_paid
+        sourceKind:
+          type: string
+          enum:
+            - public_web
+            - book
+            - paid_site
         sourceUrl:
           type: string
           format: uri
@@ -6258,6 +6270,21 @@ components:
                 - sourceUrl
                 - sourceAttribution
               additionalProperties: false
+        statement:
+          type: object
+          properties:
+            kind:
+              type: string
+              enum:
+                - public_web
+            citation:
+              type: string
+              maxLength: 2000
+              format: uri
+          required:
+            - kind
+            - citation
+          additionalProperties: false
       required:
         - title
         - ingredients
@@ -6447,6 +6474,22 @@ components:
           minimum: 0
           exclusiveMinimum: true
           maximum: 2147483647
+        statement:
+          nullable: true
+          type: object
+          properties:
+            kind:
+              type: string
+              enum:
+                - public_web
+            citation:
+              type: string
+              maxLength: 2000
+              format: uri
+          required:
+            - kind
+            - citation
+          additionalProperties: false
       required:
         - expectedVersion
       additionalProperties: false
@@ -7879,6 +7922,12 @@ components:
             - imported_public
             - imported_physical
             - imported_paid
+        sourceKind:
+          type: string
+          enum:
+            - public_web
+            - book
+            - paid_site
         sourceUrl:
           type: string
           format: uri
@@ -8205,6 +8254,9 @@ components:
                 minLength: 1
               sourceType:
                 type: string
+              sourceKind:
+                nullable: true
+                type: string
               sourceUrl:
                 nullable: true
                 type: string
@@ -8263,6 +8315,7 @@ components:
               - status
               - firstPublishedAt
               - sourceType
+              - sourceKind
               - sourceUrl
               - sourceAttribution
               - clonedFromId

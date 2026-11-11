@@ -290,21 +290,15 @@ const EXEMPTIONS: readonly Exemption[] = [
     },
     {
         file: `${APPS}ui/src/avatar/AvatarDisc.native.tsx`,
+        frame: '<Box>',
+        kind: 'allowed',
+        reason: 'The box is exactly the disc, 32 or 24 pt, around initials that do not scale (designer ruling c10ecadbf, 2026-11-03; Text fixedPx={initialsPxOf(…)}), like the icons beside it; a glyph does not grow with the text.',
+    },
+    {
+        file: `${APPS}ui/src/avatar/AvatarDisc.native.tsx`,
         frame: '<Disc>',
         kind: 'allowed',
         reason: 'The initials do not scale: they are 40% of the disc (12 pt in 32, 14 pt in 36), so two letters fit at every size (designer ruling c10ecadbf, 2026-11-03; Text fixedPx={initialsPxOf(…)}); proven on real font metrics by discGeometry.fit.test.ts.',
-    },
-    {
-        file: `${APPS}mobile/src/components/home/chrome/YouTabDisc.tsx`,
-        frame: '<Ring>',
-        kind: 'allowed',
-        reason: 'The 24 pt glyph box holds the disc, whose 10 pt initials do not scale (designer ruling c10ecadbf, 2026-11-03), exactly like the icons beside it; the tab label under it is what grows, to 1.3x.',
-    },
-    {
-        file: `${APPS}mobile/src/components/home/chrome/YouTabDisc.tsx`,
-        frame: '<Disc>',
-        kind: 'allowed',
-        reason: "The initials do not scale: they are 10 pt in the 24 pt disc at every size (designer ruling c10ecadbf, 2026-11-03; Text fixedPx), and the tab label under it, which does grow to 1.3x, is the tab's name.",
     },
     {
         file: `${APPS}ui/src/recipeCover/RecipeCover.native.tsx`,

@@ -44,6 +44,13 @@ export const CHROME_CAPS = ['1.5', '1.4', '1.3'] as const;
 /** One navigation-chrome step. */
 export type ChromeCap = (typeof CHROME_CAPS)[number];
 
+/**
+ * The step a tab label grows to: 1.3× (owner ruling 2026-11-11, `buildSpec.md` §3.2), one step below the 1.5× the other
+ * chrome keeps, so four tabs of 80 keep every label on one line. The ONE source: native passes it as `chromeCap`, web turns it
+ * into a `min()` on the label's size with `Number(...)`.
+ */
+export const TAB_LABEL_CHROME_CAP = '1.3' satisfies ChromeCap;
+
 /** A sized role's size and leading, in px numbers, for a React Native text that cannot be the design-system Text. */
 export interface ScaledTypeSize {
     readonly fontSize: number;

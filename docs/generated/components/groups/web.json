@@ -4,15 +4,15 @@
     "packageName": "@commise/web",
     "layer": "app",
     "coverage": {
-        "components": 86,
-        "implementations": 86,
-        "props": 102,
-        "documentedComponents": 83,
-        "implementationsWithModuleDoc": 65,
-        "implementationsWithComponentDoc": 62,
-        "documentedProps": 64,
-        "classifiedComponents": 39,
-        "componentsWithPatternTag": 34,
+        "components": 85,
+        "implementations": 85,
+        "props": 100,
+        "documentedComponents": 82,
+        "implementationsWithModuleDoc": 64,
+        "implementationsWithComponentDoc": 61,
+        "documentedProps": 62,
+        "classifiedComponents": 38,
+        "componentsWithPatternTag": 33,
         "crossPlatformComponents": 0
     },
     "components": [
@@ -2847,7 +2847,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/web/src/components/home/chrome/HomeTabBar.tsx",
                     "dir": "packages/apps/commise/web/src/components/home/chrome",
-                    "moduleDoc": "home/chrome/HomeTabBar — the bottom tab bar on web below `nav` (840) (`docs/design/uiOverhaul/buildSpec.md`\n§3.2): the reachable destinations of the shared nav model (`resolveHomeNav` — Home, Recipes, Discover and You today),\neach a 24 px glyph over a `caption` label, on the floating layer's material (`ChromeSurface`). You is Profile, and\nits glyph is the cook's avatar as a 24 px disc ({@link YouTabDisc}; owner ruling 2026-11-11, N3), so the bar takes the\nprofile read.\n\n- The active tab: `ink` glyph and label at weight 600 and a 32 × 3 px `hereBar` above the glyph, `aria-current`.\n  Inactive: `inkMuted`. (Lucide has no filled glyph set, and a filled compass hides its needle, so the active tab is\n  told by the bar, the weight and the colour — the blueprint's Q6, awaiting `staff-ux-engineer`.)\n- A second tap on the active tab goes to the tab's root from a pushed route, and at the root scrolls to the top\n  (`tabRootOf`; the page's `ScrollHost` moves the document).\n- The glyphs are one row: every tab's column starts at the top, 8 px down, glyph first and label under it, so a label\n  that wraps never moves its glyph (`deviceShots2.md` M-2).\n- 64 px plus the bottom safe-area inset; each item at least 80 × 56, so four fit at 320 px.\n- Compact height (owner 2026-10-13; a window under 480 px tall, which is a phone held sideways): the label sits BESIDE\n  the glyph and the bar is 48 px plus the inset. Both sides pad their safe-area inset, so a cutout or the 3-button navigation\n  bar never covers a tab. Pure CSS (`max-height: 479px`, one pixel under `isCompactHeight`'s 480): the bar already\n  exists only below `nav` (840), so that is the whole condition. The label stays the link's accessible name.\n\n⚠️ ORCHESTRATION in one respect: it reads the route (`usePathname`) and the page's scroll host to answer the second\ntap. Everything it draws is derived from props.",
+                    "moduleDoc": "home/chrome/HomeTabBar — the bottom tab bar on web below `nav` (840) (`docs/design/uiOverhaul/buildSpec.md`\n§3.2): the reachable destinations of the shared nav model (`resolveHomeNav` — Home, Recipes, Discover and You today),\neach a 24 px glyph over a `caption` label, on the floating layer's material (`ChromeSurface`). You is Profile, and\nits glyph is the cook's avatar as the design system's 24 px `AvatarDisc` (owner ruling 2026-11-11, N3), so the bar takes the\nprofile read.\n\n- The active tab: `ink` glyph and label at weight 600 and a 32 × 3 px `hereBar` above the glyph, `aria-current`.\n  Inactive: `inkMuted`. (Lucide has no filled glyph set, and a filled compass hides its needle, so the active tab is\n  told by the bar, the weight and the colour — the blueprint's Q6, awaiting `staff-ux-engineer`.)\n- A second tap on the active tab goes to the tab's root from a pushed route, and at the root scrolls to the top\n  (`tabRootOf`; the page's `ScrollHost` moves the document).\n- The glyphs are one row: every tab's column starts at the top, 8 px down, glyph first and label under it, so a label\n  that wraps never moves its glyph (`deviceShots2.md` M-2).\n- 64 px plus the bottom safe-area inset; four equal shares of the bar, 80 px each at 320, at least 56 px tall.\n- Compact height (owner 2026-10-13; a window under 480 px tall, which is a phone held sideways): the label sits BESIDE\n  the glyph and the bar is 48 px plus the inset. Both sides pad their safe-area inset, so a cutout or the 3-button navigation\n  bar never covers a tab. Pure CSS (`max-height: 479px`, one pixel under `isCompactHeight`'s 480): the bar already\n  exists only below `nav` (840), so that is the whole condition. The label stays the link's accessible name.\n\n⚠️ ORCHESTRATION in one respect: it reads the route (`usePathname`) and the page's scroll host to answer the second\ntap. Everything it draws is derived from props.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -2990,82 +2990,6 @@
                     "docSignals": {
                         "presentational": false,
                         "orchestration": true
-                    }
-                }
-            ]
-        },
-        {
-            "id": "web/components/home/chrome/YouTabDisc",
-            "name": "YouTabDisc",
-            "group": "web",
-            "packageName": "@commise/web",
-            "layer": "app",
-            "dir": "packages/apps/commise/web/src/components/home/chrome",
-            "kind": "presentational",
-            "patterns": [
-                "Visitor — an exhaustive switch over the disc's three faces"
-            ],
-            "platforms": [
-                "web"
-            ],
-            "crossPlatform": false,
-            "propsDiverge": false,
-            "documented": true,
-            "implementations": [
-                {
-                    "name": "YouTabDisc",
-                    "platform": "web",
-                    "sourcePath": "packages/apps/commise/web/src/components/home/chrome/YouTabDisc.tsx",
-                    "dir": "packages/apps/commise/web/src/components/home/chrome",
-                    "moduleDoc": "home/chrome/YouTabDisc — the You tab's glyph: the cook's avatar as a 24 px disc (`docs/design/uiOverhaul/buildSpec.md`\n§3.2, owner ruling 2026-11-11, N3). Same content rules as the chrome `Avatar` (`avatarFaceOf`): a `pearl` disc while the\nprofile loads, the initials in a 10 px label on the `action` fill, the 20 px outline `user` glyph with no name or after\na failed read. Active, a 2 px `ink` ring stands in for the filled glyph the other tabs cannot have.\n\nDecorative: the tab's own label, \"You\", is its name (SC 2.5.3). The design system's `AvatarDisc` has a 32 px and a 36 px\nform only, so this 24 px form is drawn here from the same face rule rather than added to its closed size union, which\nthe native disc must follow.\n\nPresentational: props → JSX.",
-                    "moduleTags": [
-                        {
-                            "name": "module",
-                            "text": "home/chrome/YouTabDisc — the You tab's glyph: the cook's avatar as a 24 px disc (`docs/design/uiOverhaul/buildSpec.md`"
-                        },
-                        {
-                            "name": "pattern",
-                            "text": "Visitor — an exhaustive switch over the disc's three faces"
-                        }
-                    ],
-                    "description": "The You tab's disc.",
-                    "tags": [
-                        {
-                            "name": "param",
-                            "text": "props - The profile read and whether the tab is current."
-                        },
-                        {
-                            "name": "returns",
-                            "text": "The 24 px decorative disc."
-                        }
-                    ],
-                    "detectedBy": "react-docgen-typescript",
-                    "exportKind": "named",
-                    "props": [
-                        {
-                            "name": "active",
-                            "type": "boolean",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "Whether the You tab is the current one: the disc takes its ink ring.",
-                            "declaredIn": "packages/apps/commise/web/src/components/home/chrome/YouTabDisc.tsx"
-                        },
-                        {
-                            "name": "profile",
-                            "type": "ProfileEntry",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "The profile read.",
-                            "declaredIn": "packages/apps/commise/web/src/components/home/chrome/YouTabDisc.tsx"
-                        }
-                    ],
-                    "usesRefApi": [],
-                    "booleanPropsSelectingSubtree": [],
-                    "docSignals": {
-                        "presentational": true,
-                        "orchestration": false
                     }
                 }
             ]

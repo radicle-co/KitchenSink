@@ -70,7 +70,7 @@ describe('HomeChrome (web)', () => {
         const row = screen.getByRole('link', { name: 'Profile, Eliza' });
 
         expect(row.querySelector('.size-8')?.textContent).toBe('E');
-        expect(tabBar?.querySelector('[data-you-disc]')?.textContent).toBe('E');
+        expect(tabBar?.querySelector('[data-avatar-disc]')?.textContent).toBe('E');
         expect(sidebarNav).toBeTruthy();
     });
 

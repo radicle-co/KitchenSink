@@ -40,7 +40,6 @@ describe('LargeTitleHeader (web)', () => {
                 headingId="h"
                 title="Weeknight dinners"
                 action={{
-                    kind: 'controls',
                     button: <button type="button">Add recipes</button>,
                     menu: <button type="button">More</button>,
                 }}
@@ -105,7 +104,7 @@ describe('LargeTitleHeader (web)', () => {
                 headingId="h"
                 title="Dinners"
                 back={back}
-                action={{ kind: 'controls', menu: <button type="button">More</button> }}
+                action={{ menu: <button type="button">More</button> }}
             />,
         );
 

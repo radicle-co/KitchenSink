@@ -38,7 +38,7 @@ const CHROME_MODULES =
  * cover's height, which is decoration like them.
  */
 const INITIALS_MODULES =
-    /(?:^|\/)packages\/apps\/commise\/(?:ui\/src\/avatar\/AvatarDisc\.native\.tsx|ui\/src\/recipeCover\/RecipeCover\.native\.tsx|features\/recipes\/src\/discovery\/DiscoveryFooter\.native\.tsx|mobile\/src\/components\/home\/chrome\/YouTabDisc\.tsx)$/u;
+    /(?:^|\/)packages\/apps\/commise\/(?:ui\/src\/avatar\/AvatarDisc\.native\.tsx|ui\/src\/recipeCover\/RecipeCover\.native\.tsx|features\/recipes\/src\/discovery\/DiscoveryFooter\.native\.tsx)$/u;
 
 /** The status badge, the only module that draws a mark on a picture with `pictorial` (designer ruling 2026-11-01, M-1). */
 const PICTURE_MODULES = /(?:^|\/)packages\/apps\/commise\/ui\/src\/statusBadge\/StatusBadge\.native\.tsx$/u;

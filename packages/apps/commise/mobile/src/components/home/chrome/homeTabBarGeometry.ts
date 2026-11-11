@@ -1,19 +1,11 @@
 /**
  * @module home/chrome/homeTabBarGeometry — the bottom tab bar's side padding and the room it leaves a tab label. The bar
  * reads these values, and the per-locale fit test reads {@link tabLabelRoom} to prove that no label breaks inside a word
- * at the chrome cap (designer ruling 2026-11-01, ADR-0080 §8). Pure, and free of React Native so a node test can load it.
+ * at the tab label cap (`TAB_LABEL_CHROME_CAP`; designer rulings 2026-11-01 and 2026-11-11, ADR-0080 §8). Pure, and free of React Native so a node test can load it.
  *
  * @pattern Specification — one pure rule for a tab's label room, read by the bar and by the fit test
  */
-import { TAB_LABEL_TEXT_CAP } from '@commise/features-core';
 import { nativeTokens } from '@commise/ui/native';
-import type { ChromeCap } from '@commise/ui/scaled-type';
-
-/**
- * The chrome cap a tab label grows to: its own 1.3× (`TAB_LABEL_TEXT_CAP`, owner ruling 2026-11-11), a step below the 1.5× the
- * other navigation chrome keeps (ADR-0080 §8), so four tabs of 80 keep every label on one line.
- */
-export const TAB_BAR_CHROME_CAP = `${TAB_LABEL_TEXT_CAP}` as const satisfies ChromeCap;
 
 /**
  * The bar's own side padding, in dp; the safe-area inset is added to it. None: four tabs must be 80 wide at 320

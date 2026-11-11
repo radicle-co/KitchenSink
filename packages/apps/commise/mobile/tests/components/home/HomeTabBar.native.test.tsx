@@ -12,7 +12,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, screen, within } from '@testing-library/react';
 
 import { RECIPE_HOME_WIDGET_CAPABILITY } from '@commise/features-recipes';
-import { TAB_LABEL_TEXT_CAP, type HomeNavItemId, type ProfileEntry } from '@commise/features-core';
+import type { HomeNavItemId, ProfileEntry } from '@commise/features-core';
+import { TAB_LABEL_CHROME_CAP } from '@commise/ui/scaled-type';
 import { homeMessages } from '@commise/features-core/home';
 import { role } from '@commise/ui/colors';
 import { nativeTokens } from '@commise/ui/native';
@@ -120,7 +121,7 @@ describe('HomeTabBar (native)', () => {
 
     // Designer ruling 2026-11-01 (ADR-0080 §8): a tab label is navigation chrome, so above the system scale it grows to
     // 1.5× and stops there, where the rest of the screen grows to 2×. REWRITTEN 2026-11-11 (`buildSpec.md` §3.2): four tabs at
-    // 320 leave 80 each, so tab labels take their own cap, `TAB_LABEL_TEXT_CAP` (1.3×), below the 1.5× the other chrome keeps.
+    // 320 leave 80 each, so tab labels take their own cap, `Number(TAB_LABEL_CHROME_CAP)` (1.3×), below the 1.5× the other chrome keeps.
     it('grows each label with the system scale to the 1.3× tab label cap, not to 1.5× or 2×', () => {
         const { label, caption } = nativeTokens.type;
         renderBarIn('light', 'recipes', 3.1);
@@ -128,10 +129,10 @@ describe('HomeTabBar (native)', () => {
         const active = getComputedStyle(screen.getByText('Recipes'));
         const inactive = getComputedStyle(screen.getByText('Home'));
 
-        expect(active.fontSize).toBe(`${String(label.fontSize * TAB_LABEL_TEXT_CAP)}px`);
-        expect(active.lineHeight).toBe(`${String(label.lineHeight * TAB_LABEL_TEXT_CAP)}px`);
-        expect(inactive.fontSize).toBe(`${String(caption.fontSize * TAB_LABEL_TEXT_CAP)}px`);
-        expect(inactive.lineHeight).toBe(`${String(caption.lineHeight * TAB_LABEL_TEXT_CAP)}px`);
+        expect(active.fontSize).toBe(`${String(label.fontSize * Number(TAB_LABEL_CHROME_CAP))}px`);
+        expect(active.lineHeight).toBe(`${String(label.lineHeight * Number(TAB_LABEL_CHROME_CAP))}px`);
+        expect(inactive.fontSize).toBe(`${String(caption.fontSize * Number(TAB_LABEL_CHROME_CAP))}px`);
+        expect(inactive.lineHeight).toBe(`${String(caption.lineHeight * Number(TAB_LABEL_CHROME_CAP))}px`);
     });
 
     it('grows each label with the system scale below the cap', () => {
@@ -188,7 +189,7 @@ describe('HomeTabBar (native) — one glyph row, whatever the labels do', () => 
         renderBar();
 
         for (const tab of screen.getAllByRole('tab')) {
-            const glyph = tab.querySelector('[data-icon-name], [data-testid="youTabDisc"]');
+            const glyph = tab.querySelector('[data-icon-name], [data-testid="avatarDisc"]');
             const label = within(tab).getByText(tab.getAttribute('aria-label') ?? '');
 
             expect(glyph).not.toBeNull();
@@ -260,11 +261,11 @@ describe('HomeTabBar (native) — compact height', () => {
  */
 describe('HomeTabBar (native) — the You tab', () => {
     const you = () => screen.getByRole('tab', { name: 'You' });
-    const disc = () => you().querySelector('[data-testid="youTabDisc"]') as HTMLElement;
+    const disc = () => you().querySelector('[data-testid="avatarDisc"]') as HTMLElement;
     /** The glyph box the tab's column holds: exactly the icons' box. */
-    const ring = () => you().querySelector('[data-testid="youTabRing"]') as HTMLElement;
+    const box = () => you().querySelector('[data-testid="avatarBox"]') as HTMLElement;
     /** The drawn ring, laid over the glyph box from outside it. */
-    const mark = () => you().querySelector('[data-testid="youTabRingMark"]') as HTMLElement;
+    const mark = () => you().querySelector('[data-testid="avatarRing"]') as HTMLElement;
 
     it('is named by its visible label alone, whatever the disc shows', () => {
         renderBar('home', vi.fn(), [RECIPE_HOME_WIDGET_CAPABILITY], { profile: READY });
@@ -332,9 +333,9 @@ describe('HomeTabBar (native) — the You tab', () => {
 
                 expect(getComputedStyle(disc()).width).toBe('24px');
                 expect(getComputedStyle(disc()).height).toBe('24px');
-                expect(getComputedStyle(ring()).width).toBe('24px');
-                expect(getComputedStyle(ring()).height).toBe('24px');
-                expect(getComputedStyle(ring()).borderTopWidth).not.toBe('2px');
+                expect(getComputedStyle(box()).width).toBe('24px');
+                expect(getComputedStyle(box()).height).toBe('24px');
+                expect(getComputedStyle(box()).borderTopWidth).not.toBe('2px');
                 expect(getComputedStyle(mark()).position).toBe('absolute');
                 cleanup();
             }

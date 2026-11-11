@@ -53,15 +53,7 @@ export type {
 
 // === Home chrome ===
 
-export {
-    HOME_NAV_ITEMS,
-    NAV_ITEM_GLYPH,
-    TAB_LABEL_TEXT_CAP,
-    YOU_TAB_DISC_SIZE,
-    YOU_TAB_INITIALS_SIZE,
-    isNavItemReachable,
-    resolveHomeNav,
-} from './homeNavigation.js';
+export { HOME_NAV_ITEMS, NAV_ITEM_GLYPH, isNavItemReachable, resolveHomeNav } from './homeNavigation.js';
 export type { HomeNavItem, HomeNavItemId } from './homeNavigation.js';
 export { profileEntryOf, profileLabelOf } from './profileEntry.js';
 export type { ProfileEntry, ProfileEntryCopy, ProfileRead } from './profileEntry.js';

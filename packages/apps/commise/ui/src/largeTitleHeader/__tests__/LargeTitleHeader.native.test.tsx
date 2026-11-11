@@ -64,13 +64,7 @@ describe('LargeTitleHeader (native)', () => {
 
         expect(getComputedStyle(titleBlock()).paddingTop).not.toBe('44px');
 
-        rerender(
-            <LargeTitleHeader
-                headingId="h"
-                title="Weeknight dinners"
-                action={{ kind: 'controls', menu: <Text>more</Text> }}
-            />,
-        );
+        rerender(<LargeTitleHeader headingId="h" title="Weeknight dinners" action={{ menu: <Text>more</Text> }} />);
 
         expect(getComputedStyle(titleBlock()).paddingTop).toBe('44px');
     });
@@ -84,11 +78,7 @@ describe('LargeTitleHeader (native)', () => {
         ] as const) {
             withPlatformOs(os, () => {
                 const { unmount } = render(
-                    <LargeTitleHeader
-                        headingId="h"
-                        title="Recipes"
-                        action={{ kind: 'controls', menu: <Text>more</Text> }}
-                    />,
+                    <LargeTitleHeader headingId="h" title="Recipes" action={{ menu: <Text>more</Text> }} />,
                 );
 
                 expect(getComputedStyle(screen.getByText('more').parentElement!).height, os).toBe(height);
@@ -107,7 +97,7 @@ describe('LargeTitleHeader (native)', () => {
                 headingId="h"
                 title="Recipes"
                 subtitle="12 recipes"
-                action={{ kind: 'controls', menu: <Text>more</Text> }}
+                action={{ menu: <Text>more</Text> }}
             />,
         );
         const header = screen.getByRole('heading', { name: 'Recipes' }).parentElement!.parentElement!;

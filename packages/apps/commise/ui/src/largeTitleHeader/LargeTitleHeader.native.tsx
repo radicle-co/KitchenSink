@@ -22,7 +22,7 @@
  *
  * Presentational: props → JSX.
  *
- * @pattern Visitor — an exhaustive switch over the `HeaderAction` union
+ * @pattern Layout slot — a title block with one end-of-row action group
  */
 import { useContext, type ComponentRef, type FC, type ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
@@ -43,15 +43,12 @@ const SIDE_INSET = nativeTokens.spacing[4];
 
 /** The action group, at the end of the row. */
 function actionOf(action: HeaderAction, rowHeight: number): ReactNode {
-    switch (action.kind) {
-        case 'controls':
-            return (
-                <View style={[styles.action, styles.controls, { height: rowHeight }]}>
-                    {action.button}
-                    {action.menu}
-                </View>
-            );
-    }
+    return (
+        <View style={[styles.action, styles.controls, { height: rowHeight }]}>
+            {action.button}
+            {action.menu}
+        </View>
+    );
 }
 
 /** The native design-system large title header. */

@@ -14,15 +14,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { ROADMAP_CAPABILITY_VALUES } from '../capabilities.js';
-import {
-    HOME_NAV_ITEMS,
-    isNavItemReachable,
-    resolveHomeNav,
-    NAV_ITEM_GLYPH,
-    TAB_LABEL_TEXT_CAP,
-    YOU_TAB_DISC_SIZE,
-    YOU_TAB_INITIALS_SIZE,
-} from '../homeNavigation.js';
+import { HOME_NAV_ITEMS, isNavItemReachable, resolveHomeNav, NAV_ITEM_GLYPH } from '../homeNavigation.js';
 import { ROADMAP_WIDGET_SPECS } from '../roadmapWidgets.js';
 
 describe('HOME_NAV_ITEMS', () => {
@@ -74,24 +66,6 @@ describe('HOME_NAV_ITEMS', () => {
 
         expect(ids).not.toContain('profile');
         expect(ids).not.toContain('nutrition');
-    });
-});
-
-/**
- * Tab labels take their own text cap (owner ruling 2026-11-11, `buildSpec.md` §3.2): four tabs at 320 leave 80 each, and
- * "Discover" at the 1.5× chrome cap does not fit. It is one number for both apps, held once.
- */
-describe('TAB_LABEL_TEXT_CAP', () => {
-    it('is 1.3, below the 1.5 chrome cap', () => {
-        expect(TAB_LABEL_TEXT_CAP).toBe(1.3);
-        expect(TAB_LABEL_TEXT_CAP).toBeLessThan(1.5);
-    });
-});
-
-describe('the You tab’s disc', () => {
-    it('is 24 with 10 initials, the spec’s sizes, held once for both apps', () => {
-        expect(YOU_TAB_DISC_SIZE).toBe(24);
-        expect(YOU_TAB_INITIALS_SIZE).toBe(10);
     });
 });
 

@@ -15,7 +15,7 @@
  *
  * Presentational: props → JSX.
  *
- * @pattern Visitor — an exhaustive switch over the `HeaderAction` union
+ * @pattern Layout slot — a title block with one end-of-row action group
  */
 import type { FC, ReactNode } from 'react';
 
@@ -26,15 +26,12 @@ import type { HeaderAction, LargeTitleHeaderProps } from './props.js';
 
 /** The action group at the end of the title row. */
 function actionOf(action: HeaderAction): ReactNode {
-    switch (action.kind) {
-        case 'controls':
-            return (
-                <div className="col-start-3 row-start-1 flex items-center gap-2 justify-self-end nav:flex-none nav:self-start">
-                    {action.button}
-                    {action.menu}
-                </div>
-            );
-    }
+    return (
+        <div className="col-start-3 row-start-1 flex items-center gap-2 justify-self-end nav:flex-none nav:self-start">
+            {action.button}
+            {action.menu}
+        </div>
+    );
 }
 
 /** The web design-system large title header. */

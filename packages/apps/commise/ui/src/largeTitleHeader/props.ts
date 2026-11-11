@@ -34,7 +34,10 @@ export interface HeaderBack {
  * What sits at the end of the title: at most one button and one ⋯ menu, on a pushed page. There is no avatar variant: no
  * title row carries one (owner ruling 2026-11-11; Profile is the You tab and the sidebar's first row).
  */
-export type HeaderAction = { readonly kind: 'controls'; readonly button?: ReactNode; readonly menu?: ReactNode };
+export interface HeaderAction {
+    readonly button?: ReactNode;
+    readonly menu?: ReactNode;
+}
 
 /** The cross-platform `LargeTitleHeader` contract. */
 export interface LargeTitleHeaderProps {

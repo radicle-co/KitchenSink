@@ -4,15 +4,15 @@
     "packageName": "@commise/mobile",
     "layer": "app",
     "coverage": {
-        "components": 55,
-        "implementations": 55,
-        "props": 154,
-        "documentedComponents": 54,
-        "implementationsWithModuleDoc": 53,
-        "implementationsWithComponentDoc": 41,
-        "documentedProps": 147,
-        "classifiedComponents": 40,
-        "componentsWithPatternTag": 26,
+        "components": 54,
+        "implementations": 54,
+        "props": 152,
+        "documentedComponents": 53,
+        "implementationsWithModuleDoc": 52,
+        "implementationsWithComponentDoc": 40,
+        "documentedProps": 145,
+        "classifiedComponents": 39,
+        "componentsWithPatternTag": 25,
         "crossPlatformComponents": 0
     },
     "components": [
@@ -1296,7 +1296,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/mobile/src/components/home/chrome/HomeTabBar.tsx",
                     "dir": "packages/apps/commise/mobile/src/components/home/chrome",
-                    "moduleDoc": "home/chrome/HomeTabBar — the native bottom tab bar (`docs/design/uiOverhaul/buildSpec.md` §3.2; ownerDecisions\nD6, D14). The reachable destinations of the shared nav model (`resolveHomeNav` — Home, Recipes, Discover and You today),\neach a 24 pt glyph over its label (its role is set out below), on every phone and tablet, iPad included in both\norientations. You is Profile, and its glyph is the cook's avatar as a 24 pt disc ({@link YouTabDisc}; owner ruling\n2026-11-11, N3), so the bar takes the profile read.\n\nIt is our own bar, with real Liquid Glass BEHIND it on iOS 26 and a solid `paperRaised` surface elsewhere\n(`@commise/ui/chrome-surface`); native system tabs wait until React Navigation marks them stable (D14).\n\n- The active tab: `ink` glyph, its label in the `label` role (weight 600) in `ink`, a 32 × 3 pt `hereBar` above the\n  glyph, and `accessibilityState.selected`. Inactive: `inkMuted`, the label in the `caption` role (weight 500). Colour\n  and the here-bar mark the active tab too, so weight is never the only signal. (No filled glyph: Lucide has none, and\n  a filled compass hides its needle — the blueprint's Q6, awaiting `staff-ux-engineer`.)\n- Each label is the design-system Text at the navigation-chrome cap (`chromeCap=\"1.5\"`, designer ruling 2026-11-01;\n  ADR-0080 §8): it grows with the system text size to 1.5×, where the rest of the screen grows to 2×.\n- The glyphs are one row: every tab's column starts at the top, glyph first and label under it, so a label that wraps\n  grows its tab downward and never moves its glyph (`deviceShots2.md` M-2).\n- Targets: at least 48 dp tall on Android, 44 pt on iOS. The bar pads its foot by the bottom safe-area inset.\n- Compact height (owner 2026-10-13; the window under 480 dp, which is every phone held sideways): the label sits\n  BESIDE the glyph and the bar is 48 dp (44 pt on iOS). Both sides pad their safe-area inset, so a cutout or the\n  3-button navigation bar never covers a tab. The label stays the tab's accessible name.\n\nPresentational: props → JSX. `AppTabBar` adapts React Navigation's tab state to it.",
+                    "moduleDoc": "home/chrome/HomeTabBar — the native bottom tab bar (`docs/design/uiOverhaul/buildSpec.md` §3.2; ownerDecisions\nD6, D14). The reachable destinations of the shared nav model (`resolveHomeNav` — Home, Recipes, Discover and You today),\neach a 24 pt glyph over its label (its role is set out below), on every phone and tablet, iPad included in both\norientations. You is Profile, and its glyph is the cook's avatar as a 24 pt disc (the design system's `AvatarDisc`; owner ruling\n2026-11-11, N3), so the bar takes the profile read.\n\nIt is our own bar, with real Liquid Glass BEHIND it on iOS 26 and a solid `paperRaised` surface elsewhere\n(`@commise/ui/chrome-surface`); native system tabs wait until React Navigation marks them stable (D14).\n\n- The active tab: `ink` glyph, its label in the `label` role (weight 600) in `ink`, a 32 × 3 pt `hereBar` above the\n  glyph, and `accessibilityState.selected`. Inactive: `inkMuted`, the label in the `caption` role (weight 500). Colour\n  and the here-bar mark the active tab too, so weight is never the only signal. (No filled glyph: Lucide has none, and\n  a filled compass hides its needle — the blueprint's Q6, awaiting `staff-ux-engineer`.)\n- Each label is the design-system Text at the navigation-chrome cap (`chromeCap=\"1.5\"`, designer ruling 2026-11-01;\n  ADR-0080 §8): it grows with the system text size to 1.3×, its own tab label cap, where the rest of the screen grows to 2×.\n- The glyphs are one row: every tab's column starts at the top, glyph first and label under it, so a label that wraps\n  grows its tab downward and never moves its glyph (`deviceShots2.md` M-2).\n- Targets: at least 48 dp tall on Android, 44 pt on iOS. The bar pads its foot by the bottom safe-area inset.\n- Compact height (owner 2026-10-13; the window under 480 dp, which is every phone held sideways): the label sits\n  BESIDE the glyph and the bar is 48 dp (44 pt on iOS). Both sides pad their safe-area inset, so a cutout or the\n  3-button navigation bar never covers a tab. The label stays the tab's accessible name.\n\nPresentational: props → JSX. `AppTabBar` adapts React Navigation's tab state to it.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -1413,87 +1413,6 @@
                             "defaultValue": null,
                             "description": "The right safe-area inset.",
                             "declaredIn": "packages/apps/commise/mobile/src/components/home/chrome/HomeTabBar.tsx"
-                        }
-                    ],
-                    "usesRefApi": [],
-                    "booleanPropsSelectingSubtree": [],
-                    "docSignals": {
-                        "presentational": true,
-                        "orchestration": false
-                    }
-                }
-            ]
-        },
-        {
-            "id": "mobile/components/home/chrome/YouTabDisc",
-            "name": "YouTabDisc",
-            "group": "mobile",
-            "packageName": "@commise/mobile",
-            "layer": "app",
-            "dir": "packages/apps/commise/mobile/src/components/home/chrome",
-            "kind": "presentational",
-            "patterns": [
-                "Variant — the face and the ring are Tamagui variants, the discriminated-union render map",
-                "Visitor — an exhaustive switch over the disc's three faces"
-            ],
-            "platforms": [
-                "web"
-            ],
-            "crossPlatform": false,
-            "propsDiverge": false,
-            "documented": true,
-            "implementations": [
-                {
-                    "name": "YouTabDisc",
-                    "platform": "web",
-                    "sourcePath": "packages/apps/commise/mobile/src/components/home/chrome/YouTabDisc.tsx",
-                    "dir": "packages/apps/commise/mobile/src/components/home/chrome",
-                    "moduleDoc": "home/chrome/YouTabDisc — the You tab's glyph on native: the cook's avatar as a 24 pt disc\n(`docs/design/uiOverhaul/buildSpec.md` §3.2, owner ruling 2026-11-11, N3). The mirror of web's `YouTabDisc`, with the same\ncontent rules as the chrome `Avatar` (`avatarFaceOf`): a `pearl` disc while the profile loads, the initials in a 10 pt\nlabel on the `action` fill, the 20 pt outline `user` glyph with no name or after a failed read. Active, a 2 pt `ink` ring\nstands in for the filled glyph. The ring's room is always there, transparent when inactive, so the disc never moves\nwhen the tab is selected.\n\nDecorative: the tab's own label, \"You\", is its accessible name (SC 2.5.3). Initials do not grow with the system text\nsize (designer ruling 2026-11-03). Styled with Tamagui only (ADR-0080).\n\nMobile-local on purpose: the design system's `AvatarDisc` has a 32 pt and a 36 pt form in a closed size union, so a 24 pt\nform is drawn here from the same face rule until the design system owns one.\n\nPresentational: props → JSX.",
-                    "moduleTags": [
-                        {
-                            "name": "module",
-                            "text": "home/chrome/YouTabDisc — the You tab's glyph on native: the cook's avatar as a 24 pt disc"
-                        },
-                        {
-                            "name": "pattern",
-                            "text": "Visitor — an exhaustive switch over the disc's three faces"
-                        },
-                        {
-                            "name": "pattern",
-                            "text": "Variant — the face and the ring are Tamagui variants, the discriminated-union render map"
-                        }
-                    ],
-                    "description": "The You tab's disc.",
-                    "tags": [
-                        {
-                            "name": "param",
-                            "text": "props - The profile read and whether the tab is current."
-                        },
-                        {
-                            "name": "returns",
-                            "text": "The 24 pt decorative disc inside its ring."
-                        }
-                    ],
-                    "detectedBy": "react-docgen-typescript",
-                    "exportKind": "named",
-                    "props": [
-                        {
-                            "name": "active",
-                            "type": "boolean",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "Whether the You tab is the current one: the disc takes its ink ring.",
-                            "declaredIn": "packages/apps/commise/mobile/src/components/home/chrome/YouTabDisc.tsx"
-                        },
-                        {
-                            "name": "profile",
-                            "type": "ProfileEntry",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "The profile read.",
-                            "declaredIn": "packages/apps/commise/mobile/src/components/home/chrome/YouTabDisc.tsx"
                         }
                     ],
                     "usesRefApi": [],

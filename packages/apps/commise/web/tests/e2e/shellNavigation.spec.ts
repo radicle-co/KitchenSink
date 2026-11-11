@@ -252,7 +252,7 @@ for (const colorScheme of ['light', 'dark'] as const) {
             const icon = await nav.getByRole('link', { name: 'Discover', exact: true }).locator('svg').boundingBox();
             const disc = await nav
                 .getByRole('link', { name: 'You', exact: true })
-                .locator('[data-you-disc]')
+                .locator('[data-avatar-disc]')
                 .boundingBox();
             expect(disc?.width, 'the You glyph is as wide as an icon').toBe(icon?.width);
             expect(disc?.height, 'the You glyph is as tall as an icon').toBe(icon?.height);

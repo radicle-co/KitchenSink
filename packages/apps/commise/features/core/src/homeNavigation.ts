@@ -54,19 +54,6 @@ export const HOME_NAV_ITEMS: readonly HomeNavItem[] = [
 ];
 
 /**
- * How far a tab label grows with the system text size: 1.3× its caption size, then it stops (owner ruling 2026-11-11,
- * `buildSpec.md` §3.2). Four tabs at 320 leave 80 each, which "Discover" at the 1.5× the other navigation chrome keeps
- * does not fit. One number for both apps: native reads it as its chrome step, web as a `min()` on the label's size.
- */
-export const TAB_LABEL_TEXT_CAP = 1.3;
-
-/** The You tab's avatar disc, in px (web) and pt (native): 24, a `YouTabDisc` in each app (`buildSpec.md` §3.2). */
-export const YOU_TAB_DISC_SIZE = 24;
-
-/** The initials in that disc: 10, which does not grow with the system text size (`buildSpec.md` §3.2). */
-export const YOU_TAB_INITIALS_SIZE = 10;
-
-/**
  * The icon Registry meaning each destination draws (`@commise/ui/icon`), ONCE for both apps' chrome. A total `Record`
  * over {@link HomeNavItemId}, so a destination without a glyph does not compile.
  */

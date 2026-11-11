@@ -14,13 +14,8 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 
 import { homeMessages } from '@commise/features-core/home';
 import { RECIPE_HOME_WIDGET_CAPABILITY } from '@commise/features-recipes';
-import {
-    TAB_LABEL_TEXT_CAP,
-    YOU_TAB_DISC_SIZE,
-    YOU_TAB_INITIALS_SIZE,
-    type HomeNavItemId,
-    type ProfileEntry,
-} from '@commise/features-core';
+import type { HomeNavItemId, ProfileEntry } from '@commise/features-core';
+import { TAB_LABEL_CHROME_CAP } from '@commise/ui/scaled-type';
 import { ScrollHost } from '@commise/ui/scroll-host';
 
 import { webMessages } from '@/i18n/messages';
@@ -179,7 +174,7 @@ describe('HomeTabBar (web) — one glyph row, whatever the labels do', () => {
         renderBar();
 
         for (const link of within(bar()).getAllByRole('link')) {
-            const glyph = link.querySelector('svg, [data-you-disc]');
+            const glyph = link.querySelector('svg, [data-avatar-disc]');
             const label = link.querySelector('.text-caption') as Element;
 
             expect(glyph).not.toBeNull();
@@ -248,7 +243,7 @@ describe('HomeTabBar (web) — compact height', () => {
 /**
  * Tab labels take their own 1.3× cap (owner ruling 2026-11-11, `buildSpec.md` §3.2): a label grows with the browser's text
  * size to 1.3× the caption size and stops, so four tabs at 320 keep every label on one line inside its 80. The value is the
- * shared `TAB_LABEL_TEXT_CAP`, never an inline number. jsdom lays nothing out, so this pins the declared size; the
+ * shared `TAB_LABEL_CHROME_CAP`, never an inline number. jsdom lays nothing out, so this pins the declared size; the
  * Playwright spec measures it at 320 with the text at 200%.
  */
 describe('HomeTabBar (web) — the tab label cap', () => {
@@ -258,8 +253,9 @@ describe('HomeTabBar (web) — the tab label cap', () => {
         for (const link of within(bar()).getAllByRole('link')) {
             const label = link.querySelector('.text-caption') as HTMLElement;
 
-            expect(label.style.fontSize).toBe(`min(0.875rem, ${String(14 * TAB_LABEL_TEXT_CAP)}px)`);
-            expect(label.className).toContain('whitespace-nowrap');
+            expect(label.style.fontSize).toBe(`min(0.875rem, ${String(14 * Number(TAB_LABEL_CHROME_CAP))}px)`);
+            // One line comes from the cap and the fit test, not from a nowrap: a longer translation wraps and the bar grows.
+            expect(label.className).not.toContain('whitespace-nowrap');
         }
     });
 });
@@ -277,21 +273,21 @@ describe('HomeTabBar (web) — the You tab', () => {
     it('shows the initials in a 24 px disc on the action fill once the profile is ready', () => {
         renderBar();
 
-        const disc = you().querySelector('[data-you-disc]');
+        const disc = you().querySelector('[data-avatar-disc]');
 
         // A glyph never scales with text: the box is 24 CSS px, not rem, the same as the icons beside it.
-        expect((disc as HTMLElement).style.width).toBe(`${String(YOU_TAB_DISC_SIZE)}px`);
-        expect((disc as HTMLElement).style.height).toBe(`${String(YOU_TAB_DISC_SIZE)}px`);
+        expect((disc as HTMLElement).style.width).toBe('24px');
+        expect((disc as HTMLElement).style.height).toBe('24px');
         expect(disc?.className).not.toMatch(/\bsize-/u);
         expect(disc?.className).toContain('bg-action');
         expect(disc?.textContent).toBe('EM');
-        expect((disc?.firstElementChild as HTMLElement).style.fontSize).toBe(`${String(YOU_TAB_INITIALS_SIZE)}px`);
+        expect((disc?.firstElementChild as HTMLElement).style.fontSize).toBe('10px');
     });
 
     it('shows a blank pearl disc while the profile loads, with no glyph and no initials', () => {
         renderBar('home', undefined, { status: 'loading', name: undefined });
 
-        const disc = you().querySelector('[data-you-disc]');
+        const disc = you().querySelector('[data-avatar-disc]');
 
         expect(disc?.className).toContain('bg-surface-muted');
         expect(disc?.textContent).toBe('');
@@ -304,14 +300,14 @@ describe('HomeTabBar (web) — the You tab', () => {
     ])('shows the 20 px user glyph, never an error, when the profile %s', (_what, profile) => {
         renderBar('home', undefined, profile);
 
-        expect(you().querySelector('[data-you-disc] svg')?.getAttribute('width')).toBe('20');
+        expect(you().querySelector('[data-avatar-disc] svg')?.getAttribute('width')).toBe('20');
         expect(screen.queryByRole('alert')).toBeNull();
     });
 
     it('rings the disc in ink and marks the tab current when active (on /profile)', () => {
         renderBar('you');
 
-        const disc = you().querySelector('[data-you-disc]');
+        const disc = you().querySelector('[data-avatar-disc]');
 
         expect(you().getAttribute('aria-current')).toBe('page');
         // The ring is a box-shadow (`ring-*`), which takes no layout room, never a border.
@@ -326,7 +322,7 @@ describe('HomeTabBar (web) — the You tab', () => {
         renderBar('recipes');
 
         expect(you().getAttribute('aria-current')).toBeNull();
-        expect(you().querySelector('[data-you-disc]')?.className).not.toContain('ring-2');
+        expect(you().querySelector('[data-avatar-disc]')?.className).not.toContain('ring-2');
     });
 
     it('takes an equal share of the bar and is at least 56 px tall, so four fit at 320 CSS px', () => {

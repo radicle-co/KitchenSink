@@ -4,16 +4,16 @@
     "packageName": "@commise/ui",
     "layer": "design-system",
     "coverage": {
-        "components": 94,
-        "implementations": 153,
-        "props": 859,
-        "documentedComponents": 94,
-        "implementationsWithModuleDoc": 153,
-        "implementationsWithComponentDoc": 139,
-        "documentedProps": 809,
-        "classifiedComponents": 87,
-        "componentsWithPatternTag": 94,
-        "crossPlatformComponents": 59
+        "components": 93,
+        "implementations": 151,
+        "props": 849,
+        "documentedComponents": 93,
+        "implementationsWithModuleDoc": 151,
+        "implementationsWithComponentDoc": 137,
+        "documentedProps": 799,
+        "classifiedComponents": 86,
+        "componentsWithPatternTag": 93,
+        "crossPlatformComponents": 58
     },
     "components": [
         {
@@ -277,207 +277,6 @@
             ]
         },
         {
-            "id": "designSystem/avatar/Avatar",
-            "name": "Avatar",
-            "group": "designSystem",
-            "packageName": "@commise/ui",
-            "layer": "design-system",
-            "dir": "packages/apps/commise/ui/src/avatar",
-            "kind": "presentational",
-            "patterns": [
-                "Visitor — an exhaustive switch over the disc's three faces"
-            ],
-            "platforms": [
-                "web",
-                "native"
-            ],
-            "crossPlatform": true,
-            "propsDiverge": false,
-            "documented": true,
-            "implementations": [
-                {
-                    "name": "Avatar",
-                    "platform": "web",
-                    "sourcePath": "packages/apps/commise/ui/src/avatar/Avatar.tsx",
-                    "dir": "packages/apps/commise/ui/src/avatar",
-                    "moduleDoc": "@commise/ui/avatar — the web design-system {@link Avatar}: the profile entry (`buildSpec.md` §3.3, §3.8).\n\nA real link to Profile when it has an `href` (a plain click goes to `onPress`, so the app's router moves); a button\nwithout one — `RouteAction` owns that rule.\n\nPresentational: props → JSX.",
-                    "moduleTags": [
-                        {
-                            "name": "module",
-                            "text": "@commise/ui/avatar — the web design-system {@link Avatar}: the profile entry (`buildSpec.md` §3.3, §3.8)."
-                        },
-                        {
-                            "name": "pattern",
-                            "text": "Visitor — an exhaustive switch over the disc's three faces"
-                        }
-                    ],
-                    "description": "The web design-system avatar.",
-                    "tags": [],
-                    "detectedBy": "react-docgen-typescript",
-                    "exportKind": "named",
-                    "props": [
-                        {
-                            "name": "href",
-                            "type": "string",
-                            "typeDetail": null,
-                            "required": false,
-                            "defaultValue": null,
-                            "description": "The web URL of Profile, so a modified click (a new tab) still works. Native ignores it.",
-                            "declaredIn": "packages/apps/commise/ui/src/avatar/props.ts"
-                        },
-                        {
-                            "name": "initials",
-                            "type": "string",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "The cook's initials, or empty when there is no name. Read only when `status` is `ready`.",
-                            "declaredIn": "packages/apps/commise/ui/src/avatar/props.ts"
-                        },
-                        {
-                            "name": "label",
-                            "type": "string",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "The accessible name: \"Profile, {name}\", or \"Profile\" without one.",
-                            "declaredIn": "packages/apps/commise/ui/src/avatar/props.ts"
-                        },
-                        {
-                            "name": "onPress",
-                            "type": "() => void",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "Open Profile. On web a plain click comes here and the link's own navigation is cancelled.",
-                            "declaredIn": "packages/apps/commise/ui/src/avatar/props.ts"
-                        },
-                        {
-                            "name": "size",
-                            "type": "enum",
-                            "typeDetail": [
-                                "\"default\"",
-                                "\"large\""
-                            ],
-                            "required": false,
-                            "defaultValue": null,
-                            "description": "The disc's form. Defaults to `default`, so the sidebar and every other place keep the 32 px disc.",
-                            "declaredIn": "packages/apps/commise/ui/src/avatar/props.ts"
-                        },
-                        {
-                            "name": "status",
-                            "type": "enum",
-                            "typeDetail": [
-                                "\"loading\"",
-                                "\"ready\"",
-                                "\"failed\""
-                            ],
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "The profile read's state.",
-                            "declaredIn": "packages/apps/commise/ui/src/avatar/props.ts"
-                        }
-                    ],
-                    "usesRefApi": [],
-                    "booleanPropsSelectingSubtree": [],
-                    "docSignals": {
-                        "presentational": true,
-                        "orchestration": false
-                    }
-                },
-                {
-                    "name": "Avatar",
-                    "platform": "native",
-                    "sourcePath": "packages/apps/commise/ui/src/avatar/Avatar.native.tsx",
-                    "dir": "packages/apps/commise/ui/src/avatar",
-                    "moduleDoc": "@commise/ui/avatar — the native design-system {@link Avatar}: the profile entry (`buildSpec.md` §3.3, §3.8).\nA `Pressable` button in a 44 pt target around the disc, which is `AvatarDisc` at either size.\n\nPresentational: props → JSX.",
-                    "moduleTags": [
-                        {
-                            "name": "module",
-                            "text": "@commise/ui/avatar — the native design-system {@link Avatar}: the profile entry (`buildSpec.md` §3.3, §3.8)."
-                        },
-                        {
-                            "name": "pattern",
-                            "text": "Visitor — an exhaustive switch over the disc's three faces"
-                        }
-                    ],
-                    "description": "The native design-system avatar.",
-                    "tags": [],
-                    "detectedBy": "react-docgen-typescript",
-                    "exportKind": "named",
-                    "props": [
-                        {
-                            "name": "href",
-                            "type": "string",
-                            "typeDetail": null,
-                            "required": false,
-                            "defaultValue": null,
-                            "description": "The web URL of Profile, so a modified click (a new tab) still works. Native ignores it.",
-                            "declaredIn": "packages/apps/commise/ui/src/avatar/props.ts"
-                        },
-                        {
-                            "name": "initials",
-                            "type": "string",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "The cook's initials, or empty when there is no name. Read only when `status` is `ready`.",
-                            "declaredIn": "packages/apps/commise/ui/src/avatar/props.ts"
-                        },
-                        {
-                            "name": "label",
-                            "type": "string",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "The accessible name: \"Profile, {name}\", or \"Profile\" without one.",
-                            "declaredIn": "packages/apps/commise/ui/src/avatar/props.ts"
-                        },
-                        {
-                            "name": "onPress",
-                            "type": "() => void",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "Open Profile. On web a plain click comes here and the link's own navigation is cancelled.",
-                            "declaredIn": "packages/apps/commise/ui/src/avatar/props.ts"
-                        },
-                        {
-                            "name": "size",
-                            "type": "enum",
-                            "typeDetail": [
-                                "\"default\"",
-                                "\"large\""
-                            ],
-                            "required": false,
-                            "defaultValue": null,
-                            "description": "The disc's form. Defaults to `default`, so the sidebar and every other place keep the 32 px disc.",
-                            "declaredIn": "packages/apps/commise/ui/src/avatar/props.ts"
-                        },
-                        {
-                            "name": "status",
-                            "type": "enum",
-                            "typeDetail": [
-                                "\"loading\"",
-                                "\"ready\"",
-                                "\"failed\""
-                            ],
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "The profile read's state.",
-                            "declaredIn": "packages/apps/commise/ui/src/avatar/props.ts"
-                        }
-                    ],
-                    "usesRefApi": [],
-                    "booleanPropsSelectingSubtree": [],
-                    "docSignals": {
-                        "presentational": true,
-                        "orchestration": false
-                    }
-                }
-            ]
-        },
-        {
             "id": "designSystem/avatar/AvatarDisc",
             "name": "AvatarDisc",
             "group": "designSystem",
@@ -487,7 +286,7 @@
             "kind": "presentational",
             "patterns": [
                 "Variant — the disc's form is a closed `Record` over `AvatarSize`, the discriminated-union render map",
-                "Variant — the face and the size are Tamagui variants, the discriminated-union render map",
+                "Variant — the face, the size and the ring are Tamagui variants, the discriminated-union render map",
                 "Visitor — an exhaustive switch over the disc's three faces"
             ],
             "platforms": [
@@ -503,11 +302,11 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/ui/src/avatar/AvatarDisc.tsx",
                     "dir": "packages/apps/commise/ui/src/avatar",
-                    "moduleDoc": "@commise/ui/avatar — the web avatar's disc, alone (`buildSpec.md` §3.3, §3.8): blank while the profile\nloads, initials on `action` with a name, the `user` glyph without one or after a failed read. Decorative: the control\nit sits in — the avatar, or the sidebar's profile row — carries the name.\n\nPresentational: props → JSX.",
+                    "moduleDoc": "@commise/ui/avatar — the web avatar's disc (`buildSpec.md` §3.2, §3.3, §3.8): blank while the profile loads,\ninitials on `action` with a name, the `user` glyph without one or after a failed read. Decorative: the control it sits in\n— the sidebar's profile row, or the You tab — carries the name.\n\nTwo forms: the 32 `default` of the sidebar's row, and the 24 `tab` glyph, a box of CSS px and never rem, because a glyph\ndoes not scale with the text and the icons beside it are 24. `active` adds a 2 `ink` ring drawn as a shadow, which takes\nno layout room, so the tab's label keeps the others' baseline.\n\nPresentational: props → JSX.",
                     "moduleTags": [
                         {
                             "name": "module",
-                            "text": "@commise/ui/avatar — the web avatar's disc, alone (`buildSpec.md` §3.3, §3.8): blank while the profile"
+                            "text": "@commise/ui/avatar — the web avatar's disc (`buildSpec.md` §3.2, §3.3, §3.8): blank while the profile loads,"
                         },
                         {
                             "name": "pattern",
@@ -524,6 +323,15 @@
                     "exportKind": "named",
                     "props": [
                         {
+                            "name": "active",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "false",
+                            "description": "Whether the disc is drawn with a 2 `ink` ring, which stands in for a filled glyph on the current tab. The ring is laid\noutside the disc's box (a shadow on web, an overlay on native), so it adds no layout size and nothing moves.",
+                            "declaredIn": "packages/apps/commise/ui/src/avatar/props.ts"
+                        },
+                        {
                             "name": "initials",
                             "type": "string",
                             "typeDetail": null,
@@ -537,11 +345,11 @@
                             "type": "enum",
                             "typeDetail": [
                                 "\"default\"",
-                                "\"large\""
+                                "\"tab\""
                             ],
                             "required": false,
                             "defaultValue": "default",
-                            "description": "The disc's form. Defaults to `default`, so the sidebar and every other place keep the 32 px disc.",
+                            "description": "The disc's form. Defaults to `default`.",
                             "declaredIn": "packages/apps/commise/ui/src/avatar/props.ts"
                         },
                         {
@@ -570,11 +378,11 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/ui/src/avatar/AvatarDisc.native.tsx",
                     "dir": "packages/apps/commise/ui/src/avatar",
-                    "moduleDoc": "@commise/ui/avatar — the native avatar's disc, alone (`buildSpec.md` §3.3, §3.8): 32 pt, or the Home header's\n`large` 36 pt disc with the small shadow and a 1 pt divider ring. Decorative: the control it sits in carries the name.\nColours are theme keys, so the disc follows the scheme with no hook.\n\nPresentational: props → JSX.",
+                    "moduleDoc": "@commise/ui/avatar — the native avatar's disc (`buildSpec.md` §3.2, §3.3, §3.8): the 32 `default` of a profile row,\nor the 24 `tab` glyph of the You tab. Decorative: the control it sits in carries the name. Colours are theme keys, so the\ndisc follows the scheme with no hook.\n\nThe disc sits in a box of exactly its own size. `active` draws a 2 `ink` ring as an overlay laid OUTSIDE that box, never\nas the disc's border: a border made the 24 glyph 28 and dropped the tab's label below the other three. The overlay takes\nno layout room.\n\nPresentational: props → JSX.",
                     "moduleTags": [
                         {
                             "name": "module",
-                            "text": "@commise/ui/avatar — the native avatar's disc, alone (`buildSpec.md` §3.3, §3.8): 32 pt, or the Home header's"
+                            "text": "@commise/ui/avatar — the native avatar's disc (`buildSpec.md` §3.2, §3.3, §3.8): the 32 `default` of a profile row,"
                         },
                         {
                             "name": "pattern",
@@ -582,7 +390,7 @@
                         },
                         {
                             "name": "pattern",
-                            "text": "Variant — the face and the size are Tamagui variants, the discriminated-union render map"
+                            "text": "Variant — the face, the size and the ring are Tamagui variants, the discriminated-union render map"
                         }
                     ],
                     "description": "The disc, decorative: the control it sits in carries the name.",
@@ -590,6 +398,15 @@
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
                     "props": [
+                        {
+                            "name": "active",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "false",
+                            "description": "Whether the disc is drawn with a 2 `ink` ring, which stands in for a filled glyph on the current tab. The ring is laid\noutside the disc's box (a shadow on web, an overlay on native), so it adds no layout size and nothing moves.",
+                            "declaredIn": "packages/apps/commise/ui/src/avatar/props.ts"
+                        },
                         {
                             "name": "initials",
                             "type": "string",
@@ -604,11 +421,11 @@
                             "type": "enum",
                             "typeDetail": [
                                 "\"default\"",
-                                "\"large\""
+                                "\"tab\""
                             ],
                             "required": false,
                             "defaultValue": "default",
-                            "description": "The disc's form. Defaults to `default`, so the sidebar and every other place keep the 32 px disc.",
+                            "description": "The disc's form. Defaults to `default`.",
                             "declaredIn": "packages/apps/commise/ui/src/avatar/props.ts"
                         },
                         {
@@ -7531,7 +7348,7 @@
             "dir": "packages/apps/commise/ui/src/largeTitleHeader",
             "kind": "presentational",
             "patterns": [
-                "Visitor — an exhaustive switch over the `HeaderAction` union"
+                "Layout slot — a title block with one end-of-row action group"
             ],
             "platforms": [
                 "web",
@@ -7554,7 +7371,7 @@
                         },
                         {
                             "name": "pattern",
-                            "text": "Visitor — an exhaustive switch over the `HeaderAction` union"
+                            "text": "Layout slot — a title block with one end-of-row action group"
                         }
                     ],
                     "description": "The web design-system large title header.",
@@ -7655,7 +7472,7 @@
                         },
                         {
                             "name": "pattern",
-                            "text": "Visitor — an exhaustive switch over the `HeaderAction` union"
+                            "text": "Layout slot — a title block with one end-of-row action group"
                         }
                     ],
                     "description": "The native design-system large title header.",
@@ -9339,7 +9156,7 @@
                             "name": "role",
                             "type": "enum",
                             "typeDetail": [
-                                "\"status\"",
+                                "\"tab\"",
                                 "\"timer\"",
                                 "\"menu\"",
                                 "\"list\"",
@@ -9392,9 +9209,9 @@
                                 "\"separator\"",
                                 "\"slider\"",
                                 "\"spinbutton\"",
+                                "\"status\"",
                                 "\"summary\"",
                                 "\"switch\"",
-                                "\"tab\"",
                                 "\"table\"",
                                 "\"tablist\"",
                                 "\"tabpanel\"",
@@ -14438,7 +14255,7 @@
                             "name": "role",
                             "type": "enum",
                             "typeDetail": [
-                                "\"status\"",
+                                "\"tab\"",
                                 "\"timer\"",
                                 "\"menu\"",
                                 "\"list\"",
@@ -14491,9 +14308,9 @@
                                 "\"separator\"",
                                 "\"slider\"",
                                 "\"spinbutton\"",
+                                "\"status\"",
                                 "\"summary\"",
                                 "\"switch\"",
-                                "\"tab\"",
                                 "\"table\"",
                                 "\"tablist\"",
                                 "\"tabpanel\"",
@@ -14619,7 +14436,7 @@
                             "name": "role",
                             "type": "enum",
                             "typeDetail": [
-                                "\"status\"",
+                                "\"tab\"",
                                 "\"timer\"",
                                 "\"menu\"",
                                 "\"list\"",
@@ -14672,9 +14489,9 @@
                                 "\"separator\"",
                                 "\"slider\"",
                                 "\"spinbutton\"",
+                                "\"status\"",
                                 "\"summary\"",
                                 "\"switch\"",
-                                "\"tab\"",
                                 "\"table\"",
                                 "\"tablist\"",
                                 "\"tabpanel\"",

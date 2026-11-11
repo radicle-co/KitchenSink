@@ -154,6 +154,8 @@ export function useDiscoveryScreen({
     const cardVariant = cardVariantOf(container, 'list', 'discover') === 'compact' ? 'compact' : 'grid';
 
     const searchingNow = isDiscoverySearching({ filters, query: searchInput });
+    // Only the count line reads this. An empty catalogue also draws no rails (`DiscoveryResultsView`), and its own
+    // status region announces it, so the count line staying silent there is right.
     const browsing = isDiscoveryBrowsing(settled);
     // The announced sentence describes results on screen, so nothing is announced while the rails are the body.
     const resultsSummary: RecipeDiscoveryResultsSummary | undefined =

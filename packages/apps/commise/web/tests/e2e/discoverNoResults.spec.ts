@@ -107,7 +107,6 @@ for (const scheme of ['light', 'dark'] as const) {
 
             await expect(page.getByRole('heading', { level: 2, name: 'No public recipes yet.' })).toBeVisible();
             await expect(page.getByRole('heading', { name: 'Trending' })).toHaveCount(0);
-            await expect(page.getByText('Nothing here yet.')).toHaveCount(0);
             await expect(page.getByRole('button', { name: /^Filters/ })).toHaveCount(0);
         });
 

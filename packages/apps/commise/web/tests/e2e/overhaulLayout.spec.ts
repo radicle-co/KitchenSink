@@ -377,16 +377,18 @@ for (const [scheme, colors] of THEMES) {
                 });
 
                 // The editor's frame owns the page gutter (`<main>` gives a focused task none): 16 below 600, 24 from 600,
-                // 32 from 840 (`buildSpec.md` §1.2).
-                test('Editor: the content column keeps the page gutter for this width', async ({ page }) => {
+                // 32 from 840 (`buildSpec.md` §1.2). The frame is also the `main` container the editor's layouts measure
+                // (`MainColumn`), so its content box is the width the content gets; REWRITTEN to read that frame, which
+                // used to be the form column itself.
+                test('Editor: the content frame keeps the page gutter for this width', async ({ page }) => {
                     await seedLamb(page);
                     await page.goto(route(`/recipes/${LAMB_ID}/edit`));
 
                     const heading = page.getByRole('heading', { level: 2, name: 'Details' });
                     await expect(heading).toBeVisible();
                     const gutters = await heading.evaluate((node) => {
-                        const column = node.closest('section')?.parentElement;
-                        const style = column === null || column === undefined ? null : getComputedStyle(column);
+                        const frame = node.closest('[class*="@container/main"]');
+                        const style = frame === null ? null : getComputedStyle(frame);
 
                         return style === null
                             ? null

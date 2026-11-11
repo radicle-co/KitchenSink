@@ -4,15 +4,15 @@
     "packageName": "@commise/features-recipes",
     "layer": "feature",
     "coverage": {
-        "components": 203,
-        "implementations": 345,
-        "props": 2389,
-        "documentedComponents": 203,
-        "implementationsWithModuleDoc": 345,
-        "implementationsWithComponentDoc": 234,
-        "documentedProps": 1817,
-        "classifiedComponents": 181,
-        "componentsWithPatternTag": 97,
+        "components": 204,
+        "implementations": 346,
+        "props": 2390,
+        "documentedComponents": 204,
+        "implementationsWithModuleDoc": 346,
+        "implementationsWithComponentDoc": 235,
+        "documentedProps": 1818,
+        "classifiedComponents": 182,
+        "componentsWithPatternTag": 98,
         "crossPlatformComponents": 142
     },
     "components": [
@@ -19951,7 +19951,7 @@
                         },
                         {
                             "name": "row",
-                            "type": "IngredientRowView | undefined",
+                            "type": "Pick<IngredientRowView, \"index\" | \"lineEditor\"> | undefined",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
@@ -20016,7 +20016,7 @@
                         },
                         {
                             "name": "row",
-                            "type": "IngredientRowView | undefined",
+                            "type": "Pick<IngredientRowView, \"index\" | \"lineEditor\"> | undefined",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
@@ -27037,6 +27037,69 @@
                     "docSignals": {
                         "presentational": false,
                         "orchestration": true
+                    }
+                }
+            ]
+        },
+        {
+            "id": "featuresRecipes/layout/MainColumn",
+            "name": "MainColumn",
+            "group": "featuresRecipes",
+            "packageName": "@commise/features-recipes",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/recipes/src/layout",
+            "kind": "presentational",
+            "patterns": [
+                "Provider — hands its own element to `MainElementContext`, the way the shell hands its `<main>`",
+                "Responsive layout by container query — the column answers to its own box, not the window's or `<main>`'s"
+            ],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "MainColumn",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/layout/MainColumn.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/layout",
+                    "moduleDoc": "@commise/features-recipes/layout — `MainColumn` (web): a content column that is its OWN `main` container.\nThe shell's `<main>` is the `main` container for the pages it pads; a page that draws its own gutter inside an\nunpadded `<main>` (a focused task: the recipe editor) wraps its padded column in this, so the column's content box is\nthe width its content gets. Both readers then measure that one box: the `@regular/main:` and `@wide/main:`\nvariants in CSS (the nearest ancestor container NAMED `main`), and the container class a script reads\n(`MainElementContext`, which this hands its own element to). Without it the editor read the whole `<main>`, so a\n620 px window (572 px of content) was `regular` there and `narrow` on the food page.\n\nPresentational: a `div` and a context provider; no data, no side effect beyond holding its own element.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes/layout — `MainColumn` (web): a content column that is its OWN `main` container."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Provider — hands its own element to `MainElementContext`, the way the shell hands its `<main>`"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Responsive layout by container query — the column answers to its own box, not the window's or `<main>`'s"
+                        }
+                    ],
+                    "description": "A column that is the `main` container its content measures.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "className",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "",
+                            "description": "Classes for the column: its layout and its gutter. `@container/main` is added.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/layout/MainColumn.tsx"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
                     }
                 }
             ]

@@ -144,6 +144,19 @@ describe('FoodPageView (web): the author states', () => {
 });
 
 describe('FoodPageView (web): Withdraw', () => {
+    it('draws Withdraw full width below a 600 container and hugging its label from 600, like the actions above it', () => {
+        view(makeOwnState('private', { request: undefined }));
+        const withdraw = screen.getByRole('button', { name: 'Withdraw' });
+        const slot = withdraw.parentElement?.parentElement as HTMLElement;
+        const ask = screen.getByRole('button', { name: 'Ask to make public' });
+        const askSlot = ask.parentElement?.parentElement as HTMLElement;
+
+        expect(withdraw.className).toContain('w-full');
+        expect(slot.className).toContain('w-full');
+        expect(slot.className).toContain('@regular/main:w-auto');
+        expect(slot.className).toBe(askSlot.className);
+    });
+
     it('Withdraw opens the confirmation through onWithdraw', async () => {
         const onWithdraw = vi.fn();
         view(makeOwnState('private', { request: undefined }), { onWithdraw });

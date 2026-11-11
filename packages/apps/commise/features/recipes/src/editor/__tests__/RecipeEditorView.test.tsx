@@ -214,21 +214,23 @@ describe('the content gutter (buildSpec §1.2)', () => {
     it('pads the content column with the page gutter at each viewport class, not 16 everywhere', () => {
         render(view(makeEditorResult()));
 
-        const column = screen.getByRole('heading', { name: 'Details' }).closest('section')?.parentElement;
-        const classes = column?.className.split(/\s+/u) ?? [];
+        const frame = screen.getByRole('heading', { name: 'Details' }).closest('[class*="@container/main"]');
+        const classes = frame?.className.split(/\s+/u) ?? [];
 
         expect(classes).toEqual(expect.arrayContaining(EDITOR_GUTTER.split(' ')));
         expect(classes.filter((name) => /^px-/u.test(name))).toEqual(['px-4']);
     });
 
-    it('makes the PADDED column the main container, so a 620 px window is a 572 px (narrow) editor like the food page', () => {
+    it('makes the PADDED frame the main container, so a 620 px window is a 572 px (narrow) editor like the food page', () => {
         render(view(makeEditorResult()));
 
-        const column = screen.getByRole('heading', { name: 'Details' }).closest('section')?.parentElement;
+        const frame = screen.getByRole('heading', { name: 'Details' }).closest('[class*="@container/main"]');
 
-        // The shell's `<main>` has no gutter on a focused task, so measuring it called 620 px `regular`; the column's
-        // content box is the width the fields get, and what `@regular/main:` and `useMainContainerClass` must read.
-        expect(column?.className.split(/\s+/u)).toContain('@container/main');
+        // The shell's `<main>` has no gutter on a focused task, so measuring it called 620 px `regular`. The frame holds
+        // the gutter AND the rail beside the column, so the container is the width the content gets, whatever its class:
+        // the rail, the paste pane and the field layouts all read this one box (the rail's row direction is a CHILD of it).
+        expect(frame?.className.split(/\s+/u)).toEqual(expect.arrayContaining(EDITOR_GUTTER.split(' ')));
+        expect(frame?.querySelector('.\\@wide\\/main\\:flex-row')).not.toBeNull();
     });
 
     it('spells the spec’s three gutters in Tailwind steps of 4 px (the layout tokens’ numbers)', () => {

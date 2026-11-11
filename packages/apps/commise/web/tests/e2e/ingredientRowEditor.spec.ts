@@ -93,6 +93,20 @@ test.describe('the ingredient row editor on a saved recipe (plan 002 V1 B7)', ()
     // The designer's retake of PR #166 and issue #176: the editor reads the SAME container rule as the food page. At 620 px
     // the column's content is 572 px, under the 600 `regular` threshold, so the row editor is the phone sheet, "Name on
     // the recipe" and "Note" stack full width, and Done draws full width.
+    test('at 1440 px the form column is the 768 px list width, beside the rail (buildSpec 1.3)', async ({ page }) => {
+        await page.setViewportSize({ width: 1440, height: 900 });
+        await signInWithTicket(page);
+        const viewerId = await readViewerAppId(page);
+
+        await mockRecipeApi(page, { viewerId, recipes: [savedRecipe(viewerId, garlicLine)] });
+        await mockFoodApi(page);
+        await openIngredientsSection(page);
+
+        const column = await page.getByRole('region', { name: 'Ingredients' }).boundingBox();
+
+        expect(Math.round(column?.width ?? 0)).toBe(768);
+    });
+
     for (const width of [390, 620]) {
         test(`at ${String(width)} px the row editor is the phone sheet: Name and Note stack, and Done fills`, async ({
             page,

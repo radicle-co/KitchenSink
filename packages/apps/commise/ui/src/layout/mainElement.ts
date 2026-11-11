@@ -1,8 +1,7 @@
 /**
  * @module @commise/ui/main-element — the element the page's content measures, handed to the page (web): the shell's
- * `<main>`, or, for a page that draws its own gutter in an unpadded `<main>` (the recipe editor), its own padded frame
- * (`MainColumn`, which re-provides it). A page that sizes itself to the main column (`useMainContainerClass`)
- * measures THIS element, never `document.querySelector('main')`: during a load the document can hold a second,
+ * `<main>`, or, for a page that draws its own gutter in an unpadded `<main>`, an inner element that re-provides it. A page that sizes itself
+ * to the main column (`useMainContainerClass`) measures THIS element, never `document.querySelector('main')`: during a load the document can hold a second,
  * hidden `<main>` ahead of the shell's, and measuring that one left Discover's filter panel a Filters button at 1440 px
  * (measured 2026-10-24, `useMainContainerClass.test.tsx`).
  *

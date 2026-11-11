@@ -230,7 +230,13 @@ describe('the content gutter (buildSpec §1.2)', () => {
         // the gutter AND the rail beside the column, so the container is the width the content gets, whatever its class:
         // the rail, the paste pane and the field layouts all read this one box (the rail's row direction is a CHILD of it).
         expect(frame?.className.split(/\s+/u)).toEqual(expect.arrayContaining(EDITOR_GUTTER.split(' ')));
-        expect(frame?.querySelector('.\\@wide\\/main\\:flex-row')).not.toBeNull();
+        // The cap (rail + gap + the 768 list) is on the CHILD that holds the rail and the column: on the padded frame it
+        // would count the gutters, and the column would never reach the list width.
+        expect(frame?.className).not.toContain('max-w-');
+        const row = frame?.querySelector('.\\@wide\\/main\\:flex-row');
+
+        expect(row).not.toBeNull();
+        expect(row?.className).toContain('max-w-[calc(15rem+2rem+var(--container-list))]');
     });
 
     it('spells the spec’s three gutters in Tailwind steps of 4 px (the layout tokens’ numbers)', () => {

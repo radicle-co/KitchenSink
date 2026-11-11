@@ -140,10 +140,8 @@ const EditorPage: FC<RecipeEditorViewProps> = (props) => {
                 </LiveRegion>
                 {/* The padded frame is the `main` container (a focused task's own `<main>` has no gutter), so the index rail,
                     the paste pane and every `@regular/main:` field layout read the width the content gets. */}
-                <MainColumn
-                    className={`mx-auto flex w-full max-w-[calc(15rem+2rem+var(--container-list))] flex-1 flex-col ${EDITOR_GUTTER}`}
-                >
-                    <div className="flex flex-1 flex-col @wide/main:flex-row @wide/main:gap-8">
+                <MainColumn className={`flex w-full flex-1 flex-col ${EDITOR_GUTTER}`}>
+                    <div className="mx-auto flex w-full max-w-[calc(15rem+2rem+var(--container-list))] flex-1 flex-col @wide/main:flex-row @wide/main:gap-8">
                         <SectionIndex
                             stickyId={EDITOR_INDEX_ID}
                             narrowHidden={pinning.unpinned}

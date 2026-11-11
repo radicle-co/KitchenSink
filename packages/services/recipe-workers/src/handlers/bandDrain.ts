@@ -419,19 +419,9 @@ export async function runMaintenanceSweeps(deps: {
  * @sideEffect Whatever `drain` and `sweeps` do.
  */
 export async function runDrainTick(drain: () => Promise<unknown>, sweeps: () => Promise<void>): Promise<void> {
-    const failures: unknown[] = [];
-
-    try {
-        await drain();
-    } catch (error) {
-        failures.push(error);
-    }
-
-    try {
-        await sweeps();
-    } catch (error) {
-        failures.push(error);
-    }
+    // In order: the drain runs to its end before the sweeps start.
+    const drainFailures = await failuresOf(drain);
+    const failures = [...drainFailures, ...(await failuresOf(sweeps))];
 
     if (failures.length > 1) {
         throw new AggregateError(failures, 'the band drain and its maintenance sweeps both failed');
@@ -439,6 +429,24 @@ export async function runDrainTick(drain: () => Promise<unknown>, sweeps: () => 
 
     if (failures.length === 1) {
         throw failures[0];
+    }
+}
+
+/**
+ * Run one step of the tick and hand back its failure as a value, so {@link runDrainTick} can run the next step and still
+ * fail the tick with it.
+ *
+ * @param step - The step.
+ * @returns `[]` when it succeeded, or `[error]`.
+ * @sideEffect Whatever `step` does.
+ */
+async function failuresOf(step: () => Promise<unknown>): Promise<unknown[]> {
+    try {
+        await step();
+
+        return [];
+    } catch (error) {
+        return [error];
     }
 }
 

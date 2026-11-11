@@ -36,7 +36,7 @@ import { logger } from '../common/logger.js';
 import { isSpendGated } from '../common/verificationSpend.js';
 import { emitMetric, type EmfMetric } from '../common/metrics.js';
 import { expireParseJobs, oldestRunningParseJobAgeSeconds, type ExpiryQueryable } from '../parsing/parseJobExpiry.js';
-import { purgeFinishedImports } from '../import/importPurge.js';
+import { runImportPurge } from '../import/importPurge.js';
 import { PARSE_METRIC_NAMESPACE } from '../parsing/crfInvoke.js';
 import {
     createSsmSettingsLoader,
@@ -393,10 +393,11 @@ export async function publishParseStallGauge(deps: {
  * so it runs outside the drain's headroom budget. The gauge reads AFTER the sweep, deliberately: the sweep has just retired
  * every job past its TTL, so the gauge reads the backlog still owed an answer, not a pile about to be cleared. The purge
  * (ADR-0072 §9) runs LAST and is NOT swallowed: its data is user content past its retention bound, so a failure fails the
- * tick loudly, and at the end it costs the sweeps above nothing.
+ * tick loudly, and at the end it costs the sweeps above nothing. It publishes its count and the oldest import's age
+ * (`runImportPurge`).
  *
  * @param deps - The recipe pool, this deploy's stage, and the metric sink.
- * @sideEffect Updates and deletes parse-job rows, writes one EMF line, and deletes idle bulk imports.
+ * @sideEffect Updates and deletes parse-job rows, writes EMF lines, and deletes idle bulk imports.
  */
 export async function runMaintenanceSweeps(deps: {
     readonly pool: ExpiryQueryable;
@@ -405,11 +406,31 @@ export async function runMaintenanceSweeps(deps: {
 }): Promise<void> {
     await expireParseJobs(deps.pool);
     await publishParseStallGauge(deps);
+    await runImportPurge(deps);
+}
 
-    const purged = await purgeFinishedImports(deps.pool);
+/**
+ * One scheduled tick: the drain, then the sweeps, and the sweeps run WHETHER OR NOT the drain succeeded. They share the
+ * tick, not its fate: a drain that throws on every tick (a headroom read, an SQS send) must not also keep user content past
+ * its retention bound. A failure in either still fails the tick, so it reaches Sentry; when both fail, both are reported.
+ *
+ * @param drain - The revocation drain.
+ * @param sweeps - The maintenance sweeps.
+ * @sideEffect Whatever `drain` and `sweeps` do.
+ */
+export async function runDrainTick(drain: () => Promise<unknown>, sweeps: () => Promise<void>): Promise<void> {
+    const [drained] = await Promise.allSettled([drain()]);
+    const [swept] = await Promise.allSettled([sweeps()]);
+    const failures = [drained, swept].flatMap((outcome): unknown[] =>
+        outcome?.status === 'rejected' ? [outcome.reason] : [],
+    );
 
-    if (purged > 0) {
-        logger.info('bulk imports purged', { purged });
+    if (failures.length > 1) {
+        throw new AggregateError(failures, 'the band drain and its maintenance sweeps both failed');
+    }
+
+    if (failures.length === 1) {
+        throw failures[0];
     }
 }
 
@@ -423,8 +444,10 @@ const rawHandler = async (): Promise<void> => {
     const region = requireEnv('AWS_REGION');
     const queueUrl = requireEnv('INGREDIENT_VERIFICATION_QUEUE_URL');
 
-    await drainRevokedBands(productionDeps(stage, region, queueUrl));
-    await runMaintenanceSweeps({ pool: getRecipePool(), stage, emit: emitMetric });
+    await runDrainTick(
+        () => drainRevokedBands(productionDeps(stage, region, queueUrl)),
+        () => runMaintenanceSweeps({ pool: getRecipePool(), stage, emit: emitMetric }),
+    );
 };
 
 /**

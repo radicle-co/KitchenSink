@@ -242,7 +242,11 @@ The owner ruled that bulk import has an allowance of its own, separate from past
   statement, oldest first, and stops after 20 seconds of the Lambda's 60. A failure fails the tick, and it runs last, so
   a failure costs the other sweeps nothing. The import row goes, and its items and snapshot lines go with it by
   cascade. Every saved recipe stays with its ingredients and `bound_by`, and the ingredient's `import_line_id` becomes
-  NULL. The allowance ledger is not touched and nothing is refunded.
+  NULL. The allowance ledger is not touched and nothing is refunded. The purge takes its rows `FOR UPDATE SKIP LOCKED`,
+  so it skips an import that a cook's transaction holds and does not delete it under them. If the band drain fails,
+  the tick still runs the sweeps, and then it fails with the drain's error. Every tick publishes the purged count and the
+  age of the oldest import left, both with `Stage` (ADR-0062). If that age is a day past the 30-day bound,
+  `BulkImportPurgeBehindAlarm` fires.
 - **The import sets the provenance label from the statement:**
 
     | Statement                            | `sourceType`        | Visibility the policy allows                         |

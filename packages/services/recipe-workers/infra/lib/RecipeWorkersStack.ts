@@ -414,6 +414,17 @@ const PARSE_DISCARD_MIN_ATTEMPTS = 20;
 const PARSE_JOB_STALL_THRESHOLD_SECONDS = 3600;
 
 /**
+ * The bulk import purge's age gauge (ADR-0072 §9).
+ *
+ * ⛔ MUST EQUAL `IMPORT_METRIC_NAMESPACE` and `OLDEST_IMPORT_AGE_METRIC_NAME` in `src/import/importPurge.ts`, the same
+ * pairing rule as the parse gauges above. The threshold is the runtime's 30-day bound (`IMPORT_PURGE_AFTER_DAYS`) plus one
+ * day: a purge running every 15 minutes never holds an import that long unless it has stopped or fallen behind.
+ */
+const IMPORT_METRIC_NAMESPACE = 'Commise/RecipeImport';
+const OLDEST_IMPORT_AGE_METRIC_NAME = 'OldestBulkImportAgeSeconds';
+const IMPORT_PURGE_BEHIND_THRESHOLD_SECONDS = 31 * 86_400;
+
+/**
  * How many absent CRF invocations inside five minutes page someone.
  *
  * ⛔ A COUNT, over ONE period — and both halves are corrections of an earlier draft that could not have
@@ -2153,6 +2164,34 @@ export class RecipeWorkersStack extends Stack {
                 treatMissingData: cloudwatch.TreatMissingData.BREACHING,
             });
             parseStallAlarm.addAlarmAction(alarmAction);
+
+            // The purge keeps user content no longer than its bound, and this is the only thing that notices when it does
+            // not. `NOT_BREACHING`, the opposite of the stall gauge above: both gauges ride the same tick, so a tick that
+            // stopped running pages once, there, not twice. 2-of-3 for the same reason the stall alarm is: the gauge
+            // swallows its own read failure.
+            //
+            // ACTION WHEN IT FIRES: read the band drain's errors in Sentry (a purge failure fails the tick), then the oldest
+            // `recipe_imports` rows by `updated_at`. A row that stays past the bound while the purge succeeds is one a
+            // transaction keeps locked (the purge skips locked rows).
+            const importPurgeBehindAlarm = new cloudwatch.Alarm(this, 'BulkImportPurgeBehindAlarm', {
+                alarmName: `kitchensink-recipe-import-purge-behind-${props.stage}`,
+                alarmDescription:
+                    'A bulk import is a day past its 30-day retention bound: the purge has stopped or fallen behind, ' +
+                    'and user content is being kept past its bound. Check the band drain errors first.',
+                metric: new cloudwatch.Metric({
+                    namespace: IMPORT_METRIC_NAMESPACE,
+                    metricName: OLDEST_IMPORT_AGE_METRIC_NAME,
+                    dimensionsMap: { Stage: props.stage },
+                    statistic: 'Maximum',
+                    period: Duration.minutes(15),
+                }),
+                threshold: IMPORT_PURGE_BEHIND_THRESHOLD_SECONDS,
+                comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
+                evaluationPeriods: 3,
+                datapointsToAlarm: 2,
+                treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
+            });
+            importPurgeBehindAlarm.addAlarmAction(alarmAction);
 
             // The parse leg carries the same `reservedConcurrentExecutions: 1` the gate does, so it inherits the
             // same trap: a throttled SQS delivery still burns a message's receive count, and a backlog drains to

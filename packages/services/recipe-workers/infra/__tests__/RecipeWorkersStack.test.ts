@@ -1392,7 +1392,7 @@ describe('RecipeWorkersStack — alarm notifications', () => {
         const alarms = template.findResources('AWS::CloudWatch::Alarm');
         // A COUNT, not a roster. It exists so a regression that silently DROPS an alarm trips here, and so a
         // new one has to be a deliberate edit; the loop below is what actually checks each alarm can page.
-        // ⚠️ It was 11, then 15, then 16, then 17, and is now 20: the parse leg's CRF-availability, DLQ and
+        // ⚠️ It was 11, then 15, then 16, then 17, then 20, and is now 21 with the bulk import purge's behind alarm: the parse leg's CRF-availability, DLQ and
         // throttle alarms, the handle-sync DLQ alarm the derived "every DLQ has a depth alarm" guard found
         // missing, ADR-0024 layer 1's input-bound alarm, §4b's residency-refusal alarm, and the two
         // parse-pipeline detectors (the landing-discard RATE and the job-stall gauge), and the paste-fallback detector
@@ -1400,7 +1400,7 @@ describe('RecipeWorkersStack — alarm notifications', () => {
         // in its emitter's stack, and that stack has no alarm topic yet. The earlier revision
         // of this comment named all eleven, which is the copied list this repository keeps learning not to
         // write — so what the number guards is stated instead of which alarms make it up.
-        expect(Object.keys(alarms)).toHaveLength(20);
+        expect(Object.keys(alarms)).toHaveLength(21);
 
         for (const [name, alarm] of Object.entries(alarms)) {
             const actions = alarm.Properties?.AlarmActions as { Ref: string }[] | undefined;
@@ -2396,10 +2396,37 @@ describe('RecipeWorkersStack — the parse-pipeline detectors', () => {
         });
     });
 
+    /**
+     * Review finding 6 on #185-#188: the bulk import purge published nothing, so a purge that had stopped looked like one
+     * with nothing to do. It now publishes the age of the oldest import it holds, every tick, and this alarm fires when that
+     * age passes the retention bound by a day: the purge has stopped or fallen behind, and user content is being kept past
+     * its bound. This suite is its own package and cannot import the runtime's constant, so the pairing is by comment, as the
+     * stall threshold's is.
+     *
+     * `notBreaching`, the OPPOSITE of the stall gauge one screen up, because a missing series is already that alarm's job:
+     * both gauges ride the same tick, so a tick that stopped running pages once, there, not twice.
+     */
+    it('⛔ alarms when the oldest bulk import is a day past the purge bound, per stage', () => {
+        template.hasResourceProperties('AWS::CloudWatch::Alarm', {
+            AlarmName: 'kitchensink-recipe-import-purge-behind-sandbox',
+            MetricName: 'OldestBulkImportAgeSeconds',
+            Namespace: 'Commise/RecipeImport',
+            Statistic: 'Maximum',
+            // 31 days: the runtime's 30-day bound (`IMPORT_PURGE_AFTER_DAYS`, pinned by its own unit test) plus one day.
+            Threshold: 31 * 86_400,
+            ComparisonOperator: 'GreaterThanThreshold',
+            EvaluationPeriods: 3,
+            DatapointsToAlarm: 2,
+            TreatMissingData: 'notBreaching',
+            Dimensions: [{ Name: 'Stage', Value: 'sandbox' }],
+        });
+    });
+
     it('routes both to the stack SNS topic — an alarm with no action is a widget', () => {
         for (const name of [
             'kitchensink-recipe-parse-landing-discarded-sandbox',
             'kitchensink-recipe-parse-job-stall-sandbox',
+            'kitchensink-recipe-import-purge-behind-sandbox',
         ]) {
             const alarm = Object.values(template.findResources('AWS::CloudWatch::Alarm')).find(
                 (candidate) => candidate.Properties?.AlarmName === name,
@@ -2412,15 +2439,14 @@ describe('RecipeWorkersStack — the parse-pipeline detectors', () => {
 
 describe('⛔ the alarm feature flag (default OFF)', () => {
     it('creates NO alarm when the flag is off', () => {
-        // Nineteen alarms in ONE stack, the largest concentration in the repository: archive backlog and
-        // age, three DLQ depths, erasure age, orphan resurrection, nine on the LLM verification gate, and
-        // the two parse-pipeline detectors. Every one of them was provisioned for every open PR's preview.
+        // The worker alarms sit in ONE stack, the largest concentration in the repository, and every one of
+        // them was provisioned for every open PR's preview.
         synth('pr-91', 'sandbox', false).resourceCountIs('AWS::CloudWatch::Alarm', 0);
     });
 
-    it('creates all twenty worker alarms when the flag is on', () => {
+    it('creates all twenty-one worker alarms when the flag is on', () => {
         // Non-vacuity, and the count is load-bearing: this is a switch, and nothing was deleted to build it.
-        synth('pr-91', 'sandbox', true).resourceCountIs('AWS::CloudWatch::Alarm', 20);
+        synth('pr-91', 'sandbox', true).resourceCountIs('AWS::CloudWatch::Alarm', 21);
     });
 
     it('keeps the alarm topic in both states', () => {

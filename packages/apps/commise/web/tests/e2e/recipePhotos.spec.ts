@@ -195,7 +195,7 @@ test.describe('recipe photo upload (CP-6/P3)', () => {
         });
 
         // REQ-014 — the rejection names WHICH file (its own failed cell + `fileName`-scoped controls) and WHY.
-        await expect(photosRegion.getByRole('alert', { name: 'Upload failed' })).toBeVisible();
+        await expect(photosRegion.getByRole('alert', { name: /^Upload failed/u })).toBeVisible();
         await expect(page.getByText('That photo is larger than 5 MB. Choose a smaller file.')).toBeVisible();
         await expect(photosRegion.getByRole('button', { name: 'Actions for huge.png' })).toBeVisible();
 
@@ -221,12 +221,12 @@ test.describe('recipe photo upload (CP-6/P3)', () => {
             buffer: Buffer.from(TINY_PNG_BASE64, 'base64'),
         });
 
-        await expect(photosRegion.getByRole('alert', { name: 'Upload failed' })).toBeVisible();
+        await expect(photosRegion.getByRole('alert', { name: /^Upload failed/u })).toBeVisible();
         await expect(page.getByText('That file type isn’t supported. Use a JPEG, PNG, or WebP photo.')).toBeVisible();
         // A queue tile's Remove lives in its ⋯ menu now (the tile's own Remove button moved into it), so open it.
         await photosRegion.getByRole('button', { name: 'Actions for clip.gif' }).click();
         await page.getByRole('menuitem', { name: 'Remove' }).click();
-        await expect(photosRegion.getByRole('alert', { name: 'Upload failed' })).toHaveCount(0);
+        await expect(photosRegion.getByRole('alert', { name: /^Upload failed/u })).toHaveCount(0);
 
         await expect(page.getByRole('status').filter({ hasText: 'Uploading photo' })).toHaveCount(0);
         await expect(photosRegion.getByRole('img', { name: /Recipe photo/ })).toHaveCount(0);
@@ -477,7 +477,7 @@ test.describe('recipe photos on a NEW recipe (U33)', () => {
 
         await expect(page).toHaveURL(CREATED_URL);
         const createdId = new URL(page.url()).searchParams.get('draft') ?? '';
-        await expect(photosRegion.getByRole('alert', { name: 'Upload failed' })).toBeVisible();
+        await expect(photosRegion.getByRole('alert', { name: /^Upload failed/u })).toBeVisible();
         await expect(page.getByRole('button', { name: /Retry upload of handover\.png/ })).toBeVisible();
 
         await completeForPublish(page);

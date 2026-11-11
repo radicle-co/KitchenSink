@@ -7,8 +7,8 @@
  * holds Remove in the same menu, and a failed, retryable one keeps a visible Retry `Button`.
  *
  * Presentational: renders the recipe's confirmed photos MERGED with any in-flight queue items in a grid of 3 columns
- * (4 from 600 px of the grid's own container, buildSpec §7.7), each queue cell carrying its own status badge (Queued / Uploading… / Upload
- * failed, via role + text — never colour alone, WCAG 1.4.1) plus Retry (only where the queue reports the
+ * (4 from 600 px of the grid's own container, buildSpec §7.7), each queue cell carrying its own status line UNDER the tile, never over the photo (Queued / Uploading… / Upload
+ * failed, via role + text — never colour alone, WCAG 1.4.1; designer ruling 2026-11-11) plus Retry (only where the queue reports the
  * failure as `retryable`) and a Remove menu,
  * and renders the caller-supplied `addControl` (the web file input) below the grid — hidden once the recipe
  * is at the photo cap. The container owns image acquisition + the presign → PUT → confirm upload (via the
@@ -18,10 +18,10 @@
  * class, so a recipe with many photos does not eagerly paint the whole grid of full-size originals at once
  * (mirrors the detail view's `PhotoCarousel`, the other web surface painting these same originals).
  *
- * REQ-014 (per-file "which photo failed and why"): the generic `queueStatusFailed` badge already names
+ * REQ-014 (per-file "which photo failed and why"): the generic `queueStatusFailed` status line already names
  * WHICH photo (its cell, its `fileName`-scoped Retry/Remove labels); a failed item's own `errorMessage`
  * (client validation — REQ-011/REQ-012 — or an upload failure, both surfaced by the caller through the same
- * field) renders as a second, distinct line naming WHY, whenever the caller supplies one — BELOW the tile, on the page
+ * field) renders as a second line in the same slot naming WHY, whenever the caller supplies one — BELOW the tile, on the page
  * background (E6), never over the image, where its contrast would depend on the photo.
  *
  * With no photo and no queued file it shows the recipe's own generated cover (when `coverPreview` is supplied) and says
@@ -201,17 +201,6 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
                                                 className="absolute inset-0 h-full w-full object-cover"
                                             />
                                         ) : null}
-                                        <span
-                                            role={item.status === 'failed' ? 'alert' : 'status'}
-                                            aria-label={statusWord}
-                                            className={`relative rounded-full px-2 py-1 text-caption font-medium ${
-                                                item.status === 'failed'
-                                                    ? 'bg-danger text-on-action'
-                                                    : 'bg-photo-chip text-ink'
-                                            }`}
-                                        >
-                                            {statusWord}
-                                        </span>
                                         {/* ⛔ A queued or waiting file is offered a Remove too, not only a failed one. A
                                     file that has not started uploading is the one a cook is most likely to want
                                     back — and a photo picked before a new recipe is saved waits in the queue until
@@ -260,9 +249,27 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
                                             </div>
                                         ) : null}
                                     </div>
-                                    {item.status === 'failed' && item.errorMessage !== undefined ? (
-                                        <p className="px-1 text-caption text-danger-text">{item.errorMessage}</p>
-                                    ) : null}
+                                    {/* The status, and a failure's message, in ONE slot UNDER the photo (designer ruling
+                                    2026-11-11): nothing sits on the image, so the ⋯ disc never covers it. Text, never
+                                    colour alone, says which state. */}
+                                    <div
+                                        role={item.status === 'failed' ? 'alert' : 'status'}
+                                        aria-label={
+                                            item.status === 'failed' && item.errorMessage !== undefined
+                                                ? `${statusWord}. ${item.errorMessage}`
+                                                : statusWord
+                                        }
+                                        className="px-1"
+                                    >
+                                        <p
+                                            className={`text-caption ${item.status === 'failed' ? 'text-danger-text' : 'text-ink-muted'}`}
+                                        >
+                                            {statusWord}
+                                        </p>
+                                        {item.status === 'failed' && item.errorMessage !== undefined ? (
+                                            <p className="text-caption text-danger-text">{item.errorMessage}</p>
+                                        ) : null}
+                                    </div>
                                 </li>
                             );
                         })}

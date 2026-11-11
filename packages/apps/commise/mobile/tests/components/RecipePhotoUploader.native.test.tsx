@@ -42,6 +42,9 @@ import { useRecipePhotoManager } from '@commise/features-recipes/hooks';
 import { RecipePhotoUploader } from '../../src/components/RecipePhotoUploader.js';
 import { render, resolvedColour } from '@commise/ui/testing/tamagui';
 
+/** A failed tile's slot under the photo: named by its status, then the message saying why (designer ruling 2026-11-11). */
+const FAILED_SLOT = /^Upload failed/u;
+
 // The device's scheme, for the D15 case below; every other case leaves it unset and reads the light roles.
 vi.mock('react-native', async (importOriginal) => {
     const { withSystemScheme } = await import('@commise/ui/testing/system-color-scheme');
@@ -446,7 +449,7 @@ describe('RecipePhotoUploader — upload orchestration', () => {
         render(<Managed recipeId="rec_1" />);
         chooseFromLibrary();
 
-        expect(await screen.findByRole('alert', { name: 'Upload failed' })).toBeTruthy();
+        expect(await screen.findByRole('alert', { name: FAILED_SLOT })).toBeTruthy();
         expect(screen.getByRole('button', { name: 'Retry upload of picked.jpg' })).toBeTruthy();
         // The upload never confirms, and the busy status is cleared.
         expect(confirmMutateAsync).not.toHaveBeenCalled();
@@ -477,14 +480,14 @@ describe('RecipePhotoUploader — upload orchestration', () => {
 
         render(<Managed recipeId="rec_1" />);
         chooseFromLibrary();
-        await screen.findByRole('alert', { name: 'Upload failed' });
+        await screen.findByRole('alert', { name: FAILED_SLOT });
 
         fetchMock.mockResolvedValue({ ok: true, status: 200 });
         fireEvent.click(screen.getByRole('button', { name: 'Retry upload of picked.jpg' }));
 
         await waitFor(() => expect(confirmMutateAsync).toHaveBeenCalledTimes(1));
         expect(createMutateAsync).toHaveBeenCalledTimes(2);
-        expect(screen.queryByRole('alert', { name: 'Upload failed' })).toBeNull();
+        expect(screen.queryByRole('alert', { name: FAILED_SLOT })).toBeNull();
     });
 
     it('does nothing when the pick is canceled', async () => {
@@ -908,7 +911,7 @@ describe('RecipePhotoUploader — remove', () => {
 
         // A failed upload leaves that file's own FAILED badge up.
         chooseFromLibrary();
-        await screen.findByRole('alert', { name: 'Upload failed' });
+        await screen.findByRole('alert', { name: FAILED_SLOT });
 
         // A fresh, UNRELATED remove of the confirmed photo (and — since `onError` is never invoked here —
         // succeeds) must not clear the failed queue item's own badge; the two are independent now.
@@ -918,7 +921,7 @@ describe('RecipePhotoUploader — remove', () => {
             { id: 'rec_1', photoId: 'pht_42' },
             expect.objectContaining({ onError: expect.any(Function) }),
         );
-        expect(screen.getByRole('alert', { name: 'Upload failed' })).toBeTruthy();
+        expect(screen.getByRole('alert', { name: FAILED_SLOT })).toBeTruthy();
     });
 });
 
@@ -978,7 +981,7 @@ describe('RecipePhotoUploader — cancel-safe replace (U6)', () => {
         render(<Managed recipeId="rec_1" />);
         chooseFromTile('Actions for photo 2', 'Replace');
 
-        expect(await screen.findByRole('alert', { name: 'Upload failed' })).toBeTruthy();
+        expect(await screen.findByRole('alert', { name: FAILED_SLOT })).toBeTruthy();
         expect(confirmMutateAsync).not.toHaveBeenCalled();
         expect(mutate).not.toHaveBeenCalled();
         expect(screen.getByLabelText('Recipe photo 2')).toBeTruthy();

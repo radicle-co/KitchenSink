@@ -32,6 +32,9 @@ import { renderWithRecipeClient } from '@commise/test-utils';
 import { RecipePhotoUploaderContainer } from '@/components/recipes/RecipePhotoUploaderContainer';
 import { useRecipePhotoManager } from '@commise/features-recipes/hooks';
 
+/** A failed tile's slot under the photo: named by its status, then the message saying why (designer ruling 2026-11-11). */
+const FAILED_SLOT = /^Upload failed/u;
+
 /** The uploader over the real photo session, as the editor hands it one (`useEditorPhotos`): it no longer owns one. */
 function Managed({ recipeId, title = '' }: { readonly recipeId: string; readonly title?: string }) {
     const manager = useRecipePhotoManager({ recipeId });
@@ -215,7 +218,7 @@ describe('RecipePhotoUploaderContainer', () => {
         const file = new File(['bytes'], 'dinner.png', { type: 'image/png' });
         await user.upload(await screen.findByLabelText('Add photo'), file);
 
-        expect(await screen.findByRole('alert', { name: 'Upload failed' })).toBeInTheDocument();
+        expect(await screen.findByRole('alert', { name: FAILED_SLOT })).toBeInTheDocument();
         expect(screen.getByRole('button', { name: 'Retry upload of dinner.png' })).toBeInTheDocument();
         // A failed direct upload never confirms.
         expect(confirm).not.toHaveBeenCalled();
@@ -238,14 +241,14 @@ describe('RecipePhotoUploaderContainer', () => {
 
         const file = new File(['bytes'], 'dinner.png', { type: 'image/png' });
         await user.upload(await screen.findByLabelText('Add photo'), file);
-        await screen.findByRole('alert', { name: 'Upload failed' });
+        await screen.findByRole('alert', { name: FAILED_SLOT });
 
         fetchMock.mockResolvedValue({ ok: true, status: 200 });
         await user.click(screen.getByRole('button', { name: 'Retry upload of dinner.png' }));
 
         await waitFor(() => expect(confirm).toHaveBeenCalledTimes(1));
         expect(presign).toHaveBeenCalledTimes(2);
-        expect(screen.queryByRole('alert', { name: 'Upload failed' })).not.toBeInTheDocument();
+        expect(screen.queryByRole('alert', { name: FAILED_SLOT })).not.toBeInTheDocument();
     });
 
     it('removes a failed queue item without touching the delete-photo mutation', async () => {
@@ -261,11 +264,11 @@ describe('RecipePhotoUploaderContainer', () => {
 
         const file = new File(['bytes'], 'dinner.png', { type: 'image/png' });
         await user.upload(await screen.findByLabelText('Add photo'), file);
-        await screen.findByRole('alert', { name: 'Upload failed' });
+        await screen.findByRole('alert', { name: FAILED_SLOT });
 
         await chooseFromTile(user, 'Actions for dinner.png', 'Remove');
 
-        expect(screen.queryByRole('alert', { name: 'Upload failed' })).not.toBeInTheDocument();
+        expect(screen.queryByRole('alert', { name: FAILED_SLOT })).not.toBeInTheDocument();
         expect(del).not.toHaveBeenCalled();
     });
 

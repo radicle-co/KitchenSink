@@ -6,8 +6,8 @@
  * primitives. Owner ruling 2026-10-17: every photo tile carries ONE ⋯ menu button (44 pt, 48 dp on Android; a sheet of
  * `menuitem` rows, `photoMenu.ts`); a queue tile holds Remove in the same menu, and a failed, retryable one keeps a
  * visible Retry `Button`. Renders the confirmed photos MERGED with any in-flight queue items across a grid of 3 columns (4 from
- * 600 of the grid's own measured width, buildSpec §7.7), each queue cell carrying its own status badge (Queued / Uploading… / Upload failed, via
- * `accessibilityRole` + visible text — never colour alone) plus Retry (only where the queue reports the
+ * 600 of the grid's own measured width, buildSpec §7.7), each queue cell carrying its own status line UNDER the tile, never over the photo (Queued / Uploading… / Upload failed, via
+ * a role + visible text — never colour alone; designer ruling 2026-11-11) plus Retry (only where the queue reports the
  * failure as `retryable`) and Remove, and the caller-supplied `addControl` (the native picker button), hidden
  * at the photo cap. Presentational only.
  *
@@ -15,10 +15,10 @@
  * re-validates by design, so a client-rejected file (too large / wrong type) can never succeed on a
  * re-attempt — that cell offers Remove only, while a transport/server failure keeps both.
  *
- * REQ-014 (per-file "which photo failed and why"): the generic status badge already names WHICH photo
+ * REQ-014 (per-file "which photo failed and why"): the generic status line already names WHICH photo
  * (its cell, its `fileName`-scoped Retry/Remove labels); a failed item's own `errorMessage` (client
  * validation — REQ-011/REQ-012 — or an upload failure, both surfaced by the caller through the same field)
- * renders as a second, distinct line naming WHY, whenever the caller supplies one — BELOW the tile, in flow (E6), never
+ * renders as a second line in the same slot naming WHY, whenever the caller supplies one — BELOW the tile, in flow (E6), never
  * over the image. With no photo and no queued file it shows the recipe's generated cover and says it stands in (A-010).
  */
 import { useMessages } from '@commise/i18n/react';
@@ -27,6 +27,7 @@ import { Button } from '@commise/ui/button';
 import { LiveRegion } from '@commise/ui/live-region';
 import { nativeTokens } from '@commise/ui/native';
 import { RecipeCover } from '@commise/ui/recipe-cover';
+import { Text as DsText } from '@commise/ui/text';
 import { useTheme } from '@commise/ui/theme';
 import { Image } from 'expo-image';
 import { useState, type FC } from 'react';
@@ -200,18 +201,6 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
                                     ) : (
                                         <View style={[styles.photo, { backgroundColor: colors.surfaceMuted }]} />
                                     )}
-                                    <Text
-                                        accessibilityRole={item.status === 'failed' ? 'alert' : 'text'}
-                                        accessibilityLabel={statusWord}
-                                        style={[
-                                            styles.statusBadge,
-                                            item.status === 'failed'
-                                                ? { backgroundColor: colors.danger, color: colors.onAction }
-                                                : [chip, ink],
-                                        ]}
-                                    >
-                                        {statusWord}
-                                    </Text>
                                     {/* ⛔ A queued or waiting file is offered a Remove too (`isQueueItemRemovable`): a
                                     photo picked before a new recipe is saved waits in the queue until it is, and
                                     without this it was the ONE field of the editor a cook could not change their
@@ -257,11 +246,31 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
                                         </View>
                                     ) : null}
                                 </View>
-                                {item.status === 'failed' && item.errorMessage !== undefined ? (
-                                    <Text style={[styles.itemError, { color: colors.dangerText }]}>
-                                        {item.errorMessage}
-                                    </Text>
-                                ) : null}
+                                {/* The status, and a failure's message, in ONE slot UNDER the photo (designer ruling 2026-11-11):
+                                    nothing sits on the image, so the ⋯ disc never covers it, and the line wraps across
+                                    the cell's width at every text size. Text, never colour alone, says which state. */}
+                                <View
+                                    accessible
+                                    role={item.status === 'failed' ? 'alert' : undefined}
+                                    aria-label={
+                                        item.status === 'failed' && item.errorMessage !== undefined
+                                            ? `${statusWord}. ${item.errorMessage}`
+                                            : statusWord
+                                    }
+                                    style={styles.statusSlot}
+                                >
+                                    <DsText
+                                        typeRole="caption"
+                                        color={item.status === 'failed' ? '$dangerText' : '$inkMuted'}
+                                    >
+                                        {statusWord}
+                                    </DsText>
+                                    {item.status === 'failed' && item.errorMessage !== undefined ? (
+                                        <DsText typeRole="meta" color="$dangerText">
+                                            {item.errorMessage}
+                                        </DsText>
+                                    ) : null}
+                                </View>
                             </View>
                         );
                     })}
@@ -301,16 +310,8 @@ const styles = StyleSheet.create({
     // A queue cell's image box: square like a photo cell, but it does not hold the failure's message.
     frame: { position: 'relative', aspectRatio: 1, borderRadius: nativeTokens.radius.lg, overflow: 'hidden' },
     photo: { width: '100%', height: '100%' },
-    statusBadge: {
-        position: 'absolute',
-        top: 6,
-        left: 6,
-        ...nativeTokens.type.caption,
-        borderRadius: nativeTokens.radius.full,
-        paddingVertical: 2,
-        paddingHorizontal: 8,
-    },
-    itemError: { ...nativeTokens.type.meta, marginTop: 4, paddingHorizontal: 2 },
+    // The status line's slot under the tile; React Native styling until this file moves to Tamagui whole (ADR-0080).
+    statusSlot: { marginTop: 4, paddingHorizontal: 2 },
     queueControls: { position: 'absolute', bottom: 6, left: 6, right: 6 },
     // The tile's ⋯ menu button, top-right (`appearance="disc"`: 44 pt, 48 dp hit frame on Android).
     menuButton: { position: 'absolute', top: 2, right: 2 },

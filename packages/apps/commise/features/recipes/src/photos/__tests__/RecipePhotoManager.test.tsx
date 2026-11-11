@@ -473,11 +473,58 @@ describe('RecipePhotoManager (web) — a queue tile’s actions (2026-10-17)', (
             ],
         });
 
-        expect(screen.getByRole('alert', { name: 'Upload failed' })).toBeTruthy();
+        // The status and the message share one slot (2026-11-11), so the alert is named by both.
+        expect(screen.getByRole('alert', { name: 'Upload failed. That photo is larger than 5 MB.' })).toBeTruthy();
         expect(screen.getByText('That photo is larger than 5 MB.')).toBeTruthy();
         expect(screen.queryByRole('button', { name: 'Retry upload of huge.png' })).toBeNull();
         await openMenu('Actions for huge.png');
         expect(screen.getAllByRole('menuitem').map((item) => item.textContent)).toEqual(['Remove']);
+    });
+});
+
+/**
+ * Designer ruling 2026-11-11 (option b), the same on web and native: nothing sits on the photo. The status was a centred
+ * pill over the image; it is now a line of text under the tile, in the same slot as a failure's message.
+ */
+describe('RecipePhotoManager (web) — the upload status sits under the tile (2026-11-11)', () => {
+    it.each([
+        ['queued', 'Queued'],
+        ['waiting', 'Waiting to upload'],
+        ['uploading', 'Uploading…'],
+        ['failed', 'Upload failed'],
+    ] as const)('writes the %s status under the photo, never on it', (status, word) => {
+        renderManager({
+            queueItems: [makeQueueItem({ fileId: 1, fileName: 'a.png', status, previewUri: 'blob:a.png' })],
+        });
+
+        const frame = screen.getByRole('img', { name: 'Photo a.png' }).parentElement as HTMLElement;
+        const line = screen.getByText(word);
+
+        expect(frame.contains(line)).toBe(false);
+        expect(within(screen.getByRole('listitem')).getByText(word)).toBe(line);
+        expect(frame.compareDocumentPosition(line) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+        // A line of text, not a pill: no fill, not placed over anything.
+        expect(line.className).not.toMatch(/\bbg-|\babsolute\b|rounded-full/u);
+    });
+
+    it('puts a failure’s status and its message in ONE slot under the photo', () => {
+        renderManager({
+            queueItems: [
+                makeQueueItem({
+                    fileId: 7,
+                    fileName: 'burnt.png',
+                    status: 'failed',
+                    previewUri: 'blob:burnt.png',
+                    errorMessage: 'That photo is larger than 5 MB.',
+                }),
+            ],
+        });
+
+        const slot = screen.getByRole('alert', { name: 'Upload failed. That photo is larger than 5 MB.' });
+
+        expect(within(slot).getByText('Upload failed')).toBeTruthy();
+        expect(within(slot).getByText('That photo is larger than 5 MB.')).toBeTruthy();
+        expect(screen.getByRole('img', { name: 'Photo burnt.png' }).parentElement?.contains(slot)).toBe(false);
     });
 });
 
@@ -528,8 +575,9 @@ describe('RecipePhotoManager (web) — per-file queue grid (w3/e4)', () => {
             ],
         });
 
-        // Generic badge names WHICH photo failed (via its Retry/Remove labels); this text names WHY.
-        expect(screen.getByRole('alert', { name: 'Upload failed' })).toBeTruthy();
+        // Retry/Remove labels name WHICH photo failed; the message names WHY. REWRITTEN (2026-11-11): one slot holds
+        // both lines, so the alert is named by both.
+        expect(screen.getByRole('alert', { name: 'Upload failed. That photo is larger than 5 MB.' })).toBeTruthy();
         expect(screen.getByText('That photo is larger than 5 MB.')).toBeTruthy();
     });
 
@@ -559,8 +607,9 @@ describe('RecipePhotoManager (web) — per-file queue grid (w3/e4)', () => {
         expect(within(screen.getByRole('listitem')).getByText('That photo is larger than 5 MB.')).toBe(message);
         expect(message.className).not.toContain('absolute');
         expect(message.className).toContain('text-danger-text');
-        // The frame keeps the Retry/Remove controls and the status badge; only the prose left it.
-        expect(within(frame).getByRole('alert', { name: 'Upload failed' })).toBeTruthy();
+        // REWRITTEN (designer ruling 2026-11-11): the frame keeps only the Retry/Remove controls. The status left the
+        // photo too, into the message's slot.
+        expect(frame.contains(screen.getByText('Upload failed'))).toBe(false);
     });
 
     it('renders no error line for a failed item with no errorMessage', () => {

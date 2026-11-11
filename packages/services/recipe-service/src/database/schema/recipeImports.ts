@@ -205,8 +205,8 @@ export const recipeImportLines = pgTable(
         statedQuantityHigh: numeric('stated_quantity_high', { precision: 10, scale: 3 }),
         statedUnit: text('stated_unit'),
         preparation: text('preparation'),
-        /** The food's name as the editor saves it (a leading size word moved to the unit); NULL before 0067. */
-        name: text('name'),
+        /** The food's name as the editor saves it (a leading size word moved to the unit), 0067. */
+        name: text('name').notNull(),
         /** The cook's words, when the parse chose them as the shown name (owner ruling 2026-11-08). */
         displayText: text('display_text'),
         /** A dimension the cook wrote in parentheses ("9 inch"), never the unit. */
@@ -284,7 +284,7 @@ export const recipeImportLines = pgTable(
             'recipe_import_lines_preparation_check',
             sql`${table.preparation} IS NULL OR btrim(${table.preparation}) <> ''`,
         ),
-        check('recipe_import_lines_name_check', sql`${table.name} IS NULL OR btrim(${table.name}) <> ''`),
+        check('recipe_import_lines_name_check', sql`btrim(${table.name}) <> ''`),
         check(
             'recipe_import_lines_display_text_check',
             sql`${table.displayText} IS NULL OR btrim(${table.displayText}) <> ''`,

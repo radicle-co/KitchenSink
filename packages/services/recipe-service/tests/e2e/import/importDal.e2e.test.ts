@@ -303,8 +303,8 @@ describe('the bulk-import DALs (LOCAL e2e, real Postgres)', () => {
 
             await put(header.id, [0]);
             await pool.query(
-                `INSERT INTO recipe_import_lines (import_id, ordinal, line_index, food_index, source_line, line_digest, judgement_digest, phrase, unit, food_id, matched_by, review, verification_key, saved_verification_key)
-                 VALUES ($1, 0, 0, 0, 'l', 'ld', 'jd', 'p', '', 'f1', 'lexical', 'owed', 'v1:imp-proposal', 'v1:imp-saved')`,
+                `INSERT INTO recipe_import_lines (import_id, ordinal, line_index, food_index, source_line, line_digest, judgement_digest, phrase, name, unit, food_id, matched_by, review, verification_key, saved_verification_key)
+                 VALUES ($1, 0, 0, 0, 'l', 'ld', 'jd', 'p', 'p', '', 'f1', 'lexical', 'owed', 'v1:imp-proposal', 'v1:imp-saved')`,
                 [header.id],
             );
 
@@ -989,6 +989,7 @@ describe('the bulk-import DALs (LOCAL e2e, real Postgres)', () => {
                     lineDigest: 'ld',
                     judgementDigest: 'jd-0',
                     phrase: 'flour',
+                    name: 'flour',
                     unit: 'cup',
                     candidates: [],
                 } as never,
@@ -1209,9 +1210,9 @@ describe('the bulk-import DALs (LOCAL e2e, real Postgres)', () => {
                     })),
                 );
                 const line = await pool.query<{ id: string }>(
-                    `INSERT INTO recipe_import_lines (import_id, ordinal, line_index, food_index, source_line, line_digest, judgement_digest, phrase, unit, candidates,
+                    `INSERT INTO recipe_import_lines (import_id, ordinal, line_index, food_index, source_line, line_digest, judgement_digest, phrase, name, unit, candidates,
                                                       matched_by, food_id, review)
-                     VALUES ($1, 0, $2, 0, $3, 'ld', $4, 'p', '', $5::jsonb, $6, $7, $8) RETURNING id`,
+                     VALUES ($1, 0, $2, 0, $3, 'ld', $4, 'p', 'p', '', $5::jsonb, $6, $7, $8) RETURNING id`,
                     [
                         header.id,
                         spec.lineIndex,

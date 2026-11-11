@@ -134,6 +134,7 @@ describe('the bulk-import tables (LOCAL e2e; migrations 0059, 0060, 0066, 0067, 
             line_digest: 'ld',
             judgement_digest: 'jd',
             phrase: 'flour',
+            name: 'flour',
             unit: 'cup',
             ...extra,
         };
@@ -775,10 +776,17 @@ describe('the bulk-import tables (LOCAL e2e; migrations 0059, 0060, 0066, 0067, 
             );
 
             expect([row['name'], row['display_text'], row['note']]).toEqual(['pie pastry', 'my pie pastry', '9 inch']);
-            // All three are optional: a line snapshotted before 0067 has none, and most lines have no note.
+            // The shown words and the note are optional: most lines have neither.
             const bare = await insert('recipe_import_lines', line(importId, 0, { line_index: 1 }));
 
-            expect([bare['name'], bare['display_text'], bare['note']]).toEqual([null, null, null]);
+            expect([bare['display_text'], bare['note']]).toEqual([null, null]);
+        });
+
+        it('⛔ refuses a line with no name: every snapshot line is saved under the row the editor builds', async () => {
+            const importId = await withItem();
+            const { name: _name, ...nameless } = line(importId, 0);
+
+            await refused(insert('recipe_import_lines', nameless), '23502');
         });
 
         it.each([['name'], ['display_text'], ['note']])('refuses a blank %s, as a recipe line does', async (column) => {

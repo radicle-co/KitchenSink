@@ -6,7 +6,7 @@
         "cross-platform-props-diverge": 22,
         "missing-component-doc": 165,
         "missing-module-doc": 23,
-        "platform-singleton": 98,
+        "platform-singleton": 99,
         "ref-api": 19,
         "unclassified-layer": 93,
         "undocumented-prop": 218
@@ -4236,6 +4236,16 @@
             "severity": "review",
             "component": "featuresRecipes/ingredientMatching/MatchRow",
             "sourcePath": "packages/apps/commise/features/recipes/src/ingredientMatching/MatchRow.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "web"
+            ]
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "featuresRecipes/layout/MainColumn",
+            "sourcePath": "packages/apps/commise/features/recipes/src/layout/MainColumn.tsx",
             "message": "a package that ships to both platforms has only one leaf of this component",
             "evidence": [
                 "web"

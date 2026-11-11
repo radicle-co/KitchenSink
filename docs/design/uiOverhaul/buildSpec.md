@@ -502,7 +502,10 @@ compact / medium (< 840)                         expanded, collapsed by the user
 - 64 px plus the safe-area inset. Level 2 surface (§1.6). Four items, Home, Recipes, Discover and You, each at least
   80 × 56 at 320.
 - Item: 24 px glyph over a 12 px `caption` label at weight 500. Labels are `room`. They never wrap and never truncate.
-  "Discover" is the longest English label. At +35% it still fits in 80 px.
+  "Discover" is the longest English label. Tab labels have their own text cap, 1.3× (2026-11-11), below the 1.5×
+  `chromeCap`: four tabs at 80 px leave no room for "Discover" at 1.5×, or for "Recipes" at the active weight. At 1.3×
+  every label fits 80 px at 320 and 360. iOS does not grow tab bar labels with text size at all, so 1.3× is still above
+  the platform. Every label stays one line, and it never truncates.
 - **You** (2026-11-11, N3): label "You" (`shell.tabs.you`), linking to `/profile`. Its glyph is the cook's avatar, a
   24 px disc with the same content rules as the chrome `Avatar` (initials in a 10 px label on `action` fill, a `pearl`
   disc while the profile loads, the 20 px outline `user` glyph with no name). Active: a 2 px `ink` ring around the

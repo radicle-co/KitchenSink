@@ -735,7 +735,7 @@ recipe that comes from another source (I.e. they imported it), then we should ap
 username. No need to call out family recipes."
 
 - **The ruling is recorded as FR-080.** It sits beside the rewording rules (FR-075 to FR-078) and changes none of
-  them yet. Three conflicts with earlier rulings are open (Q-4 to Q-6) and wait for the owner.
+  them yet. The open questions (Q-4 to Q-7) wait for the owner. Q-6 checks the ruling's premise against the code. The others are conflicts with earlier rulings or open points.
 - **What the code does today.** The search found no step rewording (Q-6). That is why the ruling's first premise is
   open.
 
@@ -1890,7 +1890,7 @@ Counsel review is owed before launch (`016-FR-050`).
   shares ADR-0024's pool, and its spend mechanism are OPEN (owner ruling 2026-11-03): decided when feature 020 starts. If the call cannot run, no
   suggestion is shown (FR-076), the recipe waits for a person, and the cook can still edit by hand (fail closed).
     - Counsel review is owed before launch (`016-FR-050`).
-- **FR-080** _(owner ruling 2026-11-11; the conflicts are open, Q-4 to Q-6)_: **The source line says who made or
+- **FR-080** _(owner ruling 2026-11-11; open questions Q-4 to Q-7)_: **The source line says who made or
   changed the recipe's words.** [House rule]
     - When the import pipeline changes the wording of a step, the recipe's source label MUST say it was adapted by
       Commise.
@@ -1914,7 +1914,7 @@ Counsel review is owed before launch (`016-FR-050`).
   2026-11-03, owner ruling: yes. A private bulk-imported recipe is usable at once. Only going public or on sale waits
   for review (FR-003b as amended).
 
-**Open questions for the owner (added 2026-11-11, ruling in FR-080).** Not resolved here. Each names both sides.
+**Open questions for the owner (added 2026-11-11, ruling in FR-080).** Not resolved here. Each states what it asks and cites the text it rests on.
 
 - **Q-4. "Adapted by Commise" or "Adapted by you"?** FR-080 says the source says the recipe was adapted by Commise
   when the pipeline changes a step. FR-077 and ADR-0082 (the bullet "The copy check runs at import, and suggests fresh
@@ -1936,8 +1936,9 @@ Counsel review is owed before launch (`016-FR-050`).
   `packages/shared/recipe-import-core/src/contentSanitizer.ts` (`sanitizeToPlainText`) strips markup, and it has no
   caller in the service source outside the package's own tests and export. `proseRecipe.ts` also moves a trailing
   instruction out of an ingredient line and returns it as `droppedInstructions`; the search found that value stored
-  or shown nowhere else. The two model calls (`recipe-workers/src/parsing/gatedLlm.ts`, `parseLine.ts`) work on
-  ingredient lines only. If the owner means something not in this list, name it. If not, FR-080's "today" line has
+  or shown nowhere else. Every model call the search found (`recipe-workers/src/parsing/gatedLlm.ts`,
+  `recipe-workers/src/handlers/parseLine.ts`, `recipe-workers/src/handlers/verifyLine.ts`,
+  `cookbook-import/src/parsing/llmEngine.ts`) reads an ingredient line or a match candidate, never a step. If the owner means something not in this list, name it. If not, FR-080's "today" line has
   no behaviour behind it yet.
 - **Q-7. Created by, edited by, and the label rules.** `016-FR-015c` already derives one rights label per recipe.
   Does "Created by {username}" and "Edited by {username}" add a second line beside it, replace the source line, or

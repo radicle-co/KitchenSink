@@ -28,7 +28,15 @@ import type { ScrollBind } from '@commise/ui/scroll-host';
 import { useTheme } from '@commise/ui/theme';
 import { FlashList } from '@shopify/flash-list';
 import type { FC, ReactElement } from 'react';
-import { RefreshControl, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import {
+    RefreshControl,
+    ScrollView,
+    StyleSheet,
+    Text,
+    View,
+    useWindowDimensions,
+    type RefreshControlProps,
+} from 'react-native';
 
 import { GRID_GAP, libraryGridColumnsOf } from '../card/cardGridLayout.js';
 import { toRecipeCardModel } from '../card/model.js';
@@ -46,13 +54,20 @@ const NoResult: FC<{
     readonly query: string;
     readonly noResult: DiscoveryNoResultControls;
     readonly scrollBind: ScrollBind | undefined;
-}> = ({ kind, query, noResult, scrollBind }) => {
+    /** Pull-to-refresh: the one way to re-check an empty catalogue without leaving the screen. */
+    readonly refreshControl: ReactElement<RefreshControlProps> | undefined;
+}> = ({ kind, query, noResult, scrollBind, refreshControl }) => {
     const discovery = useMessages(discoveryMessages);
     const { colors } = useTheme();
     const narrowed = kind !== undefined;
 
     return (
-        <ScrollView {...scrollBind} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.noResult}>
+        <ScrollView
+            {...scrollBind}
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={styles.noResult}
+            refreshControl={refreshControl}
+        >
             <View collapsable={false} accessibilityLiveRegion="polite" role="status" style={styles.status}>
                 <Text role="heading" aria-level={2} style={[styles.sectionTitle, { color: colors.ink }]}>
                     {noResultTitleOf(kind, query, discovery)}
@@ -133,7 +148,15 @@ export const RecipeDiscoveryResults: FC<RecipeDiscoveryResultsProps> = ({
     if (browsing) {
         body = <>{browseSlot}</>;
     } else if (results.length === 0) {
-        body = <NoResult kind={kind} query={query} noResult={noResult} scrollBind={scrollBind} />;
+        body = (
+            <NoResult
+                kind={kind}
+                query={query}
+                noResult={noResult}
+                scrollBind={scrollBind}
+                refreshControl={refreshControl}
+            />
+        );
     } else {
         // FlashList (U4): the wrapping grid (U7), and v2 auto-measures — no `estimatedItemSize`. Width-derived columns, so
         // a tablet gets the columns a tablet holds rather than a phone layout stretched.

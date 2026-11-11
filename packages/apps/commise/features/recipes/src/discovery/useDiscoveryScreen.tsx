@@ -50,6 +50,7 @@ import {
     DISCOVERY_SEARCH_DEBOUNCE_MS,
     discoverySearchParams,
     isDiscoveryBrowsing,
+    isDiscoveryCatalogueEmpty,
     isDiscoverySearching,
     type DiscoveryFilterSlots,
     type RecipeDiscoveryCriteria,
@@ -216,7 +217,8 @@ export function useDiscoveryScreen({
                 onSelect: onSearchChange,
                 onClear: recentSearches.clear,
             },
-            filters: filterSlots,
+            // Over an empty catalogue there is nothing to filter (buildSpec §4.6), so the frame draws no Filters.
+            ...(isDiscoveryCatalogueEmpty(settled, settledSearch.data?.pages[0]) ? {} : { filters: filterSlots }),
             sort: !browseDismissed && !searchingNow ? undefined : { active: sortBy, onChange: setSortBy },
             onExitToBrowse: browseDismissed && !searchingNow ? () => setBrowseDismissed(false) : undefined,
         },

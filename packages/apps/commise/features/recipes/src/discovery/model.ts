@@ -174,6 +174,20 @@ export const isDiscoveryBrowsing = (criteria: RecipeDiscoveryCriteria): boolean 
     !criteria.browseDismissed && !isDiscoverySearching(criteria);
 
 /**
+ * Whether the catalogue itself is empty (`docs/design/uiOverhaul/buildSpec.md` §4.6 "Empty catalogue"): nothing narrowed
+ * the search and its first page settled with no recipe, so no other cook has a public, published recipe. The rails and
+ * the filters would only show nothing, so the screen says so instead. Pure.
+ *
+ * @param criteria - The criteria the page answers.
+ * @param firstPage - The search's first page, or `undefined` while it has not settled.
+ * @returns `true` only for a settled, unnarrowed search that found nothing.
+ */
+export const isDiscoveryCatalogueEmpty = (
+    criteria: Pick<RecipeDiscoveryCriteria, 'filters' | 'query'>,
+    firstPage: { readonly results: readonly unknown[] } | undefined,
+): boolean => firstPage !== undefined && firstPage.results.length === 0 && !isDiscoverySearching(criteria);
+
+/**
  * The recipe ids of a discovery search's FETCHED PAGES, one list per page. Pure.
  *
  * The shape the deferred calorie lookup batches on (ADR-0079 §6): one request per page, so "load more" asks only about

@@ -42,6 +42,7 @@ import {
     importPickRequestSchema,
     importRecipeSchema,
     importStatementSchema,
+    importStatementViewSchema,
     importStepLineSchema,
     importStepResponseSchema,
     importToCheckResponseSchema,
@@ -454,6 +455,40 @@ describe('responses are loose and reuse the paste match view', () => {
 
     it('reads a null cursor as done', () => {
         expect(importViewSchema.safeParse({ ...view, cursorOrdinal: null }).success).toBe(true);
+    });
+
+    describe('⛔ the statement kind is the ONE open vocabulary on the way out (lead ruling 2026-11-11)', () => {
+        // "Adapted" and "family" wait on the owner. Added later they are an expand-first union change with the server
+        // deployed first, so an installed client must read a kind it does not know as its own arm, never as a crash and
+        // never as "no statement" (which would read "Needs your statement" and could be saved over a newer kind).
+        it('reads a kind it does not know as `unrecognised`', () => {
+            expect(importStatementViewSchema.parse({ kind: 'adapted', citation: 'x' })).toEqual({
+                kind: 'unrecognised',
+            });
+            expect(importStatementViewSchema.parse({ kind: 'family' })).toEqual({ kind: 'unrecognised' });
+        });
+
+        it('reads the four known kinds exactly as before', () => {
+            expect(importStatementViewSchema.parse({ kind: 'authored' })).toEqual({ kind: 'authored' });
+            expect(importStatementViewSchema.parse({ kind: 'book', citation: 'Joy, p. 12' })).toEqual({
+                kind: 'book',
+                citation: 'Joy, p. 12',
+            });
+        });
+
+        it('⛔ still refuses a BROKEN known statement: a server bug fails loudly, it is not swallowed as unknown', () => {
+            expect(
+                importStatementViewSchema.safeParse({ kind: 'public_web', citation: 'javascript:alert(1)' }).success,
+            ).toBe(false);
+            expect(importStatementViewSchema.safeParse({ kind: 'book' }).success).toBe(false);
+            expect(importStatementViewSchema.safeParse({ kind: 7 }).success).toBe(false);
+            expect(importStatementViewSchema.safeParse({}).success).toBe(false);
+        });
+
+        it('⛔ the REQUEST stays closed: a client never sends a kind the server does not take', () => {
+            expect(importStatementSchema.safeParse({ kind: 'adapted' }).success).toBe(false);
+            expect(importStatementSchema.safeParse({ kind: 'unrecognised' }).success).toBe(false);
+        });
     });
 
     it('closes the stage and review vocabularies on the way OUT too', () => {

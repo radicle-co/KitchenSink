@@ -166,13 +166,45 @@ export const importStatementSchema = z.discriminatedUnion('kind', [
 /** One statement, as a request carries it. */
 export type ImportStatement = z.infer<typeof importStatementSchema>;
 
-/** The same four forms as a RESPONSE reads them: loose, so a newer server's field does not break an installed client. */
-export const importStatementViewSchema = z.discriminatedUnion('kind', [
-    authoredStatement,
-    publicWebStatement,
-    bookStatement,
-    paidSiteStatement,
-]);
+/** The statement kinds this contract knows, as the request schema spells them. */
+const KNOWN_STATEMENT_KINDS: readonly string[] = importStatementSchema.options.map((option) => option.shape.kind.value);
+
+/**
+ * A statement whose kind this client does not know: a newer server's kind ("adapted" and "family" wait on the owner).
+ *
+ * ⛔ Its OWN arm, never `null` (that reads "Needs your statement", and a client that then saved would write an older kind
+ * over the newer one) and never a bare `{ kind: string }` (which breaks narrowing for every consumer). A client shows it as
+ * a statement it cannot edit and never sends it back: the request schema stays closed.
+ */
+const unrecognisedStatement = z.object({ kind: z.literal('unrecognised') });
+
+/** Whether a value is a statement whose kind is a string this contract does not know. Pure. */
+const hasUnknownKind = (value: unknown): boolean =>
+    typeof value === 'object' &&
+    value !== null &&
+    'kind' in value &&
+    typeof value.kind === 'string' &&
+    !KNOWN_STATEMENT_KINDS.includes(value.kind);
+
+/**
+ * The same four forms as a RESPONSE reads them: loose, so a newer server's field does not break an installed client.
+ *
+ * ⚠️ The statement kind is the ONE open vocabulary on the way out (lead ruling 2026-11-11), so a new kind is an
+ * expand-first union change with the server deployed first. Only an UNKNOWN kind reads as `unrecognised`: a broken KNOWN
+ * statement (a `public_web` with a `javascript:` citation) still fails, so a server bug is not swallowed. The stage and
+ * review vocabularies stay closed. A preprocess, not a transform, because the contract fingerprint describes the OUTPUT
+ * side and records a transform as unrepresentable.
+ */
+export const importStatementViewSchema = z.preprocess(
+    (value) => (hasUnknownKind(value) ? { kind: 'unrecognised' } : value),
+    z.discriminatedUnion('kind', [
+        authoredStatement,
+        publicWebStatement,
+        bookStatement,
+        paidSiteStatement,
+        unrecognisedStatement,
+    ]),
+);
 
 /** One statement, as a response carries it. */
 export type ImportStatementView = z.infer<typeof importStatementViewSchema>;

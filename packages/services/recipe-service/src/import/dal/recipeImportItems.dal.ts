@@ -201,6 +201,9 @@ export class RecipeImportItemsDal {
                             payload: input.recipe,
                             ...patch,
                             ...BUMP_DECISION_REV,
+                            // A new recipe needs a new parse job. The job id is derived from the generation, and a paid item
+                            // can hold a job created just before a crash and never attached, made from the OLD text.
+                            parseGeneration: sql`${recipeImportItems.parseGeneration} + 1`,
                             updatedAt: sql`now()`,
                         })
                         .where(

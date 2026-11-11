@@ -374,6 +374,24 @@ describe('the bulk-import DALs (LOCAL e2e, real Postgres)', () => {
             });
         });
 
+        /**
+         * Review finding 4 on #185-#188. An item's parse job id is derived from (import, ordinal, parse_generation). A paid item
+         * whose job was created just before a crash is still `received`, so a different recipe may replace it; without a new
+         * generation the next advance derives the SAME id and is handed the old job, built from the old text.
+         */
+        it('⛔ moves the parse generation when it replaces a recipe, so the next parse job is a new one; a replay does not', async () => {
+            const header = await newImport();
+
+            await put(header.id, [0]);
+            await items.upsertItems(header.id, [{ ordinal: 0, recipe: recipe('Fixed title', ['3 eggs']) }]);
+
+            expect((await items.findItem(header.id, 0))?.parseGeneration).toBe(1);
+
+            await items.upsertItems(header.id, [{ ordinal: 0, recipe: recipe('Fixed title', ['3 eggs']) }]);
+
+            expect((await items.findItem(header.id, 0))?.parseGeneration).toBe(1);
+        });
+
         it('⛔ LOCKS a different recipe once the item is past received, and the WHOLE request rolls back', async () => {
             const header = await newImport();
 

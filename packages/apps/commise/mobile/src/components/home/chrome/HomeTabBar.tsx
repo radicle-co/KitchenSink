@@ -12,8 +12,8 @@
  *   glyph, and `accessibilityState.selected`. Inactive: `inkMuted`, the label in the `caption` role (weight 500). Colour
  *   and the here-bar mark the active tab too, so weight is never the only signal. (No filled glyph: Lucide has none, and
  *   a filled compass hides its needle — the blueprint's Q6, awaiting `staff-ux-engineer`.)
- * - Each label is the design-system Text at the navigation-chrome cap (`chromeCap="1.5"`, designer ruling 2026-11-01;
- *   ADR-0080 §8): it grows with the system text size to 1.3×, its own tab label cap, where the rest of the screen grows to 2×.
+ * - Each label is the design-system Text at the tab label cap, `TAB_LABEL_CHROME_CAP` (1.3×, designer ruling 2026-11-11,
+ *   `buildSpec.md` §3.2; ADR-0080 §8): it grows with the system text size to 1.3×, where the rest of the screen grows to 2×.
  * - The glyphs are one row: every tab's column starts at the top, glyph first and label under it, so a label that wraps
  *   grows its tab downward and never moves its glyph (`deviceShots2.md` M-2).
  * - Targets: at least 48 dp tall on Android, 44 pt on iOS. The bar pads its foot by the bottom safe-area inset.

@@ -328,7 +328,7 @@
                             "typeDetail": null,
                             "required": false,
                             "defaultValue": "false",
-                            "description": "Whether the disc is drawn with a 2 `ink` ring, which stands in for a filled glyph on the current tab. The ring is laid\noutside the disc's box (a shadow on web, an overlay on native), so it adds no layout size and nothing moves.",
+                            "description": "Whether the disc is drawn with a 2 `ink` ring, which stands in for a filled glyph on the current tab. The ring is laid\noutside the disc's box (a box-shadow on web, an outline on native), so it adds no layout size and nothing moves.",
                             "declaredIn": "packages/apps/commise/ui/src/avatar/props.ts"
                         },
                         {
@@ -404,7 +404,7 @@
                             "typeDetail": null,
                             "required": false,
                             "defaultValue": "false",
-                            "description": "Whether the disc is drawn with a 2 `ink` ring, which stands in for a filled glyph on the current tab. The ring is laid\noutside the disc's box (a shadow on web, an overlay on native), so it adds no layout size and nothing moves.",
+                            "description": "Whether the disc is drawn with a 2 `ink` ring, which stands in for a filled glyph on the current tab. The ring is laid\noutside the disc's box (a box-shadow on web, an outline on native), so it adds no layout size and nothing moves.",
                             "declaredIn": "packages/apps/commise/ui/src/avatar/props.ts"
                         },
                         {

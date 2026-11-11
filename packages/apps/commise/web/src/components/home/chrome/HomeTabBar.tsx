@@ -25,20 +25,25 @@
  *
  * @pattern Adapter from the shared nav model and the current route to tab links
  */
-import { NAV_ITEM_GLYPH, initialsFor, resolveHomeNav, type HomeNavItemId } from '@commise/features-core';
-import type { ProfileEntry } from '@commise/features-core';
-import type { HomeChromeMessages } from '@commise/features-core/home';
-import { ChromeSurface } from '@commise/ui/chrome-surface';
-import { Icon } from '@commise/ui/icon';
-import { useScrollHost } from '@commise/ui/scroll-host';
-import { FOCUS_RING_CLASS } from '@commise/ui/focus-ring';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import type { JSX, MouseEvent, Ref } from 'react';
 
+import type { HomeChromeMessages } from '@commise/features-core/home';
 import { AvatarDisc } from '@commise/ui/avatar';
+import { ChromeSurface } from '@commise/ui/chrome-surface';
+import { FOCUS_RING_CLASS } from '@commise/ui/focus-ring';
+import { Icon } from '@commise/ui/icon';
+import {
+    NAV_ITEM_GLYPH,
+    initialsFor,
+    resolveHomeNav,
+    type HomeNavItemId,
+    type ProfileEntry,
+} from '@commise/features-core';
 import { TAB_LABEL_CHROME_CAP } from '@commise/ui/scaled-type';
 import { typeRole } from '@commise/ui/tokens/typography';
+import { useScrollHost } from '@commise/ui/scroll-host';
 
 import { homeNavHref, tabRootOf } from './navHref';
 

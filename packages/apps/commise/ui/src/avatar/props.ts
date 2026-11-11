@@ -31,7 +31,7 @@ export interface AvatarDiscProps {
     readonly initials: string;
     /**
      * Whether the disc is drawn with a 2 `ink` ring, which stands in for a filled glyph on the current tab. The ring is laid
-     * outside the disc's box (a shadow on web, an overlay on native), so it adds no layout size and nothing moves.
+     * outside the disc's box (a box-shadow on web, an outline on native), so it adds no layout size and nothing moves.
      */
     readonly active?: boolean;
 }

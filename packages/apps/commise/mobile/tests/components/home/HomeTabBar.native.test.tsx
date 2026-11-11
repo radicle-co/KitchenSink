@@ -255,15 +255,13 @@ describe('HomeTabBar (native) — compact height', () => {
 
 /**
  * The You tab (owner ruling 2026-11-11, N3; `buildSpec.md` §3.2): the cook's avatar as a 24 pt disc over the label "You".
- * Same content rules as the chrome Avatar: a `pearl` disc while the profile loads, the initials in a 10 pt label on the
+ * Drawn by `AvatarDisc` (size `tab`): a `pearl` disc while the profile loads, the initials in a 10 pt label on the
  * `action` fill, the 20 pt `user` glyph with no name or after a failed read. Active, a 2 pt `ink` ring stands in for the
  * filled glyph. Its accessible name is the visible label, "You" (SC 2.5.3).
  */
 describe('HomeTabBar (native) — the You tab', () => {
     const you = () => screen.getByRole('tab', { name: 'You' });
     const disc = () => you().querySelector('[data-testid="avatarDisc"]') as HTMLElement;
-    /** The glyph box the tab's column holds: exactly the icons' box. */
-    const box = () => you().querySelector('[data-testid="avatarDisc"]') as HTMLElement;
 
     it('is named by its visible label alone, whatever the disc shows', () => {
         renderBar('home', vi.fn(), [RECIPE_HOME_WIDGET_CAPABILITY], { profile: READY });
@@ -331,9 +329,9 @@ describe('HomeTabBar (native) — the You tab', () => {
 
                 expect(getComputedStyle(disc()).width).toBe('24px');
                 expect(getComputedStyle(disc()).height).toBe('24px');
-                expect(getComputedStyle(box()).width).toBe('24px');
-                expect(getComputedStyle(box()).height).toBe('24px');
-                expect(getComputedStyle(box()).borderTopWidth).not.toBe('2px');
+                expect(getComputedStyle(disc()).width).toBe('24px');
+                expect(getComputedStyle(disc()).height).toBe('24px');
+                expect(getComputedStyle(disc()).borderTopWidth).not.toBe('2px');
                 cleanup();
             }
         },

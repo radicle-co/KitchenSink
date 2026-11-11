@@ -38,9 +38,9 @@ import { unitToGrams } from './units.js';
  * milk` beside `0.5 cup` and correctly disagree with a line parsed RIGHT.
  *
  * ⚠️ WHAT IS REFUSED: do NOT add a historical-unit provenance
- * field to {@link RecipeNutrition} or to `RecipeIngredient` to "restore the symmetry". Neither carries
- * `sourceLine` either. Both are write-side provenance the gate reads; the disclosure a COOK gets is the
- * sentence `describeConversions` writes into the recipe's own description.
+ * field to {@link RecipeNutrition} or to `RecipeIngredient` to "restore the symmetry". The stated measure is
+ * write-side provenance the gate reads; the disclosure a COOK gets is the sentence `describeConversions` writes
+ * into the recipe's own description. See `RecipeIngredientView.sourceLine` for the one owner-only exception.
  *
  * The domain of "a bound" is the pair `quantityLowerBound`/`quantityUpperBound` answer, so both members are
  * named here even though today's policy only ever collapses to `low` — a client renders the bound it is

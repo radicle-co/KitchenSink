@@ -15,6 +15,7 @@ import type { IngredientRow } from '../../database/schema/index.js';
 import { quantityFromColumns } from '../dal/quantityColumns.js';
 import type { ListRecipeRow, RecipeAggregate } from '../dal/recipes.dal.js';
 import type { IngredientLineView } from '../domain/ingredientLineView.js';
+import { disclosedSourceLine, type TranscriptionAudience } from '../domain/transcriptionDisclosure.js';
 import type { RecipeIngredientResponse, RecipeResponse, RecipeSummaryResponse } from '../dto/recipeResponse.dto.js';
 import { recipeRowToDomain } from './recipeRowToDomain.js';
 
@@ -26,11 +27,20 @@ import { recipeRowToDomain } from './recipeRowToDomain.js';
  * only the line's own columns. It is REQUIRED: the recipe database stores no food names (plan 002 R9), so a line cannot be
  * rendered without the read that derived its view.
  *
- * @param row - The persisted line.
+ * ⛔ The row is typed WITHOUT the two transcription columns, so this mapper cannot read them: the verbatim pasted
+ * line reaches the wire only through `sourceLine`, which `transcriptionDisclosure.ts` decided for this audience
+ * (ADR-0082 §2). `sourcePhrase` is never published at all.
+ *
+ * @param row - The persisted line, minus its transcription columns.
  * @param view - The line's composed view.
+ * @param sourceLine - The line the audience may be shown, from `disclosedSourceLine`; `undefined` omits the key.
  * @returns The wire line.
  */
-export function toIngredientResponse(row: IngredientRow, view: IngredientLineView): RecipeIngredientResponse {
+export function toIngredientResponse(
+    row: Omit<IngredientRow, 'sourceLine' | 'sourcePhrase'>,
+    view: IngredientLineView,
+    sourceLine: string | undefined,
+): RecipeIngredientResponse {
     return {
         // The binding id, under the wire's continuous name (a binding replaced the old catalog row one for one).
         ingredientId: row.foodLookupId,
@@ -55,6 +65,7 @@ export function toIngredientResponse(row: IngredientRow, view: IngredientLineVie
         // origin) omits the key, and so would a stranger the CHECK should have kept out: a read does not 500 over provenance.
         // `import_line_id` is provenance and is not published.
         ...(isBoundBy(row.boundBy) ? { boundBy: row.boundBy } : {}),
+        ...(sourceLine === undefined ? {} : { sourceLine }),
     };
 }
 
@@ -121,6 +132,7 @@ function toRecipeBase(recipe: RecipeAggregate['recipe'], extras: RecipeResponseE
  *
  * @param aggregate - The recipe, its steps and its lines.
  * @param lineViews - Each line's composed view, by line row id.
+ * @param audience - Who is reading, decided once by `transcriptionAudienceOf`; it alone decides `sourceLine`.
  * @param extras - Detail-only extras.
  * @returns The detail response.
  * @throws {Error} when a line has no view — a defect in the read that composed them.
@@ -128,6 +140,7 @@ function toRecipeBase(recipe: RecipeAggregate['recipe'], extras: RecipeResponseE
 export function toRecipeResponse(
     aggregate: RecipeAggregate,
     lineViews: ReadonlyMap<string, IngredientLineView>,
+    audience: TranscriptionAudience,
     extras: RecipeResponseExtras = {},
 ): RecipeResponse {
     const { recipe, steps, ingredients } = aggregate;
@@ -142,7 +155,7 @@ export function toRecipeResponse(
                 throw new Error(`recipe ${recipe.id} line ${row.id} has no composed view`);
             }
 
-            return toIngredientResponse(row, view);
+            return toIngredientResponse(row, view, disclosedSourceLine(audience, row));
         }),
         steps: steps.map((step) => ({
             stepNumber: step.stepNumber,

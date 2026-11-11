@@ -78,6 +78,7 @@ import type { IngredientRow, RecipePhotoRow } from '../database/schema/index.js'
 import type { CallerToken } from '../auth/CallerToken.js';
 import { FoodNutritionGateway, type NutritionReadBudget } from '../ingredients/foodNutrition.gateway.js';
 import { toRecipeResponse } from './mappers/recipeResponse.js';
+import { transcriptionAudienceOf } from './domain/transcriptionDisclosure.js';
 import {
     RECIPES_DAL,
     RECIPE_LINE_VERIFICATIONS_DAL,
@@ -273,11 +274,13 @@ export class RecipeDetailAssembler {
         // the names come from the food service, which authorizes the request as the calling user, and a path
         // that omits it degrades every bound line to nameless. An `undefined` here is a decision someone wrote
         // down. ⛔ `budget` is required for the same reason: whether this response follows a COMMITTED write
-        // decides how long it may wait on food, and a path that has not said so must not compile.
+        // decides how long it may wait on food, and a path that has not said so must not compile. ⛔ `viewerId` is
+        // required for the same reason, and it also decides who is shown the cook's pasted `sourceLine`
+        // (`transcriptionDisclosure.ts`): a path that forgot it would silently read as a stranger, so it must say so.
         options: {
             readonly caller: CallerToken | undefined;
             readonly budget: NutritionReadBudget;
-            readonly viewerId?: string;
+            readonly viewerId: string | undefined;
             readonly viewerRating?: number;
         },
     ): Promise<RecipeResponse> {
@@ -296,7 +299,10 @@ export class RecipeDetailAssembler {
             options.viewerId,
         );
 
-        return toRecipeResponse(aggregate, lineViews, {
+        // Decided ONCE per read; the line mapper receives a verdict, never a viewer id.
+        const audience = transcriptionAudienceOf(aggregate.recipe, options.viewerId);
+
+        return toRecipeResponse(aggregate, lineViews, audience, {
             photos,
             // `nutrition` is the detail read's ONE calorie representation — no top-level copy of the same
             // figure (ADR-0021): completeness is reported once (`nutrition.isComplete`), and so is the figure.

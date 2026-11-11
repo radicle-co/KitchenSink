@@ -11213,6 +11213,10 @@
                                 ],
                                 "type": "string"
                             },
+                            "sourceLine": {
+                                "minLength": 1,
+                                "type": "string"
+                            },
                             "unit": {
                                 "minLength": 1,
                                 "type": "string"
@@ -13773,6 +13777,10 @@
                                             "FOOD_REMOVED",
                                             "FOOD_UNREACHABLE"
                                         ],
+                                        "type": "string"
+                                    },
+                                    "sourceLine": {
+                                        "minLength": 1,
                                         "type": "string"
                                     },
                                     "unit": {

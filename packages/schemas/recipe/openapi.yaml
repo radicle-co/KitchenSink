@@ -5921,6 +5921,9 @@ components:
                   - default
                   - autoBest
                   - cook
+              sourceLine:
+                type: string
+                minLength: 1
             required:
               - ingredientId
               - quantity

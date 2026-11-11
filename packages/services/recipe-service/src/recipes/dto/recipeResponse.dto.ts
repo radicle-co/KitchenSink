@@ -62,6 +62,12 @@ export interface RecipeIngredientResponse {
     resolutionStatus?: LineResolutionStatus;
     /** Who bound the line to its food (ADR-0072 §5). Absent: no recorded origin. Never accepted on a request. */
     boundBy?: BoundBy;
+    /**
+     * The line as the cook pasted or imported it. ⛔ OWNER-ONLY: set only from `disclosedSourceLine`
+     * (`../domain/transcriptionDisclosure.ts`), which is the one rule; verbatim copied text is never on a public
+     * form (ADR-0082 §2). Absent for every other viewer and for a line with no transcription.
+     */
+    sourceLine?: string;
 }
 
 /**

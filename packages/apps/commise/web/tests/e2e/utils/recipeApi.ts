@@ -200,6 +200,24 @@ function toStepProjection(lines: readonly Record<string, unknown>[]): RecipeDeta
 }
 
 /**
+ * What a recipe's `statement` (ADR-0089) makes of its source, as the service persists it: a `public_web` statement labels
+ * the recipe `imported_public`, kind `public_web`, with the citation as its address. Anything else leaves no source. Pure.
+ */
+function sourceOfStatement(
+    statement: unknown,
+): Pick<RecipeDetail, 'sourceType' | 'sourceKind' | 'sourceUrl'> | undefined {
+    if (typeof statement !== 'object' || statement === null) {
+        return undefined;
+    }
+
+    const { kind, citation } = statement as { kind?: unknown; citation?: unknown };
+
+    return kind === 'public_web' && typeof citation === 'string'
+        ? { sourceType: 'imported_public' as RecipeDetail['sourceType'], sourceKind: 'public_web', sourceUrl: citation }
+        : undefined;
+}
+
+/**
  * Apply an `UpdateRecipeInput` body onto a stored recipe, exactly as the service's update path does: overlay
  * each PROVIDED field (title/description/cuisine/times/servings/visibility/flags/tags and the ingredient +
  * step sets, mapped to their read-projection shapes), leave absent fields untouched, and bump
@@ -243,6 +261,17 @@ function applyUpdate(
             next.difficulty = input['difficulty'] as RecipeDifficulty;
         }
     }
+
+    // The statement is three-state, and only until the first publish (ADR-0089): a statement sets the source, an explicit
+    // `null` removes it (the recipe is the cook's own again), and absent leaves it.
+    if (input['statement'] === null) {
+        delete (next as { sourceKind?: string }).sourceKind;
+        delete (next as { sourceUrl?: string }).sourceUrl;
+        delete (next as { sourceAttribution?: string }).sourceAttribution;
+        next.sourceType = 'user_created' as RecipeDetail['sourceType'];
+    }
+
+    Object.assign(next, sourceOfStatement(input['statement']));
 
     // The cuisine is three-state too (2026-10-13): the editor sends `null` when the cook empties the field, and the read
     // projection then omits it, as the service's does. A plain-scalar copy would put `null` on the read, which the
@@ -2072,6 +2101,8 @@ export async function mockRecipeApi(
                     // → 'draft', a Publish of a recipe not yet stored → 'published') — carry it so a spec can assert the
                     // created recipe's persisted status (e.g. the "Draft" card badge appearing in the list).
                     ...(typeof input['status'] === 'string' ? { status: input['status'] as RecipeStatus } : {}),
+                    // ADR-0089: a pasted web link, as the service persists it.
+                    ...sourceOfStatement(input['statement']),
                 });
                 store.set(created.id, created);
 

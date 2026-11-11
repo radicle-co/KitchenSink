@@ -1,0 +1,82 @@
+appId: ${APP_ID}
+---
+# A web link pasted with the steps becomes the recipe's Source (ADR-0089). Mobile mirror of the web Playwright
+# `recipeSourceFromPaste.spec.ts`: the link line is not a step, the Source row in Photos & publish shows the site, Public
+# is refused with its reason, and the published recipe is Private and cites the page.
+#
+# What only a device proves: the URL keyboard field, the sheet's field taking the typed link, and the Source row and the
+# visibility cards sitting reachable under the section index. The pure decisions are the component tests' subject on both
+# platforms (`RecipeSourceField.native.test.tsx`, `RecipeEditorSurface.test.tsx`).
+#
+# Written test-first with the slice and NOT run (built without a device): recorded in `KNOWN_UNRUN_FLOWS`
+# (`maestroFlowSelection.test.ts`). Promote it to `FLOW_PLAN` once an emulator run has passed it. The signer is Pro
+# (`visibility.yaml`), so Private is available with no sheet. Every flow is reseeded before it runs.
+- runFlow: ../auth/signin.yaml
+
+- assertVisible: 'My recipes'
+- tapOn: 'New recipe'
+- assertVisible: 'Close editor'
+- runFlow:
+      file: common/typeTitle.yaml
+      env:
+          TITLE: 'Maestro Web Soup'
+- runFlow: common/chooseCuisine.yaml
+- runFlow: common/addTomatoAndStep.yaml
+
+# Paste steps with a link line under them.
+- runFlow:
+      file: common/jumpToSection.yaml
+      env:
+          SECTION: 'Steps'
+- tapOn: 'Paste steps'
+- tapOn:
+      text: 'Steps'
+      below: 'Paste steps'
+# Maestro's inputText drops a newline, so each line is typed and Enter starts the next (the field is multiline).
+- inputText: 'Simmer the stock.'
+- pressKey: Enter
+- inputText: 'https://www.allrecipes.com/recipe/1/soup/'
+# The link is not a step: the count leaves it out.
+- assertVisible: 'Add 1 step'
+- tapOn: 'Add 1 step'
+- extendedWaitUntil:
+      notVisible: 'Add 1 step'
+      timeout: 20000
+
+# The Source is filled and says which site; Public is refused with its reason and Private is the card shown.
+- runFlow:
+      file: common/jumpToSection.yaml
+      env:
+          SECTION: 'Photos & publish'
+- extendedWaitUntil:
+      visible: 'Copied from a public web page · allrecipes.com'
+      timeout: 20000
+- assertVisible: 'Remove source'
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Not for this recipe\. It’s copied from a web page.*'
+          DIRECTION: DOWN
+          TIMEOUT: 30000
+
+- tapOn:
+      text: 'Publish'
+      # Publishing moves the screen for seconds, and the notice below lasts 6 s (maestroTransientNoticeWait.test.ts).
+      waitToSettleTimeoutMs: 1000
+- extendedWaitUntil:
+      visible: 'Recipe published.'
+      timeout: 40000
+- extendedWaitUntil:
+      notVisible: 'Close editor'
+      timeout: 60000
+- extendedWaitUntil:
+      visible:
+          text: 'Maestro Web Soup.*'
+      timeout: 40000
+
+# The server holds it Private, and the detail cites the page the cook named.
+- extendedWaitUntil:
+      visible:
+          text: '^Private$'
+      timeout: 40000
+- assertVisible: 'www.allrecipes.com'

@@ -138,6 +138,7 @@ export function sourceStatementOf(
                 ? undefined
                 : { kind: 'public_web', citation: source.link.url };
         }
+
         case 'none':
             return heldAsWebCopy(recipe) ? null : undefined;
         case 'refused':

@@ -218,7 +218,11 @@ interface JobContext {
     readonly record: ParseJobRecord;
     readonly lines: ReadonlyMap<number, ParsedLine>;
     current: ReadonlyMap<string, ParseJobMatch>;
-    owed: readonly OwedSlot[];
+    /**
+     * The foods this job still owes a match, or `undefined` until they are counted. A job the call never counted (the catalog
+     * is off, or the deadline passed first) is NOT complete: an empty list would read as "nothing owed".
+     */
+    owed: readonly OwedSlot[] | undefined;
     /** How many of {@link owed} got a stored match this call. */
     made: number;
 }
@@ -382,7 +386,7 @@ export class MatchProposalService {
                     jobId,
                     kind: 'ok',
                     record: context.record,
-                    matchesComplete: context.owed.length === 0 || context.made >= context.owed.length,
+                    matchesComplete: context.owed !== undefined && context.made >= context.owed.length,
                 };
             }
 
@@ -415,7 +419,7 @@ export class MatchProposalService {
                     record: job,
                     lines: this.parsedLines(job),
                     current: new Map(),
-                    owed: [],
+                    owed: undefined,
                     made: 0,
                 });
             }
@@ -458,7 +462,7 @@ export class MatchProposalService {
             );
         }
 
-        const allOwed = [...contexts.values()].flatMap((context) => context.owed);
+        const allOwed = [...contexts.values()].flatMap((context) => context.owed ?? []);
         let started = 0;
 
         try {
@@ -504,7 +508,7 @@ export class MatchProposalService {
             const startedSlots = allOwed.slice(0, started);
 
             for (const context of contexts.values()) {
-                this.reportIfUnmade(context.jobId, context.owed.length, {
+                this.reportIfUnmade(context.jobId, context.owed?.length ?? 0, {
                     started: startedSlots.filter((slot) => slot.jobId === context.jobId).length,
                     made: context.made,
                 });

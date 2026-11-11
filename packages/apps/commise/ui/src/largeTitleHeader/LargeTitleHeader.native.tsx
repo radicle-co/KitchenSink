@@ -9,7 +9,7 @@
  * above the title. The 44 pt row is therefore drawn for an `action` and for nothing else.
  *
  * The accessibility tree reads title → subtitle → action → `afterTitle` → segments, whatever is drawn where, so the title
- * comes before the avatar and the floating button (§4.2). The action is laid over the row by absolute position for that
+ * comes before the action and the floating button (§4.2). The action is laid over the row by absolute position for that
  * reason.
  *
  * Inside a `ScrollHost` the title block reports its layout, so the host knows when the title has scrolled under the top
@@ -22,7 +22,7 @@
  *
  * Presentational: props → JSX.
  *
- * @pattern Visitor — an exhaustive switch over the `HeaderAction` union
+ * @pattern Layout slot — a title block with one end-of-row action group
  */
 import { useContext, type ComponentRef, type FC, type ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
@@ -43,17 +43,12 @@ const SIDE_INSET = nativeTokens.spacing[4];
 
 /** The action group, at the end of the row. */
 function actionOf(action: HeaderAction, rowHeight: number): ReactNode {
-    switch (action.kind) {
-        case 'avatar':
-            return <View style={[styles.action, { height: rowHeight }]}>{action.avatar}</View>;
-        case 'controls':
-            return (
-                <View style={[styles.action, styles.controls, { height: rowHeight }]}>
-                    {action.button}
-                    {action.menu}
-                </View>
-            );
-    }
+    return (
+        <View style={[styles.action, styles.controls, { height: rowHeight }]}>
+            {action.button}
+            {action.menu}
+        </View>
+    );
 }
 
 /** The native design-system large title header. */

@@ -192,6 +192,7 @@
                 </div>
                 <x-import
                     component-from-global-scope="Commise.Native.HomeTabBar"
+                    profile="{{profile}}"
                     chrome="{{chrome}}"
                     live-capabilities="{{none}}"
                     active-id="recipes"
@@ -893,7 +894,7 @@
               items:[{id:'rename',label:'Rename',icon:'pencilLine',onSelect:noop},{id:'visibility',label:'Make public',icon:'globe',onSelect:noop},{id:'saveCopy',label:'Save a copy',icon:'copyPlus',onSelect:noop}],
               del:{id:'delete',label:'Delete collection',icon:'trash',onSelect:noop},
               views:[{id:'list',label:'List view',icon:'list'},{id:'grid',label:'Grid view',icon:'layoutGrid'}],
-              chrome:{destinations:{home:'Home',recipes:'Recipes',discover:'Discover','meal-plan':'Plan',grocery:'Shop'},profileButton:'Profile, {name}',profileButtonNoName:'Profile',tabNavLabel:'Tabs'}
+              profile:{status:'ready',name:'Sam Rivera'},chrome:{destinations:{home:'Home',recipes:'Recipes',discover:'Discover','meal-plan':'Plan',grocery:'Shop',you:'You'},profileButton:'Profile, {name}',profileButtonNoName:'Profile',tabNavLabel:'Tabs'}
              }; } }
         </script>
     </body>

@@ -5,7 +5,7 @@
  *  - FR-044 (platform parity) — the web sidebar, the web tab bar and the native tab bar are three renderings of ONE
  *    destination list, so the platforms cannot drift on which destinations exist or their order.
  *  - Owner ruling (`docs/design/uiOverhaul/ownerDecisions.md`, "Adopted from the joint recommendations"): the tabs are
- *    Home, Recipes and Discover; Meal Plan and Shopping become tabs 4 and 5 when they ship; navigation shows NO
+ *    Home, Recipes and Discover; Meal Plan and Shopping become tabs before You when they ship (You, added 2026-11-11, stays last); navigation shows NO
  *    "Soon" item. So an unshipped destination is DROPPED, not rendered as "coming soon" — this REVERSES the CR-001
  *    "never drops" rule these tests used to pin (rewritten for the overhaul's slice 3, not edited to compile).
  *    Reachability still derives from the SAME `liveCapabilities` that gates the widget placeholders, so the nav and
@@ -18,16 +18,23 @@ import { HOME_NAV_ITEMS, isNavItemReachable, resolveHomeNav, NAV_ITEM_GLYPH } fr
 import { ROADMAP_WIDGET_SPECS } from '../roadmapWidgets.js';
 
 describe('HOME_NAV_ITEMS', () => {
-    it('lists the three tabs, then the two roadmap tabs, in order (buildSpec §3.1)', () => {
-        expect(HOME_NAV_ITEMS.map((item) => item.id)).toEqual(['home', 'recipes', 'discover', 'meal-plan', 'grocery']);
+    it('lists the three tabs, the two roadmap tabs, then You LAST, in order (buildSpec §3.1)', () => {
+        expect(HOME_NAV_ITEMS.map((item) => item.id)).toEqual([
+            'home',
+            'recipes',
+            'discover',
+            'meal-plan',
+            'grocery',
+            'you',
+        ]);
     });
 
     it('uses a unique id per destination', () => {
         expect(new Set(HOME_NAV_ITEMS.map((item) => item.id)).size).toBe(HOME_NAV_ITEMS.length);
     });
 
-    it('leaves the three shipped tabs ungated', () => {
-        for (const id of ['home', 'recipes', 'discover']) {
+    it('leaves the shipped tabs, You included, ungated', () => {
+        for (const id of ['home', 'recipes', 'discover', 'you']) {
             expect(HOME_NAV_ITEMS.find((item) => item.id === id)?.capability).toBeUndefined();
         }
     });
@@ -54,7 +61,7 @@ describe('HOME_NAV_ITEMS', () => {
         expect(navCapability).toBe(widgetCapability);
     });
 
-    it('has no profile or nutrition destination: Profile is the avatar and nutrition sits inside Plan', () => {
+    it('has no profile or nutrition destination: Profile is the You tab and nutrition sits inside Plan', () => {
         const ids: readonly string[] = HOME_NAV_ITEMS.map((item) => item.id);
 
         expect(ids).not.toContain('profile');
@@ -78,7 +85,7 @@ describe('isNavItemReachable', () => {
 
 describe('resolveHomeNav', () => {
     it('drops every unshipped destination: navigation shows no "Soon" item (owner ruling)', () => {
-        expect(resolveHomeNav(['recipes']).map((item) => item.id)).toEqual(['home', 'recipes', 'discover']);
+        expect(resolveHomeNav(['recipes']).map((item) => item.id)).toEqual(['home', 'recipes', 'discover', 'you']);
     });
 
     it('adds a destination the moment its capability goes live, in declared order — no nav edit needed', () => {
@@ -87,6 +94,7 @@ describe('resolveHomeNav', () => {
             'recipes',
             'discover',
             'grocery',
+            'you',
         ]);
         expect(resolveHomeNav(['shopping', 'meal-planning']).map((item) => item.id)).toEqual([
             'home',
@@ -94,7 +102,12 @@ describe('resolveHomeNav', () => {
             'discover',
             'meal-plan',
             'grocery',
+            'you',
         ]);
+    });
+
+    it('keeps You last whatever else is live (buildSpec §3.1)', () => {
+        expect(resolveHomeNav(['shopping', 'meal-planning', 'recipes']).at(-1)?.id).toBe('you');
     });
 
     it('does not mutate the shared nav model', () => {
@@ -115,6 +128,7 @@ describe('NAV_ITEM_GLYPH', () => {
             discover: 'compass',
             'meal-plan': 'calendar',
             grocery: 'shoppingCart',
+            you: 'user',
         });
     });
 

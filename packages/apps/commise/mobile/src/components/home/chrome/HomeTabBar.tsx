@@ -1,7 +1,9 @@
 /**
  * @module home/chrome/HomeTabBar — the native bottom tab bar (`docs/design/uiOverhaul/buildSpec.md` §3.2; ownerDecisions
- * D6, D14). The reachable destinations of the shared nav model (`resolveHomeNav` — Home, Recipes, Discover today), each a
- * 24 pt glyph over its label (its role is set out below), on every phone and tablet, iPad included in both orientations.
+ * D6, D14). The reachable destinations of the shared nav model (`resolveHomeNav` — Home, Recipes, Discover and You today),
+ * each a 24 pt glyph over its label (its role is set out below), on every phone and tablet, iPad included in both
+ * orientations. You is Profile, and its glyph is the cook's avatar as a 24 pt disc (the design system's `AvatarDisc`; owner ruling
+ * 2026-11-11, N3), so the bar takes the profile read.
  *
  * It is our own bar, with real Liquid Glass BEHIND it on iOS 26 and a solid `paperRaised` surface elsewhere
  * (`@commise/ui/chrome-surface`); native system tabs wait until React Navigation marks them stable (D14).
@@ -10,8 +12,8 @@
  *   glyph, and `accessibilityState.selected`. Inactive: `inkMuted`, the label in the `caption` role (weight 500). Colour
  *   and the here-bar mark the active tab too, so weight is never the only signal. (No filled glyph: Lucide has none, and
  *   a filled compass hides its needle — the blueprint's Q6, awaiting `staff-ux-engineer`.)
- * - Each label is the design-system Text at the navigation-chrome cap (`chromeCap="1.5"`, designer ruling 2026-11-01;
- *   ADR-0080 §8): it grows with the system text size to 1.5×, where the rest of the screen grows to 2×.
+ * - Each label is the design-system Text at the tab label cap, `TAB_LABEL_CHROME_CAP` (1.3×, designer ruling 2026-11-11,
+ *   `buildSpec.md` §3.2; ADR-0080 §8): it grows with the system text size to 1.3×, where the rest of the screen grows to 2×.
  * - The glyphs are one row: every tab's column starts at the top, glyph first and label under it, so a label that wraps
  *   grows its tab downward and never moves its glyph (`deviceShots2.md` M-2).
  * - Targets: at least 48 dp tall on Android, 44 pt on iOS. The bar pads its foot by the bottom safe-area inset.
@@ -21,17 +23,25 @@
  *
  * Presentational: props → JSX. `AppTabBar` adapts React Navigation's tab state to it.
  */
-import { NAV_ITEM_GLYPH, resolveHomeNav, type HomeNavItemId } from '@commise/features-core';
+import {
+    NAV_ITEM_GLYPH,
+    initialsFor,
+    resolveHomeNav,
+    type HomeNavItemId,
+    type ProfileEntry,
+} from '@commise/features-core';
 import type { HomeChromeMessages } from '@commise/features-core/home';
+import { AvatarDisc } from '@commise/ui/avatar';
 import { ChromeSurface } from '@commise/ui/chrome-surface';
 import { Icon } from '@commise/ui/icon';
 import { nativeTokens } from '@commise/ui/native';
+import { TAB_LABEL_CHROME_CAP } from '@commise/ui/scaled-type';
 import { Text } from '@commise/ui/text';
 import { useTheme } from '@commise/ui/theme';
 import type { JSX } from 'react';
 import { Platform, Pressable, StyleSheet, View } from 'react-native';
 
-import { TAB_BAR_CHROME_CAP, TAB_BAR_SIDE_PADDING, TAB_LABEL_ROLE } from './homeTabBarGeometry.js';
+import { TAB_BAR_SIDE_PADDING, TAB_LABEL_ROLE } from './homeTabBarGeometry.js';
 
 /** Props for {@link HomeTabBar}. */
 export interface HomeTabBarProps {
@@ -41,6 +51,8 @@ export interface HomeTabBarProps {
     readonly liveCapabilities: readonly string[];
     /** The active destination. */
     readonly activeId: HomeNavItemId;
+    /** The profile read, for the You tab's disc. */
+    readonly profile: ProfileEntry;
     /** A tab was pressed — the active one too (its second tap goes to the root, then the top). */
     readonly onPress: (id: HomeNavItemId) => void;
     /** A tab was long-pressed (React Navigation's `tabLongPress`). */
@@ -58,13 +70,14 @@ export interface HomeTabBarProps {
 /**
  * The native bottom tab bar.
  *
- * @param props - The copy, live capabilities, active destination, press handlers and bottom inset.
+ * @param props - The copy, live capabilities, active destination, profile read, press handlers and bottom inset.
  * @returns The tab bar.
  */
 export function HomeTabBar({
     chrome,
     liveCapabilities,
     activeId,
+    profile,
     onPress,
     onLongPress,
     bottomInset,
@@ -107,10 +120,19 @@ export function HomeTabBar({
                         style={compact ? styles.tabCompact : styles.tab}
                     >
                         <View style={[styles.hereBar, selected ? { backgroundColor: colors.hereBar } : null]} />
-                        <Icon name={NAV_ITEM_GLYPH[item.id]} size={24} tone={selected ? 'ink' : 'inkMuted'} />
+                        {item.id === 'you' ? (
+                            <AvatarDisc
+                                size="tab"
+                                status={profile.status}
+                                initials={initialsFor(profile.name)}
+                                active={selected}
+                            />
+                        ) : (
+                            <Icon name={NAV_ITEM_GLYPH[item.id]} size={24} tone={selected ? 'ink' : 'inkMuted'} />
+                        )}
                         <Text
                             typeRole={selected ? TAB_LABEL_ROLE.active : TAB_LABEL_ROLE.inactive}
-                            chromeCap={TAB_BAR_CHROME_CAP}
+                            chromeCap={TAB_LABEL_CHROME_CAP}
                             color={selected ? '$ink' : '$inkMuted'}
                         >
                             {label}

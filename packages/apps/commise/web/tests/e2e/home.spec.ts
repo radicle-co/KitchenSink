@@ -57,20 +57,12 @@ test.describe('Home widget surface (T104)', () => {
         ).toBeVisible();
         // Today's date carries no year ("Sunday, May 31"), as the Home header board draws it.
         await expect(page.getByText(/^\w+day, \w+ \d{1,2}$/u)).toBeVisible();
-        // ONE row: the profile button is on the same row as the greeting, after it, at least 44 px square, at every width.
+        // No avatar in the title row, at any width (owner ruling 2026-11-11, N3): Profile is the You tab below 840 and the
+        // sidebar's first row from it, so the header holds the greeting and the date and nothing on the end side.
         const greeting = page.getByRole('heading', { level: 1 });
-        const profile = page
-            .locator('header')
-            .filter({ has: greeting })
-            .getByRole('link', { name: /^Profile/u });
-        await expect(profile).toBeVisible();
-        const greetingBox = await greeting.boundingBox();
-        const profileBox = await profile.boundingBox();
-        const centre = (box: { y: number; height: number } | null): number => (box?.y ?? 0) + (box?.height ?? 0) / 2;
-        expect(profileBox?.width ?? 0).toBeGreaterThanOrEqual(44);
-        expect(profileBox?.height ?? 0).toBeGreaterThanOrEqual(44);
-        expect(profileBox?.x ?? 0).toBeGreaterThan((greetingBox?.x ?? 0) + (greetingBox?.width ?? 0) - 1);
-        expect(Math.abs(centre(profileBox) - centre(greetingBox))).toBeLessThan(profileBox?.height ?? 0);
+        const header = page.locator('header').filter({ has: greeting });
+        await expect(header.getByRole('link', { name: /^Profile/u })).toHaveCount(0);
+        await expect(header.getByRole('button', { name: /^Profile/u })).toHaveCount(0);
         // The recipe (recent-recipes) widget renders with its heading and the viewer's recent recipe.
         await expect(page.getByRole('heading', { name: 'Recent recipes' })).toBeVisible();
         await expect(page.getByText('Weeknight Pasta')).toBeVisible();

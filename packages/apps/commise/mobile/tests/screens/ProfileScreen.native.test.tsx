@@ -1,5 +1,5 @@
 /**
- * The native Profile page (`docs/design/uiOverhaul/buildSpec.md` §9.1): ONE page from the avatar that holds who the cook
+ * The native Profile page (`docs/design/uiOverhaul/buildSpec.md` §9.1): ONE page, the You tab's root, that holds who the cook
  * is, the one thing they can change (the display name), preferences, sign out and the danger zone. It replaces the old
  * profile form AND the `AccountSettings` hub, so this suite also pins that the hub is gone.
  *
@@ -25,6 +25,7 @@ import { authBlockMessages } from '@commise/features-account';
 import { accountDangerMessages, useEraseAccount } from '@commise/features-account/danger';
 import { profileMessages } from '@commise/features-account/profile';
 import { role, roleDark } from '@commise/ui/colors';
+import { ScrollHost } from '@commise/ui/scroll-host';
 import { SnackbarHost } from '@commise/ui/snackbar';
 import { rgb, systemScheme } from '@commise/ui/testing/system-color-scheme';
 
@@ -153,14 +154,20 @@ const loading = { data: undefined, isError: false, refetch } as unknown as Profi
 const failed = { data: undefined, isError: true, refetch } as unknown as ProfileQuery;
 
 /** Render the page where the app does: under the snackbar host. */
-function renderProfile(onBack = vi.fn(), onOpenDataSources = vi.fn(), onOpenYourFoods = vi.fn()) {
+function renderProfile(onOpenDataSources = vi.fn(), onOpenYourFoods = vi.fn()) {
     render(
         <SnackbarHost>
-            <ProfileScreen onBack={onBack} onOpenDataSources={onOpenDataSources} onOpenYourFoods={onOpenYourFoods} />
+            <ScrollHost>
+                {(bind) => (
+                    <ProfileScreen
+                        scrollBind={bind}
+                        onOpenDataSources={onOpenDataSources}
+                        onOpenYourFoods={onOpenYourFoods}
+                    />
+                )}
+            </ScrollHost>
         </SnackbarHost>,
     );
-
-    return onBack;
 }
 
 /** A mutation double: `mutate` runs the caller's `onSuccess` unless a case says otherwise. */
@@ -202,26 +209,14 @@ describe('ProfileScreen — the one page (§9.1)', () => {
         expect(sideInsetOf(screen.getByRole('button', { name: /Display name/u }))).toBe(16);
     });
 
-    it('is a titled page with a back control that leaves it', () => {
-        const onBack = renderProfile();
-
-        expect(screen.getByRole('heading', { name: t.title, level: 1 })).toBeTruthy();
-        fireEvent.click(screen.getByRole('button', { name: t.back }));
-
-        expect(onBack).toHaveBeenCalledTimes(1);
-    });
-
-    // Pinned back bar (`docs/design/uiRefreshWorkshop5/pinnedBackBar.md` §2): Back lives in the pinned bar and nowhere
-    // else. The header used to draw its own, scrolled off screen but still in the tree, so the page had two elements
-    // named "Back to Home". `hidden: true` counts a copy a plain query would skip, which is the defect.
-    it('has exactly one Back, in the pinned bar before the title, and none in the scroller', () => {
+    // REWRITTEN for the You tab (owner ruling 2026-11-11, N3): Profile is a tab ROOT, not a page pushed from an avatar, so
+    // it has NO back control: neither the pinned bar's (the page left `PushedPageFrame`) nor one in the header. These
+    // replace the "back control that leaves it" and "exactly one Back, in the pinned bar" cases that pinned the old shape.
+    it('is a titled page with no back control, in the tree or out of it', () => {
         renderProfile();
 
-        const backs = screen.getAllByRole('button', { name: t.back, hidden: true });
-        const heading = screen.getByRole('heading', { name: t.title, level: 1 });
-
-        expect(backs).toHaveLength(1);
-        expect(backs[0]!.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+        expect(screen.getByRole('heading', { name: t.title, level: 1 })).toBeTruthy();
+        expect(screen.queryByRole('button', { name: /^Back/u, hidden: true })).toBeNull();
     });
 
     // Owner ruling S2 (2026-10-27), replacing 2026-10-13/16: the header is the avatar and the name, and the read-only
@@ -301,7 +296,7 @@ describe('ProfileScreen — the one page (§9.1)', () => {
     // A-026: the row hands off to the navigator, which pushes the Data sources PAGE. The screen no longer mounts it.
     it('hands the data sources row to the navigator, and mounts no sheet or dialog of its own', () => {
         const onOpenDataSources = vi.fn();
-        renderProfile(vi.fn(), onOpenDataSources);
+        renderProfile(onOpenDataSources);
 
         fireEvent.click(screen.getByRole('button', { name: t.dataSources }));
 
@@ -598,7 +593,11 @@ describe('ProfileScreen — the photo failure’s type and colour', () => {
         setMutation({ isError: true });
         renderWithTamagui(
             <SnackbarHost>
-                <ProfileScreen onBack={vi.fn()} onOpenDataSources={vi.fn()} onOpenYourFoods={vi.fn()} />
+                <ScrollHost>
+                    {(bind) => (
+                        <ProfileScreen scrollBind={bind} onOpenDataSources={vi.fn()} onOpenYourFoods={vi.fn()} />
+                    )}
+                </ScrollHost>
             </SnackbarHost>,
             scheme,
         );
@@ -629,7 +628,7 @@ describe('ProfileScreen — Your foods (private foods spec F19 and revision 4)',
 
     it('has a Your foods row of its own, which opens the cook’s foods', () => {
         const onOpenYourFoods = vi.fn();
-        renderProfile(vi.fn(), vi.fn(), onOpenYourFoods);
+        renderProfile(vi.fn(), onOpenYourFoods);
 
         fireEvent.click(screen.getByRole('button', { name: 'Your foods' }));
         expect(onOpenYourFoods).toHaveBeenCalledOnce();

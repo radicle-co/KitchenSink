@@ -57,7 +57,6 @@ export const RecipeDiscoveryFrame: FC<RecipeDiscoveryFrameProps> = ({
     searching,
     headingFocusSignal,
     resultsSummary,
-    headerAction,
     recentSearches,
     filters,
     sort,
@@ -161,7 +160,6 @@ export const RecipeDiscoveryFrame: FC<RecipeDiscoveryFrameProps> = ({
                 headingId={DISCOVER_TITLE_ID}
                 title={discovery.heading}
                 focusSignal={headingFocusSignal}
-                {...(headerAction === undefined ? {} : { action: headerAction })}
             />
             {/* ONE tree for both presentations, with a fixed slot for each part: the presentation follows <main>'s
                 measured width, so it changes after the first paint and on every resize across the breakpoint. A part

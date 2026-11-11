@@ -14,7 +14,7 @@
  * chunks of up to 500 (`recipeQueries(client).library`), so the chips, their counts and the no-match states are right
  * past the first page (blueprint A11); forwards the sort to the server; reads and saves the list/grid choice as an account setting; and
  * decides the card variant from the container class. The My recipes · Collections segments are the host's to pass
- * (`segments`), with the large title's avatar (`headerAction`).
+ * (`segments`).
  *
  * @pattern Layout slot — the persistent frame around a Suspense read boundary, with the viewer's narrowing and the
  *     recovery counter lifted to the frame's side
@@ -43,7 +43,6 @@ import { useLocale } from '@commise/i18n/react';
 import { PendingSlot } from '@commise/query/pending-slot';
 import { useRecoverySignal } from '@commise/query/recovery-signal';
 import { useRefreshNotice } from '@commise/query/refresh-notice';
-import type { HeaderAction } from '@commise/ui/large-title-header';
 import type { ScrollBind } from '@commise/ui/scroll-host';
 import type { JSX } from 'react';
 
@@ -65,8 +64,6 @@ export interface RecipeListScreenProps {
     readonly onPasteIngredients?: () => void;
     /** The My recipes · Collections segments, when the host shows them on this screen. */
     readonly segments?: RecipesSegmentControl;
-    /** The large title's action: the avatar, which pushes Profile (slice 3). The route supplies it. */
-    readonly headerAction?: HeaderAction;
     /** The bind for this screen's one vertical scroller, from its `ScrollHost` (`TabRootScreen`). */
     readonly scrollBind?: ScrollBind;
 }
@@ -82,7 +79,6 @@ export function RecipeListScreen({
     onCreateRecipe,
     onPasteIngredients,
     segments,
-    headerAction,
     scrollBind,
 }: RecipeListScreenProps): JSX.Element {
     useScreenTrace('RecipeListScreen');
@@ -100,7 +96,6 @@ export function RecipeListScreen({
             onCreateRecipe={onCreateRecipe}
             createEntryYields={controls.createEntryYields}
             {...(segments === undefined ? {} : { segments })}
-            {...(headerAction === undefined ? {} : { headerAction })}
             headingFocusSignal={recovery.signal}
         >
             {saveFailed ? <ViewSaveFailedNotice /> : null}

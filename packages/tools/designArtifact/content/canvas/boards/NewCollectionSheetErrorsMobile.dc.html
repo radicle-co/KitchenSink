@@ -163,7 +163,6 @@
                                 component-from-global-scope="Commise.Native.LargeTitleHeader"
                                 heading-id="recipes-title-1"
                                 title="Recipes"
-                                action="{{v6}}"
                                 segments="{{v7}}"
                             ></x-import>
                             <x-import
@@ -532,7 +531,6 @@
                                 component-from-global-scope="Commise.Native.LargeTitleHeader"
                                 heading-id="recipes-title-2"
                                 title="Recipes"
-                                action="{{v6}}"
                                 segments="{{v7}}"
                             ></x-import>
                             <x-import
@@ -898,7 +896,6 @@
                                 component-from-global-scope="Commise.Native.LargeTitleHeader"
                                 heading-id="recipes-title-3"
                                 title="Recipes"
-                                action="{{v6}}"
                                 segments="{{v7}}"
                             ></x-import>
                             <x-import
@@ -1246,13 +1243,12 @@
               v3: 16,
               v4: 16,
               v5: 16,
-              v6: {kind:'avatar',avatar:h(C.Avatar,{status:'ready',initials:'SR',label:"Profile, Sam Rivera",onPress:noop})},
               v7: h(C.SegmentedControl,{form:'route',width:'adaptive',label:'Recipes',current:"collections",segments:[{id:'mine',label:'My recipes',href:"#recipes"},{id:'collections',label:'Collections',href:"#collections"}],onSelect:noop}),
               v8: noop,
               v9: noop, yes: true, one: 1, noop: noop, rows2: 2, rows6: 6, footer: h('div',{style:{display:'flex',flexDirection:'column',gap:12}},h(C.Button,{icon:'plus',size:'lg',width:'fill',onPress:noop},'Create collection')), footerFailed: h('div',{style:{display:'flex',flexDirection:'column',gap:12}},h('div',{role:'alert',style:{font:'400 16px/1.5 var(--font-body)',color:'var(--danger-text)'}},'We couldn’t create the collection. Try again.'),h(C.Button,{icon:'plus',size:'lg',width:'fill',onPress:noop},'Create collection')),
               v10: 24,
               v11: 24,
-              v12: 24, v13:34, chrome:{destinations:{home:'Home',recipes:'Recipes',discover:'Discover','meal-plan':'Plan',grocery:'Shop'},profileButton:'Profile, {name}',profileButtonNoName:'Profile',tabNavLabel:'Tabs'}, none:[], no:false, zero:0
+              v12: 24, v13:34, chrome:{destinations:{home:'Home',recipes:'Recipes',discover:'Discover','meal-plan':'Plan',grocery:'Shop',you:'You'},profileButton:'Profile, {name}',profileButtonNoName:'Profile',tabNavLabel:'Tabs'}, none:[], no:false, zero:0
              }; } }
         </script>
     </body>

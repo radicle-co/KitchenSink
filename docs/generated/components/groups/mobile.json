@@ -4,15 +4,15 @@
     "packageName": "@commise/mobile",
     "layer": "app",
     "coverage": {
-        "components": 56,
-        "implementations": 56,
-        "props": 159,
-        "documentedComponents": 55,
-        "implementationsWithModuleDoc": 54,
+        "components": 55,
+        "implementations": 55,
+        "props": 152,
+        "documentedComponents": 54,
+        "implementationsWithModuleDoc": 53,
         "implementationsWithComponentDoc": 41,
-        "documentedProps": 150,
-        "classifiedComponents": 41,
-        "componentsWithPatternTag": 27,
+        "documentedProps": 143,
+        "classifiedComponents": 40,
+        "componentsWithPatternTag": 26,
         "crossPlatformComponents": 0
     },
     "components": [
@@ -1296,7 +1296,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/mobile/src/components/home/chrome/HomeTabBar.tsx",
                     "dir": "packages/apps/commise/mobile/src/components/home/chrome",
-                    "moduleDoc": "home/chrome/HomeTabBar — the native bottom tab bar (`docs/design/uiOverhaul/buildSpec.md` §3.2; ownerDecisions\nD6, D14). The reachable destinations of the shared nav model (`resolveHomeNav` — Home, Recipes, Discover today), each a\n24 pt glyph over its label (its role is set out below), on every phone and tablet, iPad included in both orientations.\n\nIt is our own bar, with real Liquid Glass BEHIND it on iOS 26 and a solid `paperRaised` surface elsewhere\n(`@commise/ui/chrome-surface`); native system tabs wait until React Navigation marks them stable (D14).\n\n- The active tab: `ink` glyph, its label in the `label` role (weight 600) in `ink`, a 32 × 3 pt `hereBar` above the\n  glyph, and `accessibilityState.selected`. Inactive: `inkMuted`, the label in the `caption` role (weight 500). Colour\n  and the here-bar mark the active tab too, so weight is never the only signal. (No filled glyph: Lucide has none, and\n  a filled compass hides its needle — the blueprint's Q6, awaiting `staff-ux-engineer`.)\n- Each label is the design-system Text at the navigation-chrome cap (`chromeCap=\"1.5\"`, designer ruling 2026-11-01;\n  ADR-0080 §8): it grows with the system text size to 1.5×, where the rest of the screen grows to 2×.\n- The glyphs are one row: every tab's column starts at the top, glyph first and label under it, so a label that wraps\n  grows its tab downward and never moves its glyph (`deviceShots2.md` M-2).\n- Targets: at least 48 dp tall on Android, 44 pt on iOS. The bar pads its foot by the bottom safe-area inset.\n- Compact height (owner 2026-10-13; the window under 480 dp, which is every phone held sideways): the label sits\n  BESIDE the glyph and the bar is 48 dp (44 pt on iOS). Both sides pad their safe-area inset, so a cutout or the\n  3-button navigation bar never covers a tab. The label stays the tab's accessible name.\n\nPresentational: props → JSX. `AppTabBar` adapts React Navigation's tab state to it.",
+                    "moduleDoc": "home/chrome/HomeTabBar — the native bottom tab bar (`docs/design/uiOverhaul/buildSpec.md` §3.2; ownerDecisions\nD6, D14). The reachable destinations of the shared nav model (`resolveHomeNav` — Home, Recipes, Discover and You today),\neach a 24 pt glyph over its label (its role is set out below), on every phone and tablet, iPad included in both\norientations. You is Profile, and its glyph is the cook's avatar as a 24 pt disc (the design system's `AvatarDisc`; owner ruling\n2026-11-11, N3), so the bar takes the profile read.\n\nIt is our own bar, with real Liquid Glass BEHIND it on iOS 26 and a solid `paperRaised` surface elsewhere\n(`@commise/ui/chrome-surface`); native system tabs wait until React Navigation marks them stable (D14).\n\n- The active tab: `ink` glyph, its label in the `label` role (weight 600) in `ink`, a 32 × 3 pt `hereBar` above the\n  glyph, and `accessibilityState.selected`. Inactive: `inkMuted`, the label in the `caption` role (weight 500). Colour\n  and the here-bar mark the active tab too, so weight is never the only signal. (No filled glyph: Lucide has none, and\n  a filled compass hides its needle — the blueprint's Q6, awaiting `staff-ux-engineer`.)\n- Each label is the design-system Text at the tab label cap, `TAB_LABEL_CHROME_CAP` (1.3×, designer ruling 2026-11-11,\n  `buildSpec.md` §3.2; ADR-0080 §8): it grows with the system text size to 1.3×, where the rest of the screen grows to 2×.\n- The glyphs are one row: every tab's column starts at the top, glyph first and label under it, so a label that wraps\n  grows its tab downward and never moves its glyph (`deviceShots2.md` M-2).\n- Targets: at least 48 dp tall on Android, 44 pt on iOS. The bar pads its foot by the bottom safe-area inset.\n- Compact height (owner 2026-10-13; the window under 480 dp, which is every phone held sideways): the label sits\n  BESIDE the glyph and the bar is 48 dp (44 pt on iOS). Both sides pad their safe-area inset, so a cutout or the\n  3-button navigation bar never covers a tab. The label stays the tab's accessible name.\n\nPresentational: props → JSX. `AppTabBar` adapts React Navigation's tab state to it.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -1307,7 +1307,7 @@
                     "tags": [
                         {
                             "name": "param",
-                            "text": "props - The copy, live capabilities, active destination, press handlers and bottom inset."
+                            "text": "props - The copy, live capabilities, active destination, profile read, press handlers and bottom inset."
                         },
                         {
                             "name": "returns",
@@ -1325,7 +1325,8 @@
                                 "\"recipes\"",
                                 "\"discover\"",
                                 "\"meal-plan\"",
-                                "\"grocery\""
+                                "\"grocery\"",
+                                "\"you\""
                             ],
                             "required": true,
                             "defaultValue": null,
@@ -1396,6 +1397,15 @@
                             "declaredIn": "packages/apps/commise/mobile/src/components/home/chrome/HomeTabBar.tsx"
                         },
                         {
+                            "name": "profile",
+                            "type": "ProfileEntry",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The profile read, for the You tab's disc.",
+                            "declaredIn": "packages/apps/commise/mobile/src/components/home/chrome/HomeTabBar.tsx"
+                        },
+                        {
                             "name": "rightInset",
                             "type": "number",
                             "typeDetail": null,
@@ -1435,7 +1445,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/mobile/src/components/home/HomeGreeting.tsx",
                     "dir": "packages/apps/commise/mobile/src/components/home",
-                    "moduleDoc": "home/HomeGreeting — Home's header on native (US-000 / FR-046; `docs/design/uiOverhaul/buildSpec.md` §4.2): ONE\nrow, as the Home boards draw it. The greeting (\"Good afternoon, Eliza\"; \"Good afternoon\" without a name) and the local\ndate stack on the start side; the 44 pt profile button sits on the end side, centred on the pair.\n\nIt is no longer the shared `LargeTitleHeader`: Home's greeting is a `cardTitle`, not a large title, and the condensed\nbar that echoed a large title is gone from Home (designer, 2026-11-02). Both lines derive from the viewer's local\nclock via the SHARED `useHomeGreeting` in `@commise/features-core/home`, so web and mobile greet identically\n(FR-044). The surface is client-rendered on device, so (unlike web) there is no hydration concern.\n\nPresentational once the greeting is read: the layout is Tamagui stacks, the colours are theme keys.",
+                    "moduleDoc": "home/HomeGreeting — Home's header on native (US-000 / FR-046; `docs/design/uiOverhaul/buildSpec.md` §4.2): ONE\nrow. The greeting (\"Good afternoon, Eliza\"; \"Good afternoon\" without a name) and the local date stack on the start\nside, and nothing sits on the end side: no title row carries the avatar (owner ruling 2026-11-11, N3).\n\nIt is no longer the shared `LargeTitleHeader`: Home's greeting is a `cardTitle`, not a large title, and the condensed\nbar that echoed a large title is gone from Home (designer, 2026-11-02). Both lines derive from the viewer's local\nclock via the SHARED `useHomeGreeting` in `@commise/features-core/home`, so web and mobile greet identically\n(FR-044). The surface is client-rendered on device, so (unlike web) there is no hydration concern.\n\nPresentational once the greeting is read: the layout is Tamagui stacks, the colours are theme keys.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -1446,25 +1456,16 @@
                     "tags": [
                         {
                             "name": "param",
-                            "text": "props - The cook's name and the header's action."
+                            "text": "props - The cook's name."
                         },
                         {
                             "name": "returns",
-                            "text": "The greeting over the date, with the profile button at the end of the same row."
+                            "text": "The greeting over the date."
                         }
                     ],
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
                     "props": [
-                        {
-                            "name": "action",
-                            "type": "HeaderAction",
-                            "typeDetail": null,
-                            "required": false,
-                            "defaultValue": null,
-                            "description": "The header's action: the avatar.",
-                            "declaredIn": "packages/apps/commise/mobile/src/components/home/HomeGreeting.tsx"
-                        },
                         {
                             "name": "name",
                             "type": "string",
@@ -1552,7 +1553,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/mobile/src/components/home/HomeWidgetSurface.tsx",
                     "dir": "packages/apps/commise/mobile/src/components/home",
-                    "moduleDoc": "home/HomeWidgetSurface — the post-login Home widget-surface host (mobile; US-000 / FR-046).\n\nThe composition root of the three-layer Home surface, mirroring the web host:\n - **discovery** — features register their widget descriptors into the ditox {@link homeContainer};\n   resolved here via `resolveHomeWidgets`.\n - **composition** — `curateHomeWidgets` gates the resolved descriptors by live **capability** and the\n   viewer's subscription **tier**. In Home v1 the recipe widget is the only **live** widget; the unshipped\n   005–009 cohort is present as **skeleton placeholders** (CR-001) that gate themselves out the moment the\n   backing service ships and the feature's live widget (same id) takes over.\n - **render** — each curated descriptor is drawn through a slot wrapped in a per-widget `ErrorBoundary`:\n   a live widget with a **bespoke** slot (the recipe widget, which needs its data + nav) through\n   `renderers`; a **placeholder** through the generic {@link RoadmapWidgetSlot} loader seam. A live id with\n   no bespoke renderer is **skipped** (graceful version skew).\n\nThe host also renders Home's large title (the greeting, with the avatar as its action) as the scroller's first\nchild, takes the scroller's `bind` from the screen's `ScrollHost`, and threads the navigation intents down to the\nrecipe slot. The tab bar and the floating create button are NOT here: the navigator owns the\nbar and `HomeScreen` floats the other two over this scroller. `container` and `renderers` are injectable seams.",
+                    "moduleDoc": "home/HomeWidgetSurface — the post-login Home widget-surface host (mobile; US-000 / FR-046).\n\nThe composition root of the three-layer Home surface, mirroring the web host:\n - **discovery** — features register their widget descriptors into the ditox {@link homeContainer};\n   resolved here via `resolveHomeWidgets`.\n - **composition** — `curateHomeWidgets` gates the resolved descriptors by live **capability** and the\n   viewer's subscription **tier**. In Home v1 the recipe widget is the only **live** widget; the unshipped\n   005–009 cohort is present as **skeleton placeholders** (CR-001) that gate themselves out the moment the\n   backing service ships and the feature's live widget (same id) takes over.\n - **render** — each curated descriptor is drawn through a slot wrapped in a per-widget `ErrorBoundary`:\n   a live widget with a **bespoke** slot (the recipe widget, which needs its data + nav) through\n   `renderers`; a **placeholder** through the generic {@link RoadmapWidgetSlot} loader seam. A live id with\n   no bespoke renderer is **skipped** (graceful version skew).\n\nThe host also renders Home's large title (the greeting, which carries no avatar) as the scroller's first\nchild, takes the scroller's `bind` from the screen's `ScrollHost`, and threads the navigation intents down to the\nrecipe slot. The tab bar and the floating create button are NOT here: the navigator owns the\nbar and `HomeScreen` floats the other two over this scroller. `container` and `renderers` are injectable seams.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -1580,15 +1581,6 @@
                             "required": false,
                             "defaultValue": "createHomeContainer({\n    features: [addRecipeFeature, addRoadmapPlaceholders],\n    errorReporter: reportErrorToSentry,\n})",
                             "description": "The appShell container to resolve widget descriptors from. Defaults to the app singleton.",
-                            "declaredIn": "packages/apps/commise/mobile/src/components/home/HomeWidgetSurface.tsx"
-                        },
-                        {
-                            "name": "headerAction",
-                            "type": "HeaderAction",
-                            "typeDetail": null,
-                            "required": false,
-                            "defaultValue": null,
-                            "description": "The large title's action: the avatar, which opens Profile.",
                             "declaredIn": "packages/apps/commise/mobile/src/components/home/HomeWidgetSurface.tsx"
                         },
                         {
@@ -2435,7 +2427,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/mobile/src/navigation/AppTabBar.tsx",
                     "dir": "packages/apps/commise/mobile/src/navigation",
-                    "moduleDoc": "navigation/AppTabBar — React Navigation's tab state, drawn by our own {@link HomeTabBar} (ownerDecisions D6,\nD14; `docs/architecture/uiOverhaulBlueprint.md` A6).\n\nIt does exactly what the library's default bar does with a press, and nothing more: it emits `tabPress` with\n`canPreventDefault` and navigates unless a listener prevented it. The library's own listeners then give the second\ntap on the active tab its meaning — the tab's stack pops to its root, and at the root `useScrollToTop` scrolls the\nscreen (`TabRootScreen`). Re-implementing either here would fork the library's behaviour.\n\nCompact height (owner 2026-10-13): in a window under 480 dp tall it draws the compact bar, and while a keyboard is open\nthere it draws none (`isFrameCollapsed`), so a phone held sideways keeps room for the field the cook is typing in.\n\nORCHESTRATION: it drives the navigator (emit, navigate); the bar it draws is presentational.",
+                    "moduleDoc": "navigation/AppTabBar — React Navigation's tab state, drawn by our own {@link HomeTabBar} (ownerDecisions D6,\nD14; `docs/architecture/uiOverhaulBlueprint.md` A6).\n\nIt does exactly what the library's default bar does with a press, and nothing more: it emits `tabPress` with\n`canPreventDefault` and navigates unless a listener prevented it. The library's own listeners then give the second\ntap on the active tab its meaning — the tab's stack pops to its root, and at the root `useScrollToTop` scrolls the\nscreen (`TabRootScreen`). Re-implementing either here would fork the library's behaviour.\n\nCompact height (owner 2026-10-13): in a window under 480 dp tall it draws the compact bar, and while a keyboard is open\nthere it draws none (`isFrameCollapsed`), so a phone held sideways keeps room for the field the cook is typing in.\n\nORCHESTRATION: it drives the navigator (emit, navigate) and reads the profile for the You tab's disc; the bar it draws is\npresentational.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -2571,85 +2563,6 @@
                             "defaultValue": null,
                             "description": "A photo is not uploaded yet: hold every leave.",
                             "declaredIn": "packages/apps/commise/mobile/src/screens/RecipeEditorScreen.tsx"
-                        }
-                    ],
-                    "usesRefApi": [],
-                    "booleanPropsSelectingSubtree": [],
-                    "docSignals": {
-                        "presentational": false,
-                        "orchestration": true
-                    }
-                }
-            ]
-        },
-        {
-            "id": "mobile/navigation/ProfileAvatarEntry",
-            "name": "ProfileAvatarEntry",
-            "group": "mobile",
-            "packageName": "@commise/mobile",
-            "layer": "app",
-            "dir": "packages/apps/commise/mobile/src/navigation",
-            "kind": "orchestration",
-            "patterns": [
-                "Adapter — the profile read, as the design-system Avatar's props"
-            ],
-            "platforms": [
-                "web"
-            ],
-            "crossPlatform": false,
-            "propsDiverge": false,
-            "documented": true,
-            "implementations": [
-                {
-                    "name": "ProfileAvatarEntry",
-                    "platform": "web",
-                    "sourcePath": "packages/apps/commise/mobile/src/navigation/ProfileAvatarEntry.tsx",
-                    "dir": "packages/apps/commise/mobile/src/navigation",
-                    "moduleDoc": "navigation/ProfileAvatarEntry — the avatar at the end of a tab root's large title, which pushes Profile onto\nthe CURRENT tab's stack (`docs/design/uiOverhaul/buildSpec.md` §3.1, §3.3). Native's `'·'` for a name-less cook is\ngone: the design system draws the `user` glyph (M8).\n\nORCHESTRATION: it reads the signed-in profile (`useUserProfile`) and hands `@commise/ui/avatar` its state; the route\nsays where a press goes. Data enters the chrome here.",
-                    "moduleTags": [
-                        {
-                            "name": "module",
-                            "text": "navigation/ProfileAvatarEntry — the avatar at the end of a tab root's large title, which pushes Profile onto"
-                        },
-                        {
-                            "name": "pattern",
-                            "text": "Adapter — the profile read, as the design-system Avatar's props"
-                        }
-                    ],
-                    "description": "",
-                    "tags": [
-                        {
-                            "name": "param",
-                            "text": "props - What a press does, and the disc's form."
-                        },
-                        {
-                            "name": "returns",
-                            "text": "The tab root's profile entry."
-                        }
-                    ],
-                    "detectedBy": "react-docgen-typescript",
-                    "exportKind": "named",
-                    "props": [
-                        {
-                            "name": "onPress",
-                            "type": "() => void",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "Push Profile onto the current tab's stack.",
-                            "declaredIn": "packages/apps/commise/mobile/src/navigation/ProfileAvatarEntry.tsx"
-                        },
-                        {
-                            "name": "size",
-                            "type": "enum",
-                            "typeDetail": [
-                                "\"default\"",
-                                "\"large\""
-                            ],
-                            "required": false,
-                            "defaultValue": null,
-                            "description": "The disc's form; Home's header asks for `large`. Omitted, it is the 32 pt disc.",
-                            "declaredIn": "packages/apps/commise/mobile/src/navigation/ProfileAvatarEntry.tsx"
                         }
                     ],
                     "usesRefApi": [],
@@ -2913,7 +2826,7 @@
             "dir": "packages/apps/commise/mobile/src/navigation",
             "kind": "orchestration",
             "patterns": [
-                "Composite — three per-tab stacks under one tab navigator"
+                "Composite — four per-tab stacks under one tab navigator"
             ],
             "platforms": [
                 "web"
@@ -2927,7 +2840,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/mobile/src/navigation/TabsNavigator.tsx",
                     "dir": "packages/apps/commise/mobile/src/navigation",
-                    "moduleDoc": "navigation/TabsNavigator — the bottom tabs, one native stack each (ADR-0056; blueprint A6), drawn by our own\nbar (`AppTabBar`, D6/D14). `backBehavior=\"initialRoute\"`: Android Back from the root of Recipes or Discover goes to\nHome, and from Home leaves the app (`buildSpec.md` §3.5).\n\nORCHESTRATION: it composes the navigator; the bar it draws is presentational (`HomeTabBar`).",
+                    "moduleDoc": "navigation/TabsNavigator — the bottom tabs, one native stack each (ADR-0056; blueprint A6), drawn by our own\nbar (`AppTabBar`, D6/D14). `backBehavior=\"initialRoute\"`: Android Back from the root of Recipes, Discover or You goes\nto Home, and from Home leaves the app (`buildSpec.md` §3.5). You is Profile's own `profile` stack (owner ruling\n2026-11-11, N3).\n\nORCHESTRATION: it composes the navigator; the bar it draws is presentational (`HomeTabBar`).",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -2935,7 +2848,7 @@
                         },
                         {
                             "name": "pattern",
-                            "text": "Composite — three per-tab stacks under one tab navigator"
+                            "text": "Composite — four per-tab stacks under one tab navigator"
                         }
                     ],
                     "description": "",
@@ -3025,7 +2938,8 @@
                             "typeDetail": [
                                 "\"home\"",
                                 "\"recipes\"",
-                                "\"discover\""
+                                "\"discover\"",
+                                "\"you\""
                             ],
                             "required": true,
                             "defaultValue": null,
@@ -3357,15 +3271,6 @@
                     "exportKind": "named",
                     "props": [
                         {
-                            "name": "headerAction",
-                            "type": "HeaderAction",
-                            "typeDetail": null,
-                            "required": false,
-                            "defaultValue": null,
-                            "description": "The large title's action: the avatar, which pushes Profile. The route supplies it.",
-                            "declaredIn": "packages/apps/commise/mobile/src/screens/CollectionsScreen.tsx"
-                        },
-                        {
                             "name": "onCreateRecipe",
                             "type": "() => void",
                             "typeDetail": null,
@@ -3559,15 +3464,6 @@
                             "declaredIn": "packages/apps/commise/mobile/src/screens/HomeScreen.tsx"
                         },
                         {
-                            "name": "onOpenProfile",
-                            "type": "() => void",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "Push Profile, from the avatar.",
-                            "declaredIn": "packages/apps/commise/mobile/src/screens/HomeScreen.tsx"
-                        },
-                        {
                             "name": "onOpenRecipe",
                             "type": "(recipeId: string) => void",
                             "typeDetail": null,
@@ -3683,7 +3579,7 @@
             "dir": "packages/apps/commise/mobile/src/screens",
             "kind": "orchestration",
             "patterns": [
-                "Composition root over the Profile render leaves — the read, the editor and the navigator's back meet here and\n    nowhere below"
+                "Composition root over the Profile render leaves — the read and the editor meet here and nowhere below"
             ],
             "platforms": [
                 "web"
@@ -3697,22 +3593,22 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/mobile/src/screens/profile.tsx",
                     "dir": "packages/apps/commise/mobile/src/screens",
-                    "moduleDoc": "screens/profile — the one Profile page (native; `docs/design/uiOverhaul/buildSpec.md` §9.1), pushed from the\navatar. It replaces the old profile form AND the `AccountSettings` hub: who the cook is, the one thing they can\nchange (the display name), preferences, sign out, and the danger zone.\n\nORCHESTRATION. It owns the profile read (`useUserProfile`, the shell's own cached query), the display-name editor and\nthe photo write, and hands the render leaves from `@commise/features-account/profile` their state. The read decides\none of three states — loading, failed, ready — and ONLY the Account group depends on it: sign out and the danger zone\nneed no profile, so a failed read never takes them away (E15). That is why this is a plain query and not a suspense\nread under a boundary: a boundary would replace the whole page with its error.\n\nSign out is `SignOutButton`, which issues the one verified sign-out command (ADR-0009); close and erase are\n`AccountDangerZone`, which keeps its own dialogs and flows. Nothing here calls Clerk's `signOut`.\n\nTHE PHOTO. The spec's 72 pt avatar is \"initials, or the native `AvatarField` photo\". The native `ProfileHeader` takes\nthe photo control as its `avatar` slot, so the page has ONE avatar (the initials are the control's own fallback).\nA picked photo is an explicit act and is written ALONE (`{ avatarKey }`) through its own mutation; the display name is\nwritten only from the sheet's Save, so the two never share a pending or failed state. A failed pick or a failed save\nof the photo shows one alert under the header.",
+                    "moduleDoc": "screens/profile — the one Profile page (native; `docs/design/uiOverhaul/buildSpec.md` §9.1), the root of the\nYou tab's own `profile` stack (owner ruling 2026-11-11, N3), so it has no back control. It replaces the old profile form AND the `AccountSettings` hub: who the cook is, the one thing they can\nchange (the display name), preferences, sign out, and the danger zone.\n\nORCHESTRATION. It owns the profile read (`useUserProfile`, the shell's own cached query), the display-name editor and\nthe photo write, and hands the render leaves from `@commise/features-account/profile` their state. The read decides\none of three states — loading, failed, ready — and ONLY the Account group depends on it: sign out and the danger zone\nneed no profile, so a failed read never takes them away (E15). That is why this is a plain query and not a suspense\nread under a boundary: a boundary would replace the whole page with its error.\n\nSign out is `SignOutButton`, which issues the one verified sign-out command (ADR-0009); close and erase are\n`AccountDangerZone`, which keeps its own dialogs and flows. Nothing here calls Clerk's `signOut`.\n\nTHE PHOTO. The spec's 72 pt avatar is \"initials, or the native `AvatarField` photo\". The native `ProfileHeader` takes\nthe photo control as its `avatar` slot, so the page has ONE avatar (the initials are the control's own fallback).\nA picked photo is an explicit act and is written ALONE (`{ avatarKey }`) through its own mutation; the display name is\nwritten only from the sheet's Save, so the two never share a pending or failed state. A failed pick or a failed save\nof the photo shows one alert under the header.",
                     "moduleTags": [
                         {
                             "name": "module",
-                            "text": "screens/profile — the one Profile page (native; `docs/design/uiOverhaul/buildSpec.md` §9.1), pushed from the"
+                            "text": "screens/profile — the one Profile page (native; `docs/design/uiOverhaul/buildSpec.md` §9.1), the root of the"
                         },
                         {
                             "name": "pattern",
-                            "text": "Composition root over the Profile render leaves — the read, the editor and the navigator's back meet here and\n    nowhere below"
+                            "text": "Composition root over the Profile render leaves — the read and the editor meet here and nowhere below"
                         }
                     ],
-                    "description": "The Profile page, inside the shared pushed-page frame (it is a pushed screen, not a tab root): the frame owns the one\nscroll host and pins Back in the bar, so Back is reachable at every scroll position.",
+                    "description": "The Profile page, the You tab's root: it draws inside the tab root's own scroll host (so a second tap on You scrolls it\nto the top) and has no Back.",
                     "tags": [
                         {
                             "name": "param",
-                            "text": "props - The way back, and the way to Data sources."
+                            "text": "props - The scroller's bind and the ways to Data sources and Your foods."
                         },
                         {
                             "name": "returns",
@@ -3722,15 +3618,6 @@
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
                     "props": [
-                        {
-                            "name": "onBack",
-                            "type": "() => void",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "Leave Profile: pop to the screen it was pushed from.",
-                            "declaredIn": "packages/apps/commise/mobile/src/screens/profile.tsx"
-                        },
                         {
                             "name": "onOpenDataSources",
                             "type": "() => void",
@@ -3747,6 +3634,15 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "",
+                            "declaredIn": "packages/apps/commise/mobile/src/screens/profile.tsx"
+                        },
+                        {
+                            "name": "scrollBind",
+                            "type": "ScrollBind",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The bind for the page's one vertical scroller, from the tab root's `ScrollHost`.",
                             "declaredIn": "packages/apps/commise/mobile/src/screens/profile.tsx"
                         }
                     ],
@@ -3919,7 +3815,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/mobile/src/screens/RecipeDiscoveryScreen.tsx",
                     "dir": "packages/apps/commise/mobile/src/screens",
-                    "moduleDoc": "Public-recipe discovery screen (mobile, T076 / US2 + FR-006, U7 overhaul, orchestration): the mobile host of the shared\n`DiscoveryScreen` (`@commise/features-recipes/discovery`), which owns the frame, the search, the filters, the rails and\nthe results — the same code the web route runs, so the two platforms cannot drift on what a search is or what stays on\nscreen while a newer one is pending. This file supplies only what is mobile's:\n\n- **The criteria live in component state** (`useStateCriteriaStore`), seeded from `initialFilters` — a tag deep-link\n  from a recipe detail (D6), which still runs through the SAME visibility-scoped search. Unlike web there is no URL.\n- **The platform** (`nativeDiscoveryPlatform`): the plain read boundary, the calorie lookup, and `AsyncStorage` for the\n  recent searches.\n- **Navigation**: a selected card opens its detail through the navigator; the snackbar's Edit opens the copy. The\n  route also supplies the large title's avatar action and the scroll host's bind for the screen's one scroller.",
+                    "moduleDoc": "Public-recipe discovery screen (mobile, T076 / US2 + FR-006, U7 overhaul, orchestration): the mobile host of the shared\n`DiscoveryScreen` (`@commise/features-recipes/discovery`), which owns the frame, the search, the filters, the rails and\nthe results — the same code the web route runs, so the two platforms cannot drift on what a search is or what stays on\nscreen while a newer one is pending. This file supplies only what is mobile's:\n\n- **The criteria live in component state** (`useStateCriteriaStore`), seeded from `initialFilters` — a tag deep-link\n  from a recipe detail (D6), which still runs through the SAME visibility-scoped search. Unlike web there is no URL.\n- **The platform** (`nativeDiscoveryPlatform`): the plain read boundary, the calorie lookup, and `AsyncStorage` for the\n  recent searches.\n- **Navigation**: a selected card opens its detail through the navigator; the snackbar's Edit opens the copy. The\n  route also supplies the scroll host's bind for the screen's one scroller.",
                     "moduleTags": [
                         {
                             "name": "pattern",
@@ -3940,15 +3836,6 @@
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
                     "props": [
-                        {
-                            "name": "headerAction",
-                            "type": "HeaderAction",
-                            "typeDetail": null,
-                            "required": false,
-                            "defaultValue": null,
-                            "description": "The large title's action: the avatar, which pushes Profile (slice 3). The route supplies it.",
-                            "declaredIn": "packages/apps/commise/mobile/src/screens/RecipeDiscoveryScreen.tsx"
-                        },
                         {
                             "name": "initialFilters",
                             "type": "RecipeFilterState",
@@ -4163,7 +4050,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/mobile/src/screens/RecipeListScreen.tsx",
                     "dir": "packages/apps/commise/mobile/src/screens",
-                    "moduleDoc": "Recipe-list screen (mobile, orchestration). The shared native recipe-list FRAME (title band + search field) around a suspense read\nof the caller's library: `Suspense` renders `RecipeListLoading`, the error boundary renders `RecipeListLoadError`\n(its retry refetches; the frame keeps the create button), and once settled the RESULTS render the facet chips, the rows\nnarrowed by the search term and chips with pull-to-refresh, and a notice for a failed refresh of them.\n\nThe screen owns the search term and the active chips, because both outlive the boundary: typing while the library\nloads, or pressing Try again, must not reset them. A retry from the refresh notice that succeeds moves the\nscreen-reader cursor to the heading; the notice is inside the boundary and the heading outside it, so the recovery\ncrosses as a `useRecoverySignal` counter. Community switching is the shell's Discover tab on mobile, so the frame\nmounts no source switcher (L5 parity).\n\nSlice 4 of the UI overhaul (`docs/design/uiOverhaul/buildSpec.md` §4.3): the screen reads the WHOLE library in\nchunks of up to 500 (`recipeQueries(client).library`), so the chips, their counts and the no-match states are right\npast the first page (blueprint A11); forwards the sort to the server; reads and saves the list/grid choice as an account setting; and\ndecides the card variant from the container class. The My recipes · Collections segments are the host's to pass\n(`segments`), with the large title's avatar (`headerAction`).",
+                    "moduleDoc": "Recipe-list screen (mobile, orchestration). The shared native recipe-list FRAME (title band + search field) around a suspense read\nof the caller's library: `Suspense` renders `RecipeListLoading`, the error boundary renders `RecipeListLoadError`\n(its retry refetches; the frame keeps the create button), and once settled the RESULTS render the facet chips, the rows\nnarrowed by the search term and chips with pull-to-refresh, and a notice for a failed refresh of them.\n\nThe screen owns the search term and the active chips, because both outlive the boundary: typing while the library\nloads, or pressing Try again, must not reset them. A retry from the refresh notice that succeeds moves the\nscreen-reader cursor to the heading; the notice is inside the boundary and the heading outside it, so the recovery\ncrosses as a `useRecoverySignal` counter. Community switching is the shell's Discover tab on mobile, so the frame\nmounts no source switcher (L5 parity).\n\nSlice 4 of the UI overhaul (`docs/design/uiOverhaul/buildSpec.md` §4.3): the screen reads the WHOLE library in\nchunks of up to 500 (`recipeQueries(client).library`), so the chips, their counts and the no-match states are right\npast the first page (blueprint A11); forwards the sort to the server; reads and saves the list/grid choice as an account setting; and\ndecides the card variant from the container class. The My recipes · Collections segments are the host's to pass\n(`segments`).",
                     "moduleTags": [
                         {
                             "name": "pattern",
@@ -4184,15 +4071,6 @@
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
                     "props": [
-                        {
-                            "name": "headerAction",
-                            "type": "HeaderAction",
-                            "typeDetail": null,
-                            "required": false,
-                            "defaultValue": null,
-                            "description": "The large title's action: the avatar, which pushes Profile (slice 3). The route supplies it.",
-                            "declaredIn": "packages/apps/commise/mobile/src/screens/RecipeListScreen.tsx"
-                        },
                         {
                             "name": "onCreateRecipe",
                             "type": "() => void",

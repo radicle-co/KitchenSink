@@ -6,9 +6,10 @@
  * scrolls inside it if it is ever taller than the window. A flat `paper` panel over the canvas wash with no blur:
  * nothing scrolls under it, so glass would only cost a compositing pass (`modernizeA.md` §5).
  *
- * Top to bottom: the wordmark; **New recipe** (`newRecipe`, one tap to the editor since slice 8); the destinations
- * (`resolveHomeNav`); a divider; the profile row (the avatar and the cook's name, to Profile); the collapse control.
- * 256 px expanded, 80 px collapsed. Collapsed is a visual state, not an information state: each control keeps its
+ * Top to bottom: the profile row, in the 64 px first row the "Commise" wordmark used to hold (a 32 px avatar and the
+ * cook's name, to Profile, in the active style of a nav row on /profile; owner ruling 2026-11-11, N3); **New recipe**
+ * (`newRecipe`, one tap to the editor since slice 8); the destinations (`resolveHomeNav`, without You, which this row
+ * IS); the collapse control on the foot. 256 px expanded, 80 px collapsed. Collapsed is a visual state, not an information state: each control keeps its
  * accessible name.
  *
  * Presentational: every fact arrives in props; the collapse is the parent's state.
@@ -33,7 +34,7 @@ export interface HomeSidebarProps {
     readonly chrome: WebChromeMessages;
     readonly locale: string;
     readonly liveCapabilities: readonly string[];
-    /** The active destination, marked `aria-current`; `null` on a page that is none of them. */
+    /** The active destination, marked `aria-current`; `null` on a page that is none of them. `you` marks the profile row. */
     readonly activeId: HomeNavItemId | null;
     /** The profile read, for the profile row. */
     readonly profile: ProfileEntry;
@@ -90,6 +91,7 @@ export function HomeSidebar({
     newRecipe,
 }: HomeSidebarProps): JSX.Element {
     const profileLabel = profileLabelOf(chrome, profile.name);
+    const profileActive = activeId === 'you';
 
     return (
         <div
@@ -98,19 +100,39 @@ export function HomeSidebar({
                 collapsed ? 'w-20 items-center' : 'w-64'
             }`}
         >
-            <div className={`flex h-16 shrink-0 items-center ${collapsed ? 'justify-center' : 'px-6'}`}>
-                <span
-                    className="font-display text-xl font-bold text-ink"
-                    aria-label={collapsed ? chrome.logoAlt : undefined}
-                >
-                    {collapsed ? chrome.wordmark.slice(0, 1) : chrome.wordmark}
-                </span>
+            <div className={`flex h-16 shrink-0 items-center ${collapsed ? 'justify-center' : 'px-3'}`}>
+                <RailTip collapsed={collapsed} label={profileLabel}>
+                    <Link
+                        href={`/${locale}/profile` as Route}
+                        aria-label={profileLabel}
+                        aria-current={profileActive ? 'page' : undefined}
+                        className={`${ROW_CLASS} relative min-w-0 flex-1 ${collapsed ? 'justify-center' : ''} ${
+                            profileActive
+                                ? 'bg-selected-fill font-semibold text-ink'
+                                : `text-ink ${PRESS_FILL_CLASS.pointer}`
+                        }`}
+                    >
+                        <span
+                            aria-hidden="true"
+                            className={`absolute inset-y-2 start-0 w-[3px] rounded-e-full ${profileActive ? 'bg-here-bar' : ''}`}
+                        />
+                        <AvatarDisc status={profile.status} initials={initialsFor(profile.name)} />
+                        {collapsed ? null : (
+                            <span className="min-w-0 truncate">{profile.name ?? chrome.profileButtonNoName}</span>
+                        )}
+                    </Link>
+                </RailTip>
             </div>
 
             <div className={collapsed ? 'flex justify-center px-3 pb-3' : 'px-4 pb-3'}>{newRecipe}</div>
 
             <nav aria-label={chrome.primaryNavLabel} className="flex flex-col gap-1 px-3">
                 {resolveHomeNav(liveCapabilities).map((item) => {
+                    // You is the profile row above, not a second entry here.
+                    if (item.id === 'you') {
+                        return null;
+                    }
+
                     const href = homeNavHref(item.id, locale);
                     const active = item.id === activeId;
                     const label = chrome.destinations[item.id];
@@ -142,21 +164,6 @@ export function HomeSidebar({
                     );
                 })}
             </nav>
-
-            <div className="mx-3 my-3 border-t border-line-divider" />
-
-            <RailTip collapsed={collapsed} label={profileLabel}>
-                <Link
-                    href={`/${locale}/profile` as Route}
-                    aria-label={profileLabel}
-                    className={`${ROW_CLASS} mx-3 text-ink ${PRESS_FILL_CLASS.pointer} ${collapsed ? 'justify-center' : ''}`}
-                >
-                    <AvatarDisc status={profile.status} initials={initialsFor(profile.name)} />
-                    {collapsed ? null : (
-                        <span className="min-w-0 truncate">{profile.name ?? chrome.profileButtonNoName}</span>
-                    )}
-                </Link>
-            </RailTip>
 
             {/* The foot: `mt-auto` is on a wrapper of its own, because the Tooltip's wrapper would otherwise take the margin. */}
             <div className="mt-auto">

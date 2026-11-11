@@ -14,7 +14,7 @@ appId: ${APP_ID}
 - runFlow: auth/signinHome.yaml
 
 # Into the Profile page, where the "Food data sources" row sits under Preferences, above the danger zone.
-- tapOn: 'Profile.*'
+- tapOn: 'You'
 
 # The Display name row opens its sheet on the saved name and closes without writing anything. The save itself is not
 # driven here: it would rename the shared test user for every later run (the component tier owns that path).

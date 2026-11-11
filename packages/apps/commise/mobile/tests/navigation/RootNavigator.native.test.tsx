@@ -3,9 +3,11 @@
  * §3.7), with React Navigation 7 really running under react-native-web. The screens are stubbed — each has its own
  * suite — down to the callbacks the routes wire, so what is asserted is the NAVIGATION:
  *
- * - three tabs and no "Soon" tab; switching tabs keeps each tab's stack; a second tap on the active tab pops to root;
- * - Profile is pushed onto the CURRENT tab from the avatar, and Data sources is pushed from Profile (A-026: a page
- *   with Back to Profile, not a modal over it);
+ * - four tabs (Home, Recipes, Discover, You) and no "Soon" tab; switching tabs keeps each tab's stack; a second tap on
+ *   the active tab pops to root;
+ * - Profile is the ROOT of the You tab's own `profile` stack (owner ruling 2026-11-11, N3: it is no longer pushed from
+ *   an avatar), and Data sources is pushed from it onto that stack (A-026: a page with Back to Profile, not a modal over
+ *   it); a second tap on You pops back to Profile;
  * - a focused task sits above the tabs, so the tab bar hides by construction;
  * - the rules the deleted hand-made `RecipesScreen` stack carried, each at its new home (a new recipe opens with the
  *   list beneath it; a delete returns to the tab's root), and Paste ingredients opening the editor at Ingredients with
@@ -64,7 +66,6 @@ vi.mock('../../src/screens/HomeScreen.js', async () => {
         HomeScreen: (props: {
             onOpenRecipes: () => void;
             onOpenRecipe: (id: string) => void;
-            onOpenProfile: () => void;
             onCreateRecipe: () => void;
         }) => {
             const { show } = useSnackbar();
@@ -72,7 +73,6 @@ vi.mock('../../src/screens/HomeScreen.js', async () => {
             return stub('Home screen', {
                 'See all': props.onOpenRecipes,
                 'Open Lamb': () => props.onOpenRecipe('lamb'),
-                Avatar: props.onOpenProfile,
                 'New recipe': props.onCreateRecipe,
                 Remove: () => show({ message: 'Removed Pasta' }),
             });
@@ -181,8 +181,15 @@ vi.mock('../../src/screens/CollectionDetailScreen.js', () => ({
 }));
 vi.mock('../../src/screens/RecipeVersionsScreen.js', () => ({ RecipeVersionsScreen: () => stub('Versions', {}) }));
 vi.mock('../../src/screens/profile.js', () => ({
-    ProfileScreen: (props: { onBack: () => void; onOpenDataSources: () => void }) =>
-        stub('Profile screen', { 'Leave profile': props.onBack, 'Open data sources': props.onOpenDataSources }),
+    ProfileScreen: (props: { onOpenDataSources: () => void; onOpenYourFoods: () => void }) =>
+        stub('Profile screen', {
+            'Open data sources': props.onOpenDataSources,
+            'Open your foods': props.onOpenYourFoods,
+        }),
+}));
+vi.mock('@commise/features-recipes/food-page/mobile', () => ({
+    YourFoodsScreen: (props: { back: { label: string; onPress: () => void } }) =>
+        stub('Your foods screen', { [props.back.label]: props.back.onPress }),
 }));
 // The page itself has its own suite; here it is the callback the route wires, and the back control's name.
 vi.mock('@commise/features-recipes/data-sources/mobile', () => ({
@@ -240,19 +247,20 @@ function renderRoot(): void {
 
 const tabBar = () => screen.queryByRole('tablist', { name: 'Tabs' });
 const tab = (name: string) => within(tabBar() as HTMLElement).getByRole('tab', { name });
+/** The tabs' accessible names: the You tab's disc holds the cook's initials, so `textContent` is not the name. */
+const tabNames = (): (string | null)[] =>
+    within(tabBar() as HTMLElement)
+        .getAllByRole('tab')
+        .map((node) => node.getAttribute('aria-label'));
 const press = (name: string) => fireEvent.click(screen.getByRole('button', { name }));
 const showing = (name: string) => screen.queryByRole('heading', { name }) !== null;
 
 describe('the tabs', () => {
-    it('starts on Home, with exactly Home, Recipes and Discover and no "Soon" tab', () => {
+    it('starts on Home, with exactly Home, Recipes, Discover and You and no "Soon" tab', () => {
         renderRoot();
 
         expect(showing('Home screen')).toBe(true);
-        expect(
-            within(tabBar() as HTMLElement)
-                .getAllByRole('tab')
-                .map((node) => node.textContent),
-        ).toEqual(['Home', 'Recipes', 'Discover']);
+        expect(tabNames()).toEqual(['Home', 'Recipes', 'Discover', 'You']);
         expect(tab('Home').getAttribute('aria-selected')).toBe('true');
     });
 
@@ -332,45 +340,82 @@ describe('the Recipes segments', () => {
     });
 });
 
-describe('Profile, from the avatar', () => {
-    // REWRITTEN in slice 9: Profile is the ONE account page now (`AccountSettings` and its route are deleted), so
-    // there is no second screen to push from it. What stays: it opens on the CURRENT tab, and Back returns there.
-    it('is pushed onto the CURRENT tab’s stack and Back returns to it', () => {
+describe('Profile, the You tab’s root', () => {
+    // REWRITTEN for the You tab (owner ruling 2026-11-11, N3): Profile used to be pushed onto the CURRENT tab from an
+    // avatar and left with Back. It is the root of its own stack now, so it has no way back and the tab is how you leave.
+    it('opens as the root of the You tab, selected, with the tab bar kept and no way back', () => {
         renderRoot();
 
-        press('Avatar');
-        expect(showing('Profile screen')).toBe(true);
-        expect(tab('Home').getAttribute('aria-selected')).toBe('true');
+        fireEvent.click(tab('You'));
 
-        press('Leave profile');
-        expect(showing('Profile screen')).toBe(false);
-        expect(showing('Home screen')).toBe(true);
+        expect(showing('Profile screen')).toBe(true);
+        expect(tab('You').getAttribute('aria-selected')).toBe('true');
+        expect(tab('Home').getAttribute('aria-selected')).toBe('false');
+        expect(tabBar()).not.toBeNull();
+        expect(screen.queryByRole('button', { name: /^(Leave profile|Back)/u })).toBeNull();
     });
 
-    // A-026: Data sources used to open as a full-screen modal with ×, hiding the tab bar. It is a pushed page now.
-    it('pushes Data sources from Profile as a page with Back to Profile, keeping the tab bar', () => {
+    // A-026: Data sources used to open as a full-screen modal with ×, hiding the tab bar. It is a pushed page now, on
+    // the profile stack.
+    it('pushes Data sources from Profile onto the You stack as a page with Back to Profile, keeping the tab bar', () => {
         renderRoot();
-        press('Avatar');
+        fireEvent.click(tab('You'));
 
         press('Open data sources');
 
         expect(showing('Data sources screen')).toBe(true);
         expect(tabBar()).not.toBeNull();
-        expect(tab('Home').getAttribute('aria-selected')).toBe('true');
+        expect(tab('You').getAttribute('aria-selected')).toBe('true');
         expect(screen.getByRole('button', { name: 'Back to Profile' })).toBeTruthy();
     });
 
-    it('pops Data sources back to Profile, and Profile back to where it was opened', () => {
+    it('pops Data sources back to Profile, which stays the root of the You tab', () => {
         renderRoot();
-        press('Avatar');
+        fireEvent.click(tab('You'));
         press('Open data sources');
 
         press('Back to Profile');
+
         expect(showing('Data sources screen')).toBe(false);
         expect(showing('Profile screen')).toBe(true);
+        expect(tab('You').getAttribute('aria-selected')).toBe('true');
+    });
 
-        press('Leave profile');
+    it('pushes Your foods from Profile onto the You stack too', () => {
+        renderRoot();
+        fireEvent.click(tab('You'));
+
+        press('Open your foods');
+
+        expect(showing('Your foods screen')).toBe(true);
+        expect(tab('You').getAttribute('aria-selected')).toBe('true');
+    });
+
+    it('pops the You stack to Profile on a second tap of You', async () => {
+        renderRoot();
+        fireEvent.click(tab('You'));
+        press('Open data sources');
+        expect(showing('Data sources screen')).toBe(true);
+
+        fireEvent.click(tab('You'));
+        await act(async () => {
+            await new Promise((resolve) => requestAnimationFrame(resolve));
+        });
+
+        expect(showing('Profile screen')).toBe(true);
+        expect(showing('Data sources screen')).toBe(false);
+    });
+
+    it('keeps the You stack when the cook switches away and back', () => {
+        renderRoot();
+        fireEvent.click(tab('You'));
+        press('Open data sources');
+
+        fireEvent.click(tab('Home'));
         expect(showing('Home screen')).toBe(true);
+        fireEvent.click(tab('You'));
+
+        expect(showing('Data sources screen')).toBe(true);
     });
 });
 

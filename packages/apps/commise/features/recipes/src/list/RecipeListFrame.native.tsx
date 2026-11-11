@@ -64,7 +64,6 @@ export const RecipeListFrame: FC<RecipeListFrameProps> = ({
     createEntryYields,
     segments,
     headingFocusSignal,
-    headerAction,
     children,
 }) => {
     const { list } = useMessages(recipeMessages);
@@ -119,7 +118,6 @@ export const RecipeListFrame: FC<RecipeListFrameProps> = ({
                         headingId={RECIPES_TITLE_ID}
                         title={list.heading}
                         focusSignal={headingFocusSignal}
-                        {...(headerAction === undefined ? {} : { action: headerAction })}
                         {...(segmentControl === null ? {} : { segments: segmentControl })}
                     />
                 )}

@@ -7,10 +7,10 @@
  *
  * The three account controls are stubbed: their own suites own their flows, this one owns the page around them.
  *
- * Pinned back bar (`docs/design/uiRefreshWorkshop5/pinnedBackBar.md` §6): the page sits in the `PushedPageFrame`, so in
- * EVERY state it has one "Back to Home" in the bar (`nav:hidden`, below 840) and one in the header (`hidden
- * nav:inline-flex`, from 840). jsdom applies no stylesheet, so both are in its tree and the breakpoint is asserted through
- * those classes; a browser shows exactly one at each width (`tests/e2e/profile.spec.ts`).
+ * A ROOT, not a pushed page (owner ruling 2026-11-11, N3): Profile is the You tab's root, so in EVERY state it has NO
+ * Back control, neither the pinned bar nor the header eyebrow. This REWRITES the pinned-back-bar suite
+ * (`docs/design/uiRefreshWorkshop5/pinnedBackBar.md` §6) that asserted one "Back to Home" in each; the page left the
+ * `PushedPageFrame` with it. The pages Profile pushes (Your foods, the data sources) keep their own Back.
  */
 import { FoodServiceProvider } from '@kitchensink/food-service-client/hooks';
 import type { FoodServiceClient } from '@kitchensink/food-service-client';
@@ -21,7 +21,7 @@ import userEvent from '@testing-library/user-event';
 import type { ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { expectOneBackInBarAndOneInHeader, renderWithProviders } from '@commise/test-utils';
+import { renderWithProviders } from '@commise/test-utils';
 
 const { patchMe, getSettings, patchSettings, refetch, push, profileQuery, clerkUser } = vi.hoisted(() => ({
     patchMe: vi.fn(),
@@ -93,36 +93,21 @@ beforeEach(() => {
 
 afterEach(cleanup);
 
-describe('ProfileSurface — the pinned back bar', () => {
+describe('ProfileSurface — a tab root has no back control', () => {
     const states: readonly [string, () => void][] = [
         ['loading', () => (profileQuery.current = { isError: false })],
         ['read failed', () => (profileQuery.current = { isError: true })],
         ['ready', () => (profileQuery.current = ready('Eliza Moreno'))],
     ];
 
-    it.each(states)('%s: one Back in the bar (gone from 840) and the eyebrow (hidden below it)', (_state, arrange) => {
+    it.each(states)('%s: no Back in the bar and none in the header', (_state, arrange) => {
         arrange();
         mount();
 
-        expectOneBackInBarAndOneInHeader('Back to Home');
-    });
-
-    it('puts the bar before the page’s H1, so the reading order matches the screen', () => {
-        mount();
-        const { bar } = expectOneBackInBarAndOneInHeader('Back to Home');
-        const heading = screen.getByRole('heading', { level: 1, name: 'Profile' });
-
-        expect(bar.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    });
-
-    it('goes Home from the bar’s Back, and keeps the address for a modified click', async () => {
-        mount();
-        const { bar } = expectOneBackInBarAndOneInHeader('Back to Home');
-
-        await userEvent.click(bar);
-
-        expect(push).toHaveBeenCalledWith('/en');
-        expect(bar.getAttribute('href')).toBe('/en');
+        expect(screen.getByRole('heading', { level: 1, name: 'Profile' })).toBeTruthy();
+        expect(screen.queryByRole('link', { name: /^Back/u, hidden: true })).toBeNull();
+        expect(screen.queryByRole('button', { name: /^Back/u, hidden: true })).toBeNull();
+        expect(document.querySelector('[data-pushed-page]')).toBeNull();
     });
 });
 
@@ -137,12 +122,12 @@ describe('ProfileSurface — the page', () => {
         expect(classes.filter((name) => /(^|:)(pb|py|p)-/u.test(name) && name !== 'pb-12')).toEqual([]);
     });
 
-    it('has one H1, “Profile”, and a way back to Home', () => {
+    it('has one H1, “Profile”, and no way back: it is the You tab’s root', () => {
         mount();
 
         expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
         expect(screen.getByRole('heading', { level: 1, name: 'Profile' })).toBeTruthy();
-        expect(screen.getAllByText(/Back to Home|Home/).length).toBeGreaterThan(0);
+        expect(screen.queryByText(/Back to Home/u)).toBeNull();
     });
 
     // Owner ruling S2 (2026-10-27), replacing 2026-10-16's "header only": the header is the avatar and the name; the

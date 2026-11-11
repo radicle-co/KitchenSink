@@ -21,7 +21,6 @@ export default defineCard({
                 subtitle="12 recipes"
                 back={{ label: 'Back to Collections', parent: 'Collections', onPress: noop }}
                 action={{
-                    kind: 'controls',
                     button: (
                         <Button variant="secondary" size="sm" icon="arrowUp">
                             Share

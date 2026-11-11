@@ -2,16 +2,16 @@
     "schemaVersion": 1,
     "generatedBy": "@kitchensink/docgen-components",
     "totals": {
-        "components": 450,
-        "implementations": 659,
-        "props": 3610,
-        "documentedComponents": 446,
-        "implementationsWithModuleDoc": 636,
-        "implementationsWithComponentDoc": 493,
-        "documentedProps": 2916,
-        "classifiedComponents": 357,
-        "componentsWithPatternTag": 257,
-        "crossPlatformComponents": 209
+        "components": 447,
+        "implementations": 655,
+        "props": 3580,
+        "documentedComponents": 443,
+        "implementationsWithModuleDoc": 632,
+        "implementationsWithComponentDoc": 490,
+        "documentedProps": 2886,
+        "classifiedComponents": 354,
+        "componentsWithPatternTag": 254,
+        "crossPlatformComponents": 208
     },
     "groups": [
         {
@@ -21,16 +21,16 @@
             "layer": "design-system",
             "catalogue": "docs/generated/components/groups/designSystem.json",
             "coverage": {
-                "components": 94,
-                "implementations": 153,
-                "props": 859,
-                "documentedComponents": 94,
-                "implementationsWithModuleDoc": 153,
-                "implementationsWithComponentDoc": 139,
-                "documentedProps": 809,
-                "classifiedComponents": 87,
-                "componentsWithPatternTag": 94,
-                "crossPlatformComponents": 59
+                "components": 93,
+                "implementations": 151,
+                "props": 849,
+                "documentedComponents": 93,
+                "implementationsWithModuleDoc": 151,
+                "implementationsWithComponentDoc": 137,
+                "documentedProps": 799,
+                "classifiedComponents": 86,
+                "componentsWithPatternTag": 93,
+                "crossPlatformComponents": 58
             }
         },
         {
@@ -42,11 +42,11 @@
             "coverage": {
                 "components": 204,
                 "implementations": 346,
-                "props": 2390,
+                "props": 2381,
                 "documentedComponents": 204,
                 "implementationsWithModuleDoc": 346,
                 "implementationsWithComponentDoc": 235,
-                "documentedProps": 1818,
+                "documentedProps": 1809,
                 "classifiedComponents": 182,
                 "componentsWithPatternTag": 98,
                 "crossPlatformComponents": 142
@@ -78,15 +78,15 @@
             "layer": "app",
             "catalogue": "docs/generated/components/groups/web.json",
             "coverage": {
-                "components": 86,
-                "implementations": 86,
-                "props": 105,
-                "documentedComponents": 83,
-                "implementationsWithModuleDoc": 65,
-                "implementationsWithComponentDoc": 62,
-                "documentedProps": 65,
-                "classifiedComponents": 39,
-                "componentsWithPatternTag": 34,
+                "components": 85,
+                "implementations": 85,
+                "props": 101,
+                "documentedComponents": 82,
+                "implementationsWithModuleDoc": 64,
+                "implementationsWithComponentDoc": 61,
+                "documentedProps": 61,
+                "classifiedComponents": 38,
+                "componentsWithPatternTag": 33,
                 "crossPlatformComponents": 0
             }
         },
@@ -97,15 +97,15 @@
             "layer": "app",
             "catalogue": "docs/generated/components/groups/mobile.json",
             "coverage": {
-                "components": 56,
-                "implementations": 56,
-                "props": 159,
-                "documentedComponents": 55,
-                "implementationsWithModuleDoc": 54,
+                "components": 55,
+                "implementations": 55,
+                "props": 152,
+                "documentedComponents": 54,
+                "implementationsWithModuleDoc": 53,
                 "implementationsWithComponentDoc": 41,
-                "documentedProps": 150,
-                "classifiedComponents": 41,
-                "componentsWithPatternTag": 27,
+                "documentedProps": 143,
+                "classifiedComponents": 40,
+                "componentsWithPatternTag": 26,
                 "crossPlatformComponents": 0
             }
         }

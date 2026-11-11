@@ -1,15 +1,21 @@
 // @vitest-environment jsdom
 /**
- * The web bottom tab bar (`buildSpec.md` §3.2; slice 3): the three reachable destinations and no "Soon" item, on the
+ * The web bottom tab bar (`buildSpec.md` §3.2; slice 3): the reachable destinations and no "Soon" item, on the
  * floating layer's material, gone from 840; the active tab marked by `aria-current`, the here-bar and the weight; and the
  * second tap on the active tab — to the root from a pushed route, to the top at the root.
+ *
+ * Rewritten for the You tab (owner ruling 2026-11-11, N3): the bar now has FOUR items, Home, Recipes, Discover and You,
+ * so the tests that pinned "exactly three" pin four, and the ones that read a tab's `textContent` read its label, because
+ * the You tab's glyph is the cook's initials. The You tab's states (loading disc, initials, no-name glyph, active ring,
+ * accessible name "You") are the new describe at the foot.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 
 import { homeMessages } from '@commise/features-core/home';
 import { RECIPE_HOME_WIDGET_CAPABILITY } from '@commise/features-recipes';
-import type { HomeNavItemId } from '@commise/features-core';
+import type { HomeNavItemId, ProfileEntry } from '@commise/features-core';
+import { TAB_LABEL_CHROME_CAP } from '@commise/ui/scaled-type';
 import { ScrollHost } from '@commise/ui/scroll-host';
 
 import { webMessages } from '@/i18n/messages';
@@ -32,27 +38,32 @@ afterEach(() => {
     vi.unstubAllGlobals();
 });
 
+const READY: ProfileEntry = { status: 'ready', name: 'Eliza Montgomery' };
+
 const renderBar = (
     activeId: HomeNavItemId | null = 'home',
     live: readonly string[] = [RECIPE_HOME_WIDGET_CAPABILITY],
+    profile: ProfileEntry = READY,
 ) =>
     render(
         <ScrollHost>
-            <HomeTabBar chrome={chrome} locale="en" liveCapabilities={live} activeId={activeId} />
+            <HomeTabBar chrome={chrome} locale="en" liveCapabilities={live} activeId={activeId} profile={profile} />
         </ScrollHost>,
     );
 
 const bar = (): HTMLElement => screen.getByRole('navigation', { name: chrome.tabNavLabel });
 
+/** The visible label of every tab, in order (a tab's `textContent` also holds the You disc's initials). */
+const labels = (): (string | undefined)[] =>
+    within(bar())
+        .getAllByRole('link')
+        .map((link) => link.querySelector('.text-caption')?.textContent);
+
 describe('HomeTabBar (web)', () => {
-    it('shows exactly Home, Recipes and Discover, as links, and no "Soon" item', () => {
+    it('shows exactly Home, Recipes, Discover and You, as links, and no "Soon" item', () => {
         renderBar();
 
-        expect(
-            within(bar())
-                .getAllByRole('link')
-                .map((link) => link.textContent),
-        ).toEqual(['Home', 'Recipes', 'Discover']);
+        expect(labels()).toEqual(['Home', 'Recipes', 'Discover', 'You']);
         expect(within(bar()).queryByRole('button')).toBeNull();
         expect(bar().textContent).not.toMatch(/soon/i);
     });
@@ -61,7 +72,7 @@ describe('HomeTabBar (web)', () => {
         renderBar('home', [RECIPE_HOME_WIDGET_CAPABILITY, 'meal-planning']);
 
         // Plan has no route yet, so a live capability still draws no dead link.
-        expect(within(bar()).getAllByRole('link')).toHaveLength(3);
+        expect(within(bar()).getAllByRole('link')).toHaveLength(4);
     });
 
     it('links each destination to its route', () => {
@@ -69,6 +80,7 @@ describe('HomeTabBar (web)', () => {
 
         expect(within(bar()).getByRole('link', { name: 'Recipes' }).getAttribute('href')).toBe('/en/recipes');
         expect(within(bar()).getByRole('link', { name: 'Discover' }).getAttribute('href')).toBe('/en/discover');
+        expect(within(bar()).getByRole('link', { name: 'You' }).getAttribute('href')).toBe('/en/profile');
     });
 
     it('marks the active destination with aria-current, the here-bar and the weight', () => {
@@ -85,7 +97,7 @@ describe('HomeTabBar (web)', () => {
         expect(inactive.querySelector('.bg-here-bar')).toBeNull();
     });
 
-    it('marks nothing on a page that is no destination (Profile)', () => {
+    it('marks nothing on a page that is no destination (the 404)', () => {
         renderBar(null);
 
         expect(
@@ -162,8 +174,8 @@ describe('HomeTabBar (web) — one glyph row, whatever the labels do', () => {
         renderBar();
 
         for (const link of within(bar()).getAllByRole('link')) {
-            const glyph = link.querySelector('svg');
-            const label = within(link).getByText(link.textContent ?? '');
+            const glyph = link.querySelector('svg, [data-avatar-disc]');
+            const label = link.querySelector('.text-caption') as Element;
 
             expect(glyph).not.toBeNull();
             expect(glyph!.compareDocumentPosition(label) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
@@ -206,20 +218,134 @@ describe('HomeTabBar (web) — compact height', () => {
         }
     });
 
-    it('pads both sides by the safe-area inset so a cutout or a 3-button bar never covers a tab', () => {
+    // Rewritten for four tabs (2026-11-11): the bar's own 8 px side padding is gone, because four tabs of at least 80 px
+    // need the full 320 px and the padded 304 would push the fourth 16 px past the screen. The inset alone remains.
+    it('pads both sides by the safe-area inset alone so a cutout never covers a tab and four fit at 320', () => {
         renderBar();
 
-        expect(bar().className).toContain('pl-[max(0.5rem,env(safe-area-inset-left))]');
-        expect(bar().className).toContain('pr-[max(0.5rem,env(safe-area-inset-right))]');
+        expect(bar().className).toContain('pl-[env(safe-area-inset-left)]');
+        expect(bar().className).toContain('pr-[env(safe-area-inset-right)]');
+        expect(bar().className).not.toContain('max(0.5rem');
     });
 
     it('keeps every label as the link’s accessible name', () => {
         renderBar();
 
-        expect(
-            within(bar())
-                .getAllByRole('link')
-                .map((link) => link.textContent),
-        ).toEqual(['Home', 'Recipes', 'Discover']);
+        expect(labels()).toEqual(['Home', 'Recipes', 'Discover', 'You']);
+    });
+});
+
+/**
+ * The You tab (owner ruling 2026-11-11, N3; `buildSpec.md` §3.2): the cook's avatar as a 24 px disc over the label "You",
+ * to Profile. jsdom draws no pixels, so the ring and disc sizes are the declared classes; the 80 × 56 fit at 320 is the
+ * Playwright test's.
+ */
+/**
+ * Tab labels take their own 1.3× cap (owner ruling 2026-11-11, `buildSpec.md` §3.2): a label grows with the browser's text
+ * size to 1.3× the caption size and stops, so four tabs at 320 keep every label on one line inside its 80. The value is the
+ * shared `TAB_LABEL_CHROME_CAP`, never an inline number. jsdom lays nothing out, so this pins the declared size; the
+ * Playwright spec measures it at 320 with the text at 200%.
+ */
+describe('HomeTabBar (web) — the tab label cap', () => {
+    it('sizes every label as the caption size capped at 1.3× it, on one line', () => {
+        renderBar();
+
+        for (const link of within(bar()).getAllByRole('link')) {
+            const label = link.querySelector('.text-caption') as HTMLElement;
+
+            expect(label.style.fontSize).toBe(`min(0.875rem, ${String(14 * Number(TAB_LABEL_CHROME_CAP))}px)`);
+            // One line comes from the cap and the fit test, not from a nowrap: a longer translation wraps and the bar grows.
+            expect(label.className).not.toContain('whitespace-nowrap');
+        }
+    });
+});
+
+describe('HomeTabBar (web) — the You tab', () => {
+    const you = (): HTMLElement => within(bar()).getByRole('link', { name: 'You' });
+
+    it('is named by its visible label "You" alone, whatever the disc shows (SC 2.5.3)', () => {
+        renderBar('home', undefined, { status: 'ready', name: 'Eliza Montgomery' });
+
+        expect(you().textContent).toContain('EM');
+        expect(within(bar()).getAllByRole('link', { name: 'You' })).toHaveLength(1);
+    });
+
+    it('shows the initials in a 24 px disc on the action fill once the profile is ready', () => {
+        renderBar();
+
+        const disc = you().querySelector('[data-avatar-disc]');
+
+        // A glyph never scales with text: the box is 24 CSS px, not rem, the same as the icons beside it.
+        expect((disc as HTMLElement).style.width).toBe('24px');
+        expect((disc as HTMLElement).style.height).toBe('24px');
+        expect(disc?.className).not.toMatch(/\bsize-/u);
+        expect(disc?.className).toContain('bg-action');
+        expect(disc?.textContent).toBe('EM');
+        expect((disc?.firstElementChild as HTMLElement).style.fontSize).toBe('10px');
+    });
+
+    it('shows a blank pearl disc while the profile loads, with no glyph and no initials', () => {
+        renderBar('home', undefined, { status: 'loading', name: undefined });
+
+        const disc = you().querySelector('[data-avatar-disc]');
+
+        expect(disc?.className).toContain('bg-surface-muted');
+        expect(disc?.textContent).toBe('');
+        expect(disc?.querySelector('svg')).toBeNull();
+    });
+
+    it.each([
+        ['has no name', { status: 'ready', name: undefined } as const],
+        ['failed to load', { status: 'failed', name: undefined } as const],
+    ])('shows the 20 px user glyph, never an error, when the profile %s', (_what, profile) => {
+        renderBar('home', undefined, profile);
+
+        expect(you().querySelector('[data-avatar-disc] svg')?.getAttribute('width')).toBe('20');
+        expect(screen.queryByRole('alert')).toBeNull();
+    });
+
+    it('rings the disc in ink and marks the tab current when active (on /profile)', () => {
+        renderBar('you');
+
+        const disc = you().querySelector('[data-avatar-disc]');
+
+        expect(you().getAttribute('aria-current')).toBe('page');
+        // The ring is a box-shadow (`ring-*`), which takes no layout room, never a border.
+        expect(disc?.className).toContain('ring-2');
+        expect(disc?.className).toContain('ring-ink');
+        expect(disc?.className).not.toMatch(/\bborder/u);
+        expect(you().querySelector('.bg-here-bar')).not.toBeNull();
+        expect(you().querySelector('.text-caption')?.className).toContain('font-semibold');
+    });
+
+    it('draws no ring and no current mark when another tab is active', () => {
+        renderBar('recipes');
+
+        expect(you().getAttribute('aria-current')).toBeNull();
+        expect(you().querySelector('[data-avatar-disc]')?.className).not.toContain('ring-2');
+    });
+
+    it('takes an equal share of the bar and is at least 56 px tall, so four fit at 320 CSS px', () => {
+        renderBar();
+
+        for (const link of within(bar()).getAllByRole('link')) {
+            // Equal shares of the bar (`flex-1`), with no rem minimum: a rem minimum grows with the browser's text size, so
+            // at 200% four `min-w-20` tabs are 640 px and push You and Discover off a 320 px screen. Four shares of 320 are 80.
+            expect(link.className).toContain('flex-1');
+            expect(link.className).toContain('min-w-0');
+            expect(link.className).toContain('min-h-14');
+            expect(link.className).not.toMatch(/min-w-(?:20|24)/u);
+        }
+    });
+
+    it('scrolls to the top on a second tap at Profile, instead of navigating', () => {
+        route.pathname = '/en/profile';
+        renderBar('you');
+
+        const event = new MouseEvent('click', { bubbles: true, cancelable: true, button: 0 });
+        you().dispatchEvent(event);
+
+        expect(event.defaultPrevented).toBe(true);
+        expect(window.scrollTo).toHaveBeenCalledWith({ top: 0, behavior: 'smooth' });
     });
 });

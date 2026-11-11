@@ -6,13 +6,14 @@
 
 appId: ${APP_ID}
 ---
-# Sign in and land on the Home widget surface (the login core waits on the large title's avatar, "Profile…").
+# Sign in and land on the Home widget surface (the login core waits on the You tab).
 - runFlow: auth/signinHome.yaml
 
-# The header is one row: the greeting over today's date (no year), with the profile button on the same row.
+# The header is one row: the greeting over today's date (no year). No title row carries an avatar; Profile is the You tab.
 - assertVisible: '(Good (morning|afternoon|evening)|Still up)(, .*)?\??'
 - assertVisible: '[A-Za-z]+day, [A-Za-z]+ [0-9]{1,2}'
-- assertVisible: 'Profile.*'
+- assertNotVisible: 'Profile.*'
+- assertVisible: 'You'
 # The recipe (recent-recipes) widget renders on Home. The card title comes from the recipe feature's
 # `widgetTitle`; the wait absorbs the lazy widget-chunk load + the recipe-service fetch on first paint.
 - extendedWaitUntil:

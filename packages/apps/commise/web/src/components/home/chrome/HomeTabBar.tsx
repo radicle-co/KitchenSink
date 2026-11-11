@@ -2,8 +2,10 @@
 
 /**
  * @module home/chrome/HomeTabBar — the bottom tab bar on web below `nav` (840) (`docs/design/uiOverhaul/buildSpec.md`
- * §3.2): the reachable destinations of the shared nav model (`resolveHomeNav` — Home, Recipes, Discover today), each a
- * 24 px glyph over a `caption` label, on the floating layer's material (`ChromeSurface`).
+ * §3.2): the reachable destinations of the shared nav model (`resolveHomeNav` — Home, Recipes, Discover and You today),
+ * each a 24 px glyph over a `caption` label, on the floating layer's material (`ChromeSurface`). You is Profile, and
+ * its glyph is the cook's avatar as the design system's 24 px `AvatarDisc` (owner ruling 2026-11-11, N3), so the bar takes the
+ * profile read.
  *
  * - The active tab: `ink` glyph and label at weight 600 and a 32 × 3 px `hereBar` above the glyph, `aria-current`.
  *   Inactive: `inkMuted`. (Lucide has no filled glyph set, and a filled compass hides its needle, so the active tab is
@@ -12,7 +14,7 @@
  *   (`tabRootOf`; the page's `ScrollHost` moves the document).
  * - The glyphs are one row: every tab's column starts at the top, 8 px down, glyph first and label under it, so a label
  *   that wraps never moves its glyph (`deviceShots2.md` M-2).
- * - 64 px plus the bottom safe-area inset; each item at least 96 × 56 at 320 px.
+ * - 64 px plus the bottom safe-area inset; four equal shares of the bar, 80 px each at 320, at least 56 px tall.
  * - Compact height (owner 2026-10-13; a window under 480 px tall, which is a phone held sideways): the label sits BESIDE
  *   the glyph and the bar is 48 px plus the inset. Both sides pad their safe-area inset, so a cutout or the 3-button navigation
  *   bar never covers a tab. Pure CSS (`max-height: 479px`, one pixel under `isCompactHeight`'s 480): the bar already
@@ -23,17 +25,35 @@
  *
  * @pattern Adapter from the shared nav model and the current route to tab links
  */
-import { NAV_ITEM_GLYPH, resolveHomeNav, type HomeNavItemId } from '@commise/features-core';
-import type { HomeChromeMessages } from '@commise/features-core/home';
-import { ChromeSurface } from '@commise/ui/chrome-surface';
-import { Icon } from '@commise/ui/icon';
-import { useScrollHost } from '@commise/ui/scroll-host';
-import { FOCUS_RING_CLASS } from '@commise/ui/focus-ring';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import type { JSX, MouseEvent, Ref } from 'react';
 
+import type { HomeChromeMessages } from '@commise/features-core/home';
+import { AvatarDisc } from '@commise/ui/avatar';
+import { ChromeSurface } from '@commise/ui/chrome-surface';
+import { FOCUS_RING_CLASS } from '@commise/ui/focus-ring';
+import { Icon } from '@commise/ui/icon';
+import {
+    NAV_ITEM_GLYPH,
+    initialsFor,
+    resolveHomeNav,
+    type HomeNavItemId,
+    type ProfileEntry,
+} from '@commise/features-core';
+import { TAB_LABEL_CHROME_CAP } from '@commise/ui/scaled-type';
+import { typeRole } from '@commise/ui/tokens/typography';
+import { useScrollHost } from '@commise/ui/scroll-host';
+
 import { homeNavHref, tabRootOf } from './navHref';
+
+/**
+ * A tab label's size: the caption size, capped at {@link TAB_LABEL_CHROME_CAP} (1.3) times it, so a larger browser text size never
+ * pushes "Discover" past its 80 px at 320 (`buildSpec.md` §3.2). `min()` keeps the rem below the cap and stops above it.
+ */
+const TAB_LABEL_STYLE = {
+    fontSize: `min(${String(typeRole.caption.size / 16)}rem, ${String(typeRole.caption.size * Number(TAB_LABEL_CHROME_CAP))}px)`,
+} as const;
 
 /** Props for {@link HomeTabBar}. */
 export interface HomeTabBarProps {
@@ -43,8 +63,10 @@ export interface HomeTabBarProps {
     readonly locale: string;
     /** Capabilities whose backing service is live — which destinations show. */
     readonly liveCapabilities: readonly string[];
-    /** The active destination, marked `aria-current`; `null` on a page that is none of them (Profile, the 404). */
+    /** The active destination, marked `aria-current`; `null` on a page that is none of them (the 404). */
     readonly activeId: HomeNavItemId | null;
+    /** The profile read, for the You tab's disc. */
+    readonly profile: ProfileEntry;
     /** Receives the laid-out bar, so the shell can tell its popups what the bar covers (`tabBarInsets`). */
     readonly ref?: Ref<HTMLElement>;
 }
@@ -52,10 +74,10 @@ export interface HomeTabBarProps {
 /**
  * The web bottom tab bar.
  *
- * @param props - The chrome copy, locale, live capabilities and active destination.
+ * @param props - The chrome copy, locale, live capabilities, active destination and profile read.
  * @returns The fixed bottom navigation (gone from `nav`).
  */
-export function HomeTabBar({ chrome, locale, liveCapabilities, activeId, ref }: HomeTabBarProps): JSX.Element {
+export function HomeTabBar({ chrome, locale, liveCapabilities, activeId, profile, ref }: HomeTabBarProps): JSX.Element {
     const pathname = usePathname();
     const host = useScrollHost();
 
@@ -76,7 +98,7 @@ export function HomeTabBar({ chrome, locale, liveCapabilities, activeId, ref }: 
             aria-label={chrome.tabNavLabel}
             // The bar grows by the bottom safe-area inset and pads its foot by the same amount, so the 64 px row sits
             // clear above the home indicator. `env(...)` is 0 in a normal viewport.
-            className="fixed inset-x-0 bottom-0 z-50 isolate flex h-[calc(4rem+env(safe-area-inset-bottom))] justify-around pl-[max(0.5rem,env(safe-area-inset-left))] pr-[max(0.5rem,env(safe-area-inset-right))] pb-[env(safe-area-inset-bottom)] nav:hidden [@media(max-height:479px)]:h-[calc(3rem+env(safe-area-inset-bottom))]"
+            className="fixed inset-x-0 bottom-0 z-50 isolate flex h-[calc(4rem+env(safe-area-inset-bottom))] justify-around pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] pb-[env(safe-area-inset-bottom)] nav:hidden [@media(max-height:479px)]:h-[calc(3rem+env(safe-area-inset-bottom))]"
         >
             <ChromeSurface edge="top" />
             {resolveHomeNav(liveCapabilities).map((item) => {
@@ -93,7 +115,7 @@ export function HomeTabBar({ chrome, locale, liveCapabilities, activeId, ref }: 
                         href={href}
                         aria-current={active ? 'page' : undefined}
                         onClick={onTabClick(item.id)}
-                        className={`relative flex min-h-14 min-w-24 flex-1 flex-col items-center justify-start gap-1 rounded-md pt-2 [@media(max-height:479px)]:min-h-12 [@media(max-height:479px)]:flex-row [@media(max-height:479px)]:justify-center [@media(max-height:479px)]:gap-2 [@media(max-height:479px)]:pt-0 ${FOCUS_RING_CLASS.inset} ${
+                        className={`relative flex min-h-14 min-w-0 flex-1 flex-col items-center justify-start gap-1 rounded-md pt-2 [@media(max-height:479px)]:min-h-12 [@media(max-height:479px)]:flex-row [@media(max-height:479px)]:justify-center [@media(max-height:479px)]:gap-2 [@media(max-height:479px)]:pt-0 ${FOCUS_RING_CLASS.inset} ${
                             active ? 'text-ink' : 'text-ink-muted'
                         }`}
                     >
@@ -101,8 +123,17 @@ export function HomeTabBar({ chrome, locale, liveCapabilities, activeId, ref }: 
                             aria-hidden="true"
                             className={`absolute top-0 h-[3px] w-8 rounded-b-full ${active ? 'bg-here-bar' : ''}`}
                         />
-                        <Icon name={NAV_ITEM_GLYPH[item.id]} size={24} />
-                        <span className={`text-caption ${active ? 'font-semibold' : ''}`}>
+                        {item.id === 'you' ? (
+                            <AvatarDisc
+                                size="tab"
+                                status={profile.status}
+                                initials={initialsFor(profile.name)}
+                                active={active}
+                            />
+                        ) : (
+                            <Icon name={NAV_ITEM_GLYPH[item.id]} size={24} />
+                        )}
+                        <span className={`text-caption ${active ? 'font-semibold' : ''}`} style={TAB_LABEL_STYLE}>
                             {chrome.destinations[item.id]}
                         </span>
                     </Link>

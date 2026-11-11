@@ -15,7 +15,7 @@
 
 appId: ${APP_ID}
 ---
-# Sign in and land on the Home widget surface (the login core waits on the large title's avatar, "Profile…").
+# Sign in and land on the Home widget surface (the login core waits on the You tab).
 - runFlow: auth/signinHome.yaml
 
 # The recipe (recent-recipes) widget renders on Home. The wait absorbs the lazy widget-chunk load plus the

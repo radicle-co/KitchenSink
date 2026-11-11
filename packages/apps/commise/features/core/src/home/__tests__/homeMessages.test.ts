@@ -16,6 +16,10 @@ describe('homeMessages', () => {
         expect(en.chrome.tabNavLabel).toBe('Tabs');
     });
 
+    it('labels the You tab "You" (buildSpec §3.2, shell.tabs.you), which is also the tab’s accessible name (SC 2.5.3)', () => {
+        expect(en.chrome.destinations.you).toBe('You');
+    });
+
     it('leaves a {name} slot in every named greeting and in the profile entry’s name', () => {
         for (const greeting of Object.values(en.greetingsNamed)) {
             expect(greeting).toContain('{name}');

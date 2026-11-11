@@ -6,9 +6,19 @@ import type { ReactNode } from 'react';
 
 import { defineCard } from '../../../../src/cards/defineCard.js';
 
+/** The cook the You tab's disc shows. */
+const PROFILE = { status: 'ready', name: 'Ana Ruiz' } as const;
+
 const noop = (): void => undefined;
 const chrome = {
-    destinations: { home: 'Home', recipes: 'Recipes', discover: 'Discover', 'meal-plan': 'Plan', grocery: 'Shop' },
+    destinations: {
+        home: 'Home',
+        recipes: 'Recipes',
+        discover: 'Discover',
+        'meal-plan': 'Plan',
+        grocery: 'Shop',
+        you: 'You',
+    },
     profileButton: 'Profile, {name}',
     profileButtonNoName: 'Profile',
     tabNavLabel: 'Tabs',
@@ -48,7 +58,15 @@ export default defineCard({
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <style>{'nav[data-tab-bar]{display:flex!important}'}</style>
             <ScrollHost>
-                {screen(<HomeTabBar chrome={chrome} locale="en" liveCapabilities={[]} activeId="recipes" />)}
+                {screen(
+                    <HomeTabBar
+                        chrome={chrome}
+                        locale="en"
+                        liveCapabilities={[]}
+                        activeId="recipes"
+                        profile={PROFILE}
+                    />,
+                )}
             </ScrollHost>
         </div>
     ),
@@ -60,6 +78,7 @@ export default defineCard({
                     chrome={chrome}
                     liveCapabilities={[]}
                     activeId="recipes"
+                    profile={PROFILE}
                     onPress={noop}
                     bottomInset={34}
                     compact={false}
@@ -72,6 +91,7 @@ export default defineCard({
                     chrome={chrome}
                     liveCapabilities={[]}
                     activeId="discover"
+                    profile={PROFILE}
                     onPress={noop}
                     bottomInset={34}
                     compact

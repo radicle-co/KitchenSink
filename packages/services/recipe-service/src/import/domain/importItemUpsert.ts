@@ -2,10 +2,11 @@
  * What a request that names an item the import may already hold does with it (ADR-0072 §3).
  *
  * DESIGN PATTERN: **Specification / Policy module**, pure and total. Items are keyed by ORDINAL, so a replay (a lost `201`, a
- * second device, a retry) is safe. Once an item has paid its allowance unit, holds a parse job or has a match snapshot, the
- * recipe it holds is what those were made from, so a DIFFERENT recipe is refused rather than replacing it: replacing it
- * would orphan a paid parse and bill another. An identical recipe is a no-op, and a saved item is refused outright (its text
- * was shed at the save, so nothing can be compared, and an item is saved once).
+ * second device, a retry) is safe. Once an item is past `received` (it holds a parse job or a match snapshot), the recipe it
+ * holds is what those were made from, so a DIFFERENT recipe is refused rather than replacing it. A `received` item may be
+ * replaced even when it has paid its unit: the unit stays spent (nothing is billed twice), and the replace moves the item's
+ * parse generation, so a job created for the old text and never attached is not reused. An identical recipe is a no-op, and a
+ * saved item is refused outright (its text was shed at the save, so nothing can be compared, and an item is saved once).
  */
 import { isDeepStrictEqual } from 'node:util';
 

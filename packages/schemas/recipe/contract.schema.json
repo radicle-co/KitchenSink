@@ -3835,6 +3835,19 @@
                                         "citation"
                                     ],
                                     "type": "object"
+                                },
+                                {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                        "kind": {
+                                            "const": "unrecognised",
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "kind"
+                                    ],
+                                    "type": "object"
                                 }
                             ]
                         },
@@ -4607,6 +4620,19 @@
                                                 "citation"
                                             ],
                                             "type": "object"
+                                        },
+                                        {
+                                            "additionalProperties": false,
+                                            "properties": {
+                                                "kind": {
+                                                    "const": "unrecognised",
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "kind"
+                                            ],
+                                            "type": "object"
                                         }
                                     ]
                                 },
@@ -4928,6 +4954,19 @@
                     "required": [
                         "kind",
                         "citation"
+                    ],
+                    "type": "object"
+                },
+                {
+                    "additionalProperties": false,
+                    "properties": {
+                        "kind": {
+                            "const": "unrecognised",
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "kind"
                     ],
                     "type": "object"
                 }
@@ -5844,6 +5883,19 @@
                                         "citation"
                                     ],
                                     "type": "object"
+                                },
+                                {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                        "kind": {
+                                            "const": "unrecognised",
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "kind"
+                                    ],
+                                    "type": "object"
                                 }
                             ]
                         },
@@ -6531,6 +6583,19 @@
                                                 "required": [
                                                     "kind",
                                                     "citation"
+                                                ],
+                                                "type": "object"
+                                            },
+                                            {
+                                                "additionalProperties": false,
+                                                "properties": {
+                                                    "kind": {
+                                                        "const": "unrecognised",
+                                                        "type": "string"
+                                                    }
+                                                },
+                                                "required": [
+                                                    "kind"
                                                 ],
                                                 "type": "object"
                                             }

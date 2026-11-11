@@ -96,7 +96,7 @@ const RECLAIMED_CLASSES: readonly ReclaimedClass[] = [
     },
     {
         name: 'ECR repositories',
-        deletedBy: '§3/§4 (tag sweep and name sweep)',
+        deletedBy: '§3 (tag sweep)',
         probe: /aws ecr describe-repositories/,
         whyDiscovery: 'a build that pushed an image but never deployed leaves a repo and nothing else',
     },

@@ -67,6 +67,8 @@ path_belongs() { pr_scope_path_belongs "$PR" "$1"; }
 # per-stack read and the account-wide sweep cannot come to disagree about what belongs to this PR.
 environment_tag_belongs() { pr_scope_environment_tag_belongs "$PR" "$1"; }
 ENVIRONMENT_TAG_VALUES="$(pr_scope_environment_tag_values "$PR")"
+# The stack names the CI role may read: `STACK_READ_ACTIONS` on `stack/kitchensink-*/*` in GithubActionsAccessStack.
+READABLE_STACK_PREFIX='kitchensink-'
 
 # Every CloudFormation stack belonging to this PR, as `name<TAB>Environment-tag` lines.
 #
@@ -82,18 +84,29 @@ ENVIRONMENT_TAG_VALUES="$(pr_scope_environment_tag_values "$PR")"
 # which is a PREFIX rule — deliberately, because broadening it to match a suffix would put every
 # `kitchensink-*` name one typo away from a per-PR teardown.
 #
-# Takes the status set to look in (resting, or in-progress) and returns non-zero when the LIST call itself failed, so
-# a failed lookup is never read as "this PR owns nothing".
+# The tag is read only for a stack in `$READABLE_STACK_PREFIX`. ListStacks answers with every stack in the account,
+# which hosts another application too, while the CI role may DescribeStacks only `stack/kitchensink-*/*` and may
+# DeleteStack nothing outside it (GithubActionsAccessStack, teardownGrants.ts). Describing a foreign stack is
+# therefore refused, and that refusal failed every PR close; a stack the role cannot read is one it cannot delete,
+# so its tag is not read. A NAME match still applies to every stack.
+#
+# Takes the status set to look in (resting, or in-progress) and returns non-zero when a call failed, so a failed
+# lookup is never read as "this PR owns nothing". The CLI's own error stays on stderr, so the log says why.
 #
 # @sideEffect Calls the CloudFormation API.
 discover_pr_stacks() {
     local stack envtag names
     names=$(aws cloudformation list-stacks --region "$REGION" \
         --stack-status-filter "$@" \
-        --query 'StackSummaries[].StackName' --output text 2>/dev/null) || return 1
+        --query 'StackSummaries[].StackName' --output text) || return 1
     for stack in $names; do
-        envtag=$(aws cloudformation describe-stacks --region "$REGION" --stack-name "$stack" \
-            --query "Stacks[0].Tags[?Key=='Environment'].Value | [0]" --output text 2>/dev/null) || return 1
+        envtag=''
+        case "$stack" in
+            "$READABLE_STACK_PREFIX"*)
+                envtag=$(aws cloudformation describe-stacks --region "$REGION" --stack-name "$stack" \
+                    --query "Stacks[0].Tags[?Key=='Environment'].Value | [0]" --output text) || return 1
+                ;;
+        esac
         if belongs "$stack" || environment_tag_belongs "$envtag"; then
             printf '%s\t%s\n' "$stack" "$envtag"
         fi
@@ -424,18 +437,9 @@ for lg in $log_groups; do
         aws logs delete-log-group --region "$REGION" --log-group-name "$lg" || true
     fi
 done
-if ! ecr_repos=$(aws ecr describe-repositories --region "$REGION" \
-    --query 'repositories[].repositoryName' --output text); then
-    echo "::error::aws ecr describe-repositories failed — $PR's ECR repositories were not swept"
-    ecr_repos=''
-    teardown_failed=1
-fi
-for repo in $ecr_repos; do
-    if belongs "$repo"; then
-        echo "[ecr/name] delete $repo (force)"
-        aws ecr delete-repository --region "$REGION" --repository-name "$repo" --force || true
-    fi
-done
+# No ECR name sweep: it matched `pr-{N}…` repositories, which nothing creates (previews push to the shared
+# `kitchensink-*` repositories) and which the CI role could neither list nor delete. A tagged per-PR repository is
+# still deleted by section 3.
 
 if [ "$teardown_failed" -ne 0 ]; then
     echo "::error::Cleanup for $PR did NOT fully succeed — see the errors above."

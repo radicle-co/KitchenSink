@@ -24,6 +24,10 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 const SCRIPT = fileURLToPath(new URL('../../../../.github/scripts/teardownSandboxPr.sh', import.meta.url));
 const STACK = 'kitchensink-food-service-pr-73';
+/** Another open PR's stack: listed, readable, and never this PR's. */
+const OTHER_PR_STACK = 'kitchensink-recipe-service-pr-74';
+/** Another application's stack in the same account: listed, and unreadable by the CI role. */
+const FOREIGN_STACK = 'armoury-api-prod';
 
 let workdir: string;
 let binDir: string;
@@ -46,16 +50,27 @@ case "$1 $2" in
         esac
         ;;
     'cloudformation list-stacks')
+        # ListStacks is granted on \`*\`, so the real account answers with EVERY stack in it: another PR's, and
+        # another application's (the account hosts two). \`AWS_STUB_NO_SANDBOX\` is a PR that never raised one.
         case "$*" in
             *CREATE_IN_PROGRESS*) : ;;
-            *) echo '${STACK}' ;;
+            *)
+                [ -n "\${AWS_STUB_NO_SANDBOX:-}" ] || printf '%s\\t' '${STACK}'
+                printf '%s\\t%s\\n' '${OTHER_PR_STACK}' '${FOREIGN_STACK}'
+                ;;
         esac
         ;;
     'cloudformation describe-stacks')
+        # The CI role may read only \`stack/kitchensink-*/*\` (GithubActionsAccessStack's STACK_READ_ACTIONS), so a
+        # describe of any other stack is refused exactly as IAM refuses it.
+        case "$*" in
+            *'--stack-name kitchensink-'*) ;;
+            *'--stack-name '*) echo 'AccessDenied: not authorized to perform: cloudformation:DescribeStacks' >&2; exit 254 ;;
+        esac
         case "$*" in
             *Tags*)
                 fails describe && { echo 'Throttling' >&2; exit 254; }
-                echo pr-73
+                case "$*" in *pr-74*) echo pr-74-sandbox ;; *) echo pr-73-sandbox ;; esac
                 ;;
             *PerPrDatabaseReaperFunctionName*) echo kitchensink-data-sandbox-reaper ;;
         esac
@@ -75,7 +90,8 @@ case "$1 $2" in
         fails logs && { echo 'AccessDenied' >&2; exit 254; }
         ;;
     'ecr describe-repositories')
-        fails ecr && { echo 'AccessDenied' >&2; exit 254; }
+        # The CI role may describe only \`repository/kitchensink-*\`, so an unscoped listing (\`repository/*\`) is refused.
+        case "$*" in *--repository-names*) ;; *) echo 'AccessDeniedException: ecr:DescribeRepositories' >&2; exit 254 ;; esac
         ;;
     'lambda invoke')
         for arg in "$@"; do
@@ -98,7 +114,7 @@ interface RunResult {
 }
 
 /** Run the real teardown script for pr-73 with the stub CLIs first on PATH. */
-function run(fail?: string): RunResult {
+function run(fail?: string, extraEnv: Record<string, string> = {}): RunResult {
     const result = spawnSync('bash', [SCRIPT, 'pr-73', 'us-east-1'], {
         encoding: 'utf8',
         env: {
@@ -116,6 +132,7 @@ function run(fail?: string): RunResult {
             SANDBOX_WAKE_REQUIRED_HEADROOM_SECONDS: '0',
             TEARDOWN_SETTLE_TIMEOUT_SECONDS: '3',
             TEARDOWN_SETTLE_POLL_SECONDS: '1',
+            ...extraEnv,
         },
     });
     const calls = existsSync(logFile)
@@ -149,12 +166,37 @@ afterEach(() => {
 });
 
 describe('teardown fails the run when a stack delete or a sweep listing fails', () => {
-    it('a clean run with one stack that deletes fine exits 0', () => {
+    it('a PR with a sandbox deletes its own stack, after its preview address, and exits 0', () => {
         const { status, stdout, calls } = run();
+        const deletes = calls.filter((call) => call.startsWith('cloudformation delete-stack'));
+        const addressAt = calls.findIndex((call) => call.includes('teardownPreviewDomain'));
+        const deleteAt = calls.findIndex((call) => call.startsWith('cloudformation delete-stack'));
 
-        expect(calls.some((call) => call.startsWith('cloudformation delete-stack') && call.includes(STACK))).toBe(true);
+        expect(deletes).toEqual([expect.stringContaining(STACK)]);
+        expect(addressAt).toBeGreaterThanOrEqual(0);
+        expect(addressAt).toBeLessThan(deleteAt);
         expect(stdout).not.toContain('::error::');
         expect(status).toBe(0);
+    });
+
+    it('a PR that never raised a sandbox is a clean no-op, even with other stacks in the account', () => {
+        const { status, stdout, calls } = run(undefined, { AWS_STUB_NO_SANDBOX: '1' });
+
+        expect(calls.filter((call) => call.startsWith('cloudformation delete-stack'))).toEqual([]);
+        expect(stdout).not.toContain('::error::');
+        expect(status).toBe(0);
+    });
+
+    it('never asks to read a stack outside the namespace the CI role may read', () => {
+        const { calls } = run();
+
+        expect(calls.filter((call) => call.includes(`--stack-name ${FOREIGN_STACK}`))).toEqual([]);
+    });
+
+    it('never makes the unscoped ECR listing the CI role is refused', () => {
+        const { calls } = run();
+
+        expect(calls.filter((call) => call.startsWith('ecr describe-repositories'))).toEqual([]);
     });
 
     it('a stack whose delete never completes fails the run and names the stack', () => {
@@ -174,7 +216,6 @@ describe('teardown fails the run when a stack delete or a sweep listing fails', 
     it.each([
         ['tagsweep', 'resourcegroupstaggingapi get-resources'],
         ['logs', 'logs describe-log-groups'],
-        ['ecr', 'ecr describe-repositories'],
     ])('a failed %s listing fails the run and names the call', (fail, call) => {
         const { status, stdout } = run(fail);
 
@@ -192,6 +233,6 @@ describe('teardown fails the run when a stack delete or a sweep listing fails', 
     it('a failed delete still lets the sweeps run', () => {
         const { calls } = run('delete');
 
-        expect(calls.some((call) => call.startsWith('ecr describe-repositories'))).toBe(true);
+        expect(calls.some((call) => call.startsWith('logs describe-log-groups'))).toBe(true);
     });
 });

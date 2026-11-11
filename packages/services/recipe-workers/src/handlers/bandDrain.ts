@@ -14,6 +14,11 @@
  * drain PAUSES and the backlog simply waits for the next period. Nothing is lost — undrained rows are
  * re-read every tick.
  *
+ * ⚠️ THIS IS ALSO THE MAINTENANCE TICK. Its 15-minute schedule hosts, after the drain: the parse-job TTL sweep, the stall gauge,
+ * and the bulk import purge (ADR-0072 §9). A sweep that needs a schedule belongs here rather than in a Lambda of its own, which
+ * would be a new NAT consumer (ADR-0004) and a new rule ADR-0060 and ADR-0061 would govern. The three share one 60-second
+ * timeout, so each keeps to a budget of its own.
+ *
  * ⚠️ Send-then-mark, per skip: a crash between the two redelivers (re-sends) that one message, and the
  * gate's content-keyed verdict store makes the duplicate a cheap no-op upsert — the safe direction. The
  * reverse order would mark a message drained that was never sent, silently losing a re-verification.
@@ -31,6 +36,7 @@ import { logger } from '../common/logger.js';
 import { isSpendGated } from '../common/verificationSpend.js';
 import { emitMetric, type EmfMetric } from '../common/metrics.js';
 import { expireParseJobs, oldestRunningParseJobAgeSeconds, type ExpiryQueryable } from '../parsing/parseJobExpiry.js';
+import { purgeFinishedImports } from '../import/importPurge.js';
 import { PARSE_METRIC_NAMESPACE } from '../parsing/crfInvoke.js';
 import {
     createSsmSettingsLoader,
@@ -381,6 +387,33 @@ export async function publishParseStallGauge(deps: {
 }
 
 /**
+ * The sweeps the drain's tick also hosts, in order: the parse-job TTL sweep, the stall gauge, then the bulk import purge.
+ *
+ * Plan U9: the TTL sweep rides this tick (see `parseJobExpiry.ts` for why it is not its own Lambda). Pure SQL, no spend,
+ * so it runs outside the drain's headroom budget. The gauge reads AFTER the sweep, deliberately: the sweep has just retired
+ * every job past its TTL, so the gauge reads the backlog still owed an answer, not a pile about to be cleared. The purge
+ * (ADR-0072 §9) runs LAST and is NOT swallowed: its data is user content past its retention bound, so a failure fails the
+ * tick loudly, and at the end it costs the sweeps above nothing.
+ *
+ * @param deps - The recipe pool, this deploy's stage, and the metric sink.
+ * @sideEffect Updates and deletes parse-job rows, writes one EMF line, and deletes idle bulk imports.
+ */
+export async function runMaintenanceSweeps(deps: {
+    readonly pool: ExpiryQueryable;
+    readonly stage: string;
+    readonly emit: (metric: EmfMetric) => void;
+}): Promise<void> {
+    await expireParseJobs(deps.pool);
+    await publishParseStallGauge(deps);
+
+    const purged = await purgeFinishedImports(deps.pool);
+
+    if (purged > 0) {
+        logger.info('bulk imports purged', { purged });
+    }
+}
+
+/**
  * Scheduled entry point.
  *
  * @sideEffect Everything {@link drainRevokedBands} does.
@@ -391,13 +424,7 @@ const rawHandler = async (): Promise<void> => {
     const queueUrl = requireEnv('INGREDIENT_VERIFICATION_QUEUE_URL');
 
     await drainRevokedBands(productionDeps(stage, region, queueUrl));
-    // Plan U9: the parse-job TTL sweep rides this tick (see `parseJobExpiry.ts` for why it is not its own
-    // Lambda). Pure SQL, no spend — deliberately OUTSIDE the drain's headroom budget.
-    await expireParseJobs(getRecipePool());
-    // ⚠️ AFTER the sweep, deliberately: the sweep has just retired every job past its TTL, so what the
-    // gauge reads is the backlog of jobs still genuinely owed an answer rather than a pile the sweep was
-    // about to clear. Reading first would report a stall that no longer exists.
-    await publishParseStallGauge({ pool: getRecipePool(), stage, emit: emitMetric });
+    await runMaintenanceSweeps({ pool: getRecipePool(), stage, emit: emitMetric });
 };
 
 /**

@@ -355,14 +355,14 @@ is reached, this path does not wait for the budget to return.
 - **A large library takes days.** At 1,000 recipes a rolling day (a paid plan), 017 SC-004's 2,000-recipe export
   finishes on the second day at the earliest. On Free's 200 a day it takes ten days.
 
-- **A purge drops open "to check" lines.** That list is derived from the snapshot, so a line still waiting for the
-  cook when its import is purged leaves the list and the count. The saved recipe keeps the line as the import left it.
-  This follows the owner's ruling literally and is open for the owner: if those lines must stay findable, the purge
+- **A purge drops open "to check" lines.** That list is derived from the snapshot. When an import is purged, its
+  lines that still wait for the cook leave the list and the count. The saved recipe keeps the line as the import left
+  it. This follows the owner's ruling literally, and it is open for the owner. To keep those lines findable, the purge
   needs a rule that spares an import with open lines.
 - **One very large import can outlast a purge statement.** The purge deletes 3 imports per statement, and each one
-  takes its items and lines with it by cascade. A file of any size is accepted, so one import holding tens of thousands
-  of recipes could make a single statement exceed the tick's time. The tick then fails, and the next tick retries the
-  same import.
+  takes its items and lines with it by cascade. A file of any size is accepted. So one import that holds tens of
+  thousands of recipes can make a single statement run past the tick's time. The tick then fails, and the next tick
+  tries the same import again.
 
 ## Follow-ups
 

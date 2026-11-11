@@ -11,6 +11,9 @@
  *    wizard with Save and leave, which works like it) and never after the cook went through the item.
  *  - "Pick the best match for me" binds every top match: the shown proposal, else the first candidate.
  *  - A skipped item keeps its open lines as written. Its confident lines still bind.
+ *  - ⛔ When the AI budget is spent NOTHING binds without the cook, in every mode (owner ruling 2026-10-26, ADR-0072 §10): a
+ *    line whose review reads `budgetSpent` is kept as written, a default does not bind and `bindBest` does not bind its top
+ *    match. The cook's own decision still wins. Such a line is OPEN until the cook accepts it, so the "to check" list covers it.
  *
  * ⚠️ PINNED READING: in `bindBest` a `default` line binds the TOP candidate as `autoBest`, not the default candidate
  * as `default`. The ruling says "binds every top match" and the default is a suggestion, not a top match. Flip it in
@@ -39,6 +42,11 @@ export interface LineFacts {
     readonly proposedFoodId: string | undefined;
     /** The shortlist, best first. */
     readonly candidates: readonly { readonly foodId: string; readonly isDefault: boolean }[];
+    /**
+     * Whether the AI budget is spent for this line (its match view reads `reviewBudgetSpent`, ADR-0072 §10). REQUIRED, so
+     * no call site can build a line and silently leave a spent budget out of a decision that binds food.
+     */
+    readonly budgetSpent: boolean;
     /** What the cook decided, or `undefined` when nothing yet. */
     readonly cookChoice:
         { readonly kind: 'food'; readonly foodId: string } | { readonly kind: 'asWritten' } | undefined;
@@ -59,13 +67,14 @@ export interface BindingInput {
 const AS_WRITTEN: LineBinding = { kind: 'asWritten' };
 
 /**
- * Whether the cook still has something to settle on a line: nothing decided and not confident.
+ * Whether the cook still has something to settle on a line: nothing decided and not confident. A line whose AI review was
+ * skipped for want of budget is open however its state reads: nothing about it was checked, so the cook must accept it.
  *
  * @param line - The line.
  * @returns `true` for an open line. Pure.
  */
 export function isOpenLine(line: LineFacts): boolean {
-    return line.cookChoice === undefined && line.state !== 'confident';
+    return line.cookChoice === undefined && (line.state !== 'confident' || line.budgetSpent);
 }
 
 /**
@@ -141,6 +150,11 @@ export function bindingOf(input: BindingInput): LineBinding {
         return line.cookChoice.kind === 'food'
             ? { kind: 'bind', foodId: line.cookChoice.foodId, boundBy: 'cook' }
             : AS_WRITTEN;
+    }
+
+    // ⛔ Nothing binds without the cook once the budget is spent: not a confident match, not a default, not the best match.
+    if (line.budgetSpent) {
+        return AS_WRITTEN;
     }
 
     if (line.state === 'confident') {

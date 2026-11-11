@@ -84,7 +84,7 @@ export function emitCurationDisagreement(): void {
 }
 
 /** A curated contradiction this read saw, waiting for its one count. */
-interface CurationReport {
+export interface CurationReport {
     readonly match: ParseJobMatch;
     readonly verificationKey: string;
     readonly foodId: string;
@@ -94,7 +94,7 @@ interface CurationReport {
 type NamedAnswer = Extract<FoodRefAnswer, { outcome: 'found' }> & { readonly name: string };
 
 /** The food a found answer says the ref LIVES at, named as food names it. Pure. */
-function namedFood(answer: NamedAnswer): {
+export function namedFood(answer: NamedAnswer): {
     readonly kind: FoodRef['kind'];
     readonly id: string;
     readonly name: string;
@@ -110,7 +110,7 @@ function namedFood(answer: NamedAnswer): {
  * ⛔ Non-empty, not merely present: the wire's `name` is `min(1)`, so one empty name would fail the whole response.
  * Dropping that one food loses a single option; relaxing the wire would widen a contract installed clients parse.
  */
-function isNamed(answer: FoodRefAnswer | undefined): answer is NamedAnswer {
+export function isNamed(answer: FoodRefAnswer | undefined): answer is NamedAnswer {
     return answer?.outcome === 'found' && answer.name !== undefined && answer.name.length > 0;
 }
 
@@ -120,6 +120,137 @@ function isNamed(answer: FoodRefAnswer | undefined): answer is NamedAnswer {
  */
 function within<T>(deadline: AbortSignal | undefined, work: () => Promise<T>, onLate?: (value: T) => void): Promise<T> {
     return deadline === undefined ? work() : boundedBy(deadline, work, onLate);
+}
+
+/** What a match is projected from: food's answers, the verdicts, the keys the gate gave up on, and the caller's containment. */
+export interface MatchProjectionRead {
+    readonly answers: ReadonlyMap<string, FoodRefAnswer>;
+    readonly verdicts: ReadonlyMap<string, LineVerdictRow>;
+    readonly exhausted: ReadonlySet<string>;
+    /** The keys whose review the ceiling refused in `period`. */
+    readonly budgetSpent: ReadonlySet<string>;
+    /** The spend period this read judges against. */
+    readonly period: string;
+    readonly contained: boolean;
+    /** Where a curated contradiction to count is collected, for {@link ParseJobMatchView.reportOnce}. */
+    readonly toReport: CurationReport[];
+}
+
+/**
+ * One food's match, or `null` when food could not be asked about it (rule 2). Pure apart from the curation report.
+ *
+ * Exported because the bulk import's line view projects its SNAPSHOT lines through the very same function (ADR-0072 §4, §6):
+ * one projection of a match, so the paste screen, the wizard and the lists cannot disagree about what a verdict means.
+ */
+export function projectMatch(match: ParseJobMatch, read: MatchProjectionRead): ParseProposalMatch | null {
+    const { answers, verdicts } = read;
+    const answerOf = (ref: FoodRef): FoodRefAnswer => answers.get(foodRefKey(ref)) ?? { outcome: 'unreachable' };
+    const asked = [...(match.proposal === null ? [] : [match.proposal.food]), ...match.candidates];
+
+    if (asked.some((ref) => answerOf(ref).outcome === 'unreachable')) {
+        return null;
+    }
+
+    const proposalAnswer = match.proposal === null ? undefined : answerOf(match.proposal.food);
+    const proposed = isNamed(proposalAnswer) ? namedFood(proposalAnswer) : null;
+    const candidates = candidatesOf(match, answerOf);
+    const verdict = match.verificationKey === null ? undefined : verdicts.get(match.verificationKey);
+    const answer = matchStateOf({
+        proposal:
+            match.proposal === null || proposed === null
+                ? undefined
+                : { matchedBy: match.proposal.matchedBy, rung: match.proposal.rung },
+        candidateCount: candidates.length,
+        defaultApplies: candidates.some((candidate) => candidate.isDefault),
+        proposalIsDefault:
+            proposed !== null &&
+            candidates.some(
+                (candidate) => candidate.isDefault && candidate.kind === proposed.kind && candidate.id === proposed.id,
+            ),
+        verdict:
+            verdict === undefined
+                ? undefined
+                : {
+                      band: verdict.band,
+                      certainty: verdict.certainty,
+                      identityVerdict: verdict.identityVerdict,
+                      aspects: verdict.aspects,
+                  },
+        review: reviewStandingOf(match.verificationKey, match.review === 'refused', read),
+    });
+
+    if (answer.reviewNote === 'reviewDisagreed' && proposed !== null && match.verificationKey !== null) {
+        read.toReport.push({ match, verificationKey: match.verificationKey, foodId: proposed.id });
+    }
+
+    return {
+        state: answer.state,
+        reason: answer.reason,
+        // ⛔ The policy decides: a rejected, contradicted or default proposal is shown only as a candidate.
+        proposed: proposalShownIn(answer.state) ? proposed : null,
+        candidates,
+        ...(answer.reviewNote === undefined ? {} : { reviewNote: answer.reviewNote }),
+        ...(answer.reason === REVIEW_BUDGET_SPENT_REASON ? resetsAt(read.period) : {}),
+    };
+}
+
+/** The named candidates at their live ends, a default first, then food's order; one entry per food. Pure. */
+function candidatesOf(match: ParseJobMatch, answerOf: (ref: FoodRef) => FoodRefAnswer): ParseProposalCandidate[] {
+    const seen = new Set<string>();
+    const named: ParseProposalCandidate[] = [];
+
+    for (const candidate of match.candidates) {
+        const answer = answerOf(candidate);
+
+        if (!isNamed(answer)) {
+            continue;
+        }
+
+        const food = namedFood(answer);
+        const key = foodRefKey(food);
+
+        if (!seen.has(key)) {
+            seen.add(key);
+            named.push({ ...food, isDefault: isDefaultRung(candidate.rung) });
+        }
+    }
+
+    return [...named.filter((candidate) => candidate.isDefault), ...named.filter((candidate) => !candidate.isDefault)];
+}
+
+/**
+ * Where the review of a verification key stands when there is no verdict: the row's PERSISTED disposition (F10), never
+ * the gate policy re-run here; and for a contained test principal, whose review is never sent (ADR-0040), `notAsked`.
+ * Pure.
+ *
+ * Exported because the bulk import's flag reads a SAVED line's key through the same rule (ADR-0072 §6), so a spent
+ * budget or a given-up review cannot read as `checking` on one screen and as settled on another.
+ *
+ * @param key - The verification key.
+ * @param refused - Whether the gate refused this review (persisted on the match row; a saved line has none).
+ * @param read - The keys the gate gave up on, the keys whose review the ceiling refused this period, and containment.
+ * @returns The review standing.
+ */
+export function reviewStandingOf(
+    key: string | null,
+    refused: boolean,
+    read: Pick<MatchProjectionRead, 'exhausted' | 'budgetSpent' | 'contained'>,
+): MatchFacts['review'] {
+    // ⛔ A spent budget is a fact about the KEY in the CURRENT period (the DAL filtered by it), so it comes first: it is
+    // the only reason a review is owed and will not be sent, and it must not read as `checking` or `unchecked`.
+    if (key !== null && read.budgetSpent.has(key)) {
+        return 'budgetSpent';
+    }
+
+    if (refused) {
+        return 'refused';
+    }
+
+    if (key !== null && read.exhausted.has(key)) {
+        return 'exhausted';
+    }
+
+    return read.contained ? 'notAsked' : 'asked';
 }
 
 @Injectable()
@@ -184,7 +315,7 @@ export class ParseJobMatchView {
 
             return match === undefined
                 ? null
-                : this.project(match, { answers, verdicts, exhausted, budgetSpent, period, contained, toReport });
+                : projectMatch(match, { answers, verdicts, exhausted, budgetSpent, period, contained, toReport });
         });
 
         await this.reportOnce(view.id, toReport, deadline);
@@ -320,130 +451,6 @@ export class ParseJobMatchView {
                 ? this.refs.resolve(caller, refs, 'read')
                 : this.refs.resolve(caller, refs, 'read', { signal: deadline }))
         ).answers;
-    }
-
-    /**
-     * One food's match, or `null` when food could not be asked about it (rule 2). Pure apart from the curation report.
-     */
-    private project(
-        match: ParseJobMatch,
-        read: {
-            readonly answers: ReadonlyMap<string, FoodRefAnswer>;
-            readonly verdicts: ReadonlyMap<string, LineVerdictRow>;
-            readonly exhausted: ReadonlySet<string>;
-            /** The keys whose review the ceiling refused in `period`. */
-            readonly budgetSpent: ReadonlySet<string>;
-            /** The spend period this read judges against. */
-            readonly period: string;
-            readonly contained: boolean;
-            /** Where a curated contradiction to count is collected, for {@link ParseJobMatchView.reportOnce}. */
-            readonly toReport: CurationReport[];
-        },
-    ): ParseProposalMatch | null {
-        const { answers, verdicts } = read;
-        const answerOf = (ref: FoodRef): FoodRefAnswer => answers.get(foodRefKey(ref)) ?? { outcome: 'unreachable' };
-        const asked = [...(match.proposal === null ? [] : [match.proposal.food]), ...match.candidates];
-
-        if (asked.some((ref) => answerOf(ref).outcome === 'unreachable')) {
-            return null;
-        }
-
-        const proposalAnswer = match.proposal === null ? undefined : answerOf(match.proposal.food);
-        const proposed = isNamed(proposalAnswer) ? namedFood(proposalAnswer) : null;
-        const candidates = this.candidatesOf(match, answerOf);
-        const verdict = match.verificationKey === null ? undefined : verdicts.get(match.verificationKey);
-        const answer = matchStateOf({
-            proposal:
-                match.proposal === null || proposed === null
-                    ? undefined
-                    : { matchedBy: match.proposal.matchedBy, rung: match.proposal.rung },
-            candidateCount: candidates.length,
-            defaultApplies: candidates.some((candidate) => candidate.isDefault),
-            proposalIsDefault:
-                proposed !== null &&
-                candidates.some(
-                    (candidate) =>
-                        candidate.isDefault && candidate.kind === proposed.kind && candidate.id === proposed.id,
-                ),
-            verdict:
-                verdict === undefined
-                    ? undefined
-                    : {
-                          band: verdict.band,
-                          certainty: verdict.certainty,
-                          identityVerdict: verdict.identityVerdict,
-                          aspects: verdict.aspects,
-                      },
-            review: this.reviewOf(match, read.exhausted, read.budgetSpent, read.contained),
-        });
-
-        if (answer.reviewNote === 'reviewDisagreed' && proposed !== null && match.verificationKey !== null) {
-            read.toReport.push({ match, verificationKey: match.verificationKey, foodId: proposed.id });
-        }
-
-        return {
-            state: answer.state,
-            reason: answer.reason,
-            // ⛔ The policy decides: a rejected, contradicted or default proposal is shown only as a candidate.
-            proposed: proposalShownIn(answer.state) ? proposed : null,
-            candidates,
-            ...(answer.reviewNote === undefined ? {} : { reviewNote: answer.reviewNote }),
-            ...(answer.reason === REVIEW_BUDGET_SPENT_REASON ? resetsAt(read.period) : {}),
-        };
-    }
-
-    /** The named candidates at their live ends, a default first, then food's order; one entry per food. Pure. */
-    private candidatesOf(match: ParseJobMatch, answerOf: (ref: FoodRef) => FoodRefAnswer): ParseProposalCandidate[] {
-        const seen = new Set<string>();
-        const named: ParseProposalCandidate[] = [];
-
-        for (const candidate of match.candidates) {
-            const answer = answerOf(candidate);
-
-            if (!isNamed(answer)) {
-                continue;
-            }
-
-            const food = namedFood(answer);
-            const key = foodRefKey(food);
-
-            if (!seen.has(key)) {
-                seen.add(key);
-                named.push({ ...food, isDefault: isDefaultRung(candidate.rung) });
-            }
-        }
-
-        return [
-            ...named.filter((candidate) => candidate.isDefault),
-            ...named.filter((candidate) => !candidate.isDefault),
-        ];
-    }
-
-    /**
-     * Where the review stands when there is no verdict: the row's PERSISTED disposition (F10), never the gate policy
-     * re-run here; and for a contained test principal, whose review is never sent (ADR-0040), `notAsked`. Pure.
-     */
-    private reviewOf(
-        match: ParseJobMatch,
-        exhausted: ReadonlySet<string>,
-        budgetSpent: ReadonlySet<string>,
-        contained: boolean,
-    ): MatchFacts['review'] {
-        // ⛔ A spent budget is a fact about the KEY in the CURRENT period (the DAL filtered by it), so it comes first: it is
-        // the only reason a review is owed and will not be sent, and it must not read as `checking` or `unchecked`.
-        if (match.verificationKey !== null && budgetSpent.has(match.verificationKey)) {
-            return 'budgetSpent';
-        }
-
-        if (match.review === 'refused') {
-            return 'refused';
-        }
-
-        if (match.verificationKey !== null && exhausted.has(match.verificationKey)) {
-            return 'exhausted';
-        }
-
-        return contained ? 'notAsked' : 'asked';
     }
 
     /**

@@ -47,9 +47,13 @@ appId: ${APP_ID}
       file: common/jumpToSection.yaml
       env:
           SECTION: 'Photos & publish'
-- extendedWaitUntil:
-      visible: 'Copied from a public web page · allrecipes.com'
-      timeout: 20000
+# The Source row sits under Photos, below the fold on a smaller phone.
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Copied from a public web page · allrecipes\.com'
+          DIRECTION: DOWN
+          TIMEOUT: 30000
 # The row's Remove sits under the field, below the fold on a phone once the section heading is at the top.
 - runFlow:
       file: common/scrollIntoTapView.yaml

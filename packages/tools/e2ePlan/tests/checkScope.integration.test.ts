@@ -13,9 +13,14 @@ const repo = findRepoRoot(import.meta.dirname);
 
 async function select(task: string, files: string[], group: string[] = []) {
     const graph = await loadTaskGraph(repo, task);
-    const scope = scopeTask({ change: { kind: 'files', files }, workspaces: graph.workspaces, facts: graph.facts });
+    const scope = scopeTask({
+        change: { kind: 'files', files },
+        workspaces: graph.workspaces,
+        facts: graph.facts,
+        declaredElsewhere: graph.declaredElsewhere,
+    });
 
-    return { scope, packages: await resolveTaskPackages(repo, task, scope, graph, group) };
+    return { scope, packages: await resolveTaskPackages(repo, scope, graph, group) };
 }
 
 describe('changed-only selection over the real graph', () => {
@@ -78,9 +83,19 @@ describe('changed-only selection over the real graph', () => {
         expect(packages).not.toContain('@kitchensink/repo-guards');
     });
 
-    it('formats only the changed package, not its dependents', async () => {
-        const { packages } = await select('format:check', ['packages/apps/commise/query/src/queryClient.ts']);
+    it('checks the format of every package when the shared Prettier config changes', async () => {
+        const all = await select('format:check', ['packages/tools/e2ePlan/__tests__/env.test.ts']);
+        const shared = await select('format:check', ['packages/tools/prettier/index.json']);
 
-        expect(packages).toEqual(['@commise/query']);
+        expect(shared.packages).toEqual(expect.arrayContaining(['@commise/web', '@kitchensink/food-service']));
+        expect(shared.packages.length).toBeGreaterThan(all.packages.length + 20);
+    });
+
+    it('does not widen lint or typecheck for the regenerated component catalogue, which only a test reads', async () => {
+        for (const task of ['lint', 'typecheck']) {
+            const { scope } = await select(task, ['docs/generated/components/index.json']);
+
+            expect(scope.kind).toBe('some');
+        }
     });
 });

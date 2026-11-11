@@ -42,6 +42,10 @@ what a file affects, it runs the whole tier.
 - A file inside a workspace seeds that workspace. A folder nested inside a workspace that is not one itself (a service's
   `infra/`) belongs to the workspace around it, because no other workspace can import it.
 - A file that a task declares as a `$TURBO_ROOT$` input seeds that task's package.
+- A file outside every package that only another fast task declares does not touch this task. The component catalogue
+  under `docs/generated/` is the case that matters. Only `docgen-components`' test reads it, so a regenerated catalogue
+  runs that test and does not widen lint, typecheck or format.
+- A declaration never narrows a root file, a workflow or a script. Those can change every task, so they always widen.
 - A task with `cache: false` always runs. turbo.json marks a task that way because its real inputs cannot be hashed, so
   no change set can prove it unaffected.
 - Markdown outside every package selects nothing.
@@ -50,15 +54,18 @@ what a file affects, it runs the whole tier.
 
 `src/checkScopeGraph.ts` asks turbo for the rest. A package a file is in brings everything that depends on it, through
 turbo's own `...pkg` filter. A seed that only its own task needs (a declared input, an always-run task) brings nothing
-else. `format` and `format:check` read one package's files only, so their seeds bring no dependents. The selector then
+else. Format walks dependents too: every package's Prettier run reads the shared `@kitchensink/prettier` config, so a
+change to that package must check every package. The selector then
 intersects with the caller's group, because turbo unions repeated `--filter` flags, and it emits package names only.
 
 turbo.json is therefore the one contract for both caching and selection. A test that reads a file outside its package
 declares it there, or both a cache hit and a skip will lie about it.
 
-The per-file tiers live in `src/checkScopeFiles.ts`: Prettier over the Markdown no package owns, and actionlint over
-the workflows. Each tier checks only its changed files. If its config changes, it checks every file. If none of
-its files changed, it checks nothing.
+The per-file tier lives in `src/checkScopeFiles.ts`: Prettier over the Markdown no package owns. It checks only the
+changed files. If its config changes, it checks every file. If none of its files changed, it checks nothing.
+
+actionlint is not scoped. It checks a caller against the workflow it calls, so a change to one workflow can break
+another. The whole run takes about a second.
 
 ### 2. One door: `npm run scope`
 
@@ -72,7 +79,8 @@ It takes the first of these that is set:
 3. The files changed since the merge base with `--base`, `CHECK_SCOPE_BASE` or `origin/main`, with the working tree.
    It reads them through `gitChangeSet`, which the end-to-end selector uses too.
 
-If it cannot read the change, it warns and runs everything.
+If it cannot read the change, it warns and runs everything. If turbo itself cannot answer, the step fails, because
+without turbo it can name no package to run.
 
 The root scripts a developer types go through it: `test`, `lint`, `typecheck`, `format`, `format:check`, `format:docs`
 and `format:check:docs`. The pre-commit hook typechecks what the staged and edited files affect (`--base=HEAD`). It
@@ -84,7 +92,9 @@ used to typecheck the whole repository. lint-staged still formats and oxlints on
 only, so it is ready before the install finishes. It publishes three outputs:
 
 - `full`: empty, or the reason everything runs.
-- `files`: the changed files since the merge base with the pull request's base branch, as a JSON list.
+- `files`: the changed files since the merge base with the pull request's base branch, as a JSON list. The script asks
+  git the same question `gitChangeSet` asks, with the same flags, and a guard holds the two to that. It does not call
+  `gitChangeSet` because that needs `node_modules`.
 - `python`: whether the Python checks run.
 
 `full` is set for every event that is not a pull request. **So a push to main always runs every check.** Main is
@@ -101,8 +111,9 @@ The lint, format, typecheck, unit test and integration jobs read `full` and `fil
 (`list test:integration`). If the list holds a step's package, that step runs. The step's `if:` names the same package
 that the step runs.
 
-These changes make the Python job run ruff and mypy: a Python file, a Python tool config, or a path outside every
-package. If none of them changed, it prints a notice. mypy checks a whole project, so it does not run per file. The whole Python
+These changes make the Python job run ruff and mypy: a Python file, a Python tool config anywhere, the pinned Python
+or its packages, or a path outside `packages/` that is not Markdown. If none of them changed, it prints a notice. This
+rule is coarser than the selector's and only ever runs more. mypy checks a whole project, so it does not run per file. The whole Python
 tier takes seconds. Skipping it saves the toolchain install.
 
 Jobs are never skipped. Each job runs and its steps say why they did nothing. The CI verdict therefore still turns any

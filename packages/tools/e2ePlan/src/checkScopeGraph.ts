@@ -15,8 +15,8 @@ import type { TaskFacts, TaskScope, Workspace } from './checkScope.js';
 
 const run = promisify(execFile);
 
-/** Tasks whose result depends on one package's own files only, so a dependency's change does not select them. */
-const SELF_CONTAINED_TASKS: ReadonlySet<string> = new Set(['format', 'format:check']);
+/** The fast tiers (ADR-0091). Their declared outside inputs together say which root-level files something reads. */
+const FAST_TASKS = ['test', 'test:integration', 'lint', 'typecheck', 'format', 'format:check'] as const;
 
 const lsSchema = z.object({
     packages: z.object({ items: z.array(z.object({ name: z.string(), path: z.string() })) }),
@@ -39,6 +39,8 @@ export interface TaskGraph {
     readonly workspaces: readonly Workspace[];
     /** One entry per package that really defines the task. */
     readonly facts: readonly TaskFacts[];
+    /** The outside inputs every OTHER fast task declares. */
+    readonly declaredElsewhere: readonly string[];
 }
 
 const turboBin = (repo: string): string => join(repo, 'node_modules', '.bin', 'turbo');
@@ -76,25 +78,33 @@ const outsideInput = (directory: string, input: string): string | undefined =>
  */
 export async function loadTaskGraph(repo: string, task: string): Promise<TaskGraph> {
     const ls = lsSchema.parse(await turbo(repo, ['ls', '--output=json']));
-    const dry = drySchema.parse(await turbo(repo, ['run', task, '--dry=json']));
+    const tasks = [...new Set<string>([task, ...FAST_TASKS])];
+    const dry = drySchema.parse(await turbo(repo, ['run', ...tasks, '--dry=json']));
+    const real = dry.tasks
+        // turbo lists a package that lacks the script as `<NONEXISTENT>`; it runs nothing, so it is no package of the task.
+        .filter((entry) => entry.command !== '<NONEXISTENT>')
+        .map((entry) => ({
+            task: entry.task,
+            package: entry.package,
+            cache: entry.resolvedTaskDefinition.cache,
+            outsideInputs: (entry.resolvedTaskDefinition.inputs ?? []).flatMap(
+                (input) => outsideInput(entry.directory, input) ?? [],
+            ),
+        }));
 
     return {
         workspaces: ls.packages.items.map((item) => ({ name: item.name, dir: item.path })),
-        facts: dry.tasks
-            // turbo lists a package that lacks the script as `<NONEXISTENT>`; it runs nothing, so it is no package of the task.
-            .filter((entry) => entry.task === task && entry.command !== '<NONEXISTENT>')
-            .map((entry) => ({
-                package: entry.package,
-                cache: entry.resolvedTaskDefinition.cache,
-                outsideInputs: (entry.resolvedTaskDefinition.inputs ?? []).flatMap(
-                    (input) => outsideInput(entry.directory, input) ?? [],
-                ),
-            })),
+        facts: real
+            .filter((entry) => entry.task === task)
+            .map(({ package: name, cache, outsideInputs }) => ({ package: name, cache, outsideInputs })),
+        declaredElsewhere: [
+            ...new Set(real.filter((entry) => entry.task !== task).flatMap((entry) => entry.outsideInputs)),
+        ],
     };
 }
 
 /**
- * Turns a scope into the concrete packages to run: the seeds and (for most tasks) everything that depends on them,
+ * Turns a scope into the concrete packages to run: the seeds and everything that depends on them,
  * through turbo's own `...pkg` filter, kept to the packages that define the task and to the caller's group.
  *
  * The group is an INTERSECTION. turbo unions repeated `--filter` flags, so the selector resolves both sides to names
@@ -102,7 +112,6 @@ export async function loadTaskGraph(repo: string, task: string): Promise<TaskGra
  *
  * @sideEffect Runs turbo.
  * @param repo - The repository root.
- * @param task - The turbo task.
  * @param scope - The decision.
  * @param graph - From {@link loadTaskGraph}.
  * @param group - turbo `--filter` flags that bound the run (a CI matrix leg); empty for no bound.
@@ -110,7 +119,6 @@ export async function loadTaskGraph(repo: string, task: string): Promise<TaskGra
  */
 export async function resolveTaskPackages(
     repo: string,
-    task: string,
     scope: TaskScope,
     graph: TaskGraph,
     group: readonly string[],
@@ -120,15 +128,13 @@ export async function resolveTaskPackages(
     let chosen: ReadonlySet<string> = withTask;
 
     if (scope.kind === 'some') {
-        const walk = !SELF_CONTAINED_TASKS.has(task);
-
         chosen =
             scope.seeds.length === 0
                 ? new Set()
                 : new Set(
                       await listPackages(
                           repo,
-                          scope.seeds.map((seed) => `--filter=${walk && seed.dependents ? '...' : ''}${seed.id}`),
+                          scope.seeds.map((seed) => `--filter=${seed.dependents ? '...' : ''}${seed.id}`),
                       ),
                   );
     }

@@ -3,6 +3,9 @@
  * and a change to the check's configuration needs every file checked.
  *
  * @pattern Registry — tier name to the files it checks and the configuration that widens it
+ *
+ * Only the docs Prettier check is here. actionlint is not: it checks a caller against the workflow it calls, so a
+ * change to one workflow can break another, and the whole run takes about a second.
  * @pattern Specification — each tier is a pair of path predicates
  */
 import picomatch from 'picomatch';
@@ -31,13 +34,6 @@ export const FILE_TIERS = {
             'packages/tools/prettier/**',
             ...SELECTOR_SOURCES,
         ],
-    },
-    /** actionlint over the workflow files. It reads a called workflow's inputs, so the actions folder widens it too. */
-    workflows: {
-        checks: ['.github/workflows/*.yml', '.github/workflows/*.yaml'],
-        // With no file argument actionlint finds and checks every workflow of the repository.
-        allArgs: [],
-        widenedBy: ['.github/actionlint.yaml', '.github/actionlint.yml', '.github/actions/**', ...SELECTOR_SOURCES],
     },
 } as const satisfies Record<string, FileTierRule>;
 

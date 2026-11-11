@@ -1,6 +1,10 @@
+import { readFileSync } from 'node:fs';
+import { dirname, relative, resolve } from 'node:path';
+
+import picomatch from 'picomatch';
 import { describe, expect, it } from 'vitest';
 
-import { scopeTask, type TaskFacts, type Workspace } from '../src/checkScope.js';
+import { SELECTOR_SOURCES, scopeTask, type TaskFacts, type Workspace } from '../src/checkScope.js';
 
 const WORKSPACES: readonly Workspace[] = [
     { name: '@commise/web', dir: 'packages/apps/commise/web' },
@@ -134,6 +138,66 @@ describe('scopeTask', () => {
             '@commise/features-recipes',
             '@kitchensink/repo-guards',
         ]);
+    });
+
+    it.each(['package-lock.json', 'package.json', '.github/workflows/_ci.yml', 'scripts/x.mjs'])(
+        'still widens on %s even when a task declares it as an input',
+        (file) => {
+            const result = scopeTask({
+                change: { kind: 'files', files: [file] },
+                workspaces: WORKSPACES,
+                facts: [{ package: '@commise/web', cache: true, outsideInputs: [file] }],
+            });
+
+            expect(result.kind).toBe('all');
+        },
+    );
+
+    it('ignores a file outside every package that only ANOTHER task declares it reads', () => {
+        const result = scopeTask({
+            change: { kind: 'files', files: ['docs/generated/components/index.json'] },
+            workspaces: WORKSPACES,
+            facts: FACTS,
+            declaredElsewhere: ['docs/generated/**'],
+        });
+
+        expect(seedsOf(result)).toEqual(['@kitchensink/repo-guards']);
+    });
+
+    it('still widens on a root file another task declares', () => {
+        const result = scopeTask({
+            change: { kind: 'files', files: ['package-lock.json'] },
+            workspaces: WORKSPACES,
+            facts: FACTS,
+            declaredElsewhere: ['package-lock.json'],
+        });
+
+        expect(result.kind).toBe('all');
+    });
+
+    it('lists every file the selector command line imports among its own sources', () => {
+        const root = resolve(import.meta.dirname, '../../../..');
+        const own = picomatch([...SELECTOR_SOURCES]);
+        const seen = new Set<string>();
+
+        const walk = (file: string): void => {
+            if (seen.has(file)) {
+                return;
+            }
+
+            seen.add(file);
+
+            for (const [, spec] of readFileSync(file, 'utf8').matchAll(/from '(\.{1,2}\/[^']+)\.js'/gu)) {
+                walk(resolve(dirname(file), `${spec ?? ''}.ts`));
+            }
+        };
+
+        walk(resolve(root, 'packages/tools/e2ePlan/bin/checkScope.ts'));
+
+        const missing = [...seen].map((file) => relative(root, file)).filter((file) => !own(file));
+
+        expect(seen.size).toBeGreaterThan(5);
+        expect(missing).toEqual([]);
     });
 
     it('keeps a long reason list to three and a count', () => {

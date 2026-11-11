@@ -21,8 +21,11 @@ const listed = (result: ReturnType<typeof scope>): string[] =>
     JSON.parse(result.stdout.trim().split('\n').at(-1) ?? '[]') as string[];
 
 describe('bin/checkScope.ts', () => {
-    it('lists only the changed package for a self-contained task', () => {
-        expect(listed(scope({ CHECK_SCOPE_FILES: LEAF }, 'list', 'format:check'))).toEqual(['@kitchensink/e2e-plan']);
+    it('lists the changed package and what depends on it, and nothing unrelated', () => {
+        const packages = listed(scope({ CHECK_SCOPE_FILES: LEAF }, 'list', 'format:check'));
+
+        expect(packages).toContain('@kitchensink/e2e-plan');
+        expect(packages).not.toContain('@kitchensink/food-service');
     });
 
     it.each<Record<string, string>>([{ FULL_SUITE: '1' }, { CHECK_SCOPE_FULL: 'a push checks everything' }])(
@@ -52,8 +55,14 @@ describe('bin/checkScope.ts', () => {
         );
         const dry = JSON.parse(result.stdout.slice(result.stdout.indexOf('{'))) as { tasks: { package: string }[] };
 
+        const selected = listed(
+            scope({ CHECK_SCOPE_FILES: LEAF }, 'list', 'format:check', '--filter=./packages/tools/*'),
+        );
+
         expect(result.status).toBe(0);
-        expect([...new Set(dry.tasks.map((task) => task.package))]).toEqual(['@kitchensink/e2e-plan']);
+        expect([...new Set(dry.tasks.map((task) => task.package))].sort()).toEqual(selected);
+        expect(selected).toContain('@kitchensink/e2e-plan');
+        expect(selected.length).toBeLessThan(10);
     });
 
     it('says why, and succeeds, when no package needs the task', () => {

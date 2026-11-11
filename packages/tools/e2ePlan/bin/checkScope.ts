@@ -7,7 +7,7 @@
  *       why when it runs nothing.
  *   npm run scope -- list <task> [--filter=<group>]...
  *       Prints the selected packages as a JSON array (and writes `packages=` to `$GITHUB_OUTPUT` when that is set).
- *   npm run scope -- files <docs|workflows> <command>...
+ *   npm run scope -- files docs <command>...
  *       Runs the command on the changed files the tier checks, on every file when its configuration changed, and
  *       not at all when none changed.
  *
@@ -16,7 +16,8 @@
  * `--base=<ref>`, else `CHECK_SCOPE_BASE`, else `origin/main`, the working tree included (`--base=HEAD` is what is
  * staged or edited, which the pre-commit hook uses).
  *
- * Fails SAFE: if the selector itself fails, it warns and runs the whole tier.
+ * Fails SAFE where it can: a change it cannot read runs everything, with a warning. If turbo itself cannot answer, the
+ * step fails, because without turbo it can name no package to run.
  */
 import { spawnSync } from 'node:child_process';
 import { appendFileSync, existsSync } from 'node:fs';
@@ -101,16 +102,21 @@ const explain = (task: string, scope: TaskScope, packages: readonly string[]): v
 
 async function selectPackages(task: string, group: readonly string[], change: ChangeSource): Promise<string[]> {
     const graph = await loadTaskGraph(repo, task);
-    let scope = scopeTask({ change, workspaces: graph.workspaces, facts: graph.facts });
+    let scope = scopeTask({
+        change,
+        workspaces: graph.workspaces,
+        facts: graph.facts,
+        declaredElsewhere: graph.declaredElsewhere,
+    });
     let packages: string[];
 
     try {
-        packages = await resolveTaskPackages(repo, task, scope, graph, group);
+        packages = await resolveTaskPackages(repo, scope, graph, group);
     } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
 
         scope = { kind: 'all', reasons: [`the selector failed (${message})`] };
-        packages = await resolveTaskPackages(repo, task, scope, graph, group);
+        packages = await resolveTaskPackages(repo, scope, graph, group);
     }
 
     explain(task, scope, packages);

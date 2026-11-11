@@ -61,11 +61,20 @@ export const SELECTOR_SOURCES: readonly string[] = [
     'packages/tools/e2ePlan/bin/checkScope.ts',
     'packages/tools/e2ePlan/src/gitChangeSet.ts',
     'packages/tools/e2ePlan/src/worktreeSnapshot.ts',
+    'packages/tools/e2ePlan/src/repoRoot.ts',
+    'packages/tools/e2ePlan/src/selection.ts',
 ];
 
 const SELF = picomatch([...SELECTOR_SOURCES]);
 
 const TURBO_CONFIG = picomatch('**/turbo.json', { dot: true });
+
+/**
+ * Paths a turbo.json declaration may never narrow: a root file (the lockfile, the root manifest, a root config), a
+ * workflow or a script. Each can change every task, so a task that also declares one reads it among many.
+ */
+const NEVER_NARROWED = (path: string): boolean =>
+    !path.includes('/') || path.startsWith('.github/') || path.startsWith('scripts/');
 
 /** Prose outside every package. Inside a package a markdown file may be read by its tests, so it is owned there. */
 const OUTSIDE_PROSE = picomatch('**/*.md', { dot: true });
@@ -127,6 +136,11 @@ export interface ScopeTaskInput {
     readonly workspaces: readonly Workspace[];
     /** One entry per package that defines the task. */
     readonly facts: readonly TaskFacts[];
+    /**
+     * Repo-relative globs that OTHER fast tasks declare they read. A file outside every package that only another task
+     * reads cannot change this one, so it neither seeds nor widens it.
+     */
+    readonly declaredElsewhere?: readonly string[];
 }
 
 /**
@@ -134,7 +148,8 @@ export interface ScopeTaskInput {
  *
  * Seeds are: the owner of every changed file; every package whose task declares an outside input that changed; every
  * package whose task turbo cannot cache. A declared outside input that changed is attributed to its task instead of
- * widening, because the declaration is exactly the statement "this task reads that file".
+ * widening, because the declaration is exactly the statement "this task reads that file". For the same reason a file
+ * that only another task declares does not touch this one. Neither rule applies to a root file, a workflow or a script.
  *
  * @param input - The change, the workspaces and the task's facts.
  * @returns `all` with a reason per widening file, or the seed packages with why each was chosen.
@@ -160,9 +175,10 @@ export function scopeTask(input: ScopeTaskInput): TaskScope {
         package: fact.package,
         matches: picomatch([...fact.outsideInputs], { dot: true }),
     }));
+    const readElsewhere = picomatch([...(input.declaredElsewhere ?? [])], { dot: true });
 
     for (const file of [...input.change.files].sort()) {
-        const readers = declared.filter((entry) => entry.matches(file));
+        const readers = NEVER_NARROWED(file) ? [] : declared.filter((entry) => entry.matches(file));
 
         for (const reader of readers) {
             choose(reader.package, `${file} is a declared input of its task`, false);
@@ -177,7 +193,7 @@ export function scopeTask(input: ScopeTaskInput): TaskScope {
                 choose(impact.by, `${file} is in it`, true);
                 break;
             case 'global':
-                if (readers.length === 0) {
+                if (readers.length === 0 && (NEVER_NARROWED(file) || !readElsewhere(file))) {
                     widening.push(`${file}: ${impact.reason}`);
                 }
 

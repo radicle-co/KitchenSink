@@ -19,6 +19,12 @@ set -euo pipefail
 # string exceeds 128 KiB (MAX_ARG_STRLEN), so every step of the job would fail to start. A longer list runs everything.
 readonly MAX_LIST_BYTES=100000
 
+# What ruff and mypy read: Python sources, their settings wherever they sit, and the pinned interpreter and packages.
+# This is NOT the selector's package attribution (`checkScope.ts`) and does not try to be: it answers a narrower
+# question, and its other branch below runs Python for any path outside `packages/` that is not prose, so where the two
+# differ this one only ever runs more.
+readonly PYTHON_INPUTS='\.pyi?$|(^|/)(pyproject\.toml|setup\.cfg|mypy\.ini|\.?ruff\.toml|requirements[^/]*\.txt|pythonVersion\.txt)$'
+
 decide() {
     local files
     files="$(grep -v '^$' || true)"
@@ -40,7 +46,7 @@ decide() {
     local python=false
     if [ -n "$full" ]; then
         python=true
-    elif printf '%s\n' "$files" | grep -Eq '\.pyi?$|(^|/)pyproject\.toml$|(^|/)requirementsDev\.txt$|(^|/)pythonVersion\.txt$'; then
+    elif printf '%s\n' "$files" | grep -Eq "$PYTHON_INPUTS"; then
         python=true
     elif printf '%s\n' "$files" | grep -v '^packages/' | grep -v '\.md$' | grep -q .; then
         python=true

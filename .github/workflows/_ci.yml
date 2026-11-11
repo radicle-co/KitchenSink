@@ -717,7 +717,7 @@ jobs:
                   tar -xzf /tmp/actionlint.tar.gz -C /tmp actionlint
                   # shellcheck/pyflakes are off: this gate is about workflow VALIDITY, and the runner has
                   # neither tool, which would otherwise be reported as errors on every embedded script.
-                  npm run -s scope -- files workflows /tmp/actionlint -shellcheck= -pyflakes=
+                  /tmp/actionlint -shellcheck= -pyflakes= .github/workflows/*.yml
             - name: Prune the turbo cache to what this job used
               if: ${{ !cancelled() }}
               run: bash .github/scripts/pruneTurboCache.sh

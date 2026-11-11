@@ -25,20 +25,12 @@ describe('scopeFiles', () => {
         },
     );
 
-    it('checks only the changed workflows, and every one when an action changes', () => {
-        expect(scopeFiles('workflows', files('.github/workflows/_ci.yml', '.github/scripts/x.sh'))).toEqual({
-            kind: 'some',
-            files: ['.github/workflows/_ci.yml'],
-        });
-        expect(scopeFiles('workflows', files('.github/actions/infra-package/action.yml')).kind).toBe('all');
-    });
-
     it('re-checks everything when the selector changes', () => {
         expect(scopeFiles('docs', files('packages/tools/e2ePlan/src/checkScopeFiles.ts')).kind).toBe('all');
     });
 
     it('runs everything when asked', () => {
-        expect(scopeFiles('workflows', { kind: 'full', reason: 'push to main' })).toEqual({
+        expect(scopeFiles('docs', { kind: 'full', reason: 'push to main' })).toEqual({
             kind: 'all',
             reasons: ['push to main'],
         });

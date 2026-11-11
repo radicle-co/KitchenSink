@@ -97,6 +97,9 @@ describe('selectChecks.sh decide', () => {
         'pyproject.toml',
         'requirementsDev.txt',
         'packages/services/ingredient-parser/pythonVersion.txt',
+        'packages/services/ingredient-parser/requirements.txt',
+        'packages/services/ingredient-parser/ruff.toml',
+        'packages/services/ingredient-parser/mypy.ini',
         '.github/workflows/_ci.yml',
         'package-lock.json',
     ])('runs the Python checks when %s changes', (file) => {
@@ -109,6 +112,19 @@ describe('selectChecks.sh decide', () => {
 
         expect(decision.full).toMatch(/3001 files/u);
         expect(decision.files).toBe('[]');
+    });
+
+    it('leaves Python out for a change inside packages that no Python tool reads', () => {
+        expect(decide('pull_request', ['packages/infra/global/lib/stack.ts', 'docs/a.md']).python).toBe('false');
+    });
+
+    it('measures the change the way the local selector does: from the merge base, with renames as two paths', () => {
+        const script = readFileSync(SCRIPT, 'utf8');
+        const local = readFileSync(`${REPO_ROOT}packages/tools/e2ePlan/src/worktreeSnapshot.ts`, 'utf8');
+
+        expect(script).toContain('git merge-base HEAD "origin/${BASE_REF}"');
+        expect(script).toMatch(/diff-tree -r --no-renames --name-only/u);
+        expect(local).toMatch(/'diff-tree', '-r', '--no-renames', '--name-only'/u);
     });
 
     it('keeps a path with spaces whole', () => {

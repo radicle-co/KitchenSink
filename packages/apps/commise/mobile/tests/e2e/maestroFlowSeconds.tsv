@@ -162,4 +162,6 @@ ios	recipes/visibility	103	3
 ios	sessionHandoff	242	1
 ios	shell/overlaySwipeDismiss	161	0
 android	recipes/pinnedIngredients	108	0
+android	recipes/sourceFromPaste	168	5
 ios	recipes/pinnedIngredients	161	0
+ios	recipes/sourceFromPaste	174	3

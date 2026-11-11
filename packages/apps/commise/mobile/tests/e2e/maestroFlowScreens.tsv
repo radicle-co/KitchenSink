@@ -79,6 +79,7 @@ recipes/pasteList	HomeScreen, RecipeEditorScreen, RecipeListScreen
 recipes/pasteListSettle	HomeScreen, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen, RecipeVersionsScreen
 recipes/pasteMatchChoose	HomeScreen, RecipeEditorScreen, RecipeListScreen
 recipes/pastePublishOpenChoices	HomeScreen, RecipeEditorScreen, RecipeListScreen
+recipes/sourceFromPaste	HomeScreen, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen
 recipes/quantityRange	HomeScreen, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen
 recipes/preparationGroups	HomeScreen, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen
 recipes/ingredientGroups	HomeScreen, RecipeEditorScreen, RecipeListScreen

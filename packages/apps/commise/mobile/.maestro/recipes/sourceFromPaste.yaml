@@ -8,8 +8,7 @@ appId: ${APP_ID}
 # visibility cards sitting reachable under the section index. The pure decisions are the component tests' subject on both
 # platforms (`RecipeSourceField.native.test.tsx`, `RecipeEditorSurface.test.tsx`).
 #
-# Written test-first with the slice and NOT run (built without a device): recorded in `KNOWN_UNRUN_FLOWS`
-# (`maestroFlowSelection.test.ts`). Promote it to `FLOW_PLAN` once an emulator run has passed it. The signer is Pro
+# Written test-first with the slice; planned in `FLOW_PLAN` (`runMaestroFlows.sh`) so the lanes run it. The signer is Pro
 # (`visibility.yaml`), so Private is available with no sheet. Every flow is reseeded before it runs.
 - runFlow: ../auth/signin.yaml
 

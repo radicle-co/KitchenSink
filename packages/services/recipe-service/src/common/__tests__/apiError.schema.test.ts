@@ -64,6 +64,7 @@ const DETAILS_BY_CODE: Readonly<Record<string, Record<string, unknown>>> = {
     IMPORT_ITEM_ALREADY_SAVED: { ordinal: 4 },
     PRIVATE_SLOTS_FULL: { used: 50, limit: 50 },
     PRIVATE_FOODS_ON_PUBLIC_RECIPE: { lines: [{ sortOrder: 1, foodId: 'f-1' }] },
+    IMPORT_ITEM_LOCKED: { ordinal: 4, stage: 'parsing' },
 };
 
 /** A minimal valid body for a published code. */
@@ -302,6 +303,11 @@ describe('the bulk import codes (ADR-0072)', () => {
         ...(details === undefined ? {} : { details }),
     });
 
+    it('IMPORT_ID_IN_USE is a 409, a bare code: the client-minted id is already an import with other choices (a replay is not)', () => {
+        expect(RECIPE_ERROR_STATUS.IMPORT_ID_IN_USE).toBe(409);
+        expect(recipeApiErrorSchema.safeParse(body('IMPORT_ID_IN_USE')).success).toBe(true);
+    });
+
     it("IMPORT_NOT_FOUND is a 404, a bare code: a stranger's import and a missing one are ONE answer", () => {
         expect(RECIPE_ERROR_STATUS.IMPORT_NOT_FOUND).toBe(404);
         expect(recipeApiErrorSchema.safeParse(body('IMPORT_NOT_FOUND')).success).toBe(true);
@@ -327,6 +333,23 @@ describe('the bulk import codes (ADR-0072)', () => {
             expect(recipeApiErrorSchema.safeParse(body('IMPORT_CURSOR_MOVED', { cursorOrdinal: 1.5 })).success).toBe(
                 false,
             );
+        });
+    });
+
+    describe('IMPORT_ITEM_LOCKED — a different recipe for an item past `received` is refused', () => {
+        it('is a 409', () => {
+            expect(RECIPE_ERROR_STATUS.IMPORT_ITEM_LOCKED).toBe(409);
+        });
+
+        it('REQUIRES details.ordinal and details.stage, the item and where it stands', () => {
+            expect(
+                recipeApiErrorSchema.safeParse(body('IMPORT_ITEM_LOCKED', { ordinal: 2, stage: 'matched' })).success,
+            ).toBe(true);
+            expect(recipeApiErrorSchema.safeParse(body('IMPORT_ITEM_LOCKED')).success).toBe(false);
+            expect(recipeApiErrorSchema.safeParse(body('IMPORT_ITEM_LOCKED', { ordinal: 2 })).success).toBe(false);
+            expect(
+                recipeApiErrorSchema.safeParse(body('IMPORT_ITEM_LOCKED', { ordinal: 2, stage: 'saved' })).success,
+            ).toBe(false);
         });
     });
 

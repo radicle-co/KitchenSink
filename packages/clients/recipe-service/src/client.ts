@@ -59,6 +59,7 @@ import {
     NotFoundError,
     ImportCursorMovedError,
     ImportItemAlreadySavedError,
+    ImportItemLockedError,
     ImportQuotaExceededError,
     PrivateSlotsFullError,
     ParseJobExpiredError,
@@ -1786,6 +1787,8 @@ export class RecipeServiceClient {
                 return new ImportCursorMovedError(body.details.cursorOrdinal, body.message);
             case 'IMPORT_ITEM_ALREADY_SAVED':
                 return new ImportItemAlreadySavedError(body.details.ordinal, body.message);
+            case 'IMPORT_ITEM_LOCKED':
+                return new ImportItemLockedError(body.details.ordinal, body.details.stage, body.message);
             // Plan 002 R52 — a restore that would drop lines. Its own class for the reason the conflict has one:
             // the surface names the lines and offers a different remedy.
             case 'VERSION_LINE_UNRESTORABLE':
@@ -1801,6 +1804,7 @@ export class RecipeServiceClient {
             // this gate exists to prevent.
             case 'MAX_PHOTOS_EXCEEDED':
             case 'ARCHIVE_PENDING':
+            case 'IMPORT_ID_IN_USE': // ADR-0072 §1: no surface branches on it; it keeps its 409 and its code.
             case 'COLLECTION_LIMIT_REACHED':
             case 'PHOTO_PROCESSING_FAILED':
             case 'ARCHIVE_DLQ':

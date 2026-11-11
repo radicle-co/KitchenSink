@@ -41,6 +41,7 @@ import {
     GoneError,
     ImportCursorMovedError,
     ImportItemAlreadySavedError,
+    ImportItemLockedError,
     ImportQuotaExceededError,
     NotFoundError,
     PrivateSlotsFullError,
@@ -61,6 +62,8 @@ import { ApiExceptionFilter } from '../filters/apiException.filter.js';
 import {
     importCursorMoved,
     importItemAlreadySaved,
+    importIdInUse,
+    importItemLocked,
     importNotFound,
     importQuotaExceeded,
     privateSlotsFull,
@@ -208,6 +211,7 @@ const DETAILS_BY_CODE: Partial<Record<string, Record<string, unknown>>> = {
     [RecipeErrorCode.IMPORT_ITEM_ALREADY_SAVED]: { ordinal: 4 },
     [RecipeErrorCode.PRIVATE_SLOTS_FULL]: { used: 50, limit: 50 },
     [RecipeErrorCode.PRIVATE_FOODS_ON_PUBLIC_RECIPE]: { lines: [{ sortOrder: 1, foodId: 'f-1' }] },
+    [RecipeErrorCode.IMPORT_ITEM_LOCKED]: { ordinal: 4, stage: 'parsing' },
 };
 
 /** The `details` a real `VERSION_CONFLICT` carries (W8-a.5: enough for a client-side 3-way merge). */
@@ -466,6 +470,25 @@ describe('the recipe error contract, end to end through both halves', () => {
         expect(error).toBeInstanceOf(PrivateSlotsFullError);
         expect(error).not.toBeInstanceOf(VersionConflictError);
         expect(error).toMatchObject({ status: 403, code: CODE.PRIVATE_SLOTS_FULL, used: 60, limit: 50 });
+    });
+
+    it('409 IMPORT_ID_IN_USE → an unexpected-response error that keeps its status and code (no client branches on it)', async () => {
+        const { wire, error } = await throughTheWire(importIdInUse(), (client) => client.getRecipeById(RECIPE_ID));
+
+        expect(wire.status).toBe(HttpStatus.CONFLICT);
+        expect(error).toMatchObject({ status: 409, code: CODE.IMPORT_ID_IN_USE });
+    });
+
+    it('409 IMPORT_ITEM_LOCKED → ImportItemLockedError carrying the item and where it stands', async () => {
+        const { wire, error } = await throughTheWire(importItemLocked(4, 'parsing'), (client) =>
+            client.getRecipeById(RECIPE_ID),
+        );
+
+        expect(wire.status).toBe(HttpStatus.CONFLICT);
+        expect(error).toBeInstanceOf(ImportItemLockedError);
+        expect((error as ImportItemLockedError).ordinal).toBe(4);
+        expect((error as ImportItemLockedError).stage).toBe('parsing');
+        expect((error as ImportItemLockedError).code).toBe(CODE.IMPORT_ITEM_LOCKED);
     });
 
     it('403 CANNOT_RATE_OWN_RECIPE → ForbiddenError with its own code, never a bare 403', async () => {

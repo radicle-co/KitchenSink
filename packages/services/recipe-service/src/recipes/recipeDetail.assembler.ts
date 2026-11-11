@@ -46,7 +46,6 @@ import {
     type NutritionLine,
     type RecipeDetailNutrition,
 } from '@kitchensink/recipe-core';
-import { verificationKey } from '@kitchensink/recipe-core/resolution/verification-key';
 
 import { PhotosDal } from '../photos/dal/photos.dal.js';
 import { resolveCoverUrl, resolvePhotoView } from '../photos/photoView.js';
@@ -58,9 +57,9 @@ import {
     foodPresenceStatus,
     resolveLineStatus,
     viewerLineStatus,
-    verifiedLineIdentity,
 } from './domain/lineVerification.js';
 import { composeIngredientLineView, type IngredientLineView } from './domain/ingredientLineView.js';
+import { verdictKeyOfLine } from './domain/lineVerdictKey.js';
 import { LineVerificationsDal, type LineVerdictRow } from './dal/lineVerifications.dal.js';
 import { sha256Hex } from '../common/sha256.js';
 import type { RecipeNutritionResponse, RecipeNutritionState } from './recipes.schema.js';
@@ -509,10 +508,11 @@ export class RecipeDetailAssembler {
 
         for (const measure of measures) {
             const arm = arms.get(measure.lookupId);
-            const identity = verifiedLineIdentity(measure, arm === undefined ? undefined : foodRefOf(arm)?.id);
+            // ⛔ The ONE composition (`verdictKeyOfLine`): the bulk import stores the same key beside the lines it saves.
+            const key = verdictKeyOfLine(measure, arm === undefined ? undefined : foodRefOf(arm)?.id, sha256Hex);
 
-            if (identity !== undefined) {
-                keyByLineId.set(measure.lineId, verificationKey(identity, sha256Hex));
+            if (key !== undefined) {
+                keyByLineId.set(measure.lineId, key);
             }
         }
 

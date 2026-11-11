@@ -25,6 +25,7 @@ export {
     RecipeDifficulty,
     RecipeMealType,
     RecipeErrorCode,
+    IMPORT_LOCKED_STAGES,
     RecipeSearchSortBy,
     RecipeSourceType,
     RecipeStatus,
@@ -102,6 +103,7 @@ export type {
     RecipeVersionPendingArchive,
     VersionConflictDetails,
     VersionConflictSide,
+    ImportLockedStage,
 } from './recipe.types.js';
 export {
     INT4_CEILING,

@@ -43,6 +43,7 @@ import { useCallback, useEffect, useEffectEvent, useState } from 'react';
 import { effectiveVisibility, heldVisibility, type PrivateRefusal } from '../actions/privateGate.js';
 import { recipeIsPublished, refusalWhileDrafting } from '../actions/recipePrivateGate.js';
 import type { LookupRetry, ObservedIngredientStatus, SettledAnswer } from '../form/ingredientStatus.js';
+import { draftFloorErrors, meetsDraftFloor } from '../form/validate.js';
 import { rebindRequestOf } from '../hooks/lineCommit.js';
 import { useIngredientRowEditor, type IngredientRowEditor } from '../hooks/useIngredientRowEditor.js';
 import { useLineNutrition } from '../hooks/useLineNutrition.js';
@@ -59,6 +60,7 @@ import { outcomeOfExit, type EditorFinish, type FinishedOutcome } from './finish
 import { createPasteHold } from './pasteHold.js';
 import { previewRecipeOf } from './previewRecipe.js';
 import type { DraftKeep } from './saveStatus.js';
+import { useEditorPhotos, type EditorPhotos } from './useEditorPhotos.js';
 import { useIngredientsPaste, type IngredientsPaste } from './useIngredientsPaste.js';
 import { visibilityFollowUp } from './visibilityFollowUp.js';
 
@@ -131,6 +133,8 @@ export interface RecipeEditorSession {
     /** Append pasted steps (Steps' heading action). */
     readonly appendSteps: (instructions: readonly string[]) => void;
     readonly preview: EditorPreview;
+    /** The editor's photos: the manager the app's uploader draws, and the barrier a finish and a leave wait at. */
+    readonly photos: EditorPhotos;
 }
 
 /**
@@ -162,10 +166,14 @@ export function useRecipeEditorSession(options: UseRecipeEditorSessionOptions): 
             setVisibility.mutate({ id: stored.id, visibility: followUp.visibility });
         }
 
-        navigation.finished(stored.id, {
-            outcome,
-            privateRefused: followUp.kind === 'refused' ? followUp.refusal : undefined,
-        });
+        // The recipe page opens once its photos have landed (or the cook lets them go): the navigation unmounts the
+        // editor, and with it any photo still uploading.
+        photos.finishWhenSettled(() =>
+            navigation.finished(stored.id, {
+                outcome,
+                privateRefused: followUp.kind === 'refused' ? followUp.refusal : undefined,
+            }),
+        );
     };
 
     const onExit = (exit: EditorExit): void => {
@@ -213,6 +221,13 @@ export function useRecipeEditorSession(options: UseRecipeEditorSessionOptions): 
         readRecipe: (id) => queryClient.ensureQueryData(recipeQueries(client).detail(id)),
         pasteHold,
         privateRefusal,
+    });
+
+    const photos = useEditorPhotos({
+        recipeId: editor.recipeId,
+        draftFloorMet: meetsDraftFloor(editor.values),
+        titleMissing: draftFloorErrors(editor.values).title === 'titleRequired',
+        checkpoint: editor.checkpoint,
     });
 
     // ADR-0073 section 12: a write that PARKS before the first publish may be a Publish the server refused for want of a
@@ -289,6 +304,7 @@ export function useRecipeEditorSession(options: UseRecipeEditorSessionOptions): 
         applyLineStatus,
         blur: () => editor.checkpoint('fieldBlur'),
         appendSteps: (instructions) => dispatch({ kind: 'appendSteps', instructions }),
+        photos,
         preview: {
             open: previewing,
             show: () => setPreviewing(true),

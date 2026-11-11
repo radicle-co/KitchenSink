@@ -108,6 +108,7 @@ function Harness({ seed, port }: { seed: EditorSeed; port: ReturnType<typeof mak
             renderPhotos={() => null}
             onClose={vi.fn()}
             onOpenMyRecipes={vi.fn()}
+            leaveAsk="byNavigator"
         />
     );
 }

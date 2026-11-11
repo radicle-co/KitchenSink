@@ -72,8 +72,8 @@ appId: ${APP_ID}
 - assertVisible: 'Save changes'
 
 # ⛔ THE PHOTO MANAGER IS THE LAST SECTION ("Photos & publish"), on the same page as everything else, so the flow
-# reaches it by scrolling — no step to walk to. It renders only for a stored recipe (photos attach to a server id),
-# which the seeded lamb is.
+# reaches it by scrolling — no step to walk to. It renders for a new recipe too (`photosOnCreate.yaml`); this flow
+# opens the seeded lamb, a stored recipe.
 #
 # Anchored on "Add photos" — the LAST element of the manager block — not on "Photos": the section index names the
 # section too, so a scroll anchored there could settle without ever moving (the same wrong-anchor trap `rating.yaml`

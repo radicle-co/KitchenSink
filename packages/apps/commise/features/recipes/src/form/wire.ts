@@ -223,9 +223,7 @@ export const toRecipeFormValues = (detail: RecipeDetail): RecipeFormValues => ({
         instruction: step.instruction,
         ...(step.timerSeconds === undefined ? {} : { timerSeconds: step.timerSeconds }),
     })),
-    // EMPTY, not `detail.photos` (U33). The draft's `photos` are PENDING PICKS — see `RecipeFormPhoto` — and
-    // a loaded recipe has none by definition; its persisted gallery stays owned by `useRecipePhotos`. Seeding
-    // them here would make the discard guard report a freshly-seeded, untouched edit form as dirty the moment
-    // a photo's URL differed by a signature, and would hand the flush effect rows it must never re-upload.
+    // EMPTY, not `detail.photos`: the field is always empty (see `RecipeFormValues.photos`), and a recipe's gallery is
+    // owned by `useRecipePhotos`. Seeding it would make the discard guard call an untouched edit form dirty.
     photos: [],
 });

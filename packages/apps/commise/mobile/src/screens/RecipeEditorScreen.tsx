@@ -12,8 +12,9 @@
  * its id, from My recipes). A cook who types only ingredients and leaves keeps them on the device but has nothing to
  * reopen them from (blueprint A4, accepted).
  *
- * ⚠️ Photos are added once the recipe exists on the server (its first checkpoint, which needs a title): the upload takes
- * a recipe id, and a picked photo's bytes cannot live in the device draft (ADR-0057).
+ * Photos can be added on a new recipe too: a pick waits in the editor's photo session until the first checkpoint (which
+ * needs a title) gives the recipe an id. Its bytes cannot live in the device draft (ADR-0057), so the route's leave guard
+ * asks before a leave would lose one (`renderLeaveGuard`), and the finish waits for them (`useEditorPhotos`).
  *
  * @pattern Mediator — the screen wires the session's ports (outbox, drafts, navigation) and the native leaves
  * @pattern Adapter — the route's hand-offs behind the session's `EditorNavigation` port
@@ -42,7 +43,7 @@ import type { RecipeDetail } from '@kitchensink/recipe-core';
 import { recipeQueries } from '@kitchensink/recipe-service-client';
 import { useRecipeServiceClient } from '@kitchensink/recipe-service-client/hooks';
 import { useSuspenseQuery } from '@tanstack/react-query';
-import { useState, type JSX } from 'react';
+import { useState, type JSX, type ReactNode } from 'react';
 
 import { RecipePhotoUploader } from '../components/RecipePhotoUploader.js';
 import { useUserProfile } from '../hooks/useUserProfile.js';
@@ -70,8 +71,21 @@ export interface RecipeEditorScreenProps {
      * the editor has handed off.
      */
     readonly subscribeToLeave?: (listener: () => void) => () => void;
+    /**
+     * The route's guard against a leave that would lose a photo not uploaded yet (`navigation/PreventLeave`): told when to
+     * hold (`when`) and whom to ask (`onBlocked`, the editor's ask). The screen stays unaware of the navigator.
+     */
+    readonly renderLeaveGuard?: (guard: LeaveGuard) => ReactNode;
     /** Open a food's page above the editor (the refusal's Open food and a row's `⋯ Open food`). */
     readonly onOpenFood?: (foodId: string) => void;
+}
+
+/** What the route's leave guard is told. */
+export interface LeaveGuard {
+    /** A photo is not uploaded yet: hold every leave. */
+    readonly when: boolean;
+    /** A leave was held: ask, and call `proceed` to leave after all. */
+    readonly onBlocked: (proceed: () => void) => void;
 }
 
 /** The signed-in cook and their draft store, or `undefined` while nobody is signed in. */
@@ -175,6 +189,7 @@ function RecipeEditorSession({
     onClose,
     onDiscarded,
     subscribeToLeave,
+    renderLeaveGuard,
     onOpenFood,
     mode,
     drafts,
@@ -213,21 +228,26 @@ function RecipeEditorSession({
     });
 
     return (
-        <RecipeEditorSurface
-            session={session}
-            seed={seed}
-            mode={mode}
-            keep="disk"
-            paidFeatures={paidFeatures}
-            knownPaidFeatures={knownPaidFeatures}
-            privateRule={recipePrivate.rule}
-            slotStanding={recipePrivate.standing}
-            renderPhotos={(target) => <RecipePhotoUploader {...target} />}
-            {...(section === undefined ? {} : { initialSection: section })}
-            onClose={onClose}
-            onOpenMyRecipes={onDiscarded}
-            foodOpensOverEditor
-            {...(onOpenFood === undefined ? {} : { onOpenFood })}
-        />
+        <>
+            {renderLeaveGuard?.({ when: session.photos.atRisk, onBlocked: session.photos.leave.request })}
+            <RecipeEditorSurface
+                session={session}
+                seed={seed}
+                mode={mode}
+                keep="disk"
+                // Every removal of the route is held by its own guard (`renderLeaveGuard`), so the page asks nothing.
+                leaveAsk="byNavigator"
+                paidFeatures={paidFeatures}
+                knownPaidFeatures={knownPaidFeatures}
+                privateRule={recipePrivate.rule}
+                slotStanding={recipePrivate.standing}
+                renderPhotos={(target) => <RecipePhotoUploader {...target} />}
+                {...(section === undefined ? {} : { initialSection: section })}
+                onClose={onClose}
+                onOpenMyRecipes={onDiscarded}
+                foodOpensOverEditor
+                {...(onOpenFood === undefined ? {} : { onOpenFood })}
+            />
+        </>
     );
 }

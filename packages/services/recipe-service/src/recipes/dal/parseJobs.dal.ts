@@ -191,7 +191,7 @@ export class ParseJobsDal implements ParseJobsDalPort {
         const pending = lines.filter((line) => line.decision.kind === 'enqueue').length;
         const status = pending > 0 ? ('running' as const) : ('complete' as const);
 
-        return this.db.transaction(async (tx): Promise<CreateJobOutcome> => {
+        const outcome = await this.db.transaction(async (tx): Promise<CreateJobOutcome | { kind: 'taken' }> => {
             // ⛔ THE ALLOWANCE IS THE FIRST WRITE (004 FR-022). It takes the per-user lock, so the unit and the job it pays
             // for commit together; a refusal returns before anything below runs, so a refused paste leaves no job, no
             // line and no ledger row. `prepaid` is the one admission that spends nothing (a bulk import's recipe already paid on its own channel).
@@ -212,9 +212,20 @@ export class ParseJobsDal implements ParseJobsDalPort {
                 }
             }
 
-            const [job] = await tx.insert(recipeParseJobs).values({ ownerId, expiresAt, status }).returning();
+            // A prepaid job may be created under an id the caller derived (a bulk import's item, ADR-0072 §2). Creating it
+            // twice must not make two jobs: the second insert conflicts, writes nothing, and the job that exists is returned.
+            const pinnedId = admission.kind === 'prepaid' ? admission.jobId : undefined;
+            const [job] = await tx
+                .insert(recipeParseJobs)
+                .values({ ...(pinnedId === undefined ? {} : { id: pinnedId }), ownerId, expiresAt, status })
+                .onConflictDoNothing()
+                .returning();
 
             if (job === undefined) {
+                if (pinnedId !== undefined) {
+                    return { kind: 'taken' };
+                }
+
                 throw new Error('parse job insert returned no row');
             }
 
@@ -260,6 +271,21 @@ export class ParseJobsDal implements ParseJobsDalPort {
                 },
             };
         });
+
+        if (outcome.kind !== 'taken') {
+            return outcome;
+        }
+
+        // The id was taken. It is OURS to return only if this owner holds it: the id is derived from the owner's own import,
+        // so another owner's job under it is impossible, and answering "not yours" with a 500 beats leaking its lines.
+        const pinned = admission.kind === 'prepaid' ? admission.jobId : undefined;
+        const existing = pinned === undefined ? undefined : await this.getJob(ownerId, pinned);
+
+        if (existing === undefined) {
+            throw new Error('a parse job id is taken by a job this owner cannot read');
+        }
+
+        return { kind: 'existing', record: existing };
     }
 
     /** @inheritdoc */

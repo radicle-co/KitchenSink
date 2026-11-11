@@ -72,6 +72,7 @@ android	recipes/pasteListSettle	85	5
 android	recipes/pasteMatchChoose	108	0
 android	recipes/pastePublishOpenChoices	108	0
 android	recipes/photos	76	5
+android	recipes/photosOnCreate	108	0
 android	recipes/pinnedActionBar	259	4
 android	recipes/preparationGroups	200	5
 android	recipes/publishRefusedForPrivateFood	79	5
@@ -147,6 +148,7 @@ ios	recipes/pasteListSettle	135	4
 ios	recipes/pasteMatchChoose	161	0
 ios	recipes/pastePublishOpenChoices	161	0
 ios	recipes/photos	116	4
+ios	recipes/photosOnCreate	161	0
 ios	recipes/pinnedActionBar	346	2
 ios	recipes/publishRefusedForPrivateFood	161	0
 ios	recipes/askToMakeFoodPublic	161	0

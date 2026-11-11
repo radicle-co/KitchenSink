@@ -3,6 +3,7 @@
  * but the on-screen keyboard covers that bar, so the padding is a dead band above the keys while it is up.
  */
 import { cleanup, screen } from '@testing-library/react';
+import { fireEvent } from '@testing-library/dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { nativeTokens } from '@commise/ui/native';
@@ -107,5 +108,38 @@ describe('EditorActionBar (native): the fix and ready lines', () => {
 
         expect(screen.getByText(FIX).getAttribute('aria-live')).toBe('polite');
         expect(screen.getByText(READY).getAttribute('aria-live')).toBe('polite');
+    });
+});
+
+/** The web leaf's "waiting for photos" cases, on native (staff-ux SPECIFY 2026-11-10). */
+describe('EditorActionBar (native): waiting for photos', () => {
+    const DRAIN = 'Recipe saved. Finishing your photo uploads…';
+    const FAILED = '1 photo didn’t upload. Retry it, or finish without it.';
+    const finishing = (line: string, danger: boolean) => ({
+        line,
+        danger,
+        actionLabel: 'Finish without the remaining photos',
+        onAction: vi.fn(),
+        focusRequested: false,
+        onFocusRequestHandled: vi.fn(),
+    });
+
+    it('replaces Preview and Publish with the one Finish control', () => {
+        const state = finishing(DRAIN, false);
+        render(<EditorActionBar {...props} finishing={state} />);
+
+        expect(screen.queryByRole('button', { name: 'Preview' })).toBeNull();
+        expect(screen.queryByRole('button', { name: 'Publish' })).toBeNull();
+        fireEvent.click(screen.getByRole('button', { name: 'Finish without the remaining photos' }));
+        expect(state.onAction).toHaveBeenCalledOnce();
+    });
+
+    it.each(['light', 'dark'] as const)('paints the wait in inkMuted and a failure in dangerText (%s)', (scheme) => {
+        renderWithTamagui(<EditorActionBar {...props} finishing={finishing(DRAIN, false)} />, scheme);
+        expect(resolvedColour(screen.getByText(DRAIN), 'color')).toBe(rgb(rolesFor(scheme).inkMuted));
+        cleanup();
+
+        renderWithTamagui(<EditorActionBar {...props} finishing={finishing(FAILED, true)} />, scheme);
+        expect(resolvedColour(screen.getByText(FAILED), 'color')).toBe(rgb(rolesFor(scheme).dangerText));
     });
 });

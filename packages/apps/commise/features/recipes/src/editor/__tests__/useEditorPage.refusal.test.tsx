@@ -63,6 +63,8 @@ function mountRefusing(
             onClose: () => undefined,
             onPreview: () => undefined,
             onOpenMyRecipes: () => undefined,
+            requestLeave: (go) => go(),
+            photosAtRisk: false,
         });
 
         // The test drives the page from outside: it reads the page the latest render drew.
@@ -177,6 +179,8 @@ describe('useEditorPage — a refused Publish', () => {
                 onClose: () => undefined,
                 onPreview: () => undefined,
                 onOpenMyRecipes: () => undefined,
+                requestLeave: (go) => go(),
+                photosAtRisk: false,
             });
 
             return <></>;

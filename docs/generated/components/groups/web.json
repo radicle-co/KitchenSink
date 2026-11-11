@@ -6,11 +6,11 @@
     "coverage": {
         "components": 85,
         "implementations": 85,
-        "props": 100,
+        "props": 101,
         "documentedComponents": 82,
         "implementationsWithModuleDoc": 64,
         "implementationsWithComponentDoc": 61,
-        "documentedProps": 62,
+        "documentedProps": 61,
         "classifiedComponents": 38,
         "componentsWithPatternTag": 33,
         "crossPlatformComponents": 0
@@ -4227,7 +4227,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/web/src/components/recipes/RecipeEditorContainer.tsx",
                     "dir": "packages/apps/commise/web/src/components/recipes",
-                    "moduleDoc": "Orchestration container for the web one-page recipe editor (UI overhaul slice 7; owner decisions D1, D7, D10): one\ncontainer for `/recipes/new` and `/recipes/{id}/edit`. It reads what the editor is seeded from — the recipe (edit) and\nthe device draft from the tab's session storage, both suspense reads under `ClientQueryBoundary` — then mounts one\neditor session keyed on the recipe, so editing another recipe is a fresh editor.\n\nThe session (`useRecipeEditorSession`, shared with the native screen) binds the editor's lifecycle to its ports; this\ncontainer adds what only the web has: the router behind the session's navigation port (Publish and Save changes → the\nrecipe, Discard → My recipes), the URL that follows the recipe, and the web leaves (the status poller, the photo\nuploader). What the page draws is `RecipeEditorView`'s.\n\n⛔ The URL follows a new recipe without a navigation, because a router navigation would remount the page and reseed\nthe editor mid-typing. It stays on the new route: `?draft=` names the recipe's local ref, and once the server has\ncreated it, its server id (beside the New recipe press token, `?fresh=`, which keys the subtree: `freshRecipeHref`). The new route, reopened (a reload, Back, Forward), goes to the edit route of a recipe the\nserver holds — named by id, or by a local ref the outbox's journal resolved after the editor had closed — and opens\nthe device draft otherwise (D7). ⛔ The URL is replaced through Next's own shallow-update path\n(`history.replaceState(null, …)`): passing `history.state` carries Next's `__NA` flag, which makes Next skip its\nrouter sync, so it never learned the URL, rewrote it on its next commit, and restored the new-recipe tree under an\nedit address on Back, where typing created a second recipe. The path never changes, so the tree Next records for the\nentry is always the tree that renders it.\n\n⚠️ Photos are added once the recipe exists on the server (its first checkpoint, which needs a title): the upload\nendpoint takes a recipe id, and a picked photo's bytes cannot live in the device draft (ADR-0057).",
+                    "moduleDoc": "Orchestration container for the web one-page recipe editor (UI overhaul slice 7; owner decisions D1, D7, D10): one\ncontainer for `/recipes/new` and `/recipes/{id}/edit`. It reads what the editor is seeded from — the recipe (edit) and\nthe device draft from the tab's session storage, both suspense reads under `ClientQueryBoundary` — then mounts one\neditor session keyed on the recipe, so editing another recipe is a fresh editor.\n\nThe session (`useRecipeEditorSession`, shared with the native screen) binds the editor's lifecycle to its ports; this\ncontainer adds what only the web has: the router behind the session's navigation port (Publish and Save changes → the\nrecipe, Discard → My recipes), the URL that follows the recipe, and the web leaves (the status poller, the photo\nuploader). What the page draws is `RecipeEditorView`'s.\n\n⛔ The URL follows a new recipe without a navigation, because a router navigation would remount the page and reseed\nthe editor mid-typing. It stays on the new route: `?draft=` names the recipe's local ref, and once the server has\ncreated it, its server id (beside the New recipe press token, `?fresh=`, which keys the subtree: `freshRecipeHref`). The new route, reopened (a reload, Back, Forward), goes to the edit route of a recipe the\nserver holds — named by id, or by a local ref the outbox's journal resolved after the editor had closed — and opens\nthe device draft otherwise (D7). ⛔ The URL is replaced through Next's own shallow-update path\n(`history.replaceState(null, …)`): passing `history.state` carries Next's `__NA` flag, which makes Next skip its\nrouter sync, so it never learned the URL, rewrote it on its next commit, and restored the new-recipe tree under an\nedit address on Back, where typing created a second recipe. The path never changes, so the tree Next records for the\nentry is always the tree that renders it.\n\nPhotos can be added on a new recipe too: a pick waits in the editor's photo session until the first checkpoint (which\nneeds a title) gives the recipe an id. Its bytes cannot live in the device draft (ADR-0057), so × asks before it would\nlose one, and the finish waits for them (`useEditorPhotos`).",
                     "moduleTags": [
                         {
                             "name": "pattern",
@@ -4404,7 +4404,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/web/src/components/recipes/RecipePhotoUploaderContainer.tsx",
                     "dir": "packages/apps/commise/web/src/components/recipes",
-                    "moduleDoc": "The upload orchestration the shared `RecipePhotoManager` block deliberately omits (it is presentational\nand holds no fetching or DOM/file APIs). This container owns the recipe-photo lifecycle for the web app:\nit reads the photos via `useRecipePhotos`, supplies the block's `addControl` (a secondary \"Add photos\" button\nthat opens a hidden, `multiple` `<input type=\"file\">`), and on a file selection ENQUEUES every picked file onto\n`useRecipePhotoUploadQueue` (w3/e4) — the layer that drives the shared, single-flight `useRecipePhotoUpload`\nheadless hook (CP-6/P3, B24) once per file, sequentially, while the grid shows each file's own status.\nRemove wires the per-photo control to `useDeleteRecipePhoto`, busying just the row whose deletion is in\nflight; the queue's own `retry`/`remove` handle a queued/failed FILE (not yet a confirmed photo).\n\nRemote state stays in TanStack Query; `confirm → invalidateRecipeProjections` still runs exactly once per\nsuccessful upload, from inside `useRecipePhotoUpload` — this container and the queue layer above it never\nreimplement that call. The web-specific bits neither hook owns: acquiring `File`s from the DOM `change`\nevent, minting a per-file preview object URL (revoked once a file is no longer pending — removed, or\nfolded into the confirmed `photos` list on success), and resetting the input so the same file can be\nre-picked after being removed from the queue.\n\nThe session itself — the photos, the queue and its client-side pre-validation, delete, cover, the cap rule and every\nrefusal sentence — is `useRecipePhotoManager`, shared with the mobile uploader; this container is only how a file\nreaches it on the web.\n\n**Replace is upload-first (U6, cancel-safe).** A second, single-select hidden input serves the per-photo\n\"Replace\" control, and the original photo is deleted only from the replacement's `onUploaded` continuation\n— never up-front. See the `handleReplacePhoto` comment for the full ordering + the at-cap refusal.\n\n**A pick past the cap is refused whole.** `<input multiple>` cannot bound how many files a cook chooses, so one\npick can carry more than the recipe has room for. The queue admits the batch whole or refuses it whole\n(`admitPhotoBatch`); on a refusal this container revokes every preview URL it minted for the pick — those files\nnever became queue items, so the ledger below would never see them — and the session says how many would fit.",
+                    "moduleDoc": "The upload orchestration the shared `RecipePhotoManager` block deliberately omits (it is presentational\nand holds no fetching or DOM/file APIs). This container owns the recipe-photo lifecycle for the web app:\nit reads the photos via `useRecipePhotos`, supplies the block's `addControl` (a secondary \"Add photos\" button\nthat opens a hidden, `multiple` `<input type=\"file\">`), and on a file selection ENQUEUES every picked file onto\n`useRecipePhotoUploadQueue` (w3/e4) — the layer that drives the shared, single-flight `useRecipePhotoUpload`\nheadless hook (CP-6/P3, B24) once per file, sequentially, while the grid shows each file's own status.\nRemove wires the per-photo control to `useDeleteRecipePhoto`, busying just the row whose deletion is in\nflight; the queue's own `retry`/`remove` handle a queued/failed FILE (not yet a confirmed photo).\n\nRemote state stays in TanStack Query; `confirm → invalidateRecipeProjections` still runs exactly once per\nsuccessful upload, from inside `useRecipePhotoUpload` — this container and the queue layer above it never\nreimplement that call. The web-specific bits neither hook owns: acquiring `File`s from the DOM `change`\nevent, minting a per-file preview object URL (revoked once a file is no longer pending — removed, or\nfolded into the confirmed `photos` list on success), and resetting the input so the same file can be\nre-picked after being removed from the queue.\n\nThe session itself — the photos, the queue and its client-side pre-validation, delete, cover, the cap rule and every\nrefusal sentence — is the editor's `useRecipePhotoManager` (owned by `useEditorPhotos`, handed down as `manager`),\nshared with the mobile uploader; this container is only how a file reaches it on the web. On a new recipe not created\nyet a pick waits in that queue until the recipe has an id.\n\n**Replace is upload-first (U6, cancel-safe).** A second, single-select hidden input serves the per-photo\n\"Replace\" control, and the original photo is deleted only from the replacement's `onUploaded` continuation\n— never up-front. See the `handleReplacePhoto` comment for the full ordering + the at-cap refusal.\n\n**A pick past the cap is refused whole.** `<input multiple>` cannot bound how many files a cook chooses, so one\npick can carry more than the recipe has room for. The queue admits the batch whole or refuses it whole\n(`admitPhotoBatch`); on a refusal this container revokes every preview URL it minted for the pick — those files\nnever became queue items, so the ledger below would never see them — and the session says how many would fit.",
                     "moduleTags": [
                         {
                             "name": "pattern",
@@ -4415,7 +4415,7 @@
                     "tags": [
                         {
                             "name": "param",
-                            "text": "props - The recipe id whose photos to manage."
+                            "text": "props - The recipe (its id is `null` on a new recipe not created yet) and the editor's photo session."
                         },
                         {
                             "name": "returns",
@@ -4429,28 +4429,37 @@
                             "name": "cuisine",
                             "type": "string",
                             "typeDetail": null,
-                            "required": false,
+                            "required": true,
                             "defaultValue": null,
-                            "description": "The recipe's cuisine, shown on the previewed cover where it is tall enough.",
-                            "declaredIn": "packages/apps/commise/web/src/components/recipes/RecipePhotoUploaderContainer.tsx"
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/editor/RecipeEditorSurface.tsx"
                         },
                         {
-                            "name": "recipeId",
-                            "type": "string",
+                            "name": "manager",
+                            "type": "UseRecipePhotoManagerResult",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "The recipe whose photos this manages (from the `[id]` route segment).",
-                            "declaredIn": "packages/apps/commise/web/src/components/recipes/RecipePhotoUploaderContainer.tsx"
+                            "description": "The editor's photo session (`useEditorPhotos`): the uploader acquires files and hands them here.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/editor/RecipeEditorSurface.tsx"
+                        },
+                        {
+                            "name": "recipeId",
+                            "type": "string | null",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The recipe's server id, or `null` on a new recipe not created yet: its picks wait for the id (owner ruling U33).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/editor/RecipeEditorSurface.tsx"
                         },
                         {
                             "name": "title",
                             "type": "string",
                             "typeDetail": null,
-                            "required": false,
+                            "required": true,
                             "defaultValue": null,
-                            "description": "The recipe's title, for the cover the empty state previews (buildSpec §7.7: its first letter). Optional: until a\ncaller supplies it the preview shows the cover's tint without a letter.",
-                            "declaredIn": "packages/apps/commise/web/src/components/recipes/RecipePhotoUploaderContainer.tsx"
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/editor/RecipeEditorSurface.tsx"
                         }
                     ],
                     "usesRefApi": [

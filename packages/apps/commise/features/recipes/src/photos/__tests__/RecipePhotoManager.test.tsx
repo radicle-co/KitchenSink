@@ -62,6 +62,37 @@ describe('RecipePhotoManager (web) — chrome + empty', () => {
  * the old bare "No photos yet." — which told the cook nothing about what the recipe looks like without one.
  * Replaces the old 'shows the empty message' case.
  */
+/**
+ * A photo picked before the recipe has a title WAITS (owner ruling U33; staff-ux SPECIFY 2026-11-10): its tile says
+ * "Waiting to upload", offers Remove and nothing else, and no line under the grid asks the cook to save first.
+ */
+describe('RecipePhotoManager (web) — a photo waiting for the recipe', () => {
+    it('labels the tile "Waiting to upload" and offers its Remove', async () => {
+        const onRemoveQueueItem = vi.fn();
+        renderManager({
+            queueItems: [makeQueueItem({ fileId: 4, fileName: 'soup.jpg', status: 'waiting' })],
+            onRemoveQueueItem,
+        });
+
+        expect(screen.getByRole('status', { name: 'Waiting to upload' })).toBeTruthy();
+        expect(screen.queryByText('Queued')).toBeNull();
+        expect(screen.queryByRole('button', { name: /Retry/ })).toBeNull();
+
+        await userEvent.click(screen.getByRole('button', { name: 'Actions for soup.jpg' }));
+        await userEvent.click(screen.getByRole('menuitem', { name: 'Remove' }));
+        expect(onRemoveQueueItem).toHaveBeenCalledWith(4);
+    });
+
+    it('counts a waiting photo as a held tile, so the empty state is gone', () => {
+        renderManager({
+            queueItems: [makeQueueItem({ status: 'waiting' })],
+            coverPreview: { recipeId: '', title: '' },
+        });
+
+        expect(screen.queryByText('No photo? This cover is used instead. Add one any time.')).toBeNull();
+    });
+});
+
 describe('RecipePhotoManager (web) — empty state (A-010)', () => {
     const coverPreview = { recipeId: 'rec_1', title: 'Lemon tart' } as const;
 

@@ -65,6 +65,20 @@ export const EDITOR_TOP_CHROME_IDS: readonly string[] = [
     `${EDITOR_INDEX_ID}-bar`,
 ];
 
+/** What the action bar shows while a finish waits for its photos. */
+export interface PhotoFinishBar {
+    /** "Recipe saved. Finishing your photo uploads…", or how many photos failed. */
+    readonly line: string;
+    /** A photo failed: the line is in the danger tone. */
+    readonly danger: boolean;
+    /** "Finish without the remaining photos". */
+    readonly actionLabel: string;
+    readonly onAction: () => void;
+    /** The control takes focus: the button the cook pressed is gone (SC 2.4.3). */
+    readonly focusRequested: boolean;
+    readonly onFocusRequestHandled: () => void;
+}
+
 /** Props for `EditorActionBar`. */
 export interface EditorActionBarProps {
     readonly label: string;
@@ -82,6 +96,11 @@ export interface EditorActionBarProps {
     readonly readyLine?: string;
     /** An alert about a parked write, shown above the controls. */
     readonly notice?: ReactNode;
+    /**
+     * The editor finished but waits for its photos (`useEditorPhotos`): the line and the one control that replace Preview
+     * and the primary. A second Publish would make a second recipe, so the primary is not offered at all.
+     */
+    readonly finishing?: PhotoFinishBar;
     /**
      * The on-screen keyboard is up (native only, A-006): it covers the system navigation bar, so the bar stops padding
      * for it. The web bar ignores this.
@@ -155,9 +174,25 @@ export interface RecipeEditorViewProps {
     readonly initialSection?: EditorSectionId;
     /** Leave the editor (× ). The editor has already checkpointed the exit. */
     readonly onClose: () => void;
+    /**
+     * Ask before a leave that would lose photos, then `proceed`; or `proceed` at once. × goes through it BEFORE the exit
+     * checkpoint, so a cook who stays has not left (`RecipeEditorSurface`'s `leaveAsk`).
+     */
+    readonly requestLeave: (proceed: () => void) => void;
     readonly onPreview: () => void;
     /** A Publish or Save changes was refused: the row editor points at its pending text. */
     readonly onRefused?: (outcome: GateOutcome) => void;
     /** "Check My recipes", from an unknown create's alert. */
     readonly onOpenMyRecipes: () => void;
+    /**
+     * The editor finished (published, or its changes saved) and waits for its photos (`useEditorPhotos`). The page then
+     * shows only Photos & publish, where the uploads and their Retry are, and the action bar's Finish control: any other
+     * field changed now would be lost, because the editor has already handed off.
+     */
+    readonly photoFinish?: PhotoFinishBar;
+    /**
+     * A photo is not uploaded yet: on web, closing the tab would lose it, so the browser asks; and the page stays drawn
+     * past the hand-off until the finish holds for it (`editorPageStays`).
+     */
+    readonly photosAtRisk: boolean;
 }

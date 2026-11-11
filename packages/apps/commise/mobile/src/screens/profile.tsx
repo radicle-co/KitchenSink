@@ -1,6 +1,6 @@
 /**
- * @module screens/profile — the one Profile page (native; `docs/design/uiOverhaul/buildSpec.md` §9.1), pushed from the
- * avatar. It replaces the old profile form AND the `AccountSettings` hub: who the cook is, the one thing they can
+ * @module screens/profile — the one Profile page (native; `docs/design/uiOverhaul/buildSpec.md` §9.1), the root of the
+ * You tab's own `profile` stack (owner ruling 2026-11-11, N3), so it has no back control. It replaces the old profile form AND the `AccountSettings` hub: who the cook is, the one thing they can
  * change (the display name), preferences, sign out, and the danger zone.
  *
  * ORCHESTRATION. It owns the profile read (`useUserProfile`, the shell's own cached query), the display-name editor and
@@ -18,8 +18,7 @@
  * written only from the sheet's Save, so the two never share a pending or failed state. A failed pick or a failed save
  * of the photo shows one alert under the header.
  *
- * @pattern Composition root over the Profile render leaves — the read, the editor and the navigator's back meet here and
- *     nowhere below
+ * @pattern Composition root over the Profile render leaves — the read and the editor meet here and nowhere below
  */
 import { useUser } from '@clerk/expo';
 import { initialsFor } from '@commise/features-core';
@@ -39,7 +38,6 @@ import { useMessages } from '@commise/i18n/react';
 import { useOwnFoods } from '@kitchensink/food-service-client/hooks';
 import { LargeTitleHeader } from '@commise/ui/large-title-header';
 import { nativeTokens } from '@commise/ui/native';
-import { PushedPageFrame, type PushedPageInset } from '@commise/ui/pushed-page';
 import type { ScrollBind } from '@commise/ui/scroll-host';
 import { Text } from '@commise/ui/text';
 import { useId, useState, type JSX } from 'react';
@@ -55,63 +53,24 @@ import { useScreenTrace } from '../screenTrace/useScreenTrace.js';
 
 /** Props for {@link ProfileScreen}. */
 export interface ProfileScreenProps {
-    /** Leave Profile: pop to the screen it was pushed from. */
-    readonly onBack: () => void;
+    /** The bind for the page's one vertical scroller, from the tab root's `ScrollHost`. */
+    readonly scrollBind: ScrollBind;
     /** Open Food data sources: the navigator pushes it as a page, so this screen mounts nothing for it (A-026). */
     readonly onOpenDataSources: () => void;
     readonly onOpenYourFoods: () => void;
 }
 
-/** Props for the page inside the frame. */
-interface ProfileSurfaceProps {
-    /** The bind for the page's one vertical scroller. */
-    readonly scrollBind: ScrollBind;
-    /** The room the frame leaves under the pinned bar. */
-    readonly inset: PushedPageInset;
-    /** The H1's id, which the frame's bar watches. */
-    readonly headingId: string;
-    /** Open Food data sources. */
-    readonly onOpenDataSources: () => void;
-    readonly onOpenYourFoods: () => void;
-}
-
 /**
- * The Profile page, inside the shared pushed-page frame (it is a pushed screen, not a tab root): the frame owns the one
- * scroll host and pins Back in the bar, so Back is reachable at every scroll position.
+ * The Profile page, the You tab's root: it draws inside the tab root's own scroll host (so a second tap on You scrolls it
+ * to the top) and has no Back.
  *
- * @param props - The way back, and the way to Data sources.
+ * @param props - The scroller's bind and the ways to Data sources and Your foods.
  * @returns The page.
  */
-export function ProfileScreen({ onBack, onOpenDataSources, onOpenYourFoods }: ProfileScreenProps): JSX.Element {
+export function ProfileScreen({ scrollBind, onOpenDataSources, onOpenYourFoods }: ProfileScreenProps): JSX.Element {
     useScreenTrace('profile');
     const t = useMessages(profileMessages);
     const headingId = useId();
-    const back = { label: t.back, parent: t.homeParent, onPress: onBack };
-
-    return (
-        <PushedPageFrame back={back} headingId={headingId} title={t.title}>
-            {(bind, inset) => (
-                <ProfileSurface
-                    scrollBind={bind}
-                    inset={inset}
-                    headingId={headingId}
-                    onOpenDataSources={onOpenDataSources}
-                    onOpenYourFoods={onOpenYourFoods}
-                />
-            )}
-        </PushedPageFrame>
-    );
-}
-
-/** The page. */
-function ProfileSurface({
-    scrollBind,
-    inset,
-    headingId,
-    onOpenDataSources,
-    onOpenYourFoods,
-}: ProfileSurfaceProps): JSX.Element {
-    const t = useMessages(profileMessages);
     const foodsT = useMessages(foodPageMessages);
     const ownFoods = useOwnFoods();
     const query = useUserProfile();
@@ -136,7 +95,7 @@ function ProfileSurface({
             <ScrollView
                 {...scrollBind}
                 style={styles.region}
-                contentContainerStyle={[styles.content, inset]}
+                contentContainerStyle={styles.content}
                 keyboardShouldPersistTaps="handled"
             >
                 <LargeTitleHeader headingId={headingId} title={t.title} />

@@ -9,13 +9,12 @@
  * - **The platform** (`nativeDiscoveryPlatform`): the plain read boundary, the calorie lookup, and `AsyncStorage` for the
  *   recent searches.
  * - **Navigation**: a selected card opens its detail through the navigator; the snackbar's Edit opens the copy. The
- *   route also supplies the large title's avatar action and the scroll host's bind for the screen's one scroller.
+ *   route also supplies the scroll host's bind for the screen's one scroller.
  *
  * @pattern Adapter — the mobile host's criteria store and platform plugged into the shared discovery screen
  */
 import { DiscoveryScreen, useStateCriteriaStore } from '@commise/features-recipes/discovery';
 import type { RecipeFilterState } from '@commise/features-recipes';
-import type { HeaderAction } from '@commise/ui/large-title-header';
 import type { ScrollBind } from '@commise/ui/scroll-host';
 import type { JSX } from 'react';
 
@@ -34,8 +33,6 @@ export interface RecipeDiscoveryScreenProps {
      * couldn't otherwise see.
      */
     readonly initialFilters?: RecipeFilterState;
-    /** The large title's action: the avatar, which pushes Profile (slice 3). The route supplies it. */
-    readonly headerAction?: HeaderAction;
     /** The bind for this screen's one vertical scroller, from its `ScrollHost` (`TabRootScreen`). */
     readonly scrollBind?: ScrollBind;
 }
@@ -50,7 +47,6 @@ export function RecipeDiscoveryScreen({
     onSelectRecipe,
     onEditRecipe,
     initialFilters,
-    headerAction,
     scrollBind,
 }: RecipeDiscoveryScreenProps): JSX.Element {
     useScreenTrace('RecipeDiscoveryScreen');
@@ -62,7 +58,6 @@ export function RecipeDiscoveryScreen({
             platform={nativeDiscoveryPlatform}
             onEditCopy={onEditRecipe}
             onSelectRecipe={onSelectRecipe}
-            {...(headerAction === undefined ? {} : { headerAction })}
             {...(scrollBind === undefined ? {} : { scrollBind })}
         />
     );

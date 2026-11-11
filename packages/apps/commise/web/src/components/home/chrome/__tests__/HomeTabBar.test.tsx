@@ -218,11 +218,14 @@ describe('HomeTabBar (web) — compact height', () => {
         }
     });
 
-    it('pads both sides by the safe-area inset so a cutout or a 3-button bar never covers a tab', () => {
+    // Rewritten for four tabs (2026-11-11): the bar's own 8 px side padding is gone, because four tabs of at least 80 px
+    // need the full 320 px and the padded 304 would push the fourth 16 px past the screen. The inset alone remains.
+    it('pads both sides by the safe-area inset alone so a cutout never covers a tab and four fit at 320', () => {
         renderBar();
 
-        expect(bar().className).toContain('pl-[max(0.5rem,env(safe-area-inset-left))]');
-        expect(bar().className).toContain('pr-[max(0.5rem,env(safe-area-inset-right))]');
+        expect(bar().className).toContain('pl-[env(safe-area-inset-left)]');
+        expect(bar().className).toContain('pr-[env(safe-area-inset-right)]');
+        expect(bar().className).not.toContain('max(0.5rem');
     });
 
     it('keeps every label as the link’s accessible name', () => {

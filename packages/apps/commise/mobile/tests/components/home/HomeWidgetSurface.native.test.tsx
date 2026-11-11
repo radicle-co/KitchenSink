@@ -129,22 +129,21 @@ const pinClockAt = (instant: Date): void => {
 
 describe('HomeWidgetSurface (mobile) — host composition', () => {
     // Rewritten for slice 3: the top bar (with its dead search and bell) is deleted. Home's large title is the greeting,
-    // the scroller's first child, with the avatar as its action; the tab bar is the navigator's
+    // the scroller's first child (no avatar: owner ruling 2026-11-11, N3); the tab bar is the navigator's
     // (`tests/navigation/RootNavigator.native.test.tsx`).
-    it('renders the greeting as the large title, with its action, and no top bar or tab bar of its own', () => {
+    it('renders the greeting as the large title, with no avatar, and no top bar or tab bar of its own', () => {
         vi.useFakeTimers();
         vi.setSystemTime(new Date(2026, 4, 31, 14, 0, 0));
 
         renderSurface({
             container: containerWith(makeLiveDescriptor(RECIPE_HOME_WIDGET_ID)),
             renderers: { [RECIPE_HOME_WIDGET_ID]: FakeRecipeWidget },
-            headerAction: { kind: 'avatar', avatar: <Text accessibilityRole="button">Profile</Text> },
         });
 
         const heading = screen.getByRole('heading', { name: /^Good afternoon/u });
 
         expect(screen.getAllByRole('heading')[0]).toBe(heading);
-        expect(screen.getByRole('button', { name: 'Profile' })).toBeTruthy();
+        expect(screen.queryByRole('button', { name: /^Profile/u })).toBeNull();
         expect(screen.queryByLabelText(/coming soon/u)).toBeNull();
         expect(screen.queryByLabelText('Main')).toBeNull();
     });

@@ -5,8 +5,10 @@
  *
  * - The ROOT stack holds the tabs and the focused tasks above them (the editor), so the tab bar hides on a task by
  *   construction.
- * - Each TAB is a stack. Its root differs; the pushed screens are the same in every tab, so Profile, a recipe or a
- *   collection opens on whichever tab the cook is in. All three stacks share one param list for that reason.
+ * - Each TAB is a stack. Its root differs; the pushed screens are the same in every tab, so a recipe or a collection opens
+ *   on whichever tab the cook is in. All the stacks share one param list for that reason. Profile is not pushed: it is the
+ *   root of the You tab's own `profile` stack (owner ruling 2026-11-11, N3), and what it opens (Food data sources, Your
+ *   foods) is pushed onto that stack.
  *
  * @pattern Registry — the screens, keyed by route name, with their params
  */
@@ -27,7 +29,6 @@ export type PushedParamList = {
     };
     RecipeVersions: { readonly recipeId: string };
     CollectionDetail: { readonly collectionId: string };
-    Profile: undefined;
     /** Food data sources: a page pushed from Profile (A-026), not a modal over it. */
     DataSources: undefined;
     /** The cook's own foods: a page pushed from Profile (private foods spec F19). */
@@ -42,10 +43,12 @@ export type TabStackParamList = PushedParamList & {
     HomeRoot: undefined;
     RecipesRoot: { readonly segment?: RecipesSegment } | undefined;
     DiscoverRoot: { readonly tags?: readonly string[] } | undefined;
+    /** Profile, the root of the You tab's `profile` stack. It has no way back: the tab bar is how a cook leaves it. */
+    ProfileRoot: undefined;
 };
 
 /** The tabs, in bar order. */
-export const TAB_ROUTES = ['home', 'recipes', 'discover'] as const satisfies readonly HomeNavItemId[];
+export const TAB_ROUTES = ['home', 'recipes', 'discover', 'you'] as const satisfies readonly HomeNavItemId[];
 
 /** A tab. */
 export type TabRoute = (typeof TAB_ROUTES)[number];

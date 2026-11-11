@@ -238,20 +238,12 @@ describe('RecipeDiscoveryFrame (native) — the large title', () => {
         expect(screen.queryByLabelText('Recipe source')).toBeNull();
     });
 
-    it('renders the heading as the large title, with the avatar the route supplies', () => {
-        renderFrame({
-            headerAction: {
-                kind: 'avatar',
-                avatar: (
-                    <Text accessibilityRole="button" accessibilityLabel="Profile">
-                        P
-                    </Text>
-                ),
-            },
-        });
+    // Rewritten 2026-11-11 (N3): the title row carries no avatar, so the frame takes no `headerAction` and draws none.
+    it('renders the heading as the large title, with no avatar in its row', () => {
+        renderFrame();
 
         expect(screen.getAllByRole('heading')).toHaveLength(1);
-        expect(screen.getByRole('button', { name: 'Profile' })).toBeTruthy();
+        expect(screen.queryByRole('button', { name: /^Profile/u })).toBeNull();
     });
 });
 

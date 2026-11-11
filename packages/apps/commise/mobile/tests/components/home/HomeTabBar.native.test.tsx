@@ -1,6 +1,6 @@
 /**
- * The native bottom tab bar (`buildSpec.md` §3.2; D6, D14): the three reachable destinations and no "Soon" tab, each a
- * `tab` named by its label; the active one `selected`, its label in the `label` role (weight 600) in `ink` with the
+ * The native bottom tab bar (`buildSpec.md` §3.2; D6, D14): the reachable destinations (Home, Recipes, Discover and You)
+ * and no "Soon" tab, each a `tab` named by its label; the active one `selected`, its label in the `label` role (weight 600) in `ink` with the
  * here-bar, the rest in the `caption` role (weight 500) in `inkMuted`; on the floating layer's material; padded by the
  * bottom inset; and every press reported — the active tab's too, which is its second tap.
  *
@@ -12,7 +12,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, screen, within } from '@testing-library/react';
 
 import { RECIPE_HOME_WIDGET_CAPABILITY } from '@commise/features-recipes';
-import type { HomeNavItemId } from '@commise/features-core';
+import type { HomeNavItemId, ProfileEntry } from '@commise/features-core';
 import { homeMessages } from '@commise/features-core/home';
 import { role } from '@commise/ui/colors';
 import { nativeTokens } from '@commise/ui/native';
@@ -25,15 +25,18 @@ afterEach(cleanup);
 
 const chrome = homeMessages.en.chrome;
 
+const READY: ProfileEntry = { status: 'ready', name: 'Eliza Montgomery' };
+
 const barProps = (
     activeId: HomeNavItemId,
     onPress: HomeTabBarProps['onPress'],
     live: readonly string[],
-    over: { compact?: boolean; leftInset?: number; rightInset?: number },
+    over: { compact?: boolean; leftInset?: number; rightInset?: number; profile?: ProfileEntry },
 ): HomeTabBarProps => ({
     chrome,
     liveCapabilities: live,
     activeId,
+    profile: over.profile ?? READY,
     onPress,
     bottomInset: 34,
     compact: over.compact ?? false,
@@ -45,7 +48,7 @@ const renderBar = (
     activeId: HomeNavItemId = 'home',
     onPress = vi.fn(),
     live = [RECIPE_HOME_WIDGET_CAPABILITY],
-    over: { compact?: boolean; leftInset?: number; rightInset?: number } = {},
+    over: { compact?: boolean; leftInset?: number; rightInset?: number; profile?: ProfileEntry } = {},
 ) => render(<HomeTabBar {...barProps(activeId, onPress, live, over)} />);
 
 /** The bar in one scheme and at one system text scale, whatever the device reports. */
@@ -57,10 +60,16 @@ const renderBarIn = (scheme: 'light' | 'dark', activeId: HomeNavItemId, textScal
     );
 
 describe('HomeTabBar (native)', () => {
-    it('shows exactly Home, Recipes and Discover as tabs, and no "Soon" tab', () => {
+    it('shows exactly Home, Recipes, Discover and You as tabs, and no "Soon" tab', () => {
         renderBar();
 
-        expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['Home', 'Recipes', 'Discover']);
+        // The You tab's disc holds the cook's initials, so the names, not the text, are the list.
+        expect(screen.getAllByRole('tab').map((tab) => tab.getAttribute('aria-label'))).toEqual([
+            'Home',
+            'Recipes',
+            'Discover',
+            'You',
+        ]);
         expect(screen.getByRole('tablist', { name: chrome.tabNavLabel }).textContent).not.toMatch(/soon/i);
     });
 
@@ -178,7 +187,7 @@ describe('HomeTabBar (native) — one glyph row, whatever the labels do', () => 
         renderBar();
 
         for (const tab of screen.getAllByRole('tab')) {
-            const glyph = tab.querySelector('[data-icon-name]');
+            const glyph = tab.querySelector('[data-icon-name], [data-testid="youTabDisc"]');
             const label = within(tab).getByText(tab.getAttribute('aria-label') ?? '');
 
             expect(glyph).not.toBeNull();
@@ -215,6 +224,7 @@ describe('HomeTabBar (native) — compact height', () => {
             'Home',
             'Recipes',
             'Discover',
+            'You',
         ]);
     });
 
@@ -229,14 +239,92 @@ describe('HomeTabBar (native) — compact height', () => {
 
         const style = getComputedStyle(screen.getByRole('tablist'));
 
-        // The bar's own 4 dp side padding, plus the inset.
-        expect(style.paddingLeft).toBe('52px');
-        expect(style.paddingRight).toBe('4px');
+        // The inset alone: the bar has no side padding of its own, so four tabs are 80 wide at 320 (2026-11-11).
+        expect(style.paddingLeft).toBe('48px');
+        expect(style.paddingRight).toBe('0px');
     });
 
     it('pads the insets when it is not compact either: an upright tablet can have a side inset', () => {
         renderBar('home', vi.fn(), [RECIPE_HOME_WIDGET_CAPABILITY], { leftInset: 0, rightInset: 20 });
 
-        expect(getComputedStyle(screen.getByRole('tablist')).paddingRight).toBe('24px');
+        expect(getComputedStyle(screen.getByRole('tablist')).paddingRight).toBe('20px');
+    });
+});
+
+/**
+ * The You tab (owner ruling 2026-11-11, N3; `buildSpec.md` §3.2): the cook's avatar as a 24 pt disc over the label "You".
+ * Same content rules as the chrome Avatar: a `pearl` disc while the profile loads, the initials in a 10 pt label on the
+ * `action` fill, the 20 pt `user` glyph with no name or after a failed read. Active, a 2 pt `ink` ring stands in for the
+ * filled glyph. Its accessible name is the visible label, "You" (SC 2.5.3).
+ */
+describe('HomeTabBar (native) — the You tab', () => {
+    const you = () => screen.getByRole('tab', { name: 'You' });
+    const disc = () => you().querySelector('[data-testid="youTabDisc"]') as HTMLElement;
+    const ring = () => you().querySelector('[data-testid="youTabRing"]') as HTMLElement;
+
+    it('is named by its visible label alone, whatever the disc shows', () => {
+        renderBar('home', vi.fn(), [RECIPE_HOME_WIDGET_CAPABILITY], { profile: READY });
+
+        expect(you().getAttribute('aria-label')).toBe('You');
+        expect(within(you()).getByText('You')).toBeTruthy();
+    });
+
+    it('shows the initials on the action fill in a 24 pt disc once the profile is ready', () => {
+        renderBar();
+
+        expect(disc().textContent).toBe('EM');
+        expect(getComputedStyle(disc()).width).toBe('24px');
+        expect(getComputedStyle(disc()).height).toBe('24px');
+    });
+
+    it('draws the initials at 10 pt, which does not grow with the system text size', () => {
+        renderBarIn('light', 'home', 3.1);
+
+        expect(getComputedStyle(within(disc()).getByText('EM')).fontSize).toBe('10px');
+    });
+
+    it('shows a blank disc, with no glyph and no initials, while the profile loads', () => {
+        renderBar('home', vi.fn(), [RECIPE_HOME_WIDGET_CAPABILITY], {
+            profile: { status: 'loading', name: undefined },
+        });
+
+        expect(disc().textContent).toBe('');
+        expect(disc().querySelector('[data-commise-stub="icon"]')).toBeNull();
+    });
+
+    it.each([
+        ['has no name', { status: 'ready', name: undefined } as const],
+        ['failed to load', { status: 'failed', name: undefined } as const],
+    ])('shows the user glyph, never an error, when the profile %s', (_what, profile) => {
+        renderBar('home', vi.fn(), [RECIPE_HOME_WIDGET_CAPABILITY], { profile });
+
+        expect(disc().querySelector('[data-commise-stub="icon"]')?.getAttribute('data-icon-name')).toBe('user');
+        expect(screen.queryByRole('alert')).toBeNull();
+    });
+
+    it('rings the disc in ink at 2 pt and marks the tab selected when active', () => {
+        renderBar('you');
+
+        expect(you().getAttribute('aria-selected')).toBe('true');
+        expect(getComputedStyle(ring()).borderTopWidth).toBe('2px');
+        expect(resolvedColour(ring(), 'borderTopColor')).toBe(rgb(role.ink));
+        expect(getComputedStyle(you().firstElementChild as Element).backgroundColor).toBe(rgb(role.hereBar));
+    });
+
+    it('keeps the ring’s room when inactive, so the disc does not move, but paints no ring', () => {
+        renderBar('home');
+
+        expect(getComputedStyle(ring()).borderTopWidth).toBe('2px');
+        expect(resolvedColour(ring(), 'borderTopColor')).not.toBe(rgb(role.ink));
+        expect(you().getAttribute('aria-selected')).toBe('false');
+    });
+
+    it('reports a press of You, the active one’s too', () => {
+        const onPress = vi.fn();
+        renderBar('you', onPress);
+
+        fireEvent.click(you());
+
+        expect(onPress).toHaveBeenCalledWith('you');
     });
 });

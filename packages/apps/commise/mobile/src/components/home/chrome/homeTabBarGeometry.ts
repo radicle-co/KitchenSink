@@ -11,8 +11,11 @@ import type { ChromeCap } from '@commise/ui/scaled-type';
 /** The chrome cap a tab label grows to: navigation chrome, so 1.5× (ADR-0080 §8). */
 export const TAB_BAR_CHROME_CAP = '1.5' satisfies ChromeCap;
 
-/** The bar's own side padding, in dp; the safe-area inset is added to it. */
-export const TAB_BAR_SIDE_PADDING = nativeTokens.spacing[1];
+/**
+ * The bar's own side padding, in dp; the safe-area inset is added to it. None: four tabs must be 80 wide at 320
+ * (`buildSpec.md` §3.2), which the full width alone gives.
+ */
+export const TAB_BAR_SIDE_PADDING = 0;
 
 /** The role a tab's label is drawn in: `label` when the tab is active, `caption` when it is not. */
 export const TAB_LABEL_ROLE = { active: 'label', inactive: 'caption' } as const satisfies Record<

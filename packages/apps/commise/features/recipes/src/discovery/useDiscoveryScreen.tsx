@@ -61,8 +61,8 @@ import type { RecentSearchStore } from './recentSearches.js';
 
 /** Everything the screen renders from, in the three groups it renders them in. */
 export interface DiscoveryScreenState {
-    /** The persistent frame's props (every one but its title action and its body). */
-    readonly frame: Omit<RecipeDiscoveryFrameProps, 'children' | 'headerAction'>;
+    /** The persistent frame's props (every one but its body). */
+    readonly frame: Omit<RecipeDiscoveryFrameProps, 'children'>;
     /** The suspense read for the settled criteria, and the criteria it belongs to. */
     readonly read: DiscoverySearchRead;
     readonly settled: RecipeDiscoveryCriteria;

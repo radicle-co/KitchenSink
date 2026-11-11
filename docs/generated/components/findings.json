@@ -4,7 +4,7 @@
         "ambiguous-layer-signal": 9,
         "boolean-prop-selects-subtree": 8,
         "cross-platform-props-diverge": 22,
-        "missing-component-doc": 166,
+        "missing-component-doc": 165,
         "missing-module-doc": 23,
         "platform-singleton": 98,
         "ref-api": 19,
@@ -6359,14 +6359,6 @@
                 "navigation",
                 "state"
             ]
-        },
-        {
-            "rule": "missing-component-doc",
-            "severity": "gap",
-            "component": "mobile/navigation/ProfileAvatarEntry",
-            "sourcePath": "packages/apps/commise/mobile/src/navigation/ProfileAvatarEntry.tsx",
-            "message": "the component declaration has no JSDoc summary",
-            "evidence": []
         },
         {
             "rule": "missing-component-doc",

@@ -33,7 +33,6 @@ import { RecipeDiscoveryScreen } from '../screens/RecipeDiscoveryScreen.js';
 import { RecipeListScreen } from '../screens/RecipeListScreen.js';
 import { RecipeVersionsScreen } from '../screens/RecipeVersionsScreen.js';
 import type { RecipesSegment, RootStackParamList, TabParamList, TabRoute, TabStackParamList } from './routes.js';
-import { ProfileAvatarEntry } from './ProfileAvatarEntry.js';
 import { ScreenBoundary } from './ScreenBoundary.js';
 import { ScreenFrame } from './ScreenFrame.js';
 import { TabRootScreen } from './TabRootScreen.js';
@@ -112,14 +111,21 @@ function CollectionDetailRoute({ navigation, route }: TabScreenProps<'Collection
     );
 }
 
-/** Profile, pushed from the avatar onto the current tab. */
-function ProfileRoute({ navigation }: TabScreenProps<'Profile'>): JSX.Element {
+/**
+ * Profile, the root of the You tab's `profile` stack (owner ruling 2026-11-11, N3). It has no back control, and a second
+ * tap on You pops the stack here and then scrolls it to the top (`TabRootScreen`).
+ */
+function ProfileRoute({ navigation }: TabScreenProps<'ProfileRoot'>): JSX.Element {
     return (
-        <ProfileScreen
-            onBack={() => navigation.goBack()}
-            onOpenDataSources={() => navigation.push('DataSources')}
-            onOpenYourFoods={() => navigation.push('YourFoods')}
-        />
+        <TabRootScreen>
+            {(bind) => (
+                <ProfileScreen
+                    scrollBind={bind}
+                    onOpenDataSources={() => navigation.push('DataSources')}
+                    onOpenYourFoods={() => navigation.push('YourFoods')}
+                />
+            )}
+        </TabRootScreen>
     );
 }
 
@@ -155,7 +161,6 @@ function HomeRoute({ navigation }: TabScreenProps<'HomeRoot'>): JSX.Element {
                     scrollBind={bind}
                     onOpenRecipes={() => navigation.navigate('recipes')}
                     onOpenRecipe={(recipeId) => navigation.push('RecipeDetail', { recipeId })}
-                    onOpenProfile={() => navigation.push('Profile')}
                     onCreateRecipe={() => navigation.navigate('RecipeCreate')}
                     onPasteIngredients={() =>
                         navigation.navigate('RecipeCreate', { section: 'ingredients', paste: true })
@@ -181,10 +186,6 @@ function RecipesRoute({ navigation, route }: TabScreenProps<'RecipesRoot'>): JSX
         href: NATIVE_SEGMENT_HREF,
         onSelect: (next: RecipesSegment) => navigation.setParams({ segment: next }),
     };
-    const headerAction = {
-        kind: 'avatar',
-        avatar: <ProfileAvatarEntry onPress={() => navigation.push('Profile')} />,
-    } as const;
 
     return (
         <TabRootScreen>
@@ -193,7 +194,6 @@ function RecipesRoute({ navigation, route }: TabScreenProps<'RecipesRoot'>): JSX
                     <RecipeListScreen
                         scrollBind={bind}
                         segments={segments}
-                        headerAction={headerAction}
                         onSelectRecipe={(recipeId) => navigation.push('RecipeDetail', { recipeId })}
                         onCreateRecipe={() => navigation.navigate('RecipeCreate')}
                         onPasteIngredients={() =>
@@ -204,7 +204,6 @@ function RecipesRoute({ navigation, route }: TabScreenProps<'RecipesRoot'>): JSX
                     <CollectionsScreen
                         scrollBind={bind}
                         segments={segments}
-                        headerAction={headerAction}
                         onSelect={(collectionId) => navigation.push('CollectionDetail', { collectionId })}
                         onCreateRecipe={() => navigation.navigate('RecipeCreate')}
                     />
@@ -229,10 +228,6 @@ function DiscoverRoute({ navigation, route }: TabScreenProps<'DiscoverRoot'>): J
                     onSelectRecipe={(recipeId) => navigation.push('RecipeDetail', { recipeId })}
                     // The Save a copy snackbar's Edit: a copy opens in the editor (FR-005b), as from a recipe's page.
                     onEditRecipe={(recipeId) => navigation.navigate('RecipeEdit', { recipeId })}
-                    headerAction={{
-                        kind: 'avatar',
-                        avatar: <ProfileAvatarEntry onPress={() => navigation.push('Profile')} />,
-                    }}
                 />
             )}
         </TabRootScreen>
@@ -276,6 +271,8 @@ function rootScreenOf(tab: TabRoute): JSX.Element {
             return <TabStackNavigator.Screen name="RecipesRoot" component={RecipesRoute} />;
         case 'discover':
             return <TabStackNavigator.Screen name="DiscoverRoot" component={DiscoverRoute} />;
+        case 'you':
+            return <TabStackNavigator.Screen name="ProfileRoot" component={ProfileRoute} />;
     }
 }
 
@@ -302,7 +299,6 @@ export function TabStack({ tab }: TabStackProps): JSX.Element {
             <TabStackNavigator.Screen name="RecipeDetail" component={RecipeDetailRoute} />
             <TabStackNavigator.Screen name="RecipeVersions" component={RecipeVersionsRoute} />
             <TabStackNavigator.Screen name="CollectionDetail" component={CollectionDetailRoute} />
-            <TabStackNavigator.Screen name="Profile" component={ProfileRoute} />
             <TabStackNavigator.Screen name="DataSources" component={DataSourcesRoute} />
             <TabStackNavigator.Screen name="YourFoods" component={YourFoodsRoute} />
         </TabStackNavigator.Navigator>

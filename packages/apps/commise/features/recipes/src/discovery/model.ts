@@ -7,7 +7,6 @@
  * — one authoritative implementation of pluralization + placeholder filling for the whole feature.
  */
 import type { Locale } from '@commise/i18n';
-import type { HeaderAction } from '@commise/ui/large-title-header';
 import type { ScrollBind } from '@commise/ui/scroll-host';
 import type { ReactNode } from 'react';
 
@@ -424,12 +423,6 @@ export interface RecipeDiscoveryFrameProps {
      * header shows. Absent while nothing has settled, or while the rails are the body — neither is announced.
      */
     readonly resultsSummary?: RecipeDiscoveryResultsSummary;
-    /**
-     * The large title's action: the avatar, which opens Profile (`buildSpec.md` §3.3). The app supplies it, because
-     * the profile read and the navigation are the app's. Discover is a tab of its own since slice 3, so this surface
-     * takes no source switcher.
-     */
-    readonly headerAction?: HeaderAction;
     /** The recent-search memory (U7). Absent → no recent searches on this surface. */
     readonly recentSearches?: RecipeRecentSearchesControl;
     /**

@@ -4,11 +4,11 @@
     "totals": {
         "components": 448,
         "implementations": 657,
-        "props": 3597,
+        "props": 3583,
         "documentedComponents": 444,
         "implementationsWithModuleDoc": 634,
-        "implementationsWithComponentDoc": 491,
-        "documentedProps": 2907,
+        "implementationsWithComponentDoc": 492,
+        "documentedProps": 2893,
         "classifiedComponents": 355,
         "componentsWithPatternTag": 255,
         "crossPlatformComponents": 209
@@ -42,11 +42,11 @@
             "coverage": {
                 "components": 203,
                 "implementations": 345,
-                "props": 2380,
+                "props": 2371,
                 "documentedComponents": 203,
                 "implementationsWithModuleDoc": 345,
                 "implementationsWithComponentDoc": 234,
-                "documentedProps": 1808,
+                "documentedProps": 1799,
                 "classifiedComponents": 181,
                 "componentsWithPatternTag": 97,
                 "crossPlatformComponents": 142
@@ -99,11 +99,11 @@
             "coverage": {
                 "components": 55,
                 "implementations": 55,
-                "props": 159,
+                "props": 154,
                 "documentedComponents": 54,
                 "implementationsWithModuleDoc": 53,
-                "implementationsWithComponentDoc": 40,
-                "documentedProps": 152,
+                "implementationsWithComponentDoc": 41,
+                "documentedProps": 147,
                 "classifiedComponents": 40,
                 "componentsWithPatternTag": 26,
                 "crossPlatformComponents": 0

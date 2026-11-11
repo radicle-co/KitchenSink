@@ -26,7 +26,7 @@ const px = (element: HTMLElement): number => Number.parseFloat(resolvedStyle(ele
 function renderDiscover() {
     renderWithTamagui(
         <LocaleProvider locale="en">
-            <DiscoveryTitle focusSignal={0} action={undefined} />
+            <DiscoveryTitle focusSignal={0} />
             <RecipeBrowseRails
                 rails={[{ id: 'trending', onSeeAll: () => undefined, headingFocusSignal: 0, body: null }]}
                 cuisines={[{ value: 'Italian', onSelect: () => undefined }]}

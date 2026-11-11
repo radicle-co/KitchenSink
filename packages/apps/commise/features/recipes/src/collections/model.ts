@@ -5,7 +5,6 @@
  * building blocks, so the two renders can never drift on shape. No React, no platform APIs. These are
  * controlled, presentational components: they fetch nothing and delegate every interaction upward.
  */
-import type { HeaderAction } from '@commise/ui/large-title-header';
 import type { ScrollBind } from '@commise/ui/scroll-host';
 import type { Locale } from '@commise/i18n';
 import type { ReactNode } from 'react';
@@ -69,8 +68,6 @@ export interface CollectionListFrameProps {
      * frame never moves focus on mount.
      */
     readonly headingFocusSignal: number;
-    /** The large title's action (slice 3): the avatar, which opens Profile. The app supplies it. */
-    readonly headerAction?: HeaderAction;
     /** The floating button yields (§3.4) only while the first read loads. On the first run and offline or failed it shows. */
     readonly createEntryYields?: boolean;
     /**

@@ -82,7 +82,7 @@ export function HomeTabBar({ chrome, locale, liveCapabilities, activeId, profile
             aria-label={chrome.tabNavLabel}
             // The bar grows by the bottom safe-area inset and pads its foot by the same amount, so the 64 px row sits
             // clear above the home indicator. `env(...)` is 0 in a normal viewport.
-            className="fixed inset-x-0 bottom-0 z-50 isolate flex h-[calc(4rem+env(safe-area-inset-bottom))] justify-around pl-[max(0.5rem,env(safe-area-inset-left))] pr-[max(0.5rem,env(safe-area-inset-right))] pb-[env(safe-area-inset-bottom)] nav:hidden [@media(max-height:479px)]:h-[calc(3rem+env(safe-area-inset-bottom))]"
+            className="fixed inset-x-0 bottom-0 z-50 isolate flex h-[calc(4rem+env(safe-area-inset-bottom))] justify-around pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] pb-[env(safe-area-inset-bottom)] nav:hidden [@media(max-height:479px)]:h-[calc(3rem+env(safe-area-inset-bottom))]"
         >
             <ChromeSurface edge="top" />
             {resolveHomeNav(liveCapabilities).map((item) => {

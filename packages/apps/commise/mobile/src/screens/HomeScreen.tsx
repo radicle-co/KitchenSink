@@ -19,7 +19,6 @@ import type { JSX } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { HomeWidgetSurface } from '../components/home/HomeWidgetSurface.js';
-import { ProfileAvatarEntry } from '../navigation/ProfileAvatarEntry.js';
 import { useScreenTrace } from '../screenTrace/useScreenTrace.js';
 
 /** Props for {@link HomeScreen}. */
@@ -30,8 +29,6 @@ export interface HomeScreenProps {
     readonly onOpenRecipes: () => void;
     /** Push one recipe's detail, from a "Recent recipes" card. */
     readonly onOpenRecipe: (recipeId: string) => void;
-    /** Push Profile, from the avatar. */
-    readonly onOpenProfile: () => void;
     /** Open the editor (the create button, and the recent block's first run). */
     readonly onCreateRecipe: () => void;
     /** The first run's Paste ingredients: the new editor at Ingredients with its paste sheet open (§7.5.4). */
@@ -50,7 +47,6 @@ export function HomeScreen({
     scrollBind,
     onOpenRecipes,
     onOpenRecipe,
-    onOpenProfile,
     onCreateRecipe,
     onPasteIngredients,
     onFindOnDiscover,
@@ -64,7 +60,6 @@ export function HomeScreen({
         <View style={styles.container}>
             <HomeWidgetSurface
                 scrollBind={scrollBind}
-                headerAction={{ kind: 'avatar', avatar: <ProfileAvatarEntry size="large" onPress={onOpenProfile} /> }}
                 onSeeAllRecipes={onOpenRecipes}
                 onSelectRecipe={onOpenRecipe}
                 onCreateRecipe={onCreateRecipe}

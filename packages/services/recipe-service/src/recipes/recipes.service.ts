@@ -199,8 +199,12 @@ function toStepInput(step: { instruction: string; timerSeconds?: number }): Step
  * ⛔ The clone keeps the BINDING, including one to another author's private food (plan 002 R9, AE10). Copying
  * that food's name into a new declared line, as this mapper once did, published a private name to the cloner.
  * The kept binding renders as unavailable to them instead, and they may rebind it.
+ *
+ * @param row - The source recipe's line.
+ * @param sameOwner - Whether the cloner owns the source recipe. Only then is the copied text still theirs (ADR-0090).
+ * @returns The line the clone persists.
  */
-function toClonedLineInput(row: IngredientRow): IngredientLineInput {
+function toClonedLineInput(row: IngredientRow, sameOwner: boolean): IngredientLineInput {
     const stated = statedMeasureFromColumns(row);
 
     return {
@@ -219,6 +223,10 @@ function toClonedLineInput(row: IngredientRow): IngredientLineInput {
         ...(row.sourceLine !== null ? { sourceLine: row.sourceLine } : {}),
         ...(row.sourcePhrase !== null ? { sourcePhrase: row.sourcePhrase } : {}),
         ...(stated === undefined ? {} : { statedMeasure: stated }),
+        // ⛔ But the text is not the CLONER's (ADR-0090). They own the copy, and the owner is the one cook shown a
+        // line's source text, so a clone of another cook's recipe records that its owner did not write it. A clone of
+        // the cook's own recipe keeps the source line's answer, which is never raised: a copy of a copy stays false.
+        sourceLineTranscribedByOwner: sameOwner && row.sourceLineTranscribedByOwner,
         sortOrder: row.sortOrder,
         // Preserve any per-line user-entered nutrition (FR-007a) across a clone.
         ...userNutritionFromColumns(row),
@@ -1142,6 +1150,7 @@ export class RecipesService {
                 sourceLine: row.sourceLine ?? undefined,
                 statedMeasure: statedMeasureFromColumns(row),
                 sourcePhrase: row.sourcePhrase ?? undefined,
+                sourceLineTranscribedByOwner: row.sourceLineTranscribedByOwner,
             })),
             resolved,
         );
@@ -1154,6 +1163,8 @@ export class RecipesService {
             ...(carried[index]?.sourceLine === undefined ? {} : { sourceLine: carried[index]?.sourceLine }),
             ...(carried[index]?.statedMeasure === undefined ? {} : { statedMeasure: carried[index]?.statedMeasure }),
             ...(carried[index]?.sourcePhrase === undefined ? {} : { sourcePhrase: carried[index]?.sourcePhrase }),
+            // ADR-0090: from the SAME matched stored line as the text; false when nothing was carried.
+            sourceLineTranscribedByOwner: carried[index]?.sourceLineTranscribedByOwner ?? false,
         }));
     }
 
@@ -1697,7 +1708,9 @@ export class RecipesService {
                     hasSubstantiveEdit: false,
                     ...bylineColumnsOf(byline),
                     ingredientNamesText: ingredientNamesText(source.ingredients, identities),
-                    ingredients: source.ingredients.map(toClonedLineInput),
+                    ingredients: source.ingredients.map((row) =>
+                        toClonedLineInput(row, source.recipe.ownerId === ownerId),
+                    ),
                     steps: source.steps.map(toStepInputFromRow),
                 },
                 tx,

@@ -17,6 +17,8 @@
  * | version list (a real snapshot) | no text, though the stored rows hold it |
  * | recipe list, search, collection read | no text |
  * | GET /recipes/{id} | `Cache-Control: private, no-store`, because the body differs by viewer |
+ * | another cook clones it, then reads their clone | no text: they own the copy, not the words (ADR-0090) |
+ * | the owner clones their own recipe | the text, because they wrote it |
  */
 import 'reflect-metadata';
 
@@ -33,6 +35,7 @@ import { CollectionsDal } from '../../../src/collections/dal/collections.dal.js'
 import type { FoodLookupArm } from '../../../src/database/schema/foodLookupArm.js';
 import type { RecipeVersionRow } from '../../../src/database/schema/index.js';
 import { FoodLookupsDal } from '../../../src/ingredients/dal/foodLookups.dal.js';
+import type { IngredientLineInput } from '../../../src/recipes/dal/ingredientLines.dal.js';
 import type { RecipeAggregate } from '../../../src/recipes/dal/recipes.dal.js';
 import { recipeRowToDomain } from '../../../src/recipes/mappers/recipeRowToDomain.js';
 import {
@@ -53,6 +56,7 @@ const OWNER = '01JSOURCELINEOWNER0000001';
 const OTHER = '01JSOURCELINEOTHER0000001';
 const RECIPE_ID = '00000000-0000-4000-8000-0000000000d1';
 const COLLECTION_ID = '00000000-0000-4000-8000-0000000000d2';
+const CLONE_ID = '00000000-0000-4000-8000-0000000000d3';
 const AT = new Date('2026-11-01T00:00:00.000Z');
 /** Distinctive on purpose: the assertions search the body for it. */
 const SECRET = 'two cups of flour, sifted (MY GRANDMOTHERS CARD)';
@@ -79,6 +83,7 @@ function aggregateOf(recipe = stored): RecipeAggregate {
                 foodLookupId: ARM.lookupId,
                 sortOrder: 0,
                 sourceLine: SECRET,
+                sourceLineTranscribedByOwner: true,
             }),
             makeIngredientLineRow({
                 id: '00000000-0000-4000-8000-00000000d202',
@@ -127,6 +132,38 @@ const createSnapshot = vi.fn(
         return row;
     },
 );
+/**
+ * Plays the database for a clone: the row the DAL writes is the row it hands back, so the clone's detail is mapped
+ * from exactly the lines the service decided to write, flag included.
+ */
+let cloned: RecipeAggregate | undefined;
+const create = vi.fn(
+    async (input: { readonly ownerId: string; readonly ingredients: readonly IngredientLineInput[] }) => {
+        const recipe = makeRecipeRow({
+            id: CLONE_ID,
+            ownerId: input.ownerId,
+            status: 'draft',
+            clonedFromId: RECIPE_ID,
+        });
+
+        cloned = {
+            recipe,
+            steps: [makeRecipeStepRow({ recipeId: CLONE_ID })],
+            ingredients: input.ingredients.map((line, index) =>
+                makeIngredientLineRow({
+                    id: `00000000-0000-4000-8000-00000000d30${String(index)}`,
+                    recipeId: CLONE_ID,
+                    foodLookupId: line.foodLookupId,
+                    sortOrder: line.sortOrder,
+                    sourceLine: line.sourceLine ?? null,
+                    sourceLineTranscribedByOwner: line.sourceLineTranscribedByOwner,
+                }),
+            ),
+        };
+
+        return cloned;
+    },
+);
 const upsert = vi.fn(async () => undefined);
 const listRecipes = vi.fn(async () => [{ ...stored, addedVia: 'manual', ingredients: aggregateOf().ingredients }]);
 
@@ -158,7 +195,9 @@ beforeAll(async () => {
             {
                 provide: RECIPES_DAL,
                 useValue: {
-                    findById: async (id: string) => (id === RECIPE_ID ? aggregateOf() : undefined),
+                    findById: async (id: string) =>
+                        id === RECIPE_ID ? aggregateOf() : id === CLONE_ID ? cloned : undefined,
+                    create,
                     findRowById: async (id: string) => (id === RECIPE_ID ? stored : undefined),
                     // The list row is poisoned with the lines: a mapper that ever projected them would leak here.
                     findAll: async () => ({
@@ -229,6 +268,7 @@ beforeAll(async () => {
 beforeEach(() => {
     stored = makeRecipeRow({ id: RECIPE_ID, ownerId: OWNER, visibility: 'public', status: 'published' });
     versionRows = [];
+    cloned = undefined;
 });
 
 afterEach(() => {
@@ -345,5 +385,46 @@ describe('every surface that is not the owner’s detail read', () => {
         expect(text).toContain(RECIPE_ID);
         expect(text).not.toContain('sourceLine');
         expect(text).not.toContain('GRANDMOTHERS');
+    });
+});
+
+/**
+ * ADR-0090: a clone COPIES the line's text, because it is what the verification gate judges. The cloner then owns the
+ * copy, and "owner only" alone would show them another cook's verbatim words. The line records whether its owner wrote
+ * it, so ownership is no longer enough.
+ */
+describe('a clone — who wrote the copied line', () => {
+    it('⛔ shows a cook who cloned ANOTHER cook’s recipe no text, on the clone’s answer or on a read of it', async () => {
+        const res = await call(OTHER, 'POST', `/api/v1/recipes/${RECIPE_ID}/clone`, {});
+        const text = await res.text();
+
+        expect(res.status, text).toBe(201);
+        // Not vacuous: the clone really holds the text, under the cloner's ownership.
+        expect(cloned?.recipe.ownerId).toBe(OTHER);
+        expect(cloned?.ingredients[0]?.sourceLine).toBe(SECRET);
+        expect(text).toContain(CLONE_ID);
+        expect(text).not.toContain('sourceLine');
+        expect(text).not.toContain('GRANDMOTHERS');
+
+        const read = await call(OTHER, 'GET', `/api/v1/recipes/${CLONE_ID}`);
+        const readText = await read.text();
+
+        expect(read.status, readText).toBe(200);
+        expect(readText).not.toContain('sourceLine');
+        expect(readText).not.toContain('GRANDMOTHERS');
+    });
+
+    it('shows the owner who cloned their OWN recipe the text they wrote', async () => {
+        const res = await call(OWNER, 'POST', `/api/v1/recipes/${RECIPE_ID}/clone`, {});
+        const raw = (await res.json()) as { ingredients: Record<string, unknown>[] };
+
+        expect(res.status).toBe(201);
+        expect(cloned?.recipe.ownerId).toBe(OWNER);
+        expect(raw.ingredients[0]?.['sourceLine']).toBe(SECRET);
+
+        const read = await call(OWNER, 'GET', `/api/v1/recipes/${CLONE_ID}`);
+        const readRaw = (await read.json()) as { ingredients: Record<string, unknown>[] };
+
+        expect(readRaw.ingredients[0]?.['sourceLine']).toBe(SECRET);
     });
 });

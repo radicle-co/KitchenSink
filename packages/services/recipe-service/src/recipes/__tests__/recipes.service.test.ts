@@ -575,7 +575,11 @@ describe('RecipesService.getById', () => {
             return {
                 ...base,
                 ingredients: [
-                    makeIngredientLineRow({ recipeId: base.recipe.id, sourceLine: PASTED }),
+                    makeIngredientLineRow({
+                        recipeId: base.recipe.id,
+                        sourceLine: PASTED,
+                        sourceLineTranscribedByOwner: true,
+                    }),
                     makeIngredientLineRow({ recipeId: base.recipe.id, sourceLine: null, sortOrder: 1 }),
                 ],
             };
@@ -600,6 +604,25 @@ describe('RecipesService.getById', () => {
 
             const response = await newService(dal).getById({
                 viewerId: OTHER,
+                id: 'r-1',
+                caller: undefined,
+                budget: 'read',
+            });
+
+            expect(response.ingredients.every((line) => !('sourceLine' in line))).toBe(true);
+            expect(JSON.stringify(response)).not.toContain('grandmother');
+        });
+
+        it('⛔ gives the OWNER nothing for a line whose text another cook wrote — their clone (ADR-0090)', async () => {
+            const owned = transcribed({ visibility: 'public' });
+            const cloned: RecipeAggregate = {
+                ...owned,
+                ingredients: owned.ingredients.map((line) => ({ ...line, sourceLineTranscribedByOwner: false })),
+            };
+            const dal = fakeRecipesDal({ findById: vi.fn().mockResolvedValue(cloned) });
+
+            const response = await newService(dal).getById({
+                viewerId: OWNER,
                 id: 'r-1',
                 caller: undefined,
                 budget: 'read',
@@ -2172,6 +2195,8 @@ describe('RecipesService.clone — content fidelity + provenance (Tier-2)', () =
                         quantity: { kind: 'exact', value: 2 },
                         unit: 'cup',
                         displayText: 'sifted',
+                        // The source line carried no text, so there is nothing for the owner to have written (ADR-0090).
+                        sourceLineTranscribedByOwner: false,
                         sortOrder: 0,
                     },
                 ],

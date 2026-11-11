@@ -1,8 +1,10 @@
 /**
  * The transcription-disclosure Specification: who may be shown the line a cook pasted or imported.
  *
- * The rule today is ONE condition, "the viewer owns the recipe". The table pins every cell, and the
- * undefined-viewer row is the fail-closed one: a signed-out or system read is a reader.
+ * The rule is TWO conditions, both required: the viewer owns the recipe, AND the line records that its owner
+ * supplied the text (`source_line_transcribed_by_owner`, ADR-0090). The table pins every cell. The undefined-viewer
+ * row is the fail-closed one (a signed-out or system read is a reader), and the owner-with-an-unflagged-line row is
+ * the clone case: a cook who cloned another cook's recipe owns the copy, and the verbatim text in it is not theirs.
  */
 import { describe, expect, it } from 'vitest';
 
@@ -27,24 +29,34 @@ describe('disclosedSourceLine', () => {
     const transcriber = transcriptionAudienceOf({ ownerId: OWNER }, OWNER);
     const reader = transcriptionAudienceOf({ ownerId: OWNER }, OTHER);
     const anonymous = transcriptionAudienceOf({ ownerId: OWNER }, undefined);
+    const own = { sourceLine: TEXT, sourceLineTranscribedByOwner: true };
+    const copied = { sourceLine: TEXT, sourceLineTranscribedByOwner: false };
 
-    it('gives the owner the text of a transcribed line', () => {
-        expect(disclosedSourceLine(transcriber, { sourceLine: TEXT })).toBe(TEXT);
+    it('gives the owner the text of a line they transcribed', () => {
+        expect(disclosedSourceLine(transcriber, own)).toBe(TEXT);
+    });
+
+    it('⛔ gives the owner NOTHING for a line whose text another cook supplied (a clone of their recipe)', () => {
+        expect(disclosedSourceLine(transcriber, copied)).toBeUndefined();
     });
 
     it('gives the owner nothing for a line with no transcription', () => {
-        expect(disclosedSourceLine(transcriber, { sourceLine: null })).toBeUndefined();
+        expect(
+            disclosedSourceLine(transcriber, { sourceLine: null, sourceLineTranscribedByOwner: false }),
+        ).toBeUndefined();
     });
 
-    it('never gives the text to another cook', () => {
-        expect(disclosedSourceLine(reader, { sourceLine: TEXT })).toBeUndefined();
-    });
-
-    it('never gives the text to an undefined viewer', () => {
-        expect(disclosedSourceLine(anonymous, { sourceLine: TEXT })).toBeUndefined();
+    it.each([
+        ['another cook', reader],
+        ['an undefined viewer', anonymous],
+    ] as const)('never gives the text to %s, whether or not the owner transcribed it', (_label, audience) => {
+        expect(disclosedSourceLine(audience, own)).toBeUndefined();
+        expect(disclosedSourceLine(audience, copied)).toBeUndefined();
     });
 
     it('treats an empty stored string as no transcription, so absent stays the one spelling', () => {
-        expect(disclosedSourceLine(transcriber, { sourceLine: '' })).toBeUndefined();
+        expect(
+            disclosedSourceLine(transcriber, { sourceLine: '', sourceLineTranscribedByOwner: true }),
+        ).toBeUndefined();
     });
 });

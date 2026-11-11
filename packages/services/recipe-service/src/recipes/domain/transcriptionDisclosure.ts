@@ -8,18 +8,21 @@
  * ## ⛔ Why this is decided on the server, in one place
  *
  * `ingredients.source_line` is verbatim copied text. ADR-0082 §2 forbids any line word for word on a public
- * form, so it must reach the recipe's owner (who sees "You wrote: …" beside a `NEEDS_REVIEW` line) and no one
- * else: not another cook, not a signed-out read, not a list, search or version snapshot. A client that hid it
- * would already have received it. The response mapper is typed so it cannot read the column at all.
+ * form, so it must reach the cook who supplied it (who sees "You wrote: …" beside a `NEEDS_REVIEW` line) and no
+ * one else: not another cook, not a signed-out read, not a list, search or version snapshot. A client that hid it
+ * would already have received it. The response mapper is typed so it cannot read the columns at all.
  *
- * ## The seam
+ * ## The rule: the viewer owns the recipe AND the owner supplied this line (ADR-0090)
  *
- * Today the rule has ONE condition, "the viewer owns the recipe". A per-line "transcribed by the owner"
- * condition would be added in {@link disclosedSourceLine}, the only function that reads a line, and nowhere
- * else. An `undefined` viewer is a reader: the rule fails closed.
+ * Two conditions, both required. Ownership is decided ONCE per read ({@link transcriptionAudienceOf}); the per-line
+ * half, `source_line_transcribed_by_owner`, is read in {@link disclosedSourceLine}, the only function that reads a
+ * line. Ownership alone is not enough: a clone COPIES the text, because the verification gate judges it, and the
+ * cloner then owns a copy of another cook's words. Lineage is not enough either: account erasure NULLs a clone's
+ * `cloned_from_id`. So the line records who wrote it, when it is written. An `undefined` viewer is a reader, and an
+ * unknown writer is "not the owner": the rule fails closed both ways.
  */
 
-/** Who is reading: the cook who transcribed the recipe, or anyone else. */
+/** Who is reading: the recipe's owner, or anyone else. */
 export type TranscriptionAudience = { readonly kind: 'transcriber' } | { readonly kind: 'reader' };
 
 /**
@@ -42,14 +45,19 @@ export function transcriptionAudienceOf(
  * The source line this audience may be shown for one stored line, or `undefined`. Pure.
  *
  * @param audience - The read's audience.
- * @param line - The stored line (only its transcription matters).
- * @returns The verbatim line for the transcriber when one is stored; `undefined` otherwise, so the key is omitted.
+ * @param line - The stored line: its transcription, and whether the recipe's owner supplied it.
+ * @returns The verbatim line for the owner who supplied it; `undefined` otherwise, so the key is omitted.
  */
 export function disclosedSourceLine(
     audience: TranscriptionAudience,
-    line: { readonly sourceLine: string | null },
+    line: { readonly sourceLine: string | null; readonly sourceLineTranscribedByOwner: boolean },
 ): string | undefined {
-    if (audience.kind !== 'transcriber' || line.sourceLine === null || line.sourceLine === '') {
+    if (
+        audience.kind !== 'transcriber' ||
+        !line.sourceLineTranscribedByOwner ||
+        line.sourceLine === null ||
+        line.sourceLine === ''
+    ) {
         return undefined;
     }
 

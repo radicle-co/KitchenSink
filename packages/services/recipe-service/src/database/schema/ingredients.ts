@@ -16,7 +16,7 @@
  * only one.
  */
 import { sql, type InferInsertModel, type InferSelectModel } from 'drizzle-orm';
-import { check, index, integer, numeric, pgTable, text, uuid } from 'drizzle-orm/pg-core';
+import { boolean, check, index, integer, numeric, pgTable, text, uuid } from 'drizzle-orm/pg-core';
 
 import { foodLookups } from './foodLookups.js';
 import { recipeImportLines } from './recipeImports.js';
@@ -81,6 +81,13 @@ export const ingredients = pgTable(
          * {@link ingredients.foodLookupId}.
          */
         sourcePhrase: text('source_phrase'),
+        /**
+         * Whether the recipe's OWNER supplied {@link ingredients.sourceLine} (migration 0070, ADR-0090). With ownership it
+         * decides who is shown that text (`transcriptionDisclosure.ts`): a clone COPIES the text, so ownership alone
+         * would show a cloner another cook's words. FALSE on a clone of another cook's recipe, and whenever the writer
+         * is unknown. A CHECK refuses TRUE with no text.
+         */
+        sourceLineTranscribedByOwner: boolean('source_line_transcribed_by_owner').notNull().default(false),
         // U7/U11 — what the SOURCE printed, before the importer restated a historical measure into one the
         // USDA household-portion table carries. ⛔ Without these the verification gate is shown a number the
         // source never printed and correctly disagrees with a line we parsed RIGHT.
@@ -150,6 +157,10 @@ export const ingredients = pgTable(
             sql`${table.preparation} IS NULL OR btrim(${table.preparation}) <> ''`,
         ),
         check('ingredients_group_label_present', sql`${table.groupLabel} IS NULL OR btrim(${table.groupLabel}) <> ''`),
+        check(
+            'ingredients_transcribed_by_owner_has_source_line',
+            sql`NOT ${table.sourceLineTranscribedByOwner} OR ${table.sourceLine} IS NOT NULL`,
+        ),
         check('ingredients_note_present', sql`${table.note} IS NULL OR btrim(${table.note}) <> ''`),
         check(
             'ingredients_display_text_present',

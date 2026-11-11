@@ -151,12 +151,14 @@ describe('IngredientLinePlanner.plan', () => {
                 note: '9 inch',
                 preparation: 'sliced',
                 groupLabel: 'Meat',
+                sourceLineTranscribedByOwner: false,
                 sortOrder: 0,
             },
             {
                 foodLookupId: 'l-declared',
                 quantity: { kind: 'exact', value: 2 },
                 unit: '',
+                sourceLineTranscribedByOwner: false,
                 sortOrder: 1,
                 userCalories: 40,
             },
@@ -209,7 +211,13 @@ describe('IngredientLinePlanner.plan', () => {
             line('l-declared', { sourceLine: '2 cups spice mix', sourcePhrase: 'spice mix' }),
         ]);
 
-        expect(plan.inputs[0]).toMatchObject({ sourceLine: '2 cups spice mix', sourcePhrase: 'spice mix' });
+        // The caller of a create becomes the recipe's owner, so the text a create line carries is the OWNER's
+        // (ADR-0090): it is the one write that may raise the flag.
+        expect(plan.inputs[0]).toMatchObject({
+            sourceLine: '2 cups spice mix',
+            sourcePhrase: 'spice mix',
+            sourceLineTranscribedByOwner: true,
+        });
         expect(resolve).not.toHaveBeenCalled();
 
         expect((await planner.plan(undefined, [])).inputs).toStrictEqual([]);

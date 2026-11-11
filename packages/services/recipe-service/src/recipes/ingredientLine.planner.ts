@@ -57,6 +57,10 @@ function toLineInput(line: PlannedLine, index: number): IngredientLineInput {
         ...(line.sourceLine !== undefined ? { sourceLine: line.sourceLine } : {}),
         ...(line.sourcePhrase !== undefined ? { sourcePhrase: line.sourcePhrase } : {}),
         ...(line.statedMeasure !== undefined ? { statedMeasure: line.statedMeasure } : {}),
+        // ADR-0090: a request line's text is the CALLER's, and only a recipe's owner writes its lines (a create makes
+        // the caller the owner; an update is owner-only and carries no text, so this is false and the carry-forward
+        // decides).
+        sourceLineTranscribedByOwner: line.sourceLine !== undefined,
         sortOrder: index,
         ...(line.userCalories !== undefined ? { userCalories: line.userCalories } : {}),
         ...(line.userProteinG !== undefined ? { userProteinG: line.userProteinG } : {}),

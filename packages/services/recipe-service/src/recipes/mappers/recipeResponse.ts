@@ -29,7 +29,8 @@ import { recipeRowToDomain } from './recipeRowToDomain.js';
  *
  * ⛔ The row is typed WITHOUT the two transcription columns, so this mapper cannot read them: the verbatim pasted
  * line reaches the wire only through `sourceLine`, which `transcriptionDisclosure.ts` decided for this audience
- * (ADR-0082 §2). `sourcePhrase` is never published at all.
+ * (ADR-0082 §2), from the viewer and the line's `sourceLineTranscribedByOwner` (ADR-0090). `sourcePhrase` and that flag
+ * are never published at all.
  *
  * @param row - The persisted line, minus its transcription columns.
  * @param view - The line's composed view.
@@ -37,7 +38,7 @@ import { recipeRowToDomain } from './recipeRowToDomain.js';
  * @returns The wire line.
  */
 export function toIngredientResponse(
-    row: Omit<IngredientRow, 'sourceLine' | 'sourcePhrase'>,
+    row: Omit<IngredientRow, 'sourceLine' | 'sourcePhrase' | 'sourceLineTranscribedByOwner'>,
     view: IngredientLineView,
     sourceLine: string | undefined,
 ): RecipeIngredientResponse {

@@ -26,6 +26,7 @@ const LINE: IngredientLineInput = {
     quantity: { kind: 'exact', value: 2 },
     unit: 'cup',
     displayText: 'diced',
+    sourceLineTranscribedByOwner: false,
     sortOrder: 0,
 };
 
@@ -64,6 +65,7 @@ describe('IngredientLinesDal.replaceForRecipe', () => {
             // ADR-0072 §5: the two origin columns are named on every row, `null` included.
             boundBy: null,
             importLineId: null,
+            sourceLineTranscribedByOwner: false,
             statedQuantity: null,
             statedQuantityHigh: null,
             statedUnit: null,
@@ -118,6 +120,23 @@ describe('IngredientLinesDal.replaceForRecipe', () => {
             groupLabel: 'For the marinade',
             displayText: 'diced',
         });
+    });
+
+    it('writes the source line and whether its owner transcribed it, as the line says (ADR-0090)', async () => {
+        const control = createFakeDb();
+        const dal = new IngredientLinesDal();
+        control.enqueue([{ id: LINE.foodLookupId }], [], undefined, [makeIngredientLineRow({ recipeId: 'r-1' })]);
+
+        await dal.replaceForRecipe(control.db, 'r-1', [
+            { ...LINE, sourceLine: '2 cups diced onion', sourceLineTranscribedByOwner: true },
+            { ...LINE, sourceLine: '2 cups diced onion', sortOrder: 1 },
+        ]);
+
+        const rows = control.calls.find((call) => call.method === 'values')?.args[0] as Record<string, unknown>[];
+        expect(rows.map((row) => [row['sourceLine'], row['sourceLineTranscribedByOwner']])).toStrictEqual([
+            ['2 cups diced onion', true],
+            ['2 cups diced onion', false],
+        ]);
     });
 
     it('⛔ stores a line naming a SETTLED failure on the settle target (plan 002 R13)', async () => {

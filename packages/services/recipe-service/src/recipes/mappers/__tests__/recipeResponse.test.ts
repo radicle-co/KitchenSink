@@ -149,7 +149,12 @@ describe('toRecipeResponse', () => {
 describe('sourceLine disclosure (owner-only; ADR-0082 §2)', () => {
     const TEXT = '2 cups flour, sifted (my grandmother’s words)';
     const recipe = makeRecipeRow({ id: 'recipe-1', ownerId: 'owner-1' });
-    const line = makeIngredientLineRow({ id: 'line-a', foodLookupId: 'lookup-1', sourceLine: TEXT });
+    const line = makeIngredientLineRow({
+        id: 'line-a',
+        foodLookupId: 'lookup-1',
+        sourceLine: TEXT,
+        sourceLineTranscribedByOwner: true,
+    });
     const views = new Map<string, IngredientLineView>([['line-a', NAMED]]);
     const aggregate = { recipe, steps: [], ingredients: [line] };
 
@@ -165,6 +170,14 @@ describe('sourceLine disclosure (owner-only; ADR-0082 §2)', () => {
         const response = toRecipeResponse(aggregate, views, transcriptionAudienceOf(recipe, 'owner-1'));
 
         expect(response.ingredients[0]?.sourceLine).toBe(TEXT);
+    });
+
+    it('⛔ the owner receives nothing for a line they did not transcribe (a clone of another cook’s recipe)', () => {
+        const copied = { ...aggregate, ingredients: [{ ...line, sourceLineTranscribedByOwner: false }] };
+        const response = toRecipeResponse(copied, views, transcriptionAudienceOf(recipe, 'owner-1'));
+
+        expect(response.ingredients[0]).not.toHaveProperty('sourceLine');
+        expect(JSON.stringify(response)).not.toContain('grandmother');
     });
 
     it.each([

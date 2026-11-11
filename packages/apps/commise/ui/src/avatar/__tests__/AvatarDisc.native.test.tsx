@@ -1,7 +1,7 @@
 /**
  * The native AvatarDisc (`buildSpec.md` §3.2, §3.3): blank while loading, initials with a name, the `user` glyph without one
  * or after a failed read; 32, or the 24 `tab` glyph, which is exactly the icons' box at every system text size; and an
- * `active` ring laid OUTSIDE that box as an overlay, so it adds no layout size and the label under it keeps the others'
+ * `active` ring drawn as an OUTLINE outside that box, so it adds no layout size and the label under it keeps the others'
  * baseline (a border on the disc made it 28 and dropped the label). REWRITES the old `Avatar` suite: the button and the
  * `large` form are gone (owner ruling 2026-11-11).
  */
@@ -9,15 +9,13 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, screen } from '@testing-library/react';
 
 import { role } from '../../tokens/colors.js';
-import { rgb } from '../../testing/systemColorScheme.js';
-import { render, renderWithTamagui, resolvedColour, resolvedStyle } from '../../testing/tamaguiTesting.native.js';
+import { render, renderWithTamagui, resolvedStyle } from '../../testing/tamaguiTesting.native.js';
 import { AvatarDisc } from '../AvatarDisc.native.js';
 
 afterEach(cleanup);
 
-const box = (): HTMLElement => screen.getByTestId('avatarBox');
+const box = (): HTMLElement => screen.getByTestId('avatarDisc');
 const disc = (): HTMLElement => screen.getByTestId('avatarDisc');
-const ring = (): HTMLElement => screen.getByTestId('avatarRing');
 
 describe('AvatarDisc (native)', () => {
     it('shows the initials', () => {
@@ -65,7 +63,6 @@ describe('AvatarDisc (native)', () => {
                 expect(resolvedStyle(box(), 'width')).toBe('24px');
                 expect(resolvedStyle(box(), 'height')).toBe('24px');
                 expect(resolvedStyle(box(), 'borderTopWidth')).not.toBe('2px');
-                expect(resolvedStyle(ring(), 'position')).toBe('absolute');
                 cleanup();
             }
         },
@@ -74,13 +71,13 @@ describe('AvatarDisc (native)', () => {
     it('rings the active disc in ink at 2, and paints no ring when it is not active', () => {
         render(<AvatarDisc size="tab" status="ready" initials="EM" active />);
 
-        expect(resolvedStyle(ring(), 'borderTopWidth')).toBe('2px');
-        expect(resolvedColour(ring(), 'borderTopColor')).toBe(rgb(role.ink));
+        expect(resolvedStyle(disc(), 'outlineWidth')).toBe('2px');
+        expect(resolvedStyle(disc(), 'outlineColor').toLowerCase()).toBe(role.ink.toLowerCase());
         cleanup();
 
         render(<AvatarDisc size="tab" status="ready" initials="EM" />);
 
-        expect(resolvedColour(ring(), 'borderTopColor')).not.toBe(rgb(role.ink));
+        expect(resolvedStyle(disc(), 'outlineWidth')).not.toBe('2px');
     });
 });
 

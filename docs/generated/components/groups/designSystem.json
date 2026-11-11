@@ -378,7 +378,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/ui/src/avatar/AvatarDisc.native.tsx",
                     "dir": "packages/apps/commise/ui/src/avatar",
-                    "moduleDoc": "@commise/ui/avatar — the native avatar's disc (`buildSpec.md` §3.2, §3.3, §3.8): the 32 `default` of a profile row,\nor the 24 `tab` glyph of the You tab. Decorative: the control it sits in carries the name. Colours are theme keys, so the\ndisc follows the scheme with no hook.\n\nThe disc sits in a box of exactly its own size. `active` draws a 2 `ink` ring as an overlay laid OUTSIDE that box, never\nas the disc's border: a border made the 24 glyph 28 and dropped the tab's label below the other three. The overlay takes\nno layout room.\n\nPresentational: props → JSX.",
+                    "moduleDoc": "@commise/ui/avatar — the native avatar's disc (`buildSpec.md` §3.2, §3.3, §3.8): the 32 `default` of a profile row,\nor the 24 `tab` glyph of the You tab. Decorative: the control it sits in carries the name. Colours are theme keys, so the\ndisc follows the scheme with no hook.\n\nThe disc is its own box, exactly 24 or 32. `active` draws a 2 `ink` ring as an OUTLINE, outside the box, never as the\ndisc's border (which made the 24 glyph 28) nor an overlay view: an outline takes no layout room, so the tab's label keeps\nthe other three's baseline.\n\nPresentational: props → JSX.",
                     "moduleTags": [
                         {
                             "name": "module",

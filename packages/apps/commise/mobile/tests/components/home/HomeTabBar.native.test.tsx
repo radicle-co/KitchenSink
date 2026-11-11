@@ -18,7 +18,7 @@ import { homeMessages } from '@commise/features-core/home';
 import { role } from '@commise/ui/colors';
 import { nativeTokens } from '@commise/ui/native';
 import { rgb, rolesFor } from '@commise/ui/testing/system-color-scheme';
-import { render, renderWithTamagui, resolvedColour } from '@commise/ui/testing/tamagui';
+import { render, renderWithTamagui, resolvedColour, resolvedStyle } from '@commise/ui/testing/tamagui';
 
 import { HomeTabBar, type HomeTabBarProps } from '../../../src/components/home/chrome/HomeTabBar.js';
 
@@ -263,9 +263,7 @@ describe('HomeTabBar (native) — the You tab', () => {
     const you = () => screen.getByRole('tab', { name: 'You' });
     const disc = () => you().querySelector('[data-testid="avatarDisc"]') as HTMLElement;
     /** The glyph box the tab's column holds: exactly the icons' box. */
-    const box = () => you().querySelector('[data-testid="avatarBox"]') as HTMLElement;
-    /** The drawn ring, laid over the glyph box from outside it. */
-    const mark = () => you().querySelector('[data-testid="avatarRing"]') as HTMLElement;
+    const box = () => you().querySelector('[data-testid="avatarDisc"]') as HTMLElement;
 
     it('is named by its visible label alone, whatever the disc shows', () => {
         renderBar('home', vi.fn(), [RECIPE_HOME_WIDGET_CAPABILITY], { profile: READY });
@@ -311,15 +309,15 @@ describe('HomeTabBar (native) — the You tab', () => {
         renderBar('you');
 
         expect(you().getAttribute('aria-selected')).toBe('true');
-        expect(getComputedStyle(mark()).borderTopWidth).toBe('2px');
-        expect(resolvedColour(mark(), 'borderTopColor')).toBe(rgb(role.ink));
+        expect(resolvedStyle(disc(), 'outlineWidth')).toBe('2px');
+        expect(resolvedStyle(disc(), 'outlineColor').toLowerCase()).toBe(role.ink.toLowerCase());
         expect(getComputedStyle(you().firstElementChild as Element).backgroundColor).toBe(rgb(role.hereBar));
     });
 
     it('paints no ring when inactive', () => {
         renderBar('home');
 
-        expect(resolvedColour(mark(), 'borderTopColor')).not.toBe(rgb(role.ink));
+        expect(resolvedStyle(disc(), 'outlineWidth')).not.toBe('2px');
         expect(you().getAttribute('aria-selected')).toBe('false');
     });
 
@@ -336,7 +334,6 @@ describe('HomeTabBar (native) — the You tab', () => {
                 expect(getComputedStyle(box()).width).toBe('24px');
                 expect(getComputedStyle(box()).height).toBe('24px');
                 expect(getComputedStyle(box()).borderTopWidth).not.toBe('2px');
-                expect(getComputedStyle(mark()).position).toBe('absolute');
                 cleanup();
             }
         },

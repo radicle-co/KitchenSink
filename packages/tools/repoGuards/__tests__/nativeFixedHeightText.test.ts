@@ -290,12 +290,6 @@ const EXEMPTIONS: readonly Exemption[] = [
     },
     {
         file: `${APPS}ui/src/avatar/AvatarDisc.native.tsx`,
-        frame: '<Box>',
-        kind: 'allowed',
-        reason: 'The box is exactly the disc, 32 or 24 pt, around initials that do not scale (designer ruling c10ecadbf, 2026-11-03; Text fixedPx={initialsPxOf(…)}), like the icons beside it; a glyph does not grow with the text.',
-    },
-    {
-        file: `${APPS}ui/src/avatar/AvatarDisc.native.tsx`,
         frame: '<Disc>',
         kind: 'allowed',
         reason: 'The initials do not scale: they are 40% of the disc (12 pt in 32, 14 pt in 36), so two letters fit at every size (designer ruling c10ecadbf, 2026-11-03; Text fixedPx={initialsPxOf(…)}); proven on real font metrics by discGeometry.fit.test.ts.',

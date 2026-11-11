@@ -382,6 +382,13 @@ is reached, this path does not wait for the budget to return.
   lines that still wait for the cook leave the list and the count. The saved recipe keeps the line as the import left
   it. This follows the owner's ruling literally, and it is open for the owner. To keep those lines findable, the purge
   needs a rule that spares an import with open lines.
+- **A recipe with no step or no ingredient line cannot leave the import.** The cook can give a cuisine, but nothing in
+  the import adds a step or a line, and a matched item's recipe is locked (`IMPORT_ITEM_LOCKED`). Such an item stays
+  held under "Needs steps" or "Needs ingredients" until the purge. Before the published save, it became a draft the
+  cook could finish in the editor. A way out (a draft save for these two gaps, or edits in the wizard) needs a ruling.
+- **The save fills servings and times the file does not state** (1 serving, 0 minutes), because the create route
+  requires them. A published recipe now shows those values to its readers. Whether the "nothing made up" rule covers
+  them too is open.
 - **A free cook out of slots is paused on a book or paid-site item.** ADR-0082 §2 lets such a recipe go public as a
   facts card, which uses no slot, so the import should offer the card and not pause. The facts card is not built, so
   the import pauses every private item when no slot is free. This follows ADR-0073 §8 until the card exists.

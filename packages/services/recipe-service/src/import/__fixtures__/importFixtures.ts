@@ -9,8 +9,9 @@ import { sha256Hex } from '../../common/sha256.js';
 import { matchJudgementDigestOf } from '../../recipes/domain/matchProposal.js';
 import type { ParseJobMatch } from '../../recipes/domain/parseJobMatch.js';
 import type { ImportHeader } from '../dal/recipeImports.dal.js';
-import type { ImportItem } from '../dal/recipeImportItems.dal.js';
+import type { ImportItem, ListedImportItem } from '../dal/recipeImportItems.dal.js';
 import type { ImportLine } from '../dal/recipeImportLines.dal.js';
+import type { PrivateSlotsPort } from '../privateSlots.port.js';
 
 export const USER = '01JIMPORTSERVICEUSER0001';
 export const IMPORT_ID = '66666666-6666-4666-8666-000000000001';
@@ -28,6 +29,9 @@ export function makePrincipal(overrides: Partial<Principal> = {}): Principal {
         ...overrides,
     };
 }
+
+/** A slot port for tests that are not about slots: every cook has one free. */
+export const UNLIMITED_PRIVATE_SLOTS: PrivateSlotsPort = { hasAvailable: () => Promise.resolve(true) };
 
 /** An import header. */
 export function makeHeader(overrides: Partial<ImportHeader> = {}): ImportHeader {
@@ -66,8 +70,19 @@ export function makeItem(overrides: Partial<ImportItem> = {}): ImportItem {
         citation: null,
         sourceKind: null,
         visibility: null,
+        cuisine: null,
+        heldAtRev: null,
         createdAt: new Date('2026-10-26T12:00:00.000Z'),
         updatedAt: new Date('2026-10-26T12:00:00.000Z'),
+        ...overrides,
+    };
+}
+
+/** An item as the list reads it. Its file states everything Publish needs by default. */
+export function makeListedItem(overrides: Partial<ListedImportItem> = {}): ListedImportItem {
+    return {
+        ...makeItem(overrides),
+        publishFacts: { fileCuisine: 'Italian', ingredientLineCount: 1, stepCount: 1 },
         ...overrides,
     };
 }

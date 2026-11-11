@@ -14,6 +14,7 @@ const READY: ItemIssueFacts = {
     outOfSlots: false,
     paid: true,
     allowanceSpent: false,
+    publishGap: null,
 };
 const issue = (patch: Partial<ItemIssueFacts>) => importItemIssueOf({ ...READY, ...patch });
 
@@ -50,6 +51,21 @@ describe('importItemIssueOf', () => {
         expect(issue({ private: true, outOfSlots: true })).toBe('outOfSlots');
         expect(issue({ private: false, outOfSlots: true })).toBeNull();
         expect(issue({ private: true, outOfSlots: false })).toBeNull();
+    });
+
+    it('⛔ names what Publish still needs, one key per requirement (ADR-0072 §3 as amended 2026-11-11)', () => {
+        expect(issue({ publishGap: 'cuisine' })).toBe('needsCuisine');
+        expect(issue({ publishGap: 'ingredients' })).toBe('needsIngredients');
+        expect(issue({ publishGap: 'steps' })).toBe('needsSteps');
+    });
+
+    it('asks for a publish requirement only on a matched item, after the statement and the visibility, before the slots', () => {
+        expect(issue({ stage: 'parsing', publishGap: 'cuisine' })).toBeNull();
+        // The statement can lift the cuisine requirement (a public-domain import needs none), so it is asked first.
+        expect(issue({ hasStatement: false, publishGap: 'cuisine' })).toBe('needsStatement');
+        expect(issue({ visibilityRefused: true, publishGap: 'cuisine' })).toBe('visibilityRefused');
+        // A recipe that cannot publish uses no slot, so the slot pause is not its reason.
+        expect(issue({ private: true, outOfSlots: true, publishGap: 'cuisine' })).toBe('needsCuisine');
     });
 
     it('puts a refused visibility ahead of the slot pause (the cook fixes the label first)', () => {

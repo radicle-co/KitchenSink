@@ -38,8 +38,9 @@ import { RECIPE_RESOLUTION_NAMESPACE } from '../ingredients/resolution/resolutio
 import type { LineVerdictRow, LineVerificationsDal } from './dal/lineVerifications.dal.js';
 import { variantDisplayName } from './domain/lineVerification.js';
 import { isDefaultRung, matchJudgementDigestOf } from './domain/matchProposal.js';
-import { matchStateOf, proposalShownIn, REVIEW_BUDGET_SPENT_REASON, type MatchFacts } from './domain/matchState.js';
+import { matchStateOf, proposalShownIn, REVIEW_BUDGET_SPENT_REASON } from './domain/matchState.js';
 import { isCurrentMatch, slotKey, type ParseJobMatch, type ParseJobMatchesPort } from './domain/parseJobMatch.js';
+import { reviewStandingOf } from './domain/reviewStanding.js';
 import { PARSE_JOB_MATCHES_DAL } from './matchProposal.service.js';
 import type { ParseJobResponse, ParseProposalCandidate, ParseProposalMatch } from './parseJobs.schema.js';
 import { RECIPE_LINE_VERIFICATIONS_DAL } from './recipes.tokens.js';
@@ -216,41 +217,6 @@ function candidatesOf(match: ParseJobMatch, answerOf: (ref: FoodRef) => FoodRefA
     }
 
     return [...named.filter((candidate) => candidate.isDefault), ...named.filter((candidate) => !candidate.isDefault)];
-}
-
-/**
- * Where the review of a verification key stands when there is no verdict: the row's PERSISTED disposition (F10), never
- * the gate policy re-run here; and for a contained test principal, whose review is never sent (ADR-0040), `notAsked`.
- * Pure.
- *
- * Exported because the bulk import's flag reads a SAVED line's key through the same rule (ADR-0072 §6), so a spent
- * budget or a given-up review cannot read as `checking` on one screen and as settled on another.
- *
- * @param key - The verification key.
- * @param refused - Whether the gate refused this review (persisted on the match row; a saved line has none).
- * @param read - The keys the gate gave up on, the keys whose review the ceiling refused this period, and containment.
- * @returns The review standing.
- */
-export function reviewStandingOf(
-    key: string | null,
-    refused: boolean,
-    read: Pick<MatchProjectionRead, 'exhausted' | 'budgetSpent' | 'contained'>,
-): MatchFacts['review'] {
-    // ⛔ A spent budget is a fact about the KEY in the CURRENT period (the DAL filtered by it), so it comes first: it is
-    // the only reason a review is owed and will not be sent, and it must not read as `checking` or `unchecked`.
-    if (key !== null && read.budgetSpent.has(key)) {
-        return 'budgetSpent';
-    }
-
-    if (refused) {
-        return 'refused';
-    }
-
-    if (key !== null && read.exhausted.has(key)) {
-        return 'exhausted';
-    }
-
-    return read.contained ? 'notAsked' : 'asked';
 }
 
 @Injectable()

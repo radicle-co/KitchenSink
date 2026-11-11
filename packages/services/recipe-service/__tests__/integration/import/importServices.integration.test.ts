@@ -12,6 +12,9 @@
  *    import saves (migration 0067: name, shown words, note) and a review the spend ceiling refused this month
  *    (`reviewBudgetSpent`, owner ruling 2026-10-26).
  *  - **The allowance asks one flat limit.** The view reads the ledger through `stateOf(db, user, 'bulk')`: no tier rides it.
+ *  - **What Publish needs holds an item, through every service at once** (ADR-0072 §3 as amended 2026-11-11). An advance
+ *    holds an item whose file states no cuisine and never calls the create path, the view names `needsCuisine` in a shape
+ *    the published contract accepts, the step shows the cuisine as `null`, and the cook's cuisine reaches the item.
  *
  * Whether the DATABASE keeps the claims right is the LOCAL e2e tier's (`tests/e2e/import/`).
  */
@@ -34,6 +37,7 @@ import {
     makeHeader,
     makeItem,
     makeLine,
+    makeListedItem,
     makePrincipal,
 } from '../../../src/import/__fixtures__/importFixtures.js';
 import { DEFAULT_IMPORT_ADVANCE_LIMITS } from '../../../src/import/domain/importLimits.js';
@@ -48,7 +52,8 @@ import { ImportAdvanceService } from '../../../src/import/importAdvance.service.
 import { ImportLineView } from '../../../src/import/importLineView.js';
 import { ImportStepService } from '../../../src/import/importStep.service.js';
 import { ImportViewBuilder } from '../../../src/import/importView.builder.js';
-import { PRIVATE_SLOTS, UNLIMITED_PRIVATE_SLOTS } from '../../../src/import/privateSlots.port.js';
+import { PRIVATE_SLOTS } from '../../../src/import/privateSlots.port.js';
+import { UNLIMITED_PRIVATE_SLOTS } from '../../../src/import/__fixtures__/importFixtures.js';
 import { IngredientRebindService } from '../../../src/recipes/ingredientRebind.service.js';
 import { MatchProposalService, PARSE_JOB_MATCHES_DAL } from '../../../src/recipes/matchProposal.service.js';
 import { ParseJobsService } from '../../../src/recipes/parseJobs.service.js';
@@ -81,6 +86,8 @@ const items = {
     findNeedingJob: vi.fn(),
     findParsing: vi.fn(),
     findSaveCandidates: vi.fn(),
+    deferItem: vi.fn(),
+    holdItem: vi.fn(),
 };
 const lines = {
     findForItem: vi.fn(),
@@ -94,6 +101,7 @@ const lines = {
     setSavedKeys: vi.fn(),
 };
 const allowance = { stateOf: vi.fn(), admit: vi.fn() };
+const recipes = { create: vi.fn() };
 const verdicts = { findBandsByKeys: vi.fn(), findExhaustedKeys: vi.fn(), findBudgetSpentKeys: vi.fn() };
 const refs = { resolve: vi.fn() };
 
@@ -119,7 +127,7 @@ async function compile() {
             { provide: PARSE_JOB_MATCHES_DAL, useValue: { findForJob: vi.fn(async () => []) } },
             { provide: MatchProposalService, useValue: { proposeForJobs: vi.fn() } },
             { provide: IngredientsService, useValue: { addByRef: vi.fn(), createFreeform: vi.fn() } },
-            { provide: RecipesService, useValue: { create: vi.fn() } },
+            { provide: RecipesService, useValue: recipes },
             { provide: IngredientRebindService, useValue: { rebind: vi.fn() } },
         ],
     }).compile();
@@ -132,7 +140,7 @@ async function compile() {
 }
 
 beforeEach(() => {
-    for (const double of [imports, items, lines, allowance, verdicts, refs]) {
+    for (const double of [imports, items, lines, allowance, verdicts, refs, recipes]) {
         for (const fn of Object.values(double)) {
             fn.mockReset();
         }
@@ -144,12 +152,13 @@ beforeEach(() => {
     imports.countsByStage.mockResolvedValue({ total: 1, received: 0, parsing: 0, matched: 1, saved: 0 });
     imports.verdictFingerprint.mockResolvedValue({ count: 0, latest: null });
     imports.countUnsavedPrivate.mockResolvedValue(0);
-    items.findPage.mockResolvedValue([makeItem({ stage: 'matched', matchedAt: new Date() })]);
+    items.findPage.mockResolvedValue([makeListedItem({ stage: 'matched', matchedAt: new Date() })]);
     items.findItem.mockResolvedValue(makeItem({ stage: 'matched', matchedAt: new Date() }));
     items.payUnpaid.mockResolvedValue({ kind: 'nothing' });
     items.findNeedingJob.mockResolvedValue([]);
     items.findParsing.mockResolvedValue([]);
     items.findSaveCandidates.mockResolvedValue([]);
+    items.holdItem.mockResolvedValue(true);
     lines.findLinkedForItem.mockResolvedValue(new Map());
     allowance.stateOf.mockResolvedValue(ALLOWANCE);
     verdicts.findBandsByKeys.mockResolvedValue(new Map());
@@ -227,5 +236,58 @@ describe('the import services under the real injector', () => {
         expect(importStepResponseSchema.parse(step)).toEqual(step);
         expect(step.lines[0]?.match).toMatchObject({ state: 'needsChoice', reason: 'reviewBudgetSpent' });
         expect(step.lines[0]?.match).toHaveProperty('reviewResetsAt');
+    });
+
+    describe('⛔ what Publish needs (ADR-0072 §3 as amended 2026-11-11)', () => {
+        const noCuisine = makeItem({
+            stage: 'matched',
+            matchedAt: new Date(Date.now() - 60_000),
+            allowanceSpentAt: new Date(),
+            statementKind: 'authored',
+            decisionRev: 4,
+            payload: { title: 'Soup', ingredientLines: ['2 cups milk'], steps: [{ instruction: 'Heat.' }] },
+        });
+
+        it('an advance holds an item whose file states no cuisine: no create call, no deferral', async () => {
+            items.findSaveCandidates.mockResolvedValue([noCuisine]);
+            const { advancer } = await compile();
+
+            await advancer.advance(COOK, CALLER, IMPORT_ID);
+
+            expect(items.holdItem).toHaveBeenCalledWith(IMPORT_ID, 0, 4);
+            expect(recipes.create).not.toHaveBeenCalled();
+            expect(items.deferItem).not.toHaveBeenCalled();
+        });
+
+        it('the view names the gap in a shape the published contract accepts', async () => {
+            items.findPage.mockResolvedValue([
+                makeListedItem({
+                    stage: 'matched',
+                    matchedAt: new Date(),
+                    statementKind: 'authored',
+                    publishFacts: { fileCuisine: null, ingredientLineCount: 1, stepCount: 1 },
+                }),
+            ]);
+            const { service } = await compile();
+            const view = await service.getView(COOK, IMPORT_ID, {});
+
+            expect(importViewSchema.parse(view)).toEqual(view);
+            expect(view.items[0]?.issue).toEqual({ reason: 'needsCuisine' });
+        });
+
+        it("the step shows no cuisine, and the cook's cuisine reaches the item as a decision", async () => {
+            items.findItem.mockResolvedValue(noCuisine);
+            items.recordChoices.mockResolvedValue('ok');
+            lines.findForItem.mockResolvedValue([]);
+            const { steps } = await compile();
+            const step = await steps.step(COOK, CALLER, IMPORT_ID, 0);
+
+            expect(importStepResponseSchema.parse(step)).toEqual(step);
+            expect(step.cuisine).toBeNull();
+
+            await steps.recordChoices(COOK, CALLER, IMPORT_ID, 0, { cuisine: 'Thai' });
+
+            expect(items.recordChoices).toHaveBeenCalledWith(IMPORT_ID, 0, { cuisine: 'Thai' });
+        });
     });
 });

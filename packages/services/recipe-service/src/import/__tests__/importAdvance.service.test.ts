@@ -28,7 +28,7 @@ import {
     makeStoredProposal,
 } from '../../recipes/__fixtures__/parseJobMatches.fixture.js';
 import type { ParseProposalMatch } from '../../recipes/parseJobs.schema.js';
-import { foodNotAdmissible } from '../../recipes/recipe.error.js';
+import { foodNotAdmissible, privateSlotsFull, publishRequirementsUnmet } from '../../recipes/recipe.error.js';
 import type { RecipesService } from '../../recipes/recipes.service.js';
 import type { ImportItem, PayOutcome } from '../dal/recipeImportItems.dal.js';
 import { ImportItemAlreadyClaimedError, ImportItemChangedError } from '../dal/recipeImportItems.errors.js';
@@ -36,7 +36,7 @@ import type { ImportLine } from '../dal/recipeImportLines.dal.js';
 import { DEFAULT_IMPORT_ADVANCE_LIMITS, type ImportAdvanceLimits } from '../domain/importLimits.js';
 import { importJobIdOf } from '../domain/importJobId.js';
 import { ImportAdvanceService } from '../importAdvance.service.js';
-import { UNLIMITED_PRIVATE_SLOTS, type PrivateSlotsPort } from '../privateSlots.port.js';
+import type { PrivateSlotsPort } from '../privateSlots.port.js';
 import {
     IMPORT_ID,
     makeCurrentMatch,
@@ -44,6 +44,7 @@ import {
     makeItem,
     makeLine,
     makePrincipal,
+    UNLIMITED_PRIVATE_SLOTS,
     USER,
 } from '../__fixtures__/importFixtures.js';
 
@@ -84,8 +85,10 @@ async function runAfterWrite(
 
 const BOOK = { statementKind: 'source', sourceKind: 'book', citation: 'Joy, p. 12' } as const;
 
+/** A recipe as the file states it: everything Publish needs, a cuisine included, unless a test takes it away. */
 const recipe = (lines: readonly string[] = ['2 cups whole milk'], title = 'Soup') => ({
     title,
+    cuisine: 'French',
     ingredientLines: lines,
     steps: [{ instruction: 'Mix.', timerSeconds: 30 }],
 });
@@ -152,13 +155,29 @@ function itemStore(initial: readonly ImportItem[]) {
         ),
         findSaveCandidates: vi.fn(async (_importId: string, limit: number) =>
             [...items.values()]
-                .filter((item) => item.stage === 'matched' && item.statementKind !== null)
+                .filter(
+                    (item) =>
+                        item.stage === 'matched' && item.statementKind !== null && item.heldAtRev !== item.decisionRev,
+                )
                 .sort((a, b) => a.updatedAt.getTime() - b.updatedAt.getTime() || a.ordinal - b.ordinal)
                 .slice(0, limit),
         ),
         deferItem: vi.fn(async (_importId: string, ordinal: number) => {
             set(ordinal, { updatedAt: new Date(Date.now() + 1) });
         }),
+        holdItem: vi.fn(async (_importId: string, ordinal: number, decisionRev: number) => {
+            if (items.get(ordinal)?.decisionRev !== decisionRev) {
+                return false;
+            }
+
+            set(ordinal, { heldAtRev: decisionRev });
+
+            return true;
+        }),
+        /** What `recordChoices` does to the fence: the cook's decision moves the revision past any hold. */
+        decide: (ordinal: number, patch: Partial<ImportItem>) => {
+            set(ordinal, { ...patch, decisionRev: (items.get(ordinal)?.decisionRev ?? 0) + 1 });
+        },
         attachJob: vi.fn(async (_importId: string, ordinal: number, generation: number, jobId: string) => {
             const held = items.get(ordinal);
 
@@ -737,7 +756,9 @@ describe('ImportAdvanceService — saving what is ready', () => {
         ...extra,
     });
 
-    it('⛔ saves a ready item as ONE draft through the create path with the provenance the statement sets', async () => {
+    // Rewritten 2026-11-11: it pinned a DRAFT save. ADR-0072 §3 saves every item PUBLISHED, never as a draft, so it now pins
+    // the published save and the file's cuisine it carries.
+    it('⛔ saves a ready item as ONE PUBLISHED recipe through the create path with the provenance the statement sets', async () => {
         const { answered, recipes } = run(world());
 
         await answered;
@@ -750,7 +771,8 @@ describe('ImportAdvanceService — saving what is ready', () => {
         expect(caller).toBe(CALLER);
         expect(dto).toMatchObject({
             title: 'Soup',
-            status: 'draft',
+            status: 'published',
+            cuisine: 'French',
             visibility: RecipeVisibility.PRIVATE,
             servings: 1,
             prepTimeMinutes: 0,
@@ -1082,6 +1104,102 @@ describe('ImportAdvanceService — saving what is ready', () => {
         expect(ingredients.addByRef.mock.calls[0]?.[1]).toEqual({ kind: 'variant', id: 'V-flat' });
     });
 
+    describe('⛔ what Publish needs: a gap holds the item for the cook (ADR-0072 §3 as amended 2026-11-11)', () => {
+        const noCuisine = () =>
+            matched(0, { payload: { ...recipe(payloadLines), cuisine: undefined }, decisionRev: 7 });
+
+        it("saves the cook's cuisine over the file's", async () => {
+            const { answered, recipes } = run(world({ items: [{ ...item(), cuisine: 'Thai' }] }));
+
+            await answered;
+
+            expect(recipes.create.mock.calls[0]?.[1]).toMatchObject({ status: 'published', cuisine: 'Thai' });
+        });
+
+        it('⛔ holds an item with no cuisine at the revision it read: no create, no match read, no deferral', async () => {
+            const { answered, recipes, store, lineView } = run(world({ items: [noCuisine()] }));
+
+            await answered;
+
+            expect(recipes.create).not.toHaveBeenCalled();
+            // Held before the costly part: the match read asks food and the review gate.
+            expect(lineView.matchesOf).not.toHaveBeenCalled();
+            expect(store.holdItem).toHaveBeenCalledWith(IMPORT_ID, 0, 7);
+            expect(store.deferItem).not.toHaveBeenCalled();
+        });
+
+        it('holds a recipe with no step, and one with no ingredient line, the same way', async () => {
+            const noSteps = run(world({ items: [matched(0, { payload: { ...recipe(payloadLines), steps: [] } })] }));
+            const noLines = run(world({ items: [matched(0, { payload: recipe([]) })], lines: { 0: [] } }));
+
+            await Promise.all([noSteps.answered, noLines.answered]);
+
+            expect(noSteps.recipes.create).not.toHaveBeenCalled();
+            expect(noSteps.store.holdItem).toHaveBeenCalledOnce();
+            expect(noLines.recipes.create).not.toHaveBeenCalled();
+            expect(noLines.store.holdItem).toHaveBeenCalledOnce();
+        });
+
+        it('⛔ never re-queues a held item: the next calls do not look at it, until a decision of the cook releases it', async () => {
+            const built = build(world({ items: [noCuisine()] }));
+            const advance = () => built.service.advance(built.principal, CALLER, IMPORT_ID);
+
+            await advance();
+            await advance();
+            await advance();
+
+            // Looked at ONCE, then left alone: a removed hold would examine it on every call.
+            expect(built.store.holdItem).toHaveBeenCalledOnce();
+            expect(built.lineView.matchesOf).not.toHaveBeenCalled();
+            expect(built.recipes.create).not.toHaveBeenCalled();
+            expect(built.store.items.get(0)?.stage).toBe('matched');
+
+            // The cook gives a cuisine in the wizard: a decision, so the revision moves past the hold.
+            built.store.decide(0, { cuisine: 'Mexican' });
+            await advance();
+
+            expect(built.recipes.create).toHaveBeenCalledOnce();
+            expect(built.recipes.create.mock.calls[0]?.[1]).toMatchObject({ status: 'published', cuisine: 'Mexican' });
+            expect(built.store.items.get(0)?.stage).toBe('saved');
+        });
+
+        it('saves a public-domain web import with no cuisine, which Publish does not ask of it', async () => {
+            const { answered, recipes, store } = run(
+                world({
+                    items: [
+                        matched(0, {
+                            payload: { ...recipe(payloadLines), cuisine: undefined },
+                            statementKind: 'source',
+                            sourceKind: 'public_web',
+                            citation: 'https://example.org/r',
+                            visibility: 'public',
+                        }),
+                    ],
+                }),
+            );
+
+            await answered;
+
+            expect(store.holdItem).not.toHaveBeenCalled();
+            expect(recipes.create).toHaveBeenCalledOnce();
+            expect(recipes.create.mock.calls[0]?.[1]).not.toHaveProperty('cuisine');
+        });
+
+        it('⛔ holds an item the create path refuses as unpublishable too, and does not fail the call', async () => {
+            const { answered, store } = run(
+                world({
+                    create: async () => {
+                        throw publishRequirementsUnmet('A published recipe needs: cuisine.', ['cuisine']);
+                    },
+                }),
+            );
+
+            await expect(answered).resolves.toBe(VIEW);
+            expect(store.holdItem).toHaveBeenCalledWith(IMPORT_ID, 0, 7);
+            expect(store.deferItem).not.toHaveBeenCalled();
+        });
+    });
+
     describe('private slots (ADR-0073)', () => {
         const none: PrivateSlotsPort = { hasAvailable: async () => false };
 
@@ -1112,7 +1230,7 @@ describe('ImportAdvanceService — saving what is ready', () => {
                     items,
                     lines: { 0: [milk, salt, pepper], 1: [milk, salt, pepper] },
                     create: async () => {
-                        throw Object.assign(new Error('full'), { code: 'PRIVATE_SLOTS_FULL' });
+                        throw privateSlotsFull(50, 50);
                     },
                 }),
             );

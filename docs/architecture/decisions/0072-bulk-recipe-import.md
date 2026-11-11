@@ -115,6 +115,19 @@ recipe it created, so a repeated `advance` sees the item as done.
 - **On approval**, a public recipe becomes public, and a private one simply stays private, in the slot it already
   holds.
 - Because the save publishes, the recipe records its first version then (ADR-0058).
+- **A recipe that lacks what Publish needs waits in the import** (lead ruling, 2026-11-11). Publish needs a cuisine
+  (except for a public-domain web import), at least one ingredient line and at least one step (`publishPolicy.ts`).
+  Another app's export often states no cuisine. The import does not make one up: no default, no cuisine picked by the
+  AI, and no draft save. The item is listed under "Needs a cuisine" (`needsIngredients` and `needsSteps` for the other
+  two), after "Needs your statement" and the visibility, and before the slot pause. The cook gives the cuisine in the
+  wizard or in the batch choices (an additive `cuisine` field), and it replaces the file's for that recipe. The next
+  `advance` then saves the recipe published.
+- **An item that cannot be published is held, never re-queued.** The save asks the same publish policy before it
+  reads the matches. On a gap it records the item's `decision_rev` in `held_at_rev` (migration 0068), and the save
+  candidates leave out an item held at its current revision. Every decision of the cook moves `decision_rev`, so the
+  next decision releases the hold by itself. A refusal from the create path that the check did not predict is logged
+  as a defect and holds the item the same way. The issue the list shows is derived from the item at read time, never
+  read from the hold.
 - The import still binds nothing in the background and never chooses a visibility for the cook.
 - **This is bulk import only.** The single-recipe imports (a link, a paste, a video) are unchanged.
 
@@ -369,6 +382,9 @@ is reached, this path does not wait for the budget to return.
   lines that still wait for the cook leave the list and the count. The saved recipe keeps the line as the import left
   it. This follows the owner's ruling literally, and it is open for the owner. To keep those lines findable, the purge
   needs a rule that spares an import with open lines.
+- **A free cook out of slots is paused on a book or paid-site item.** ADR-0082 §2 lets such a recipe go public as a
+  facts card, which uses no slot, so the import should offer the card and not pause. The facts card is not built, so
+  the import pauses every private item when no slot is free. This follows ADR-0073 §8 until the card exists.
 - **One very large import can outlast a purge statement.** The purge deletes 3 imports per statement, and each one
   takes its items and lines with it by cascade. A file of any size is accepted. So one import that holds tens of
   thousands of recipes can make a single statement run past the tick's time. The tick then fails, and the next tick
@@ -386,7 +402,7 @@ is reached, this path does not wait for the budget to return.
   recipe.
 - Give `bindingOf` a budget input and build the "to check" list (§10).
 - Build the out-of-slots pause and take the slot lock on each private save, so a private recipe holds its slot from
-  the save (§9, ADR-0073 §5 and §8). Save every item published, never as a draft (§3).
+  the save (§9, ADR-0073 §5 and §8).
 
 ## Related work
 

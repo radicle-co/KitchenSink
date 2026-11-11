@@ -121,6 +121,10 @@ export const recipeImportItems = pgTable(
         sourceKind: text('source_kind'),
         /** This recipe's own choice, overriding the import's. */
         visibility: text('visibility'),
+        /** The cuisine the cook gave in the import, replacing the file's (0068). */
+        cuisine: text('cuisine'),
+        /** The `decision_rev` at which the save found the item short of what Publish needs; skipped while it is current (0068). */
+        heldAtRev: integer('held_at_rev'),
         createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
         updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
     },
@@ -129,6 +133,8 @@ export const recipeImportItems = pgTable(
         check('recipe_import_items_ordinal_check', sql`${table.ordinal} >= 0`),
         check('recipe_import_items_parse_generation_check', sql`${table.parseGeneration} >= 0`),
         check('recipe_import_items_decision_rev_check', sql`${table.decisionRev} >= 0`),
+        check('recipe_import_items_held_at_rev_check', sql`${table.heldAtRev} IS NULL OR ${table.heldAtRev} >= 0`),
+        check('recipe_import_items_cuisine_check', sql`${table.cuisine} IS NULL OR btrim(${table.cuisine}) <> ''`),
         check('recipe_import_items_title_check', sql`btrim(${table.title}) <> ''`),
         check('recipe_import_items_stage_check', inArray(table.stage, [...IMPORT_STAGES])),
         check('recipe_import_items_review_check', inArray(table.review, [...IMPORT_ITEM_REVIEWS])),

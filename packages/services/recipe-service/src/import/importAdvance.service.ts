@@ -15,9 +15,9 @@
  *  3. **MATCH**: match the finished jobs' foods under ONE deadline (`proposeForJobs`), and copy a complete job's matches into
  *     the import's own rows (the snapshot), because the job lives a day. An expired job is let go (the generation moves) and
  *     replaced without charging the item again.
- *  4. **SAVE** what is ready, once, as a DRAFT through the same create path every recipe takes, with the provenance the cook's
- *     statement sets (ADR-0023's exception for this route). The item is CLAIMED inside the recipe's own transaction, so two
- *     saves cannot both commit; the loser's recipe rolls back and it counts the item as done.
+ *  4. **SAVE** what is ready, once, PUBLISHED, through the same create path every recipe takes, with the provenance the
+ *     cook's statement sets (ADR-0023's exception for this route). The item is CLAIMED inside the recipe's own transaction, so
+ *     two saves cannot both commit; the loser's recipe rolls back and it counts the item as done.
  *
  * ## The rules that look like accidents
  *
@@ -30,6 +30,10 @@
  *  - **A private save is not even tried when the cook has no slot** (ADR-0073); the authoritative check is the create path's, and
  *    its `PRIVATE_SLOTS_FULL` denial pauses the rest of the private saves in the call.
  *  - **An item that cannot save yet goes to the back of the line** (`deferItem`), so the items behind it are not starved.
+ *  - **An item that lacks what Publish needs is HELD, not deferred** (ADR-0072 §3 as amended 2026-11-11). Only the cook can
+ *    give a cuisine, so looking at it again would re-queue it forever. `holdItem` records the revision the save read, the
+ *    candidates leave it out while that revision stands, and the cook's next decision moves the revision and releases it.
+ *    Nothing fills the gap: no default cuisine, no AI pick, and no draft save.
  */
 import { HttpException } from '@nestjs/common';
 import { Inject, Injectable, Logger } from '@nestjs/common';
@@ -72,6 +76,7 @@ import {
     RECIPE_IMPORTS_DAL,
 } from './import.tokens.js';
 import { IMPORT_DEFAULT_PAGE_SIZE, type ImportAdvanceLimits } from './domain/importLimits.js';
+import { importCuisineOf, importPublishGapOf } from './domain/importPublishGap.js';
 import { isReadyToSave } from './domain/importSaveReadiness.js';
 import { provenanceOfStatement, statementOfColumns } from './domain/importStatement.js';
 import { visibilityRefusedFor } from './domain/importVisibility.js';
@@ -83,8 +88,8 @@ import { ImportViewBuilder } from './importView.builder.js';
 import { PRIVATE_SLOTS, isPrivateSlotsFull, type PrivateSlotsPort } from './privateSlots.port.js';
 import { ownedImport } from './importOwnership.js';
 
-/** What a save attempt came to. */
-type SaveOutcome = 'saved' | 'waiting' | 'paused';
+/** What a save attempt came to. `held`: the item lacks what Publish needs and waits for the cook, out of the queue. */
+type SaveOutcome = 'saved' | 'waiting' | 'paused' | 'held';
 
 /** The lines of a stored payload, which is all the parse step needs from it. */
 const payloadLinesSchema = z.object({ ingredientLines: z.array(z.string()) });
@@ -170,6 +175,7 @@ export class ImportAdvanceService {
             | 'findParsing'
             | 'findSaveCandidates'
             | 'deferItem'
+            | 'holdItem'
             | 'attachJob'
             | 'detachExpiredJob'
             | 'markMatchedWithoutLines'
@@ -368,7 +374,7 @@ export class ImportAdvanceService {
 
         let saved = 0;
         // Asked once per call: advisory (the create path decides under the lock). A cook out of slots saves no more private items.
-        let privateAllowed = await this.slots.hasAvailable(principal.userId);
+        let privateAllowed = await this.slots.hasAvailable(principal);
 
         for (const item of candidates) {
             if (saved >= this.limits.saveBatch || this.limits.now() + this.limits.saveMinMs > deadlineAt) {
@@ -398,17 +404,17 @@ export class ImportAdvanceService {
 
             if (outcome === 'saved') {
                 saved += 1;
-            } else {
+            } else if (outcome !== 'held') {
                 await this.items.deferItem(header.id, item.ordinal);
             }
         }
     }
 
     /**
-     * Save one matched item as a draft, if it is ready and allowed.
+     * Save one matched item, PUBLISHED, if it is ready and allowed.
      *
      * @returns `saved` (this call or a racing one); `waiting` (not ready, no statement, visibility refused, food could not be
-     *   asked); `paused` (no private slot).
+     *   asked); `paused` (no private slot); `held` (it lacks what Publish needs; held at the revision read).
      */
     private async saveOne(
         principal: Principal,
@@ -432,6 +438,21 @@ export class ImportAdvanceService {
             )
         ) {
             return 'waiting';
+        }
+
+        const recipe = importRecipeSchema.parse(item.payload);
+        const cuisine = importCuisineOf(item.cuisine, recipe.cuisine);
+
+        // Before the match read, which asks food and the review gate: a recipe that cannot be published waits for the cook.
+        if (
+            importPublishGapOf({
+                statement,
+                cuisine,
+                ingredientLineCount: recipe.ingredientLines.length,
+                stepCount: recipe.steps.length,
+            }) !== null
+        ) {
+            return this.hold(header, item);
         }
 
         const snapshot = await this.lines.findForItem(header.id, item.ordinal);
@@ -469,7 +490,6 @@ export class ImportAdvanceService {
             return 'waiting';
         }
 
-        const recipe = importRecipeSchema.parse(item.payload);
         const decided = known.map((entry) => ({
             ...entry,
             binding: bindingOf({ mode: header.matchMode, itemReview: item.review, reviewClosed, line: entry.facts }),
@@ -483,12 +503,13 @@ export class ImportAdvanceService {
         const dto: CreateRecipeDto = {
             title: recipe.title,
             ...(recipe.description === undefined ? {} : { description: recipe.description }),
-            ...(recipe.cuisine === undefined ? {} : { cuisine: recipe.cuisine }),
+            ...(cuisine === null ? {} : { cuisine }),
             ...(recipe.difficulty === undefined ? {} : { difficulty: recipe.difficulty }),
             ...(recipe.mealType === undefined ? {} : { mealType: recipe.mealType }),
-            status: 'draft',
+            status: 'published',
             visibility: requested === 'public' ? RecipeVisibility.PUBLIC : RecipeVisibility.PRIVATE,
-            // The file may state none of these (another app's export often does not); a draft is filled, never refused.
+            // The create route requires these and another app's export often states none. They are not what Publish needs,
+            // so the neutral values stand in (one serving, no time stated) and the cook edits them in the editor.
             servings: recipe.servings ?? 1,
             prepTimeMinutes: recipe.prepTimeMinutes ?? 0,
             cookTimeMinutes: recipe.cookTimeMinutes ?? 0,
@@ -535,10 +556,32 @@ export class ImportAdvanceService {
                 return 'waiting';
             }
 
+            if (isRecipeDomainError(error) && error.code === RecipeErrorCode.PUBLISH_REQUIREMENTS_UNMET) {
+                // The check above asks the same policy over the same facts, so this is a defect: say so, and hold it all the
+                // same, because retrying a refusal nothing will change is the loop the hold exists to stop.
+                this.logger.error(
+                    `import ${header.id} item ${String(item.ordinal)}: the create path refused a recipe the import judged publishable; it is held`,
+                    errorStack(error),
+                );
+
+                return this.hold(header, item);
+            }
+
             throw error;
         }
 
         return 'saved';
+    }
+
+    /**
+     * Hold an item that lacks what Publish needs, at the revision the save read (a decision since then leaves it unheld).
+     *
+     * @sideEffect Writes the hold.
+     */
+    private async hold(header: ImportHeader, item: ImportItem): Promise<SaveOutcome> {
+        await this.items.holdItem(header.id, item.ordinal, item.decisionRev);
+
+        return 'held';
     }
 
     /**

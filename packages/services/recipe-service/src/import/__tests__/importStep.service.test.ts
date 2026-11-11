@@ -294,6 +294,41 @@ describe('ImportStepService.step', () => {
     });
 });
 
+describe('ImportStepService.step — the cuisine the save will use (ADR-0072 §3 as amended 2026-11-11)', () => {
+    const matched = (overrides: Parameters<typeof makeItem>[0]) =>
+        makeItem({ stage: 'matched', matchedAt: new Date(), ...overrides });
+
+    it("shows the file's cuisine when the cook gave none", async () => {
+        const step = await build({ item: matched({ payload: { title: 'Soup', cuisine: 'French' } }) }).service.step(
+            COOK,
+            CALLER,
+            IMPORT_ID,
+            0,
+        );
+
+        expect(step.cuisine).toBe('French');
+    });
+
+    it("shows the cook's cuisine over the file's", async () => {
+        const step = await build({
+            item: matched({ cuisine: 'Thai', payload: { title: 'Soup', cuisine: 'French' } }),
+        }).service.step(COOK, CALLER, IMPORT_ID, 0);
+
+        expect(step.cuisine).toBe('Thai');
+    });
+
+    it('⛔ shows null when neither gave one: the wizard asks the cook, and nothing is made up', async () => {
+        const step = await build({ item: matched({ payload: { title: 'Soup' } }) }).service.step(
+            COOK,
+            CALLER,
+            IMPORT_ID,
+            0,
+        );
+
+        expect(step.cuisine).toBeNull();
+    });
+});
+
 describe('ImportStepService.recordChoices', () => {
     it('records the choices and answers the step', async () => {
         const { service, itemsDal } = build();
@@ -301,6 +336,14 @@ describe('ImportStepService.recordChoices', () => {
 
         expect(itemsDal.recordChoices).toHaveBeenCalledWith(IMPORT_ID, 0, { visibility: 'private' });
         expect(step.ordinal).toBe(0);
+    });
+
+    it('passes a cuisine to the item as a decision of the cook', async () => {
+        const { service, itemsDal } = build();
+
+        await service.recordChoices(COOK, CALLER, IMPORT_ID, 0, { cuisine: 'Thai' });
+
+        expect(itemsDal.recordChoices).toHaveBeenCalledWith(IMPORT_ID, 0, { cuisine: 'Thai' });
     });
 
     it('maps a saved item to IMPORT_ITEM_ALREADY_SAVED and a missing one to not found', async () => {

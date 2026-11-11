@@ -329,8 +329,6 @@ describe('HomeTabBar (native) — the You tab', () => {
 
                 expect(getComputedStyle(disc()).width).toBe('24px');
                 expect(getComputedStyle(disc()).height).toBe('24px');
-                expect(getComputedStyle(disc()).width).toBe('24px');
-                expect(getComputedStyle(disc()).height).toBe('24px');
                 expect(getComputedStyle(disc()).borderTopWidth).not.toBe('2px');
                 cleanup();
             }

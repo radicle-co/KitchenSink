@@ -115,21 +115,38 @@ recipe it created, so a repeated `advance` sees the item as done.
 - **On approval**, a public recipe becomes public, and a private one simply stays private, in the slot it already
   holds.
 - Because the save publishes, the recipe records its first version then (ADR-0058).
-- **A recipe that lacks what Publish needs waits in the import** (lead ruling, 2026-11-11). Publish needs a cuisine,
-  at least one ingredient line and at least one step (`publishPolicy.ts`). Only the curator's public-domain text is
-  exempt from the cuisine, and the import never sets it: a web statement is a web copy (ADR-0089 §5).
-  Another app's export often states no cuisine. The import does not make one up: no default, no cuisine picked by the
-  AI, and no draft save. The item is listed under "Needs a cuisine" (`needsIngredients` and `needsSteps` for the other
-  two), after "Needs your statement" and the visibility, and before the slot pause. The cook gives the cuisine in the
-  wizard or in the batch choices (an additive `cuisine` field), and it replaces the file's for that recipe. The next
-  `advance` then saves the recipe published.
+- **A recipe with no ingredient line or no step is refused** (owner ruling, 2026-11-11). Nothing in the import adds a
+  line or a step, so such a recipe cannot be finished here. It shows in the list as not importable, with its reason
+  (`noIngredients` or `noSteps`). It is never paid for, parsed, matched or saved, and it uses no allowance. The rule is
+  the content half of the publish policy, asked once through `unmetContentRequirements` (`publishPolicy.ts`). The
+  refusal is a fact stored on the item when it is written (`recipe_import_items.refusal`, migration 0078), because the
+  queries that pay for, parse and match items must leave it out in SQL. A replace with a fixed recipe clears it, and a
+  replace with an emptied recipe sets it, even on an item that already paid (the unit stays spent). A refused item is
+  terminal: the view counts it under `refused`, and `received` counts only the items still waiting to move on. `total`
+  is every item that arrived.
+- **A recipe that lacks a cuisine, servings or times waits in the import** (lead ruling, 2026-11-11, and owner ruling,
+  2026-11-11). Publish needs a cuisine, and the create route needs servings and the prep and cook times. Only the
+  curator's public-domain text is exempt from the cuisine, and the import never sets it: a web statement is a web copy
+  (ADR-0089 §5). Another app's export often states none of them. The import does not make one up: no default
+  cuisine, no "1 serving", no "0 minutes", no cuisine picked by the AI, and no draft save. The item is listed under
+  "Needs a cuisine" (`needsCuisine`), "Needs servings" (`needsServings`) or "Needs times" (`needsTimes`), in that
+  order, after "Needs your statement" and the visibility, and before the slot pause. The cook gives each in the wizard
+  or in the batch choices (additive `cuisine`, `servings`, `prepTimeMinutes` and `cookTimeMinutes` fields, with the
+  create route's own bounds), and it replaces the file's for that recipe. The next `advance` then saves the recipe
+  published.
+- **Each value is the cook's choice, else the file's, else absent.** An absent value holds the item, and a stated `0`
+  never does: zero minutes is a fact. Times are complete only when prep and cook are both known, so a file that states
+  only a total holds until the cook gives prep and cook. The total is the file's total when it states one. Otherwise it
+  is prep plus cook. The step shows these resolved values (`servings`, `prepTimeMinutes`, `cookTimeMinutes`,
+  `totalTimeMinutes`), so the wizard shows what the save will send.
 - **An item only the cook can unblock is held, never re-queued.** The save asks the item list's own rule
-  (`importItemIssueOf`), in its order, before it reads the matches. A publish gap and a refused visibility each hold
-  the item. The hold records the item's `decision_rev` in `held_at_rev` (migration 0076), and the save
-  candidates leave out an item held at its current revision. Every decision of the cook moves `decision_rev`, so the
-  next decision releases the hold by itself. A refusal from the create path that the check did not predict is logged
-  as a defect and holds the item the same way. The issue the list shows is derived from the item at read time, never
-  read from the hold.
+  (`importItemIssueOf`), in its order, before it reads the matches. A save gap and a refused visibility each hold the
+  item. The hold records the item's `decision_rev` in `held_at_rev` (migration 0076), and the save candidates leave out
+  an item held at its current revision. Every decision of the cook moves `decision_rev`, so
+  the next decision releases the hold by itself. A recipe with no line or no step is refused before it gets here, so
+  reaching the save with one is a defect: the policy throws, and the item is logged and left. A refusal from the create
+  path that the check did not predict is logged as a defect and holds the item. The issue the list shows is derived
+  from the item at read time, never read from the hold. A refusal comes first in that derivation.
 - The import still binds nothing in the background and never chooses a visibility for the cook.
 - **This is bulk import only.** The single-recipe imports (a link, a paste, a video) are unchanged.
 
@@ -383,13 +400,6 @@ is reached, this path does not wait for the budget to return.
   lines that still wait for the cook leave the list and the count. The saved recipe keeps the line as the import left
   it. This follows the owner's ruling literally, and it is open for the owner. To keep those lines findable, the purge
   needs a rule that spares an import with open lines.
-- **A recipe with no step or no ingredient line cannot leave the import.** The cook can give a cuisine, but nothing in
-  the import adds a step or a line, and a matched item's recipe is locked (`IMPORT_ITEM_LOCKED`). Such an item stays
-  held under "Needs steps" or "Needs ingredients" until the purge. Before the published save, it became a draft the
-  cook could finish in the editor. A way out (a draft save for these two gaps, or edits in the wizard) needs a ruling.
-- **The save fills servings and times the file does not state** (1 serving, 0 minutes), because the create route
-  requires them. A published recipe now shows those values to its readers. Whether the "nothing made up" rule covers
-  them too is open.
 - **A free cook out of slots is paused on a book or paid-site item.** ADR-0082 §2 lets such a recipe go public as a
   facts card, which uses no slot, so the import should offer the card and not pause. The facts card is not built, so
   the import pauses every private item when no slot is free. This follows ADR-0073 §8 until the card exists.

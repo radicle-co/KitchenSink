@@ -4,8 +4,9 @@
  * ⛔ The write is scoped to rows the seed itself wrote (`model_id` = the seed's marker), so it can never delete or replace a
  * verdict a worker wrote — the property that makes clean-up safe on a database holding real verdicts.
  */
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, expectTypeOf, it, vi } from 'vitest';
 
+import type { LocalSeedTarget } from '../src/localSeedTarget.js';
 import { createVerdictStore, type VerdictConnection } from '../src/verdictStore.js';
 import { NEEDS_REVIEW_SEED_MODEL_ID, needsReviewVerdictFor } from '../src/needsReviewProbe.js';
 
@@ -23,7 +24,7 @@ function fakeConnection(failAt?: RegExp) {
             statements.push({ sql: sql.replace(/\s+/gu, ' ').trim(), params });
 
             if (failAt?.test(sql) === true) {
-                throw new Error('boom');
+                throw new Error(/^\s*ROLLBACK/u.test(sql) ? 'rollback failed' : 'boom');
             }
 
             return undefined;
@@ -98,11 +99,25 @@ describe('createVerdictStore.replaceSeedVerdict', () => {
         expect(connection.end).toHaveBeenCalledTimes(1);
     });
 
+    it('⛔ surfaces the ORIGINAL error when the ROLLBACK itself fails, and still closes the connection', async () => {
+        const { connection } = fakeConnection(/^\s*INSERT|^ROLLBACK/u);
+
+        await expect(createVerdictStore(async () => connection).replaceSeedVerdict(row)).rejects.toThrow('boom');
+
+        expect(connection.end).toHaveBeenCalledTimes(1);
+    });
+
     it('closes the connection after a success', async () => {
         const { connection } = fakeConnection();
 
         await createVerdictStore(async () => connection).replaceSeedVerdict(row);
 
         expect(connection.end).toHaveBeenCalledTimes(1);
+    });
+});
+
+describe('LocalSeedTarget', () => {
+    it('⛔ cannot be built by hand: a bare object with a database URL is not a proof of locality', () => {
+        expectTypeOf({ databaseUrl: 'x' }).not.toMatchTypeOf<LocalSeedTarget>();
     });
 });

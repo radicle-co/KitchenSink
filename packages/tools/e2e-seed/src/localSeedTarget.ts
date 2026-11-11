@@ -29,10 +29,13 @@ const FOOD_ORIGIN = 'E2E_SEED_FOOD_URL';
 /** The slice of the environment the guard reads. */
 export type LocalSeedEnvironment = Readonly<Record<string, string | undefined>>;
 
-/** A database the seed may write: proven loopback, with the recipe and food APIs it creates through. */
-export interface LocalSeedTarget {
-    readonly databaseUrl: string;
-}
+declare const localSeedTargetBrand: unique symbol;
+
+/**
+ * A database the seed may write: proven loopback, with the recipe and food APIs it creates through. Branded, so only
+ * {@link requireLocalSeedTarget} can make one: a bare `{ databaseUrl }` does not type-check.
+ */
+export type LocalSeedTarget = { readonly databaseUrl: string } & { readonly [localSeedTargetBrand]: true };
 
 /** Raised when a seed write is aimed at anything but the local stack. Matching guard: {@link isNonLocalSeedTargetError}. */
 export class NonLocalSeedTargetError extends Error {
@@ -99,5 +102,6 @@ export function requireLocalSeedTarget(env: LocalSeedEnvironment): LocalSeedTarg
         );
     }
 
-    return { databaseUrl: (env[RECIPE_DATABASE_URL] ?? '').trim() };
+    // Cast reason: this is the one place the brand is asserted, after the loopback proof above.
+    return { databaseUrl: (env[RECIPE_DATABASE_URL] ?? '').trim() } as LocalSeedTarget;
 }

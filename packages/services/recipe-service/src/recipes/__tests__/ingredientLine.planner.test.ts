@@ -118,7 +118,7 @@ describe('IngredientLinePlanner.plan — a line naming a settled failure', () =>
     it('⛔ is stored on the binding the settle moved the failure’s lines to', async () => {
         const { planner } = build([SETTLED, ROOT], { 'food-1': 'za’atar' });
 
-        const plan = await planner.plan(undefined, [line('l-settled')], false);
+        const plan = await planner.plan(undefined, [line('l-settled')], { ownerVouches: false });
 
         expect(plan.inputs.map((input) => input.foodLookupId)).toStrictEqual(['l-root']);
         expect(plan.identities.get('l-root')?.name).toBe('za’atar');
@@ -127,7 +127,7 @@ describe('IngredientLinePlanner.plan — a line naming a settled failure', () =>
     it('leaves a failure that has not settled where it is', async () => {
         const { planner } = build([DECLARED]);
 
-        const plan = await planner.plan(undefined, [line('l-declared')], false);
+        const plan = await planner.plan(undefined, [line('l-declared')], { ownerVouches: false });
 
         expect(plan.inputs.map((input) => input.foodLookupId)).toStrictEqual(['l-declared']);
     });
@@ -143,7 +143,7 @@ describe('IngredientLinePlanner.plan', () => {
                 line('l-root', { displayText: 'trimmed', note: '9 inch', preparation: 'sliced', groupLabel: 'Meat' }),
                 line('l-declared', { unit: undefined, userCalories: 40 }),
             ],
-            false,
+            { ownerVouches: false },
         );
 
         expect(plan.inputs).toStrictEqual([
@@ -172,7 +172,7 @@ describe('IngredientLinePlanner.plan', () => {
     it('names bound lines from food and unresolved lines from their record, and builds the search text from them', async () => {
         const { planner, resolve } = build([ROOT, DECLARED], { 'food-1': 'beef brisket' });
 
-        const plan = await planner.plan(undefined, [line('l-root'), line('l-declared')], false);
+        const plan = await planner.plan(undefined, [line('l-root'), line('l-declared')], { ownerVouches: false });
 
         expect(resolve).toHaveBeenCalledWith(undefined, [{ kind: 'root', id: 'food-1' }], 'postCommit');
         expect(plan.identities.get('l-root')?.name).toBe('beef brisket');
@@ -183,11 +183,9 @@ describe('IngredientLinePlanner.plan', () => {
     it('adds the words the cook wrote on a line to the search text, after its name', async () => {
         const { planner } = build([ROOT, DECLARED], { 'food-1': 'beef brisket' });
 
-        const plan = await planner.plan(
-            undefined,
-            [line('l-root', { displayText: 'point cut' }), line('l-declared')],
-            false,
-        );
+        const plan = await planner.plan(undefined, [line('l-root', { displayText: 'point cut' }), line('l-declared')], {
+            ownerVouches: false,
+        });
 
         expect(plan.namesText).toBe('beef brisket point cut grandma’s spice mix');
     });
@@ -195,7 +193,7 @@ describe('IngredientLinePlanner.plan', () => {
     it('⛔ leaves a bound line nameless — and out of the search text — when food cannot be asked', async () => {
         const { planner } = build([ROOT, DECLARED]);
 
-        const plan = await planner.plan(undefined, [line('l-root'), line('l-declared')], false);
+        const plan = await planner.plan(undefined, [line('l-root'), line('l-declared')], { ownerVouches: false });
 
         expect(plan.identities.get('l-root')?.name).toBeUndefined();
         expect(plan.namesText).toBe('grandma’s spice mix');
@@ -204,10 +202,12 @@ describe('IngredientLinePlanner.plan', () => {
     it('⛔ refuses a line naming a binding that does not exist — before any write', async () => {
         const { planner } = build([ROOT]);
 
-        const outcome = await planner.plan(undefined, [line('l-root'), line('l-missing')], false).then(
-            () => 'planned',
-            (error: unknown) => error,
-        );
+        const outcome = await planner
+            .plan(undefined, [line('l-root'), line('l-missing')], { ownerVouches: false })
+            .then(
+                () => 'planned',
+                (error: unknown) => error,
+            );
 
         expect(isRecipeDomainError(outcome) && outcome.code === RecipeErrorCode.UNKNOWN_INGREDIENT).toBe(true);
     });
@@ -218,7 +218,7 @@ describe('IngredientLinePlanner.plan', () => {
         const plan = await planner.plan(
             undefined,
             [line('l-declared', { sourceLine: '2 cups spice mix', sourcePhrase: 'spice mix' })],
-            true,
+            { ownerVouches: true },
         );
 
         // The caller of a create becomes the recipe's owner, so the text a create line carries is the OWNER's
@@ -230,13 +230,15 @@ describe('IngredientLinePlanner.plan', () => {
         });
         expect(resolve).not.toHaveBeenCalled();
 
-        expect((await planner.plan(undefined, [], false)).inputs).toStrictEqual([]);
+        expect((await planner.plan(undefined, [], { ownerVouches: false })).inputs).toStrictEqual([]);
     });
 
     it('⛔ never raises the flag when the caller does not vouch for the text, whatever the line carries', async () => {
         const { planner } = build([DECLARED]);
 
-        const plan = await planner.plan(undefined, [line('l-declared', { sourceLine: '2 cups spice mix' })], false);
+        const plan = await planner.plan(undefined, [line('l-declared', { sourceLine: '2 cups spice mix' })], {
+            ownerVouches: false,
+        });
 
         // The planner cannot know who wrote the text: the caller says (a create: the owner; anything else: no).
         expect(plan.inputs[0]).toMatchObject({ sourceLine: '2 cups spice mix', sourceLineTranscribedByOwner: false });
@@ -245,7 +247,7 @@ describe('IngredientLinePlanner.plan', () => {
     it('does not raise the flag for a line with no text even when the caller vouches (the row CHECK)', async () => {
         const { planner } = build([DECLARED]);
 
-        const plan = await planner.plan(undefined, [line('l-declared')], true);
+        const plan = await planner.plan(undefined, [line('l-declared')], { ownerVouches: true });
 
         expect(plan.inputs[0]?.sourceLineTranscribedByOwner).toBe(false);
     });

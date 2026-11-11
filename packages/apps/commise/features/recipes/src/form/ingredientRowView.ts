@@ -20,10 +20,9 @@
  */
 import type { Locale } from '@commise/i18n';
 import type { ActionMenuItem } from '@commise/ui/action-menu';
-import { FoodResolutionStatus } from '@kitchensink/recipe-core';
 
 import { isStandInName, lineAmountName } from '../detail/lineName.js';
-import { formatQuantity, lineSummary, lineTailOf } from '../detail/model.js';
+import { formatQuantity, isLineNeedsReview, lineSummary, lineTailOf } from '../detail/model.js';
 import type { LineCommitTarget } from '../hooks/lineCommit.js';
 import type { IngredientRowEditor } from '../hooks/useIngredientRowEditor.js';
 import { controlName } from '../format/cookAmount.js';
@@ -616,14 +615,10 @@ const youWroteInlineOf = (
 ): string | undefined => {
     const original = ctx.originalLines?.get(line.key);
 
-    return changing && needsReviewLine(line) && original !== undefined
+    return changing && isLineNeedsReview(line) && original !== undefined
         ? fillTemplate(ctx.m.rowYouWroteInline, { line: original })
         : undefined;
 };
-
-/** Whether the server flagged this line for the cook to look at again. Pure. */
-const needsReviewLine = (line: RecipeFormIngredient): boolean =>
-    line.resolutionStatus === FoodResolutionStatus.NEEDS_REVIEW;
 
 /** The row editor's view (build spec §7.5.2). Pure: its handlers run only when a control calls them. */
 const lineEditorOf = (input: LineEditorInput, ctx: IngredientRowContext): RowLineEditorView => {
@@ -637,7 +632,7 @@ const lineEditorOf = (input: LineEditorInput, ctx: IngredientRowContext): RowLin
     const unreadable = low.unreadable || (rangeShown && high.unreadable);
     const amountNote = unreadable ? { id: ingredientAmountNoteId(line.key), text: m.rowAmountInvalid } : undefined;
 
-    const needsReview = needsReviewLine(line);
+    const needsReview = isLineNeedsReview(line);
 
     return {
         title: displayName,

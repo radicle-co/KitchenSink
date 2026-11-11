@@ -293,10 +293,10 @@ export const staleNutritionNotice = (
  * not judged the line at all. Migration 0023 is explicit that absence means PUBLISH: the gate runs off a
  * queue, so a line publishes between save and verification whatever the verdict table says.
  *
- * @param line - One recipe ingredient line as the detail read returns it.
+ * @param line - Anything carrying the line's status: a detail line, or the editor's form line.
  * @returns `true` only for a line the gate contradicted.
  */
-export const isLineNeedsReview = (line: RecipeIngredientView): boolean =>
+export const isLineNeedsReview = (line: Pick<RecipeIngredientView, 'resolutionStatus'>): boolean =>
     line.resolutionStatus === FoodResolutionStatus.NEEDS_REVIEW;
 
 /**

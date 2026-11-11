@@ -85,8 +85,9 @@ export class IngredientLinePlanner {
      *
      * @param caller - The writer's credential, forwarded to food for the names.
      * @param lines - The request's lines, in author order.
-     * @param ownerVouches - Whether the text on these lines is their recipe owner's: a create (the caller becomes the
-     *   owner) says `true`; an update carries no text, so it says `false` and the carry-forward decides.
+     * @param facts - What the caller knows about the write. `ownerVouches`: whether the text on these lines is their
+     *   recipe owner's; a create (the caller becomes the owner) says `true`; an update carries no text, so it says
+     *   `false` and the carry-forward decides.
      * @returns What to persist (a line naming a settled failure is forwarded to the settle target), each binding's
      *   identity, and the search text.
      * @throws {RecipeDomainError} `UNKNOWN_INGREDIENT` when a line names a binding that does not exist.
@@ -95,7 +96,7 @@ export class IngredientLinePlanner {
     public async plan(
         caller: CallerToken | undefined,
         lines: readonly PlannedLine[],
-        ownerVouches: boolean,
+        facts: { readonly ownerVouches: boolean },
     ): Promise<IngredientLinePlan> {
         const requested = await this.lookups.findByIds(lines.map((line) => line.ingredientId));
 
@@ -135,7 +136,7 @@ export class IngredientLinePlanner {
         const identities = await this.identities.identifyArms(caller, arms, 'postCommit');
 
         return {
-            inputs: forwarded.map((line, index) => toLineInput(line, index, ownerVouches)),
+            inputs: forwarded.map((line, index) => toLineInput(line, index, facts.ownerVouches)),
             identities,
             namesText: ingredientNamesText(
                 forwarded.map((line) => ({ foodLookupId: line.ingredientId, displayText: line.displayText })),

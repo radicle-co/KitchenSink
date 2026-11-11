@@ -65,7 +65,8 @@ export function createVerdictStore(connect: () => Promise<VerdictConnection>): S
                 ]);
                 await connection.query('COMMIT');
             } catch (error) {
-                await connection.query('ROLLBACK');
+                // A failed ROLLBACK (a dead connection) must not mask the error that got us here.
+                await connection.query('ROLLBACK').catch(() => undefined);
                 throw error;
             } finally {
                 await connection.end();

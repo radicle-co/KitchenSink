@@ -9,7 +9,7 @@
  * and the action `flex: none`, so without room the action drops below the title as one group.
  *
  * DOM order is back → H1 → subtitle → action → `afterTitle` → segments: a screen reader meets the title first, then the
- * avatar, then the floating button (§4.2 focus order), wherever each is drawn.
+ * action, then the floating button (§4.2 focus order), wherever each is drawn.
  *
  * The H1's focus ref is `useFocusOnSignal`'s, sanctioned in the ref register: `.focus()` has no declarative form.
  *
@@ -27,9 +27,6 @@ import type { HeaderAction, LargeTitleHeaderProps } from './props.js';
 /** The action group at the end of the title row. */
 function actionOf(action: HeaderAction): ReactNode {
     switch (action.kind) {
-        case 'avatar':
-            // The sidebar's profile row is the avatar from `nav`, so the header drops it there.
-            return <div className="col-start-3 row-start-1 justify-self-end nav:hidden">{action.avatar}</div>;
         case 'controls':
             return (
                 <div className="col-start-3 row-start-1 flex items-center gap-2 justify-self-end nav:flex-none nav:self-start">

@@ -12,10 +12,11 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { resolveHomeNav } from '@commise/features-core';
+import { resolveHomeNav, TAB_LABEL_TEXT_CAP } from '@commise/features-core';
 import { homeMessages } from '@commise/features-core/home';
 import { RECIPE_HOME_WIDGET_CAPABILITY } from '@commise/features-recipes';
 import { resolveMessages, SUPPORTED_LOCALES } from '@commise/i18n';
+import { SEGMENT_CHROME_CAP } from '@commise/ui/segmented-control/geometry';
 import { nativeTokens } from '@commise/ui/native';
 import { scaledTypeSize } from '@commise/ui/scaled-type';
 import { asLoadedFace, measureTextWidth } from '@commise/ui/testing/measure-text';
@@ -27,28 +28,33 @@ import {
     tabLabelRoom,
 } from '../../../src/components/home/chrome/homeTabBarGeometry.js';
 
-/** The narrowest screen the spec names (320), where four tabs share the bar. */
-const SCREEN_WIDTH = 320;
+/** The two narrow screens `buildSpec.md` §3.2 names: where four tabs share the bar, 80 wide at 320 and 90 at 360. */
+const SCREEN_WIDTHS = [320, 360] as const;
 
 /** The tabs the bar shows today. */
 const TABS = resolveHomeNav([RECIPE_HOME_WIDGET_CAPABILITY]);
 
-describe('the Home tab bar fits at the chrome cap', () => {
-    const room = tabLabelRoom({ screenWidth: SCREEN_WIDTH, count: TABS.length });
+/**
+ * Tab labels take their own 1.3× cap (owner ruling 2026-11-11, `buildSpec.md` §3.2), below the 1.5× chrome cap: at 1.5×
+ * the English "Discover" (about 90) and the active "Recipes" (about 81) overflowed an 80 tab. The cap is one named
+ * constant, held once for both apps (`TAB_LABEL_TEXT_CAP`), never an inline number.
+ */
+describe('the tab label cap', () => {
+    it('is the shared 1.3×, which is a chrome step below the 1.5× the other chrome keeps', () => {
+        expect(TAB_BAR_CHROME_CAP).toBe(String(TAB_LABEL_TEXT_CAP));
+        expect(TAB_BAR_CHROME_CAP).toBe('1.3');
+        expect(Number(TAB_BAR_CHROME_CAP)).toBeLessThan(Number(SEGMENT_CHROME_CAP));
+    });
 
-    /**
-     * ⚠️ OPEN DESIGN CONFLICT, measured 2026-11-11: at the 1.5× chrome cap (ADR-0080 §8) the English "Discover" is about 90 dp
-     * wide in either role and "Recipes" in the active `label` role about 81 dp, and four tabs leave 80 dp each at 320 (and
-     * 90 at 360), where three left 107 at 360. `buildSpec.md` §3.2 says "Discover" at +35% still fits 80 px; it does not
-     * quite (80.2). These three cases are listed here, and run as `it.fails`, so the suite stays honest: each one turns RED
-     * the day a design ruling (a shorter label, a lower tab-label cap, or a two-line label) makes it fit, and the entry is
-     * then deleted. Nothing else is excused: every other label, locale and role is asserted to fit.
-     */
-    const KNOWN_OVERFLOW: ReadonlySet<string> = new Set([
-        'en|active|Recipes',
-        'en|active|Discover',
-        'en|inactive|Discover',
-    ]);
+    it('grows a label to 1.3× at the largest system size and no further', () => {
+        const { fontSize } = scaledTypeSize('caption', Number.POSITIVE_INFINITY, TAB_BAR_CHROME_CAP);
+
+        expect(fontSize).toBeCloseTo(nativeTokens.type.caption.fontSize * 1.3);
+    });
+});
+
+describe.each(SCREEN_WIDTHS)('the Home tab bar fits at the tab label cap, at %i', (screenWidth) => {
+    const room = tabLabelRoom({ screenWidth, count: TABS.length });
 
     const cases = SUPPORTED_LOCALES.flatMap((locale) => {
         const { destinations } = resolveMessages(homeMessages, locale).chrome;
@@ -58,34 +64,17 @@ describe('the Home tab bar fits at the chrome cap', () => {
         );
     });
 
-    const labelFits = (state: 'active' | 'inactive', label: string): boolean => {
+    it.each(cases)('%s, %s tab: "%s" stays on one line', (_locale, state, label) => {
         const role = TAB_LABEL_ROLE[state];
         const { fontSize } = scaledTypeSize(role, Number.POSITIVE_INFINITY, TAB_BAR_CHROME_CAP);
         const face = asLoadedFace(nativeTokens.type[role].fontFamily);
 
-        return measureTextWidth(label, face, fontSize) <= room;
-    };
-
-    for (const [locale, state, label] of cases) {
-        const name = `${locale}, ${state} tab: "${label}" stays on one line`;
-
-        if (KNOWN_OVERFLOW.has(`${locale}|${state}|${label}`)) {
-            it.fails(`${name} (known overflow, see the note above)`, () => {
-                expect(labelFits(state, label)).toBe(true);
-            });
-        } else {
-            it(name, () => {
-                expect(labelFits(state, label)).toBe(true);
-            });
-        }
-    }
-
-    it('has four tabs, You last', () => {
-        expect(TABS.map((tab) => tab.id)).toEqual(['home', 'recipes', 'discover', 'you']);
+        expect(measureTextWidth(label, face, fontSize)).toBeLessThanOrEqual(room);
     });
 
-    it('leaves each of four tabs a quarter of the bar, less its side padding, which is at least 80 at 320', () => {
-        expect(tabLabelRoom({ screenWidth: 320, count: 4 })).toBeCloseTo((320 - 2 * TAB_BAR_SIDE_PADDING) / 4);
+    it('has four tabs, You last, each at least 80 wide', () => {
+        expect(TABS.map((tab) => tab.id)).toEqual(['home', 'recipes', 'discover', 'you']);
         expect(room).toBeGreaterThanOrEqual(80);
+        expect(room).toBeCloseTo((screenWidth - 2 * TAB_BAR_SIDE_PADDING) / TABS.length);
     });
 });

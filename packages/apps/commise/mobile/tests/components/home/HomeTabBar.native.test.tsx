@@ -12,7 +12,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, screen, within } from '@testing-library/react';
 
 import { RECIPE_HOME_WIDGET_CAPABILITY } from '@commise/features-recipes';
-import type { HomeNavItemId, ProfileEntry } from '@commise/features-core';
+import { TAB_LABEL_TEXT_CAP, type HomeNavItemId, type ProfileEntry } from '@commise/features-core';
 import { homeMessages } from '@commise/features-core/home';
 import { role } from '@commise/ui/colors';
 import { nativeTokens } from '@commise/ui/native';
@@ -119,18 +119,19 @@ describe('HomeTabBar (native)', () => {
     });
 
     // Designer ruling 2026-11-01 (ADR-0080 §8): a tab label is navigation chrome, so above the system scale it grows to
-    // 1.5× and stops there, where the rest of the screen grows to 2×.
-    it('grows each label with the system scale to the 1.5× chrome cap, not to 2×', () => {
+    // 1.5× and stops there, where the rest of the screen grows to 2×. REWRITTEN 2026-11-11 (`buildSpec.md` §3.2): four tabs at
+    // 320 leave 80 each, so tab labels take their own cap, `TAB_LABEL_TEXT_CAP` (1.3×), below the 1.5× the other chrome keeps.
+    it('grows each label with the system scale to the 1.3× tab label cap, not to 1.5× or 2×', () => {
         const { label, caption } = nativeTokens.type;
         renderBarIn('light', 'recipes', 3.1);
 
         const active = getComputedStyle(screen.getByText('Recipes'));
         const inactive = getComputedStyle(screen.getByText('Home'));
 
-        expect(active.fontSize).toBe(`${String(label.fontSize * 1.5)}px`);
-        expect(active.lineHeight).toBe(`${String(label.lineHeight * 1.5)}px`);
-        expect(inactive.fontSize).toBe(`${String(caption.fontSize * 1.5)}px`);
-        expect(inactive.lineHeight).toBe(`${String(caption.lineHeight * 1.5)}px`);
+        expect(active.fontSize).toBe(`${String(label.fontSize * TAB_LABEL_TEXT_CAP)}px`);
+        expect(active.lineHeight).toBe(`${String(label.lineHeight * TAB_LABEL_TEXT_CAP)}px`);
+        expect(inactive.fontSize).toBe(`${String(caption.fontSize * TAB_LABEL_TEXT_CAP)}px`);
+        expect(inactive.lineHeight).toBe(`${String(caption.lineHeight * TAB_LABEL_TEXT_CAP)}px`);
     });
 
     it('grows each label with the system scale below the cap', () => {

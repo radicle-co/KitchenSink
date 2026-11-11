@@ -12,7 +12,7 @@
  *
  * @pattern Visitor — an exhaustive switch over the disc's three faces
  */
-import { initialsFor, type ProfileEntry } from '@commise/features-core';
+import { YOU_TAB_INITIALS_SIZE, initialsFor, type ProfileEntry } from '@commise/features-core';
 import { avatarFaceOf } from '@commise/ui/avatar-props';
 import { Icon } from '@commise/ui/icon';
 import type { JSX } from 'react';
@@ -20,7 +20,7 @@ import type { JSX } from 'react';
 /** The disc's fill and ink per face. */
 const FACE_CLASS: Readonly<Record<ReturnType<typeof avatarFaceOf>, string>> = {
     blank: 'bg-surface-muted',
-    initials: 'bg-action text-[10px] font-semibold leading-none text-on-action',
+    initials: 'bg-action font-semibold leading-none text-on-action',
     glyph: 'bg-surface-muted text-ink-muted',
 };
 
@@ -50,7 +50,7 @@ export function YouTabDisc({ profile, active }: YouTabDiscProps): JSX.Element {
                 active ? 'ring-2 ring-ink' : ''
             }`}
         >
-            {face === 'initials' ? initials : null}
+            {face === 'initials' ? <span style={{ fontSize: YOU_TAB_INITIALS_SIZE }}>{initials}</span> : null}
             {face === 'glyph' ? <Icon name="user" size={20} /> : null}
         </span>
     );

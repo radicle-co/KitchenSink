@@ -5,11 +5,15 @@
  *
  * @pattern Specification — one pure rule for a tab's label room, read by the bar and by the fit test
  */
+import { TAB_LABEL_TEXT_CAP } from '@commise/features-core';
 import { nativeTokens } from '@commise/ui/native';
 import type { ChromeCap } from '@commise/ui/scaled-type';
 
-/** The chrome cap a tab label grows to: navigation chrome, so 1.5× (ADR-0080 §8). */
-export const TAB_BAR_CHROME_CAP = '1.5' satisfies ChromeCap;
+/**
+ * The chrome cap a tab label grows to: its own 1.3× (`TAB_LABEL_TEXT_CAP`, owner ruling 2026-11-11), a step below the 1.5× the
+ * other navigation chrome keeps (ADR-0080 §8), so four tabs of 80 keep every label on one line.
+ */
+export const TAB_BAR_CHROME_CAP = `${TAB_LABEL_TEXT_CAP}` as const satisfies ChromeCap;
 
 /**
  * The bar's own side padding, in dp; the safe-area inset is added to it. None: four tabs must be 80 wide at 320

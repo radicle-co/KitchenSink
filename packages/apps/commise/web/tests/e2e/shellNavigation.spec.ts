@@ -218,6 +218,33 @@ for (const colorScheme of ['light', 'dark'] as const) {
             expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
         });
 
+        // Tab labels take their own 1.3x cap (owner ruling 2026-11-11, `buildSpec.md` §3.2): with the browser's text at 200%
+        // every label stays on ONE line inside its 80 px tab at 320, never wrapped and never cut.
+        test('keeps every tab label on one line inside its tab at 320 px with the text at 200%', async ({ page }) => {
+            await page.setViewportSize({ width: 320, height: 640 });
+            await signedIn(page);
+            await page.goto(route('/'));
+            await page.addStyleTag({ content: 'html { font-size: 200% !important; }' });
+
+            for (const link of await visibleNav(page).getByRole('link').all()) {
+                const fit = await link.locator('.text-caption').evaluate(
+                    (label, tab) => {
+                        const lineHeight = Number.parseFloat(getComputedStyle(label).lineHeight);
+                        const box = label.getBoundingClientRect();
+
+                        return {
+                            oneLine: box.height <= lineHeight * 1.2,
+                            inside: label.scrollWidth <= tab.getBoundingClientRect().width,
+                        };
+                    },
+                    await link.elementHandle(),
+                );
+
+                expect(fit.oneLine, 'the label is one line').toBe(true);
+                expect(fit.inside, 'the label fits its tab').toBe(true);
+            }
+        });
+
         test('keeps the sidebar collapsed across a reload, at the right width from the first paint', async ({
             page,
         }) => {

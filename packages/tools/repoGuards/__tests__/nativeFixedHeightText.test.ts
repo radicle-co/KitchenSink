@@ -266,12 +266,6 @@ const EXEMPTIONS: readonly Exemption[] = [
     },
     {
         file: `${APPS}ui/src/largeTitleHeader/LargeTitleHeader.native.tsx`,
-        frame: '<View style={[styles.action, { height: rowHeight }]}>',
-        kind: 'allowed',
-        reason: "The slot holds the caller's avatar disc, a control with no text of its own (L52); the reader counts `{action.avatar}` as text.",
-    },
-    {
-        file: `${APPS}ui/src/largeTitleHeader/LargeTitleHeader.native.tsx`,
         frame: '<View style={[styles.action, styles.controls, { height: rowHeight }]}>',
         kind: 'allowed',
         reason: "The slot holds the caller's icon button and menu (L56-57), controls with no text of their own.",
@@ -299,6 +293,12 @@ const EXEMPTIONS: readonly Exemption[] = [
         frame: '<Disc>',
         kind: 'allowed',
         reason: 'The initials do not scale: they are 40% of the disc (12 pt in 32, 14 pt in 36), so two letters fit at every size (designer ruling c10ecadbf, 2026-11-03; Text fixedPx={initialsPxOf(…)}); proven on real font metrics by discGeometry.fit.test.ts.',
+    },
+    {
+        file: `${APPS}mobile/src/components/home/chrome/YouTabDisc.tsx`,
+        frame: '<Disc>',
+        kind: 'allowed',
+        reason: "The initials do not scale: they are 10 pt in the 24 pt disc at every size (designer ruling c10ecadbf, 2026-11-03; Text fixedPx), and the tab label under it, which does grow to 1.3x, is the tab's name.",
     },
     {
         file: `${APPS}ui/src/recipeCover/RecipeCover.native.tsx`,

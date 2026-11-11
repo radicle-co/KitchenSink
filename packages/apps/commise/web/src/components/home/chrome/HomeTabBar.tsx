@@ -25,7 +25,7 @@
  *
  * @pattern Adapter from the shared nav model and the current route to tab links
  */
-import { NAV_ITEM_GLYPH, resolveHomeNav, type HomeNavItemId } from '@commise/features-core';
+import { NAV_ITEM_GLYPH, TAB_LABEL_TEXT_CAP, resolveHomeNav, type HomeNavItemId } from '@commise/features-core';
 import type { ProfileEntry } from '@commise/features-core';
 import type { HomeChromeMessages } from '@commise/features-core/home';
 import { ChromeSurface } from '@commise/ui/chrome-surface';
@@ -36,8 +36,18 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import type { JSX, MouseEvent, Ref } from 'react';
 
+import { typeRole } from '@commise/ui/tokens/typography';
+
 import { homeNavHref, tabRootOf } from './navHref';
 import { YouTabDisc } from './YouTabDisc';
+
+/**
+ * A tab label's size: the caption size, capped at {@link TAB_LABEL_TEXT_CAP} times it, so a larger browser text size never
+ * pushes "Discover" past its 80 px at 320 (`buildSpec.md` §3.2). `min()` keeps the rem below the cap and stops above it.
+ */
+const TAB_LABEL_STYLE = {
+    fontSize: `min(${String(typeRole.caption.size / 16)}rem, ${String(typeRole.caption.size * TAB_LABEL_TEXT_CAP)}px)`,
+} as const;
 
 /** Props for {@link HomeTabBar}. */
 export interface HomeTabBarProps {
@@ -112,7 +122,10 @@ export function HomeTabBar({ chrome, locale, liveCapabilities, activeId, profile
                         ) : (
                             <Icon name={NAV_ITEM_GLYPH[item.id]} size={24} />
                         )}
-                        <span className={`text-caption ${active ? 'font-semibold' : ''}`}>
+                        <span
+                            className={`text-caption whitespace-nowrap ${active ? 'font-semibold' : ''}`}
+                            style={TAB_LABEL_STYLE}
+                        >
                             {chrome.destinations[item.id]}
                         </span>
                     </Link>

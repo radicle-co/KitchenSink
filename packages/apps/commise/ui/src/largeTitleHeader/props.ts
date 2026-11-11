@@ -31,16 +31,10 @@ export interface HeaderBack {
 }
 
 /**
- * What sits at the end of the title: the avatar on a top-level screen, or at most one button and one ⋯ menu. A union,
- * so "a button, a menu AND the avatar" cannot be written.
+ * What sits at the end of the title: at most one button and one ⋯ menu, on a pushed page. There is no avatar variant: no
+ * title row carries one (owner ruling 2026-11-11; Profile is the You tab and the sidebar's first row).
  */
-export type HeaderAction =
-    | {
-          readonly kind: 'avatar';
-          /** The avatar entry. On web it shows below 840 only; the sidebar's profile row has it from 840. */
-          readonly avatar: ReactNode;
-      }
-    | { readonly kind: 'controls'; readonly button?: ReactNode; readonly menu?: ReactNode };
+export type HeaderAction = { readonly kind: 'controls'; readonly button?: ReactNode; readonly menu?: ReactNode };
 
 /** The cross-platform `LargeTitleHeader` contract. */
 export interface LargeTitleHeaderProps {

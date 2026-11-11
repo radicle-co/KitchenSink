@@ -14,13 +14,17 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 
 import { homeMessages } from '@commise/features-core/home';
 import { RECIPE_HOME_WIDGET_CAPABILITY } from '@commise/features-recipes';
-import type { HomeNavItemId } from '@commise/features-core';
+import {
+    TAB_LABEL_TEXT_CAP,
+    YOU_TAB_INITIALS_SIZE,
+    type HomeNavItemId,
+    type ProfileEntry,
+} from '@commise/features-core';
 import { ScrollHost } from '@commise/ui/scroll-host';
 
 import { webMessages } from '@/i18n/messages';
 
 import { HomeTabBar } from '../HomeTabBar';
-import type { ProfileEntry } from '@commise/features-core';
 
 const route = vi.hoisted(() => ({ pathname: '/en' }));
 
@@ -240,6 +244,25 @@ describe('HomeTabBar (web) — compact height', () => {
  * to Profile. jsdom draws no pixels, so the ring and disc sizes are the declared classes; the 80 × 56 fit at 320 is the
  * Playwright test's.
  */
+/**
+ * Tab labels take their own 1.3× cap (owner ruling 2026-11-11, `buildSpec.md` §3.2): a label grows with the browser's text
+ * size to 1.3× the caption size and stops, so four tabs at 320 keep every label on one line inside its 80. The value is the
+ * shared `TAB_LABEL_TEXT_CAP`, never an inline number. jsdom lays nothing out, so this pins the declared size; the
+ * Playwright spec measures it at 320 with the text at 200%.
+ */
+describe('HomeTabBar (web) — the tab label cap', () => {
+    it('sizes every label as the caption size capped at 1.3× it, on one line', () => {
+        renderBar();
+
+        for (const link of within(bar()).getAllByRole('link')) {
+            const label = link.querySelector('.text-caption') as HTMLElement;
+
+            expect(label.style.fontSize).toBe(`min(0.875rem, ${String(14 * TAB_LABEL_TEXT_CAP)}px)`);
+            expect(label.className).toContain('whitespace-nowrap');
+        }
+    });
+});
+
 describe('HomeTabBar (web) — the You tab', () => {
     const you = (): HTMLElement => within(bar()).getByRole('link', { name: 'You' });
 
@@ -258,6 +281,7 @@ describe('HomeTabBar (web) — the You tab', () => {
         expect(disc?.className).toContain('size-6');
         expect(disc?.className).toContain('bg-action');
         expect(disc?.textContent).toBe('EM');
+        expect((disc?.firstElementChild as HTMLElement).style.fontSize).toBe(`${String(YOU_TAB_INITIALS_SIZE)}px`);
     });
 
     it('shows a blank pearl disc while the profile loads, with no glyph and no initials', () => {

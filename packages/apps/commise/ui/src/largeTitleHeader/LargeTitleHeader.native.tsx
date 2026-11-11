@@ -9,7 +9,7 @@
  * above the title. The 44 pt row is therefore drawn for an `action` and for nothing else.
  *
  * The accessibility tree reads title → subtitle → action → `afterTitle` → segments, whatever is drawn where, so the title
- * comes before the avatar and the floating button (§4.2). The action is laid over the row by absolute position for that
+ * comes before the action and the floating button (§4.2). The action is laid over the row by absolute position for that
  * reason.
  *
  * Inside a `ScrollHost` the title block reports its layout, so the host knows when the title has scrolled under the top
@@ -44,8 +44,6 @@ const SIDE_INSET = nativeTokens.spacing[4];
 /** The action group, at the end of the row. */
 function actionOf(action: HeaderAction, rowHeight: number): ReactNode {
     switch (action.kind) {
-        case 'avatar':
-            return <View style={[styles.action, { height: rowHeight }]}>{action.avatar}</View>;
         case 'controls':
             return (
                 <View style={[styles.action, styles.controls, { height: rowHeight }]}>

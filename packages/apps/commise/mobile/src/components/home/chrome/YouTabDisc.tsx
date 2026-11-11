@@ -17,7 +17,7 @@
  * @pattern Visitor — an exhaustive switch over the disc's three faces
  * @pattern Variant — the face and the ring are Tamagui variants, the discriminated-union render map
  */
-import { initialsFor, type ProfileEntry } from '@commise/features-core';
+import { YOU_TAB_DISC_SIZE, YOU_TAB_INITIALS_SIZE, initialsFor, type ProfileEntry } from '@commise/features-core';
 import { avatarFaceOf } from '@commise/ui/avatar-props';
 import { Icon } from '@commise/ui/icon';
 import { Text } from '@commise/ui/text';
@@ -26,12 +26,6 @@ import { styled, YStack } from 'tamagui';
 
 /** What the disc shows (its face). */
 type DiscFace = ReturnType<typeof avatarFaceOf>;
-
-/** The disc's diameter, pt. */
-const DISC_PT = 24;
-
-/** The initials' size, pt (`buildSpec.md` §3.2: a 10 pt label). */
-const INITIALS_PT = 10;
 
 /** The ring around the disc: 2 pt, `ink` when active and transparent when not, so the room is always held. */
 const Ring = styled(YStack, {
@@ -51,8 +45,8 @@ const Ring = styled(YStack, {
 
 const Disc = styled(YStack, {
     name: 'YouTabDisc',
-    width: DISC_PT,
-    height: DISC_PT,
+    width: YOU_TAB_DISC_SIZE,
+    height: YOU_TAB_DISC_SIZE,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: '$full',
@@ -87,7 +81,7 @@ export function YouTabDisc({ profile, active }: YouTabDiscProps): JSX.Element {
         <Ring aria-hidden testID="youTabRing" active={active}>
             <Disc testID="youTabDisc" face={face}>
                 {face === 'initials' ? (
-                    <Text typeRole="label" color="$onAction" fixedPx={INITIALS_PT}>
+                    <Text typeRole="label" color="$onAction" fixedPx={YOU_TAB_INITIALS_SIZE}>
                         {initials}
                     </Text>
                 ) : null}

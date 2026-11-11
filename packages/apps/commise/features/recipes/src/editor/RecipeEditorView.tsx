@@ -41,7 +41,7 @@ import {
     EDITOR_TOP_CHROME_IDS,
     type RecipeEditorViewProps,
 } from './frameProps.js';
-import { EDITOR_SECTIONS } from './sections.js';
+import { EDITOR_SECTIONS, type EditorSectionId } from './sections.js';
 import { closingTabLosesWork } from './saveStatus.js';
 import { useEditorPage } from './useEditorPage.js';
 import { useEditorScrollPadding } from './useEditorScrollPadding.js';
@@ -50,11 +50,15 @@ import { useUnloadGuard } from './useUnloadGuard.js';
 /** How far below the viewport's top the scroll spy's activation line sits: under the header and the index bar. */
 const ACTIVATION_OFFSET_PX = 120;
 
+/** The one section a finish waiting for its photos shows. */
+const PHOTOS_ONLY: readonly EditorSectionId[] = ['photos'];
+
 /** The web one-page recipe editor. */
 export const RecipeEditorView: FC<RecipeEditorViewProps> = (props) => {
     const { editor } = props;
 
-    if (editor.state.status === 'done') {
+    // A finish waiting for its photos keeps the page (its Photos section and Finish control) until they settle.
+    if (editor.state.status === 'done' && props.photoFinish === undefined) {
         return null;
     }
 
@@ -92,15 +96,25 @@ export const RecipeEditorView: FC<RecipeEditorViewProps> = (props) => {
 
 /** The page under its `ScrollHost`. */
 const EditorPage: FC<RecipeEditorViewProps> = (props) => {
-    const { editor, keep, sections, headingActions, railFooter, onPreview } = props;
+    const { editor, keep, sections, headingActions, railFooter, onPreview, photoFinish } = props;
     const page = useEditorPage(props);
     const { m, chrome, entries } = page;
     // A1: the header is stuck to the viewport's top, so the viewport is the frame.
     const pinning = usePinnedFooter({ frame: 'viewport' });
+    // Waiting for photos after the finish: only Photos & publish, and no index, discard or resume (see `photoFinish`).
+    const draining = photoFinish !== undefined;
+    const shownSections = draining ? PHOTOS_ONLY : EDITOR_SECTIONS;
 
-    // Closing the tab loses whatever the server does not hold yet: the draft and the outbox live in the tab (D7).
+    // Closing the tab loses whatever the server does not hold yet: the draft and the outbox live in the tab (D7), and a
+    // photo's bytes live nowhere else.
     useUnloadGuard(
-        closingTabLosesWork({ keep, status: editor.saveStatus, lifecycle: editor.lifecycle, values: editor.values }),
+        closingTabLosesWork({
+            keep,
+            status: editor.saveStatus,
+            lifecycle: editor.lifecycle,
+            values: editor.values,
+            photosAtRisk: props.photosAtRisk === true,
+        }),
     );
 
     useEditorScrollPadding({ pinned: !pinning.unpinned, height: pinning.footerHeight });
@@ -117,7 +131,7 @@ const EditorPage: FC<RecipeEditorViewProps> = (props) => {
                     status={chrome.status.text}
                     closeLabel={m.close}
                     onClose={page.close}
-                    {...(chrome.discard === undefined
+                    {...(chrome.discard === undefined || draining
                         ? {}
                         : {
                               menu: {
@@ -138,20 +152,22 @@ const EditorPage: FC<RecipeEditorViewProps> = (props) => {
                     {page.announcement.text}
                 </LiveRegion>
                 <div className="mx-auto flex w-full max-w-[calc(15rem+2rem+var(--container-list))] flex-1 flex-col @wide/main:flex-row @wide/main:gap-8 @wide/main:px-4">
-                    <SectionIndex
-                        stickyId={EDITOR_INDEX_ID}
-                        narrowHidden={pinning.unpinned}
-                        label={m.index.label}
-                        sheetTitle={m.index.sheetTitle}
-                        sheetCloseLabel={m.index.sheetClose}
-                        items={entries.items}
-                        currentId={page.current}
-                        barName={entries.barName}
-                        {...(entries.barCount === undefined ? {} : { barCount: entries.barCount })}
-                        railFooter={railFooter}
-                    />
+                    {draining ? null : (
+                        <SectionIndex
+                            stickyId={EDITOR_INDEX_ID}
+                            narrowHidden={pinning.unpinned}
+                            label={m.index.label}
+                            sheetTitle={m.index.sheetTitle}
+                            sheetCloseLabel={m.index.sheetClose}
+                            items={entries.items}
+                            currentId={page.current}
+                            barName={entries.barName}
+                            {...(entries.barCount === undefined ? {} : { barCount: entries.barCount })}
+                            railFooter={railFooter}
+                        />
+                    )}
                     <div className={`flex w-full max-w-list min-w-0 flex-1 flex-col gap-10 pt-6 ${EDITOR_GUTTER}`}>
-                        {chrome.resumeBody !== undefined && (
+                        {chrome.resumeBody !== undefined && !draining && (
                             <ResumeNotice
                                 body={chrome.resumeBody}
                                 saveLabel={m.resume.save}
@@ -163,7 +179,7 @@ const EditorPage: FC<RecipeEditorViewProps> = (props) => {
                                     : { discardUnavailable: chrome.discard.unavailable })}
                             />
                         )}
-                        {EDITOR_SECTIONS.map((section) => (
+                        {shownSections.map((section) => (
                             <EditorSection
                                 key={section}
                                 id={section}
@@ -173,10 +189,11 @@ const EditorPage: FC<RecipeEditorViewProps> = (props) => {
                                     ? {}
                                     : { action: headingActions[section] })}
                             >
-                                {section === 'photos' && page.publishNote !== undefined && (
+                                {section === 'photos' && !draining && page.publishNote !== undefined && (
                                     <UnmatchedNote text={page.publishNote} />
                                 )}
                                 {section === 'photos' &&
+                                    !draining &&
                                     page.publishNote === undefined &&
                                     page.readyLine !== undefined && (
                                         <PublishLine line={page.readyLine} onJump={page.goToSection} />
@@ -195,7 +212,8 @@ const EditorPage: FC<RecipeEditorViewProps> = (props) => {
                             primaryDisabled={chrome.primary.disabled || props.pastePending === true}
                             busy={chrome.primary.busy}
                             {...(chrome.fixLine === undefined ? {} : { fixLine: chrome.fixLine })}
-                            {...(page.publishNote === undefined ? {} : { readyLine: page.publishNote })}
+                            {...(page.publishNote === undefined || draining ? {} : { readyLine: page.publishNote })}
+                            {...(photoFinish === undefined ? {} : { finishing: photoFinish })}
                             notice={
                                 chrome.failure === undefined || firstAction === undefined ? undefined : (
                                     <FailureAlert

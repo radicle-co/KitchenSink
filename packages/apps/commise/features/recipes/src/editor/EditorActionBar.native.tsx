@@ -4,7 +4,12 @@
  * published one. Its material is the editor's one glass surface (owner D12): real Liquid Glass on iOS 26, solid
  * elsewhere (`ChromeSurface`).
  *
+ * While a finish waits for its photos (`finishing`), Preview and the primary give way to one secondary control,
+ * "Finish without the remaining photos", under a line that says what is happening.
+ *
  * Presentational: props → JSX.
+ *
+ * @pattern State — the controls follow the editor's phase: editing (Preview, primary) or waiting for photos (Finish)
  */
 import { Button } from '@commise/ui/button';
 import { ChromeSurface } from '@commise/ui/chrome-surface';
@@ -28,6 +33,7 @@ export const EditorActionBar: FC<EditorActionBarProps> = ({
     fixLine,
     readyLine,
     notice,
+    finishing,
     keyboardShown = false,
 }) => {
     const insets = useSafeAreaInsets();
@@ -47,18 +53,31 @@ export const EditorActionBar: FC<EditorActionBarProps> = ({
             <ChromeSurface edge="top" />
             {notice}
             <LiveRegion politeness="polite" typeRole="meta" tone="dangerText">
-                {fixLine ?? ''}
+                {fixLine ?? (finishing?.danger === true ? finishing.line : '')}
             </LiveRegion>
             <LiveRegion politeness="polite" typeRole="meta" tone="inkMuted">
-                {readyLine ?? ''}
+                {readyLine ?? (finishing?.danger === false ? finishing.line : '')}
             </LiveRegion>
             <View collapsable={false} role="group" aria-label={label} style={styles.controls}>
-                <Button variant="secondary" icon="eye" onPress={onPreview} disabled={busy}>
-                    {previewLabel}
-                </Button>
-                <Button icon="check" onPress={onPrimary} busy={busy} disabled={primaryDisabled}>
-                    {primaryLabel}
-                </Button>
+                {finishing === undefined ? (
+                    <>
+                        <Button variant="secondary" icon="eye" onPress={onPreview} disabled={busy}>
+                            {previewLabel}
+                        </Button>
+                        <Button icon="check" onPress={onPrimary} busy={busy} disabled={primaryDisabled}>
+                            {primaryLabel}
+                        </Button>
+                    </>
+                ) : (
+                    <Button
+                        variant="secondary"
+                        onPress={finishing.onAction}
+                        focusRequested={finishing.focusRequested}
+                        onFocusRequestHandled={finishing.onFocusRequestHandled}
+                    >
+                        {finishing.actionLabel}
+                    </Button>
+                )}
             </View>
         </View>
     );

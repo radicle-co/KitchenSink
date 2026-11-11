@@ -305,7 +305,10 @@ export interface ResumeNotice {
 }
 
 /** The triggers a container reports; the editor raises the timed ones, Publish and Save changes itself. */
-export type ReportedTrigger = Extract<CheckpointTrigger, 'fieldBlur' | 'sectionChange' | 'editorExit' | 'appHidden'>;
+export type ReportedTrigger = Extract<
+    CheckpointTrigger,
+    'fieldBlur' | 'sectionChange' | 'editorExit' | 'appHidden' | 'photoPicked'
+>;
 
 /** What the editor exposes to its containers. */
 export interface UseRecipeEditorResult {
@@ -375,7 +378,7 @@ export interface UseRecipeEditorResult {
     readonly setField: <K extends keyof RecipeFormValues>(field: K, value: RecipeFormValues[K]) => void;
     /** Apply one draft transition to the draft as it is when it lands. Stable. */
     readonly dispatch: (action: DraftAction) => void;
-    /** A checkpoint happened: a field lost focus, the section changed, the app hid, or the cook left. */
+    /** A checkpoint happened: a field lost focus, the section changed, the app hid, the cook left, or picked a photo. */
     readonly checkpoint: (trigger: ReportedTrigger) => void;
     /** Validate the whole draft and publish it. `pendingEntryText` is what an ingredient entry holds uncommitted. */
     readonly publish: (pendingEntryText: string) => GateOutcome;

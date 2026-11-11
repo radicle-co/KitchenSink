@@ -56,11 +56,15 @@ import { useEditorPage } from './useEditorPage.js';
 /** How far below the scroller's top the scroll spy's activation line sits, pt. */
 const ACTIVATION_OFFSET_PT = 96;
 
+/** The one section a finish waiting for its photos shows. */
+const PHOTOS_ONLY: readonly EditorSectionId[] = ['photos'];
+
 /** The native one-page recipe editor. */
 export const RecipeEditorView: FC<RecipeEditorViewProps> = (props) => {
     const { editor } = props;
 
-    if (editor.state.status === 'done') {
+    // A finish waiting for its photos keeps the screen (its Photos section and Finish control) until they settle.
+    if (editor.state.status === 'done' && props.photoFinish === undefined) {
         return null;
     }
 
@@ -94,9 +98,12 @@ export const RecipeEditorView: FC<RecipeEditorViewProps> = (props) => {
 
 /** The screen under its `ScrollHost`, with the scroller's binding. */
 const EditorScreen: FC<RecipeEditorViewProps & { readonly bind: ScrollBind }> = (props) => {
-    const { sections, headingActions, railFooter, onPreview, bind } = props;
+    const { sections, headingActions, railFooter, onPreview, bind, photoFinish } = props;
     const page = useEditorPage(props);
     const { m, chrome, entries } = page;
+    // Waiting for photos after the finish: only Photos & publish, and no index, discard or resume (see `photoFinish`).
+    const draining = photoFinish !== undefined;
+    const shownSections = draining ? PHOTOS_ONLY : EDITOR_SECTIONS;
     const { colors } = useTheme();
     const host = useScrollHost();
     const wide = useContainerClass() === 'wide';
@@ -135,7 +142,8 @@ const EditorScreen: FC<RecipeEditorViewProps & { readonly bind: ScrollBind }> = 
             busy={chrome.primary.busy}
             keyboardShown={keyboardShown}
             {...(chrome.fixLine === undefined ? {} : { fixLine: chrome.fixLine })}
-            {...(page.publishNote === undefined ? {} : { readyLine: page.publishNote })}
+            {...(page.publishNote === undefined || draining ? {} : { readyLine: page.publishNote })}
+            {...(photoFinish === undefined ? {} : { finishing: photoFinish })}
             notice={
                 chrome.failure === undefined || firstAction === undefined ? undefined : (
                     <FailureAlert
@@ -175,7 +183,7 @@ const EditorScreen: FC<RecipeEditorViewProps & { readonly bind: ScrollBind }> = 
                         status={chrome.status.text}
                         closeLabel={m.close}
                         onClose={page.close}
-                        {...(chrome.discard === undefined
+                        {...(chrome.discard === undefined || draining
                             ? {}
                             : {
                                   menu: {
@@ -190,7 +198,7 @@ const EditorScreen: FC<RecipeEditorViewProps & { readonly bind: ScrollBind }> = 
                               })}
                     />
                 </View>
-                {wide || keyboardShown ? null : index}
+                {wide || keyboardShown || draining ? null : index}
                 <LiveRegion politeness="polite" visuallyHidden>
                     {chrome.status.announced ? (chrome.status.text ?? '') : ''}
                 </LiveRegion>
@@ -198,7 +206,7 @@ const EditorScreen: FC<RecipeEditorViewProps & { readonly bind: ScrollBind }> = 
                     {page.announcement.text}
                 </LiveRegion>
                 <View style={styles.body}>
-                    {wide ? index : null}
+                    {wide && !draining ? index : null}
                     <FieldRevealContext.Provider value={reveal.revealer}>
                         <ScrollerDragContext.Provider value={drag.subscribe}>
                             <ScrollView
@@ -209,7 +217,7 @@ const EditorScreen: FC<RecipeEditorViewProps & { readonly bind: ScrollBind }> = 
                                 keyboardShouldPersistTaps="handled"
                                 onLayout={reveal.onViewportLayout}
                             >
-                                {chrome.resumeBody === undefined ? null : (
+                                {chrome.resumeBody === undefined || draining ? null : (
                                     <View>
                                         <ResumeNotice
                                             body={chrome.resumeBody}
@@ -224,7 +232,7 @@ const EditorScreen: FC<RecipeEditorViewProps & { readonly bind: ScrollBind }> = 
                                     </View>
                                 )}
                                 {/* ⛔ Each section a DIRECT child of the content: `onLayout` y is relative to it (A7). */}
-                                {EDITOR_SECTIONS.map((section) => (
+                                {shownSections.map((section) => (
                                     <View key={section} onLayout={host.sectionLayout(section)}>
                                         <EditorSection
                                             id={section}
@@ -235,10 +243,11 @@ const EditorScreen: FC<RecipeEditorViewProps & { readonly bind: ScrollBind }> = 
                                                 ? {}
                                                 : { action: headingActions[section] })}
                                         >
-                                            {section === 'photos' && page.publishNote !== undefined ? (
+                                            {section === 'photos' && !draining && page.publishNote !== undefined ? (
                                                 <UnmatchedNote text={page.publishNote} />
                                             ) : null}
                                             {section === 'photos' &&
+                                            !draining &&
                                             page.publishNote === undefined &&
                                             page.readyLine !== undefined ? (
                                                 <PublishLine line={page.readyLine} onJump={page.goToSection} />

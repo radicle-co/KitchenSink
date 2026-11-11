@@ -21,8 +21,9 @@
  * edit address on Back, where typing created a second recipe. The path never changes, so the tree Next records for the
  * entry is always the tree that renders it.
  *
- * ⚠️ Photos are added once the recipe exists on the server (its first checkpoint, which needs a title): the upload
- * endpoint takes a recipe id, and a picked photo's bytes cannot live in the device draft (ADR-0057).
+ * Photos can be added on a new recipe too: a pick waits in the editor's photo session until the first checkpoint (which
+ * needs a title) gives the recipe an id. Its bytes cannot live in the device draft (ADR-0057), so × asks before it would
+ * lose one, and the finish waits for them (`useEditorPhotos`).
  *
  * @pattern Mediator — the container wires the session's ports (outbox, drafts, navigation) and the web leaves
  * @pattern Adapter — the Next router behind the session's `EditorNavigation` port
@@ -375,11 +376,15 @@ const RecipeEditorSession: FC<RecipeEditorSessionProps> = ({ locale, mode, draft
             slotStanding={recipePrivate.standing}
             renderPhotos={(target) => <RecipePhotoUploaderContainer {...target} />}
             {...(initialSection === undefined ? {} : { initialSection })}
-            onClose={() => {
-                const id = session.editor.recipeId;
+            // × asks first when it would lose a photo not uploaded yet (`useEditorPhotos`); the browser's own Back cannot be
+            // held, and closing the tab is asked about by the unload guard.
+            onClose={() =>
+                session.photos.leave.request(() => {
+                    const id = session.editor.recipeId;
 
-                router.push((id === undefined ? `/${locale}/recipes` : `/${locale}/recipes/${id}`) as Route);
-            }}
+                    router.push((id === undefined ? `/${locale}/recipes` : `/${locale}/recipes/${id}`) as Route);
+                })
+            }
             onOpenMyRecipes={() => router.push(`/${locale}/recipes` as Route)}
             // A new tab, so the draft stays where the cook left it (private foods spec D5, D6).
             onOpenFood={(foodId) => {

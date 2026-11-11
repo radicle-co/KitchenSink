@@ -86,6 +86,24 @@ describe('RecipePhotoManager (native) — chrome + empty', () => {
     });
 });
 
+/** The web leaf's "photo waiting for the recipe" cases, on native (owner ruling U33; staff-ux SPECIFY 2026-11-10). */
+describe('RecipePhotoManager (native) — a photo waiting for the recipe', () => {
+    it('labels the tile "Waiting to upload", offers its Remove menu and no Retry', () => {
+        renderManager({ queueItems: [makeQueueItem({ fileId: 4, fileName: 'soup.jpg', status: 'waiting' })] });
+
+        expect(screen.getByText('Waiting to upload')).toBeTruthy();
+        expect(screen.queryByText('Queued')).toBeNull();
+        expect(screen.getByRole('button', { name: 'Actions for soup.jpg' })).toBeTruthy();
+        expect(screen.queryByRole('button', { name: /Retry/ })).toBeNull();
+    });
+
+    it('offers no menu on a tile that is uploading', () => {
+        renderManager({ queueItems: [makeQueueItem({ fileName: 'soup.jpg', status: 'uploading' })] });
+
+        expect(screen.queryByRole('button', { name: 'Actions for soup.jpg' })).toBeNull();
+    });
+});
+
 /**
  * A-010 (buildSpec §7.7): with no photo the section previews the recipe's own cover and says what happens, in place of
  * the old bare "No photos yet." Replaces the old 'shows the empty message' case; the web leaf pins the same cases.

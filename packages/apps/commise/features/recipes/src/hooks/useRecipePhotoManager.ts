@@ -14,8 +14,8 @@
  * here — it carries its own badge on its queue item.
  *
  * **One rule for room.** "Is there room?" is `remainingPhotoSlots` — the cap from the shared constant, less the
- * photos held (confirmed, plus `heldElsewhere` for picks a caller keeps outside the server), less every queue item
- * still holding a grid cell. The queue computes it once as `queue.remaining` and `enqueue` judges a batch by it, so
+ * confirmed photos, less every queue item still holding a grid cell (a photo picked before a new recipe exists waits in
+ * the queue, so it counts like any other). The queue computes it once as `queue.remaining` and `enqueue` judges a batch by it, so
  * Replace's gate reads that same value and cannot disagree with the queue's admission.
  *
  * **Copy.** Every sentence comes from `photoMessages`, the size limit derived from `MAX_RECIPE_PHOTO_UPLOAD_MB` so
@@ -46,6 +46,7 @@ import { useRecipePhotoUpload } from './useRecipePhotoUpload.js';
 import {
     useRecipePhotoUploadQueue,
     type RecipePhotoQueueFile,
+    type RecipePhotoQueueHold,
     type UseRecipePhotoUploadQueueResult,
 } from './useRecipePhotoUploadQueue.js';
 
@@ -57,10 +58,10 @@ export interface UseRecipePhotoManagerOptions {
     /** The recipe whose photos are managed, or `null` on a create that has not saved yet. */
     readonly recipeId: string | null;
     /**
-     * Photos the caller holds outside the server that still take a slot (mobile's draft picks on a create). They
-     * count against the room exactly as confirmed photos do. Default 0.
+     * What the queue is waiting for while {@link recipeId} is `null` (ignored once there is an id, when it uploads):
+     * `untilSaved` by default, or `untilTitled` while the draft has no title, which the cook sees as "Waiting to upload".
      */
-    readonly heldElsewhere?: number;
+    readonly holdWithoutId?: Exclude<RecipePhotoQueueHold, 'none'>;
 }
 
 /** The session {@link useRecipePhotoManager} exposes to a platform leaf. */
@@ -111,7 +112,7 @@ export interface UseRecipePhotoManagerResult {
  */
 export function useRecipePhotoManager({
     recipeId,
-    heldElsewhere = 0,
+    holdWithoutId,
 }: UseRecipePhotoManagerOptions): UseRecipePhotoManagerResult {
     const copy = useMessages(photoMessages);
     // `''` disables the query (`enabled: id.length > 0`) — a create has no photos to list yet.
@@ -120,11 +121,16 @@ export function useRecipePhotoManager({
     const reorderPhotos = useReorderRecipePhotos();
     const uploader = useRecipePhotoUpload(recipeId ?? '', copy.uploadError);
     const photos: readonly RecipePhoto[] = photosQuery.data ?? [];
-    const heldCount = photos.length + heldElsewhere;
-    const queue = useRecipePhotoUploadQueue(uploader, heldCount, {
-        tooLarge: fillTemplate(copy.tooLargeError, { maxMb: MAX_RECIPE_PHOTO_UPLOAD_MB }),
-        badType: copy.unsupportedTypeError,
-    });
+    const queue = useRecipePhotoUploadQueue(
+        uploader,
+        photos.length,
+        {
+            tooLarge: fillTemplate(copy.tooLargeError, { maxMb: MAX_RECIPE_PHOTO_UPLOAD_MB }),
+            badType: copy.unsupportedTypeError,
+        },
+        // No id, nothing to presign against: the queue holds until the recipe exists.
+        recipeId === null ? (holdWithoutId ?? 'untilSaved') : 'none',
+    );
     const [errorMessage, setErrorMessage] = useState<string | undefined>(undefined);
 
     const enqueuePicked = (

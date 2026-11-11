@@ -21,6 +21,7 @@ import { focusManager, onlineManager } from '@tanstack/react-query';
 import type { RecipeServiceClient } from '@kitchensink/recipe-service-client';
 import type { ParseJobResponse, ParseProposalMatch } from '@kitchensink/schema-recipe';
 import { recipeFormMessages } from '@commise/features-recipes';
+import type { PhotoUploaderTarget } from '@commise/features-recipes/editor';
 
 import { RecipeEditorScreen } from '../../src/screens/RecipeEditorScreen.js';
 import { makeRecipeDetail } from '../__fixtures__/recipes.js';
@@ -62,10 +63,10 @@ vi.mock('../../src/storage/editorDrafts.js', async () => {
 });
 
 // The photo uploader records the props the editor hands it, so the empty-state cover test below can read them.
-const uploader = vi.hoisted(() => ({ props: vi.fn() }));
+const uploader = vi.hoisted(() => ({ props: vi.fn<(props: PhotoUploaderTarget) => void>() }));
 
 vi.mock('../../src/components/RecipePhotoUploader.js', () => ({
-    RecipePhotoUploader: (props: object) => {
+    RecipePhotoUploader: (props: PhotoUploaderTarget) => {
         uploader.props(props);
 
         return null;
@@ -118,6 +119,42 @@ describe('RecipeEditorScreen (native)', () => {
         expect(
             headings.filter((text) => ['Details', 'Ingredients', 'Steps', 'Photos & publish'].includes(text ?? '')),
         ).toEqual(['Details', 'Ingredients', 'Steps', 'Photos & publish']);
+    });
+
+    /** Owner report 2026-11-10: a new recipe's photo uploader is drawn at once, with no id (its picks wait, U33). */
+    it('draws the photo uploader on a new recipe, before it exists on the server', () => {
+        renderScreen(createFakeRecipeServiceClient());
+
+        expect(uploader.props).toHaveBeenCalledWith(expect.objectContaining({ recipeId: null }));
+    });
+
+    /**
+     * The route's leave guard (`PreventLeave`) is told when a photo would be lost, and hands a stopped leave to the
+     * editor's ask: the ask opens, and its "Leave without photos" replays the stopped leave once.
+     */
+    it('arms the route’s leave guard while a photo is not uploaded, and asks before the leave goes', async () => {
+        const guard = vi.fn<(guard: { when: boolean; onBlocked: (proceed: () => void) => void }) => null>(() => null);
+        renderScreen(createFakeRecipeServiceClient(), { renderLeaveGuard: guard });
+
+        expect(guard.mock.lastCall?.[0].when).toBe(false);
+
+        act(() => {
+            uploader.props.mock.lastCall?.[0].manager.enqueuePicked(
+                [{ blob: new Blob(['x']), fileName: 'soup.png', contentType: 'image/png', fileSize: 5 }],
+                'add',
+            );
+        });
+        expect(guard.mock.lastCall?.[0].when).toBe(true);
+
+        const proceed = vi.fn();
+        act(() => guard.mock.lastCall?.[0].onBlocked(proceed));
+
+        expect(await screen.findByText('Leave without your photos?')).toBeTruthy();
+        expect(proceed).not.toHaveBeenCalled();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Leave without photos' }));
+
+        expect(proceed).toHaveBeenCalledOnce();
     });
 
     // Build spec §7.2 and §7.5.6: on a wide tablet the rail's foot shows the Ingredients total too.

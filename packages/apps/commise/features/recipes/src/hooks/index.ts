@@ -26,13 +26,6 @@ export type { RecipeNutritionLookup } from './useRecipeNutritionBatches.js';
 export { usePollIngredientStatus } from './usePollIngredientStatus.js';
 export { useLineNutrition } from './useLineNutrition.js';
 export { useLookupRetry } from './useLookupRetry.js';
-export { useRecipeDraftPhotos } from './useRecipeDraftPhotos.js';
-export type {
-    DraftPhotoFlush,
-    DraftPhotoPick,
-    UseRecipeDraftPhotosOptions,
-    UseRecipeDraftPhotosResult,
-} from './useRecipeDraftPhotos.js';
 export { useRecipePhotoUpload } from './useRecipePhotoUpload.js';
 export type {
     RecipePhotoUploadFile,

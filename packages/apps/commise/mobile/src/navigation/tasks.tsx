@@ -6,7 +6,8 @@
  *
  * ORCHESTRATION: each route binds a screen to the navigator; the screens stay unaware of it.
  *
- * The editor keeps the iOS edge swipe and Android Back: it saves continuously, so leaving loses nothing (§7.12).
+ * The editor keeps the iOS edge swipe and Android Back: it saves continuously, so leaving loses no text (§7.12). A photo
+ * not uploaded yet is the one thing a leave can lose, so while one is pending `PreventLeave` holds every leave and asks.
  *
  * @pattern Adapter — route params and navigator intents → each screen's callback props
  */
@@ -20,6 +21,7 @@ import type { NativeStackScreenProps, createNativeStackNavigator } from '@react-
 import { useCallback, type JSX } from 'react';
 
 import { RecipeEditorScreen } from '../screens/RecipeEditorScreen.js';
+import { PreventLeave } from './PreventLeave.js';
 import type { RootStackParamList } from './routes.js';
 
 /** A root stack screen's props. */
@@ -89,6 +91,7 @@ function RecipeCreateRoute({ navigation, route }: TaskProps<'RecipeCreate'>): JS
             onClose={() => navigation.goBack()}
             onDiscarded={toRecipes}
             subscribeToLeave={subscribeToLeave}
+            renderLeaveGuard={(guard) => <PreventLeave {...guard} />}
             onOpenFood={(foodId) => navigation.push('FoodDetail', { foodId, from: 'editor' })}
         />
     );
@@ -122,6 +125,7 @@ function RecipeEditRoute({ navigation, route }: TaskProps<'RecipeEdit'>): JSX.El
                 navigation.popTo('Tabs', { screen: 'recipes', params: { screen: 'RecipesRoot', pop: true } })
             }
             subscribeToLeave={subscribeToLeave}
+            renderLeaveGuard={(guard) => <PreventLeave {...guard} />}
             onOpenFood={(foodId) => navigation.push('FoodDetail', { foodId, from: 'editor' })}
         />
     );

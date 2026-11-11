@@ -34,8 +34,9 @@ import {
 import { recipeFormMessages } from '../../form/messages.js';
 import type { EditorSeed, PublishBlocked, UseRecipeEditorResult } from '../../hooks/useRecipeEditor.js';
 import type { DraftStore } from '../draftStore.js';
+import type { EditorPhotos } from '../useEditorPhotos.js';
 import type { IngredientsPaste } from '../useIngredientsPaste.js';
-import { RecipeEditorSurface } from '../RecipeEditorSurface.js';
+import { RecipeEditorSurface, type PhotoUploaderTarget } from '../RecipeEditorSurface.js';
 import { useRecipePrivate } from '../../actions/useRecipePrivate.js';
 import { useRecipeEditorSession } from '../useRecipeEditorSession.js';
 
@@ -53,7 +54,7 @@ interface HarnessProps {
     readonly seed: EditorSeed;
     readonly paidFeatures: PaidFeatureState;
     readonly knownPaidFeatures: Exclude<PaidFeatureState, 'loading'> | undefined;
-    readonly renderPhotos: (recipe: { recipeId: string; title: string; cuisine: string }) => ReactNode;
+    readonly renderPhotos: (target: PhotoUploaderTarget) => ReactNode;
     readonly onClose: () => void;
     readonly onOpenMyRecipes: () => void;
     /** The paste's lines with no food yet, as the Facade would report them (R23). */
@@ -68,6 +69,8 @@ interface HarnessProps {
     readonly editorOver?: Partial<UseRecipeEditorResult>;
     /** The app's way to open a food's page (private foods spec D6). */
     readonly onOpenFood?: (foodId: string) => void;
+    /** The editor's photo session as a state the session itself would reach (its own tests drive the reaching). */
+    readonly photosOver?: (photos: EditorPhotos) => EditorPhotos;
 }
 
 /** The surface over a real session, as an app's container mounts it. */
@@ -95,6 +98,7 @@ function Harness(props: HarnessProps): ReactElement {
                     ? {}
                     : { paste: { ...session.paste, openChoices: props.openChoices } }),
                 ...(props.editorOver === undefined ? {} : { editor: { ...session.editor, ...props.editorOver } }),
+                ...(props.photosOver === undefined ? {} : { photos: props.photosOver(session.photos) }),
                 ...(props.publishBlocked === undefined
                     ? {}
                     : {
@@ -197,24 +201,88 @@ describe('RecipeEditorSurface — where the visibility field lives', () => {
     });
 });
 
+/**
+ * REWRITTEN (owner report 2026-11-10: "/recipes/new shows only Public/Private, no way to add a photo"). This used to pin
+ * that the uploader was asked for ONLY once the recipe existed on the server — which is exactly the missing control. A
+ * photo now behaves like every other field (owner ruling U33): the uploader is drawn on a new recipe too, over the
+ * editor's ONE photo session, and a pick waits for the recipe to exist.
+ */
 describe('RecipeEditorSurface — photos', () => {
-    it('asks for no uploader while the recipe does not exist on the server', () => {
-        const renderPhotos = vi.fn(() => <p>photo uploader</p>);
+    it('draws the uploader on a new recipe, before it exists on the server, over the editor’s photo session', () => {
+        const renderPhotos = vi.fn((_target: PhotoUploaderTarget) => <p>photo uploader</p>);
 
         mount({ renderPhotos });
 
-        expect(renderPhotos).not.toHaveBeenCalled();
-        expect(screen.queryByText('photo uploader')).toBeNull();
+        expect(screen.getByText('photo uploader')).toBeTruthy();
+        expect(renderPhotos.mock.lastCall?.[0]).toMatchObject({ recipeId: null, title: '', cuisine: '' });
+        expect(renderPhotos.mock.lastCall?.[0].manager.queue.items).toEqual([]);
     });
 
-    it('asks for the uploader with the recipe id, title and cuisine once it does', () => {
-        const renderPhotos = vi.fn(() => <p>photo uploader</p>);
+    it('asks for the uploader with the recipe id, title and cuisine once it exists', () => {
+        const renderPhotos = vi.fn((_target: PhotoUploaderTarget) => <p>photo uploader</p>);
         const recipe = makeRecipeDetail({ id: 'rec_1', title: 'Soup', cuisine: 'Italian' });
 
         mount({ seed: { recipe }, renderPhotos });
 
-        expect(renderPhotos).toHaveBeenCalledWith({ recipeId: 'rec_1', title: 'Soup', cuisine: 'Italian' });
+        expect(renderPhotos.mock.lastCall?.[0]).toMatchObject({ recipeId: 'rec_1', title: 'Soup', cuisine: 'Italian' });
         expect(screen.getByText('photo uploader')).toBeTruthy();
+    });
+
+    /** The ask before a leave would lose photos (each app raises it: web on ×, native on any leave of the screen). */
+    it('asks "Leave without your photos?" while the session asks it: Stay and Leave are the session’s', async () => {
+        const stay = vi.fn();
+        const confirm = vi.fn();
+        mount({
+            photosOver: (photos) => ({
+                ...photos,
+                atRisk: true,
+                waitingForTitle: true,
+                manager: {
+                    ...photos.manager,
+                    queue: {
+                        ...photos.manager.queue,
+                        items: [{ fileId: 1, fileName: 'a.png', status: 'waiting', retryable: false }],
+                    },
+                },
+                leave: { ...photos.leave, open: true, stay, confirm },
+            }),
+        });
+
+        const ask = screen.getByRole('alertdialog', { name: 'Leave without your photos?' });
+        expect(
+            within(ask).getByText('1 photo uploads once this recipe has a title. If you leave now, it won’t be kept.'),
+        ).toBeTruthy();
+
+        await userEvent.click(within(ask).getByRole('button', { name: 'Stay' }));
+        expect(stay).toHaveBeenCalledOnce();
+
+        await userEvent.click(within(ask).getByRole('button', { name: 'Leave without photos' }));
+        expect(confirm).toHaveBeenCalledOnce();
+    });
+
+    it('during a finish that waits for photos, shows only Photos & publish, without the visibility choice', () => {
+        mount({
+            photosOver: (photos) => ({ ...photos, finish: { kind: 'uploading' } }),
+            editorOver: { state: { status: 'done' } },
+        });
+
+        expect(screen.getAllByRole('heading', { level: 2 }).map((heading) => heading.textContent)).toEqual([
+            'Photos & publish',
+        ]);
+        expect(screen.getByText('photo uploader')).toBeTruthy();
+        expect(screen.queryByRole('radio', { name: /private/i })).toBeNull();
+        expect(screen.getByText('Recipe saved. Finishing your photo uploads…')).toBeTruthy();
+        expect(screen.getByRole('button', { name: 'Finish without the remaining photos' })).toBeTruthy();
+        expect(screen.queryByRole('button', { name: 'Publish' })).toBeNull();
+    });
+
+    it('says how many photos failed while a finish waits on them', () => {
+        mount({
+            photosOver: (photos) => ({ ...photos, finish: { kind: 'failed', count: 2 } }),
+            editorOver: { state: { status: 'done' } },
+        });
+
+        expect(screen.getByText('2 photos didn’t upload. Retry them, or finish without them.')).toBeTruthy();
     });
 });
 

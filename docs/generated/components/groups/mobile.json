@@ -4,15 +4,15 @@
     "packageName": "@commise/mobile",
     "layer": "app",
     "coverage": {
-        "components": 55,
-        "implementations": 55,
+        "components": 56,
+        "implementations": 56,
         "props": 159,
-        "documentedComponents": 54,
-        "implementationsWithModuleDoc": 53,
-        "implementationsWithComponentDoc": 40,
-        "documentedProps": 152,
-        "classifiedComponents": 40,
-        "componentsWithPatternTag": 26,
+        "documentedComponents": 55,
+        "implementationsWithModuleDoc": 54,
+        "implementationsWithComponentDoc": 41,
+        "documentedProps": 150,
+        "classifiedComponents": 41,
+        "componentsWithPatternTag": 27,
         "crossPlatformComponents": 0
     },
     "components": [
@@ -2260,46 +2260,19 @@
                             "name": "cuisine",
                             "type": "string",
                             "typeDetail": null,
-                            "required": false,
+                            "required": true,
                             "defaultValue": null,
-                            "description": "The recipe's cuisine, shown on the previewed cover where it is tall enough.",
-                            "declaredIn": "packages/apps/commise/mobile/src/components/RecipePhotoUploader.tsx"
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/editor/RecipeEditorSurface.tsx"
                         },
                         {
-                            "name": "externalError",
-                            "type": "string",
+                            "name": "manager",
+                            "type": "UseRecipePhotoManagerResult",
                             "typeDetail": null,
-                            "required": false,
+                            "required": true,
                             "defaultValue": null,
-                            "description": "An error the CALLER owns, shown above this component's own slots (U33).\n\nToday its only source is the draft seam's over-cap refusal, and on this platform that refusal is\ncurrently unreachable: `launchImageLibraryAsync` is called without `allowsMultipleSelection`, so one\npick is one file and the cap can only be crossed BETWEEN picks — which the add control's own gate\nalready prevents. It is wired anyway, because the day someone enables multi-select the silent\nphoto-loss the web container's cap check exists to stop would otherwise come back here first.",
-                            "declaredIn": "packages/apps/commise/mobile/src/components/RecipePhotoUploader.tsx"
-                        },
-                        {
-                            "name": "onPick",
-                            "type": "((pick: DraftPhotoPick) => void)",
-                            "typeDetail": null,
-                            "required": false,
-                            "defaultValue": null,
-                            "description": "Where a pick goes BEFORE the recipe exists (U33). When given, a chosen file is handed here instead of\nto the upload queue — the create screen records it in the draft (`useRecipeDraftPhotos`) and flushes it\nonce the create mutation returns an id.\n\n⛔ This is why there is ONE mobile photo surface rather than a create twin: the picker, the blob read,\nthe `blob.size` rule and the manager wiring are all identical, and only the DESTINATION of a pick\ndiffers. A second component would have had to restate every one of them.\n\n⚠️ With no `recipeId` AND no `onPick`, a pick has nowhere to go, so no add control is offered. The create\nscreen relies on that to withhold picks while its create is in flight.",
-                            "declaredIn": "packages/apps/commise/mobile/src/components/RecipePhotoUploader.tsx"
-                        },
-                        {
-                            "name": "onRemoveDraft",
-                            "type": "((index: number) => void)",
-                            "typeDetail": null,
-                            "required": false,
-                            "defaultValue": null,
-                            "description": "Drop a draft pick the cook has changed their mind about (U33). Draft cells carry NEGATIVE `fileId`s so\nthey cannot collide with the queue's own — and so `queue.remove`, which filters by `fileId`, silently\nmatches nothing for them. Without this the Remove on a draft pick would appear to work and do nothing.\n\n⚠️ When draft cells are shown and this is absent, no cell offers Remove (the manager takes one remove handler\nfor every cell). The create screen withholds it while its create is in flight; this component's own queue is\nempty then, because every pick before the create goes to `onPick`.",
-                            "declaredIn": "packages/apps/commise/mobile/src/components/RecipePhotoUploader.tsx"
-                        },
-                        {
-                            "name": "pendingDrafts",
-                            "type": "readonly RecipeFormPhoto[]",
-                            "typeDetail": null,
-                            "required": false,
-                            "defaultValue": "[]",
-                            "description": "Picks still held in the draft, rendered in the SAME grid as the queue's own items so a chosen photo\nlooks identical before and after the recipe exists — and so it counts toward the photo cap.",
-                            "declaredIn": "packages/apps/commise/mobile/src/components/RecipePhotoUploader.tsx"
+                            "description": "The editor's photo session (`useEditorPhotos`): the uploader acquires files and hands them here.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/editor/RecipeEditorSurface.tsx"
                         },
                         {
                             "name": "recipeId",
@@ -2307,17 +2280,17 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "The recipe whose photos are managed, or `null` on a create that has not saved yet (U33).",
-                            "declaredIn": "packages/apps/commise/mobile/src/components/RecipePhotoUploader.tsx"
+                            "description": "The recipe's server id, or `null` on a new recipe not created yet: its picks wait for the id (owner ruling U33).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/editor/RecipeEditorSurface.tsx"
                         },
                         {
                             "name": "title",
                             "type": "string",
                             "typeDetail": null,
-                            "required": false,
+                            "required": true,
                             "defaultValue": null,
-                            "description": "The recipe's title, for the cover the empty state previews (buildSpec §7.7: its first letter). Optional: until\nthe screen supplies it the preview shows the cover's tint without a letter.",
-                            "declaredIn": "packages/apps/commise/mobile/src/components/RecipePhotoUploader.tsx"
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/editor/RecipeEditorSurface.tsx"
                         }
                     ],
                     "usesRefApi": [],
@@ -2528,6 +2501,82 @@
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
                         "presentational": true,
+                        "orchestration": true
+                    }
+                }
+            ]
+        },
+        {
+            "id": "mobile/navigation/PreventLeave",
+            "name": "PreventLeave",
+            "group": "mobile",
+            "packageName": "@commise/mobile",
+            "layer": "app",
+            "dir": "packages/apps/commise/mobile/src/navigation",
+            "kind": "orchestration",
+            "patterns": [
+                "Adapter over React Navigation's `usePreventRemove` — the navigator's guard, behind the editor's own vocabulary"
+            ],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "PreventLeave",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/mobile/src/navigation/PreventLeave.tsx",
+                    "dir": "packages/apps/commise/mobile/src/navigation",
+                    "moduleDoc": "navigation/PreventLeave — the editor route's guard against leaving with a photo not uploaded yet (staff-ux\nSPECIFY 2026-11-10). React Navigation's `usePreventRemove` catches every way off the screen — × (`goBack`), Android\nBack, the header and the iOS edge swipe — so one guard serves all of them, and × asks once, not twice.\n\nWhile `when` holds, a leave is stopped and handed to `onBlocked` (the editor's ask, `useEditorPhotos`'s\n`leave.request`); the ask's \"Leave without photos\" replays the very action that was stopped. It is an orchestration\ncomponent that renders nothing.\n\nSheets still answer Android Back first: they register through `BackInterceptProvider`, which sits outside the\nnavigation container on purpose (ADR-0056); this guard acts only on the screen's own removal.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "navigation/PreventLeave — the editor route's guard against leaving with a photo not uploaded yet (staff-ux"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Adapter over React Navigation's `usePreventRemove` — the navigator's guard, behind the editor's own vocabulary"
+                        }
+                    ],
+                    "description": "Hold the screen while a photo would be lost.",
+                    "tags": [
+                        {
+                            "name": "returns",
+                            "text": "Nothing: the guard is behaviour only."
+                        },
+                        {
+                            "name": "sideEffect",
+                            "text": "Registers a removal guard on the current screen; `proceed` dispatches the stopped navigation action."
+                        }
+                    ],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "onBlocked",
+                            "type": "(proceed: () => void) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "A leave was stopped: ask, and call `proceed` to leave after all.",
+                            "declaredIn": "packages/apps/commise/mobile/src/navigation/PreventLeave.tsx"
+                        },
+                        {
+                            "name": "when",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Stop leaving while this holds: a photo is not uploaded yet.",
+                            "declaredIn": "packages/apps/commise/mobile/src/navigation/PreventLeave.tsx"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
                         "orchestration": true
                     }
                 }
@@ -3970,7 +4019,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/mobile/src/screens/RecipeEditorScreen.tsx",
                     "dir": "packages/apps/commise/mobile/src/screens",
-                    "moduleDoc": "The native one-page recipe editor screen (UI overhaul slice 7; owner decisions D1, D10): one screen for a new recipe\nand an existing one. It reads what the editor is seeded from — the recipe and the device draft from AsyncStorage,\nboth suspense reads under `QueryBoundary` — then mounts one editor session keyed on the recipe.\n\nThe session (`useRecipeEditorSession`, shared with the web container) binds the editor's lifecycle to its ports; this\nscreen adds what only the app has: the navigator behind the session's navigation port (the hand-offs the route wires,\nand a leave by system Back or the swipe), and the native leaves (the status poller, the photo uploader). What the\nscreen draws is `RecipeEditorView`'s (its native leaf).\n\n⚠️ A new recipe's draft is found again only within the session that made it, or once the server created it (then by\nits id, from My recipes). A cook who types only ingredients and leaves keeps them on the device but has nothing to\nreopen them from (blueprint A4, accepted).\n\n⚠️ Photos are added once the recipe exists on the server (its first checkpoint, which needs a title): the upload takes\na recipe id, and a picked photo's bytes cannot live in the device draft (ADR-0057).",
+                    "moduleDoc": "The native one-page recipe editor screen (UI overhaul slice 7; owner decisions D1, D10): one screen for a new recipe\nand an existing one. It reads what the editor is seeded from — the recipe and the device draft from AsyncStorage,\nboth suspense reads under `QueryBoundary` — then mounts one editor session keyed on the recipe.\n\nThe session (`useRecipeEditorSession`, shared with the web container) binds the editor's lifecycle to its ports; this\nscreen adds what only the app has: the navigator behind the session's navigation port (the hand-offs the route wires,\nand a leave by system Back or the swipe), and the native leaves (the status poller, the photo uploader). What the\nscreen draws is `RecipeEditorView`'s (its native leaf).\n\n⚠️ A new recipe's draft is found again only within the session that made it, or once the server created it (then by\nits id, from My recipes). A cook who types only ingredients and leaves keeps them on the device but has nothing to\nreopen them from (blueprint A4, accepted).\n\nPhotos can be added on a new recipe too: a pick waits in the editor's photo session until the first checkpoint (which\nneeds a title) gives the recipe an id. Its bytes cannot live in the device draft (ADR-0057), so the route's leave guard\nasks before a leave would lose one (`renderLeaveGuard`), and the finish waits for them (`useEditorPhotos`).",
                     "moduleTags": [
                         {
                             "name": "pattern",
@@ -4047,6 +4096,15 @@
                             "required": false,
                             "defaultValue": null,
                             "description": "The recipe to edit; absent for a new recipe.",
+                            "declaredIn": "packages/apps/commise/mobile/src/screens/RecipeEditorScreen.tsx"
+                        },
+                        {
+                            "name": "renderLeaveGuard",
+                            "type": "((guard: LeaveGuard) => ReactNode)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The route's guard against a leave that would lose a photo not uploaded yet (`navigation/PreventLeave`): told when to\nhold (`when`) and whom to ask (`onBlocked`, the editor's ask). The screen stays unaware of the navigator.",
                             "declaredIn": "packages/apps/commise/mobile/src/screens/RecipeEditorScreen.tsx"
                         },
                         {

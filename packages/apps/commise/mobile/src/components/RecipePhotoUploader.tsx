@@ -35,12 +35,9 @@
  * MIME allowlist) — this container's only involvement is supplying the two localized rejection strings;
  * the admission check itself lives in `useRecipePhotoUploadQueue`.
  */
-import { RecipePhotoManager, photoMessages, type RecipeFormPhoto } from '@commise/features-recipes';
-import {
-    useRecipePhotoManager,
-    type DraftPhotoPick,
-    type RecipePhotoPickIntent,
-} from '@commise/features-recipes/hooks';
+import { RecipePhotoManager, photoMessages } from '@commise/features-recipes';
+import type { PhotoUploaderTarget } from '@commise/features-recipes/editor';
+import type { RecipePhotoPickIntent, RecipePhotoQueueFile } from '@commise/features-recipes/hooks';
 import { useMessages } from '@commise/i18n/react';
 import { Button } from '@commise/ui/button';
 import { Icon, type IconName } from '@commise/ui/icon';
@@ -52,56 +49,8 @@ import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { usePressFill } from '@commise/ui/surface-tone';
 
-/** Props for {@link RecipePhotoUploader}. */
-export interface RecipePhotoUploaderProps {
-    /** The recipe whose photos are managed, or `null` on a create that has not saved yet (U33). */
-    readonly recipeId: string | null;
-    /**
-     * Where a pick goes BEFORE the recipe exists (U33). When given, a chosen file is handed here instead of
-     * to the upload queue — the create screen records it in the draft (`useRecipeDraftPhotos`) and flushes it
-     * once the create mutation returns an id.
-     *
-     * ⛔ This is why there is ONE mobile photo surface rather than a create twin: the picker, the blob read,
-     * the `blob.size` rule and the manager wiring are all identical, and only the DESTINATION of a pick
-     * differs. A second component would have had to restate every one of them.
-     *
-     * ⚠️ With no `recipeId` AND no `onPick`, a pick has nowhere to go, so no add control is offered. The create
-     * screen relies on that to withhold picks while its create is in flight.
-     */
-    readonly onPick?: (pick: DraftPhotoPick) => void;
-    /**
-     * Picks still held in the draft, rendered in the SAME grid as the queue's own items so a chosen photo
-     * looks identical before and after the recipe exists — and so it counts toward the photo cap.
-     */
-    readonly pendingDrafts?: readonly RecipeFormPhoto[];
-    /**
-     * An error the CALLER owns, shown above this component's own slots (U33).
-     *
-     * Today its only source is the draft seam's over-cap refusal, and on this platform that refusal is
-     * currently unreachable: `launchImageLibraryAsync` is called without `allowsMultipleSelection`, so one
-     * pick is one file and the cap can only be crossed BETWEEN picks — which the add control's own gate
-     * already prevents. It is wired anyway, because the day someone enables multi-select the silent
-     * photo-loss the web container's cap check exists to stop would otherwise come back here first.
-     */
-    readonly externalError?: string;
-    /**
-     * Drop a draft pick the cook has changed their mind about (U33). Draft cells carry NEGATIVE `fileId`s so
-     * they cannot collide with the queue's own — and so `queue.remove`, which filters by `fileId`, silently
-     * matches nothing for them. Without this the Remove on a draft pick would appear to work and do nothing.
-     *
-     * ⚠️ When draft cells are shown and this is absent, no cell offers Remove (the manager takes one remove handler
-     * for every cell). The create screen withholds it while its create is in flight; this component's own queue is
-     * empty then, because every pick before the create goes to `onPick`.
-     */
-    readonly onRemoveDraft?: (index: number) => void;
-    /**
-     * The recipe's title, for the cover the empty state previews (buildSpec §7.7: its first letter). Optional: until
-     * the screen supplies it the preview shows the cover's tint without a letter.
-     */
-    readonly title?: string;
-    /** The recipe's cuisine, shown on the previewed cover where it is tall enough. */
-    readonly cuisine?: string;
-}
+/** Props for {@link RecipePhotoUploader}: the editor's photo target (`RecipeEditorSurface`). */
+export type RecipePhotoUploaderProps = PhotoUploaderTarget;
 
 /** Where a photo comes from — the two choices the Add photos sheet offers. */
 type PhotoSource = 'camera' | 'library';
@@ -140,17 +89,13 @@ function SourceRow({
  */
 export function RecipePhotoUploader({
     recipeId,
-    onPick,
-    pendingDrafts = [],
-    externalError,
-    onRemoveDraft,
     title,
     cuisine,
+    manager: session,
 }: RecipePhotoUploaderProps): JSX.Element {
     const photoCopy = useMessages(photoMessages);
-    // The session (photos, queue, delete, cover, the one error slot, the cap rule and every refusal sentence) is
-    // shared with web. Draft picks a create holds take slots too, so they count against the room.
-    const session = useRecipePhotoManager({ recipeId, heldElsewhere: pendingDrafts.length });
+    // The session (photos, queue, delete, cover, the one error slot, the cap rule and every refusal sentence) is the
+    // editor's one session, shared with web. On a recipe with no id yet a pick waits in its queue (U33).
     const { queue } = session;
 
     // Tracks the picker-launch + local-blob-read window, BEFORE `enqueue()` ever runs — see the re-entrancy
@@ -161,9 +106,6 @@ export function RecipePhotoUploader({
     const [sheetOpen, setSheetOpen] = useState(false);
     const [chosenSource, setChosenSource] = useState<PhotoSource | undefined>(undefined);
     const [buttonFocusRequested, setButtonFocusRequested] = useState(false);
-    // The caller's own error wins: it describes the action the cook just took and explains why nothing
-    // appeared, where the session's slot describes an older failure.
-    const errorMessage = externalError ?? session.errorMessage;
 
     // Pick an image (from `source`), then enqueue it onto the upload queue — the queue drives the presign → PUT-to-S3 →
     // confirm sequence itself. A canceled pick is a silent no-op. `picking` spans ONLY the picker-launch +
@@ -212,59 +154,57 @@ export function RecipePhotoUploader({
 
                     return;
                 }
+            } else if (intent === 'add') {
+                // Several at once, as the web file input allows: bounded by the room left (the queue's own count, so
+                // the picker and the admission agree) and in the order picked, so the first becomes the cover.
+                // `selectionLimit` is not honoured everywhere (iOS before 14), so the queue's refusal stays the backstop.
+                result = await ImagePicker.launchImageLibraryAsync({
+                    ...options,
+                    allowsMultipleSelection: true,
+                    selectionLimit: queue.remaining,
+                    orderedSelection: true,
+                });
             } else {
+                // Replace swaps one photo for one.
                 result = await ImagePicker.launchImageLibraryAsync(options);
             }
 
-            if (result.canceled) {
+            if (result.canceled || result.assets.length === 0) {
                 return;
             }
 
-            const asset = result.assets[0];
-
-            if (asset === undefined) {
-                return;
-            }
-
-            const contentType = asset.mimeType ?? 'image/jpeg';
-            const fileName = asset.fileName ?? 'photo.jpg';
-
-            let blob: Blob;
+            let picked: RecipePhotoQueueFile[];
 
             try {
-                blob = await (await fetch(asset.uri)).blob();
+                picked = await Promise.all(
+                    result.assets.map(async (asset) => {
+                        const blob = await (await fetch(asset.uri)).blob();
+
+                        // Authoritative size: `expo-image-picker`'s `asset.fileSize` is often null/undefined on
+                        // Android/web, and a `?? 0` default there would silently admit an oversized file past the
+                        // REQ-011 client pre-check (`0 > MAX` is always false). `blob.size` is the exact byte length of
+                        // what's actually about to be uploaded, and it is also the presign request's `fileSize`, so
+                        // that request describes the SAME bytes the S3 PUT sends.
+                        return {
+                            blob,
+                            fileName: asset.fileName ?? 'photo.jpg',
+                            contentType: asset.mimeType ?? 'image/jpeg',
+                            fileSize: blob.size,
+                            previewUri: asset.uri,
+                            ...(onUploaded === undefined ? {} : { onUploaded }),
+                        };
+                    }),
+                );
             } catch {
+                // One unreadable asset sends none of the pick: the cook chose them together and is told once.
                 session.reportError(photoCopy.uploadError);
 
                 return;
             }
 
-            // Authoritative size: `expo-image-picker`'s `asset.fileSize` is often null/undefined on
-            // Android/web, and a `?? 0` default there would silently admit an oversized file past the
-            // REQ-011 client pre-check (`0 > MAX` is always false). `blob.size` is the exact byte length of
-            // what's actually about to be uploaded — always present, since a `Blob` requires it — and it's
-            // also the presign request's `fileSize`, so that request now describes the SAME bytes the S3
-            // PUT sends, rather than the picker's separate (and sometimes absent) size estimate.
-            const picked = {
-                blob,
-                fileName,
-                contentType,
-                fileSize: blob.size,
-                previewUri: asset.uri,
-                ...(onUploaded === undefined ? {} : { onUploaded }),
-            };
-
-            // Before the recipe exists there is nothing to presign against, so the pick goes to the draft
-            // instead of the queue — see `onPick`'s own doc, and `useRecipeDraftPhotos` for the flush.
-            if (onPick !== undefined) {
-                onPick(picked);
-
-                return;
-            }
-
-            // Near-unreachable here — the add control is hidden at the cap and `picking` serialises picks — but a
-            // refusal queued nothing, and the session says so rather than letting the pick vanish.
-            session.enqueuePicked([picked], intent);
+            // A pick past the room is refused whole, and the session says how many fit; on a recipe with no id yet the
+            // queue holds what it took until the recipe exists (U33).
+            session.enqueuePicked(picked, intent);
         } finally {
             setPicking(false);
         }
@@ -327,11 +267,6 @@ export function RecipePhotoUploader({
         void runPick(source, 'add');
     };
 
-    // Offered only where a pick can land: in the recipe's own queue, or in the caller's draft. See `onPick`.
-    const canPick = recipeId !== null || onPick !== undefined;
-    // Offered only where every cell's Remove does something. See `onRemoveDraft`.
-    const canRemoveCells = pendingDrafts.length === 0 || onRemoveDraft !== undefined;
-
     // A-010: a real secondary button that opens the sheet of sources. `busy` is the pick window's only affordance — the
     // label never changes and the picker is a system screen — so it must reach assistive tech as busy (and, via the
     // Button, disabled), not leave a screen-reader user with "Add photos" and nothing else. The Sheet is rendered
@@ -356,43 +291,16 @@ export function RecipePhotoUploader({
                 onRemovePhoto={session.removePhoto}
                 removingPhotoId={session.removingPhotoId}
                 uploading={session.uploading}
-                errorMessage={errorMessage}
-                queueItems={[
-                    // Draft picks first: they were chosen before anything in the queue, and negative ids cannot
-                    // collide with the queue's own monotonic positive ones.
-                    ...pendingDrafts.map((photo, index) => ({
-                        fileId: -(index + 1),
-                        fileName: photo.fileName,
-                        status: 'queued' as const,
-                        retryable: false,
-                    })),
-                    ...queue.items,
-                ]}
+                errorMessage={session.errorMessage}
+                queueItems={queue.items}
                 onRetryQueueItem={queue.retry}
-                {...(canRemoveCells
-                    ? {
-                          onRemoveQueueItem: (fileId: number) => {
-                              // Negative ids are draft picks; positive ones are the queue's. See `onRemoveDraft`.
-                              if (fileId >= 0) {
-                                  queue.remove(fileId);
-
-                                  return;
-                              }
-
-                              onRemoveDraft?.(-fileId - 1);
-                          },
-                      }
-                    : {})}
+                onRemoveQueueItem={queue.remove}
                 onSetCover={session.setCover}
                 onMovePhoto={session.movePhoto}
                 reordering={session.reordering}
                 onReplacePhoto={replacePhoto}
-                {...(canPick ? { addControl } : {})}
-                coverPreview={{
-                    recipeId: recipeId ?? '',
-                    title: title ?? '',
-                    ...(cuisine === undefined ? {} : { cuisine }),
-                }}
+                addControl={addControl}
+                coverPreview={{ recipeId: recipeId ?? '', title, cuisine }}
             />
             <Sheet
                 open={sheetOpen}

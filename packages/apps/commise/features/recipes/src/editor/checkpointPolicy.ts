@@ -48,6 +48,11 @@ export type CheckpointTrigger =
     | 'appHidden'
     /** Typing paused for `SERVER_CHECKPOINT_IDLE_MS`. */
     | 'checkpointIdle'
+    /**
+     * The cook picked a photo. A photo uploads against the recipe's server id, so a titled draft not yet on the server
+     * is created now rather than at the next section change or idle pause.
+     */
+    | 'photoPicked'
     /** The cook pressed Save changes. */
     | 'saveChanges'
     /** The cook pressed Publish. */
@@ -86,6 +91,7 @@ const DRAFT_CHECKPOINTS: ReadonlySet<CheckpointTrigger> = new Set([
     'editorExit',
     'appHidden',
     'checkpointIdle',
+    'photoPicked',
     'saveChanges',
     'publish',
 ]);

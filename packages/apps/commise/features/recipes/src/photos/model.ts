@@ -14,7 +14,8 @@ import { MAX_RECIPE_PHOTO_UPLOAD_BYTES, MAX_RECIPE_PHOTOS } from '@kitchensink/r
 import type { RecipePhoto } from '@kitchensink/recipe-core';
 import type { ReactNode } from 'react';
 
-import type { RecipePhotoQueueItem } from '../hooks/useRecipePhotoUploadQueue.js';
+import type { RecipePhotoQueueItem, RecipePhotoQueueStatus } from '../hooks/useRecipePhotoUploadQueue.js';
+import type { PhotoMessages } from './messages.js';
 
 /**
  * Per-recipe photo cap — re-exported from the single recipe-core constant (server enforces
@@ -192,6 +193,44 @@ export const movedPhotoIds = (
 
     return ids;
 };
+
+/**
+ * The word a queue tile shows for its status (both leaves read it, so they cannot drift). Pure.
+ *
+ * @pattern Visitor — exhaustive switch over the queue status union
+ */
+export const queueStatusWord = (
+    status: RecipePhotoQueueStatus,
+    copy: Pick<
+        PhotoMessages,
+        'queueStatusQueued' | 'queueStatusWaiting' | 'queueStatusUploading' | 'queueStatusFailed' | 'uploadedLabel'
+    >,
+): string => {
+    switch (status) {
+        case 'queued':
+            return copy.queueStatusQueued;
+        case 'ok':
+            return copy.uploadedLabel;
+        case 'waiting':
+            return copy.queueStatusWaiting;
+        case 'uploading':
+            return copy.queueStatusUploading;
+        case 'failed':
+            return copy.queueStatusFailed;
+
+        default: {
+            const unreachable: never = status;
+
+            return unreachable;
+        }
+    }
+};
+
+/**
+ * Whether a queue tile offers Remove: every tile whose upload is not on the wire. An uploading file cannot be stopped
+ * mid-way, so its tile has no menu; a queued, waiting or failed one is the cook's to take back. Pure.
+ */
+export const isQueueItemRemovable = (status: RecipePhotoQueueStatus): boolean => status !== 'uploading';
 
 /** Whether the recipe is at the photo cap (used to hide the add control and show the cap notice). */
 export const isAtPhotoCap = (photoCount: number): boolean => photoCount >= MAX_RECIPE_PHOTOS;

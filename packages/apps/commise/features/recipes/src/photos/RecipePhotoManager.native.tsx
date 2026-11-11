@@ -38,9 +38,11 @@ import { photoMenu } from './photoMenu.js';
 import {
     isAtPhotoCap,
     isCoverPhoto,
+    isQueueItemRemovable,
     MAX_RECIPE_PHOTO_UPLOAD_MB,
     MAX_RECIPE_PHOTOS,
     photoGridColumns,
+    queueStatusWord,
     uploadedCount,
     visibleQueueItems,
     type RecipePhotoManagerProps,
@@ -179,12 +181,7 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
                         );
                     })}
                     {pendingItems.map((item) => {
-                        const statusWord =
-                            item.status === 'queued'
-                                ? m.queueStatusQueued
-                                : item.status === 'uploading'
-                                  ? m.queueStatusUploading
-                                  : m.queueStatusFailed;
+                        const statusWord = queueStatusWord(item.status, m);
 
                         return (
                             <View key={item.fileId} style={{ width: cellWidth }}>
@@ -215,14 +212,12 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
                                     >
                                         {statusWord}
                                     </Text>
-                                    {/* ⛔ `queued` is offered a Remove too — see the web leaf's note. On the CREATE
-                                    path every draft pick sits `queued` until the recipe exists, so without
-                                    this the photo chosen before the first save was the ONE field of the
-                                    editor a cook could not change their mind about. Offered only when wired: a
-                                    container withholds removal by not wiring it. Remove is the ⋯ menu's one item
-                                    here (2026-10-17). */}
-                                    {(item.status === 'failed' || item.status === 'queued') &&
-                                    onRemoveQueueItem !== undefined ? (
+                                    {/* ⛔ A queued or waiting file is offered a Remove too (`isQueueItemRemovable`): a
+                                    photo picked before a new recipe is saved waits in the queue until it is, and
+                                    without this it was the ONE field of the editor a cook could not change their
+                                    mind about. Offered only when wired. Remove is the ⋯ menu's one item here
+                                    (2026-10-17). */}
+                                    {isQueueItemRemovable(item.status) && onRemoveQueueItem !== undefined ? (
                                         <View style={styles.menuButton}>
                                             <ActionMenu
                                                 appearance="disc"

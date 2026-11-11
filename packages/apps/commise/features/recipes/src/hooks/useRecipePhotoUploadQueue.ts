@@ -85,8 +85,19 @@ import type {
 /** A per-file item's lifecycle, as stored by the reducer. `uploading` is DERIVED (see {@link toPublicItems}). */
 type StoredStatus = 'queued' | 'ok' | 'failed';
 
-/** The status the grid renders for a queue item — `uploading` is synthesized from the active file id. */
-export type RecipePhotoQueueStatus = StoredStatus | 'uploading';
+/**
+ * The status the grid renders for a queue item — `uploading` is synthesized from the active file id, and `waiting` from
+ * a `queued` item the hold is keeping while the recipe has no title (see {@link RecipePhotoQueueHold}).
+ */
+export type RecipePhotoQueueStatus = StoredStatus | 'uploading' | 'waiting';
+
+/**
+ * Why the queue may not start an upload yet. A new recipe has no server id until its first checkpoint, so a photo picked
+ * before then has nothing to presign against and WAITS in the queue (owner ruling U33: photos behave like every other
+ * field, so the picker is never withheld). `untilTitled` is the case the cook can act on — the first checkpoint needs a
+ * title — and is shown as `waiting`; `untilSaved` is the short gap while the create is on its way, shown as `queued`.
+ */
+export type RecipePhotoQueueHold = 'none' | 'untilSaved' | 'untilTitled';
 
 /**
  * A file handed to {@link UseRecipePhotoUploadQueueResult.enqueue}. Extends the underlying single-flight
@@ -356,11 +367,24 @@ function queueReducer(state: QueueState, action: QueueAction): QueueState {
     }
 }
 
-/** Project the reducer's stored items to the public shape, overriding the active file's status to `uploading`. */
-function toPublicItems(items: readonly StoredItem[], activeFileId: number | null): readonly RecipePhotoQueueItem[] {
+/** The status a stored item shows: the active file is `uploading`, and a queued one waits on a recipe with no title. */
+function publicStatusOf(item: StoredItem, active: boolean, hold: RecipePhotoQueueHold): RecipePhotoQueueStatus {
+    if (active) {
+        return 'uploading';
+    }
+
+    return item.status === 'queued' && hold === 'untilTitled' ? 'waiting' : item.status;
+}
+
+/** Project the reducer's stored items to the public shape (see {@link publicStatusOf}). */
+function toPublicItems(
+    items: readonly StoredItem[],
+    activeFileId: number | null,
+    hold: RecipePhotoQueueHold,
+): readonly RecipePhotoQueueItem[] {
     return items.map((item) => {
         const active = item.fileId === activeFileId;
-        const status: RecipePhotoQueueStatus = active ? 'uploading' : item.status;
+        const status = publicStatusOf(item, active, hold);
         const previewUri = item.file.previewUri;
         const errorMessage = item.errorMessage;
 
@@ -389,6 +413,8 @@ function toPublicItems(items: readonly StoredItem[], activeFileId: number | null
  *   `photos.length`), read fresh on every `enqueue` call so the cap reflects the latest confirmed count.
  * @param validationMessages - The caller's own localized copy for the two ways {@link validatePhotoFile} can
  *   reject a file (REQ-011 `tooLarge`, REQ-012 `badType`) — see the module doc's admission-control note.
+ * @param hold - Whether an upload may start yet: anything but `none` keeps every queued file waiting (validation still
+ *   runs at admission, so a rejected file shows its reason at once). See {@link RecipePhotoQueueHold}.
  * @returns The queue's items plus `enqueue`/`retry`/`remove`.
  */
 export function useRecipePhotoUploadQueue(
@@ -398,6 +424,7 @@ export function useRecipePhotoUploadQueue(
     uploader: Pick<UseRecipePhotoUploadResult, 'upload'>,
     confirmedCount: number,
     validationMessages: RecipePhotoValidationMessages,
+    hold: RecipePhotoQueueHold,
 ): UseRecipePhotoUploadQueueResult {
     const [state, dispatch] = useReducer(queueReducer, INITIAL_STATE);
     const [activeFileId, setActiveFileId] = useState<number | null>(null);
@@ -416,7 +443,9 @@ export function useRecipePhotoUploadQueue(
     const startUpload = useEffectEvent((file: RecipePhotoQueueFile) => uploader.upload(file));
 
     useEffect(() => {
-        if (activeFileId !== null) {
+        // Held: the recipe has no server id to presign against. `hold` is a dependency, so the moment the id arrives
+        // this effect runs again and starts the earliest queued file — nothing else changes when the hold lifts.
+        if (activeFileId !== null || hold !== 'none') {
             return;
         }
 
@@ -456,7 +485,7 @@ export function useRecipePhotoUploadQueue(
         // ⛔ NO CLEANUP that cancels the in-flight settle. `state.items` is a dep, so a cleanup would fire
         // whenever the cook enqueues another file — cancelling a settle for an upload still in progress and
         // stranding it as permanently `uploading`. `startUpload` is an Effect Event and is never a dependency.
-    }, [state.items, activeFileId]);
+    }, [state.items, activeFileId, hold]);
 
     // "drain": run each owed `onUploaded` continuation exactly once, from COMMITTED reducer state.
     //
@@ -471,7 +500,7 @@ export function useRecipePhotoUploadQueue(
         }
     }, [state.owedContinuations, state.items]);
 
-    const items = toPublicItems(state.items, activeFileId);
+    const items = toPublicItems(state.items, activeFileId, hold);
     const remaining = remainingPhotoSlots(confirmedCount, items);
 
     const enqueue = (files: readonly RecipePhotoQueueFile[]): RecipePhotoAdmission => {

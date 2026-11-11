@@ -92,17 +92,21 @@ export const IngredientLineEditor: FC<IngredientLineEditorProps> = ({ view, inde
                 <DesignText typeRole="caption" color="$inkMuted">
                     {m.rowCountedAsLabel}
                 </DesignText>
-                <XStack flexWrap="wrap" alignItems="center" gap="$2">
+                {/* One line: a long food wraps beside Change, and Change keeps its own size, its label whole (designer
+                    ruling 2026-11-11). */}
+                <XStack flexWrap="nowrap" alignItems="center" gap="$2">
                     <DesignText typeRole="body" color="$ink" flexShrink={1} flexGrow={1}>
                         {view.food}
                     </DesignText>
                     {view.onChangeFood !== undefined && (
-                        <Button
-                            variant={view.reviewNotice !== undefined ? 'secondary' : 'ghost'}
-                            onPress={view.onChangeFood}
-                        >
-                            {m.rowChange}
-                        </Button>
+                        <YStack flexShrink={0}>
+                            <Button
+                                variant={view.reviewNotice !== undefined ? 'secondary' : 'ghost'}
+                                onPress={view.onChangeFood}
+                            >
+                                {m.rowChange}
+                            </Button>
+                        </YStack>
                     )}
                 </XStack>
             </YStack>

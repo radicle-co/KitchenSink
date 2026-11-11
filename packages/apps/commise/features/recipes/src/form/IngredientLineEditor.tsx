@@ -89,15 +89,18 @@ export const IngredientLineEditor: FC<IngredientLineEditorProps> = ({ view, inde
         )}
         <div className="flex flex-col gap-1">
             <span className="text-caption text-ink-muted">{m.rowCountedAsLabel}</span>
-            <div className="flex min-w-0 flex-wrap items-center gap-2">
+            {/* One line: a long food wraps beside Change, and Change keeps its own size (designer ruling 2026-11-11). */}
+            <div className="flex min-w-0 flex-nowrap items-center gap-2">
                 <p className="min-w-0 flex-1 break-words text-body-md text-ink">{view.food}</p>
                 {view.onChangeFood !== undefined && (
-                    <Button
-                        variant={view.reviewNotice !== undefined ? 'secondary' : 'ghost'}
-                        onPress={view.onChangeFood}
-                    >
-                        {m.rowChange}
-                    </Button>
+                    <div className="shrink-0">
+                        <Button
+                            variant={view.reviewNotice !== undefined ? 'secondary' : 'ghost'}
+                            onPress={view.onChangeFood}
+                        >
+                            {m.rowChange}
+                        </Button>
+                    </div>
                 )}
             </div>
         </div>

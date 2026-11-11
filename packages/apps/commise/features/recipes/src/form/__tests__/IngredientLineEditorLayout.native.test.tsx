@@ -104,6 +104,27 @@ describe('IngredientLineEditor (native) — the field layout', () => {
         expect(direction(amount.parentElement)).toBe('row');
     });
 
+    // Designer ruling 2026-11-11: a long food wraps to two lines beside Change; Change keeps its own size on that line and
+    // its label never wraps.
+    it('keeps Change at its own size beside the food, which wraps instead', () => {
+        render(
+            <IngredientLineEditor
+                view={{ ...view, food: 'Smoked Paprika, sweet, from Spain', onChangeFood: vi.fn() }}
+                index={0}
+                m={m}
+                details={null}
+            />,
+        );
+        const change = screen.getByRole('button', { name: m.rowChange });
+        const row = screen.getByText('Smoked Paprika, sweet, from Spain').parentElement as HTMLElement;
+        // Change's box on the row: the row's child that holds the button.
+        const slot = Array.from(row.children).find((child) => child.contains(change)) as HTMLElement;
+
+        expect(getComputedStyle(row).flexDirection).toBe('row');
+        expect(getComputedStyle(row).flexWrap).not.toBe('wrap');
+        expect(getComputedStyle(slot).flexShrink).toBe('0');
+    });
+
     it('from 600 dp Name and Note share a row', () => {
         windowWidth.current = 800;
         render(<IngredientLineEditor view={view} index={0} m={m} details={null} />);

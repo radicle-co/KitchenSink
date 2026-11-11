@@ -14,7 +14,7 @@ import { touchFloor } from '@commise/ui/layout';
 import { PressScale } from '@commise/ui/press-scale';
 import { StatusBadge } from '@commise/ui/status-badge';
 import type { FC } from 'react';
-import { XStack } from 'tamagui';
+import { XStack, YStack } from 'tamagui';
 
 import { fillTemplate } from '../format/fillTemplate.js';
 import { recipeMessages } from '../messages.js';
@@ -38,9 +38,16 @@ export const ReviewLineButton: FC<ReviewLineButtonProps> = ({ food, onPress }) =
             onPress={onPress}
         >
             {/* The floor is read at render: 44 pt on iOS, 48 dp on Android (`touchFloor()`). */}
-            <XStack minHeight={touchFloor()} alignItems="center" gap="$1">
-                <StatusBadge status="attention">{detail.needsReviewBadge}</StatusBadge>
-                <Icon name="chevronRight" size={16} tone="inkMuted" />
+            {/* One line, never wrapping: the pill may shrink and wrap its label, the chevron keeps its size, and both are
+                centred on the row. The badge pins itself to `flex-start`, so it sits in a stack the row can centre;
+                that pin is what dropped the chevron below the pill (designer ruling 2026-11-11). */}
+            <XStack minHeight={touchFloor()} alignItems="center" flexWrap="nowrap" gap="$1">
+                <YStack flexShrink={1} alignSelf="center">
+                    <StatusBadge status="attention">{detail.needsReviewBadge}</StatusBadge>
+                </YStack>
+                <YStack flexShrink={0} alignSelf="center">
+                    <Icon name="chevronRight" size={16} tone="inkMuted" />
+                </YStack>
             </XStack>
         </PressScale>
     );

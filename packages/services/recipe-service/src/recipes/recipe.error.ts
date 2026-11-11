@@ -181,6 +181,35 @@ export function importItemAlreadySaved(ordinal: number): RecipeDomainError {
     );
 }
 
+/**
+ * `IMPORT_ITEM_LOCKED` (→ 409) — a different recipe was sent for an item that is past `received` (ADR-0072 §3). The recipe
+ * the item holds is what its paid parse and its match snapshot were made from.
+ *
+ * @param ordinal - The item.
+ * @param stage - Where it stands: `parsing` or `matched` (a saved item is {@link importItemAlreadySaved}).
+ * @returns The error.
+ */
+export function importItemLocked(ordinal: number, stage: 'parsing' | 'matched'): RecipeDomainError {
+    return new RecipeDomainError(
+        RecipeErrorCode.IMPORT_ITEM_LOCKED,
+        `Import item ${String(ordinal)} is already being processed and its recipe cannot be replaced.`,
+        { ordinal, stage },
+    );
+}
+
+/**
+ * `IMPORT_ID_IN_USE` (→ 409) — the client-minted import id is already the caller's import with different choices
+ * (ADR-0072 §1). A replay of the same body is not this: it answers the same import.
+ *
+ * @returns The error.
+ */
+export function importIdInUse(): RecipeDomainError {
+    return new RecipeDomainError(
+        RecipeErrorCode.IMPORT_ID_IN_USE,
+        'An import with this id already exists with different choices.',
+    );
+}
+
 /** `NOT_OWNER` — the authenticated principal does not own the recipe. */
 export function notOwner(id: string): RecipeDomainError {
     return new RecipeDomainError(RecipeErrorCode.NOT_OWNER, `Recipe ${id} is not owned by the caller.`);

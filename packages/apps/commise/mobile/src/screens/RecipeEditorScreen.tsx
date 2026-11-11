@@ -225,7 +225,6 @@ function RecipeEditorSession({
             keep="disk"
             paidFeatures={paidFeatures}
             knownPaidFeatures={knownPaidFeatures}
-            privateRule={recipePrivate.rule}
             slotStanding={recipePrivate.standing}
             renderPhotos={(target) => <RecipePhotoUploader {...target} />}
             {...(section === undefined ? {} : { initialSection: section })}

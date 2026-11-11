@@ -376,7 +376,6 @@ const RecipeEditorSession: FC<RecipeEditorSessionProps> = ({ locale, mode, draft
             keep="tabSession"
             paidFeatures={paidFeatures}
             knownPaidFeatures={knownPaidFeatures}
-            privateRule={recipePrivate.rule}
             slotStanding={recipePrivate.standing}
             renderPhotos={(target) => <RecipePhotoUploaderContainer {...target} />}
             {...(initialSection === undefined ? {} : { initialSection })}

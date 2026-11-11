@@ -43,13 +43,13 @@ export const PasteListSheet: FC<PasteListSheetProps> = ({ sheet, submitting, fai
             }
         >
             <View style={styles.field}>
-                <FieldLabel forId={pasteListFieldId} label={t.pasteLabel} hint={t.pasteHint} />
+                <FieldLabel forId={pasteListFieldId} label={t.pasteLabel} hint={`${t.pasteHint} ${t.pasteLinkHint}`} />
                 <TextArea
                     id={pasteListFieldId}
                     value={sheet.text}
                     minRows={10}
                     label={t.pasteLabel}
-                    hint={t.pasteHint}
+                    hint={`${t.pasteHint} ${t.pasteLinkHint}`}
                     {...(refusals.length === 0 ? {} : { error: refusals.join(' ') })}
                     onChangeText={sheet.setText}
                 />

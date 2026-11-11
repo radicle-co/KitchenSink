@@ -11,6 +11,7 @@
  *
  * @pattern Headless hook — the sheet's state and its one command, with no markup
  */
+import { extractSourceLink, type SourceLinkExtraction } from '@kitchensink/recipe-core';
 import { useState } from 'react';
 
 import { pasteIngredientsOf, type PasteIngredientsModel, type PasteRefusalCopy } from '../form/pasteIngredients.js';
@@ -21,6 +22,11 @@ export interface PasteListSheetOptions {
     /** Open at once: Home's first-run Paste ingredients opens the editor with this sheet open (§7.5.4). */
     readonly initiallyOpen: boolean;
     readonly copy: PasteRefusalCopy;
+    /**
+     * A pasted link line (ADR-0089): the sheet takes it out of the text before it counts or sends a line, and hands what it
+     * found up, so the link never becomes an ingredient. Absent where a paste has no Source to set.
+     */
+    readonly onSource?: (extraction: SourceLinkExtraction) => void;
 }
 
 /** The sheet's state. */
@@ -45,7 +51,9 @@ export interface PasteListSheet {
 export function usePasteListSheet(paste: PasteIntoIngredients, options: PasteListSheetOptions): PasteListSheet {
     const [open, setOpenState] = useState(() => options.initiallyOpen && paste.available);
     const [text, setText] = useState('');
-    const model = pasteIngredientsOf(text, options.copy);
+    // The link line is not an ingredient: it is out of the text the sheet counts and the job reads.
+    const extraction = extractSourceLink(text);
+    const model = pasteIngredientsOf(extraction.remaining, options.copy);
     // The job a send last waited for: when a new one is accepted the sheet closes. Adjusted during render, React's
     // previous-value form.
     const [seenAccepted, setSeenAccepted] = useState(paste.acceptedCount);
@@ -70,7 +78,8 @@ export function usePasteListSheet(paste: PasteIntoIngredients, options: PasteLis
         model,
         add: () => {
             if (model.canSubmit && !paste.submitting) {
-                paste.submit(text);
+                options.onSource?.(extraction);
+                paste.submit(extraction.remaining);
             }
         },
     };

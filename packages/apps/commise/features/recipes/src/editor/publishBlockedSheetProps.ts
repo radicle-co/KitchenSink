@@ -12,6 +12,11 @@ export interface PublishBlockedSheetProps {
      * this (Close, Escape, the scrim, a swipe, Android Back): dismissing never publishes.
      */
     readonly onKeepDraft: () => void;
-    /** Publish with visibility public. Only this control calls it. */
-    readonly onPublishPublic: () => void;
+    /**
+     * Publish with visibility public. Only this control calls it. ABSENT for a recipe copied from a web page, which can
+     * only be private (ADR-0089): the sheet then draws no such control at all.
+     */
+    readonly onPublishPublic?: () => void;
+    /** The recipe is a copy of a web page: the words say so (`publishBlockedCopyOf`). Passed with the absent `onPublishPublic`. */
+    readonly webSource?: boolean;
 }

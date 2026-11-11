@@ -43,6 +43,7 @@ import { useCallback, useEffect, useEffectEvent, useState } from 'react';
 import { effectiveVisibility, heldVisibility, type PrivateRefusal } from '../actions/privateGate.js';
 import { recipeIsPublished, refusalWhileDrafting } from '../actions/recipePrivateGate.js';
 import type { LookupRetry, ObservedIngredientStatus, SettledAnswer } from '../form/ingredientStatus.js';
+import { derivedVisibility } from '../form/sourceLink.js';
 import { rebindRequestOf } from '../hooks/lineCommit.js';
 import { useIngredientRowEditor, type IngredientRowEditor } from '../hooks/useIngredientRowEditor.js';
 import { useLineNutrition } from '../hooks/useLineNutrition.js';
@@ -59,6 +60,7 @@ import { outcomeOfExit, type EditorFinish, type FinishedOutcome } from './finish
 import { createPasteHold } from './pasteHold.js';
 import { previewRecipeOf } from './previewRecipe.js';
 import type { DraftKeep } from './saveStatus.js';
+import { useEditorSource, type EditorSource } from './useEditorSource.js';
 import { useIngredientsPaste, type IngredientsPaste } from './useIngredientsPaste.js';
 import { visibilityFollowUp } from './visibilityFollowUp.js';
 
@@ -124,6 +126,8 @@ export interface RecipeEditorSession {
     readonly nutrition: ReturnType<typeof useLineNutrition>;
     readonly lookupRetry: LookupRetry;
     readonly paste: IngredientsPaste;
+    /** The Source (ADR-0089): the web page the recipe was copied from. */
+    readonly source: EditorSource;
     /** A polled line's status answer, for the platform's status poller. */
     readonly applyLineStatus: (polledId: string, observed: ObservedIngredientStatus) => void;
     /** A field lost focus: the checkpoint the fields report. */
@@ -156,7 +160,7 @@ export function useRecipeEditorSession(options: UseRecipeEditorSessionOptions): 
      * to refuse is not sent, and the finish says so (`visibilityFollowUp`). @sideEffect
      */
     const finished = (stored: RecipeDetail, outcome: FinishedOutcome): void => {
-        const followUp = visibilityFollowUp(editor.values.visibility, stored, privateRefusal);
+        const followUp = visibilityFollowUp(derivedVisibility(editor.values), stored, privateRefusal);
 
         if (followUp.kind === 'send') {
             setVisibility.mutate({ id: stored.id, visibility: followUp.visibility });
@@ -266,6 +270,7 @@ export function useRecipeEditorSession(options: UseRecipeEditorSessionOptions): 
                 : { kind: 'editForm', dispatch, command: editor.lineCommand },
         lines: editor.values.ingredients,
     });
+    const source = useEditorSource({ values: editor.values, dispatch, recipe: seed.recipe });
     const paste = useIngredientsPaste({
         offered: editor.pasteAvailable,
         keepsSource: editor.pasteKeepsSource,
@@ -278,6 +283,7 @@ export function useRecipeEditorSession(options: UseRecipeEditorSessionOptions): 
         // A line the review confirms binds by itself only while the recipe is a draft (paste is offered until the first
         // publish, D10): a published recipe's lines change only at the cook's Save changes.
         autoBind: editor.pasteAvailable,
+        onSource: source.applyPasted,
     });
 
     return {
@@ -286,6 +292,7 @@ export function useRecipeEditorSession(options: UseRecipeEditorSessionOptions): 
         nutrition,
         lookupRetry,
         paste,
+        source,
         applyLineStatus,
         blur: () => editor.checkpoint('fieldBlur'),
         appendSteps: (instructions) => dispatch({ kind: 'appendSteps', instructions }),
@@ -300,8 +307,12 @@ export function useRecipeEditorSession(options: UseRecipeEditorSessionOptions): 
                     ...editor.values,
                     visibility: effectiveVisibility(
                         recipeIsPublished(seed.recipe) ? privateRefusal : refusalWhileDrafting(privateRefusal),
-                        heldVisibility(seed.recipe?.visibility ?? RecipeVisibility.PUBLIC, editor.values.visibility),
-                        editor.values.visibility,
+                        heldVisibility(
+                            seed.recipe?.visibility ?? RecipeVisibility.PUBLIC,
+                            derivedVisibility(editor.values),
+                        ),
+                        // ⛔ DERIVED (ADR-0089): a draft with a web link is previewed as the private recipe it will be.
+                        derivedVisibility(editor.values),
                     ),
                 },
                 recipe: seed.recipe,

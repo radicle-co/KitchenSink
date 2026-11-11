@@ -17,6 +17,8 @@ export const timesErrorId = 'recipe-times-error';
 export const ingredientsErrorId = 'recipe-ingredients-error';
 export const stepsErrorId = 'recipe-steps-error';
 export const sourceErrorId = 'recipe-source-error';
+/** The Source row's "added from your paste" caption (ADR-0089). */
+export const sourceNoteId = 'recipe-source-note';
 
 /**
  * The id of ONE ingredient row's unit note — the `classifyUnit` verdict a non-canonical unit carries (U25).

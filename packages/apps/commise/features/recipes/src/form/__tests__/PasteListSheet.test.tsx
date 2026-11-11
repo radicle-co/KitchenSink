@@ -51,7 +51,7 @@ describe('PasteListSheet (web)', () => {
 
         const ids = field().getAttribute('aria-describedby')?.split(' ') ?? [];
 
-        expect(ids).toContain(within(dialog()).getByText(t.pasteHint).id);
+        expect(ids).toContain(within(dialog()).getByText(`${t.pasteHint} ${t.pasteLinkHint}`).id);
     });
 
     it('counts the lines live, and the primary adds that many, disabled at 0', () => {

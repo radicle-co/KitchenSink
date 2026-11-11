@@ -225,6 +225,7 @@ const Host: FC<{ readonly onValues: (values: RecipeFormValues) => void; readonly
         rowEditor,
         keep: 'tabSession',
         autoBind: true,
+        onSource: () => undefined,
     });
 
     return (

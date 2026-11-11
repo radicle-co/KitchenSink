@@ -12,6 +12,7 @@ import { useLocale, useMessages } from '@commise/i18n/react';
 import { Button } from '@commise/ui/button';
 import { FieldLabel, TextArea, fieldHintId } from '@commise/ui/input';
 import { Sheet } from '@commise/ui/sheet';
+import type { SourceLinkExtraction } from '@kitchensink/recipe-core';
 import type { FC } from 'react';
 
 import { editorMessages } from '../editor/messages.js';
@@ -24,14 +25,25 @@ import { usePasteSteps } from './usePasteSteps.js';
 export interface PasteStepsControlProps {
     /** Called with the pasted steps, in order, when the cook adds them. */
     readonly onAdd: (instructions: readonly string[]) => void;
+    /**
+     * A link line the pasted steps carried (ADR-0089): it is taken out of the steps and handed up to set the recipe's Source.
+     * Absent where there is no Source to set.
+     */
+    readonly onSource?: (extraction: SourceLinkExtraction) => void;
+    /**
+     * Whether the Source can still be set, so the hint says a link may be pasted too. It follows the Source's lock: a
+     * published recipe still takes steps, and its source cannot change. Display only.
+     */
+    readonly offersSource?: boolean;
 }
 
 /** "Paste steps": the button and its sheet. */
-export const PasteStepsControl: FC<PasteStepsControlProps> = ({ onAdd }) => {
+export const PasteStepsControl: FC<PasteStepsControlProps> = ({ onAdd, onSource, offersSource = false }) => {
     const { steps: s } = useMessages(editorMessages);
     const m = useMessages(recipeFormMessages);
     const locale = useLocale();
-    const paste = usePasteSteps(onAdd);
+    const paste = usePasteSteps(onAdd, onSource);
+    const hint = offersSource ? `${s.pasteHint} ${s.pasteLinkHint}` : s.pasteHint;
 
     return (
         <>
@@ -62,7 +74,7 @@ export const PasteStepsControl: FC<PasteStepsControlProps> = ({ onAdd }) => {
                 }
             >
                 <div className="flex flex-col gap-1">
-                    <FieldLabel forId={pasteStepsFieldId} label={s.pasteLabel} hint={s.pasteHint} />
+                    <FieldLabel forId={pasteStepsFieldId} label={s.pasteLabel} hint={hint} />
                     <TextArea
                         id={pasteStepsFieldId}
                         value={paste.text}

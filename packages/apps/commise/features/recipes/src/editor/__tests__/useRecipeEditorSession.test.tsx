@@ -9,7 +9,13 @@
 import type { PrivateRefusal } from '../../actions/privateGate.js';
 import { makeQuietFoodClient } from '@commise/test-utils';
 import { FoodServiceProvider } from '@kitchensink/food-service-client/hooks';
-import { RecipeStatus, RecipeVisibility, type RecipeDetail } from '@kitchensink/recipe-core';
+import {
+    extractSourceLink,
+    RecipeSourceType,
+    RecipeStatus,
+    RecipeVisibility,
+    type RecipeDetail,
+} from '@kitchensink/recipe-core';
 import { RecipeServiceProvider } from '@kitchensink/recipe-service-client/hooks';
 import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-client/testing';
 import { recipeQueries, recipeServiceKeys, type RecipeServiceClient } from '@kitchensink/recipe-service-client';
@@ -535,5 +541,158 @@ describe('useRecipeEditorSession — Paste a list (owner D10 as amended 2026-10-
         await settle();
 
         expect(port.submitExclusive).not.toHaveBeenCalled();
+    });
+});
+
+/**
+ * ADDED for ADR-0089: a pasted web link becomes the recipe's Source. The session owns the Source's state and its
+ * announcements; the pure decisions are `sourceLink.ts`'s, so these cases prove the wiring: what a paste does to the draft,
+ * what the cook is told, and that the Private rule and the preview follow the DRAFT.
+ */
+describe('useRecipeEditorSession: the Source (ADR-0089)', () => {
+    const ALLRECIPES = 'https://www.allrecipes.com/recipe/1/soup/';
+    const BBC = 'https://www.bbcgoodfood.com/recipes/soup';
+
+    const paste = (view: ReturnType<typeof mount>, text: string) => {
+        act(() => {
+            view.result.current.source.applyPasted(extractSourceLink(text));
+        });
+    };
+
+    it('a pasted link fills an empty Source, says so, and makes the recipe private only', () => {
+        const view = mount();
+
+        paste(view, `2 eggs\n${ALLRECIPES}`);
+
+        expect(view.result.current.editor.values.sourceLink).toBe(ALLRECIPES);
+        expect(view.result.current.source.row).toEqual({
+            kind: 'filled',
+            text: ALLRECIPES,
+            site: 'allrecipes.com',
+            fromPaste: true,
+        });
+        expect(view.result.current.source.notice).toMatchObject({
+            text: 'Source set to allrecipes.com. This recipe will be private.',
+        });
+        expect(view.result.current.source.privateRule).toBe('privateOnly');
+    });
+
+    it('keeps a Source the cook already has, and says the other link was left out', () => {
+        const view = mount();
+
+        paste(view, BBC);
+        paste(view, ALLRECIPES);
+
+        expect(view.result.current.editor.values.sourceLink).toBe(BBC);
+        expect(view.result.current.source.notice?.text).toBe(
+            'Kept bbcgoodfood.com as the source. The other link was left out.',
+        );
+    });
+
+    it('leaves a Commise link out with a note, and sets nothing', () => {
+        const view = mount();
+
+        paste(view, 'https://commise.app/en/recipes/1');
+
+        expect(view.result.current.editor.values).not.toHaveProperty('sourceLink');
+        expect(view.result.current.source.notice?.text).toBe('Left out a Commise link. It isn’t a source.');
+    });
+
+    it('each announcement is a new occurrence, so a repeated one is spoken again', () => {
+        const view = mount();
+
+        paste(view, 'https://commise.app/en/recipes/1');
+        const first = view.result.current.source.notice?.n;
+        paste(view, 'https://commise.app/en/recipes/2');
+
+        expect(view.result.current.source.notice?.n).toBe((first ?? 0) + 1);
+    });
+
+    it('Remove empties the field, gives the cook’s choice and the slots rule back, and a pasted link the cook removed stays out', () => {
+        const view = mount();
+
+        paste(view, ALLRECIPES);
+        act(() => {
+            view.result.current.source.remove();
+        });
+
+        expect(view.result.current.editor.values).not.toHaveProperty('sourceLink');
+        expect(view.result.current.source.row).toEqual({ kind: 'empty', text: '' });
+        expect(view.result.current.source.privateRule).toBe('slots');
+        // After Remove the cook is back in the empty field: it is asked for focus, once.
+        expect(view.result.current.source.focusRequested).toBe(true);
+        act(() => {
+            view.result.current.source.onFocusHandled();
+        });
+        expect(view.result.current.source.focusRequested).toBe(false);
+
+        paste(view, ALLRECIPES);
+
+        expect(view.result.current.editor.values).not.toHaveProperty('sourceLink');
+    });
+
+    it('typing in the field sets the text and drops the "added from your paste" caption', () => {
+        const view = mount();
+
+        paste(view, ALLRECIPES);
+        act(() => {
+            view.result.current.source.onChange(`${ALLRECIPES}2`);
+        });
+
+        expect(view.result.current.source.row).toMatchObject({ kind: 'filled', fromPaste: false });
+    });
+
+    it('a published recipe locks the Source: the row is read only and a pasted link changes nothing', () => {
+        const view = mount({
+            recipe: complete({
+                status: RecipeStatus.PUBLISHED,
+                sourceType: RecipeSourceType.IMPORTED_PUBLIC,
+                sourceKind: 'public_web',
+                sourceUrl: ALLRECIPES,
+                visibility: RecipeVisibility.PRIVATE,
+            }),
+        });
+
+        expect(view.result.current.source.row).toEqual({ kind: 'locked', site: 'allrecipes.com', url: ALLRECIPES });
+
+        paste(view, BBC);
+
+        expect(view.result.current.editor.values.sourceLink).toBe(ALLRECIPES);
+        expect(view.result.current.source.notice?.text).toBe('The source can’t be changed after publishing.');
+    });
+
+    it('the preview shows a draft with a web link as Private, whatever the cook chose', () => {
+        const view = mount();
+
+        act(() => {
+            view.result.current.editor.setField('visibility', RecipeVisibility.PUBLIC);
+        });
+        paste(view, ALLRECIPES);
+
+        expect(view.result.current.editor.values.visibility).toBe(RecipeVisibility.PUBLIC);
+        expect(view.result.current.preview.recipe.visibility).toBe(RecipeVisibility.PRIVATE);
+    });
+
+    it('Paste a list: the link line is not counted or sent as an ingredient, and it fills the Source', async () => {
+        const client = createFakeRecipeServiceClient();
+        const createParseJob = vi.spyOn(client, 'createParseJob').mockReturnValue(new Promise(() => undefined));
+        const view = mount({}, client);
+
+        act(() => {
+            view.result.current.paste.sheet.setOpen(true);
+        });
+        act(() => {
+            view.result.current.paste.sheet.setText(`2 eggs\n1 cup flour\nSource: ${ALLRECIPES}`);
+        });
+
+        expect(view.result.current.paste.sheet.model.lineCount).toBe(2);
+
+        act(() => {
+            view.result.current.paste.sheet.add();
+        });
+        await settle();
+
+        expect(createParseJob.mock.calls[0]?.[0]).toEqual({ text: '2 eggs\n1 cup flour' });
+        expect(view.result.current.editor.values.sourceLink).toBe(ALLRECIPES);
     });
 });

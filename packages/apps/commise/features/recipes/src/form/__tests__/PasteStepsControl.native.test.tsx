@@ -109,3 +109,33 @@ describe('PasteStepsControl (native) — what a screen reader receives', () => {
         expect(recordedTextInput(pasteStepsFieldId).accessibilityHint).toBe(s.pasteHint);
     });
 });
+
+describe('PasteStepsControl (native): a pasted link (ADR-0089)', () => {
+    const LINK = 'https://www.allrecipes.com/recipe/1/soup/';
+
+    it('a link line is not a step: the count leaves it out and it goes up through onSource', () => {
+        const onAdd = vi.fn();
+        const onSource = vi.fn();
+        render(<PasteStepsControl onAdd={onAdd} onSource={onSource} offersSource />);
+        fireEvent.click(screen.getByRole('button', { name: s.paste }));
+
+        fireEvent.change(field(), { target: { value: `Boil.\n\nDrain.\n${LINK}` } });
+        fireEvent.click(screen.getByRole('button', { name: 'Add 2 steps' }));
+
+        expect(onAdd).toHaveBeenCalledWith(['Boil.', 'Drain.']);
+        expect(onSource).toHaveBeenCalledWith(expect.objectContaining({ link: { url: LINK, site: 'allrecipes.com' } }));
+    });
+
+    it('says a link can be pasted too, only while the Source can be set', () => {
+        const { unmount } = render(<PasteStepsControl onAdd={vi.fn()} offersSource />);
+        fireEvent.click(screen.getByRole('button', { name: s.paste }));
+
+        expect(screen.getByText(`${s.pasteHint} ${s.pasteLinkHint}`)).toBeTruthy();
+
+        unmount();
+        render(<PasteStepsControl onAdd={vi.fn()} />);
+        fireEvent.click(screen.getByRole('button', { name: s.paste }));
+
+        expect(screen.queryByText(/Paste its link/u)).toBeNull();
+    });
+});

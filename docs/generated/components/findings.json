@@ -3,7 +3,7 @@
     "counts": {
         "ambiguous-layer-signal": 9,
         "boolean-prop-selects-subtree": 8,
-        "cross-platform-props-diverge": 22,
+        "cross-platform-props-diverge": 23,
         "missing-component-doc": 166,
         "missing-module-doc": 23,
         "platform-singleton": 98,
@@ -4155,6 +4155,17 @@
             "message": "props carry no JSDoc description",
             "evidence": [
                 "view"
+            ]
+        },
+        {
+            "rule": "cross-platform-props-diverge",
+            "severity": "review",
+            "component": "featuresRecipes/form/RecipeSourceField",
+            "sourcePath": "packages/apps/commise/features/recipes/src/form/RecipeSourceField.tsx",
+            "message": "the web and native leaves declare different prop names",
+            "evidence": [
+                "web: focusRequested notice onChange onFocusHandled onRemove row",
+                "native: focusRequested notice onChange onFocusHandled onOpen onRemove row"
             ]
         },
         {

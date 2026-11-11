@@ -109,3 +109,33 @@ describe('PasteStepsControl (web)', () => {
         expect(within(again).getByRole<HTMLTextAreaElement>('textbox', { name: s.pasteLabel }).value).toBe('');
     });
 });
+
+describe('PasteStepsControl (web): a pasted link (ADR-0089)', () => {
+    const LINK = 'https://www.allrecipes.com/recipe/1/soup/';
+
+    it('a link line is not a step: the count leaves it out and it goes up through onSource', async () => {
+        const user = userEvent.setup();
+        const onAdd = vi.fn();
+        const onSource = vi.fn();
+        render(<PasteStepsControl onAdd={onAdd} onSource={onSource} offersSource />);
+        const dialog = await open(user);
+
+        paste(dialog, `Boil.\n\nDrain.\n${LINK}`);
+        await user.click(within(dialog).getByRole('button', { name: 'Add 2 steps' }));
+
+        expect(onAdd).toHaveBeenCalledWith(['Boil.', 'Drain.']);
+        expect(onSource).toHaveBeenCalledWith(expect.objectContaining({ link: { url: LINK, site: 'allrecipes.com' } }));
+    });
+
+    it('says a link can be pasted too, only while the Source can be set', async () => {
+        const user = userEvent.setup();
+        const { unmount } = render(<PasteStepsControl onAdd={vi.fn()} offersSource />);
+
+        expect(within(await open(user)).getByText(`${s.pasteHint} ${s.pasteLinkHint}`)).toBeTruthy();
+
+        unmount();
+        render(<PasteStepsControl onAdd={vi.fn()} />);
+
+        expect(within(await open(user)).queryByText(/Paste its link/u)).toBeNull();
+    });
+});

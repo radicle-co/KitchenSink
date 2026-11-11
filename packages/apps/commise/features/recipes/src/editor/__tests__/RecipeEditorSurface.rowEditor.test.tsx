@@ -97,7 +97,6 @@ function Harness({ seed, port }: { seed: EditorSeed; port: ReturnType<typeof mak
             keep="disk"
             paidFeatures="granted"
             knownPaidFeatures="granted"
-            privateRule={recipePrivate.rule}
             slotStanding={recipePrivate.standing}
             renderPhotos={() => null}
             onClose={vi.fn()}

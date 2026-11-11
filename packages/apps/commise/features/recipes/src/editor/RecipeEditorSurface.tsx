@@ -21,10 +21,11 @@
 import type { PaidFeatureState } from '@commise/features-account';
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { Button } from '@commise/ui/button';
+import { LiveRegion } from '@commise/ui/live-region';
 import { RecipeVisibility } from '@kitchensink/recipe-core';
 import { useState, type FC, type ReactNode } from 'react';
 
-import { recipeIsPublished, type PrivateRule, type SlotStanding } from '../actions/recipePrivateGate.js';
+import { recipeIsPublished, type SlotStanding } from '../actions/recipePrivateGate.js';
 import { usePrivateChoice } from '../actions/usePrivateChoice.js';
 import { RecipeMakePublicDialog } from '../actions/RecipeMakePublicDialog.js';
 import { RecipeUpsellSheet } from '../actions/RecipeUpsellSheet.js';
@@ -34,6 +35,7 @@ import { PasteStepsControl } from '../form/PasteStepsControl.js';
 import { RecipeBasicsFields } from '../form/RecipeBasicsFields.js';
 import { RecipeIngredientsFields } from '../form/RecipeIngredientsFields.js';
 import { RecipeInstructionsFields } from '../form/RecipeInstructionsFields.js';
+import { RecipeSourceField } from '../form/RecipeSourceField.js';
 import { RecipeVisibilityField } from '../form/RecipeVisibilityField.js';
 import { entryFieldIdOf } from '../form/fieldIds.js';
 import { pendingIngredientIds } from '../form/ingredientStatus.js';
@@ -73,8 +75,6 @@ export interface RecipeEditorSurfaceProps {
     readonly paidFeatures: PaidFeatureState;
     /** The profile's own answer, for what will be SENT (`knownPaidFeaturesOf`); never the display's fail-closed `hidden`. */
     readonly knownPaidFeatures: Exclude<PaidFeatureState, 'loading'> | undefined;
-    /** Which rule the recipe's Private is under (`useRecipePrivate`): the cook's slots, or (an imported public-web recipe) Premium. */
-    readonly privateRule: PrivateRule;
     /** Where the cook stands on private slots (`useRecipePrivate`), from the server's read. */
     readonly slotStanding: SlotStanding;
     /** The app's photo uploader. Called only once the recipe exists on the server. */
@@ -102,7 +102,6 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
     keep,
     paidFeatures,
     knownPaidFeatures,
-    privateRule,
     slotStanding,
     renderPhotos,
     initialSection,
@@ -111,7 +110,7 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
     onOpenFood,
     foodOpensOverEditor = false,
 }) => {
-    const { editor, paste } = session;
+    const { editor, paste, source } = session;
     // ⛔ READ FROM THE ENTRY AS IT IS NOW: the editor learns the entry's text only at a press (`errorsStillHolding`).
     const { pending } = session.rowEditor.entry;
     const pendingFieldId = pending === undefined ? undefined : entryFieldIdOf(pending.target);
@@ -127,7 +126,9 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
     const privateChoice = usePrivateChoice({
         state: paidFeatures,
         knownPaidFeatures,
-        rule: privateRule,
+        // ⛔ The DRAFT's rule (ADR-0089), not the stored one: a link the cook has just pasted makes the draft private only, and
+        // taking the source off gives its slots back. The session reads it from the draft and the recipe the editor opened with.
+        rule: source.privateRule,
         standing: slotStanding,
         // ADR-0073 section 12: a draft holds no slot, so the field counts and refuses nothing for one. A Publish that
         // needs a slot asks in the blocked-publish dialog instead (owner ruling 2026-10-26).
@@ -205,9 +206,23 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
                           title: editor.values.title,
                           cuisine: editor.values.cuisine,
                       })}
+                <RecipeSourceField
+                    row={source.row}
+                    // A set Source is shown by the row itself (its status and caption); the other notes have no place else.
+                    notice={source.notice?.kind === 'set' ? undefined : source.notice?.text}
+                    onChange={source.onChange}
+                    onRemove={source.remove}
+                    focusRequested={source.focusRequested}
+                    onFocusHandled={source.onFocusHandled}
+                />
+                {/* What a paste did to the Source, spoken once per paste (the occurrence changes for a repeat). */}
+                <LiveRegion politeness="polite" visuallyHidden occurrence={source.notice?.n ?? 0}>
+                    {source.notice?.text ?? ''}
+                </LiveRegion>
                 <RecipeVisibilityField
                     values={editor.values}
                     onChange={editor.setValues}
+                    webSource={source.webSource}
                     {...privateChoice.field}
                     onPremiumRequired={privateChoice.onPremiumRequired}
                     onConfirmPublic={privateChoice.onConfirmPublic}
@@ -245,7 +260,13 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
                               ),
                           }
                         : {}),
-                    steps: <PasteStepsControl onAdd={session.appendSteps} />,
+                    steps: (
+                        <PasteStepsControl
+                            onAdd={session.appendSteps}
+                            onSource={source.applyPasted}
+                            offersSource={source.row.kind !== 'locked' && source.row.kind !== 'hidden'}
+                        />
+                    ),
                 }}
                 {...(initialSection === undefined ? {} : { initialSection })}
                 onClose={onClose}
@@ -298,7 +319,8 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
                               : undefined
                     }
                     onKeepDraft={editor.keepAsDraft}
-                    onPublishPublic={editor.publishAsPublic}
+                    // ⛔ A recipe copied from a web page can only be private (ADR-0089): the ask has no such control.
+                    {...(source.webSource ? { webSource: true } : { onPublishPublic: editor.publishAsPublic })}
                 />
             )}
         </>

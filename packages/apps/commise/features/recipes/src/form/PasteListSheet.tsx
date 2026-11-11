@@ -52,7 +52,7 @@ export const PasteListSheet: FC<PasteListSheetProps> = ({ sheet, submitting, fai
             }
         >
             <div className="flex flex-col gap-1">
-                <FieldLabel forId={pasteListFieldId} label={t.pasteLabel} hint={t.pasteHint} />
+                <FieldLabel forId={pasteListFieldId} label={t.pasteLabel} hint={`${t.pasteHint} ${t.pasteLinkHint}`} />
                 {/* §7.5.4: ten rows at least, 72ch at most. */}
                 <div className="max-w-[72ch]">
                     <TextArea

@@ -62,7 +62,7 @@ describe('PasteListSheet (native)', () => {
 
         expect(screen.getByRole('heading', { name: t.pasteTitle })).toBeTruthy();
         expect(field()).toBeTruthy();
-        expect(screen.getByText(t.pasteHint)).toBeTruthy();
+        expect(screen.getByText(`${t.pasteHint} ${t.pasteLinkHint}`)).toBeTruthy();
     });
 
     // F11 (`evaluateFinal.md`; `buildSpec.md` §5.1): the primary fills the sheet and the × is the only way out, as the
@@ -102,7 +102,7 @@ describe('PasteListSheet (native) — what a screen reader receives', () => {
         render(<Host paste={fakePaste()} />);
 
         expect(recordedTextInput(pasteListFieldId).accessibilityLabel).toBe(t.pasteLabel);
-        expect(recordedTextInput(pasteListFieldId).accessibilityHint).toBe(t.pasteHint);
+        expect(recordedTextInput(pasteListFieldId).accessibilityHint).toBe(`${t.pasteHint} ${t.pasteLinkHint}`);
     });
 
     it('leads the hint with a refusal of the pasted text, then the visible hint', () => {
@@ -113,7 +113,7 @@ describe('PasteListSheet (native) — what a screen reader receives', () => {
         expect(recordedTextInput(pasteListFieldId).accessibilityHint).toBe(
             `${form.pasteRefusalLineTooLong
                 .replace('{line}', '1')
-                .replace('{max}', String(PARSE_JOB_LINE_MAX_CHARS))} ${t.pasteHint}`,
+                .replace('{max}', String(PARSE_JOB_LINE_MAX_CHARS))} ${t.pasteHint} ${t.pasteLinkHint}`,
         );
     });
 });

@@ -39,8 +39,8 @@ export const IMPORT_PURGE_AFTER_DAYS = 30;
 /**
  * Imports deleted per statement. Each import cascades to its items and its snapshot lines (and sets the link on each saved
  * ingredient to NULL), so a batch is bounded by ROWS only roughly: the batch is small because an import can hold thousands of
- * recipes. An import of tens of thousands of recipes in one statement could still exceed the host's time; that is an accepted
- * residual risk (ADR-0072, Residual risks), since the allowance admits at most 1,000 recipes a day.
+ * recipes. One import with tens of thousands of recipes could still make a single statement exceed the host's time (ADR-0072,
+ * Residual risks): a file of any size is accepted (§8), so the allowance does not bound one import's size.
  */
 export const IMPORT_PURGE_BATCH_SIZE = 3;
 

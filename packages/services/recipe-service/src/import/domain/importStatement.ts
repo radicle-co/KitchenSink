@@ -27,6 +27,12 @@ import {
     type ImportStatementKind,
 } from '../../database/schema/recipeImports.js';
 
+/**
+ * A statement this build KNOWS: a request's, or a response's other than `unrecognised`. The server only ever stores and reads
+ * the four kinds its CHECKs admit; `unrecognised` is the installed client's reading of a newer server's kind.
+ */
+export type KnownImportStatement = ImportStatement | Exclude<ImportStatementView, { kind: 'unrecognised' }>;
+
 /** The three columns that hold a statement. */
 export interface StatementColumns {
     readonly statementKind: ImportStatementKind;
@@ -47,7 +53,7 @@ export interface StoredStatementColumns {
  * @param statement - A request's statement.
  * @returns The three columns. Pure and total.
  */
-export function columnsOfStatement(statement: ImportStatement | ImportStatementView): StatementColumns {
+export function columnsOfStatement(statement: KnownImportStatement): StatementColumns {
     if (statement.kind === 'authored') {
         return { statementKind: 'authored', citation: null, sourceKind: null };
     }
@@ -63,7 +69,7 @@ export function columnsOfStatement(statement: ImportStatement | ImportStatementV
  * @throws {Error} on columns the table's CHECKs refuse: a stored statement this build cannot read is a defect, and
  *   inventing a label from it would put a false attribution on a recipe.
  */
-export function statementOfColumns(columns: StoredStatementColumns): ImportStatementView | undefined {
+export function statementOfColumns(columns: StoredStatementColumns): KnownImportStatement | undefined {
     const { statementKind, citation, sourceKind } = columns;
 
     if (statementKind === null) {
@@ -101,7 +107,7 @@ export function statementOfColumns(columns: StoredStatementColumns): ImportState
  * @param statement - The cook's statement.
  * @returns The recipe's `sourceType` and its source fields. Pure and total.
  */
-export function provenanceOfStatement(statement: ImportStatement | ImportStatementView): ResolvedProvenance {
+export function provenanceOfStatement(statement: KnownImportStatement): ResolvedProvenance {
     switch (statement.kind) {
         case 'authored':
             return { sourceType: RecipeSourceType.USER_CREATED, sourceUrl: null, sourceAttribution: null };

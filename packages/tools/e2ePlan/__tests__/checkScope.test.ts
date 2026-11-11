@@ -136,6 +136,14 @@ describe('scopeTask', () => {
         ]);
     });
 
+    it('keeps a long reason list to three and a count', () => {
+        const many = Array.from({ length: 5 }, (_, i) => `packages/apps/commise/query/src/f${i}.ts`);
+        const result = scope(many);
+        const query = result.kind === 'some' ? result.seeds.find((seed) => seed.id === '@commise/query') : undefined;
+
+        expect(query?.because).toMatch(/f2\.ts is in it; and 2 more$/u);
+    });
+
     it('says why each package was seeded', () => {
         const result = scope(['packages/apps/commise/query/src/a.ts']);
 

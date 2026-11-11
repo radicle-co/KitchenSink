@@ -118,6 +118,10 @@ function classify(path: string, workspaces: readonly Workspace[]): PathImpact {
     };
 }
 
+/** The first three reasons, then a count: a package with forty changed files needs one line in a CI log, not forty. */
+const summarize = (reasons: readonly string[]): string =>
+    reasons.length <= 3 ? reasons.join('; ') : `${reasons.slice(0, 3).join('; ')}; and ${reasons.length - 3} more`;
+
 export interface ScopeTaskInput {
     readonly change: ChangeSource;
     readonly workspaces: readonly Workspace[];
@@ -201,6 +205,6 @@ export function scopeTask(input: ScopeTaskInput): TaskScope {
         kind: 'some',
         seeds: [...because]
             .sort(([a], [b]) => a.localeCompare(b))
-            .map(([id, entry]) => ({ id, because: entry.reasons.join('; '), dependents: entry.dependents })),
+            .map(([id, entry]) => ({ id, because: summarize(entry.reasons), dependents: entry.dependents })),
     };
 }

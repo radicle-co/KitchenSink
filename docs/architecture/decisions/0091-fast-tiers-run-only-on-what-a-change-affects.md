@@ -88,8 +88,13 @@ only, so it is ready before the install finishes. It publishes three outputs:
 - `python`: whether the Python checks run.
 
 `full` is set for every event that is not a pull request. **So a push to main always runs every check.** Main is
-always fully verified. `full` is also set for a change of more than 3,000 files. A job output cannot carry that list
-safely.
+always fully verified. `full` is also set for a change whose list is longer than 100,000 bytes. The list reaches each
+job as one environment variable, and Linux refuses to start a process with one longer than 128 KiB.
+
+Measured over main's last twelve merges, which shows what it saves: a merge that touched only recipe-service or
+recipe-workers selected 5 to 6 of 52 test packages and 2 to 3 of 56 typecheck packages. A merge that touched shared
+contracts (recipe-core, the schemas, a client) still selected 27. Merges that touched a root config, a workflow or a
+docs asset selected everything, which is the rule.
 
 The lint, format, typecheck, unit test and integration jobs read `full` and `files` into `CHECK_SCOPE_FULL` and
 `CHECK_SCOPE_FILES`. Each runs its tier through `npm run -s scope`. Each integration job lists its packages once

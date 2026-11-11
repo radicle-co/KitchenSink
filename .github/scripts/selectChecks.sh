@@ -15,23 +15,26 @@
 # It needs git and jq only, so `select-checks` runs before the dependency install finishes.
 set -euo pipefail
 
-# A job output is capped; a change larger than this runs everything rather than risk a truncated list.
-readonly MAX_FILES=3000
+# The list reaches each job as ONE environment variable, and Linux refuses to start a process whose single environment
+# string exceeds 128 KiB (MAX_ARG_STRLEN), so every step of the job would fail to start. A longer list runs everything.
+readonly MAX_LIST_BYTES=100000
 
 decide() {
     local files
     files="$(grep -v '^$' || true)"
 
     local count=0
+    local json='[]'
     if [ -n "$files" ]; then
         count="$(printf '%s\n' "$files" | wc -l | tr -d ' ')"
+        json="$(printf '%s\n' "$files" | jq -R -s -c 'split("\n") | map(select(length > 0))')"
     fi
 
     local full=''
     if [ "${EVENT_NAME:-}" != 'pull_request' ]; then
         full="a ${EVENT_NAME:-run with no event} checks everything, so main is always fully verified"
-    elif [ "$count" -gt "$MAX_FILES" ]; then
-        full="the change touches ${count} files, more than ${MAX_FILES} can be passed between jobs"
+    elif [ "${#json}" -gt "$MAX_LIST_BYTES" ]; then
+        full="the change touches ${count} files, a list longer than ${MAX_LIST_BYTES} bytes cannot be passed to a job"
     fi
 
     local python=false
@@ -43,9 +46,8 @@ decide() {
         python=true
     fi
 
-    local json='[]'
-    if [ -z "$full" ] && [ -n "$files" ]; then
-        json="$(printf '%s\n' "$files" | jq -R -s -c 'split("\n") | map(select(length > 0))')"
+    if [ -n "$full" ]; then
+        json='[]'
     fi
 
     printf 'full=%s\nfiles=%s\npython=%s\n' "$full" "$json" "$python"

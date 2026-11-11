@@ -273,6 +273,10 @@
         // deliberately: the token emitter imports `@commise/ui`'s built entry point.
         "@kitchensink/docgen-components#test": {
             "dependsOn": ["^build"],
+            // Not for the cache, which is off: for the changed-only selector (ADR-0091). The committed catalogue under
+            // `docs/generated/` lies outside every package, so without this declaration a regenerated catalogue (most UI
+            // pull requests) widened every fast tier to the whole repository. This task is its reader.
+            "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/docs/generated/**"],
             "outputs": [],
             "cache": false
         },

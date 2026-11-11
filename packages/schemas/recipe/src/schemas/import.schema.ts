@@ -190,7 +190,9 @@ const KNOWN_STATEMENT_KINDS: readonly string[] = importStatementSchema.options.m
  */
 const unrecognisedStatement = z
     .object({ kind: z.literal('unrecognised') })
-    .describe('Client-side only: what a client reads for a statement kind newer than it knows. The server never sends it.');
+    .describe(
+        'Client-side only: what a client reads for a statement kind newer than it knows. The server never sends it.',
+    );
 
 /** Whether a value is a statement whose kind is a string this contract does not know. Pure. */
 const hasUnknownKind = (value: unknown): boolean =>
@@ -667,7 +669,10 @@ export const importStepResponseSchema = z.object({
     review: importReviewMarkSchema,
     statement: importStatementViewSchema.nullable(),
     visibility: recipeVisibilitySchema.nullable(),
-    /** The cuisine the save will use: the cook's choice, else the file's, else `null` (the item then needs one). */
+    /**
+     * The cuisine the save will use: the cook's choice, else the file's, else `null` (the item then needs one). A saved
+     * item's file is gone, so its step shows only a cuisine the cook gave; the recipe holds what was saved.
+     */
     cuisine: z.string().min(1).nullable(),
     lines: z.array(importStepLineSchema),
 });

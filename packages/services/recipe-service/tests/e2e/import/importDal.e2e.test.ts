@@ -465,6 +465,22 @@ describe('the bulk-import DALs (LOCAL e2e, real Postgres)', () => {
             expect(page.map((item) => item.ordinal)).toEqual([2, 3]);
             expect(page.every((item) => item.payload === null)).toBe(true);
         });
+
+        it('⛔ reads what Publish needs from the payload in SQL, so the list can name the gap without the document', async () => {
+            const header = await newImport(3);
+
+            await items.upsertItems(header.id, [
+                { ordinal: 0, recipe: { ...recipe('Stated', ['1 egg', '2 cups flour']), cuisine: 'French' } },
+                { ordinal: 1, recipe: { ...recipe('Bare', []), steps: [] } },
+            ]);
+
+            const page = await items.findPage(header.id, undefined, 5);
+
+            expect(page.map((item) => item.publishFacts)).toEqual([
+                { fileCuisine: 'French', ingredientLineCount: 2, stepCount: 1 },
+                { fileCuisine: null, ingredientLineCount: 0, stepCount: 0 },
+            ]);
+        });
     });
 
     describe('RecipeImportItemsDal — choosing what to work on (no head-of-line blocking)', () => {
@@ -565,6 +581,64 @@ describe('the bulk-import DALs (LOCAL e2e, real Postgres)', () => {
 
             expect((await items.findSaveCandidates(header.id, 10)).map((item) => item.ordinal)).toEqual([1, 3, 0]);
             expect((await items.findSaveCandidates(header.id, 2)).map((item) => item.ordinal)).toEqual([1, 3]);
+        });
+
+        describe('⛔ a held item is not looked at again until the cook decides something (ADR-0072 §3 as amended 2026-11-11)', () => {
+            async function matchedWithStatement(importId: string, ordinals: readonly number[]) {
+                await put(importId, ordinals, { statement: { kind: 'authored' } });
+                await pool.query(
+                    `UPDATE recipe_import_items SET stage = 'matched', matched_at = now(), allowance_spent_at = now() WHERE import_id = $1`,
+                    [importId],
+                );
+            }
+
+            const candidates = async (importId: string) =>
+                (await items.findSaveCandidates(importId, 10)).map((item) => item.ordinal).sort();
+
+            it('never held, held at this revision, held at an older one: only the second is left out', async () => {
+                const header = await newImport(3);
+
+                await matchedWithStatement(header.id, [0, 1, 2]);
+
+                const held = await items.findItem(header.id, 1);
+                const older = await items.findItem(header.id, 2);
+
+                expect(await items.holdItem(header.id, 1, held?.decisionRev ?? Number.NaN)).toBe(true);
+                expect(await items.holdItem(header.id, 2, older?.decisionRev ?? Number.NaN)).toBe(true);
+                // A decision after the hold: the item is looked at again, because what it is saved from changed.
+                expect(await items.recordChoices(header.id, 2, { cuisine: 'Thai' })).toBe('ok');
+
+                expect(await candidates(header.id)).toEqual([0, 2]);
+            });
+
+            it('⛔ a hold is fenced on the revision the save read: a decision that landed in between is never hidden', async () => {
+                const header = await newImport(1);
+
+                await matchedWithStatement(header.id, [0]);
+
+                const read = await items.findItem(header.id, 0);
+
+                await items.recordChoices(header.id, 0, { cuisine: 'Thai' });
+
+                expect(await items.holdItem(header.id, 0, read?.decisionRev ?? Number.NaN)).toBe(false);
+                expect((await items.findItem(header.id, 0))?.heldAtRev).toBeNull();
+                expect(await candidates(header.id)).toEqual([0]);
+            });
+
+            it("a cuisine choice is a decision: it is stored and it moves the item's revision", async () => {
+                const header = await newImport(1);
+
+                await put(header.id, [0]);
+
+                const before = await items.findItem(header.id, 0);
+
+                await items.recordChoicesBatch(header.id, [{ ordinal: 0, cuisine: 'Mexican' }]);
+
+                expect(await items.findItem(header.id, 0)).toMatchObject({
+                    cuisine: 'Mexican',
+                    decisionRev: (before?.decisionRev ?? Number.NaN) + 1,
+                });
+            });
         });
     });
 

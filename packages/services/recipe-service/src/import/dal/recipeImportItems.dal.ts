@@ -68,7 +68,19 @@ export type UpsertOutcome =
 export interface ChoicesPatch {
     readonly statement?: ImportStatement;
     readonly visibility?: ImportVisibility | null;
+    /** The cuisine the save uses, replacing the file's (ADR-0072 §3 as amended 2026-11-11). */
+    readonly cuisine?: string;
 }
+
+/** What Publish needs, as the payload states it, read in SQL so the item list needs no document. */
+export interface ItemPublishFacts {
+    readonly fileCuisine: string | null;
+    readonly ingredientLineCount: number;
+    readonly stepCount: number;
+}
+
+/** One item of the list: no payload, and what Publish needs read out of it. */
+export type ListedImportItem = ImportItem & { readonly publishFacts: ItemPublishFacts };
 
 /** What paying answers. */
 export type PayOutcome =
@@ -229,9 +241,20 @@ export class RecipeImportItemsDal {
      * @param after - Items with an ordinal greater than this; omit for the first page.
      * @sideEffect Reads.
      */
-    public async findPage(importId: string, after: number | undefined, limit: number): Promise<ImportItem[]> {
+    public async findPage(importId: string, after: number | undefined, limit: number): Promise<ListedImportItem[]> {
         const rows = await this.db
-            .select({ ...itemColumnsWithoutPayload() })
+            .select({
+                ...itemColumnsWithoutPayload(),
+                fileCuisine: sql<string | null>`${recipeImportItems.payload} ->> 'cuisine'`,
+                ingredientLineCount:
+                    sql<number>`jsonb_array_length(COALESCE(${recipeImportItems.payload} -> 'ingredientLines', '[]'::jsonb))`.mapWith(
+                        Number,
+                    ),
+                stepCount:
+                    sql<number>`jsonb_array_length(COALESCE(${recipeImportItems.payload} -> 'steps', '[]'::jsonb))`.mapWith(
+                        Number,
+                    ),
+            })
             .from(recipeImportItems)
             .where(
                 and(
@@ -242,7 +265,10 @@ export class RecipeImportItemsDal {
             .orderBy(asc(recipeImportItems.ordinal))
             .limit(limit);
 
-        return rows.map((row) => toItem({ ...row, payload: null }));
+        return rows.map(({ fileCuisine, ingredientLineCount, stepCount, ...row }) => ({
+            ...toItem({ ...row, payload: null }),
+            publishFacts: { fileCuisine, ingredientLineCount, stepCount },
+        }));
     }
 
     /**
@@ -334,6 +360,10 @@ export class RecipeImportItemsDal {
      * The matched items worth trying to save: those the cook has said where the recipe came from (an item cannot be saved
      * without), LEAST RECENTLY LOOKED AT first. Payloads included (the save builds the recipe from it).
      *
+     * ⛔ An item HELD at its current revision is left out ({@link holdItem}): it lacks what Publish needs, and only a decision
+     * of the cook can change that, so looking at it again would re-queue it forever. `IS DISTINCT FROM`, not `<>`: an item
+     * never held has a NULL hold, and `NULL <> rev` would leave it out too.
+     *
      * ⛔ Ordered by `updated_at`, with {@link deferItem} to send a looked-at-but-not-saved item to the back, so an item that
      * cannot be saved yet (its review is open, a food is down, its visibility is refused) does not hold the same place at the
      * front of every call and starve the ones behind it.
@@ -350,6 +380,7 @@ export class RecipeImportItemsDal {
                         eq(recipeImportItems.importId, importId),
                         eq(recipeImportItems.stage, 'matched'),
                         isNotNull(recipeImportItems.statementKind),
+                        sql`${recipeImportItems.heldAtRev} IS DISTINCT FROM ${recipeImportItems.decisionRev}`,
                     ),
                 )
                 .orderBy(asc(recipeImportItems.updatedAt), asc(recipeImportItems.ordinal))
@@ -368,6 +399,33 @@ export class RecipeImportItemsDal {
             .update(recipeImportItems)
             .set({ updatedAt: sql`clock_timestamp()` })
             .where(and(eq(recipeImportItems.importId, importId), eq(recipeImportItems.ordinal, ordinal)));
+    }
+
+    /**
+     * Hold an item the save found short of what Publish needs, until the cook decides something about it.
+     *
+     * Fenced on the revision the save READ: a decision that landed while the save was looking moved the revision, so the hold
+     * is not written and that decision is looked at on the next call. No later write clears the hold; the next decision moves
+     * `decision_rev` past it. Touches neither `updated_at` nor the import's activity clock (a hold is not the cook's activity).
+     *
+     * @param decisionRev - The item's `decision_rev` as the save read it.
+     * @returns Whether the item is now held (`false`: it changed in between).
+     * @sideEffect Writes `held_at_rev`.
+     */
+    public async holdItem(importId: string, ordinal: number, decisionRev: number): Promise<boolean> {
+        const held = await this.db
+            .update(recipeImportItems)
+            .set({ heldAtRev: decisionRev })
+            .where(
+                and(
+                    eq(recipeImportItems.importId, importId),
+                    eq(recipeImportItems.ordinal, ordinal),
+                    eq(recipeImportItems.decisionRev, decisionRev),
+                ),
+            )
+            .returning({ ordinal: recipeImportItems.ordinal });
+
+        return held.length > 0;
     }
 
     /**
@@ -432,6 +490,7 @@ export class RecipeImportItemsDal {
                     .set({
                         ...statementPatch(entry.statement),
                         ...(entry.visibility === undefined ? {} : { visibility: entry.visibility }),
+                        ...(entry.cuisine === undefined ? {} : { cuisine: entry.cuisine }),
                         ...BUMP_DECISION_REV,
                         updatedAt: sql`now()`,
                     })
@@ -456,11 +515,7 @@ export class RecipeImportItemsDal {
      * @returns The items paid (fewer than `limit` when the day's room ran short), `nothing` when none was unpaid, or `refused`.
      * @sideEffect Locks the unpaid items, then the user's allowance; writes the ledger and `allowance_spent_at`.
      */
-    public async payUnpaid(
-        userId: string,
-        importId: string,
-        request: { readonly limit: number },
-    ): Promise<PayOutcome> {
+    public async payUnpaid(userId: string, importId: string, request: { readonly limit: number }): Promise<PayOutcome> {
         return this.db.transaction(async (tx): Promise<PayOutcome> => {
             await lockImportHeader(tx, importId);
 
@@ -701,6 +756,8 @@ function itemColumnsWithoutPayload() {
         citation: rest.citation,
         sourceKind: rest.sourceKind,
         visibility: rest.visibility,
+        cuisine: rest.cuisine,
+        heldAtRev: rest.heldAtRev,
         createdAt: rest.createdAt,
         updatedAt: rest.updatedAt,
     };

@@ -42,7 +42,7 @@ const UNIQUE_VIOLATION = '23505';
 
 type Columns = Record<string, unknown>;
 
-describe('the bulk-import tables (LOCAL e2e; migrations 0059, 0060, 0066, 0067)', () => {
+describe('the bulk-import tables (LOCAL e2e; migrations 0059, 0060, 0066, 0067, 0068)', () => {
     let pool: pg.Pool;
 
     beforeAll(async () => {
@@ -187,7 +187,9 @@ describe('the bulk-import tables (LOCAL e2e; migrations 0059, 0060, 0066, 0067)'
                 'allowance_spent_at',
                 'citation',
                 'created_at',
+                'cuisine',
                 'decision_rev',
+                'held_at_rev',
                 'import_id',
                 'matched_at',
                 'ordinal',
@@ -398,6 +400,33 @@ describe('the bulk-import tables (LOCAL e2e; migrations 0059, 0060, 0066, 0067)'
             const importId = await newImport();
 
             await refused(insert('recipe_import_items', receivedItem(importId, -1)), CHECK_VIOLATION);
+        });
+
+        describe('what Publish needs (0068, ADR-0072 §3 as amended 2026-11-11)', () => {
+            it("keeps the cook's cuisine and a hold, and both are optional", async () => {
+                const importId = await newImport();
+                const chosen = await insert(
+                    'recipe_import_items',
+                    receivedItem(importId, 0, { cuisine: 'Thai', held_at_rev: 0 }),
+                );
+                const bare = await insert('recipe_import_items', receivedItem(importId, 1));
+
+                expect([chosen['cuisine'], chosen['held_at_rev']]).toEqual(['Thai', 0]);
+                expect([bare['cuisine'], bare['held_at_rev']]).toEqual([null, null]);
+            });
+
+            it.each([
+                ['a blank cuisine (the create route refuses one too)', { cuisine: '  ' }],
+                ['an empty cuisine', { cuisine: '' }],
+                ['a negative hold revision', { held_at_rev: -1 }],
+            ])('refuses %s', async (_name, extra) => {
+                const importId = await newImport();
+
+                await refused(
+                    insert('recipe_import_items', receivedItem(importId, 0, extra as Columns)),
+                    CHECK_VIOLATION,
+                );
+            });
         });
 
         it('refuses two items with one ordinal in one import, and allows it across imports', async () => {

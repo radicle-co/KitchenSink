@@ -18,15 +18,15 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { importViewSchema } from '../../recipes/import.schema.js';
 import { ImportViewBuilder } from '../importView.builder.js';
-import { UNLIMITED_PRIVATE_SLOTS, type PrivateSlotsPort } from '../privateSlots.port.js';
-import { makeHeader, makeItem, makePrincipal } from '../__fixtures__/importFixtures.js';
-import type { ImportItem } from '../dal/recipeImportItems.dal.js';
+import type { PrivateSlotsPort } from '../privateSlots.port.js';
+import { makeHeader, makeListedItem, makePrincipal, UNLIMITED_PRIVATE_SLOTS } from '../__fixtures__/importFixtures.js';
+import type { ListedImportItem } from '../dal/recipeImportItems.dal.js';
 
 const ALLOWANCE = { limit: 1000, used: 7, resetsAt: '2026-10-27T12:00:00.000Z' };
 const COUNTS = { total: 3, received: 2, parsing: 0, matched: 1, saved: 0 };
 
 function build(options: {
-    readonly items?: readonly ImportItem[];
+    readonly items?: readonly ListedImportItem[];
     readonly slots?: PrivateSlotsPort;
     readonly unsavedPrivate?: number;
     readonly verdicts?: { count: number; latest: string | null };
@@ -61,7 +61,7 @@ describe('ImportViewBuilder', () => {
     it('answers a view that parses against the published contract', async () => {
         const answered = await view({
             items: [
-                makeItem({
+                makeListedItem({
                     ordinal: 0,
                     title: 'Soup',
                     stage: 'saved',
@@ -69,7 +69,7 @@ describe('ImportViewBuilder', () => {
                     recipeId: '66666666-6666-4666-8666-0000000000a1',
                     savedAt: new Date(),
                 }),
-                makeItem({ ordinal: 1, title: 'Stew' }),
+                makeListedItem({ ordinal: 1, title: 'Stew' }),
             ],
         });
 
@@ -103,7 +103,7 @@ describe('ImportViewBuilder', () => {
 
     describe('paging', () => {
         it('asks for one row more than the page, and sets nextAfter exactly when more follow', async () => {
-            const items = [0, 1, 2].map((ordinal) => makeItem({ ordinal }));
+            const items = [0, 1, 2].map((ordinal) => makeListedItem({ ordinal }));
             const { builder, findPage } = build({ items });
             const first = await builder.build(makePrincipal(), makeHeader(), { limit: 2 });
 
@@ -144,8 +144,67 @@ describe('ImportViewBuilder', () => {
     });
 
     describe('an item’s issue', () => {
+        it('⛔ names a matched item whose file states no cuisine and the cook gave none (ADR-0072 §3 as amended 2026-11-11)', async () => {
+            const answered = await view({
+                items: [
+                    makeListedItem({
+                        stage: 'matched',
+                        matchedAt: new Date(),
+                        statementKind: 'authored',
+                        publishFacts: { fileCuisine: null, ingredientLineCount: 2, stepCount: 1 },
+                    }),
+                ],
+            });
+
+            expect(answered.items[0]?.issue).toEqual({ reason: 'needsCuisine' });
+        });
+
+        it("reads the cook's cuisine over a file that states none, so a given cuisine clears the issue", async () => {
+            const answered = await view({
+                items: [
+                    makeListedItem({
+                        stage: 'matched',
+                        matchedAt: new Date(),
+                        statementKind: 'authored',
+                        cuisine: 'Thai',
+                        publishFacts: { fileCuisine: null, ingredientLineCount: 2, stepCount: 1 },
+                    }),
+                ],
+            });
+
+            expect(answered.items[0]?.issue).toBeNull();
+        });
+
+        it('names a recipe with no step, and lifts the cuisine for a public-domain web import as Publish does', async () => {
+            const noSteps = await view({
+                items: [
+                    makeListedItem({
+                        stage: 'matched',
+                        matchedAt: new Date(),
+                        statementKind: 'authored',
+                        publishFacts: { fileCuisine: 'Thai', ingredientLineCount: 2, stepCount: 0 },
+                    }),
+                ],
+            });
+            const publicDomain = await view({
+                items: [
+                    makeListedItem({
+                        stage: 'matched',
+                        matchedAt: new Date(),
+                        statementKind: 'source',
+                        sourceKind: 'public_web',
+                        citation: 'https://example.org/r',
+                        publishFacts: { fileCuisine: null, ingredientLineCount: 2, stepCount: 1 },
+                    }),
+                ],
+            });
+
+            expect(noSteps.items[0]?.issue).toEqual({ reason: 'needsSteps' });
+            expect(publicDomain.items[0]?.issue).toBeNull();
+        });
+
         it('names a matched item with no statement', async () => {
-            const answered = await view({ items: [makeItem({ stage: 'matched', matchedAt: new Date() })] });
+            const answered = await view({ items: [makeListedItem({ stage: 'matched', matchedAt: new Date() })] });
 
             expect(answered.items[0]?.issue).toEqual({ reason: 'needsStatement' });
         });
@@ -154,7 +213,7 @@ describe('ImportViewBuilder', () => {
             const answered = await view(
                 {
                     items: [
-                        makeItem({
+                        makeListedItem({
                             stage: 'matched',
                             matchedAt: new Date(),
                             statementKind: 'source',
@@ -179,7 +238,7 @@ describe('ImportViewBuilder', () => {
                 citation: 'x',
             };
             const answered = await view(
-                { items: [makeItem({ ...book, visibility: 'private' })] },
+                { items: [makeListedItem({ ...book, visibility: 'private' })] },
                 makeHeader({ visibility: 'public' }),
             );
 
@@ -188,7 +247,7 @@ describe('ImportViewBuilder', () => {
 
         it('names an item that waits for the allowance once the day is spent', async () => {
             const answered = await view({
-                items: [makeItem({ stage: 'received' })],
+                items: [makeListedItem({ stage: 'received' })],
                 allowance: { limit: 1000, used: 1000, resetsAt: '2026-10-27T12:00:00.000Z' },
             });
 
@@ -201,7 +260,7 @@ describe('ImportViewBuilder', () => {
                     slots: { hasAvailable: async () => false },
                     unsavedPrivate: 1,
                     items: [
-                        makeItem({
+                        makeListedItem({
                             stage: 'matched',
                             matchedAt: new Date(),
                             statementKind: 'source',
@@ -221,7 +280,7 @@ describe('ImportViewBuilder', () => {
         it('shows the statement in the wire shape, the recipe and the visibility override', async () => {
             const answered = await view({
                 items: [
-                    makeItem({
+                    makeListedItem({
                         ordinal: 4,
                         stage: 'saved',
                         savedAt: new Date(),
@@ -248,7 +307,7 @@ describe('ImportViewBuilder', () => {
         });
 
         it('shows no statement as null', async () => {
-            expect((await view({ items: [makeItem()] })).items[0]?.statement).toBeNull();
+            expect((await view({ items: [makeListedItem()] })).items[0]?.statement).toBeNull();
         });
     });
 

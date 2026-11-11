@@ -373,6 +373,11 @@ const accounts: readonly ColumnAccount[] = [
         why: 'Server-incremented by each write of the cook’s decisions on the item (a request can write a few per second at most, and an item is saved once); no wire field sets it.',
     },
     {
+        table: 'recipe_import_items',
+        column: 'held_at_rev',
+        why: 'Copied from the item’s own decision_rev when the save holds it (migration 0068), so it is bounded by that column; no wire field sets it.',
+    },
+    {
         table: 'recipe_import_lines',
         column: 'ordinal',
         why: 'Copied from the item the line belongs to (the composite FK holds it to an existing item); no wire field sets it.',

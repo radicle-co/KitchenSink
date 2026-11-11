@@ -1,51 +1,61 @@
 /**
- * The bulk import's view of a free cook's private slots (ADR-0073, ADR-0072 §9).
+ * The bulk import's view of a cook's private slots (ADR-0073, ADR-0072 §9).
  *
- * DESIGN PATTERN: **Port (hexagonal)**, with an explicit STUB. The slot count, the per-user lock and the `PRIVATE_SLOTS_FULL`
- * denial are built by ANOTHER lane (ADR-0073's builder). This is the seam the import reads, and nothing else:
+ * DESIGN PATTERN: **Port (hexagonal)** with one **Adapter**, {@link privateSlotsOf}, over the recipe service's live count
+ * (`getPrivateSlotUsage`). The slot count, the per-user lock and the `PRIVATE_SLOTS_FULL` denial belong to the recipe service;
+ * the import only reads them:
  *
  *  - It is a NON-LOCKING READ and an ADVISORY one. The authoritative check runs inside the recipe's own transaction under the
  *    per-user advisory lock (ADR-0073 §5), where `RecipesService.create` takes it; "a slot fact computed before the
- *    transaction is never trusted". So this port takes no transaction, and the importer treats a `true` from it as "worth
- *    trying" and a `PRIVATE_SLOTS_FULL` thrown by the save as the truth.
+ *    transaction is never trusted". So the importer treats a `true` from it as "worth trying" and a `PRIVATE_SLOTS_FULL`
+ *    thrown by the save as the truth.
  *  - It exists so the view can DERIVE the pause (§8: the pause is derived from the live count and never stored) and so a
  *    cook who is already out of slots is not sent through a doomed save per recipe.
- *
- * ⚠️ THE BOUND IMPLEMENTATION IS A STUB: {@link UNLIMITED_PRIVATE_SLOTS} says a slot is always free, because today's policy
- * has no slot count (a free cook's private `user_created` recipe is refused by the policy itself). The slots lane replaces the
- * binding in `ImportModule` with one that counts live (`COUNT(*)` of the cook's private, undeleted recipes against 50, no
- * limit for Premium). Nothing else in the import changes: the pause, the `outOfSlots` issue and the mapping of a
- * `PRIVATE_SLOTS_FULL` denial from the save are already wired against this port and its error code.
+ *  - It takes the PRINCIPAL, not a user id: whether the cook has Pro (no limit) is read from their signed token, as on every
+ *    other route.
  */
+import { RecipeErrorCode } from '@kitchensink/recipe-core';
+
+import type { Principal } from '../auth/principal.js';
+import { hasFreePrivateSlot } from '../recipes/domain/privateSlotPolicy.js';
+import { isRecipeDomainError } from '../recipes/recipe.error.js';
+import type { RecipesService } from '../recipes/recipes.service.js';
 
 /** DI token for {@link PrivateSlotsPort}. */
 export const PRIVATE_SLOTS = 'IMPORT_PRIVATE_SLOTS';
 
-/** The error code the save path throws when the cook has no private slot left (ADR-0073 §3). */
-const PRIVATE_SLOTS_FULL_CODE = 'PRIVATE_SLOTS_FULL';
-
 /**
- * Whether a thrown value is the save path's "no private slot left" denial (ADR-0073).
- *
- * ONE shape, on purpose: the slots lane throws a domain error, which is an `Error` carrying `code`. This is the only place that
- * knows how to read it, next to the code it reads.
+ * Whether a thrown value is the save path's "no private slot left" denial (ADR-0073 §3).
  *
  * @param error - Anything thrown by the create path.
  * @returns Whether it is the denial. Pure.
  */
 export function isPrivateSlotsFull(error: unknown): boolean {
-    return error instanceof Error && 'code' in error && error.code === PRIVATE_SLOTS_FULL_CODE;
+    return isRecipeDomainError(error) && error.code === RecipeErrorCode.PRIVATE_SLOTS_FULL;
 }
 
 export interface PrivateSlotsPort {
     /**
      * Whether the cook has at least one private slot free right now.
      *
-     * @param userId - The verified app-user ULID.
+     * @param principal - The verified cook.
      * @returns `true` when one is free (or the cook has no limit). Advisory, not a reservation.
      */
-    hasAvailable(userId: string): Promise<boolean>;
+    hasAvailable(principal: Principal): Promise<boolean>;
 }
 
-/** The stub: every cook has a slot free, until ADR-0073's lane binds the real count. */
-export const UNLIMITED_PRIVATE_SLOTS: PrivateSlotsPort = { hasAvailable: () => Promise.resolve(true) };
+/**
+ * The port over the recipe service's live count. Pro has no limit; a free cook has a slot while they hold fewer than the
+ * limit (`hasFreePrivateSlot`, the one statement of that rule).
+ *
+ * @param recipes - The recipe service, or anything that answers its slot read.
+ */
+export function privateSlotsOf(recipes: Pick<RecipesService, 'getPrivateSlotUsage'>): PrivateSlotsPort {
+    return {
+        hasAvailable: async (principal) => {
+            const usage = await recipes.getPrivateSlotUsage(principal);
+
+            return usage.kind === 'unlimited' || hasFreePrivateSlot(usage, usage.used);
+        },
+    };
+}

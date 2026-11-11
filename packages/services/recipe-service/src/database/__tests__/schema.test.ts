@@ -296,6 +296,9 @@ describe('recipe-service schema — table contracts (T011–T014, T118, T119, T1
             citation: { type: 'text', notNull: false },
             source_kind: { type: 'text', notNull: false },
             visibility: { type: 'text', notNull: false },
+            // What Publish needs (0068): the cook's cuisine, and the revision at which the save held the item for one.
+            cuisine: { type: 'text', notNull: false },
+            held_at_rev: { type: 'integer', notNull: false },
             created_at: { type: 'timestampwithtimezone', notNull: true },
             updated_at: { type: 'timestampwithtimezone', notNull: true },
         });

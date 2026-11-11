@@ -43,6 +43,7 @@ import {
     IMPORT_LINES_DEFAULT_PAGE_SIZE,
 } from './domain/importLimits.js';
 import { decodeLineCursor, encodeLineCursor, type LineCursor } from './domain/importPaging.js';
+import { fileCuisineOf, importCuisineOf } from './domain/importPublishGap.js';
 import { statementOfColumns } from './domain/importStatement.js';
 import { savedNameOf } from './domain/snapshotLines.js';
 import { ImportLineView, type FlaggedRead } from './importLineView.js';
@@ -432,6 +433,8 @@ export class ImportStepService {
             review: item.review,
             statement: statementOfColumns(item) ?? null,
             visibility: item.visibility,
+            // A saved item's payload is gone, so its step shows only a cuisine the cook gave; the recipe holds what was saved.
+            cuisine: importCuisineOf(item.cuisine, fileCuisineOf(item.payload)),
             lines: lines.map((line) => ({
                 lineIndex: line.lineIndex,
                 foodIndex: line.foodIndex,

@@ -625,6 +625,7 @@
                 <div style="position: absolute; left: 0; right: 0; bottom: 0">
                     <x-import
                         component-from-global-scope="Commise.Native.HomeTabBar"
+                        profile="{{profile}}"
                         chrome="{{chrome}}"
                         live-capabilities="{{none}}"
                         active-id="recipes"
@@ -637,7 +638,7 @@
                 </div></div
         ></x-dc>
         <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
-            class Component extends DCLogic { renderVals(){ const h=window.React.createElement, C=window.Commise.Native, noop=function(){}; return {secs:["ingredients","steps","nutrition"],sections:[{id:"ingredients",label:"Ingredients"},{id:"steps",label:"Steps"},{id:"nutrition",label:"Nutrition"}],screenOn:h(C.KeepAwakeToggle,{on:false,onChange:noop,label:"Screen on",display:"icon"}),yes:true,no:false,noop:noop,announce(n){return "Amounts for "+n+" servings."},none:[],inset:34,zero:0,chrome:{destinations:{home:'Home',recipes:'Recipes',discover:'Discover','meal-plan':'Plan',grocery:'Shop',you:'You'},profileButton:'Profile, {name}',profileButtonNoName:'Profile',tabNavLabel:'Tabs'},}; } }
+            class Component extends DCLogic { renderVals(){ const h=window.React.createElement, C=window.Commise.Native, noop=function(){}; return {secs:["ingredients","steps","nutrition"],sections:[{id:"ingredients",label:"Ingredients"},{id:"steps",label:"Steps"},{id:"nutrition",label:"Nutrition"}],screenOn:h(C.KeepAwakeToggle,{on:false,onChange:noop,label:"Screen on",display:"icon"}),yes:true,no:false,noop:noop,announce(n){return "Amounts for "+n+" servings."},none:[],inset:34,zero:0,profile:{status:'ready',name:'Sam Rivera'},chrome:{destinations:{home:'Home',recipes:'Recipes',discover:'Discover','meal-plan':'Plan',grocery:'Shop',you:'You'},profileButton:'Profile, {name}',profileButtonNoName:'Profile',tabNavLabel:'Tabs'},}; } }
         </script>
     </body>
 </html>

@@ -321,7 +321,6 @@
             const ago=(hrs)=>new Date(Date.now()-hrs*36e5).toISOString();
             const out={no:false,yes:true,n0:0,n2:2,n34:34,none:[],noop:()=>{},fill:{flex:1},
             chrome:{destinations:{home:'Home',recipes:'Recipes',discover:'Discover','meal-plan':'Plan',grocery:'Shop',you:'You'},profileButton:'Profile, {name}',profileButtonNoName:'Profile',tabNavLabel:'Tabs'},
-            action:{kind:'avatar',avatar:h(N.Avatar,{status:'ready',initials:'SR',label:'Profile, Sam Rivera',onPress:()=>{}})},
             segments:h(N.SegmentedControl,{form:'route',width:'adaptive',label:'Recipes',current:'mine',segments:[{id:'mine',label:'My recipes',href:'#recipes'},{id:'collections',label:'Collections',href:'#collections'}],onSelect:()=>{}}),
             views:[{id:'list',label:'List view',icon:'list'},{id:'grid',label:'Grid view',icon:'layoutGrid'}]};
             K.forEach((c,j)=>{out['k'+j]=c});

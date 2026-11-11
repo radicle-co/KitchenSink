@@ -28,6 +28,10 @@ const STACK = 'kitchensink-food-service-pr-73';
 const OTHER_PR_STACK = 'kitchensink-recipe-service-pr-74';
 /** Another application's stack in the same account: listed, and unreadable by the CI role. */
 const FOREIGN_STACK = 'armoury-api-prod';
+/** The shared tier: readable, and never a per-PR stack, so its tags are never read. */
+const SHARED_STACK = 'kitchensink-data-sandbox';
+/** Outside the CI role's namespace but NAMED for this PR: IAM refuses to delete it, so it is not this PR's to delete. */
+const OUT_OF_SCOPE_PR_STACK = 'pr-73-legacy';
 
 let workdir: string;
 let binDir: string;
@@ -56,7 +60,7 @@ case "$1 $2" in
             *CREATE_IN_PROGRESS*) : ;;
             *)
                 [ -n "\${AWS_STUB_NO_SANDBOX:-}" ] || printf '%s\\t' '${STACK}'
-                printf '%s\\t%s\\n' '${OTHER_PR_STACK}' '${FOREIGN_STACK}'
+                printf '%s\\t%s\\t%s\\t%s\\n' '${OTHER_PR_STACK}' '${FOREIGN_STACK}' '${SHARED_STACK}' '${OUT_OF_SCOPE_PR_STACK}'
                 ;;
         esac
         ;;
@@ -70,6 +74,13 @@ case "$1 $2" in
         case "$*" in
             *Tags*)
                 fails describe && { echo 'Throttling' >&2; exit 254; }
+                # Another PR's cleanup deleted its stack between this run's list and describe.
+                case "\${AWS_STUB_VANISH:-}:$*" in
+                    1:*'${OTHER_PR_STACK}'*)
+                        echo 'An error occurred (ValidationError) when calling the DescribeStacks operation: Stack with id ${OTHER_PR_STACK} does not exist' >&2
+                        exit 254
+                        ;;
+                esac
                 case "$*" in *pr-74*) echo pr-74-sandbox ;; *) echo pr-73-sandbox ;; esac
                 ;;
             *PerPrDatabaseReaperFunctionName*) echo kitchensink-data-sandbox-reaper ;;
@@ -91,7 +102,8 @@ case "$1 $2" in
         ;;
     'ecr describe-repositories')
         # The CI role may describe only \`repository/kitchensink-*\`, so an unscoped listing (\`repository/*\`) is refused.
-        case "$*" in *--repository-names*) ;; *) echo 'AccessDeniedException: ecr:DescribeRepositories' >&2; exit 254 ;; esac
+        echo 'AccessDeniedException: ecr:DescribeRepositories' >&2
+        exit 254
         ;;
     'lambda invoke')
         for arg in "$@"; do
@@ -187,10 +199,32 @@ describe('teardown fails the run when a stack delete or a sweep listing fails', 
         expect(status).toBe(0);
     });
 
-    it('never asks to read a stack outside the namespace the CI role may read', () => {
+    it('reads tags only of stacks named like a per-PR stack the CI role may delete', () => {
         const { calls } = run();
+        const tagReads = calls.filter(
+            (call) => call.startsWith('cloudformation describe-stacks') && call.includes('Tags'),
+        );
 
-        expect(calls.filter((call) => call.includes(`--stack-name ${FOREIGN_STACK}`))).toEqual([]);
+        expect(tagReads.map((call) => /--stack-name (\S+)/u.exec(call)?.[1]).sort()).toEqual(
+            [OTHER_PR_STACK, STACK].sort(),
+        );
+    });
+
+    it('never deletes a stack NAMED for the PR outside the namespace IAM lets it delete', () => {
+        const { status, calls } = run();
+
+        expect(calls.filter((call) => call.includes(OUT_OF_SCOPE_PR_STACK))).toEqual([]);
+        expect(status).toBe(0);
+    });
+
+    it('a stack that vanishes between list and describe is skipped, and this PR is still torn down', () => {
+        const { status, stdout, calls } = run(undefined, { AWS_STUB_VANISH: '1' });
+
+        expect(calls.filter((call) => call.startsWith('cloudformation delete-stack'))).toEqual([
+            expect.stringContaining(STACK),
+        ]);
+        expect(stdout).not.toContain('::error::');
+        expect(status).toBe(0);
     });
 
     it('never makes the unscoped ECR listing the CI role is refused', () => {

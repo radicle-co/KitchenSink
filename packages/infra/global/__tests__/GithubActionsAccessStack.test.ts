@@ -539,19 +539,17 @@ describe('GithubActionsAccessStack: the non-prod role reaches only what CI tears
         expect(new Set(exact)).toEqual(new Set(SHARED_TIER_DELETE_ORDER));
     });
 
-    // teardownSandboxPr.sh reads a listed stack's tags only inside READABLE_STACK_PREFIX. Wider, and a describe IAM
-    // refuses fails every PR close; narrower, and a per-PR stack the role could delete is never found by its tag.
-    it('reads stack tags in exactly the namespace teardownSandboxPr.sh describes', () => {
+    // teardownSandboxPr.sh reads tags only of stacks matching PER_PR_STACK_GLOB. Wider, and it describes stacks IAM
+    // refuses or reaches deletes IAM refuses, failing every PR close; narrower, and a deletable per-PR stack leaks.
+    it('treats as per-PR candidates exactly the stack names the role may delete and read', () => {
         const script = readFileSync(path.join(repoRoot, '.github/scripts/teardownSandboxPr.sh'), 'utf8');
-        const prefix = /^READABLE_STACK_PREFIX='([^']+)'$/mu.exec(script)?.[1] ?? '';
-        const perPrStack = `${prefix}food-service-pr-91`;
+        const glob = /^PER_PR_STACK_GLOB='([^']+)'$/mu.exec(script)?.[1];
 
-        expect(prefix).not.toBe('');
-        // Narrower than the stacks the role may delete, and a deletable per-PR stack's tag is never read.
-        expect(PER_PR_NAME_PATTERN.startsWith(prefix)).toBe(true);
-        expect(policyAdmits(nonprod, 'cloudformation:DescribeStacks', stack(perPrStack))).toBe(true);
+        expect(glob).toBe(PER_PR_NAME_PATTERN);
+        expect(policyAdmits(nonprod, 'cloudformation:DescribeStacks', stack('kitchensink-food-service-pr-91'))).toBe(
+            true,
+        );
         expect(policyAdmits(nonprod, 'cloudformation:DescribeStacks', stack('armoury-api-prod'))).toBe(false);
-        expect(policyAdmits(nonprod, 'cloudformation:DeleteStack', stack('food-service-pr-91'))).toBe(false);
     });
 
     it('writes SSM only under the ledger perPrDatabaseDrop.sh records owed drops in', () => {

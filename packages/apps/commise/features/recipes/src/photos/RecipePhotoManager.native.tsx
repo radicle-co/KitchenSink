@@ -5,21 +5,23 @@
  * The React Native leaf of `RecipePhotoManager` — same contract, RN
  * primitives. Owner ruling 2026-10-17: every photo tile carries ONE ⋯ menu button (44 pt, 48 dp on Android; a sheet of
  * `menuitem` rows, `photoMenu.ts`); a queue tile holds Remove in the same menu, and a failed, retryable one keeps a
- * visible Retry `Button`. Renders the confirmed photos MERGED with any in-flight queue items across a grid of 3 columns (4 from
- * 600 of the grid's own measured width, buildSpec §7.7), each queue cell carrying its own status line UNDER the tile, never over the photo (Queued / Uploading… / Upload failed, via
- * a role + visible text — never colour alone; designer ruling 2026-11-11) plus Retry (only where the queue reports the
- * failure as `retryable`) and Remove, and the caller-supplied `addControl` (the native picker button), hidden
- * at the photo cap. Presentational only.
+ * visible Retry `Button`. Renders the confirmed photos MERGED with any in-flight queue items across a grid of 3 columns
+ * (4 from 600 of the grid's own measured width, buildSpec §7.7). Each cell carries a short status line UNDER the tile,
+ * never over the photo (Cover / Removing… / Queued / Uploading… / Upload failed, via a role and visible text, never
+ * colour alone; designer ruling 2026-11-11), plus Retry under it (only where the queue reports the failure as
+ * `retryable`) and a ⋯ menu, the one thing drawn on the photo, and the caller-supplied `addControl` (the native picker
+ * button), hidden at the photo cap. Presentational only.
  *
  * A failed cell's ACTIONS follow the queue's `retryable` discriminator, never `status === 'failed'`: retry
  * re-validates by design, so a client-rejected file (too large / wrong type) can never succeed on a
  * re-attempt — that cell offers Remove only, while a transport/server failure keeps both.
  *
- * REQ-014 (per-file "which photo failed and why"): the generic status line already names WHICH photo
- * (its cell, its `fileName`-scoped Retry/Remove labels); a failed item's own `errorMessage` (client
- * validation — REQ-011/REQ-012 — or an upload failure, both surfaced by the caller through the same field)
- * renders as a second line in the same slot naming WHY, whenever the caller supplies one — BELOW the tile, in flow (E6), never
- * over the image. With no photo and no queued file it shows the recipe's generated cover and says it stands in (A-010).
+ * REQ-014 (per-file "which photo failed and why"): the generic status line names WHICH photo (its cell, its
+ * `fileName`-scoped Retry/Remove labels), and the cell's alert also names WHY for a screen reader. A failed item's own
+ * `errorMessage` (client validation, REQ-011/REQ-012, or an upload failure, both surfaced by the caller through the
+ * same field) is shown ONCE, full width, under the grid while any tile has failed (`failureSentences`, designer ruling
+ * 2026-11-11), in flow (E6), never over the image. With no photo and no queued file it shows the recipe's generated
+ * cover and says it stands in (A-010).
  */
 import { useMessages } from '@commise/i18n/react';
 import { ActionMenu } from '@commise/ui/action-menu';
@@ -136,10 +138,11 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
                                         cachePolicy="memory-disk"
                                         style={styles.photo}
                                     />
-                                    {/* Owner ruling 2026-10-17: ONE ⋯ menu button per tile (44 pt, 48 dp on Android) holds
-                                    every action, in a sheet. The cover is stated by the button's NAME (SC 4.1.2), as the
-                                    radio it replaces stated it by `checked`. A removal in flight makes the button
-                                    unavailable: it keeps the screen-reader cursor and opens nothing. */}
+                                    {/* Owner ruling 2026-10-17: ONE ⋯ menu button per tile (44 pt, 48 dp on Android)
+                                        holds every action, in a sheet. The cover is stated by the button's NAME (SC
+                                        4.1.2), as the radio it replaces stated it by `checked`. A removal in flight
+                                        makes the button unavailable: it keeps the screen-reader cursor and opens
+                                        nothing. */}
                                     <View style={styles.menuButton}>
                                         <ActionMenu
                                             appearance="disc"
@@ -187,8 +190,9 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
 
                         return (
                             <View key={item.fileId} style={{ width: cellWidth }}>
-                                {/* The FRAME holds the image and what is drawn on it. A failure's prose sits BELOW it
-                                    (E6), in flow on the page background, so its contrast never depends on the photo. */}
+                                {/* The FRAME holds the image and its ⋯ disc, nothing else (designer ruling 2026-11-11).
+                                    The status, Retry and the failure's reason sit BELOW it (E6), in flow on the page
+                                    background, so their contrast never depends on the photo. */}
                                 <View style={styles.frame}>
                                     {item.previewUri !== undefined ? (
                                         <Image
@@ -226,9 +230,10 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
                                         </View>
                                     ) : null}
                                 </View>
-                                {/* The status, and a failure's message, in ONE slot UNDER the photo (designer ruling 2026-11-11):
-                                    nothing but the tile's ⋯ menu sits on the image, and the line wraps across
-                                    the cell's width at every text size. Text, never colour alone, says which state. */}
+                                {/* The short status, in ONE slot UNDER the photo (designer ruling 2026-11-11): nothing
+                                    but the tile's ⋯ menu sits on the image, the failure's reason is said once under the
+                                    grid, and the line wraps across the cell's width at every text size. Text, never
+                                    colour alone, says which state. */}
                                 <View
                                     accessible
                                     role={item.status === 'failed' ? 'alert' : undefined}
@@ -246,12 +251,12 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
                                         {statusWord}
                                     </DsText>
                                 </View>
-                                {/* Retry sits in the slot under the photo with the failure it recovers (designer ruling 2026-11-11), and stays a
-                                    VISIBLE button, not a menu item: it is the one recovery for the
-                                    tile's headline state, so it is one tap at the design system's `Button` size
-                                    (48 dp on Android). Only where it can plausibly succeed: the queue re-validates on
-                                    retry, so a client-rejected file (too large / wrong type) would re-fail
-                                    identically. See `retryable`. */}
+                                {/* Retry sits in the slot under the photo, after the failure it recovers (designer
+                                    ruling 2026-11-11). It stays a VISIBLE button, not a menu item: it is the one
+                                    recovery for the tile's headline state, so it is one tap at the design system's
+                                    `Button` size (48 dp on Android). Only where it can plausibly succeed: the queue
+                                    re-validates on retry, so a client-rejected file (too large / wrong type) would
+                                    re-fail identically. See `retryable`. */}
                                 {item.status === 'failed' && item.retryable ? (
                                     <View style={styles.statusSlot}>
                                         <Button

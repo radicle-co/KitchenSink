@@ -729,7 +729,7 @@ describe('RecipePhotoManager (web) — the photo carries only its ⋯ disc (2026
 
         const frame = frameOf(index);
         const line = screen.getByText(word);
-        const tile = within(screen.getByRole('list')).getAllByRole('listitem')[index - 1] as HTMLElement;
+        const tile = within(screen.getByRole('list')).getAllByRole('listitem')[index - 1];
 
         expect(frame.contains(line)).toBe(false);
         expect(tile.contains(line)).toBe(true);

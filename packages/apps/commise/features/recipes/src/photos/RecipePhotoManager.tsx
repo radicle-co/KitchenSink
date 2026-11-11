@@ -6,10 +6,11 @@
  * `disc` look, 44 px) holding Set as cover, Move earlier, Move later, Replace and Remove (`photoMenu.ts`); a queue tile
  * holds Remove in the same menu, and a failed, retryable one keeps a visible Retry `Button`.
  *
- * Presentational: renders the recipe's confirmed photos MERGED with any in-flight queue items in a grid of 3 columns
- * (4 from 600 px of the grid's own container, buildSpec §7.7), each queue cell carrying its own status line UNDER the tile, never over the photo (Queued / Uploading… / Upload
- * failed, via role + text — never colour alone, WCAG 1.4.1; designer ruling 2026-11-11) plus Retry (only where the queue reports the
- * failure as `retryable`) and a Remove menu,
+ * Presentational: renders the recipe's confirmed photos MERGED with any in-flight queue items in a grid of 3 columns (4
+ * from 600 px of the grid's own container, buildSpec §7.7). Each cell carries a short status line UNDER the tile, never
+ * over the photo (Cover / Removing… / Queued / Uploading… / Upload failed, via role + text, never colour alone, WCAG
+ * 1.4.1; designer ruling 2026-11-11), plus Retry under it (only where the queue reports the failure as `retryable`) and
+ * a ⋯ menu, the one thing drawn on the photo,
  * and renders the caller-supplied `addControl` (the web file input) below the grid — hidden once the recipe
  * is at the photo cap. The container owns image acquisition + the presign → PUT → confirm upload (via the
  * `useRecipePhotoUploadQueue` layer over the single-flight `useRecipePhotoUpload`).
@@ -18,11 +19,12 @@
  * class, so a recipe with many photos does not eagerly paint the whole grid of full-size originals at once
  * (mirrors the detail view's `PhotoCarousel`, the other web surface painting these same originals).
  *
- * REQ-014 (per-file "which photo failed and why"): the generic `queueStatusFailed` status line already names
- * WHICH photo (its cell, its `fileName`-scoped Retry/Remove labels); a failed item's own `errorMessage`
- * (client validation — REQ-011/REQ-012 — or an upload failure, both surfaced by the caller through the same
- * field) renders as a second line in the same slot naming WHY, whenever the caller supplies one — BELOW the tile, on the page
- * background (E6), never over the image, where its contrast would depend on the photo.
+ * REQ-014 (per-file "which photo failed and why"): the generic `queueStatusFailed` status line names WHICH photo (its
+ * cell, its `fileName`-scoped Retry/Remove labels), and the cell's alert also names WHY for a screen reader. A failed
+ * item's own `errorMessage` (client validation, REQ-011/REQ-012, or an upload failure, both surfaced by the caller
+ * through the same field) is shown ONCE, full width, under the grid while any tile has failed (`failureSentences`,
+ * designer ruling 2026-11-11), on the page background (E6), never over the image, where its contrast would depend on
+ * the photo.
  *
  * With no photo and no queued file it shows the recipe's own generated cover (when `coverPreview` is supplied) and says
  * that cover stands in until a photo is added (A-010).
@@ -138,10 +140,10 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
                                             decoding="async"
                                             className="aspect-square w-full object-cover"
                                         />
-                                        {/* Owner ruling 2026-10-17: ONE ⋯ menu button per tile (a 44 px disc) holds every
-                                    action. The cover is stated by the button's NAME (SC 4.1.2), as the radio it replaces
-                                    stated it by `checked`. A removal in flight makes the button unavailable: it stays
-                                    focusable (SC 2.4.3) and opens nothing. */}
+                                        {/* Owner ruling 2026-10-17: ONE ⋯ menu button per tile (a 44 px disc) holds
+                                            every action. The cover is stated by the button's NAME (SC 4.1.2), as the
+                                            radio it replaces stated it by `checked`. A removal in flight makes the
+                                            button unavailable: it stays focusable (SC 2.4.3) and opens nothing. */}
                                         <div className="absolute right-1 top-1">
                                             <ActionMenu
                                                 appearance="disc"
@@ -229,9 +231,9 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
                                             </div>
                                         ) : null}
                                     </div>
-                                    {/* The status, and a failure's message, in ONE slot UNDER the photo (designer ruling
-                                    2026-11-11): nothing but the tile's ⋯ menu sits on the image. Text, never
-                                    colour alone, says which state. */}
+                                    {/* The short status, in ONE slot UNDER the photo (designer ruling 2026-11-11):
+                                        nothing but the tile's ⋯ menu sits on the image, and the failure's reason is
+                                        said once under the grid. Text, never colour alone, says which state. */}
                                     <div
                                         role={item.status === 'failed' ? 'alert' : 'status'}
                                         aria-label={
@@ -247,12 +249,13 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
                                             {statusWord}
                                         </p>
                                     </div>
-                                    {/* Retry sits in the slot under the photo with the failure it recovers (designer ruling 2026-11-11), and stays a
-                                    VISIBLE button, not a menu item: it is the one recovery for the
-                                tile's headline state, so it is one tap at the design system's `Button` size.
-                                Offered ONLY where it can plausibly succeed: the queue re-validates on retry by
-                                design, so a client-rejected file (too large / wrong type) would re-fail
-                                identically — a dead affordance. `retryable` is the queue's own discriminator. */}
+                                    {/* Retry sits in the slot under the photo, after the failure it recovers (designer
+                                        ruling 2026-11-11). It stays a VISIBLE button, not a menu item: it is the one
+                                        recovery for the tile's headline state, so it is one tap at the design system's
+                                        `Button` size. Offered ONLY where it can plausibly succeed: the queue
+                                        re-validates on retry by design, so a client-rejected file (too large / wrong
+                                        type) would re-fail identically, a dead affordance. `retryable` is the queue's
+                                        own discriminator. */}
                                     {item.status === 'failed' && item.retryable ? (
                                         <div className="px-1">
                                             <Button

@@ -28,6 +28,9 @@ import { EDITOR_SECTIONS, isEditorSectionId, type EditorSectionId } from './sect
 import { pageAnnouncementOf, type PasteAdded } from './pageAnnouncement.js';
 import { sectionStatusesOf, type SectionStatuses } from './sectionStatus.js';
 
+/** The sections a finish waiting for its photos shows. */
+const PHOTOS_ONLY: readonly EditorSectionId[] = ['photos'];
+
 /** A section the cook's own edit completed, to announce; `n` advances once per announcement. */
 interface Announcement {
     /** The status kinds it was derived at (`statusKey`). */
@@ -42,7 +45,15 @@ interface Announcement {
 /** What the page leaves draw, and the commands their controls issue. */
 export interface EditorPage {
     readonly m: EditorMessages;
+    /** The header and bar chrome. While {@link EditorPage.draining} it offers no discard and no resume notice. */
     readonly chrome: EditorChrome;
+    /**
+     * A finish waits for its photos (`photoFinish`): the page shows only Photos & publish and its Finish control, with no
+     * section index, discard, resume notice or publish lines. The leaves read this phase here, once.
+     */
+    readonly draining: boolean;
+    /** The sections drawn: every section, or only Photos & publish while {@link EditorPage.draining}. */
+    readonly shownSections: readonly EditorSectionId[];
     /** "Ready to publish. {n} ingredients have no match…" (owner D20), for the action bar and Photos & publish. */
     readonly publishNote: string | undefined;
     /** "Ready to publish." or "Fix {n} things to publish": always in Photos & publish (§7.7 item 3). */
@@ -64,7 +75,7 @@ export interface EditorPage {
     /** Keep editing: closes the confirm, and takes back a Discard that waits or dismisses one refused (`editor.cancelDiscard`). */
     readonly keepEditing: () => void;
     readonly confirmDiscard: () => void;
-    /** × : checkpoint the exit, then leave. Never asks. */
+    /** × : ask first if photos would be lost (`requestLeave`), then checkpoint the exit and leave. */
     readonly close: () => void;
     /**
      * The primary: Publish, or a published recipe's Save changes. A refusal jumps to the first section holding one. A
@@ -114,6 +125,7 @@ export function useEditorPage(props: RecipeEditorViewProps): EditorPage {
         pendingEntryFieldId,
         initialSection,
         onClose,
+        requestLeave,
         onRefused,
         onOpenMyRecipes,
         openChoices,
@@ -134,6 +146,7 @@ export function useEditorPage(props: RecipeEditorViewProps): EditorPage {
     const chrome = editorChromeOf({ editor, mode, keep, statuses, messages: m, locale });
     const current = host.current !== undefined && isEditorSectionId(host.current) ? host.current : 'details';
     const entries = sectionIndexEntries({ statuses, current, messages: m, locale });
+    const draining = props.photoFinish !== undefined;
     const [confirming, setConfirming] = useState(false);
     const [asking, setAsking] = useState(false);
     const askedFacts = useLastDefined(openChoices?.facts);
@@ -280,13 +293,17 @@ export function useEditorPage(props: RecipeEditorViewProps): EditorPage {
 
     return {
         m,
-        chrome,
-        publishNote: publishNoteOf(
-            { values: editor.values, pendingEntryText, published: editor.lifecycle === 'published' },
-            m,
-            locale,
-        ),
-        readyLine,
+        chrome: draining ? { ...chrome, discard: undefined, resumeBody: undefined } : chrome,
+        draining,
+        shownSections: draining ? PHOTOS_ONLY : EDITOR_SECTIONS,
+        publishNote: draining
+            ? undefined
+            : publishNoteOf(
+                  { values: editor.values, pendingEntryText, published: editor.lifecycle === 'published' },
+                  m,
+                  locale,
+              ),
+        readyLine: draining ? undefined : readyLine,
         goToSection: scrollToSection,
         entries,
         current,
@@ -303,8 +320,10 @@ export function useEditorPage(props: RecipeEditorViewProps): EditorPage {
             editor.discard();
         },
         close: () => {
-            checkpoint('editorExit');
-            onClose();
+            requestLeave(() => {
+                checkpoint('editorExit');
+                onClose();
+            });
         },
         finish,
         openChoices: {
@@ -325,3 +344,17 @@ export function useEditorPage(props: RecipeEditorViewProps): EditorPage {
         actionOf,
     };
 }
+
+/**
+ * Whether the editor page stays drawn. It goes once the editor has handed off, EXCEPT while a finish waits for its
+ * photos (`finishing`), or while a photo is still at risk before that finish is held: the two can land in different
+ * commits, and the uploader must not unmount under a photo that is still going. The one rule both leaves read. Pure.
+ *
+ * @param input - The editor's status, whether a finish waits for photos, and whether a photo is at risk.
+ * @returns `true` while the page is drawn.
+ */
+export const editorPageStays = (input: {
+    readonly status: RecipeEditorViewProps['editor']['state']['status'];
+    readonly finishing: boolean;
+    readonly photosAtRisk: boolean;
+}): boolean => input.status !== 'done' || input.finishing || input.photosAtRisk;

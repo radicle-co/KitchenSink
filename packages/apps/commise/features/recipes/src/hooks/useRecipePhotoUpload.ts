@@ -45,6 +45,14 @@
 import { useConfirmPhotoUpload, useCreatePhotoUploadUrl } from '@kitchensink/recipe-service-client/hooks';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+/**
+ * How long the direct-to-S3 PUT may run before it is aborted and the photo fails (retryably). Without a deadline a
+ * stalled PUT held its tile at "Uploading…" for ever, and the editor, which waits for its photos before it leaves after
+ * Publish, would have waited for ever too. Two minutes carries the 5 MB cap at about 43 KB/s. Presign and confirm are
+ * plain API calls and already end at the client's own request timeout.
+ */
+export const PHOTO_PUT_DEADLINE_MS = 120_000;
+
 /** The file bytes + metadata a leaf has already acquired, ready to upload. */
 export interface RecipePhotoUploadFile {
     /** The raw file bytes (a web `File` — itself a `Blob` — or a mobile `Blob` read from the asset URI). */
@@ -138,6 +146,9 @@ export function useRecipePhotoUpload(recipeId: string, uploadErrorMessage: strin
             abortControllerRef.current = controller;
             setUploading(true);
             setErrorMessage(undefined);
+            // The PUT's deadline (see `PHOTO_PUT_DEADLINE_MS`): the abort rejects the PUT, which the catch below turns
+            // into a retryable `failed`. A plain timer rather than `AbortSignal.any`, which Hermes is not known to have.
+            const deadline = setTimeout(() => controller.abort(), PHOTO_PUT_DEADLINE_MS);
 
             try {
                 const { uploadUrl, key } = await createUploadUrl.mutateAsync({
@@ -168,6 +179,7 @@ export function useRecipePhotoUpload(recipeId: string, uploadErrorMessage: strin
                 // verdict, so a rejection here would only give both of them an exception to swallow.
                 return { status: 'failed', errorMessage: uploadErrorMessage };
             } finally {
+                clearTimeout(deadline);
                 abortControllerRef.current = null;
 
                 if (mountedRef.current) {

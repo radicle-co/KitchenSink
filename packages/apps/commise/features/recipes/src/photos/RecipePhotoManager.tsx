@@ -46,8 +46,10 @@ import { photoMenu } from './photoMenu.js';
 import {
     isAtPhotoCap,
     isCoverPhoto,
+    isQueueItemRemovable,
     MAX_RECIPE_PHOTO_UPLOAD_MB,
     MAX_RECIPE_PHOTOS,
+    queueStatusWord,
     visibleQueueItems,
     uploadedCount,
     type RecipePhotoManagerProps,
@@ -180,12 +182,7 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
                             );
                         })}
                         {pendingItems.map((item) => {
-                            const statusWord =
-                                item.status === 'queued'
-                                    ? m.queueStatusQueued
-                                    : item.status === 'uploading'
-                                      ? m.queueStatusUploading
-                                      : m.queueStatusFailed;
+                            const statusWord = queueStatusWord(item.status, m);
 
                             return (
                                 <li key={item.fileId} className="flex flex-col gap-1">
@@ -215,15 +212,13 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
                                         >
                                             {statusWord}
                                         </span>
-                                        {/* ⛔ `queued` is offered a Remove too, not only `failed`. A file that has not
-                                    started uploading is the one a cook is most likely to want back — and on
-                                    the CREATE path every draft pick sits `queued` until the recipe exists, so
-                                    without this the photo chosen before the first save was the ONE field of
-                                    the editor that could not be changed. Offered only when wired: a container
-                                    withholds removal by not wiring it, and an unwired Remove would do nothing.
-                                    Remove is the ⋯ menu's one item here (2026-10-17). */}
-                                        {(item.status === 'failed' || item.status === 'queued') &&
-                                        onRemoveQueueItem !== undefined ? (
+                                        {/* ⛔ A queued or waiting file is offered a Remove too, not only a failed one. A
+                                    file that has not started uploading is the one a cook is most likely to want
+                                    back — and a photo picked before a new recipe is saved waits in the queue until
+                                    it is, so without this it was the ONE field of the editor that could not be
+                                    changed. Offered only when wired: an unwired Remove would do nothing. Remove is
+                                    the ⋯ menu's one item here (2026-10-17). */}
+                                        {isQueueItemRemovable(item.status) && onRemoveQueueItem !== undefined ? (
                                             <div className="absolute right-1 top-1">
                                                 <ActionMenu
                                                     appearance="disc"

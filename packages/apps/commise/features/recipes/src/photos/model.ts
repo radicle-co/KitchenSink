@@ -14,7 +14,8 @@ import { MAX_RECIPE_PHOTO_UPLOAD_BYTES, MAX_RECIPE_PHOTOS } from '@kitchensink/r
 import type { RecipePhoto } from '@kitchensink/recipe-core';
 import type { ReactNode } from 'react';
 
-import type { RecipePhotoQueueItem } from '../hooks/useRecipePhotoUploadQueue.js';
+import type { RecipePhotoQueueItem, RecipePhotoQueueStatus } from '../hooks/useRecipePhotoUploadQueue.js';
+import type { PhotoMessages } from './messages.js';
 
 /**
  * Per-recipe photo cap — re-exported from the single recipe-core constant (server enforces
@@ -191,6 +192,70 @@ export const movedPhotoIds = (
     [ids[from], ids[to]] = [ids[to] as string, ids[from] as string];
 
     return ids;
+};
+
+/**
+ * The word a queue tile shows for its status (both leaves read it, so they cannot drift). Pure.
+ *
+ * @pattern Visitor — exhaustive switch over the queue status union
+ */
+export const queueStatusWord = (
+    status: RecipePhotoQueueStatus,
+    copy: Pick<
+        PhotoMessages,
+        'queueStatusQueued' | 'queueStatusWaiting' | 'queueStatusUploading' | 'queueStatusFailed' | 'uploadedLabel'
+    >,
+): string => {
+    switch (status) {
+        case 'queued':
+            return copy.queueStatusQueued;
+        case 'ok':
+            return copy.uploadedLabel;
+        case 'waiting':
+            return copy.queueStatusWaiting;
+        case 'uploading':
+            return copy.queueStatusUploading;
+        case 'failed':
+            return copy.queueStatusFailed;
+
+        default: {
+            const unreachable: never = status;
+
+            return unreachable;
+        }
+    }
+};
+
+/**
+ * Whether a queue tile offers Remove: every tile whose upload is not on the wire. An uploading file cannot be stopped
+ * mid-way, so its tile has no menu; a queued, waiting or failed one is the cook's to take back. Pure.
+ */
+export const isQueueItemRemovable = (status: RecipePhotoQueueStatus): boolean => status !== 'uploading';
+
+/**
+ * Whether a queue tile is a photo the cook would lose by leaving or finishing now: one whose bytes can still upload.
+ * A file the device refused (too large, or the wrong type) can never upload, so it is not at risk; an uploaded one is
+ * kept already. The ONE statement of the rule the editor's leave ask, finish barrier and tab-close prompt share. Pure.
+ *
+ * @pattern Specification
+ */
+export const photoIsAtRisk = (item: RecipePhotoQueueItem): boolean => {
+    switch (item.status) {
+        case 'queued':
+        case 'waiting':
+        case 'uploading':
+            return true;
+        case 'failed':
+            return item.retryable;
+        case 'ok':
+            return false;
+
+        default: {
+            const unreachable: never = item.status;
+
+            return unreachable;
+        }
+    }
 };
 
 /** Whether the recipe is at the photo cap (used to hide the add control and show the cap notice). */

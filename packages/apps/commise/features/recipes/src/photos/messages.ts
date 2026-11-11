@@ -8,6 +8,8 @@
  */
 import type { LocalizedMessages } from '@commise/i18n';
 
+import type { PluralText } from '../format/plural.js';
+
 /** Shared copy for the photo manager block, rendered by both the web and native leaves. */
 export interface PhotoMessages {
     /** Section heading for the photo manager. */
@@ -34,6 +36,8 @@ export interface PhotoMessages {
     readonly queuePhotoAlt: string;
     /** Visible + accessible status word for a file waiting its turn in the queue. */
     readonly queueStatusQueued: string;
+    /** Status word for a file picked before the recipe has a title: it uploads once the recipe is saved (U33). */
+    readonly queueStatusWaiting: string;
     /** Visible + accessible status word for a file whose upload is in flight. */
     readonly queueStatusUploading: string;
     /** Visible + accessible status word for a file whose upload failed. */
@@ -98,6 +102,20 @@ export interface PhotoMessages {
     /** Shown when ONE pick carries more photos than the recipe can still hold (contains `{count}`). The pick is
      *  refused whole, so this sentence is what stops the cook silently losing the files that did not fit. */
     readonly overCapError: string;
+    /** The editor's action bar after Publish or Save changes while photos still upload (staff-ux SPECIFY 2026-11-10). */
+    readonly drainNotice: string;
+    /** The one control while the editor waits for its photos: leave now, without the photos not yet uploaded. */
+    readonly finishWithout: string;
+    /** The wait's line once a photo failed (`{count}`): the cook retries it on its tile, or finishes without it. */
+    readonly drainFailed: PluralText;
+    /** The ask before leaving the editor with photos not yet uploaded. */
+    readonly leaveTitle: string;
+    /** Its body while the recipe is saved and the photos are on their way (`{count}`). */
+    readonly leaveBody: PluralText;
+    /** Its body while the photos wait for the recipe's title (`{count}`): the device draft keeps no photo. */
+    readonly leaveBodyNoTitle: PluralText;
+    readonly leaveConfirm: string;
+    readonly leaveKeep: string;
 }
 
 /** The photo manager copy, per locale. `en` is required; other locales extend the same shape. */
@@ -114,6 +132,7 @@ export const photoMessages: LocalizedMessages<PhotoMessages> = {
         formatHint: 'JPEG, PNG, or WebP · max {maxMb} MB',
         queuePhotoAlt: 'Photo {fileName}',
         queueStatusQueued: 'Queued',
+        queueStatusWaiting: 'Waiting to upload',
         queueStatusUploading: 'Uploading…',
         queueStatusFailed: 'Upload failed',
         queueRetry: 'Retry',
@@ -144,5 +163,22 @@ export const photoMessages: LocalizedMessages<PhotoMessages> = {
         unsupportedTypeError: 'That file type isn’t supported. Use a JPEG, PNG, or WebP photo.',
         replaceAtCapError: 'Remove a photo first — replacing needs room for the new one.',
         overCapError: 'That’s more photos than this recipe can hold — you can add {count} more.',
+        drainNotice: 'Recipe saved. Finishing your photo uploads…',
+        finishWithout: 'Finish without the remaining photos',
+        drainFailed: {
+            one: '1 photo didn’t upload. Retry it, or finish without it.',
+            other: '{count} photos didn’t upload. Retry them, or finish without them.',
+        },
+        leaveTitle: 'Leave without your photos?',
+        leaveBody: {
+            one: '1 photo hasn’t uploaded yet. If you leave now, it won’t be added. Everything else is kept.',
+            other: '{count} photos haven’t uploaded yet. If you leave now, they won’t be added. Everything else is kept.',
+        },
+        leaveBodyNoTitle: {
+            one: '1 photo uploads once this recipe has a title. If you leave now, it won’t be kept.',
+            other: '{count} photos upload once this recipe has a title. If you leave now, they won’t be kept.',
+        },
+        leaveConfirm: 'Leave without photos',
+        leaveKeep: 'Stay',
     },
 };

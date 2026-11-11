@@ -22,7 +22,7 @@ import { defaultRecipeFormValues, mintLineKey, recipeFormMessages } from '@commi
 
 import { RecipeEditorContainer } from '@/components/recipes/RecipeEditorContainer';
 import { webDeviceStore } from '@/components/recipes/deviceSession';
-import { editorDraftsFor } from '@commise/features-recipes/editor';
+import { editorDraftsFor, type PhotoUploaderTarget } from '@commise/features-recipes/editor';
 
 import { makeRecipeDetail as makeBaseRecipeDetail } from './__fixtures__/recipeFixtures';
 
@@ -57,9 +57,9 @@ vi.mock('@/hooks/useUserProfile', () => ({
 }));
 // The photo uploader is its own container, covered by its own suite.
 // The spy records the props the editor hands it, so the empty-state cover test below can read them.
-const uploader = vi.hoisted(() => ({ props: vi.fn() }));
+const uploader = vi.hoisted(() => ({ props: vi.fn<(props: PhotoUploaderTarget) => void>() }));
 vi.mock('@/components/recipes/RecipePhotoUploaderContainer', () => ({
-    RecipePhotoUploaderContainer: (props: object) => {
+    RecipePhotoUploaderContainer: (props: PhotoUploaderTarget) => {
         uploader.props(props);
 
         return null;
@@ -134,6 +134,51 @@ describe('RecipeEditorContainer (web)', () => {
                 expect.objectContaining({ recipeId: 'rec_1', title: 'Stored Stew', cuisine: 'French' }),
             ),
         );
+    });
+
+    /**
+     * Owner report 2026-11-10: /recipes/new showed no way to add a photo, because the uploader was drawn only once the recipe
+     * existed on the server. A new recipe's uploader is drawn at once, with no id: its picks wait for the create (U33).
+     */
+    it('draws the photo uploader on a new recipe, before it exists on the server', async () => {
+        renderEditor(createFakeRecipeServiceClient());
+
+        await screen.findByRole('heading', { level: 1, name: 'New recipe' });
+
+        expect(uploader.props).toHaveBeenCalledWith(expect.objectContaining({ recipeId: null }));
+    });
+
+    /** × with a photo not uploaded yet asks first (staff-ux SPECIFY 2026-11-10); text alone never asks (Settled 24). */
+    it('asks before × leaves a photo behind, and leaves only on "Leave without photos"', async () => {
+        const user = userEvent.setup();
+        renderEditor(createFakeRecipeServiceClient());
+        await screen.findByRole('heading', { level: 1, name: 'New recipe' });
+
+        act(() => {
+            uploader.props.mock.lastCall?.[0].manager.enqueuePicked(
+                [{ blob: new Blob(['x']), fileName: 'soup.png', contentType: 'image/png', fileSize: 5 }],
+                'add',
+            );
+        });
+
+        await user.click(screen.getByRole('button', { name: 'Close editor' }));
+        const ask = await screen.findByRole('alertdialog', { name: 'Leave without your photos?' });
+        expect(pushMock).not.toHaveBeenCalled();
+
+        await user.click(within(ask).getByRole('button', { name: 'Leave without photos' }));
+
+        expect(pushMock).toHaveBeenCalledExactlyOnceWith('/en/recipes');
+    });
+
+    it('closes at once when no photo would be lost', async () => {
+        const user = userEvent.setup();
+        renderEditor(createFakeRecipeServiceClient());
+        await screen.findByRole('heading', { level: 1, name: 'New recipe' });
+
+        await user.click(screen.getByRole('button', { name: 'Close editor' }));
+
+        expect(screen.queryByRole('alertdialog')).toBeNull();
+        expect(pushMock).toHaveBeenCalledExactlyOnceWith('/en/recipes');
     });
 
     // Build spec §7.2 and §7.5.6: the rail's foot shows the Ingredients total too (the rail itself shows from @wide).

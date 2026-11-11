@@ -141,6 +141,28 @@ describe('closingTabLosesWork', () => {
             { keep: 'disk', status: { kind: 'syncing' }, lifecycle: 'neverPublished', values: typed },
             false,
         ],
+        [
+            '⛔ a saved recipe with a photo not uploaded yet loses the photo: its bytes live only in the page',
+            {
+                keep: 'tabSession',
+                status: { kind: 'saved' },
+                lifecycle: 'neverPublished',
+                values: typed,
+                photosAtRisk: true,
+            },
+            true,
+        ],
+        [
+            '⛔ a new recipe nobody typed in still loses a photo picked for it',
+            {
+                keep: 'tabSession',
+                status: { kind: 'unsaved' },
+                lifecycle: 'unsaved',
+                values: blank,
+                photosAtRisk: true,
+            },
+            true,
+        ],
     ])('%s', (_label, input, expected) => {
         expect(closingTabLosesWork(input)).toBe(expected);
     });

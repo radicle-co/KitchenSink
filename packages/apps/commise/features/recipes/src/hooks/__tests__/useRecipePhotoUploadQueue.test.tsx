@@ -39,7 +39,11 @@ import { MAX_RECIPE_PHOTO_UPLOAD_BYTES } from '@kitchensink/recipe-core';
 import { MAX_RECIPE_PHOTOS } from '../../photos/model.js';
 import { useRecipePhotoUpload } from '../useRecipePhotoUpload.js';
 import { useRecipePhotoUploadQueue } from '../useRecipePhotoUploadQueue.js';
-import type { RecipePhotoQueueFile, RecipePhotoValidationMessages } from '../useRecipePhotoUploadQueue.js';
+import type {
+    RecipePhotoQueueFile,
+    RecipePhotoQueueHold,
+    RecipePhotoValidationMessages,
+} from '../useRecipePhotoUploadQueue.js';
 
 const UPLOAD_ERROR = 'We couldn’t upload that photo.';
 const RECIPE_ID = 'rec_1';
@@ -89,7 +93,7 @@ function makeControllablePresign(): {
 /** Composes the real `useRecipePhotoUpload` with the queue under test — the exact production wiring. */
 function useHarness(confirmedCount: number) {
     const uploader = useRecipePhotoUpload(RECIPE_ID, UPLOAD_ERROR);
-    const queue = useRecipePhotoUploadQueue(uploader, confirmedCount, VALIDATION_MESSAGES);
+    const queue = useRecipePhotoUploadQueue(uploader, confirmedCount, VALIDATION_MESSAGES, 'none');
 
     return { uploader, queue };
 }
@@ -714,7 +718,7 @@ describe('useRecipePhotoUploadQueue — max-10 cap', () => {
 describe('useRecipePhotoUploadQueue — a busy uploader', () => {
     it('⛔ leaves the file queued and stops driving, rather than marking it or spinning', async () => {
         const upload = vi.fn().mockResolvedValue({ status: 'busy' });
-        const { result } = renderHook(() => useRecipePhotoUploadQueue({ upload }, 0, VALIDATION_MESSAGES));
+        const { result } = renderHook(() => useRecipePhotoUploadQueue({ upload }, 0, VALIDATION_MESSAGES, 'none'));
 
         await act(async () => {
             result.current.enqueue([
@@ -742,5 +746,81 @@ describe('useRecipePhotoUploadQueue — a busy uploader', () => {
         expect(result.current.items).toHaveLength(1);
         expect(result.current.items[0]?.status).not.toBe('ok');
         expect(result.current.items[0]?.status).not.toBe('failed');
+    });
+});
+
+/**
+ * The HOLD: a photo picked before the recipe exists on the server waits in the queue, and the queue starts it the
+ * moment the recipe has an id (owner ruling U33: a photo behaves like every other field, so a new recipe's picker is
+ * never withheld). The mutation lens: a drive that ignores the hold presigns against no recipe; a drive that does not
+ * re-run when the hold lifts leaves the photo waiting forever, because nothing else changes when the id arrives.
+ */
+describe('useRecipePhotoUploadQueue — held until the recipe exists', () => {
+    function useHeldHarness({ recipeId, hold }: { recipeId: string; hold: RecipePhotoQueueHold }) {
+        const uploader = useRecipePhotoUpload(recipeId, UPLOAD_ERROR);
+
+        return useRecipePhotoUploadQueue(uploader, 0, VALIDATION_MESSAGES, hold);
+    }
+
+    it('keeps picks queued while the recipe is unsaved, then uploads the earliest, once, against the new id', async () => {
+        const presign = vi.fn().mockResolvedValue({ uploadUrl: 'https://s3.example.com/put', key: 'k1' });
+        useCreatePhotoUploadUrlMock.mockReturnValue({ mutateAsync: presign });
+        useConfirmPhotoUploadMock.mockReturnValue({ mutateAsync: vi.fn().mockResolvedValue(undefined) });
+
+        const { result, rerender } = renderHook(
+            (props: { recipeId: string; hold: RecipePhotoQueueHold }) => useHeldHarness(props),
+            { initialProps: { recipeId: '', hold: 'untilSaved' } },
+        );
+
+        act(() => {
+            result.current.enqueue([makeQueueFile({ fileName: 'a.png' }), makeQueueFile({ fileName: 'b.png' })]);
+        });
+
+        // Held: nothing reaches the network, and both still take a slot.
+        expect(presign).not.toHaveBeenCalled();
+        expect(result.current.items.map((item) => item.status)).toEqual(['queued', 'queued']);
+        expect(result.current.remaining).toBe(MAX_RECIPE_PHOTOS - 2);
+
+        rerender({ recipeId: 'rec_new', hold: 'none' });
+
+        await waitFor(() => expect(result.current.items.map((item) => item.status)).toEqual(['ok', 'ok']));
+        expect(presign).toHaveBeenCalledTimes(2);
+        expect(presign.mock.calls[0]?.[0]).toMatchObject({ id: 'rec_new', request: { fileName: 'a.png' } });
+        expect(presign.mock.calls[1]?.[0]).toMatchObject({ id: 'rec_new', request: { fileName: 'b.png' } });
+    });
+
+    it('shows a pick as waiting while the draft is below its save floor, and it can still be removed', () => {
+        const upload = vi.fn();
+        const { result } = renderHook(() =>
+            useRecipePhotoUploadQueue({ upload }, 0, VALIDATION_MESSAGES, 'untilDraftFloor'),
+        );
+
+        act(() => {
+            result.current.enqueue([makeQueueFile({ fileName: 'a.png' })]);
+        });
+
+        expect(result.current.items[0]?.status).toBe('waiting');
+        expect(result.current.items[0]?.retryable).toBe(false);
+        expect(upload).not.toHaveBeenCalled();
+
+        act(() => {
+            result.current.remove(result.current.items[0]?.fileId ?? -1);
+        });
+
+        expect(result.current.items).toHaveLength(0);
+    });
+
+    it('still admits a rejected file straight to failed while held, so its reason shows before any save', () => {
+        const upload = vi.fn();
+        const { result } = renderHook(() =>
+            useRecipePhotoUploadQueue({ upload }, 0, VALIDATION_MESSAGES, 'untilDraftFloor'),
+        );
+
+        act(() => {
+            result.current.enqueue([makeQueueFile({ fileName: 'clip.gif', contentType: 'image/gif' })]);
+        });
+
+        expect(result.current.items[0]?.status).toBe('failed');
+        expect(result.current.items[0]?.errorMessage).toBe(VALIDATION_MESSAGES.badType);
     });
 });

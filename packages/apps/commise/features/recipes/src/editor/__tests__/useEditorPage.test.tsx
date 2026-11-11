@@ -16,7 +16,7 @@ import { makeFilledRecipeFormValues } from '../../__fixtures__/index.js';
 import type { ReportedTrigger } from '../../hooks/useRecipeEditor.js';
 import type { RecipeFormErrors } from '../../form/validate.js';
 import { EDITOR_SECTIONS, firstSectionWithErrors } from '../sections.js';
-import { useEditorPage } from '../useEditorPage.js';
+import { editorPageStays, useEditorPage } from '../useEditorPage.js';
 
 /** Each section's top in the document; the page is long enough for every one to reach the line. */
 const TOPS: Readonly<Record<string, number>> = { details: 0, ingredients: 1000, steps: 2000, photos: 3000 };
@@ -51,6 +51,8 @@ function Page({ checkpoint }: { readonly checkpoint: (trigger: ReportedTrigger) 
         onClose: () => undefined,
         onPreview: () => undefined,
         onOpenMyRecipes: () => undefined,
+        requestLeave: (go) => go(),
+        photosAtRisk: false,
     });
 
     return <></>;
@@ -185,6 +187,8 @@ describe('useEditorPage — a refused Publish focuses the first invalid field (E
                 onClose: () => undefined,
                 onPreview: () => undefined,
                 onOpenMyRecipes: () => undefined,
+                requestLeave: (go) => go(),
+                photosAtRisk: false,
                 ...(over.onRefused === undefined ? {} : { onRefused: over.onRefused }),
             });
 
@@ -287,6 +291,8 @@ describe('useEditorPage — Publish asks about lines that have no food yet (R23)
                 onClose: () => undefined,
                 onPreview: () => undefined,
                 onOpenMyRecipes: () => undefined,
+                requestLeave: (go) => go(),
+                photosAtRisk: false,
                 openChoices: { facts: 'facts' in over ? over.facts : FACTS, chooseNow },
             });
 
@@ -407,5 +413,21 @@ describe('useEditorPage — Publish asks about lines that have no food yet (R23)
         view.press();
 
         expect(JSON.parse(screen.getByLabelText('Facts').textContent ?? 'null')).toEqual(FACTS);
+    });
+});
+
+/**
+ * Whether the page stays drawn (GATE 2026-11-10: one rule for both leaves). It goes once the editor has handed off,
+ * EXCEPT while a finish waits for its photos, or while a photo is still at risk before that finish is held: the
+ * uploader must not unmount under a photo that is still going.
+ */
+describe('editorPageStays', () => {
+    it.each([
+        ['editing', 'editing', false, false, true],
+        ['handed off, nothing at risk', 'done', false, false, false],
+        ['handed off, a finish waits for photos', 'done', true, false, true],
+        ['handed off, a photo at risk before the finish is held', 'done', false, true, true],
+    ] as const)('%s → %s', (_label, status, finishing, photosAtRisk, expected) => {
+        expect(editorPageStays({ status, finishing, photosAtRisk })).toBe(expected);
     });
 });

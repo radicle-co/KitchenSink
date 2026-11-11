@@ -25,7 +25,7 @@ vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
     useConfirmPhotoUpload: useConfirmPhotoUploadMock,
 }));
 
-import { useRecipePhotoUpload } from '../useRecipePhotoUpload.js';
+import { PHOTO_PUT_DEADLINE_MS, useRecipePhotoUpload } from '../useRecipePhotoUpload.js';
 import type { RecipePhotoUploadFile } from '../useRecipePhotoUpload.js';
 
 const UPLOAD_ERROR = 'We couldn’t upload that photo.';
@@ -287,5 +287,58 @@ describe('useRecipePhotoUpload — the resolved outcome', () => {
         await act(async () => {
             await first;
         });
+    });
+});
+
+/**
+ * The PUT's deadline. A stuck upload used to hold its tile at "Uploading…" for ever, and an editor that waits for its
+ * photos before leaving would then wait for ever too. The mutation lens: without the timer the PUT never aborts, the
+ * verdict never arrives, and the single-flight guard is never released.
+ */
+describe('useRecipePhotoUpload — the PUT deadline', () => {
+    it(`fails a PUT still running at ${PHOTO_PUT_DEADLINE_MS} ms, and frees the uploader for the next file`, async () => {
+        vi.useFakeTimers();
+
+        try {
+            useCreatePhotoUploadUrlMock.mockReturnValue({
+                mutateAsync: vi.fn().mockResolvedValue({ uploadUrl: 'https://s3.example.com/put', key: 'k1' }),
+            });
+            useConfirmPhotoUploadMock.mockReturnValue({ mutateAsync: vi.fn().mockResolvedValue(undefined) });
+            // A PUT that never answers on its own: it ends only when its signal aborts, as `fetch` does.
+            fetchMock.mockImplementation(
+                (_url: string, init: { signal: AbortSignal }) =>
+                    new Promise((_resolve, reject) => {
+                        init.signal.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')));
+                    }),
+            );
+
+            const { result } = renderHook(() => useRecipePhotoUpload(RECIPE_ID, UPLOAD_ERROR));
+            let outcome: Promise<unknown> = Promise.resolve();
+
+            act(() => {
+                outcome = result.current.upload(makeFile());
+            });
+
+            await act(async () => {
+                await vi.advanceTimersByTimeAsync(PHOTO_PUT_DEADLINE_MS - 1);
+            });
+            expect(result.current.uploading).toBe(true);
+
+            await act(async () => {
+                await vi.advanceTimersByTimeAsync(1);
+            });
+
+            await expect(outcome).resolves.toEqual({ status: 'failed', errorMessage: UPLOAD_ERROR });
+            expect(result.current.uploading).toBe(false);
+
+            fetchMock.mockResolvedValue({ ok: true, status: 200 });
+            let next: unknown;
+            await act(async () => {
+                next = await result.current.upload(makeFile());
+            });
+            expect(next).toEqual({ status: 'ok' });
+        } finally {
+            vi.useRealTimers();
+        }
     });
 });

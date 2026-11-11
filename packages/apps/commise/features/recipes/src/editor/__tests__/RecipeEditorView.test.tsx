@@ -53,6 +53,8 @@ function view(editor: UseRecipeEditorResult, over: Partial<RecipeEditorViewProps
                 onClose={vi.fn()}
                 onPreview={vi.fn()}
                 onOpenMyRecipes={vi.fn()}
+                requestLeave={(go) => go()}
+                photosAtRisk={false}
                 {...over}
             />
         </LocaleProvider>
@@ -1170,5 +1172,35 @@ describe('the polite region when a paste settles (web)', () => {
         rerender(view(FILLED));
 
         expect(said()).toEqual(['Ingredients complete']);
+    });
+});
+
+/**
+ * A leave that would lose photos asks first (staff-architect and GATE reviews, 2026-11-10). The ask comes BEFORE the
+ * exit checkpoint: a cook who answers Stay has not left, so nothing records a leave.
+ */
+describe('× asks before it leaves', () => {
+    it('the exit checkpoint and the close wait for the leave to go', () => {
+        const checkpoint = vi.fn();
+        const onClose = vi.fn();
+        let proceed: (() => void) | undefined;
+        render(
+            view(makeEditorResult({ checkpoint }), {
+                onClose,
+                requestLeave: (go) => {
+                    proceed = go;
+                },
+            }),
+        );
+
+        fireEvent.click(screen.getByRole('button', { name: 'Close editor' }));
+
+        expect(checkpoint).not.toHaveBeenCalledWith('editorExit');
+        expect(onClose).not.toHaveBeenCalled();
+
+        act(() => proceed?.());
+
+        expect(checkpoint).toHaveBeenCalledWith('editorExit');
+        expect(onClose).toHaveBeenCalledOnce();
     });
 });

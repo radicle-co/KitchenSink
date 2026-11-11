@@ -99,6 +99,7 @@ recipes/ingredientRemoteFoods	HomeScreen, RecipeDetailScreen, RecipeEditorScreen
 recipes/pinnedActionBar	HomeScreen, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen
 recipes/ambiguityReview	HomeScreen, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen, RecipeVersionsScreen
 recipes/photos	HomeScreen, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen
+recipes/photosOnCreate	HomeScreen, RecipeEditorScreen, RecipeListScreen
 recipes/accessibility	HomeScreen, RecipeDetailScreen, RecipeDiscoveryScreen, RecipeEditorScreen, RecipeListScreen, RecipeVersionsScreen
 dataSources	HomeScreen, login, profile
 profileUsername	CompleteSignUpScreen, HomeScreen, login, profile, signup

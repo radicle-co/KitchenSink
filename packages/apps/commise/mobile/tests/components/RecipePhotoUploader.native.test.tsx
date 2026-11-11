@@ -37,6 +37,8 @@ import * as ImagePicker from 'expo-image-picker';
 import { role, roleDark } from '@commise/ui/colors';
 import { rgb, systemScheme } from '@commise/ui/testing/system-color-scheme';
 
+import { useRecipePhotoManager } from '@commise/features-recipes/hooks';
+
 import { RecipePhotoUploader } from '../../src/components/RecipePhotoUploader.js';
 import { render, resolvedColour } from '@commise/ui/testing/tamagui';
 
@@ -71,6 +73,16 @@ vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
 function chooseFromTile(trigger: string, item: string): void {
     fireEvent.click(screen.getByRole('button', { name: trigger }));
     fireEvent.click(screen.getByRole('menuitem', { name: item }));
+}
+
+/**
+ * The uploader over the real photo session, as the editor hands it one (`useEditorPhotos`): it no longer owns one, and a
+ * recipe with no id holds its picks in the queue until it has one.
+ */
+function Managed({ recipeId, title = '' }: { readonly recipeId: string | null; readonly title?: string }) {
+    const manager = useRecipePhotoManager({ recipeId });
+
+    return <RecipePhotoUploader recipeId={recipeId} title={title} cuisine="" manager={manager} />;
 }
 
 const launchImageLibraryAsyncMock = vi.mocked(ImagePicker.launchImageLibraryAsync);
@@ -181,7 +193,7 @@ function takePhoto(): void {
 describe.each(['light', 'dark'] as const)('RecipePhotoUploader — the %s scheme', (scheme) => {
     it('labels Add photos in ink', () => {
         systemScheme.current = scheme;
-        render(<RecipePhotoUploader recipeId="rec_1" />);
+        render(<Managed recipeId="rec_1" />);
 
         expect(resolvedColour(screen.getByText('Add photos'), 'color')).toBe(
             rgb((scheme === 'dark' ? roleDark : role).ink),
@@ -195,7 +207,7 @@ describe('RecipePhotoUploader — rendering', () => {
             photosResult([makePhoto({ id: 'pht_1' }), makePhoto({ id: 'pht_2', order: 2 })]),
         );
 
-        render(<RecipePhotoUploader recipeId="rec_1" />);
+        render(<Managed recipeId="rec_1" />);
 
         expect(screen.getByLabelText('Recipe photo 1')).toBeTruthy();
         expect(screen.getByLabelText('Recipe photo 2')).toBeTruthy();
@@ -203,41 +215,74 @@ describe('RecipePhotoUploader — rendering', () => {
 });
 
 /**
- * U33 — a control is offered only where its action has somewhere to go.
- *
- * Before the recipe exists a pick can only land in the draft (`onPick`), and a draft cell can only be removed by
- * its owner (`onRemoveDraft`). The create screen withholds both while its create is in flight, because the flush
- * it issues on success hands over the draft as it stood when the save was pressed. An add control with no
- * destination would enqueue against a recipe id of `''`; a Remove with no handler would do nothing.
+ * REWRITTEN for the one-page editor (owner report 2026-11-10). This block used to pin the U33 DRAFT destination: before
+ * the recipe existed a pick went to the create screen's draft (`onPick`, `pendingDrafts`, `onRemoveDraft`), and with no
+ * destination wired no add control was offered — which is how the one-page editor, which wired none, ended up with no
+ * way to add a photo to a new recipe. A pick now waits in the editor's own photo queue until the recipe has an id
+ * (`useRecipePhotoUploadQueue`'s hold), so the control is always offered and nothing is sent without an id.
  */
-describe('RecipePhotoUploader — draft destination (U33)', () => {
-    const draft = { localId: 'draft-photo-1', fileName: 'draft.png', contentType: 'image/png', fileSize: 1 };
-
-    it('offers no add control when the recipe has no id and no pick destination is wired', () => {
-        render(<RecipePhotoUploader recipeId={null} />);
-
-        expect(screen.queryByRole('button', { name: 'Add photos' })).toBeNull();
-    });
-
-    it('offers the add control before the recipe exists when a pick destination is wired', () => {
-        render(<RecipePhotoUploader recipeId={null} onPick={vi.fn()} />);
+describe('RecipePhotoUploader — before the recipe exists (U33)', () => {
+    it('offers Add photos on a recipe with no id', () => {
+        render(<Managed recipeId={null} />);
 
         expect(screen.getByRole('button', { name: 'Add photos' })).toBeTruthy();
     });
 
-    it('offers no Remove on a draft cell when no draft remove handler is wired', () => {
-        render(<RecipePhotoUploader recipeId={null} pendingDrafts={[draft]} />);
+    it('holds a pick until the recipe has an id: its tile shows, Remove is offered, and nothing is presigned', async () => {
+        const createMutateAsync = vi.fn();
+        useCreatePhotoUploadUrlMock.mockReturnValue(asyncMutation(createMutateAsync) as never);
+        fetchMock.mockResolvedValueOnce({ blob: async () => new Blob(['bytes'], { type: 'image/jpeg' }) });
 
-        expect(screen.queryByRole('button', { name: 'Actions for draft.png' })).toBeNull();
+        render(<Managed recipeId={null} />);
+        chooseFromLibrary();
+
+        expect(await screen.findByText('Queued')).toBeTruthy();
+        expect(screen.getByRole('button', { name: 'Actions for picked.jpg' })).toBeTruthy();
+        expect(createMutateAsync).not.toHaveBeenCalled();
+    });
+});
+
+/**
+ * Several photos per recipe (owner request 2026-11-10; staff-ux SPECIFY): the library picks several at once, as the web
+ * file input already does, bounded by the room left, in the order the cook picked them (the first becomes the cover).
+ * The camera stays one photo.
+ */
+describe('RecipePhotoUploader — several photos from the library', () => {
+    it('asks the library for several, bounded by the room left and in picked order', async () => {
+        useRecipePhotosMock.mockReturnValue(
+            photosResult(Array.from({ length: 7 }, (_unused, index) => makePhoto({ id: `pht_${index + 1}` }))),
+        );
+
+        render(<Managed recipeId="rec_1" />);
+        chooseFromLibrary();
+
+        await waitFor(() => expect(launchImageLibraryAsyncMock).toHaveBeenCalledTimes(1));
+        expect(launchImageLibraryAsyncMock.mock.calls[0]?.[0]).toMatchObject({
+            allowsMultipleSelection: true,
+            selectionLimit: 3,
+            orderedSelection: true,
+        });
     });
 
-    it('offers Remove on a draft cell, reporting its index, when the handler is wired', () => {
-        const onRemoveDraft = vi.fn();
+    it('queues every photo picked, in picked order', async () => {
+        const second = { ...pickedAsset, uri: 'file:///tmp/second.jpg', fileName: 'second.jpg' };
+        launchImageLibraryAsyncMock.mockResolvedValue({ canceled: false, assets: [pickedAsset, second] } as never);
+        fetchMock.mockImplementation(async () => ({ blob: async () => new Blob(['bytes'], { type: 'image/jpeg' }) }));
 
-        render(<RecipePhotoUploader recipeId={null} pendingDrafts={[draft]} onRemoveDraft={onRemoveDraft} />);
-        chooseFromTile('Actions for draft.png', 'Remove');
+        render(<Managed recipeId={null} />);
+        chooseFromLibrary();
 
-        expect(onRemoveDraft).toHaveBeenCalledWith(0);
+        expect(await screen.findByRole('button', { name: 'Actions for second.jpg' })).toBeTruthy();
+        expect(screen.getByRole('button', { name: 'Actions for picked.jpg' })).toBeTruthy();
+        expect(screen.getAllByText('Queued')).toHaveLength(2);
+    });
+
+    it('takes one photo from the camera', async () => {
+        render(<Managed recipeId="rec_1" />);
+        takePhoto();
+
+        await waitFor(() => expect(launchCameraAsyncMock).toHaveBeenCalledTimes(1));
+        expect(launchCameraAsyncMock.mock.calls[0]?.[0]).not.toHaveProperty('allowsMultipleSelection');
     });
 });
 
@@ -257,7 +302,7 @@ describe('RecipePhotoUploader — upload orchestration', () => {
             .mockResolvedValueOnce({ blob: async () => new Blob(['bytes'], { type: 'image/jpeg' }) })
             .mockResolvedValueOnce({ ok: true, status: 200 });
 
-        render(<RecipePhotoUploader recipeId="rec_1" />);
+        render(<Managed recipeId="rec_1" />);
         chooseFromLibrary();
 
         await waitFor(() => expect(confirmMutateAsync).toHaveBeenCalledTimes(1));
@@ -302,7 +347,7 @@ describe('RecipePhotoUploader — upload orchestration', () => {
             blob: async () => new Blob([new Uint8Array(MAX_RECIPE_PHOTO_UPLOAD_BYTES + 1)], { type: 'image/jpeg' }),
         });
 
-        render(<RecipePhotoUploader recipeId="rec_1" />);
+        render(<Managed recipeId="rec_1" />);
         chooseFromLibrary();
 
         expect(await screen.findByText('That photo is larger than 5 MB. Choose a smaller file.')).toBeTruthy();
@@ -327,7 +372,7 @@ describe('RecipePhotoUploader — upload orchestration', () => {
             blob: async () => new Blob([new Uint8Array(MAX_RECIPE_PHOTO_UPLOAD_BYTES + 1)], { type: 'image/jpeg' }),
         });
 
-        render(<RecipePhotoUploader recipeId="rec_1" />);
+        render(<Managed recipeId="rec_1" />);
         chooseFromLibrary();
 
         expect(await screen.findByText('That photo is larger than 5 MB. Choose a smaller file.')).toBeTruthy();
@@ -344,7 +389,7 @@ describe('RecipePhotoUploader — upload orchestration', () => {
         useCreatePhotoUploadUrlMock.mockReturnValue(asyncMutation(createMutateAsync) as never);
         fetchMock.mockResolvedValueOnce({ blob: async () => new Blob(['bytes'], { type: 'image/gif' }) });
 
-        render(<RecipePhotoUploader recipeId="rec_1" />);
+        render(<Managed recipeId="rec_1" />);
         chooseFromLibrary();
 
         expect(await screen.findByText('That file type isn’t supported. Use a JPEG, PNG, or WebP photo.')).toBeTruthy();
@@ -371,7 +416,7 @@ describe('RecipePhotoUploader — upload orchestration', () => {
                 .mockResolvedValueOnce({ blob: async () => new Blob(['bytes'], { type: mimeType }) })
                 .mockResolvedValueOnce({ ok: true, status: 200 });
 
-            render(<RecipePhotoUploader recipeId="rec_1" />);
+            render(<Managed recipeId="rec_1" />);
             chooseFromLibrary();
 
             await waitFor(() => expect(createMutateAsync).toHaveBeenCalledTimes(1));
@@ -398,7 +443,7 @@ describe('RecipePhotoUploader — upload orchestration', () => {
             .mockResolvedValueOnce({ blob: async () => new Blob(['bytes'], { type: 'image/jpeg' }) })
             .mockResolvedValueOnce({ ok: false, status: 403 });
 
-        render(<RecipePhotoUploader recipeId="rec_1" />);
+        render(<Managed recipeId="rec_1" />);
         chooseFromLibrary();
 
         expect(await screen.findByRole('alert', { name: 'Upload failed' })).toBeTruthy();
@@ -430,7 +475,7 @@ describe('RecipePhotoUploader — upload orchestration', () => {
             .mockResolvedValueOnce({ blob: async () => new Blob(['bytes'], { type: 'image/jpeg' }) })
             .mockResolvedValueOnce({ ok: false, status: 403 });
 
-        render(<RecipePhotoUploader recipeId="rec_1" />);
+        render(<Managed recipeId="rec_1" />);
         chooseFromLibrary();
         await screen.findByRole('alert', { name: 'Upload failed' });
 
@@ -447,7 +492,7 @@ describe('RecipePhotoUploader — upload orchestration', () => {
         const createMutateAsync = vi.fn();
         useCreatePhotoUploadUrlMock.mockReturnValue(asyncMutation(createMutateAsync) as never);
 
-        render(<RecipePhotoUploader recipeId="rec_1" />);
+        render(<Managed recipeId="rec_1" />);
         chooseFromLibrary();
 
         await waitFor(() => expect(launchImageLibraryAsyncMock).toHaveBeenCalledTimes(1));
@@ -463,7 +508,7 @@ describe('RecipePhotoUploader — upload orchestration', () => {
  */
 describe('RecipePhotoUploader — the Add photos sheet (A-010)', () => {
     it('opens a sheet titled Add photos with "Take photo" and "Choose from library"', () => {
-        render(<RecipePhotoUploader recipeId="rec_1" />);
+        render(<Managed recipeId="rec_1" />);
         expect(screen.queryByRole('button', { name: 'Take photo' })).toBeNull();
 
         fireEvent.click(screen.getByRole('button', { name: 'Add photos' }));
@@ -474,7 +519,7 @@ describe('RecipePhotoUploader — the Add photos sheet (A-010)', () => {
     });
 
     it('launches nothing when the sheet is closed without a choice', async () => {
-        render(<RecipePhotoUploader recipeId="rec_1" />);
+        render(<Managed recipeId="rec_1" />);
         fireEvent.click(screen.getByRole('button', { name: 'Add photos' }));
 
         fireEvent.click(screen.getByRole('button', { name: 'Close add photos' }));
@@ -486,7 +531,7 @@ describe('RecipePhotoUploader — the Add photos sheet (A-010)', () => {
     });
 
     it('goes to the library on "Choose from library" — with no camera permission asked for', async () => {
-        render(<RecipePhotoUploader recipeId="rec_1" />);
+        render(<Managed recipeId="rec_1" />);
 
         chooseFromLibrary();
 
@@ -496,21 +541,11 @@ describe('RecipePhotoUploader — the Add photos sheet (A-010)', () => {
     });
 
     it('closes the sheet once a choice is made', async () => {
-        render(<RecipePhotoUploader recipeId="rec_1" />);
+        render(<Managed recipeId="rec_1" />);
 
         chooseFromLibrary();
 
         await waitFor(() => expect(screen.queryByRole('button', { name: 'Choose from library' })).toBeNull());
-    });
-
-    it('offers the same sheet before the recipe exists, where a pick goes to the draft', async () => {
-        const onPick = vi.fn();
-        fetchMock.mockResolvedValueOnce({ blob: async () => new Blob(['bytes'], { type: 'image/jpeg' }) });
-
-        render(<RecipePhotoUploader recipeId={null} onPick={onPick} />);
-        takePhoto();
-
-        await waitFor(() => expect(onPick).toHaveBeenCalledTimes(1));
     });
 });
 
@@ -533,7 +568,7 @@ describe('RecipePhotoUploader — the camera path (A-010)', () => {
             .mockResolvedValueOnce({ blob: async () => new Blob(['bytes'], { type: 'image/jpeg' }) })
             .mockResolvedValueOnce({ ok: true, status: 200 });
 
-        render(<RecipePhotoUploader recipeId="rec_1" />);
+        render(<Managed recipeId="rec_1" />);
         takePhoto();
 
         await waitFor(() => expect(confirmMutateAsync).toHaveBeenCalledTimes(1));
@@ -555,7 +590,7 @@ describe('RecipePhotoUploader — the camera path (A-010)', () => {
     ])('says why nothing opened, and launches nothing, when the permission is %s', async (_case, answer) => {
         requestCameraPermissionsAsyncMock.mockResolvedValue(answer as never);
 
-        render(<RecipePhotoUploader recipeId="rec_1" />);
+        render(<Managed recipeId="rec_1" />);
         takePhoto();
 
         expect(
@@ -570,7 +605,7 @@ describe('RecipePhotoUploader — the camera path (A-010)', () => {
     it('leaves the add control usable after a refusal, so the library is one press away', async () => {
         requestCameraPermissionsAsyncMock.mockResolvedValue({ granted: false, canAskAgain: false } as never);
 
-        render(<RecipePhotoUploader recipeId="rec_1" />);
+        render(<Managed recipeId="rec_1" />);
         takePhoto();
         await screen.findByRole('alert');
 
@@ -583,7 +618,7 @@ describe('RecipePhotoUploader — the camera path (A-010)', () => {
     it('clears the refusal when the next attempt is made', async () => {
         requestCameraPermissionsAsyncMock.mockResolvedValueOnce({ granted: false, canAskAgain: true } as never);
 
-        render(<RecipePhotoUploader recipeId="rec_1" />);
+        render(<Managed recipeId="rec_1" />);
         takePhoto();
         await screen.findByRole('alert');
         // The next attempt is a press on the add control, and the control takes a press only once the refused pick
@@ -601,7 +636,7 @@ describe('RecipePhotoUploader — the camera path (A-010)', () => {
     it('does nothing when the camera is dismissed without a shot', async () => {
         launchCameraAsyncMock.mockResolvedValue({ canceled: true, assets: null } as never);
 
-        render(<RecipePhotoUploader recipeId="rec_1" />);
+        render(<Managed recipeId="rec_1" />);
         takePhoto();
 
         await waitFor(() => expect(launchCameraAsyncMock).toHaveBeenCalledTimes(1));
@@ -614,7 +649,7 @@ describe('RecipePhotoUploader — the camera path (A-010)', () => {
     it('says so, and frees the add control, when the camera fails to open (a device with none)', async () => {
         launchCameraAsyncMock.mockRejectedValue(new Error('Camera not available on simulator'));
 
-        render(<RecipePhotoUploader recipeId="rec_1" />);
+        render(<Managed recipeId="rec_1" />);
         takePhoto();
 
         expect(
@@ -629,14 +664,14 @@ describe('RecipePhotoUploader — the camera path (A-010)', () => {
 /** A-010 (§7.7): with no photo the section previews this recipe's own cover and says what happens. */
 describe('RecipePhotoUploader — the empty state (A-010)', () => {
     it('says the cover is used instead, with the recipe’s cover beside it', () => {
-        render(<RecipePhotoUploader recipeId="rec_1" title="Lemon tart" />);
+        render(<Managed recipeId="rec_1" title="Lemon tart" />);
 
         expect(screen.getByText('No photo? This cover is used instead. Add one any time.')).toBeTruthy();
         expect(screen.getByText('L')).toBeTruthy();
     });
 
     it('previews the cover on a create that has no id yet', () => {
-        render(<RecipePhotoUploader recipeId={null} onPick={vi.fn()} title="Lemon tart" />);
+        render(<Managed recipeId={null} title="Lemon tart" />);
 
         expect(screen.getByText('L')).toBeTruthy();
     });
@@ -644,7 +679,7 @@ describe('RecipePhotoUploader — the empty state (A-010)', () => {
     it('shows no empty state when the recipe has a photo', () => {
         useRecipePhotosMock.mockReturnValue(photosResult([makePhoto()]));
 
-        render(<RecipePhotoUploader recipeId="rec_1" title="Lemon tart" />);
+        render(<Managed recipeId="rec_1" title="Lemon tart" />);
 
         expect(screen.queryByText('No photo? This cover is used instead. Add one any time.')).toBeNull();
     });
@@ -678,7 +713,7 @@ describe('RecipePhotoUploader — pick re-entrancy (regression)', () => {
             .mockResolvedValueOnce({ blob: async () => new Blob(['bytes'], { type: 'image/jpeg' }) })
             .mockResolvedValueOnce({ ok: true, status: 200 });
 
-        render(<RecipePhotoUploader recipeId="rec_1" />);
+        render(<Managed recipeId="rec_1" />);
         const addButton = screen.getByRole('button', { name: 'Add photos' });
 
         chooseFromLibrary();
@@ -727,7 +762,7 @@ describe('RecipePhotoUploader — pick re-entrancy (regression)', () => {
         });
         launchImageLibraryAsyncMock.mockReturnValue(pickPromise as never);
 
-        render(<RecipePhotoUploader recipeId="rec_1" />);
+        render(<Managed recipeId="rec_1" />);
         const addButton = screen.getByRole('button', { name: 'Add photos' });
 
         // Idle: unmarked, and distinguishable from disabled.
@@ -773,7 +808,7 @@ describe('RecipePhotoUploader — queueing a second pick while uploading (w3/e4)
         useConfirmPhotoUploadMock.mockReturnValue(asyncMutation(confirmMutateAsync) as never);
         fetchMock.mockResolvedValue({ blob: async () => new Blob(['bytes'], { type: 'image/jpeg' }) });
 
-        render(<RecipePhotoUploader recipeId="rec_1" />);
+        render(<Managed recipeId="rec_1" />);
         const addButton = screen.getByRole('button', { name: 'Add photos' });
 
         chooseFromLibrary();
@@ -811,7 +846,7 @@ describe('RecipePhotoUploader — remove', () => {
         useRecipePhotosMock.mockReturnValue(photosResult([makePhoto({ id: 'pht_42' })]));
         useDeleteRecipePhotoMock.mockReturnValue(deleteMutation({ mutate: mutate as never }));
 
-        render(<RecipePhotoUploader recipeId="rec_1" />);
+        render(<Managed recipeId="rec_1" />);
         chooseFromTile('Actions for photo 1, the cover', 'Remove');
 
         expect(mutate).toHaveBeenCalledWith(
@@ -825,7 +860,7 @@ describe('RecipePhotoUploader — remove', () => {
         useRecipePhotosMock.mockReturnValue(photosResult([makePhoto({ id: 'pht_42' })]));
         useDeleteRecipePhotoMock.mockReturnValue(deleteMutation({ mutate: mutate as never }));
 
-        render(<RecipePhotoUploader recipeId="rec_1" />);
+        render(<Managed recipeId="rec_1" />);
         chooseFromTile('Actions for photo 1, the cover', 'Remove');
         const options = mutate.mock.calls[0]?.[1] as { onError: () => void };
         act(() => options.onError());
@@ -843,7 +878,7 @@ describe('RecipePhotoUploader — remove', () => {
             deleteMutation({ isPending: true, variables: { id: 'rec_1', photoId: 'pht_42' } as never }),
         );
 
-        render(<RecipePhotoUploader recipeId="rec_1" />);
+        render(<Managed recipeId="rec_1" />);
 
         expect(screen.getByText('Removing…')).toBeTruthy();
     });
@@ -869,7 +904,7 @@ describe('RecipePhotoUploader — remove', () => {
         useRecipePhotosMock.mockReturnValue(photosResult([makePhoto({ id: 'pht_42' })]));
         useDeleteRecipePhotoMock.mockReturnValue(deleteMutation({ mutate: mutate as never }));
 
-        render(<RecipePhotoUploader recipeId="rec_1" />);
+        render(<Managed recipeId="rec_1" />);
 
         // A failed upload leaves that file's own FAILED badge up.
         chooseFromLibrary();
@@ -905,7 +940,7 @@ describe('RecipePhotoUploader — cancel-safe replace (U6)', () => {
         useDeleteRecipePhotoMock.mockReturnValue(deleteMutation({ mutate: mutate as never }));
         launchImageLibraryAsyncMock.mockResolvedValue({ canceled: true, assets: null } as never);
 
-        render(<RecipePhotoUploader recipeId="rec_1" />);
+        render(<Managed recipeId="rec_1" />);
         chooseFromTile('Actions for photo 2', 'Replace');
 
         await waitFor(() => expect(launchImageLibraryAsyncMock).toHaveBeenCalledTimes(1));
@@ -921,7 +956,7 @@ describe('RecipePhotoUploader — cancel-safe replace (U6)', () => {
         useDeleteRecipePhotoMock.mockReturnValue(deleteMutation({ mutate: mutate as never }));
         fetchMock.mockRejectedValueOnce(new Error('unreadable asset'));
 
-        render(<RecipePhotoUploader recipeId="rec_1" />);
+        render(<Managed recipeId="rec_1" />);
         chooseFromTile('Actions for photo 2', 'Replace');
 
         expect(await screen.findByText('We couldn’t upload that photo.')).toBeTruthy();
@@ -940,7 +975,7 @@ describe('RecipePhotoUploader — cancel-safe replace (U6)', () => {
             .mockResolvedValueOnce({ blob: async () => new Blob(['bytes'], { type: 'image/jpeg' }) })
             .mockResolvedValueOnce({ ok: false, status: 500 });
 
-        render(<RecipePhotoUploader recipeId="rec_1" />);
+        render(<Managed recipeId="rec_1" />);
         chooseFromTile('Actions for photo 2', 'Replace');
 
         expect(await screen.findByRole('alert', { name: 'Upload failed' })).toBeTruthy();
@@ -966,7 +1001,7 @@ describe('RecipePhotoUploader — cancel-safe replace (U6)', () => {
             .mockResolvedValueOnce({ blob: async () => new Blob(['bytes'], { type: 'image/jpeg' }) })
             .mockResolvedValueOnce({ ok: true, status: 200 });
 
-        render(<RecipePhotoUploader recipeId="rec_1" />);
+        render(<Managed recipeId="rec_1" />);
         chooseFromTile('Actions for photo 2', 'Replace');
 
         await waitFor(() => expect(confirmMutateAsync).toHaveBeenCalledTimes(1));
@@ -991,31 +1026,12 @@ describe('RecipePhotoUploader — cancel-safe replace (U6)', () => {
         );
         useDeleteRecipePhotoMock.mockReturnValue(deleteMutation({ mutate: mutate as never }));
 
-        render(<RecipePhotoUploader recipeId="rec_1" />);
+        render(<Managed recipeId="rec_1" />);
         chooseFromTile('Actions for photo 3', 'Replace');
 
         expect(await screen.findByText('Remove a photo first — replacing needs room for the new one.')).toBeTruthy();
         expect(launchImageLibraryAsyncMock).not.toHaveBeenCalled();
         expect(mutate).not.toHaveBeenCalled();
-    });
-});
-
-describe('RecipePhotoUploader — Replace counts the drafts a create holds', () => {
-    it('refuses to replace when confirmed photos plus pending draft picks fill the cap', () => {
-        useRecipePhotosMock.mockReturnValue(
-            photosResult(Array.from({ length: 9 }, (_unused, index) => makePhoto({ id: `pht_${index + 1}` }))),
-        );
-
-        render(
-            <RecipePhotoUploader
-                recipeId="rec_1"
-                pendingDrafts={[{ fileName: 'draft.jpg', contentType: 'image/jpeg', fileSize: 5 } as never]}
-            />,
-        );
-        chooseFromTile('Actions for photo 3', 'Replace');
-
-        expect(screen.getByText('Remove a photo first — replacing needs room for the new one.')).toBeTruthy();
-        expect(launchImageLibraryAsyncMock).not.toHaveBeenCalled();
     });
 });
 
@@ -1026,7 +1042,7 @@ describe('RecipePhotoUploader — photo cap', () => {
         );
         useRecipePhotosMock.mockReturnValue(photosResult(photos));
 
-        render(<RecipePhotoUploader recipeId="rec_1" />);
+        render(<Managed recipeId="rec_1" />);
 
         expect(screen.queryByRole('button', { name: 'Add photos' })).toBeNull();
         expect(screen.getByText('Maximum of 10 photos reached.')).toBeTruthy();
@@ -1050,7 +1066,7 @@ describe('RecipePhotoUploader — reordering from the tile’s menu (2026-10-17)
     it('Move later sends the WHOLE new order in one reorder', () => {
         const reorderMutate = wireReorder();
 
-        render(<RecipePhotoUploader recipeId="rec_1" />);
+        render(<Managed recipeId="rec_1" />);
         chooseFromTile('Actions for photo 2', 'Move later');
 
         expect(reorderMutate).toHaveBeenCalledWith(
@@ -1062,7 +1078,7 @@ describe('RecipePhotoUploader — reordering from the tile’s menu (2026-10-17)
     it('Set as cover sends the chosen photo first and the rest in order', () => {
         const reorderMutate = wireReorder();
 
-        render(<RecipePhotoUploader recipeId="rec_1" />);
+        render(<Managed recipeId="rec_1" />);
         chooseFromTile('Actions for photo 3', 'Set as cover');
 
         expect(reorderMutate).toHaveBeenCalledWith(
@@ -1074,7 +1090,7 @@ describe('RecipePhotoUploader — reordering from the tile’s menu (2026-10-17)
     it('says so when the reorder fails', () => {
         const reorderMutate = wireReorder();
 
-        render(<RecipePhotoUploader recipeId="rec_1" />);
+        render(<Managed recipeId="rec_1" />);
         chooseFromTile('Actions for photo 2', 'Move earlier');
         const options = reorderMutate.mock.calls[0]?.[1] as { onError: () => void };
         act(() => options.onError());
@@ -1085,7 +1101,7 @@ describe('RecipePhotoUploader — reordering from the tile’s menu (2026-10-17)
     it('disables the moves while a reorder is in flight, and sends nothing', () => {
         const reorderMutate = wireReorder(true);
 
-        render(<RecipePhotoUploader recipeId="rec_1" />);
+        render(<Managed recipeId="rec_1" />);
         fireEvent.click(screen.getByRole('button', { name: 'Actions for photo 2' }));
         fireEvent.click(screen.getByRole('menuitem', { name: 'Move later' }));
 

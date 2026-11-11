@@ -10,17 +10,20 @@
  * - how the editor is SEEDED and where its URL or route goes: the web reads `?draft=`, `?fresh=` and `#section`, and
  *   redirects a recipe the server holds; a phone has no URL, so a new recipe's draft is found again only within the
  *   session that made it (ADR-0057, blueprint A4). That is a platform difference, not drift;
- * - the photo uploader ({@link RecipeEditorSurfaceProps.renderPhotos}), which each app wires to its own picker;
+ * - the photo uploader ({@link RecipeEditorSurfaceProps.renderPhotos}), which each app wires to its own picker over the
+ *   editor's one photo session (`useEditorPhotos`);
  * - the navigation port, the profile read and the error reporter, which are the session's inputs.
  *
- * ⚠️ The uploader is asked for only once the recipe exists on the server (its first checkpoint, which needs a title):
- * the upload takes a recipe id, and a picked photo's bytes cannot live in the device draft (ADR-0057).
+ * The uploader is drawn on a new recipe too (owner ruling U33: a photo behaves like every other field). A photo picked
+ * before the recipe exists waits in the session's queue until the first checkpoint gives it an id; its bytes cannot live
+ * in the device draft (ADR-0057), so the surface asks before a leave would lose it, and a finish waits for it.
  *
  * @pattern Composition — the editor's leaves arranged over one session; the app supplies the one leaf that differs
  */
 import type { PaidFeatureState } from '@commise/features-account';
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { Button } from '@commise/ui/button';
+import { ConfirmDialog } from '@commise/ui/confirm-dialog';
 import { LiveRegion } from '@commise/ui/live-region';
 import { RecipeVisibility } from '@kitchensink/recipe-core';
 import { useState, type FC, type ReactNode } from 'react';
@@ -43,7 +46,10 @@ import { pendingIngredientIds } from '../form/ingredientStatus.js';
 import type { EditorSeed } from '../hooks/useRecipeEditor.js';
 import { useLastDefined } from '../hooks/useLastDefined.js';
 import type { PasteOrigin } from './useEditorSource.js';
-import type { RecipeEditorViewProps } from './frameProps.js';
+import type { PhotoFinishBar, RecipeEditorViewProps } from './frameProps.js';
+import { pluralOf } from '../format/plural.js';
+import type { UseRecipePhotoManagerResult } from '../hooks/useRecipePhotoManager.js';
+import { photoMessages } from '../photos/messages.js';
 import { refusedRowsOf } from '../foodPage/privateFoodsRefusal.js';
 import { IngredientStatusPoller } from './IngredientStatusPoller.js';
 import { editorMessages } from './messages.js';
@@ -57,11 +63,14 @@ import { errorsStillHolding } from './gate.js';
 import type { EditorSectionId } from './sections.js';
 import type { RecipeEditorSession } from './useRecipeEditorSession.js';
 
-/** What the app's photo uploader is mounted for. */
+/** What the app's photo uploader is mounted for: the recipe, and the editor's one photo session it draws. */
 export interface PhotoUploaderTarget {
-    readonly recipeId: string;
+    /** The recipe's server id, or `null` on a new recipe not created yet: its picks wait for the id (owner ruling U33). */
+    readonly recipeId: string | null;
     readonly title: string;
     readonly cuisine: string;
+    /** The editor's photo session (`useEditorPhotos`): the uploader acquires files and hands them here. */
+    readonly manager: UseRecipePhotoManagerResult;
 }
 
 /** Props for {@link RecipeEditorSurface}. */
@@ -79,7 +88,7 @@ export interface RecipeEditorSurfaceProps {
     readonly knownPaidFeatures: Exclude<PaidFeatureState, 'loading'> | undefined;
     /** Where the cook stands on private slots (`useRecipePrivate`), from the server's read. */
     readonly slotStanding: SlotStanding;
-    /** The app's photo uploader. Called only once the recipe exists on the server. */
+    /** The app's photo uploader, over the editor's photo session. Drawn on a new recipe too. */
     readonly renderPhotos: (target: PhotoUploaderTarget) => ReactNode;
     /** The section a deep link names, jumped to once on mount (blueprint A16). */
     readonly initialSection?: EditorSectionId;
@@ -87,6 +96,12 @@ export interface RecipeEditorSurfaceProps {
     readonly onClose: () => void;
     /** "Check My recipes": from an unknown create's alert, and after a Discard. */
     readonly onOpenMyRecipes: () => void;
+    /**
+     * Where a leave that would lose photos is asked about. `inPage` (web): the page asks before every exit it hands the
+     * app, × and "My recipes", which are client-side navigations no browser prompt sees. `byNavigator` (native): the
+     * route's guard (`PreventLeave`) catches every removal of the screen, so the page must not ask a second time.
+     */
+    readonly leaveAsk: 'inPage' | 'byNavigator';
     /**
      * Open a food's page (the row's `⋯ Open food`, and the refusal's Open food). Web opens a new tab so the draft stays here;
      * native pushes the page above the editor. Absent when the app has no such page.
@@ -109,10 +124,12 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
     initialSection,
     onClose,
     onOpenMyRecipes,
+    leaveAsk,
     onOpenFood,
     foodOpensOverEditor = false,
 }) => {
-    const { editor, paste, source } = session;
+    const { editor, paste, photos, source } = session;
+    const photoCopy = useMessages(photoMessages);
     // ⛔ READ FROM THE ENTRY AS IT IS NOW: the editor learns the entry's text only at a press (`errorsStillHolding`).
     const { pending } = session.rowEditor.entry;
     const pendingFieldId = pending === undefined ? undefined : entryFieldIdOf(pending.target);
@@ -175,6 +192,33 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
             />
         ) : null;
 
+    // A finish waiting for its photos (`useEditorPhotos`): the action bar's line and its one control.
+    const photoFinish: PhotoFinishBar | undefined =
+        photos.finish === undefined
+            ? undefined
+            : {
+                  line:
+                      photos.finish.kind === 'failed'
+                          ? pluralOf(photoCopy.drainFailed, photos.finish.count, locale)
+                          : photoCopy.drainNotice,
+                  danger: photos.finish.kind === 'failed',
+                  actionLabel: photoCopy.finishWithout,
+                  onAction: photos.finishWithout,
+                  focusRequested: photos.finishFocusRequested,
+                  onFocusRequestHandled: photos.onFinishFocusHandled,
+              };
+
+    // The page asks before a leave that would lose photos only where the navigator cannot (see `leaveAsk`).
+    const requestLeave = (proceed: () => void): void => {
+        if (leaveAsk === 'inPage') {
+            photos.leave.request(proceed);
+        } else {
+            proceed();
+        }
+    };
+
+    const openMyRecipes = (): void => requestLeave(onOpenMyRecipes);
+
     const sections: Readonly<Record<EditorSectionId, ReactNode>> = {
         details: (
             <RecipeBasicsFields
@@ -221,36 +265,40 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
         ),
         photos: (
             <>
-                {editor.recipeId === undefined
-                    ? null
-                    : renderPhotos({
-                          recipeId: editor.recipeId,
-                          title: editor.values.title,
-                          cuisine: editor.values.cuisine,
-                      })}
-                <RecipeSourceField
-                    row={source.row}
-                    onChange={source.onChange}
-                    onTouched={source.onTouched}
-                    onRemove={() => source.remove()}
-                    focusRequested={source.focusRequested}
-                    onFocusHandled={source.onFocusHandled}
-                />
+                {renderPhotos({
+                    recipeId: editor.recipeId ?? null,
+                    title: editor.values.title,
+                    cuisine: editor.values.cuisine,
+                    manager: photos.manager,
+                })}
+                {/* Waiting for photos after the finish, the recipe is already sent: a source or visibility change now would be lost. */}
+                {photoFinish === undefined ? (
+                    <>
+                        <RecipeSourceField
+                            row={source.row}
+                            onChange={source.onChange}
+                            onTouched={source.onTouched}
+                            onRemove={() => source.remove()}
+                            focusRequested={source.focusRequested}
+                            onFocusHandled={source.onFocusHandled}
+                        />
+                        <RecipeVisibilityField
+                            values={editor.values}
+                            onChange={editor.setValues}
+                            webSource={source.webSource}
+                            {...privateChoice.field}
+                            onPremiumRequired={privateChoice.onPremiumRequired}
+                            onConfirmPublic={privateChoice.onConfirmPublic}
+                            // The refusal's "Make a private recipe public" and "Delete a private recipe": either frees a slot
+                            // in the cook's recipes (the session checkpoints the draft as the cook leaves).
+                            onFreeASlot={openMyRecipes}
+                        />
+                    </>
+                ) : null}
                 {/* What a paste did to the Source, spoken once per paste (the occurrence changes for a repeat). */}
                 <LiveRegion politeness="polite" visuallyHidden occurrence={source.notice?.n ?? 0}>
                     {source.notice?.text ?? ''}
                 </LiveRegion>
-                <RecipeVisibilityField
-                    values={editor.values}
-                    onChange={editor.setValues}
-                    webSource={source.webSource}
-                    {...privateChoice.field}
-                    onPremiumRequired={privateChoice.onPremiumRequired}
-                    onConfirmPublic={privateChoice.onConfirmPublic}
-                    // The refusal's "Make a private recipe public" and "Delete a private recipe": either frees a slot
-                    // in the cook's recipes (the session checkpoints the draft as the cook leaves).
-                    onFreeASlot={onOpenMyRecipes}
-                />
             </>
         ),
     };
@@ -299,9 +347,25 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
                 }}
                 {...(initialSection === undefined ? {} : { initialSection })}
                 onClose={onClose}
+                requestLeave={requestLeave}
                 onPreview={session.preview.show}
                 onRefused={session.rowEditor.refused}
-                onOpenMyRecipes={onOpenMyRecipes}
+                onOpenMyRecipes={openMyRecipes}
+                {...(photoFinish === undefined ? {} : { photoFinish })}
+                photosAtRisk={photos.atRisk}
+            />
+            <ConfirmDialog
+                open={photos.leave.open}
+                title={photoCopy.leaveTitle}
+                body={pluralOf(
+                    photos.waitingForTitle ? photoCopy.leaveBodyNoTitle : photoCopy.leaveBody,
+                    photos.atRiskCount,
+                    locale,
+                )}
+                confirm={{ label: photoCopy.leaveConfirm, icon: 'trash' }}
+                keep={{ label: photoCopy.leaveKeep }}
+                onConfirm={photos.leave.confirm}
+                onKeep={photos.leave.stay}
             />
             <RecipePreviewSheet
                 open={session.preview.open}

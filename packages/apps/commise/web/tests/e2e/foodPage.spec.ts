@@ -120,4 +120,28 @@ test.describe('the author’s food page', () => {
 
         await expect(page.getByText('Food not found')).toBeVisible();
     });
+
+    // Issue #176 and the designer's retake of PR #166: one container rule, 600 px of CONTENT (`@regular/main:`), so at a
+    // 390 px window AND at 620 (572 px of content) every action draws full width, Withdraw included, as the phone app does.
+    for (const width of [390, 620]) {
+        test(`at ${String(width)} px the actions and Withdraw all draw the full content width`, async ({ page }) => {
+            await page.setViewportSize({ width, height: 900 });
+            await signInWithTicket(page);
+            await mockFood(page);
+
+            await page.goto(route(`/foods/${FOOD_ID}`));
+            await expect(page.getByRole('heading', { name: 'E2E Oat milk' })).toBeVisible();
+
+            const boxes = await Promise.all(
+                ['Ask to make public', 'Edit', 'Withdraw'].map((name) =>
+                    page.getByRole('button', { name, exact: true }).boundingBox(),
+                ),
+            );
+            const widths = boxes.map((box) => Math.round(box?.width ?? 0));
+
+            expect(widths[0]).toBeGreaterThan(300);
+            expect(widths[1]).toBe(widths[0]);
+            expect(widths[2]).toBe(widths[0]);
+        });
+    }
 });

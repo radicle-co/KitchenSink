@@ -122,6 +122,8 @@ function view(editor: UseRecipeEditorResult, over: Partial<RecipeEditorViewProps
                 onClose={vi.fn()}
                 onPreview={vi.fn()}
                 onOpenMyRecipes={vi.fn()}
+                requestLeave={(go) => go()}
+                photosAtRisk={false}
                 {...over}
             />
         </LocaleProvider>
@@ -805,5 +807,70 @@ describe('the polite region when a paste settles (native)', () => {
         rerender(view(FILLED));
 
         expect(said()).toEqual(['Ingredients complete']);
+    });
+});
+
+/**
+ * A leave that would lose photos asks first (staff-architect and GATE reviews, 2026-11-10). The ask comes BEFORE the
+ * exit checkpoint: a cook who answers Stay has not left, so nothing records a leave.
+ */
+describe('× asks before it leaves', () => {
+    it('the exit checkpoint and the close wait for the leave to go', () => {
+        const checkpoint = vi.fn();
+        const onClose = vi.fn();
+        let proceed: (() => void) | undefined;
+        render(
+            view(makeEditorResult({ checkpoint }), {
+                onClose,
+                requestLeave: (go) => {
+                    proceed = go;
+                },
+            }),
+        );
+
+        fireEvent.click(screen.getByRole('button', { name: 'Close editor' }));
+
+        expect(checkpoint).not.toHaveBeenCalledWith('editorExit');
+        expect(onClose).not.toHaveBeenCalled();
+
+        act(() => proceed?.());
+
+        expect(checkpoint).toHaveBeenCalledWith('editorExit');
+        expect(onClose).toHaveBeenCalledOnce();
+    });
+});
+
+/**
+ * A finish waiting for its photos (GATE 2026-11-10: the native leaf had no test of it). The screen shows only Photos &
+ * publish and its Finish control, with no section index; and it stays drawn after the hand-off while a photo is at risk.
+ */
+describe('the native editor while a finish waits for its photos', () => {
+    const FINISHING = {
+        line: 'Recipe saved. Finishing your photo uploads…',
+        danger: false,
+        actionLabel: 'Finish without the remaining photos',
+        onAction: vi.fn(),
+        focusRequested: false,
+        onFocusRequestHandled: vi.fn(),
+    };
+
+    it('shows only Photos & publish and the Finish control, with no section index', () => {
+        render(view(makeEditorResult({ state: { status: 'done' } }), { photoFinish: FINISHING }));
+
+        expect(screen.getByRole('heading', { name: 'Photos & publish' })).toBeTruthy();
+
+        for (const hidden of ['Details', 'Ingredients', 'Steps']) {
+            expect(screen.queryByRole('heading', { name: hidden })).toBeNull();
+        }
+
+        expect(screen.queryByRole('button', { name: /^Sections/u })).toBeNull();
+        expect(screen.getByRole('button', { name: 'Finish without the remaining photos' })).toBeTruthy();
+        expect(screen.getByText('Recipe saved. Finishing your photo uploads…')).toBeTruthy();
+    });
+
+    it('stays drawn after the hand-off while a photo is still at risk', () => {
+        render(view(makeEditorResult({ state: { status: 'done' } }), { photosAtRisk: true }));
+
+        expect(screen.getByRole('heading', { name: 'Photos & publish' })).toBeTruthy();
     });
 });

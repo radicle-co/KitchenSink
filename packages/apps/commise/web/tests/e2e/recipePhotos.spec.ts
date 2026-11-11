@@ -366,101 +366,173 @@ test.describe('recipe photo tile menu (2026-10-17)', () => {
 });
 
 /**
- * Photos on a NEW recipe (slice 7). REWRITTEN: the U33 handover (a pick held in draft state, flushed when Publish
- * minted an id, a "Recipe saved." notice and "Finish without the remaining photos") is retired. A photo's bytes cannot
- * live in the device draft (ADR-0057), so the photo manager appears once the recipe exists on the server, which is
- * its first checkpoint (a title, then a section change), and every upload goes against that real id.
+ * Photos on a NEW recipe (owner ruling U33, staff-ux SPECIFY 2026-11-10). REWRITTEN: slice 7 showed no photo section
+ * until the recipe existed on the server, so a new recipe had no way to add a photo. The section is now there from the
+ * first render. A photo's bytes cannot live in the device draft (ADR-0057), so a pick WAITS in the upload queue until
+ * the editor's checkpoint gives the recipe an id, then uploads against that id. A pick on a titled draft is itself the
+ * checkpoint, so it creates the recipe at once.
  *
- * What the two cases below pin:
- *   - before the server create there is no photo manager, and after the checkpoint there is one;
- *   - a photo added then is stored against the MINTED id (re-opening the editor reads it back), and the recipe
- *     publishes with it;
- *   - an upload that cannot succeed is defined and surfaced, a per-file failure with its own Retry, and it does not
- *     move the cook off the editor.
+ * What the cases below pin, each through the real editor with the recipe-service contract intercepted:
+ *   - a photo picked before the title says "Waiting to upload", and uploads against the minted id once the recipe is
+ *     created; re-opening the editor reads it back, and the recipe publishes with it;
+ *   - a pick on a titled draft creates the recipe without any other checkpoint;
+ *   - Publish waits for an upload that failed, names the failure, and "Finish without the remaining photos" leaves;
+ *   - × with a photo not uploaded yet asks first: Stay keeps everything, "Leave without photos" leaves.
+ *
+ * The mobile equivalent is `.maestro/recipes/photosOnCreate.yaml`.
  */
-test.describe('recipe photo upload on a NEW recipe (slice 7)', () => {
-    /** Open a new recipe, title it, and jump to Photos & publish: the checkpoint that creates it. */
-    async function createByCheckpoint(page: import('@playwright/test').Page) {
-        await page.setViewportSize({ width: 1280, height: 800 });
-        await openNewRecipe(page);
+test.describe('recipe photos on a NEW recipe (U33)', () => {
+    const CREATED_URL = /\/recipes\/new\?draft=(?!local)[^&#]+/u;
 
-        const photosRegion = page.getByRole('region', { name: 'Photos', exact: true });
-        // ⛔ No recipe on the server yet, so nothing to upload against.
-        await expect(photosRegion).toHaveCount(0);
-
-        await page.getByLabel('Title').fill('Handover Ratatouille');
-        await setServings(page, 4);
-        await fillTimes(page, { prepMinutes: 15, cookMinutes: 30 });
-        await page
-            .getByRole('navigation', { name: 'Recipe sections' })
-            .getByRole('link', { name: 'Photos & publish' })
-            .click();
-
-        // The checkpoint created the recipe: the URL names it (the new route's `?draft=` moves from the local ref to the
-        // server id, through Next's own shallow update), and the manager is there.
-        await expect(page).toHaveURL(/\/recipes\/new\?draft=(?!local)[^&#]+/u);
-        await expect(photosRegion).toBeVisible();
-
-        return photosRegion;
-    }
-
-    test('a photo added once the checkpoint has created the recipe is stored against its id, and it publishes', async ({
-        page,
-    }) => {
-        await signInWithTicket(page);
-        const viewerId = await readViewerAppId(page);
-        await mockRecipeApi(page, { viewerId, paidFeatures: 'granted' });
-        await mockFoodApi(page);
-
-        const photosRegion = await createByCheckpoint(page);
-        // Once created, the new route's `?draft=` names the server id.
-        const createdId = new URL(page.url()).searchParams.get('draft') ?? '';
-
+    async function pickPhoto(page: import('@playwright/test').Page, name = 'handover.png') {
         await page.getByLabel('Add photo').setInputFiles({
-            name: 'handover.png',
+            name,
             mimeType: 'image/png',
             buffer: Buffer.from(TINY_PNG_BASE64, 'base64'),
         });
-        await expect(photosRegion.getByRole('img', { name: 'Recipe photo 1' })).toBeVisible();
+    }
 
+    async function startSignedIn(page: import('@playwright/test').Page, failPhotoUploads = 0) {
+        await page.setViewportSize({ width: 1280, height: 800 });
+        await signInWithTicket(page);
+        const viewerId = await readViewerAppId(page);
+        await mockRecipeApi(page, { viewerId, paidFeatures: 'granted', failPhotoUploads });
+        await mockFoodApi(page);
+        await openNewRecipe(page);
+
+        return page.getByRole('region', { name: 'Photos', exact: true });
+    }
+
+    async function titleIt(page: import('@playwright/test').Page) {
+        await page.getByLabel('Title').fill('Handover Ratatouille');
+        await setServings(page, 4);
+        await fillTimes(page, { prepMinutes: 15, cookMinutes: 30 });
+    }
+
+    /** Everything Publish needs besides the title: an ingredient, a step and a cuisine (2026-10-13). */
+    async function completeForPublish(page: import('@playwright/test').Page) {
         await page.getByRole('combobox', { name: 'Add an ingredient' }).fill('salt');
         await page
             .getByRole('group', { name: 'Food catalog' })
             .getByRole('option', { name: 'Salt', exact: true })
             .click();
         await addStep(page, 'Roast the vegetables.');
-        // Cuisine is required to publish (2026-10-13).
         await chooseCuisine(page);
+    }
+
+    test('a photo picked before the title waits, uploads against the minted id, and publishes with the recipe', async ({
+        page,
+    }) => {
+        const photosRegion = await startSignedIn(page);
+
+        // The section is there before the recipe exists, and a pick waits for a title.
+        await expect(photosRegion.getByRole('button', { name: 'Add photos' })).toBeVisible();
+        await pickPhoto(page);
+        await expect(photosRegion.getByText('Waiting to upload')).toBeVisible();
+        await expect(page).not.toHaveURL(CREATED_URL);
+
+        await titleIt(page);
+        await page
+            .getByRole('navigation', { name: 'Recipe sections' })
+            .getByRole('link', { name: 'Photos & publish' })
+            .click();
+
+        // The checkpoint created the recipe, and the held photo uploaded against its id.
+        await expect(page).toHaveURL(CREATED_URL);
+        const createdId = new URL(page.url()).searchParams.get('draft') ?? '';
+        await expect(photosRegion.getByRole('img', { name: 'Recipe photo 1' })).toBeVisible();
+        await expect(photosRegion.getByText('Waiting to upload')).toHaveCount(0);
+
+        await completeForPublish(page);
         await page.getByRole('button', { name: 'Publish', exact: true }).click();
 
         await expect(page).toHaveURL(new RegExp(`/recipes/${createdId}(?:\\?|$)`, 'u'));
         await expect(page.getByRole('heading', { name: 'Handover Ratatouille' })).toBeVisible();
 
-        // …and the bytes really landed against the minted id: re-opening the editor reads the photo list back.
+        // The bytes really landed against the minted id: re-opening the editor reads the photo list back.
         await openRecipeEditor(page, createdId);
         await expect(
             page.getByRole('region', { name: 'Photos', exact: true }).getByRole('img', { name: 'Recipe photo 1' }),
         ).toBeVisible();
     });
 
-    test('an upload that cannot succeed says so by name, offers Retry, and leaves the cook on the editor', async ({
+    test('a pick on a titled draft creates the recipe at once and uploads', async ({ page }) => {
+        const photosRegion = await startSignedIn(page);
+        await titleIt(page);
+        await expect(page).not.toHaveURL(CREATED_URL);
+
+        await pickPhoto(page);
+
+        await expect(page).toHaveURL(CREATED_URL);
+        await expect(photosRegion.getByRole('img', { name: 'Recipe photo 1' })).toBeVisible();
+    });
+
+    test('Publish waits for a failed upload, names it, and "Finish without the remaining photos" leaves', async ({
         page,
     }) => {
-        await signInWithTicket(page);
-        const viewerId = await readViewerAppId(page);
-        // Every presign fails, so the upload can never be made to succeed — the state this case is about.
-        await mockRecipeApi(page, { viewerId, paidFeatures: 'granted', failPhotoUploads: Number.MAX_SAFE_INTEGER });
-        await mockFoodApi(page);
+        // Every presign fails, so the upload can never succeed: the state this case is about.
+        const photosRegion = await startSignedIn(page, Number.MAX_SAFE_INTEGER);
+        await titleIt(page);
+        await pickPhoto(page);
 
-        await createByCheckpoint(page);
-        await page.getByLabel('Add photo').setInputFiles({
-            name: 'handover.png',
-            mimeType: 'image/png',
-            buffer: Buffer.from(TINY_PNG_BASE64, 'base64'),
-        });
-
-        await expect(page.getByRole('alert', { name: 'Upload failed' })).toBeVisible();
+        await expect(page).toHaveURL(CREATED_URL);
+        const createdId = new URL(page.url()).searchParams.get('draft') ?? '';
+        await expect(photosRegion.getByRole('alert', { name: 'Upload failed' })).toBeVisible();
         await expect(page.getByRole('button', { name: /Retry upload of handover\.png/ })).toBeVisible();
-        await expect(page).toHaveURL(/\/recipes\/new\?draft=(?!local)[^&#]+/u);
+
+        await completeForPublish(page);
+        await page.getByRole('button', { name: 'Publish', exact: true }).click();
+
+        // The recipe is saved, but the editor stays while a photo is unsettled. The pressed control is gone, so focus
+        // moves to the one way on.
+        await expect(page.getByText('1 photo didn’t upload. Retry it, or finish without it.')).toBeVisible();
+        const finishWithout = page.getByRole('button', { name: 'Finish without the remaining photos' });
+        await expect(finishWithout).toBeFocused();
+        await expect(page.getByRole('button', { name: 'Publish', exact: true })).toHaveCount(0);
+        await expect(page).toHaveURL(CREATED_URL);
+
+        // The page is short now (only Photos & publish), and the bar holding the one way on still sits on the bottom
+        // edge, where it was, rather than floating under the section (staff-ux EVALUATE 2026-11-11).
+        const actions = page.getByRole('group', { name: 'Recipe actions' });
+        await expect(actions).toBeInViewport({ ratio: 1 });
+        const bar = await actions.boundingBox();
+        const viewport = page.viewportSize();
+        expect(bar).not.toBeNull();
+        expect(viewport).not.toBeNull();
+        const gap = (viewport?.height ?? 0) - ((bar?.y ?? 0) + (bar?.height ?? 0));
+        expect(gap).toBeGreaterThanOrEqual(0);
+        expect(gap).toBeLessThan(24);
+
+        await finishWithout.click();
+
+        await expect(page).toHaveURL(new RegExp(`/recipes/${createdId}(?:\\?|$)`, 'u'));
+        await expect(page.getByRole('heading', { name: 'Handover Ratatouille' })).toBeVisible();
+    });
+
+    test('× with a photo not uploaded yet asks first: Stay keeps it, and "Leave without photos" leaves', async ({
+        page,
+    }) => {
+        const photosRegion = await startSignedIn(page);
+        await pickPhoto(page);
+        await expect(photosRegion.getByText('Waiting to upload')).toBeVisible();
+
+        await page.getByRole('button', { name: 'Close editor' }).click();
+        const ask = page.getByRole('alertdialog', { name: 'Leave without your photos?' });
+        await expect(ask).toBeVisible();
+        await expect(
+            ask.getByText('1 photo uploads once this recipe has a title. If you leave now, it won’t be kept.'),
+        ).toBeVisible();
+
+        await ask.getByRole('button', { name: 'Stay' }).click();
+        await expect(ask).toHaveCount(0);
+        await expect(photosRegion.getByText('Waiting to upload')).toBeVisible();
+
+        await page.getByRole('button', { name: 'Close editor' }).click();
+        await page
+            .getByRole('alertdialog', { name: 'Leave without your photos?' })
+            .getByRole('button', { name: 'Leave without photos' })
+            .click();
+
+        await expect(page).toHaveURL(/\/recipes(?:\?|$)/u);
     });
 });

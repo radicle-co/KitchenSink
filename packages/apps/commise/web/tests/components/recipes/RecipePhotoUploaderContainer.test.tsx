@@ -30,6 +30,14 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { renderWithRecipeClient } from '@commise/test-utils';
 
 import { RecipePhotoUploaderContainer } from '@/components/recipes/RecipePhotoUploaderContainer';
+import { useRecipePhotoManager } from '@commise/features-recipes/hooks';
+
+/** The uploader over the real photo session, as the editor hands it one (`useEditorPhotos`): it no longer owns one. */
+function Managed({ recipeId, title = '' }: { readonly recipeId: string; readonly title?: string }) {
+    const manager = useRecipePhotoManager({ recipeId });
+
+    return <RecipePhotoUploaderContainer recipeId={recipeId} title={title} cuisine="" manager={manager} />;
+}
 
 /** Build a complete {@link RecipePhoto} with sensible defaults. */
 function makeRecipePhoto(overrides: Partial<RecipePhoto> = {}): RecipePhoto {
@@ -91,7 +99,7 @@ describe('RecipePhotoUploaderContainer', () => {
         const client = createFakeRecipeServiceClient();
         vi.spyOn(client, 'listRecipePhotos').mockResolvedValue([makeRecipePhoto({ id: 'photo_1', order: 1 })]);
 
-        renderWithRecipeClient(<RecipePhotoUploaderContainer recipeId="rec_1" />, client);
+        renderWithRecipeClient(<Managed recipeId="rec_1" />, client);
 
         expect(await screen.findByRole('img', { name: 'Recipe photo 1' })).toBeInTheDocument();
         expect(screen.getByRole('button', { name: 'Actions for photo 1, the cover' })).toBeInTheDocument();
@@ -105,7 +113,7 @@ describe('RecipePhotoUploaderContainer', () => {
         const confirm = vi.spyOn(client, 'confirmPhotoUpload').mockResolvedValue(makeRecipePhoto());
         const fetchMock = stubFetch(true);
 
-        renderWithRecipeClient(<RecipePhotoUploaderContainer recipeId="rec_1" />, client);
+        renderWithRecipeClient(<Managed recipeId="rec_1" />, client);
 
         const file = new File(['bytes'], 'dinner.png', { type: 'image/png' });
         const input = await screen.findByLabelText('Add photo');
@@ -144,7 +152,7 @@ describe('RecipePhotoUploaderContainer', () => {
         vi.spyOn(client, 'listRecipePhotos').mockResolvedValue([]);
         const presign = vi.spyOn(client, 'createPhotoUploadUrl');
 
-        renderWithRecipeClient(<RecipePhotoUploaderContainer recipeId="rec_1" />, client);
+        renderWithRecipeClient(<Managed recipeId="rec_1" />, client);
 
         const oversized = new File([new Uint8Array(5 * 1024 * 1024 + 1)], 'huge.png', { type: 'image/png' });
         await user.upload(await screen.findByLabelText('Add photo'), oversized);
@@ -159,7 +167,7 @@ describe('RecipePhotoUploaderContainer', () => {
         vi.spyOn(client, 'listRecipePhotos').mockResolvedValue([]);
         const presign = vi.spyOn(client, 'createPhotoUploadUrl');
 
-        renderWithRecipeClient(<RecipePhotoUploaderContainer recipeId="rec_1" />, client);
+        renderWithRecipeClient(<Managed recipeId="rec_1" />, client);
 
         const wrongType = new File(['bytes'], 'clip.gif', { type: 'image/gif' });
         await user.upload(await screen.findByLabelText('Add photo'), wrongType);
@@ -180,7 +188,7 @@ describe('RecipePhotoUploaderContainer', () => {
             vi.spyOn(client, 'confirmPhotoUpload').mockResolvedValue(makeRecipePhoto());
             stubFetch(true);
 
-            renderWithRecipeClient(<RecipePhotoUploaderContainer recipeId="rec_1" />, client);
+            renderWithRecipeClient(<Managed recipeId="rec_1" />, client);
 
             const file = new File(['bytes'], 'dinner.img', { type: contentType });
             await user.upload(await screen.findByLabelText('Add photo'), file);
@@ -202,7 +210,7 @@ describe('RecipePhotoUploaderContainer', () => {
         const confirm = vi.spyOn(client, 'confirmPhotoUpload').mockResolvedValue(makeRecipePhoto());
         stubFetch(false);
 
-        renderWithRecipeClient(<RecipePhotoUploaderContainer recipeId="rec_1" />, client);
+        renderWithRecipeClient(<Managed recipeId="rec_1" />, client);
 
         const file = new File(['bytes'], 'dinner.png', { type: 'image/png' });
         await user.upload(await screen.findByLabelText('Add photo'), file);
@@ -226,7 +234,7 @@ describe('RecipePhotoUploaderContainer', () => {
         const confirm = vi.spyOn(client, 'confirmPhotoUpload').mockResolvedValue(makeRecipePhoto());
         const fetchMock = stubFetch(false);
 
-        renderWithRecipeClient(<RecipePhotoUploaderContainer recipeId="rec_1" />, client);
+        renderWithRecipeClient(<Managed recipeId="rec_1" />, client);
 
         const file = new File(['bytes'], 'dinner.png', { type: 'image/png' });
         await user.upload(await screen.findByLabelText('Add photo'), file);
@@ -249,7 +257,7 @@ describe('RecipePhotoUploaderContainer', () => {
         const del = vi.spyOn(client, 'deleteRecipePhoto');
         stubFetch(false);
 
-        renderWithRecipeClient(<RecipePhotoUploaderContainer recipeId="rec_1" />, client);
+        renderWithRecipeClient(<Managed recipeId="rec_1" />, client);
 
         const file = new File(['bytes'], 'dinner.png', { type: 'image/png' });
         await user.upload(await screen.findByLabelText('Add photo'), file);
@@ -274,7 +282,7 @@ describe('RecipePhotoUploaderContainer', () => {
         vi.spyOn(client, 'confirmPhotoUpload').mockResolvedValue(makeRecipePhoto());
         stubFetch(true);
 
-        renderWithRecipeClient(<RecipePhotoUploaderContainer recipeId="rec_1" />, client);
+        renderWithRecipeClient(<Managed recipeId="rec_1" />, client);
 
         const file = new File(['bytes'], 'dinner.png', { type: 'image/png' });
         await user.upload(await screen.findByLabelText('Add photo'), file);
@@ -305,7 +313,7 @@ describe('RecipePhotoUploaderContainer', () => {
         const confirm = vi.spyOn(client, 'confirmPhotoUpload').mockResolvedValue(makeRecipePhoto());
         stubFetch(true);
 
-        renderWithRecipeClient(<RecipePhotoUploaderContainer recipeId="rec_1" />, client);
+        renderWithRecipeClient(<Managed recipeId="rec_1" />, client);
 
         const input = await screen.findByLabelText('Add photo');
         // The input accepts multiple files — the add control is never disabled while uploading, since a
@@ -343,7 +351,7 @@ describe('RecipePhotoUploaderContainer', () => {
         vi.spyOn(client, 'listRecipePhotos').mockResolvedValue([makeRecipePhoto({ id: 'photo_42', order: 1 })]);
         const del = vi.spyOn(client, 'deleteRecipePhoto').mockReturnValue(new Promise(() => {}));
 
-        renderWithRecipeClient(<RecipePhotoUploaderContainer recipeId="rec_1" />, client);
+        renderWithRecipeClient(<Managed recipeId="rec_1" />, client);
 
         await chooseFromTile(user, 'Actions for photo 1, the cover', 'Remove');
 
@@ -356,7 +364,7 @@ describe('RecipePhotoUploaderContainer', () => {
         vi.spyOn(client, 'listRecipePhotos').mockResolvedValue([makeRecipePhoto({ id: 'photo_42', order: 1 })]);
         const del = vi.spyOn(client, 'deleteRecipePhoto').mockRejectedValueOnce(new Error('boom'));
 
-        renderWithRecipeClient(<RecipePhotoUploaderContainer recipeId="rec_1" />, client);
+        renderWithRecipeClient(<Managed recipeId="rec_1" />, client);
 
         await chooseFromTile(user, 'Actions for photo 1, the cover', 'Remove');
 
@@ -374,7 +382,7 @@ describe('RecipePhotoUploaderContainer', () => {
         vi.spyOn(client, 'listRecipePhotos').mockResolvedValue([makeRecipePhoto({ id: 'photo_42', order: 1 })]);
         vi.spyOn(client, 'deleteRecipePhoto').mockReturnValue(new Promise(() => {}));
 
-        renderWithRecipeClient(<RecipePhotoUploaderContainer recipeId="rec_1" />, client);
+        renderWithRecipeClient(<Managed recipeId="rec_1" />, client);
 
         await chooseFromTile(user, 'Actions for photo 1, the cover', 'Remove');
 
@@ -403,7 +411,7 @@ describe('RecipePhotoUploaderContainer', () => {
             vi.spyOn(client, 'listRecipePhotos').mockResolvedValue(threeStored());
             const reorder = vi.spyOn(client, 'reorderRecipePhotos').mockResolvedValue(threeStored());
 
-            renderWithRecipeClient(<RecipePhotoUploaderContainer recipeId="rec_1" />, client);
+            renderWithRecipeClient(<Managed recipeId="rec_1" />, client);
 
             await chooseFromTile(user, 'Actions for photo 2', 'Move later');
 
@@ -416,7 +424,7 @@ describe('RecipePhotoUploaderContainer', () => {
             vi.spyOn(client, 'listRecipePhotos').mockResolvedValue(threeStored());
             const reorder = vi.spyOn(client, 'reorderRecipePhotos').mockResolvedValue(threeStored());
 
-            renderWithRecipeClient(<RecipePhotoUploaderContainer recipeId="rec_1" />, client);
+            renderWithRecipeClient(<Managed recipeId="rec_1" />, client);
 
             await chooseFromTile(user, 'Actions for photo 3', 'Set as cover');
 
@@ -429,7 +437,7 @@ describe('RecipePhotoUploaderContainer', () => {
             vi.spyOn(client, 'listRecipePhotos').mockResolvedValue(threeStored());
             vi.spyOn(client, 'reorderRecipePhotos').mockRejectedValue(new Error('boom'));
 
-            renderWithRecipeClient(<RecipePhotoUploaderContainer recipeId="rec_1" />, client);
+            renderWithRecipeClient(<Managed recipeId="rec_1" />, client);
 
             await chooseFromTile(user, 'Actions for photo 2', 'Move earlier');
 
@@ -441,7 +449,7 @@ describe('RecipePhotoUploaderContainer', () => {
             const client = createFakeRecipeServiceClient();
             vi.spyOn(client, 'listRecipePhotos').mockResolvedValue(threeStored());
 
-            renderWithRecipeClient(<RecipePhotoUploaderContainer recipeId="rec_1" />, client);
+            renderWithRecipeClient(<Managed recipeId="rec_1" />, client);
 
             await user.click(await screen.findByRole('button', { name: 'Actions for photo 1, the cover' }));
             expect(screen.getByRole('menuitem', { name: 'Move earlier' })).toHaveAttribute('aria-disabled', 'true');
@@ -459,7 +467,7 @@ describe('RecipePhotoUploaderContainer', () => {
         vi.spyOn(client, 'listRecipePhotos').mockResolvedValue(photos);
         const presign = vi.spyOn(client, 'createPhotoUploadUrl').mockResolvedValue(makeUploadUrlResponse());
 
-        renderWithRecipeClient(<RecipePhotoUploaderContainer recipeId="rec_1" />, client);
+        renderWithRecipeClient(<Managed recipeId="rec_1" />, client);
 
         expect(await screen.findByRole('img', { name: 'Recipe photo 8' })).toBeInTheDocument();
         await user.upload(await screen.findByLabelText('Add photo'), [
@@ -481,7 +489,7 @@ describe('RecipePhotoUploaderContainer', () => {
         );
         vi.spyOn(client, 'listRecipePhotos').mockResolvedValue(photos);
 
-        renderWithRecipeClient(<RecipePhotoUploaderContainer recipeId="rec_1" />, client);
+        renderWithRecipeClient(<Managed recipeId="rec_1" />, client);
 
         expect(await screen.findByText(/maximum of 10 photos reached/i)).toBeInTheDocument();
         expect(screen.queryByLabelText('Add photo')).not.toBeInTheDocument();
@@ -499,7 +507,7 @@ describe('RecipePhotoUploaderContainer — the Add photos button (A-010)', () =>
         const client = createFakeRecipeServiceClient();
         vi.spyOn(client, 'listRecipePhotos').mockResolvedValue([]);
 
-        renderWithRecipeClient(<RecipePhotoUploaderContainer recipeId="rec_1" />, client);
+        renderWithRecipeClient(<Managed recipeId="rec_1" />, client);
 
         const button = await screen.findByRole('button', { name: 'Add photos' });
         expect(button).toBeVisible();
@@ -512,7 +520,7 @@ describe('RecipePhotoUploaderContainer — the Add photos button (A-010)', () =>
         const client = createFakeRecipeServiceClient();
         vi.spyOn(client, 'listRecipePhotos').mockResolvedValue([]);
 
-        renderWithRecipeClient(<RecipePhotoUploaderContainer recipeId="rec_1" />, client);
+        renderWithRecipeClient(<Managed recipeId="rec_1" />, client);
         const button = await screen.findByRole('button', { name: 'Add photos' });
 
         await user.tab();
@@ -525,7 +533,7 @@ describe('RecipePhotoUploaderContainer — the Add photos button (A-010)', () =>
         const client = createFakeRecipeServiceClient();
         vi.spyOn(client, 'listRecipePhotos').mockResolvedValue([]);
 
-        renderWithRecipeClient(<RecipePhotoUploaderContainer recipeId="rec_1" />, client);
+        renderWithRecipeClient(<Managed recipeId="rec_1" />, client);
         const input = await screen.findByLabelText('Add photo');
         const opened = vi.spyOn(input as HTMLInputElement, 'click');
 
@@ -541,7 +549,7 @@ describe('RecipePhotoUploaderContainer — the Add photos button (A-010)', () =>
         const client = createFakeRecipeServiceClient();
         vi.spyOn(client, 'listRecipePhotos').mockResolvedValue([]);
 
-        renderWithRecipeClient(<RecipePhotoUploaderContainer recipeId="rec_1" />, client);
+        renderWithRecipeClient(<Managed recipeId="rec_1" />, client);
         const opened = vi.spyOn((await screen.findByLabelText('Add photo')) as HTMLInputElement, 'click');
 
         await user.tab();
@@ -558,7 +566,7 @@ describe('RecipePhotoUploaderContainer — the Add photos button (A-010)', () =>
         );
         vi.spyOn(client, 'listRecipePhotos').mockResolvedValue(full);
 
-        renderWithRecipeClient(<RecipePhotoUploaderContainer recipeId="rec_1" />, client);
+        renderWithRecipeClient(<Managed recipeId="rec_1" />, client);
         await screen.findByRole('img', { name: 'Recipe photo 10' });
 
         expect(screen.queryByRole('button', { name: 'Add photos' })).not.toBeInTheDocument();
@@ -571,7 +579,7 @@ describe('RecipePhotoUploaderContainer — the empty state (A-010)', () => {
         const client = createFakeRecipeServiceClient();
         vi.spyOn(client, 'listRecipePhotos').mockResolvedValue([]);
 
-        renderWithRecipeClient(<RecipePhotoUploaderContainer recipeId="rec_1" title="Lemon tart" />, client);
+        renderWithRecipeClient(<Managed recipeId="rec_1" title="Lemon tart" />, client);
 
         expect(await screen.findByText('No photo? This cover is used instead. Add one any time.')).toBeInTheDocument();
         expect(screen.getByText('L')).toBeInTheDocument();
@@ -581,7 +589,7 @@ describe('RecipePhotoUploaderContainer — the empty state (A-010)', () => {
         const client = createFakeRecipeServiceClient();
         vi.spyOn(client, 'listRecipePhotos').mockResolvedValue([]);
 
-        const { container } = renderWithRecipeClient(<RecipePhotoUploaderContainer recipeId="rec_1" />, client);
+        const { container } = renderWithRecipeClient(<Managed recipeId="rec_1" />, client);
         await screen.findByText('No photo? This cover is used instead. Add one any time.');
 
         expect(container.querySelector('[class*="bg-cover-"]')).not.toBeNull();
@@ -591,7 +599,7 @@ describe('RecipePhotoUploaderContainer — the empty state (A-010)', () => {
         const client = createFakeRecipeServiceClient();
         vi.spyOn(client, 'listRecipePhotos').mockResolvedValue([makeRecipePhoto()]);
 
-        renderWithRecipeClient(<RecipePhotoUploaderContainer recipeId="rec_1" title="Lemon tart" />, client);
+        renderWithRecipeClient(<Managed recipeId="rec_1" title="Lemon tart" />, client);
         await screen.findByRole('img', { name: 'Recipe photo 1' });
 
         expect(screen.queryByText('No photo? This cover is used instead. Add one any time.')).not.toBeInTheDocument();

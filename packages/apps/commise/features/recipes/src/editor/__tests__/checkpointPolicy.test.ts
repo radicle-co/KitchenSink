@@ -52,6 +52,9 @@ describe('serverWriteFor — a recipe not yet on the server', () => {
         ['editorExit', { kind: 'create', publish: false }],
         ['appHidden', { kind: 'create', publish: false }],
         ['checkpointIdle', { kind: 'create', publish: false }],
+        // A photo has nothing to upload against until the recipe exists, so a pick on a titled draft creates it now
+        // rather than at the next section change or idle pause (staff-ux SPECIFY 2026-11-10).
+        ['photoPicked', { kind: 'create', publish: false }],
         ['saveChanges', { kind: 'create', publish: false }],
         ['publish', { kind: 'create', publish: true }],
     ])('%s → %o', (trigger, expected) => {
@@ -59,12 +62,16 @@ describe('serverWriteFor — a recipe not yet on the server', () => {
     });
 
     /** ⛔ A4: the server create waits for the draft floor (a title), or the checkpoint would loop on a 400. */
-    it.each<CheckpointTrigger>(['sectionChange', 'editorExit', 'appHidden', 'checkpointIdle', 'publish'])(
-        '⛔ %s asks for nothing while the draft floor fails',
-        (trigger) => {
-            expect(decide('unsaved', trigger, { draftFloorMet: false })).toStrictEqual(NONE);
-        },
-    );
+    it.each<CheckpointTrigger>([
+        'sectionChange',
+        'editorExit',
+        'appHidden',
+        'checkpointIdle',
+        'photoPicked',
+        'publish',
+    ])('⛔ %s asks for nothing while the draft floor fails', (trigger) => {
+        expect(decide('unsaved', trigger, { draftFloorMet: false })).toStrictEqual(NONE);
+    });
 });
 
 describe('serverWriteFor — a draft that was never published', () => {
@@ -83,6 +90,12 @@ describe('serverWriteFor — a draft that was never published', () => {
 
     it('does not send a checkpoint with nothing new since the last server write', () => {
         expect(decide('neverPublished', 'checkpointIdle', { changedSinceServerWrite: false })).toStrictEqual(NONE);
+    });
+
+    /** A photo is not draft content: once the recipe exists a pick uploads straight away and writes nothing else. */
+    it('a photo picked on a saved draft sends nothing unless the draft itself changed', () => {
+        expect(decide('neverPublished', 'photoPicked', { changedSinceServerWrite: false })).toStrictEqual(NONE);
+        expect(decide('neverPublished', 'photoPicked')).toStrictEqual({ kind: 'update', publish: false });
     });
 
     /** Publishing changes the status even when no field moved, so it is always a write. */
@@ -107,6 +120,7 @@ describe('serverWriteFor — a published recipe (owner ruling D1)', () => {
         'editorExit',
         'appHidden',
         'checkpointIdle',
+        'photoPicked',
     ])('⛔ %s keeps the change on the device', (trigger) => {
         expect(decide('published', trigger)).toStrictEqual(NONE);
     });

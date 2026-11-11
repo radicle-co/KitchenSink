@@ -134,7 +134,7 @@ import { createLaneStore, isSettingVisibility, type LaneStore, type OutstandingW
 import type { DraftAction } from '../form/draftAction.js';
 import { isStoredLine, persistedLineKeysOf, type IngredientLineKey } from '../form/lineKey.js';
 import { derivedVisibility, draftSourceOf } from '../form/sourceLink.js';
-import { draftFloorErrors, validateRecipeForm } from '../form/validate.js';
+import { meetsDraftFloor, validateRecipeForm } from '../form/validate.js';
 import { defaultRecipeFormValues, recipeFormValuesEqual, type RecipeFormValues } from '../form/values.js';
 import { toRecipeFormValues } from '../form/wire.js';
 import { recipeMessages, type IngredientLineNameMessages } from '../messages.js';
@@ -306,7 +306,10 @@ export interface ResumeNotice {
 }
 
 /** The triggers a container reports; the editor raises the timed ones, Publish and Save changes itself. */
-export type ReportedTrigger = Extract<CheckpointTrigger, 'fieldBlur' | 'sectionChange' | 'editorExit' | 'appHidden'>;
+export type ReportedTrigger = Extract<
+    CheckpointTrigger,
+    'fieldBlur' | 'sectionChange' | 'editorExit' | 'appHidden' | 'photoPicked'
+>;
 
 /** What the editor exposes to its containers. */
 export interface UseRecipeEditorResult {
@@ -376,7 +379,7 @@ export interface UseRecipeEditorResult {
     readonly setField: <K extends keyof RecipeFormValues>(field: K, value: RecipeFormValues[K]) => void;
     /** Apply one draft transition to the draft as it is when it lands. Stable. */
     readonly dispatch: (action: DraftAction) => void;
-    /** A checkpoint happened: a field lost focus, the section changed, the app hid, or the cook left. */
+    /** A checkpoint happened: a field lost focus, the section changed, the app hid, the cook left, or picked a photo. */
     readonly checkpoint: (trigger: ReportedTrigger) => void;
     /** Validate the whole draft and publish it. `pendingEntryText` is what an ingredient entry holds uncommitted. */
     readonly publish: (pendingEntryText: string) => GateOutcome;
@@ -703,7 +706,7 @@ function submitWrite(ctx: EditorContext, trigger: CheckpointTrigger, drained: bo
     const write = serverWriteFor({
         trigger,
         lifecycle: lifecycleNow(ctx),
-        draftFloorMet: Object.keys(draftFloorErrors(draft)).length === 0,
+        draftFloorMet: meetsDraftFloor(draft),
         changedSinceServerWrite: serverValues === undefined || !recipeFormValuesEqual(draft, serverValues),
         pastePending: pasteHeld(ctx),
     });

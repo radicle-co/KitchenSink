@@ -4,15 +4,15 @@
     "packageName": "@commise/features-recipes",
     "layer": "feature",
     "coverage": {
-        "components": 205,
-        "implementations": 349,
-        "props": 2410,
-        "documentedComponents": 205,
-        "implementationsWithModuleDoc": 349,
-        "implementationsWithComponentDoc": 238,
-        "documentedProps": 1838,
-        "classifiedComponents": 183,
-        "componentsWithPatternTag": 98,
+        "components": 206,
+        "implementations": 350,
+        "props": 2420,
+        "documentedComponents": 206,
+        "implementationsWithModuleDoc": 350,
+        "implementationsWithComponentDoc": 239,
+        "documentedProps": 1848,
+        "classifiedComponents": 184,
+        "componentsWithPatternTag": 99,
         "crossPlatformComponents": 144
     },
     "components": [
@@ -14649,7 +14649,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/recipes/src/editor/EditorActionBar.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/editor",
-                    "moduleDoc": "@commise/features-recipes/editor — the web editor's action bar (build spec §7.1, §7.8): Preview, then the\nprimary at the end — Publish for a recipe not yet published, Save changes for a published one. Sticky at the foot of\nthe form column at every width; the one glass surface of the editor (owner D12), readable with the blur off. When the\nheader and the bar together are taller than half the viewport (`compactHeightLayout.md` A1) it is not sticky: it\nscrolls with the page as the column's last content, in the same place in the page, so a focused control keeps focus.\n\nAfter a refused Publish, a polite line says how many things to fix (SC 3.3.1). While lines have no match, a quiet\npolite line says the recipe is ready and that those lines' nutrition is left out (owner D20); Publish stays enabled. A finishing write shows the primary\nbusy and locks the bar.\n\nPresentational: props → JSX. Its node leaves through `placeRef`, so the page can measure it.",
+                    "moduleDoc": "@commise/features-recipes/editor — the web editor's action bar (build spec §7.1, §7.8): Preview, then the\nprimary at the end — Publish for a recipe not yet published, Save changes for a published one. Sticky at the foot of\nthe form column at every width; the one glass surface of the editor (owner D12), readable with the blur off. When the\nheader and the bar together are taller than half the viewport (`compactHeightLayout.md` A1) it is not sticky: it\nscrolls with the page as the column's last content, in the same place in the page, so a focused control keeps focus.\n\nAfter a refused Publish, a polite line says how many things to fix (SC 3.3.1). While lines have no match, a quiet\npolite line says the recipe is ready and that those lines' nutrition is left out (owner D20); Publish stays enabled. A finishing write shows the primary\nbusy and locks the bar.\n\nWhile a finish waits for its photos (`finishing`), Preview and the primary give way to one secondary control,\n\"Finish without the remaining photos\", under a line that says what is happening. Both phases share the bar on\npurpose: the line lands in a live region that already exists, which a screen reader announces, where a region\nmounted together with its text is often not read out.\n\nIt sits on the bottom edge of a short page too (`mt-auto` in the page's column): while a finish waits, the page shows\nonly Photos & publish, and the bar holding the one way on must not float under it.\n\nPresentational: props → JSX. Its node leaves through `placeRef`, so the page can measure it.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -14672,6 +14672,15 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "A Publish or Save changes waits for its answer.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/editor/frameProps.ts"
+                        },
+                        {
+                            "name": "finishing",
+                            "type": "PhotoFinishBar",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The editor finished but waits for its photos (`useEditorPhotos`): the line and the one control that replace Preview\nand the primary. A second Publish would make a second recipe, so the primary is not offered at all.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/editor/frameProps.ts"
                         },
                         {
@@ -14795,7 +14804,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/recipes/src/editor/EditorActionBar.native.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/editor",
-                    "moduleDoc": "@commise/features-recipes/editor — the native editor's action bar (build spec §7.1, §7.8, §7.12): Preview,\nthen the primary at the end, in the thumb zone — Publish for a recipe not yet published, Save changes for a\npublished one. Its material is the editor's one glass surface (owner D12): real Liquid Glass on iOS 26, solid\nelsewhere (`ChromeSurface`).\n\nPresentational: props → JSX.",
+                    "moduleDoc": "@commise/features-recipes/editor — the native editor's action bar (build spec §7.1, §7.8, §7.12): Preview,\nthen the primary at the end, in the thumb zone — Publish for a recipe not yet published, Save changes for a\npublished one. Its material is the editor's one glass surface (owner D12): real Liquid Glass on iOS 26, solid\nelsewhere (`ChromeSurface`).\n\nWhile a finish waits for its photos (`finishing`), Preview and the primary give way to one secondary control,\n\"Finish without the remaining photos\", under a line that says what is happening. Both phases share the bar on\npurpose: the line lands in a live region that already exists, which a screen reader announces, where a region\nmounted together with its text is often not read out.\n\nPresentational: props → JSX.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -14814,6 +14823,15 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "A Publish or Save changes waits for its answer.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/editor/frameProps.ts"
+                        },
+                        {
+                            "name": "finishing",
+                            "type": "PhotoFinishBar",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The editor finished but waits for its photos (`useEditorPhotos`): the line and the one control that replace Preview\nand the primary. A second Publish would make a second recipe, so the primary is not offered at all.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/editor/frameProps.ts"
                         },
                         {
@@ -16143,7 +16161,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/recipes/src/editor/RecipeEditorSurface.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/editor",
-                    "moduleDoc": "What both apps' editor screens draw over a {@link RecipeEditorSession}: the section map (each section's real leaves),\nthe Ingredients status pollers, the heading actions (Paste a list, Paste steps), the rail foot, and the preview, upsell\nand make-public sheets. The web `RecipeEditorContainer` and the native `RecipeEditorScreen` each carried this JSX\nline for line (UI audit 10); every leaf it uses is already a web/native pair, so this one file serves both.\n\nWhat stays in the app, and why:\n- how the editor is SEEDED and where its URL or route goes: the web reads `?draft=`, `?fresh=` and `#section`, and\n  redirects a recipe the server holds; a phone has no URL, so a new recipe's draft is found again only within the\n  session that made it (ADR-0057, blueprint A4). That is a platform difference, not drift;\n- the photo uploader ({@link RecipeEditorSurfaceProps.renderPhotos}), which each app wires to its own picker;\n- the navigation port, the profile read and the error reporter, which are the session's inputs.\n\n⚠️ The uploader is asked for only once the recipe exists on the server (its first checkpoint, which needs a title):\nthe upload takes a recipe id, and a picked photo's bytes cannot live in the device draft (ADR-0057).",
+                    "moduleDoc": "What both apps' editor screens draw over a {@link RecipeEditorSession}: the section map (each section's real leaves),\nthe Ingredients status pollers, the heading actions (Paste a list, Paste steps), the rail foot, and the preview, upsell\nand make-public sheets. The web `RecipeEditorContainer` and the native `RecipeEditorScreen` each carried this JSX\nline for line (UI audit 10); every leaf it uses is already a web/native pair, so this one file serves both.\n\nWhat stays in the app, and why:\n- how the editor is SEEDED and where its URL or route goes: the web reads `?draft=`, `?fresh=` and `#section`, and\n  redirects a recipe the server holds; a phone has no URL, so a new recipe's draft is found again only within the\n  session that made it (ADR-0057, blueprint A4). That is a platform difference, not drift;\n- the photo uploader ({@link RecipeEditorSurfaceProps.renderPhotos}), which each app wires to its own picker over the\n  editor's one photo session (`useEditorPhotos`);\n- the navigation port, the profile read and the error reporter, which are the session's inputs.\n\nThe uploader is drawn on a new recipe too (owner ruling U33: a photo behaves like every other field). A photo picked\nbefore the recipe exists waits in the session's queue until the first checkpoint gives it an id; its bytes cannot live\nin the device draft (ADR-0057), so the surface asks before a leave would lose it, and a finish waits for it.",
                     "moduleTags": [
                         {
                             "name": "pattern",
@@ -16205,6 +16223,18 @@
                             "declaredIn": "packages/apps/commise/features/recipes/src/editor/RecipeEditorSurface.tsx"
                         },
                         {
+                            "name": "leaveAsk",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"inPage\"",
+                                "\"byNavigator\""
+                            ],
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Where a leave that would lose photos is asked about. `inPage` (web): the page asks before every exit it hands the\napp, × and \"My recipes\", which are client-side navigations no browser prompt sees. `byNavigator` (native): the\nroute's guard (`PreventLeave`) catches every removal of the screen, so the page must not ask a second time.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/editor/RecipeEditorSurface.tsx"
+                        },
+                        {
                             "name": "mode",
                             "type": "enum",
                             "typeDetail": [
@@ -16263,7 +16293,7 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "The app's photo uploader. Called only once the recipe exists on the server.",
+                            "description": "The app's photo uploader, over the editor's photo session. Drawn on a new recipe too.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/editor/RecipeEditorSurface.tsx"
                         },
                         {
@@ -16500,12 +16530,39 @@
                             "declaredIn": "packages/apps/commise/features/recipes/src/editor/frameProps.ts"
                         },
                         {
+                            "name": "photoFinish",
+                            "type": "PhotoFinishBar",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The editor finished (published, or its changes saved) and waits for its photos (`useEditorPhotos`). The page then\nshows only Photos & publish, where the uploads and their Retry are, and the action bar's Finish control: any other\nfield changed now would be lost, because the editor has already handed off.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/editor/frameProps.ts"
+                        },
+                        {
+                            "name": "photosAtRisk",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "A photo is not uploaded yet: on web, closing the tab would lose it, so the browser asks; and the page stays drawn\npast the hand-off until the finish holds for it (`editorPageStays`).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/editor/frameProps.ts"
+                        },
+                        {
                             "name": "railFooter",
                             "type": "ReactNode",
                             "typeDetail": null,
                             "required": false,
                             "defaultValue": null,
                             "description": "The rail's foot (the nutrition total).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/editor/frameProps.ts"
+                        },
+                        {
+                            "name": "requestLeave",
+                            "type": "(proceed: () => void) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Ask before a leave that would lose photos, then `proceed`; or `proceed` at once. × goes through it BEFORE the exit\ncheckpoint, so a cook who stays has not left (`RecipeEditorSurface`'s `leaveAsk`).",
                             "declaredIn": "packages/apps/commise/features/recipes/src/editor/frameProps.ts"
                         },
                         {
@@ -16702,12 +16759,39 @@
                             "declaredIn": "packages/apps/commise/features/recipes/src/editor/frameProps.ts"
                         },
                         {
+                            "name": "photoFinish",
+                            "type": "PhotoFinishBar",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The editor finished (published, or its changes saved) and waits for its photos (`useEditorPhotos`). The page then\nshows only Photos & publish, where the uploads and their Retry are, and the action bar's Finish control: any other\nfield changed now would be lost, because the editor has already handed off.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/editor/frameProps.ts"
+                        },
+                        {
+                            "name": "photosAtRisk",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "A photo is not uploaded yet: on web, closing the tab would lose it, so the browser asks; and the page stays drawn\npast the hand-off until the finish holds for it (`editorPageStays`).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/editor/frameProps.ts"
+                        },
+                        {
                             "name": "railFooter",
                             "type": "ReactNode",
                             "typeDetail": null,
                             "required": false,
                             "defaultValue": null,
                             "description": "The rail's foot (the nutrition total).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/editor/frameProps.ts"
+                        },
+                        {
+                            "name": "requestLeave",
+                            "type": "(proceed: () => void) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Ask before a leave that would lose photos, then `proceed`; or `proceed` at once. × goes through it BEFORE the exit\ncheckpoint, so a cook who stays has not left (`RecipeEditorSurface`'s `leaveAsk`).",
                             "declaredIn": "packages/apps/commise/features/recipes/src/editor/frameProps.ts"
                         },
                         {
@@ -19873,7 +19957,7 @@
                         },
                         {
                             "name": "row",
-                            "type": "IngredientRowView | undefined",
+                            "type": "Pick<IngredientRowView, \"index\" | \"lineEditor\"> | undefined",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
@@ -19938,7 +20022,7 @@
                         },
                         {
                             "name": "row",
-                            "type": "IngredientRowView | undefined",
+                            "type": "Pick<IngredientRowView, \"index\" | \"lineEditor\"> | undefined",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
@@ -27373,6 +27457,69 @@
                     "docSignals": {
                         "presentational": false,
                         "orchestration": true
+                    }
+                }
+            ]
+        },
+        {
+            "id": "featuresRecipes/layout/MainColumn",
+            "name": "MainColumn",
+            "group": "featuresRecipes",
+            "packageName": "@commise/features-recipes",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/recipes/src/layout",
+            "kind": "presentational",
+            "patterns": [
+                "Provider — hands its own element to `MainElementContext`, the way the shell hands its `<main>`",
+                "Responsive layout by container query — the column answers to its own box, not the window's or `<main>`'s"
+            ],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "MainColumn",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/layout/MainColumn.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/layout",
+                    "moduleDoc": "@commise/features-recipes/layout — `MainColumn` (web): a content column that is its OWN `main` container.\nThe shell's `<main>` is the `main` container for the pages it pads; a page that draws its own gutter inside an\nunpadded `<main>` (a focused task: the recipe editor) wraps its padded column in this, so the column's content box is\nthe width its content gets. Both readers then measure that one box: the `@regular/main:` and `@wide/main:`\nvariants in CSS (the nearest ancestor container NAMED `main`), and the container class a script reads\n(`MainElementContext`, which this hands its own element to). Without it the editor read the whole `<main>`, so a\n620 px window (572 px of content) was `regular` there and `narrow` on the food page.\n\nPresentational: a `div` and a context provider; no data, no side effect beyond holding its own element.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes/layout — `MainColumn` (web): a content column that is its OWN `main` container."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Provider — hands its own element to `MainElementContext`, the way the shell hands its `<main>`"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Responsive layout by container query — the column answers to its own box, not the window's or `<main>`'s"
+                        }
+                    ],
+                    "description": "A column that is the `main` container its content measures.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "className",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "",
+                            "description": "Classes for the column: its layout and its gutter. `@container/main` is added.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/layout/MainColumn.tsx"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
                     }
                 }
             ]

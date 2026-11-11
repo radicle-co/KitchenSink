@@ -53,6 +53,8 @@ function view(editor: UseRecipeEditorResult, over: Partial<RecipeEditorViewProps
                 onClose={vi.fn()}
                 onPreview={vi.fn()}
                 onOpenMyRecipes={vi.fn()}
+                requestLeave={(go) => go()}
+                photosAtRisk={false}
                 {...over}
             />
         </LocaleProvider>
@@ -214,11 +216,29 @@ describe('the content gutter (buildSpec §1.2)', () => {
     it('pads the content column with the page gutter at each viewport class, not 16 everywhere', () => {
         render(view(makeEditorResult()));
 
-        const column = screen.getByRole('heading', { name: 'Details' }).closest('section')?.parentElement;
-        const classes = column?.className.split(/\s+/u) ?? [];
+        const frame = screen.getByRole('heading', { name: 'Details' }).closest('[class*="@container/main"]');
+        const classes = frame?.className.split(/\s+/u) ?? [];
 
         expect(classes).toEqual(expect.arrayContaining(EDITOR_GUTTER.split(' ')));
         expect(classes.filter((name) => /^px-/u.test(name))).toEqual(['px-4']);
+    });
+
+    it('makes the PADDED frame the main container, so a 620 px window is a 572 px (narrow) editor like the food page', () => {
+        render(view(makeEditorResult()));
+
+        const frame = screen.getByRole('heading', { name: 'Details' }).closest('[class*="@container/main"]');
+
+        // The shell's `<main>` has no gutter on a focused task, so measuring it called 620 px `regular`. The frame holds
+        // the gutter AND the rail beside the column, so the container is the width the content gets, whatever its class:
+        // the rail, the paste pane and the field layouts all read this one box (the rail's row direction is a CHILD of it).
+        expect(frame?.className.split(/\s+/u)).toEqual(expect.arrayContaining(EDITOR_GUTTER.split(' ')));
+        // The cap (rail + gap + the 768 list) is on the CHILD that holds the rail and the column: on the padded frame it
+        // would count the gutters, and the column would never reach the list width.
+        expect(frame?.className).not.toContain('max-w-');
+        const row = frame?.querySelector('.\\@wide\\/main\\:flex-row');
+
+        expect(row).not.toBeNull();
+        expect(row?.className).toContain('max-w-[calc(15rem+2rem+var(--container-list))]');
     });
 
     it('spells the spec’s three gutters in Tailwind steps of 4 px (the layout tokens’ numbers)', () => {
@@ -1152,5 +1172,35 @@ describe('the polite region when a paste settles (web)', () => {
         rerender(view(FILLED));
 
         expect(said()).toEqual(['Ingredients complete']);
+    });
+});
+
+/**
+ * A leave that would lose photos asks first (staff-architect and GATE reviews, 2026-11-10). The ask comes BEFORE the
+ * exit checkpoint: a cook who answers Stay has not left, so nothing records a leave.
+ */
+describe('× asks before it leaves', () => {
+    it('the exit checkpoint and the close wait for the leave to go', () => {
+        const checkpoint = vi.fn();
+        const onClose = vi.fn();
+        let proceed: (() => void) | undefined;
+        render(
+            view(makeEditorResult({ checkpoint }), {
+                onClose,
+                requestLeave: (go) => {
+                    proceed = go;
+                },
+            }),
+        );
+
+        fireEvent.click(screen.getByRole('button', { name: 'Close editor' }));
+
+        expect(checkpoint).not.toHaveBeenCalledWith('editorExit');
+        expect(onClose).not.toHaveBeenCalled();
+
+        act(() => proceed?.());
+
+        expect(checkpoint).toHaveBeenCalledWith('editorExit');
+        expect(onClose).toHaveBeenCalledOnce();
     });
 });

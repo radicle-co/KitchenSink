@@ -286,3 +286,13 @@ export const draftFloorErrors = (values: RecipeFormValues): RecipeFormErrors => 
         ...(times === undefined ? {} : { times }),
     };
 };
+
+/**
+ * Whether a server write of the draft may go ahead: {@link draftFloorErrors} finds nothing. The one statement the
+ * checkpoint policy's `draftFloorMet` and the photo queue's hold both read. Pure.
+ *
+ * @param values - The editor's form values.
+ * @returns `true` when the draft passes the floor.
+ */
+export const meetsDraftFloor = (values: RecipeFormValues): boolean =>
+    Object.keys(draftFloorErrors(values)).length === 0;

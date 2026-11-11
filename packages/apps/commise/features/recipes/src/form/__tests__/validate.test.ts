@@ -12,7 +12,7 @@ import {
 import { DESCRIPTION_MAX_LENGTH, TITLE_MAX_LENGTH } from '../limits.js';
 import { mintedLineKey } from '../lineKey.js';
 import { applyDraftAction } from '../props.js';
-import { draftFloorErrors, validateRecipeForm } from '../validate.js';
+import { draftFloorErrors, meetsDraftFloor, validateRecipeForm } from '../validate.js';
 import type { RecipeFormValues } from '../values.js';
 import { toCreateRecipeInput } from '../wire.js';
 
@@ -413,5 +413,19 @@ describe('draftFloorErrors', () => {
             servings: 'servingsPositive',
             times: 'timesNonNegative',
         });
+    });
+});
+
+/**
+ * The one statement of "a server write of this draft may go ahead" (the checkpoint policy's `draftFloorMet`, and the
+ * photo queue's hold). It is more than a title: positive servings too, for example.
+ */
+describe('meetsDraftFloor', () => {
+    it.each([
+        ['a filled draft', {}, true],
+        ['no title', { title: '  ' }, false],
+        ['a title, but no servings', { servings: 0 }, false],
+    ] as const)('%s → %s', (_label, over, expected) => {
+        expect(meetsDraftFloor(makeFilledRecipeFormValues(over))).toBe(expected);
     });
 });

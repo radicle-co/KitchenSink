@@ -88,15 +88,25 @@ describe('useRecipePhotoManager — a pick past the cap', () => {
         expect(result.current.errorMessage).toBe('That’s more photos than this recipe can hold — you can add 5 more.');
     });
 
-    it('counts photos the caller holds elsewhere (mobile draft picks) against the room', () => {
-        photosQueryMock.mockReturnValue({ data: photosOf(6) });
-        const { result } = renderHook(() => useRecipePhotoManager({ recipeId: 'rec_1', heldElsewhere: 2 }));
+    /**
+     * REWRITTEN: this used to count "photos the caller holds elsewhere" (mobile's draft picks, `heldElsewhere`). Picks made
+     * before the recipe exists now wait in the queue itself (the hold), so they take their slots by the queue's one rule.
+     */
+    it('counts photos waiting for a new recipe against the room, and never uploads them without an id', () => {
+        const { result } = renderHook(() => useRecipePhotoManager({ recipeId: null }));
 
+        act(() => {
+            result.current.enqueuePicked(
+                Array.from({ length: 8 }, (_unused, index) => fileOf(`f${index}.png`)),
+                'add',
+            );
+        });
         act(() => {
             result.current.enqueuePicked([fileOf('a.png'), fileOf('b.png'), fileOf('c.png')], 'add');
         });
 
         expect(result.current.errorMessage).toBe(OVER_CAP_FOR_TWO);
+        expect(result.current.queue.items.map((item) => item.status)).toEqual(Array(8).fill('queued'));
     });
 
     it('says the replace sentence when a REPLACEMENT is turned away', () => {
@@ -153,18 +163,6 @@ describe('useRecipePhotoManager — one rule for "is there room to replace?"', (
 
         expect(allowed).toBe(true);
         expect(result.current.errorMessage).toBeUndefined();
-    });
-
-    it('counts held-elsewhere photos: 9 confirmed + 1 draft is full', () => {
-        photosQueryMock.mockReturnValue({ data: photosOf(9) });
-        const { result } = renderHook(() => useRecipePhotoManager({ recipeId: 'rec_1', heldElsewhere: 1 }));
-
-        let allowed: boolean | undefined;
-        act(() => {
-            allowed = result.current.beginReplace();
-        });
-
-        expect(allowed).toBe(false);
     });
 
     it('counts a rejected file against the room too (it still holds a grid cell, as the queue counts it)', () => {

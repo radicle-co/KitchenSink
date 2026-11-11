@@ -78,6 +78,14 @@ vi.mock('@kitchensink/recipe-service-client/hooks', () => ({
 }));
 
 const { RecipePhotoUploaderContainer } = await import('../RecipePhotoUploaderContainer.js');
+const { useRecipePhotoManager } = await import('@commise/features-recipes/hooks');
+
+/** The uploader over the real photo session, as the editor hands it one (`useEditorPhotos`): it no longer owns one. */
+function Managed({ recipeId, title = '' }: { readonly recipeId: string; readonly title?: string }) {
+    const manager = useRecipePhotoManager({ recipeId });
+
+    return <RecipePhotoUploaderContainer recipeId={recipeId} title={title} cuisine="" manager={manager} />;
+}
 
 const createObjectURL = vi.fn();
 const revokeObjectURL = vi.fn();
@@ -126,7 +134,7 @@ async function chooseFromTile(user: ReturnType<typeof userEvent.setup>, trigger:
 
 describe('RecipePhotoUploaderContainer (web) — the add control (inputRef)', () => {
     it('renders the hidden, multi-select file input as the labeled add control', () => {
-        render(<RecipePhotoUploaderContainer recipeId="rec_1" />);
+        render(<Managed recipeId="rec_1" />);
 
         const input = screen.getByLabelText('Add photo') as HTMLInputElement;
         expect(input.type).toBe('file');
@@ -141,7 +149,7 @@ describe('RecipePhotoUploaderContainer (web) — the add control (inputRef)', ()
         // not the upload's own resolution (covered by the cleanup tests below).
         uploadState.stuck = true;
         const user = userEvent.setup();
-        render(<RecipePhotoUploaderContainer recipeId="rec_1" />);
+        render(<Managed recipeId="rec_1" />);
 
         const input = screen.getByLabelText('Add photo') as HTMLInputElement;
         const file = makeFile('a.png');
@@ -155,7 +163,7 @@ describe('RecipePhotoUploaderContainer (web) — the add control (inputRef)', ()
     it('enqueues multiple picked files together', async () => {
         uploadState.stuck = true;
         const user = userEvent.setup();
-        render(<RecipePhotoUploaderContainer recipeId="rec_1" />);
+        render(<Managed recipeId="rec_1" />);
 
         const input = screen.getByLabelText('Add photo') as HTMLInputElement;
         const files = [makeFile('a.png'), makeFile('b.png')];
@@ -189,7 +197,7 @@ describe('RecipePhotoUploaderContainer (web) — a pick past the photo cap', () 
         uploadState.stuck = true;
         photosQueryMock.mockReturnValue({ data: photosHeld(8) });
         const user = userEvent.setup();
-        render(<RecipePhotoUploaderContainer recipeId="rec_1" />);
+        render(<Managed recipeId="rec_1" />);
 
         const input = screen.getByLabelText('Add photo') as HTMLInputElement;
         await user.upload(input, [makeFile('a.png'), makeFile('b.png'), makeFile('c.png')]);
@@ -210,7 +218,7 @@ describe('RecipePhotoUploaderContainer (web) — a pick past the photo cap', () 
         uploadState.stuck = true;
         photosQueryMock.mockReturnValue({ data: photosHeld(9) });
         const user = userEvent.setup();
-        render(<RecipePhotoUploaderContainer recipeId="rec_1" />);
+        render(<Managed recipeId="rec_1" />);
 
         const input = screen.getByLabelText('Add photo') as HTMLInputElement;
         await user.upload(input, [makeFile('a.png'), makeFile('b.png')]);
@@ -227,7 +235,7 @@ describe('RecipePhotoUploaderContainer (web) — a pick past the photo cap', () 
         deletePhotoMock.mockReturnValue({ mutate: deleteMutate, isPending: false, variables: undefined });
         photosQueryMock.mockReturnValue({ data: photosHeld(9) });
         const user = userEvent.setup();
-        render(<RecipePhotoUploaderContainer recipeId="rec_1" />);
+        render(<Managed recipeId="rec_1" />);
 
         await user.upload(screen.getByLabelText('Add photo'), [makeFile('a.png'), makeFile('b.png')]);
         expect(screen.getByRole('alert')).toBeTruthy();
@@ -241,7 +249,7 @@ describe('RecipePhotoUploaderContainer (web) — a pick past the photo cap', () 
 describe('RecipePhotoUploaderContainer (web) — preview URL cleanup (previewUrlsRef)', () => {
     it("revokes a file's preview URL once its upload resolves (no longer pending)", async () => {
         const user = userEvent.setup();
-        render(<RecipePhotoUploaderContainer recipeId="rec_1" />);
+        render(<Managed recipeId="rec_1" />);
 
         const input = screen.getByLabelText('Add photo') as HTMLInputElement;
         await user.upload(input, makeFile('a.png'));
@@ -253,7 +261,7 @@ describe('RecipePhotoUploaderContainer (web) — preview URL cleanup (previewUrl
     it('does NOT revoke a preview URL while its file is still mid-flight (uploading)', async () => {
         uploadState.stuck = true;
         const user = userEvent.setup();
-        render(<RecipePhotoUploaderContainer recipeId="rec_1" />);
+        render(<Managed recipeId="rec_1" />);
 
         const input = screen.getByLabelText('Add photo') as HTMLInputElement;
         await user.upload(input, makeFile('stuck.png'));
@@ -265,7 +273,7 @@ describe('RecipePhotoUploaderContainer (web) — preview URL cleanup (previewUrl
     it('revokes every still-tracked preview URL on unmount (a file still mid-flight when navigating away)', async () => {
         uploadState.stuck = true;
         const user = userEvent.setup();
-        const { unmount } = render(<RecipePhotoUploaderContainer recipeId="rec_1" />);
+        const { unmount } = render(<Managed recipeId="rec_1" />);
 
         const input = screen.getByLabelText('Add photo') as HTMLInputElement;
         await user.upload(input, makeFile('stuck.png'));
@@ -288,7 +296,7 @@ describe('RecipePhotoUploaderContainer (web) — delete', () => {
             data: [{ id: 'ph_1', url: 'https://cdn.example/1.jpg', order: 1, recipeId: 'rec_1', createdAt: '' }],
         });
         const user = userEvent.setup();
-        render(<RecipePhotoUploaderContainer recipeId="rec_1" />);
+        render(<Managed recipeId="rec_1" />);
 
         await chooseFromTile(user, 'Actions for photo 1, the cover', 'Remove');
 
@@ -302,7 +310,7 @@ describe('RecipePhotoUploaderContainer (web) — set cover (U6)', () => {
         reorderPhotoMock.mockReturnValue({ mutate, isPending: false, variables: undefined });
         photosQueryMock.mockReturnValue({ data: threeConfirmedPhotos });
         const user = userEvent.setup();
-        render(<RecipePhotoUploaderContainer recipeId="rec_1" />);
+        render(<Managed recipeId="rec_1" />);
 
         // ph_1 is the current cover (index 0, checked); choosing ph_3 must move it to the front.
         await chooseFromTile(user, 'Actions for photo 3', 'Set as cover');
@@ -331,7 +339,7 @@ describe('RecipePhotoUploaderContainer (web) — cancel-safe replace (U6)', () =
         // itself is simulated by firing a change on that same input (or NOT firing one, to model a cancel).
         const clickSpy = vi.spyOn(HTMLInputElement.prototype, 'click').mockImplementation(() => undefined);
         const user = userEvent.setup();
-        render(<RecipePhotoUploaderContainer recipeId="rec_1" />);
+        render(<Managed recipeId="rec_1" />);
 
         await chooseFromTile(user, tileName(photoIndex), 'Replace');
 
@@ -421,13 +429,13 @@ describe('RecipePhotoUploaderContainer (web) — cancel-safe replace (U6)', () =
         photosQueryMock.mockReturnValue({ data: photos(9) });
         vi.spyOn(HTMLInputElement.prototype, 'click').mockImplementation(() => undefined);
         const user = userEvent.setup();
-        const { rerender } = render(<RecipePhotoUploaderContainer recipeId="rec_1" />);
+        const { rerender } = render(<Managed recipeId="rec_1" />);
 
         await chooseFromTile(user, 'Actions for photo 3', 'Replace');
         expect(screen.queryByRole('alert')).toBeNull();
 
         photosQueryMock.mockReturnValue({ data: photos(10) });
-        rerender(<RecipePhotoUploaderContainer recipeId="rec_1" />);
+        rerender(<Managed recipeId="rec_1" />);
         await user.upload(screen.getByLabelText('Choose a replacement photo'), makeFile('late.png'));
 
         expect(screen.getByRole('alert')).toHaveTextContent(
@@ -455,7 +463,7 @@ describe('RecipePhotoUploaderContainer (web) — cancel-safe replace (U6)', () =
         });
         const clickSpy = vi.spyOn(HTMLInputElement.prototype, 'click').mockImplementation(() => undefined);
         const user = userEvent.setup();
-        render(<RecipePhotoUploaderContainer recipeId="rec_1" />);
+        render(<Managed recipeId="rec_1" />);
 
         await chooseFromTile(user, 'Actions for photo 3', 'Replace');
 

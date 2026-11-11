@@ -11,6 +11,14 @@
  * polite line says the recipe is ready and that those lines' nutrition is left out (owner D20); Publish stays enabled. A finishing write shows the primary
  * busy and locks the bar.
  *
+ * While a finish waits for its photos (`finishing`), Preview and the primary give way to one secondary control,
+ * "Finish without the remaining photos", under a line that says what is happening. Both phases share the bar on
+ * purpose: the line lands in a live region that already exists, which a screen reader announces, where a region
+ * mounted together with its text is often not read out.
+ *
+ * It sits on the bottom edge of a short page too (`mt-auto` in the page's column): while a finish waits, the page shows
+ * only Photos & publish, and the bar holding the one way on must not float under it.
+ *
  * Presentational: props → JSX. Its node leaves through `placeRef`, so the page can measure it.
  *
  * @pattern Adapter over external DOM geometry — the node reaches `usePinnedFooter` through a callback ref into state
@@ -42,29 +50,43 @@ export const EditorActionBar: FC<WebEditorActionBarProps> = ({
     fixLine,
     readyLine,
     notice,
+    finishing,
     pinned = true,
     placeRef,
 }) => (
     <div
         ref={placeRef}
         id={EDITOR_ACTION_BAR_ID}
-        className={`${pinned ? 'sticky bottom-0 z-20' : 'relative'} isolate -mx-4 flex flex-col gap-2 px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]`}
+        className={`${pinned ? 'sticky bottom-0 z-20' : 'relative'} mt-auto isolate -mx-4 flex flex-col gap-2 px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]`}
     >
         <ChromeSurface edge="top" />
         {notice}
         <LiveRegion politeness="polite" className="text-body-sm text-danger-text">
-            {fixLine ?? ''}
+            {fixLine ?? (finishing?.danger === true ? finishing.line : '')}
         </LiveRegion>
         <LiveRegion politeness="polite" className="text-body-sm text-ink-muted">
-            {readyLine ?? ''}
+            {readyLine ?? (finishing?.danger === false ? finishing.line : '')}
         </LiveRegion>
         <div role="group" aria-label={label} className="flex flex-wrap items-center justify-end gap-3">
-            <Button variant="secondary" icon="eye" onPress={onPreview} disabled={busy}>
-                {previewLabel}
-            </Button>
-            <Button icon="check" onPress={onPrimary} busy={busy} disabled={primaryDisabled}>
-                {primaryLabel}
-            </Button>
+            {finishing === undefined ? (
+                <>
+                    <Button variant="secondary" icon="eye" onPress={onPreview} disabled={busy}>
+                        {previewLabel}
+                    </Button>
+                    <Button icon="check" onPress={onPrimary} busy={busy} disabled={primaryDisabled}>
+                        {primaryLabel}
+                    </Button>
+                </>
+            ) : (
+                <Button
+                    variant="secondary"
+                    onPress={finishing.onAction}
+                    focusRequested={finishing.focusRequested}
+                    onFocusRequestHandled={finishing.onFocusRequestHandled}
+                >
+                    {finishing.actionLabel}
+                </Button>
+            )}
         </div>
     </div>
 );

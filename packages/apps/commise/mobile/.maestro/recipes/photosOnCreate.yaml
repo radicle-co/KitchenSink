@@ -1,0 +1,43 @@
+appId: ${APP_ID}
+---
+# Photos on a NEW recipe (owner ruling U33, staff-ux SPECIFY 2026-11-10). The one-page editor used to draw its photo
+# section only once the recipe existed on the server, so a new recipe had no way to add a photo. The section is now
+# there from the first render, and a pick waits in the upload queue until the recipe has an id. Mobile counterpart of
+# the "recipe photos on a NEW recipe (U33)" block in the web Playwright spec `recipePhotos.spec.ts`.
+#
+# LIMITATION, the same one `photos.yaml` records: the system photo library and camera are OS chrome, which Maestro
+# cannot drive reliably, so no file is picked here. The pick, the "Waiting to upload" tile, the upload against the
+# minted id, the held Publish and the leave ask are covered by `RecipePhotoUploader.native.test.tsx`,
+# `RecipeEditorScreen.native.test.tsx`, `PreventLeave.native.test.tsx`, the features integration test
+# `editorPhotos.integration.test.tsx`, and the web Playwright spec, which drives a real file input. This flow covers what
+# a device can show without OS chrome: the section and its controls on a new recipe, and that × leaves at once when no
+# photo is at risk.
+- runFlow: ../auth/signin.yaml
+
+- assertVisible: 'My recipes'
+- tapOn: 'New recipe'
+- assertVisible: 'Close editor'
+- assertVisible: 'Title'
+
+# Photos & publish is the last section. Anchored on "Add photos", the manager's last element, through the shared step so
+# it does not stop under the pinned action bar (`photos.yaml` records both traps).
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Add photos'
+          DIRECTION: DOWN
+          TIMEOUT: 60000
+# Maestro reads the text as a regex, so the question mark is escaped.
+- assertVisible: 'No photo\? This cover is used instead. Add one any time.'
+
+# The sheet is ours, so it can be read and closed; its choices hand over to OS chrome and are never tapped.
+- tapOn: 'Add photos'
+- assertVisible: 'Take photo'
+- assertVisible: 'Choose from library'
+- tapOn: 'Close add photos'
+- assertNotVisible: 'Take photo'
+
+# No photo was picked, so nothing is at risk: × leaves at once, with no ask.
+- tapOn: 'Close editor'
+- assertNotVisible: 'Leave without your photos\?'
+- assertVisible: 'My recipes'

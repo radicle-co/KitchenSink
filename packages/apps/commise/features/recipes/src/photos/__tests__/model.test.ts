@@ -16,6 +16,7 @@ import {
     coverFirstPhotoIds,
     MAX_RECIPE_PHOTOS,
     photoGridColumns,
+    photoIsAtRisk,
     remainingPhotoSlots,
     uploadedCount,
 } from '../model.js';
@@ -192,5 +193,23 @@ describe('coverFirstPhotoIds', () => {
 
     it('is the identity for the current cover', () => {
         expect(coverFirstPhotoIds(photos, 'a')).toEqual(['a', 'b', 'c']);
+    });
+});
+
+/**
+ * Which queue tiles a leave or a finish would lose (staff-architect REVIEW 2026-11-10, finding 2): every photo whose
+ * bytes could still upload. A file the device refused can never upload, so it is not at risk, and an uploaded one is
+ * kept already.
+ */
+describe('photoIsAtRisk', () => {
+    it.each([
+        ['queued', false, true],
+        ['waiting', true, true],
+        ['uploading', true, true],
+        ['failed', true, true],
+        ['failed', false, false],
+        ['ok', true, false],
+    ] as const)('%s, retryable %s → %s', (status, retryable, expected) => {
+        expect(photoIsAtRisk(makeQueueItem({ status, retryable }))).toBe(expected);
     });
 });

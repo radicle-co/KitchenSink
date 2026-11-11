@@ -107,6 +107,8 @@ export interface TabCloseInput {
     readonly status: SaveStatus;
     readonly lifecycle: RecipeLifecycle;
     readonly values: RecipeFormValues;
+    /** A photo is picked but not uploaded yet (`useEditorPhotos`). Absent means none. */
+    readonly photosAtRisk?: boolean;
 }
 
 /**
@@ -114,13 +116,18 @@ export interface TabCloseInput {
  *
  * The web keeps the draft and the outbox journal in the tab's session storage, so everything the server does not hold
  * yet ends with the tab — whatever the recipe's lifecycle. Only `saved` loses nothing, and a new recipe nobody has typed
- * in; an `unsaved` status with typed values is the second before the device copy is written, and loses that typing.
+ * in; an `unsaved` status with typed values is the second before the device copy is written, and loses that typing. A
+ * photo not uploaded yet is lost whatever the status says: its bytes are held by the page alone.
  *
- * @param input - Where the draft is kept, the status, the lifecycle and the draft.
+ * @param input - Where the draft is kept, the status, the lifecycle, the draft and whether a photo is at risk.
  * @returns Whether to ask before the tab closes. Pure.
  */
 export function closingTabLosesWork(input: TabCloseInput): boolean {
     const { keep, status, lifecycle, values } = input;
+
+    if (input.photosAtRisk === true) {
+        return true;
+    }
 
     if (keep !== 'tabSession' || status.kind === 'saved') {
         return false;

@@ -292,6 +292,7 @@ recipes:recipes/ingredientRemoteFoods
 recipes:recipes/pinnedActionBar
 recipes:recipes/ambiguityReview
 recipes:recipes/photos
+recipes:recipes/photosOnCreate
 recipes:recipes/accessibility
 auth:dataSources
 auth:profileUsername

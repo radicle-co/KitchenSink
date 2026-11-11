@@ -184,18 +184,11 @@ export interface RecipeFormValues {
     readonly ingredients: readonly RecipeFormIngredient[];
     readonly steps: readonly RecipeFormStep[];
     /**
-     * Photos the cook has CHOSEN but which have not been handed to the upload queue yet (U33, owner ruling
-     * 2026-08-25). See {@link RecipeFormPhoto} for what is — and deliberately is not — in each entry.
-     *
-     * ⛔ These are PENDING PICKS, not the recipe's photo gallery. A saved recipe's photos stay owned by
-     * `useRecipePhotos(recipeId)`, which the delete/reorder mutations already invalidate; duplicating them
-     * here would stand up a second authority over the same rows with no way to keep the two in step.
-     * `toRecipeFormValues` (`./wire.ts`) therefore seeds this EMPTY from a loaded recipe, which is not a lossy
-     * projection — a loaded recipe has, by definition, no pending picks.
-     *
-     * ⛔ Photos are NOT a validation input. `validateRecipeForm` never reads this field and no step's error
-     * map mentions it, so a photo can never block an advance or a publish — the metadata save and the photo
-     * upload are two calls, and the wizard must not pretend otherwise.
+     * Always empty. Since 2026-11-10 nothing writes a pick here: a photo picked before the recipe exists waits in the
+     * editor's photo queue (`useEditorPhotos`), because its bytes cannot live in the device draft (ADR-0057). The field
+     * stays only because the v1 draft format (`editor.draft.v1`) carries it; removing it is a draft-format change with
+     * its own `LOCAL_SCHEMA_VERSION` bump. A saved recipe's photos are owned by `useRecipePhotos(recipeId)`, never here,
+     * and photos are not a validation input.
      */
     readonly photos: readonly RecipeFormPhoto[];
     /**
@@ -210,23 +203,9 @@ export interface RecipeFormValues {
 }
 
 /**
- * One photo a cook has picked but not yet uploaded — the draft-side half of U33's "photos behave like every
- * other field" ruling (2026-08-25).
- *
- * **Why photos needed a draft representation at all.** `RecipePhotoUploaderContainer` takes a REQUIRED
- * `recipeId` and keys every operation on it, so on its own the create path cannot show an uploader at all.
- * A "Save this recipe first" notice on step 1 would greet every new recipe with a disabled control, so the
- * pick is recorded here and FLUSHED to the upload queue the moment
- * the recipe first has an id. That flush rule is deliberately the SAME on create and edit (on edit the id is
- * already there, so the flush is immediate) — one path, not two.
- *
- * ⛔ **The BINARY is deliberately absent, and this is load-bearing.** The discard guard's dirty test is
- * `recipeFormValuesEqual`, a `JSON.stringify` comparison whose own contract says it is EXACT because every
- * field is plain data. A `File`/`Blob` serialises to `{}`, so two different pending photos would compare
- * EQUAL and swapping one for another would be reported as "no unsaved changes". The bytes therefore live in
- * a container-owned side channel keyed by {@link localId}, and only this JSON-comparable descriptor is
- * draft state. `fileName`/`contentType`/`fileSize` are carried because they are what the queue's own
- * pre-upload validation (`validatePhotoFile`) judges, and what the cook is shown while it waits.
+ * The v1 draft format's descriptor of a picked photo (U33, 2026-08-25). No code writes one since 2026-11-10, when picks
+ * moved to the editor's photo queue (see {@link RecipeFormValues.photos}); the shape stays while the v1 format does.
+ * It never carried the bytes: a `File` serialises to `{}`, which would break `recipeFormValuesEqual`.
  */
 export interface RecipeFormPhoto {
     /**

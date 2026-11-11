@@ -5,8 +5,8 @@
  * the three trailing sheets).
  *
  * What is pinned: the section map holds each section's real leaves; a pending ingredient line gets ONE status poller;
- * the photos section asks the app for its uploader only once the recipe exists on the server (the upload takes a recipe
- * id, and a picked photo's bytes cannot live in the device draft, ADR-0057); Private is offered from the viewer's paid
+ * the photos section asks the app for its uploader from the first render, a new recipe included (owner ruling U33: a
+ * pick waits in the editor's photo queue until the recipe has an id); a leave that would lose photos asks first; Private is offered from the viewer's paid
  * features alone (E1, plan 2026-10-14-009 D14); the app's close and "My recipes" hand-offs are the ones the view calls.
  * Real hooks over the type-checked fake client, as `useRecipeEditorSession.test.tsx` has them.
  */
@@ -34,8 +34,9 @@ import {
 import { recipeFormMessages } from '../../form/messages.js';
 import type { EditorSeed, PublishBlocked, UseRecipeEditorResult } from '../../hooks/useRecipeEditor.js';
 import type { DraftStore } from '../draftStore.js';
+import type { EditorPhotos } from '../useEditorPhotos.js';
 import type { IngredientsPaste } from '../useIngredientsPaste.js';
-import { RecipeEditorSurface } from '../RecipeEditorSurface.js';
+import { RecipeEditorSurface, type PhotoUploaderTarget } from '../RecipeEditorSurface.js';
 import { useRecipePrivate } from '../../actions/useRecipePrivate.js';
 import { useRecipeEditorSession } from '../useRecipeEditorSession.js';
 
@@ -53,7 +54,7 @@ interface HarnessProps {
     readonly seed: EditorSeed;
     readonly paidFeatures: PaidFeatureState;
     readonly knownPaidFeatures: Exclude<PaidFeatureState, 'loading'> | undefined;
-    readonly renderPhotos: (recipe: { recipeId: string; title: string; cuisine: string }) => ReactNode;
+    readonly renderPhotos: (target: PhotoUploaderTarget) => ReactNode;
     readonly onClose: () => void;
     readonly onOpenMyRecipes: () => void;
     /** The paste's lines with no food yet, as the Facade would report them (R23). */
@@ -68,6 +69,10 @@ interface HarnessProps {
     readonly editorOver?: Partial<UseRecipeEditorResult>;
     /** The app's way to open a food's page (private foods spec D6). */
     readonly onOpenFood?: (foodId: string) => void;
+    /** The editor's photo session as a state the session itself would reach (its own tests drive the reaching). */
+    readonly photosOver?: (photos: EditorPhotos) => EditorPhotos;
+    /** Where the app asks before a leave that would lose photos: in the page (web), or by the navigator (native). */
+    readonly leaveAsk?: 'inPage' | 'byNavigator';
 }
 
 /** The surface over a real session, as an app's container mounts it. */
@@ -99,6 +104,7 @@ function Harness(props: HarnessProps): ReactElement {
                     ? {}
                     : { paste: { ...session.paste, openChoices: props.openChoices } }),
                 ...(props.editorOver === undefined ? {} : { editor: { ...session.editor, ...props.editorOver } }),
+                ...(props.photosOver === undefined ? {} : { photos: props.photosOver(session.photos) }),
                 ...(props.publishBlocked === undefined
                     ? {}
                     : {
@@ -119,6 +125,7 @@ function Harness(props: HarnessProps): ReactElement {
             renderPhotos={renderPhotos}
             onClose={onClose}
             onOpenMyRecipes={onOpenMyRecipes}
+            leaveAsk={props.leaveAsk ?? 'inPage'}
             {...(props.onOpenFood === undefined ? {} : { onOpenFood: props.onOpenFood })}
         />
     );
@@ -200,24 +207,136 @@ describe('RecipeEditorSurface — where the visibility field lives', () => {
     });
 });
 
+/**
+ * REWRITTEN (owner report 2026-11-10: "/recipes/new shows only Public/Private, no way to add a photo"). This used to pin
+ * that the uploader was asked for ONLY once the recipe existed on the server — which is exactly the missing control. A
+ * photo now behaves like every other field (owner ruling U33): the uploader is drawn on a new recipe too, over the
+ * editor's ONE photo session, and a pick waits for the recipe to exist.
+ */
 describe('RecipeEditorSurface — photos', () => {
-    it('asks for no uploader while the recipe does not exist on the server', () => {
-        const renderPhotos = vi.fn(() => <p>photo uploader</p>);
+    it('draws the uploader on a new recipe, before it exists on the server, over the editor’s photo session', () => {
+        const renderPhotos = vi.fn((_target: PhotoUploaderTarget) => <p>photo uploader</p>);
 
         mount({ renderPhotos });
 
-        expect(renderPhotos).not.toHaveBeenCalled();
-        expect(screen.queryByText('photo uploader')).toBeNull();
+        expect(screen.getByText('photo uploader')).toBeTruthy();
+        expect(renderPhotos.mock.lastCall?.[0]).toMatchObject({ recipeId: null, title: '', cuisine: '' });
+        expect(renderPhotos.mock.lastCall?.[0].manager.queue.items).toEqual([]);
     });
 
-    it('asks for the uploader with the recipe id, title and cuisine once it does', () => {
-        const renderPhotos = vi.fn(() => <p>photo uploader</p>);
+    it('asks for the uploader with the recipe id, title and cuisine once it exists', () => {
+        const renderPhotos = vi.fn((_target: PhotoUploaderTarget) => <p>photo uploader</p>);
         const recipe = makeRecipeDetail({ id: 'rec_1', title: 'Soup', cuisine: 'Italian' });
 
         mount({ seed: { recipe }, renderPhotos });
 
-        expect(renderPhotos).toHaveBeenCalledWith({ recipeId: 'rec_1', title: 'Soup', cuisine: 'Italian' });
+        expect(renderPhotos.mock.lastCall?.[0]).toMatchObject({ recipeId: 'rec_1', title: 'Soup', cuisine: 'Italian' });
         expect(screen.getByText('photo uploader')).toBeTruthy();
+    });
+
+    /** The ask before a leave would lose photos (each app raises it: web on ×, native on any leave of the screen). */
+    it('asks "Leave without your photos?" while the session asks it: Stay and Leave are the session’s', async () => {
+        const stay = vi.fn();
+        const confirm = vi.fn();
+        mount({
+            photosOver: (photos) => ({
+                ...photos,
+                atRisk: true,
+                atRiskCount: 1,
+                waitingForTitle: true,
+                manager: {
+                    ...photos.manager,
+                    queue: {
+                        ...photos.manager.queue,
+                        items: [{ fileId: 1, fileName: 'a.png', status: 'waiting', retryable: false }],
+                    },
+                },
+                leave: { ...photos.leave, open: true, stay, confirm },
+            }),
+        });
+
+        const ask = screen.getByRole('alertdialog', { name: 'Leave without your photos?' });
+        expect(
+            within(ask).getByText('1 photo uploads once this recipe has a title. If you leave now, it won’t be kept.'),
+        ).toBeTruthy();
+
+        await userEvent.click(within(ask).getByRole('button', { name: 'Stay' }));
+        expect(stay).toHaveBeenCalledOnce();
+
+        await userEvent.click(within(ask).getByRole('button', { name: 'Leave without photos' }));
+        expect(confirm).toHaveBeenCalledOnce();
+    });
+
+    /**
+     * Where the ask lives (GATE 2026-11-10). On web the page asks for EVERY exit it hands the app: × and the "My recipes"
+     * hand-offs, which are client-side navigations the tab-close prompt cannot see. On native the navigator's guard
+     * (`PreventLeave`) catches every removal of the screen, so the page must not ask too: the cook would be asked twice.
+     */
+    it('web: × with a photo at risk asks first, and closes only when the leave goes', async () => {
+        const request = vi.fn<(proceed: () => void) => void>();
+        const { props } = mount({
+            photosOver: (photos) => ({ ...photos, atRisk: true, leave: { ...photos.leave, request } }),
+        });
+
+        await userEvent.click(screen.getByRole('button', { name: 'Close editor' }));
+
+        expect(request).toHaveBeenCalledOnce();
+        expect(props.onClose).not.toHaveBeenCalled();
+
+        act(() => request.mock.lastCall?.[0]());
+        expect(props.onClose).toHaveBeenCalledOnce();
+    });
+
+    it('native: × leaves at once and asks nothing in the page: the navigator asks', async () => {
+        const request = vi.fn<(proceed: () => void) => void>();
+        const { props } = mount({
+            leaveAsk: 'byNavigator',
+            photosOver: (photos) => ({ ...photos, atRisk: true, leave: { ...photos.leave, request } }),
+        });
+
+        await userEvent.click(screen.getByRole('button', { name: 'Close editor' }));
+
+        expect(request).not.toHaveBeenCalled();
+        expect(props.onClose).toHaveBeenCalledOnce();
+    });
+
+    it('during a finish that waits for photos, shows only Photos & publish, without the visibility choice', () => {
+        mount({
+            photosOver: (photos) => ({ ...photos, finish: { kind: 'uploading' } }),
+            editorOver: { state: { status: 'done' } },
+        });
+
+        expect(screen.getAllByRole('heading', { level: 2 }).map((heading) => heading.textContent)).toEqual([
+            'Photos & publish',
+        ]);
+        expect(screen.getByText('photo uploader')).toBeTruthy();
+        expect(screen.queryByRole('radio', { name: /private/i })).toBeNull();
+        expect(screen.getByText('Recipe saved. Finishing your photo uploads…')).toBeTruthy();
+        expect(screen.getByRole('button', { name: 'Finish without the remaining photos' })).toBeTruthy();
+        expect(screen.queryByRole('button', { name: 'Publish' })).toBeNull();
+    });
+
+    /**
+     * staff-architect REVIEW 2026-11-10, finding 3: the editor reaching "done" and its finish being held may land in
+     * different commits. In between, a photo still at risk keeps the page mounted, so the uploader (and the previews it
+     * owns) never unmounts under a photo that is still going.
+     */
+    it('keeps the page while a photo is at risk, even before the finish is held', () => {
+        mount({
+            photosOver: (photos) => ({ ...photos, atRisk: true, atRiskCount: 1 }),
+            editorOver: { state: { status: 'done' } },
+        });
+
+        expect(screen.getAllByRole('heading', { level: 2 }).length).toBeGreaterThan(0);
+    });
+
+    it('says how many photos failed while a finish waits on them', () => {
+        mount({
+            photosOver: (photos) => ({ ...photos, finish: { kind: 'failed', count: 2 } }),
+            editorOver: { state: { status: 'done' } },
+        });
+
+        expect(screen.getByText('2 photos didn’t upload. Retry them, or finish without them.')).toBeTruthy();
     });
 });
 
@@ -285,6 +404,30 @@ describe('RecipeEditorSurface — the Private choice', () => {
 
         await user.click(screen.getByRole('button', { name: /Get Pro/u }));
         expect(await screen.findByRole('dialog')).toBeTruthy();
+    });
+
+    /** GATE 2026-11-10: on web, "My recipes" is a leave too, and a photo still uploading would be lost by it. */
+    it('web: with a photo at risk, a refusal`s way forward asks before it leaves for My recipes', async () => {
+        const user = userEvent.setup();
+        const request = vi.fn<(proceed: () => void) => void>();
+        const { props } = mount(
+            {
+                seed: PUBLISHED_PUBLIC,
+                paidFeatures: 'upsell',
+                knownPaidFeatures: 'upsell',
+                photosOver: (photos) => ({ ...photos, atRisk: true, leave: { ...photos.leave, request } }),
+            },
+            withSlots(50),
+        );
+
+        expect(await screen.findByText('Not available. All 50 of your private slots are in use.')).toBeTruthy();
+        await user.click(screen.getByRole('button', { name: /Make a private recipe public/u }));
+
+        expect(request).toHaveBeenCalledOnce();
+        expect(props.onOpenMyRecipes).not.toHaveBeenCalled();
+
+        act(() => request.mock.lastCall?.[0]());
+        expect(props.onOpenMyRecipes).toHaveBeenCalledOnce();
     });
 
     describe('a private DRAFT with every slot used (ADR-0073 section 12)', () => {

@@ -18,8 +18,9 @@
  * re-picked after being removed from the queue.
  *
  * The session itself — the photos, the queue and its client-side pre-validation, delete, cover, the cap rule and every
- * refusal sentence — is `useRecipePhotoManager`, shared with the mobile uploader; this container is only how a file
- * reaches it on the web.
+ * refusal sentence — is the editor's `useRecipePhotoManager` (owned by `useEditorPhotos`, handed down as `manager`),
+ * shared with the mobile uploader; this container is only how a file reaches it on the web. On a new recipe not created
+ * yet a pick waits in that queue until the recipe has an id.
  *
  * **Replace is upload-first (U6, cancel-safe).** A second, single-select hidden input serves the per-photo
  * "Replace" control, and the original photo is deleted only from the replacement's `onUploaded` continuation
@@ -34,7 +35,8 @@
  *     the Object-URL lifecycle ledger that the presentational `RecipePhotoManager` deliberately omits.
  */
 import { RecipePhotoManager, photoMessages } from '@commise/features-recipes';
-import { useRecipePhotoManager, type RecipePhotoQueueFile } from '@commise/features-recipes/hooks';
+import type { PhotoUploaderTarget } from '@commise/features-recipes/editor';
+import type { RecipePhotoQueueFile } from '@commise/features-recipes/hooks';
 import { useMessages } from '@commise/i18n/react';
 import { Button } from '@commise/ui/button';
 import { useEffect, useRef, useState } from 'react';
@@ -42,30 +44,25 @@ import type { ChangeEvent, FC } from 'react';
 
 import { webMessages } from '@/i18n/messages';
 
-/** Props for {@link RecipePhotoUploaderContainer}. */
-export interface RecipePhotoUploaderContainerProps {
-    /** The recipe whose photos this manages (from the `[id]` route segment). */
-    readonly recipeId: string;
-    /**
-     * The recipe's title, for the cover the empty state previews (buildSpec §7.7: its first letter). Optional: until a
-     * caller supplies it the preview shows the cover's tint without a letter.
-     */
-    readonly title?: string;
-    /** The recipe's cuisine, shown on the previewed cover where it is tall enough. */
-    readonly cuisine?: string;
-}
+/** Props for {@link RecipePhotoUploaderContainer}: the editor's photo target (`RecipeEditorSurface`). */
+export type RecipePhotoUploaderContainerProps = PhotoUploaderTarget;
 
 /**
  * The live recipe photo uploader.
  *
- * @param props - The recipe id whose photos to manage.
+ * @param props - The recipe (its id is `null` on a new recipe not created yet) and the editor's photo session.
  * @returns The shared photo-manager block wired to the presign → PUT → confirm upload queue + delete mutation.
  */
-export const RecipePhotoUploaderContainer: FC<RecipePhotoUploaderContainerProps> = ({ recipeId, title, cuisine }) => {
+export const RecipePhotoUploaderContainer: FC<RecipePhotoUploaderContainerProps> = ({
+    recipeId,
+    title,
+    cuisine,
+    manager: session,
+}) => {
     const { recipes } = useMessages(webMessages);
     const photoCopy = useMessages(photoMessages);
-    // The session (photos, queue, delete, cover, error slot, the cap rule and its sentences) is shared with mobile.
-    const session = useRecipePhotoManager({ recipeId });
+    // The session (photos, queue, delete, cover, error slot, the cap rule and its sentences) is the editor's one session,
+    // shared with mobile: it lives above this leaf so a finish can wait for it (`useEditorPhotos`).
     const { photos, queue } = session;
 
     // ALLOWED REF (§3 — wraps a genuinely external, non-declarative system): the DOM `<input type="file">`
@@ -260,7 +257,7 @@ export const RecipePhotoUploaderContainer: FC<RecipePhotoUploaderContainerProps>
                 reordering={session.reordering}
                 onReplacePhoto={handleReplacePhoto}
                 addControl={addControl}
-                coverPreview={{ recipeId, title: title ?? '', ...(cuisine === undefined ? {} : { cuisine }) }}
+                coverPreview={{ recipeId: recipeId ?? '', title, cuisine }}
             />
             {/* The replacement picker lives OUTSIDE the block (which hides `addControl` at the cap) so it is
                 never conditionally unmounted mid-flow; it is named for assistive tech, never visible. */}

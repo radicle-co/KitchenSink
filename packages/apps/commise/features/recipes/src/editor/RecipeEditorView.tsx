@@ -24,6 +24,7 @@ import { ScrollHost } from '@commise/ui/scroll-host';
 import { SectionIndex } from '@commise/ui/section-index';
 import { useCallback, type FC } from 'react';
 
+import { MainColumn } from '../layout/MainColumn.js';
 import { RecipeConflictView } from '../versions/RecipeConflictView.js';
 import { readChromeInsets } from './chromeInsets.js';
 import { EditorActionBar } from './EditorActionBar.js';
@@ -43,7 +44,7 @@ import {
 } from './frameProps.js';
 import { EDITOR_SECTIONS } from './sections.js';
 import { closingTabLosesWork } from './saveStatus.js';
-import { useEditorPage } from './useEditorPage.js';
+import { editorPageStays, useEditorPage } from './useEditorPage.js';
 import { useEditorScrollPadding } from './useEditorScrollPadding.js';
 import { useUnloadGuard } from './useUnloadGuard.js';
 
@@ -54,7 +55,13 @@ const ACTIVATION_OFFSET_PX = 120;
 export const RecipeEditorView: FC<RecipeEditorViewProps> = (props) => {
     const { editor } = props;
 
-    if (editor.state.status === 'done') {
+    if (
+        !editorPageStays({
+            status: editor.state.status,
+            finishing: props.photoFinish !== undefined,
+            photosAtRisk: props.photosAtRisk,
+        })
+    ) {
         return null;
     }
 
@@ -92,15 +99,23 @@ export const RecipeEditorView: FC<RecipeEditorViewProps> = (props) => {
 
 /** The page under its `ScrollHost`. */
 const EditorPage: FC<RecipeEditorViewProps> = (props) => {
-    const { editor, keep, sections, headingActions, railFooter, onPreview } = props;
+    const { editor, keep, sections, headingActions, railFooter, onPreview, photoFinish } = props;
     const page = useEditorPage(props);
     const { m, chrome, entries } = page;
     // A1: the header is stuck to the viewport's top, so the viewport is the frame.
     const pinning = usePinnedFooter({ frame: 'viewport' });
+    const { draining, shownSections } = page;
 
-    // Closing the tab loses whatever the server does not hold yet: the draft and the outbox live in the tab (D7).
+    // Closing the tab loses whatever the server does not hold yet: the draft and the outbox live in the tab (D7), and a
+    // photo's bytes live nowhere else.
     useUnloadGuard(
-        closingTabLosesWork({ keep, status: editor.saveStatus, lifecycle: editor.lifecycle, values: editor.values }),
+        closingTabLosesWork({
+            keep,
+            status: editor.saveStatus,
+            lifecycle: editor.lifecycle,
+            values: editor.values,
+            photosAtRisk: props.photosAtRisk,
+        }),
     );
 
     useEditorScrollPadding({ pinned: !pinning.unpinned, height: pinning.footerHeight });
@@ -137,79 +152,86 @@ const EditorPage: FC<RecipeEditorViewProps> = (props) => {
                 <LiveRegion politeness="polite" visuallyHidden occurrence={page.announcement.n}>
                     {page.announcement.text}
                 </LiveRegion>
-                <div className="mx-auto flex w-full max-w-[calc(15rem+2rem+var(--container-list))] flex-1 flex-col @wide/main:flex-row @wide/main:gap-8 @wide/main:px-4">
-                    <SectionIndex
-                        stickyId={EDITOR_INDEX_ID}
-                        narrowHidden={pinning.unpinned}
-                        label={m.index.label}
-                        sheetTitle={m.index.sheetTitle}
-                        sheetCloseLabel={m.index.sheetClose}
-                        items={entries.items}
-                        currentId={page.current}
-                        barName={entries.barName}
-                        {...(entries.barCount === undefined ? {} : { barCount: entries.barCount })}
-                        railFooter={railFooter}
-                    />
-                    <div className={`flex w-full max-w-list min-w-0 flex-1 flex-col gap-10 pt-6 ${EDITOR_GUTTER}`}>
-                        {chrome.resumeBody !== undefined && (
-                            <ResumeNotice
-                                body={chrome.resumeBody}
-                                saveLabel={m.resume.save}
-                                discardLabel={m.resume.discard}
-                                onSave={page.finish}
-                                onDiscard={page.askToDiscard}
-                                {...(chrome.discard?.unavailable === undefined
-                                    ? {}
-                                    : { discardUnavailable: chrome.discard.unavailable })}
+                {/* The padded frame is the `main` container (a focused task's own `<main>` has no gutter), so the index rail,
+                    the paste pane and every `@regular/main:` field layout read the width the content gets. */}
+                <MainColumn className={`flex w-full flex-1 flex-col ${EDITOR_GUTTER}`}>
+                    <div className="mx-auto flex w-full max-w-[calc(15rem+2rem+var(--container-list))] flex-1 flex-col @wide/main:flex-row @wide/main:gap-8">
+                        {draining ? null : (
+                            <SectionIndex
+                                stickyId={EDITOR_INDEX_ID}
+                                narrowHidden={pinning.unpinned}
+                                label={m.index.label}
+                                sheetTitle={m.index.sheetTitle}
+                                sheetCloseLabel={m.index.sheetClose}
+                                items={entries.items}
+                                currentId={page.current}
+                                barName={entries.barName}
+                                {...(entries.barCount === undefined ? {} : { barCount: entries.barCount })}
+                                railFooter={railFooter}
                             />
                         )}
-                        {EDITOR_SECTIONS.map((section) => (
-                            <EditorSection
-                                key={section}
-                                id={section}
-                                title={m.index.sections[section]}
-                                current={page.current === section}
-                                {...(headingActions?.[section] === undefined
-                                    ? {}
-                                    : { action: headingActions[section] })}
-                            >
-                                {section === 'photos' && page.publishNote !== undefined && (
-                                    <UnmatchedNote text={page.publishNote} />
-                                )}
-                                {section === 'photos' &&
-                                    page.publishNote === undefined &&
-                                    page.readyLine !== undefined && (
-                                        <PublishLine line={page.readyLine} onJump={page.goToSection} />
+                        <div className="flex w-full max-w-list min-w-0 flex-1 flex-col gap-10 pt-6">
+                            {chrome.resumeBody !== undefined && (
+                                <ResumeNotice
+                                    body={chrome.resumeBody}
+                                    saveLabel={m.resume.save}
+                                    discardLabel={m.resume.discard}
+                                    onSave={page.finish}
+                                    onDiscard={page.askToDiscard}
+                                    {...(chrome.discard?.unavailable === undefined
+                                        ? {}
+                                        : { discardUnavailable: chrome.discard.unavailable })}
+                                />
+                            )}
+                            {shownSections.map((section) => (
+                                <EditorSection
+                                    key={section}
+                                    id={section}
+                                    title={m.index.sections[section]}
+                                    current={page.current === section}
+                                    {...(headingActions?.[section] === undefined
+                                        ? {}
+                                        : { action: headingActions[section] })}
+                                >
+                                    {section === 'photos' && page.publishNote !== undefined && (
+                                        <UnmatchedNote text={page.publishNote} />
                                     )}
-                                {sections[section]}
-                            </EditorSection>
-                        ))}
-                        <EditorActionBar
-                            pinned={!pinning.unpinned}
-                            placeRef={pinning.footerRef}
-                            label={m.actionBarLabel}
-                            previewLabel={m.preview}
-                            onPreview={onPreview}
-                            primaryLabel={chrome.primary.label}
-                            onPrimary={page.finish}
-                            primaryDisabled={chrome.primary.disabled || props.pastePending === true}
-                            busy={chrome.primary.busy}
-                            {...(chrome.fixLine === undefined ? {} : { fixLine: chrome.fixLine })}
-                            {...(page.publishNote === undefined ? {} : { readyLine: page.publishNote })}
-                            notice={
-                                chrome.failure === undefined || firstAction === undefined ? undefined : (
-                                    <FailureAlert
-                                        body={chrome.failure.body}
-                                        primary={page.actionOf(firstAction)}
-                                        {...(secondAction === undefined
-                                            ? {}
-                                            : { secondary: page.actionOf(secondAction) })}
-                                    />
-                                )
-                            }
-                        />
+                                    {section === 'photos' &&
+                                        page.publishNote === undefined &&
+                                        page.readyLine !== undefined && (
+                                            <PublishLine line={page.readyLine} onJump={page.goToSection} />
+                                        )}
+                                    {sections[section]}
+                                </EditorSection>
+                            ))}
+                            <EditorActionBar
+                                pinned={!pinning.unpinned}
+                                placeRef={pinning.footerRef}
+                                label={m.actionBarLabel}
+                                previewLabel={m.preview}
+                                onPreview={onPreview}
+                                primaryLabel={chrome.primary.label}
+                                onPrimary={page.finish}
+                                primaryDisabled={chrome.primary.disabled || props.pastePending === true}
+                                busy={chrome.primary.busy}
+                                {...(chrome.fixLine === undefined ? {} : { fixLine: chrome.fixLine })}
+                                {...(page.publishNote === undefined ? {} : { readyLine: page.publishNote })}
+                                {...(photoFinish === undefined ? {} : { finishing: photoFinish })}
+                                notice={
+                                    chrome.failure === undefined || firstAction === undefined ? undefined : (
+                                        <FailureAlert
+                                            body={chrome.failure.body}
+                                            primary={page.actionOf(firstAction)}
+                                            {...(secondAction === undefined
+                                                ? {}
+                                                : { secondary: page.actionOf(secondAction) })}
+                                        />
+                                    )
+                                }
+                            />
+                        </div>
                     </div>
-                </div>
+                </MainColumn>
             </div>
             {chrome.discard !== undefined && (
                 <ConfirmDialog

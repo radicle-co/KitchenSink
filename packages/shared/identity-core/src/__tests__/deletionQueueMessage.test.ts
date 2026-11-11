@@ -14,10 +14,11 @@
  *
  * ## The producer side
  *
- * The identity service's `DeletionQueueMessage` is the shape it actually serialises. The type-level
- * assertion below fails `tsc` if that shape ever stops satisfying this schema's INPUT — the contract check
- * that neither package's unit suite could make on its own. (The tombstone-sweep's inline message is covered
- * by `tests/tombstoneSweep.integration.test.ts`, which parses the real bodies it enqueues.)
+ * The identity service's `DeletionQueueMessage` is the shape it actually serialises. The type-level assertion
+ * that it satisfies this schema's INPUT lives in the service (`src/types/__tests__/deletionQueueContract.test.ts`),
+ * which declares this package; this package cannot declare the service without a dependency cycle (ADR-0091).
+ * (The tombstone-sweep's inline message is covered by `tests/tombstoneSweep.integration.test.ts`, which parses the
+ * real bodies it enqueues.)
  *
  * ## Mutation check
  *
@@ -25,9 +26,7 @@
  * the `Extract<…>['userId']` type assertion. Dropping `event` from the enum fails the lifecycle cases.
  * Replacing the union with a single object fails the narrowing assertion.
  */
-import type { DeletionQueueMessage } from '@kitchensink/identity-service';
 import { describe, expect, expectTypeOf, it } from 'vitest';
-import type { z } from 'zod';
 
 import { DELETION_EVENTS, idpDeletionMessageSchema, type IdpDeletionMessage } from '../deletionQueueMessage.js';
 
@@ -107,9 +106,5 @@ describe('idpDeletionMessageSchema — the contract as TYPES', () => {
     it('narrows `userId` to a required string on the erasure variant', () => {
         expectTypeOf<Extract<IdpDeletionMessage, { event: 'erasure' }>['userId']>().toEqualTypeOf<string>();
         expectTypeOf<Exclude<IdpDeletionMessage, { event: 'erasure' }>['userId']>().toEqualTypeOf<string | undefined>();
-    });
-
-    it('is satisfied by the shape the identity service actually serialises', () => {
-        expectTypeOf<DeletionQueueMessage>().toExtend<z.input<typeof idpDeletionMessageSchema>>();
     });
 });

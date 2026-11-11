@@ -39,7 +39,7 @@ decide() {
     local full=''
     if [ "${EVENT_NAME:-}" != 'pull_request' ]; then
         full="a ${EVENT_NAME:-run with no event} checks everything, so main is always fully verified"
-    elif [ "${#json}" -gt "$MAX_LIST_BYTES" ]; then
+    elif [ "$(printf %s "$json" | wc -c)" -gt "$MAX_LIST_BYTES" ]; then
         full="the change touches ${count} files, a list longer than ${MAX_LIST_BYTES} bytes cannot be passed to a job"
     fi
 

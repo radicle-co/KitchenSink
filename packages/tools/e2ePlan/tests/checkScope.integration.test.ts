@@ -53,6 +53,12 @@ describe('changed-only selection over the real graph', () => {
         );
     });
 
+    it('runs e2e-plan’s integration suites for a new web spec, since they read both apps whole', async () => {
+        const { packages } = await select('test:integration', ['packages/apps/commise/web/tests/e2e/newThing.spec.ts']);
+
+        expect(packages).toContain('@kitchensink/e2e-plan');
+    });
+
     it('selects a task whose declared outside input changed', async () => {
         const { packages } = await select('test', [
             'packages/services/food-service/src/foods/seed/data/curatedCatalog.jsonl',

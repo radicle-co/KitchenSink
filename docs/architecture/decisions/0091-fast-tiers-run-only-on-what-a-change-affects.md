@@ -59,7 +59,14 @@ change to that package must check every package. The selector then
 intersects with the caller's group, because turbo unions repeated `--filter` flags, and it emits package names only.
 
 turbo.json is therefore the one contract for both caching and selection. A test that reads a file outside its package
-declares it there, or both a cache hit and a skip will lie about it.
+declares it there, or both a cache hit and a skip will lie about it. A test that reads too much to list turns its
+cache off: `e2e-plan`'s integration suites read the whole web and mobile apps, so that task is `cache: false` and
+always runs.
+
+The package graph is the other half of the contract. Every package a workspace imports, from source or from a test,
+is declared in that workspace's `package.json`. An undeclared import has no edge, so a change to the imported package
+does not select the importer. Two declarations close a cycle: a service and its own core library, and `@commise/ui`
+and `@commise/test-utils`. In each case the test moved to the package that can declare both ends.
 
 The per-file tier lives in `src/checkScopeFiles.ts`: Prettier over the Markdown no package owns. It checks only the
 changed files. If its config changes, it checks every file. If none of its files changed, it checks nothing.
@@ -142,6 +149,12 @@ skipped job red except the sandbox jobs (owner rule, 2026-10-03).
     - Every fast-tier job reads the decision.
     - Every integration step is gated on its own package.
     - The root scripts go through the selector.
+    - The change list is capped in bytes, as the kernel measures it, not in files.
+- `repoGuards`' `workspaceImportsDeclared.test.ts` reads every tracked source and test file with the TypeScript parser.
+  If a file imports a workspace package that its own workspace does not declare, the guard fails.
+- `repoGuards`' `testReadsDeclared.test.ts` covers cacheable `test` and `test:integration` files. It looks for reads
+  of paths outside the file's package and outside the packages it depends on. If turbo.json does not declare such a
+  path as an input, the guard fails.
 
 ## Consequences
 
@@ -156,14 +169,12 @@ skipped job red except the sandbox jobs (owner rule, 2026-10-03).
 
 ## Residual risk
 
-- **An undeclared import is invisible.** A package that imports a hoisted sibling it never declares has no edge in the
-  graph, so a change to that sibling does not select it. The `no-extraneous-dependencies` rule covers only the
-  packages that build an image. The push to main still runs everything and catches it after merge.
-- **An undeclared outside read is invisible.** A test that reads a file outside its package without declaring it in
-  turbo.json is wrong for caching today and is now also wrong for selection. The fix is the same: declare it. One
-  declaration also tells the other fast tasks that they do not read the file. If another task declares the same file, a reader
-  that is not declared is still skipped. A declaration states one reader. It does not prove that
-  nothing else reads the file.
+- **The read guard sees only literal paths.** `testReadsDeclared` finds a read through a literal passed to a
+  path-forming call or held in a variable. It does not see a path built only in a template string, or one built by a
+  helper in `src/`. Such a read is still invisible to selection. The push to main runs everything and catches it after
+  merge. The import guard has no such gap, because it reads every import the parser finds.
+- **A declaration states one reader.** One declaration also tells the other fast tasks that they do not read the file.
+  If another task reads the same file without declaring it, and the guard cannot see the read, that task is skipped.
 - **A nested non-workspace folder is attributed to the workspace around it.** That is right while no other workspace
   imports from it, which npm workspaces cannot do without a relative import across a boundary, and the house rules ban
   those.

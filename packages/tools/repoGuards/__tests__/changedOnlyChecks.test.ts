@@ -54,11 +54,12 @@ const needsOf = (job: Job): readonly string[] =>
 const BARE_FAST_TIER = /turbo run (?:[\w:-]+ )*(?:test|test:integration|lint|typecheck|format:check)(?:\s|$)/u;
 const SCOPED = /npm run -s scope -- (?:run|list|files) /u;
 
+// A UTF-8 locale, as the runner has: there `\${#x}` counts characters, not the bytes the environment limit counts.
 const decide = (event: string, files: readonly string[]) => {
     const result = spawnSync('bash', [SCRIPT, 'decide'], {
         input: files.join('\n'),
         encoding: 'utf8',
-        env: { PATH: process.env['PATH'] ?? '', EVENT_NAME: event },
+        env: { PATH: process.env['PATH'] ?? '', EVENT_NAME: event, LC_ALL: 'C.UTF-8' },
     });
 
     expect(result.stderr).toBe('');
@@ -125,6 +126,13 @@ describe('selectChecks.sh decide', () => {
         expect(script).toContain('git merge-base HEAD "origin/${BASE_REF}"');
         expect(script).toMatch(/diff-tree -r --no-renames --name-only/u);
         expect(local).toMatch(/'diff-tree', '-r', '--no-renames', '--name-only'/u);
+    });
+
+    it('measures the list in BYTES, so a list of non-ASCII paths under the cap in characters still widens', () => {
+        // 420 paths of 125 characters each: about 54,000 characters, but over 100,000 bytes, since é is two bytes.
+        const wide = Array.from({ length: 420 }, (_, i) => `docs/${String(i).padStart(4, '0')}${'é'.repeat(116)}.md`);
+
+        expect(decide('pull_request', wide).full).toMatch(/420 files/u);
     });
 
     it('keeps a path with spaces whole', () => {

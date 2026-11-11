@@ -53,8 +53,27 @@ function imageServices(): ImageService[] {
                 devDependencies?: Record<string, string>;
             };
             const runtimeNames = Object.keys(manifest.dependencies ?? {});
-            const resolvable = (name: string): boolean =>
-                !name.startsWith('@types/') && existsSync(path.join(repoRoot, 'node_modules', name, 'package.json'));
+
+            // The probe imports the bare name, and the rule ignores an import that does not resolve, so a package
+            // whose `exports` has no `.` entry (subpath exports only) cannot be the probe.
+            const resolvable = (name: string): boolean => {
+                const manifestPath = path.join(repoRoot, 'node_modules', name, 'package.json');
+
+                if (name.startsWith('@types/') || !existsSync(manifestPath)) {
+                    return false;
+                }
+
+                const { exports } = JSON.parse(readFileSync(manifestPath, 'utf8')) as { exports?: unknown };
+
+                // Keys that do not start with `.` are conditions on the root itself.
+                return (
+                    typeof exports !== 'object' ||
+                    exports === null ||
+                    Array.isArray(exports) ||
+                    Object.keys(exports).some((key) => key === '.' || !key.startsWith('.'))
+                );
+            };
+
             const devOnly = Object.keys(manifest.devDependencies ?? {}).find(
                 (name) => !runtimeNames.includes(name) && resolvable(name),
             );

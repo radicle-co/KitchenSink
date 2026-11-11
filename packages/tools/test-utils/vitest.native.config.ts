@@ -1,5 +1,6 @@
 import { fileURLToPath } from 'node:url';
 
+import { lucideNativeStub } from '@commise/ui/testing/lucide-native';
 import { jsdomPolyfillsSetup } from '@kitchensink/vitest';
 import { preferNativeLeaves } from '@kitchensink/vitest/preferNativeLeaves';
 import { defineConfig } from 'vitest/config';
@@ -11,7 +12,8 @@ import { defineConfig } from 'vitest/config';
  * runs both.
  */
 export default defineConfig({
-    plugins: [preferNativeLeaves()],
+    // `lucide-react-native/icons/*` draws through `react-native-svg`, which has no jsdom runtime (as in `@commise/ui`).
+    plugins: [preferNativeLeaves(), lucideNativeStub()],
     test: {
         globals: true,
         environment: 'jsdom',

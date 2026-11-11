@@ -30,6 +30,9 @@ export const FILE_TIERS = {
         widenedBy: [
             'prettier.config.js',
             '.prettierignore',
+            // Prettier reads `.editorconfig`; the root manifest pins the Prettier the doors run.
+            '.editorconfig',
+            'package.json',
             'package-lock.json',
             'packages/tools/prettier/**',
             ...SELECTOR_SOURCES,

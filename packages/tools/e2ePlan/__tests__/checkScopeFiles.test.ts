@@ -18,12 +18,16 @@ describe('scopeFiles', () => {
         expect(scopeFiles('docs', files('packages/apps/commise/web/src/a.ts'))).toEqual({ kind: 'some', files: [] });
     });
 
-    it.each(['prettier.config.js', '.prettierignore', 'package-lock.json', 'packages/tools/prettier/index.js'])(
-        're-checks every doc when %s changes',
-        (config) => {
-            expect(scopeFiles('docs', files('docs/a.md', config)).kind).toBe('all');
-        },
-    );
+    it.each([
+        'prettier.config.js',
+        '.prettierignore',
+        '.editorconfig',
+        'package.json',
+        'package-lock.json',
+        'packages/tools/prettier/index.js',
+    ])('re-checks every doc when %s changes', (config) => {
+        expect(scopeFiles('docs', files('docs/a.md', config)).kind).toBe('all');
+    });
 
     it('re-checks everything when the selector changes', () => {
         expect(scopeFiles('docs', files('packages/tools/e2ePlan/src/checkScopeFiles.ts')).kind).toBe('all');

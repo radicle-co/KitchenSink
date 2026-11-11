@@ -348,6 +348,15 @@ const RecipeEditorSession: FC<RecipeEditorSessionProps> = ({ locale, mode, draft
         knownPaidFeatures,
     });
     const [arrival] = useState<EditorArrival | undefined>(() => arrivalFromHash(window.location.hash));
+    const arrivedAtLine = arrival?.line !== undefined;
+    // A line address names the version the keys were read at; once the editor has used it, a reload after a save would
+    // name a version that is gone ("couldn't find that ingredient"), so the hash falls back to its section. The history
+    // entry is an external system, hence the effect; `null` state keeps Next in sync (see the header).
+    useEffect(() => {
+        if (arrivedAtLine) {
+            window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}#ingredients`);
+        }
+    }, [arrivedAtLine]);
     // The session's navigation port, on the Next router.
     const navigation: EditorNavigation = {
         // E8: how the editor finished goes to the recipe page in a one-shot parameter (a snackbar raised here would die

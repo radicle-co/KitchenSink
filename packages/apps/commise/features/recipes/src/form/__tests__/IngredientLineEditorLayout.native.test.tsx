@@ -29,7 +29,6 @@ const m = recipeFormMessages.en;
 const view: RowLineEditorView = {
     title: 'Flour',
     closeLabel: 'Close',
-    needsReview: false,
     food: 'Flour',
     ids: {
         amount: 'amount-1',

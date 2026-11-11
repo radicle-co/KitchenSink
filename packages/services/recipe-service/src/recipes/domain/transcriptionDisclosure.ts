@@ -22,22 +22,25 @@
  * unknown writer is "not the owner": the rule fails closed both ways.
  */
 
-/** Who is reading: the recipe's owner, or anyone else. */
-export type TranscriptionAudience = { readonly kind: 'transcriber' } | { readonly kind: 'reader' };
+/**
+ * Who is reading: the recipe's owner, or anyone else. `owner` is HALF the rule: a line is shown only to the owner AND
+ * when its own flag says the owner supplied the text ({@link disclosedSourceLine}).
+ */
+export type TranscriptionAudience = { readonly kind: 'owner' } | { readonly kind: 'reader' };
 
 /**
  * Classify a read's viewer against the recipe. Pure.
  *
  * @param recipe - The recipe being read (only its owner matters).
  * @param viewerId - The viewing principal's app-user ULID, or `undefined` for a read with no viewer.
- * @returns `transcriber` iff the viewer is the owner; `reader` otherwise, including for an `undefined` viewer.
+ * @returns `owner` iff the viewer is the owner; `reader` otherwise, including for an `undefined` viewer.
  */
 export function transcriptionAudienceOf(
     recipe: { readonly ownerId: string },
     viewerId: string | undefined,
 ): TranscriptionAudience {
     return viewerId !== undefined && viewerId !== '' && viewerId === recipe.ownerId
-        ? { kind: 'transcriber' }
+        ? { kind: 'owner' }
         : { kind: 'reader' };
 }
 
@@ -53,7 +56,7 @@ export function disclosedSourceLine(
     line: { readonly sourceLine: string | null; readonly sourceLineTranscribedByOwner: boolean },
 ): string | undefined {
     if (
-        audience.kind !== 'transcriber' ||
+        audience.kind !== 'owner' ||
         !line.sourceLineTranscribedByOwner ||
         line.sourceLine === null ||
         line.sourceLine === ''

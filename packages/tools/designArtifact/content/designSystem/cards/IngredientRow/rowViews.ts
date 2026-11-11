@@ -140,7 +140,6 @@ function rowView(seed: typeof seedLineKey, number: number, facts: RowFacts): Ing
             onToggleDetails: noop,
             onDone: noop,
             onCancel: noop,
-            needsReview: false,
         },
         youWroteInline: undefined,
         noFoodNote: undefined,

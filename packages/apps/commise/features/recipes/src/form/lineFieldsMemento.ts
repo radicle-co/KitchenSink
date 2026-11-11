@@ -29,6 +29,16 @@ export interface LineFieldsMemento {
  */
 export const captureLineFields = (line: RecipeFormIngredient): LineFieldsMemento => ({ original: line });
 
+/** The six fields the row editor edits; the only keys {@link restoreLineFields} takes from the capture. */
+const EDITED_FIELDS: ReadonlySet<string> = new Set([
+    'quantity',
+    'quantityHigh',
+    'unit',
+    'displayText',
+    'note',
+    'preparation',
+]);
+
 /**
  * Put the six edited fields back on a line, leaving every other field as it is NOW (so a food change survives). A key
  * absent at capture is absent after, and keys keep their captured order. Pure.
@@ -38,10 +48,24 @@ export const captureLineFields = (line: RecipeFormIngredient): LineFieldsMemento
  * @returns The line with its edited fields as captured.
  */
 export const restoreLineFields = (line: RecipeFormIngredient, memento: LineFieldsMemento): RecipeFormIngredient => {
-    const { quantity, quantityHigh, unit, displayText, note, preparation, ...kept } = line;
+    const now = new Map(Object.entries(line));
+    const then = Object.entries(memento.original);
+    const thenKeys = new Set(then.map(([key]) => key));
 
-    // The six destructured names are the edited fields; `kept` is everything else, as it is now.
-    void [quantity, quantityHigh, unit, displayText, note, preparation];
+    // Captured key order first: an edited field comes from the capture, any other key from NOW and only if it still
+    // exists (a binding key deleted meanwhile stays deleted). Then the keys only the current line has (a food change).
+    // `Object.fromEntries` defines own properties, so no key can reach a prototype.
+    const entries = [
+        ...then.flatMap(([key, value]): [string, unknown][] => {
+            if (EDITED_FIELDS.has(key)) {
+                return [[key, value]];
+            }
 
-    return { ...memento.original, ...kept };
+            return now.has(key) ? [[key, now.get(key)]] : [];
+        }),
+        ...[...now].filter(([key]) => !thenKeys.has(key) && !EDITED_FIELDS.has(key)),
+    ];
+
+    // Cast reason: every entry came from a RecipeFormIngredient (the capture or the current line), so the shape holds.
+    return Object.fromEntries(entries) as RecipeFormIngredient;
 };

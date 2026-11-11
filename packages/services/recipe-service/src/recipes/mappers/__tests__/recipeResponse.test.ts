@@ -166,7 +166,7 @@ describe('sourceLine disclosure (owner-only; ADR-0082 §2)', () => {
         expect(toIngredientResponse(line, NAMED, undefined)).not.toHaveProperty('sourceLine');
     });
 
-    it('the transcriber receives the verbatim line', () => {
+    it('the owner receives the verbatim line', () => {
         const response = toRecipeResponse(aggregate, views, transcriptionAudienceOf(recipe, 'owner-1'));
 
         expect(response.ingredients[0]?.sourceLine).toBe(TEXT);

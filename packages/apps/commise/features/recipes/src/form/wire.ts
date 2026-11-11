@@ -174,26 +174,25 @@ export const toUpdateRecipeInput = (
  * (create-only write provenance) or into the device draft. The server decides who gets `sourceLine` (its owner), so a
  * line without one simply has no entry. Pure.
  *
- * ⛔ Lined up by stored POSITION, so only when the keys and the read have the same number of lines: otherwise one line's
- * words could be shown on another, and it answers nothing.
+ * ⛔ Lined up by `keyAt` (the editor's `lineKeyAt`): the ONE alignment rule, which answers a key only when the read's
+ * version is the one the keys were seeded at. A resumed draft whose base is older than the read could otherwise show one
+ * line's words on another row after a reorder, and it answers nothing instead.
  *
  * @param detail - The recipe as the editor last read it.
- * @param persistedKeys - The stored lines' keys, in stored order (`persistedLineKeysOf`).
+ * @param keyAt - The key of the stored line at a (version, position) address, or `undefined`.
  * @returns The lines' own words, by key.
  */
 export const originalLinesOf = (
-    detail: Pick<RecipeDetail, 'ingredients'>,
-    persistedKeys: readonly IngredientLineKey[],
+    detail: Pick<RecipeDetail, 'ingredients' | 'currentVersion'>,
+    keyAt: (address: { readonly version: number; readonly position: number }) => IngredientLineKey | undefined,
 ): ReadonlyMap<IngredientLineKey, string> =>
-    persistedKeys.length !== detail.ingredients.length
-        ? new Map()
-        : new Map(
-              detail.ingredients.flatMap((line, position) => {
-                  const key = persistedKeys[position];
+    new Map(
+        detail.ingredients.flatMap((line, position) => {
+            const key = keyAt({ version: detail.currentVersion, position });
 
-                  return key === undefined || line.sourceLine === undefined ? [] : [[key, line.sourceLine] as const];
-              }),
-          );
+            return key === undefined || line.sourceLine === undefined ? [] : [[key, line.sourceLine] as const];
+        }),
+    );
 
 /**
  * Project a loaded {@link RecipeDetail} onto the editor's {@link RecipeFormValues} seed shape (T067, unified

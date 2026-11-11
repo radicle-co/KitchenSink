@@ -41,9 +41,10 @@ type PlannedLine = Omit<CreateRecipeIngredientInput, 'sourceLine' | 'sourcePhras
  *
  * @param line - The request line.
  * @param index - Its position.
+ * @param ownerVouches - The caller's statement that the text this write carries is its owner's.
  * @returns The line to persist. Pure.
  */
-function toLineInput(line: PlannedLine, index: number): IngredientLineInput {
+function toLineInput(line: PlannedLine, index: number, ownerVouches: boolean): IngredientLineInput {
     return {
         foodLookupId: line.ingredientId,
         quantity: line.quantity,
@@ -57,10 +58,9 @@ function toLineInput(line: PlannedLine, index: number): IngredientLineInput {
         ...(line.sourceLine !== undefined ? { sourceLine: line.sourceLine } : {}),
         ...(line.sourcePhrase !== undefined ? { sourcePhrase: line.sourcePhrase } : {}),
         ...(line.statedMeasure !== undefined ? { statedMeasure: line.statedMeasure } : {}),
-        // ADR-0090: a request line's text is the CALLER's, and only a recipe's owner writes its lines (a create makes
-        // the caller the owner; an update is owner-only and carries no text, so this is false and the carry-forward
-        // decides).
-        sourceLineTranscribedByOwner: line.sourceLine !== undefined,
+        // ADR-0090: whose text this is is the CALLER's fact, not the planner's. The row's CHECK allows the flag only
+        // beside a text, so a line with none never raises it.
+        sourceLineTranscribedByOwner: ownerVouches && line.sourceLine !== undefined,
         sortOrder: index,
         ...(line.userCalories !== undefined ? { userCalories: line.userCalories } : {}),
         ...(line.userProteinG !== undefined ? { userProteinG: line.userProteinG } : {}),
@@ -85,12 +85,18 @@ export class IngredientLinePlanner {
      *
      * @param caller - The writer's credential, forwarded to food for the names.
      * @param lines - The request's lines, in author order.
+     * @param ownerVouches - Whether the text on these lines is their recipe owner's: a create (the caller becomes the
+     *   owner) says `true`; an update carries no text, so it says `false` and the carry-forward decides.
      * @returns What to persist (a line naming a settled failure is forwarded to the settle target), each binding's
      *   identity, and the search text.
      * @throws {RecipeDomainError} `UNKNOWN_INGREDIENT` when a line names a binding that does not exist.
      * @sideEffect One bindings read and at most one batched food request.
      */
-    public async plan(caller: CallerToken | undefined, lines: readonly PlannedLine[]): Promise<IngredientLinePlan> {
+    public async plan(
+        caller: CallerToken | undefined,
+        lines: readonly PlannedLine[],
+        ownerVouches: boolean,
+    ): Promise<IngredientLinePlan> {
         const requested = await this.lookups.findByIds(lines.map((line) => line.ingredientId));
 
         for (const line of lines) {
@@ -129,7 +135,7 @@ export class IngredientLinePlanner {
         const identities = await this.identities.identifyArms(caller, arms, 'postCommit');
 
         return {
-            inputs: forwarded.map(toLineInput),
+            inputs: forwarded.map((line, index) => toLineInput(line, index, ownerVouches)),
             identities,
             namesText: ingredientNamesText(
                 forwarded.map((line) => ({ foodLookupId: line.ingredientId, displayText: line.displayText })),

@@ -66,7 +66,7 @@ export const IngredientLineEditor: FC<IngredientLineEditorProps> = ({ view, inde
 
     return (
         <YStack gap="$3">
-            {view.needsReview && (
+            {view.reviewNotice !== undefined && (
                 // The notice heads the editor: what is wrong, then the cook's own words. Its badge says its name, so the
                 // stack takes none (`docs/design/nativeContainerNames.md` N1).
                 <YStack gap="$1">
@@ -76,13 +76,13 @@ export const IngredientLineEditor: FC<IngredientLineEditorProps> = ({ view, inde
                     <DesignText typeRole="caption" color="$inkMuted">
                         {m.statusExplainNeedsReview}
                     </DesignText>
-                    {view.originalLine !== undefined && (
+                    {view.reviewNotice.originalLine !== undefined && (
                         <>
                             <DesignText typeRole="caption" color="$inkMuted">
                                 {m.rowYouWroteLabel}
                             </DesignText>
                             <DesignText typeRole="body" color="$ink" selectable>
-                                {view.originalLine}
+                                {view.reviewNotice.originalLine}
                             </DesignText>
                         </>
                     )}
@@ -97,7 +97,10 @@ export const IngredientLineEditor: FC<IngredientLineEditorProps> = ({ view, inde
                         {view.food}
                     </DesignText>
                     {view.onChangeFood !== undefined && (
-                        <Button variant={view.needsReview ? 'secondary' : 'ghost'} onPress={view.onChangeFood}>
+                        <Button
+                            variant={view.reviewNotice !== undefined ? 'secondary' : 'ghost'}
+                            onPress={view.onChangeFood}
+                        >
                             {m.rowChange}
                         </Button>
                     )}

@@ -16,7 +16,7 @@ const TEXT = '2 cups flour, sifted';
 
 describe('transcriptionAudienceOf', () => {
     it.each([
-        ['the owner', OWNER, 'transcriber'],
+        ['the owner', OWNER, 'owner'],
         ['another cook', OTHER, 'reader'],
         ['no viewer at all', undefined, 'reader'],
         ['an empty viewer id', '', 'reader'],
@@ -26,23 +26,23 @@ describe('transcriptionAudienceOf', () => {
 });
 
 describe('disclosedSourceLine', () => {
-    const transcriber = transcriptionAudienceOf({ ownerId: OWNER }, OWNER);
+    const ownerAudience = transcriptionAudienceOf({ ownerId: OWNER }, OWNER);
     const reader = transcriptionAudienceOf({ ownerId: OWNER }, OTHER);
     const anonymous = transcriptionAudienceOf({ ownerId: OWNER }, undefined);
     const own = { sourceLine: TEXT, sourceLineTranscribedByOwner: true };
     const copied = { sourceLine: TEXT, sourceLineTranscribedByOwner: false };
 
     it('gives the owner the text of a line they transcribed', () => {
-        expect(disclosedSourceLine(transcriber, own)).toBe(TEXT);
+        expect(disclosedSourceLine(ownerAudience, own)).toBe(TEXT);
     });
 
     it('⛔ gives the owner NOTHING for a line whose text another cook supplied (a clone of their recipe)', () => {
-        expect(disclosedSourceLine(transcriber, copied)).toBeUndefined();
+        expect(disclosedSourceLine(ownerAudience, copied)).toBeUndefined();
     });
 
     it('gives the owner nothing for a line with no transcription', () => {
         expect(
-            disclosedSourceLine(transcriber, { sourceLine: null, sourceLineTranscribedByOwner: false }),
+            disclosedSourceLine(ownerAudience, { sourceLine: null, sourceLineTranscribedByOwner: false }),
         ).toBeUndefined();
     });
 
@@ -56,7 +56,7 @@ describe('disclosedSourceLine', () => {
 
     it('treats an empty stored string as no transcription, so absent stays the one spelling', () => {
         expect(
-            disclosedSourceLine(transcriber, { sourceLine: '', sourceLineTranscribedByOwner: true }),
+            disclosedSourceLine(ownerAudience, { sourceLine: '', sourceLineTranscribedByOwner: true }),
         ).toBeUndefined();
     });
 });

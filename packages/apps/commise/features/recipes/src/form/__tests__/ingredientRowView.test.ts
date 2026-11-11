@@ -1177,29 +1177,26 @@ describe('ingredientRowViewOf — the row editor (build spec §7.5.2)', () => {
             const key = keyOf(withLineKey(review));
             const { row } = onlyRow({ lines: [review], originals: new Map([[key, '1 lb brisket, or so']]) });
 
-            expect(row.lineEditor.needsReview).toBe(true);
-            expect(row.lineEditor.originalLine).toBe('1 lb brisket, or so');
+            expect(row.lineEditor.reviewNotice).toEqual({ originalLine: '1 lb brisket, or so' });
         });
 
         it('a NEEDS_REVIEW line with no original: the notice without the line', () => {
             const { row } = onlyRow({ lines: [review] });
 
-            expect(row.lineEditor.needsReview).toBe(true);
-            expect(row.lineEditor.originalLine).toBeUndefined();
+            expect(row.lineEditor.reviewNotice).toEqual({});
         });
 
         it('a resolved line carries no notice and no original, even when an original is held for its key', () => {
             const key = keyOf(withLineKey(bound()));
             const { row } = onlyRow({ lines: [bound()], originals: new Map([[key, 'stale']]) });
 
-            expect(row.lineEditor.needsReview).toBe(false);
-            expect(row.lineEditor.originalLine).toBeUndefined();
+            expect(row.lineEditor.reviewNotice).toBeUndefined();
         });
 
         it('an original held for another line is not shown on this one', () => {
             const { row } = onlyRow({ lines: [review], originals: new Map([[seedLineKey(9, 9), 'other line']]) });
 
-            expect(row.lineEditor.originalLine).toBeUndefined();
+            expect(row.lineEditor.reviewNotice).toEqual({});
         });
 
         it('says what the cook wrote above the food search while Change is open, and not otherwise', () => {

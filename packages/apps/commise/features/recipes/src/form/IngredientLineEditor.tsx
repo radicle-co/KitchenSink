@@ -64,7 +64,7 @@ const AmountField: FC<{
 /** The row editor's fields. */
 export const IngredientLineEditor: FC<IngredientLineEditorProps> = ({ view, index, m, details }) => (
     <div className="flex flex-col gap-4">
-        {view.needsReview && (
+        {view.reviewNotice !== undefined && (
             // The notice heads the editor: what is wrong, then the cook's own words. A group the arrival can focus, so a
             // screen reader reads it first and no text field takes the keyboard (tabIndex -1: focusable, not a tab stop).
             <div
@@ -77,10 +77,12 @@ export const IngredientLineEditor: FC<IngredientLineEditorProps> = ({ view, inde
                     <StatusBadge status="attention">{m.statusNeedsReview}</StatusBadge>
                 </div>
                 <p className="text-caption text-ink-muted">{m.statusExplainNeedsReview}</p>
-                {view.originalLine !== undefined && (
+                {view.reviewNotice.originalLine !== undefined && (
                     <>
                         <span className="text-caption text-ink-muted">{m.rowYouWroteLabel}</span>
-                        <p className="min-w-0 select-text break-words text-body-md text-ink">{view.originalLine}</p>
+                        <p className="min-w-0 select-text break-words text-body-md text-ink">
+                            {view.reviewNotice.originalLine}
+                        </p>
                     </>
                 )}
             </div>
@@ -90,7 +92,10 @@ export const IngredientLineEditor: FC<IngredientLineEditorProps> = ({ view, inde
             <div className="flex min-w-0 flex-wrap items-center gap-2">
                 <p className="min-w-0 flex-1 break-words text-body-md text-ink">{view.food}</p>
                 {view.onChangeFood !== undefined && (
-                    <Button variant={view.needsReview ? 'secondary' : 'ghost'} onPress={view.onChangeFood}>
+                    <Button
+                        variant={view.reviewNotice !== undefined ? 'secondary' : 'ghost'}
+                        onPress={view.onChangeFood}
+                    >
                         {m.rowChange}
                     </Button>
                 )}

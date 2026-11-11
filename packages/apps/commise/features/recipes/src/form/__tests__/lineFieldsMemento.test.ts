@@ -5,9 +5,11 @@
  * ABSENT at capture is ABSENT after the restore (so `recipeFormValuesEqual` still holds and the discard guard sees no
  * change), and the binding and status fields are never touched, so Cancel cannot undo a food change.
  */
+import { FoodResolutionStatus } from '@kitchensink/recipe-core';
 import { describe, expect, it } from 'vitest';
 
 import { makeFilledRecipeFormValues, withLineKey, type UnkeyedFormIngredient } from '../../__fixtures__/index.js';
+import { withLineBinding } from '../lineBinding.js';
 import { captureLineFields, restoreLineFields } from '../lineFieldsMemento.js';
 import { recipeFormValuesEqual } from '../values.js';
 
@@ -60,6 +62,33 @@ describe('captureLineFields / restoreLineFields', () => {
         expect(recipeFormValuesEqual({ ...values, ingredients: [bare] }, { ...values, ingredients: [restored] })).toBe(
             true,
         );
+    });
+
+    it('does not bring back a binding key that was deleted while the editor was open', () => {
+        const before = makeRecipeFormIngredient({
+            quantity: 1,
+            variant: { id: 'V-dried', parts: [{ attribute: 'form', text: 'dried' }] },
+            unresolvedReason: 'several_candidates',
+        });
+        const memento = captureLineFields(before);
+        const rebound = withLineBinding(before, {
+            ingredientId: 'ing_new',
+            name: 'New',
+            isUserEntered: false,
+            resolutionStatus: FoodResolutionStatus.RESOLVED,
+            foodId: 'f2',
+        });
+        const restored = restoreLineFields(rebound, memento);
+
+        expect('variant' in restored).toBe(false);
+        expect('unresolvedReason' in restored).toBe(false);
+        expect(restored.foodId).toBe('f2');
+    });
+
+    it('keeps the captured key order when the values are unchanged', () => {
+        const before = makeRecipeFormIngredient({ quantity: 1, unit: 'cup', note: 'n' });
+
+        expect(Object.keys(restoreLineFields({ ...before }, captureLineFields(before)))).toEqual(Object.keys(before));
     });
 
     it('never touches the binding or status fields', () => {

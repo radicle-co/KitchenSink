@@ -835,7 +835,7 @@ export class RecipesService {
         });
 
         // OUTSIDE the transaction: the plan reads the bindings and asks food for their names.
-        const plan = await this.planner.plan(caller, dto.ingredients);
+        const plan = await this.planner.plan(caller, dto.ingredients, true);
         // ADR-0029 section 4: a published public recipe holds no private food. Judged before the write, after recapture.
         const publicState = { status, visibility: requested };
         const nowPublicFoods = await this.publicFoodsGuard(
@@ -1340,7 +1340,8 @@ export class RecipesService {
         //    `toCreateRecipeInput`, which always emits the array), so "a metadata-only PATCH preserves them"
         //    describes a request no app makes. The rule is `domain/transcriptionCarryForward.ts`; it is applied
         //    HERE because this is the only layer holding both the stored aggregate and the resolved lines.
-        const plan = dto.ingredients !== undefined ? await this.planner.plan(caller, dto.ingredients) : undefined;
+        const plan =
+            dto.ingredients !== undefined ? await this.planner.plan(caller, dto.ingredients, false) : undefined;
         // …and the ORIGIN of each line (ADR-0072 §5): the food's own, carried by identity; a changed food is the cook's.
         const ingredients =
             plan === undefined

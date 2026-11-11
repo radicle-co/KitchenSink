@@ -30,6 +30,7 @@ import type { EditorSeed } from '../../hooks/useRecipeEditor.js';
 import { SERVER_CHECKPOINT_IDLE_MS } from '../checkpointPolicy.js';
 import type { DraftStore } from '../draftStore.js';
 import type { EditorArrival } from '../editorArrival.js';
+import { toRecipeFormValues } from '../../form/wire.js';
 import { editorMessages } from '../messages.js';
 import { RecipeEditorSurface } from '../RecipeEditorSurface.js';
 import { useRecipeEditorSession } from '../useRecipeEditorSession.js';
@@ -117,7 +118,7 @@ function Harness({
     );
 }
 
-function mount(arrival?: EditorArrival, recipe: EditorSeed['recipe'] = STORED) {
+function mount(arrival?: EditorArrival, recipe: EditorSeed['recipe'] = STORED, memento?: EditorSeed['memento']) {
     const port = makeFakeEditorWritePort();
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
 
@@ -126,7 +127,11 @@ function mount(arrival?: EditorArrival, recipe: EditorSeed['recipe'] = STORED) {
             <QueryClientProvider client={queryClient}>
                 <RecipeServiceProvider client={createFakeRecipeServiceClient()}>
                     <FoodServiceProvider client={makeQuietFoodClient()} subject="user_cook">
-                        <Harness seed={{ recipe }} port={port} {...(arrival === undefined ? {} : { arrival })} />
+                        <Harness
+                            seed={{ recipe, ...(memento === undefined ? {} : { memento }) }}
+                            port={port}
+                            {...(arrival === undefined ? {} : { arrival })}
+                        />
                     </FoodServiceProvider>
                 </RecipeServiceProvider>
             </QueryClientProvider>
@@ -197,6 +202,21 @@ describe('arriving at a line from a link, over the real editor session (web)', (
         mount({ section: 'ingredients', line });
 
         expect(queryDialogTitled(/chili oil/u)).toBeNull();
+        expect(screen.getByText(missing)).toBeTruthy();
+    });
+
+    it('says so when the address names a line the resumed draft no longer holds', () => {
+        // The draft was seeded at version 1, where position 0 is a real key, but the cook deleted that line since.
+        const memento = {
+            recipeRef: 'rec_9',
+            baseVersion: 1,
+            values: { ...toRecipeFormValues(STORED), ingredients: [] },
+            pendingRebinds: [],
+            savedAt: '2026-11-11T00:00:00.000Z',
+        };
+
+        mount({ section: 'ingredients', line: { version: 1, position: 0 } }, STORED, memento);
+
         expect(screen.getByText(missing)).toBeTruthy();
     });
 

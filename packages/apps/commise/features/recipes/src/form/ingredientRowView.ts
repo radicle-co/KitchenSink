@@ -202,10 +202,11 @@ export interface RowLineEditorView {
     /** The phone sheet's title: the row's food. */
     readonly title: string;
     readonly closeLabel: string;
-    /** The line needs review: the editor opens with the notice, and Change is the secondary action. */
-    readonly needsReview: boolean;
-    /** The cook's own line as they wrote it, shown verbatim in the notice; only for a line that needs review. */
-    readonly originalLine?: string;
+    /**
+     * Present when the line needs review: the editor opens with the notice, and Change is the secondary action. The
+     * cook's own line, shown verbatim in the notice, lives INSIDE it, so an original without the notice cannot be built.
+     */
+    readonly reviewNotice?: { readonly originalLine?: string };
     /** The food as one line: its name, and its calories per 100 g when food publishes them. */
     readonly food: string;
     readonly ids: Readonly<Record<IngredientEditorField, string>>;
@@ -641,8 +642,9 @@ const lineEditorOf = (input: LineEditorInput, ctx: IngredientRowContext): RowLin
     return {
         title: displayName,
         closeLabel: fillTemplate(m.rowEditorClose, { food: displayName }),
-        needsReview,
-        ...(needsReview && input.originalLine !== undefined ? { originalLine: input.originalLine } : {}),
+        ...(needsReview
+            ? { reviewNotice: input.originalLine === undefined ? {} : { originalLine: input.originalLine } }
+            : {}),
         food: editorFoodLine(line, foodName, ctx),
         ids: {
             amount: ingredientEditorFieldId(line.key, 'amount'),

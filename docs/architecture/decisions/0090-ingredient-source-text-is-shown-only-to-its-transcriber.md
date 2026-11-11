@@ -51,8 +51,8 @@ The rule lives in `transcriptionDisclosure.ts` and nowhere else:
 `transcriptionAudienceOf` decides ownership once per read. `disclosedSourceLine` reads the flag. It is the only function
 that reads a line. An unknown viewer is a reader. An unknown writer is FALSE. So both halves fail closed.
 
-The response mapper's row type omits `sourceLine`, `sourcePhrase` and the flag. The flag never goes on the wire, and
-the contract does not change.
+The response mapper's row type omits `sourceLine`, `sourcePhrase` and the flag. The flag adds no wire field. (This
+change does add `sourceLine` to the response, for the owner only.)
 
 ### 2. Who writes the flag
 
@@ -128,5 +128,7 @@ the writer of the line, and it does not travel. This record adds that second fac
   again on every save. So a save that it serves after the migration, even a title edit, sets that recipe's flags back
   to FALSE. This window fails closed. It never shows a cook text that they did not write, but it hides an owner's own
   lines. The backfill UPDATE is idempotent, so the deploy can run it again after the new release serves.
+- The flag records who supplied the text for the owner AT WRITE TIME. Any future ownership transfer of a recipe must
+  reset the flag to FALSE on every line, or the new owner reads the old owner's words.
 - A new writer of `ingredients` lines must state the flag, because the field is required. A new read surface reads
   `source_line` only through `disclosedSourceLine`.

@@ -139,19 +139,25 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
     // The cook's own words for the lines that need review, from the server read the draft was seeded from: display only
     // (never the draft), and keyed by line key, which stays right when lines are later added or removed.
     const [originalLines] = useState(() =>
-        seed.recipe === undefined ? undefined : originalLinesOf(seed.recipe, editor.lineCommand.persistedKeys),
+        seed.recipe === undefined ? undefined : originalLinesOf(seed.recipe, editor.lineKeyAt),
     );
     // The link's address is read against the editor's keys ONCE. A later render never re-resolves it: the keys move as the
     // cook edits, and the row that opened is the one the link meant.
-    const [arrived] = useState<ResolvedArrival | undefined>(() =>
-        arrival === undefined
-            ? undefined
-            : {
-                  section: arrival.section,
-                  ...(arrival.line === undefined ? {} : { lineKey: editor.lineKeyAt(arrival.line) }),
-                  addressed: arrival.line !== undefined,
-              },
-    );
+    const [arrived] = useState<ResolvedArrival | undefined>(() => {
+        if (arrival === undefined) {
+            return undefined;
+        }
+
+        // A key the address resolves to is a line only while the draft still holds it: a resumed draft can have lost it.
+        const resolved = arrival.line === undefined ? undefined : editor.lineKeyAt(arrival.line);
+        const lineKey = editor.values.ingredients.some((line) => line.key === resolved) ? resolved : undefined;
+
+        return {
+            section: arrival.section,
+            ...(lineKey === undefined ? {} : { lineKey }),
+            addressed: arrival.line !== undefined,
+        };
+    });
     // ⛔ READ FROM THE ENTRY AS IT IS NOW: the editor learns the entry's text only at a press (`errorsStillHolding`).
     const { pending } = session.rowEditor.entry;
     const pendingFieldId = pending === undefined ? undefined : entryFieldIdOf(pending.target);

@@ -16,7 +16,6 @@ export function makeRowLineEditorView(overrides: Partial<RowLineEditorView> = {}
     return {
         title: 'Flour',
         closeLabel: 'Close',
-        needsReview: false,
         food: 'Flour',
         ids: {
             amount: 'amount-1',

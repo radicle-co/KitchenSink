@@ -22,7 +22,7 @@ import type { RecipeFormMessages } from './messages.js';
 export interface IngredientLineEditorSheetProps {
     readonly open: boolean;
     /** The row the sheet edits, kept while it closes. */
-    readonly row: IngredientRowView | undefined;
+    readonly row: Pick<IngredientRowView, 'index' | 'lineEditor'> | undefined;
     readonly m: RecipeFormMessages;
     readonly details: ReactNode;
 }
@@ -40,7 +40,9 @@ export const IngredientLineEditorSheet: FC<IngredientLineEditorSheetProps> = ({ 
         closeLabel={row?.lineEditor.closeLabel ?? ''}
         size="content"
         footer={
-            <div className="flex justify-end">
+            // A block, not a flex row: Done is `fill`, which stretches across its parent's CROSS axis, so in a row it hugged
+            // its label at the end (issue #176).
+            <div>
                 <Button icon="check" width="fill" onPress={() => row?.lineEditor.onDone()}>
                     {m.rowDone}
                 </Button>

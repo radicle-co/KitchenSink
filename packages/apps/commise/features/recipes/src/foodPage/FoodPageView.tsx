@@ -28,6 +28,9 @@ import { foodPageCopyOf, type FoodShownState } from './foodPageCopy.js';
 import type { FoodPageViewProps } from './foodPageViewProps.js';
 import { foodPageMessages } from './messages.js';
 
+/** An action's slot: full width on a phone, hugging its label from 600 (shared by the actions and Withdraw). */
+const ACTION_SLOT = 'w-full @regular/main:w-auto';
+
 /** The glyph each action draws before its words. */
 const ACTION_ICON = { edit: 'pencilLine', ask: 'globe' } as const;
 
@@ -104,7 +107,7 @@ const FoodShown: FC<FoodPageViewProps & { readonly state: FoodShownState }> = ({
                     const label = action.key === 'ask' && ask === 'busy' ? m.ask.busy : m.action[action.key];
 
                     return (
-                        <div key={action.key} data-action className="w-full @regular/main:w-auto">
+                        <div key={action.key} data-action className={ACTION_SLOT}>
                             {action.variant === 'primary' ? (
                                 <Button variant="primary" icon={ACTION_ICON[action.key]} {...common}>
                                     {label}
@@ -209,9 +212,11 @@ const FoodShown: FC<FoodPageViewProps & { readonly state: FoodShownState }> = ({
 
             {copy.withdraw.offered ? (
                 <div className="order-[95] mt-4 border-t border-line-divider pt-6">
-                    <Button variant="destructive" icon="trash" size="md" onPress={onWithdraw}>
-                        {m.action.withdraw}
-                    </Button>
+                    <div className={ACTION_SLOT}>
+                        <Button variant="destructive" icon="trash" size="md" width="fill" onPress={onWithdraw}>
+                            {m.action.withdraw}
+                        </Button>
+                    </div>
                 </div>
             ) : null}
 

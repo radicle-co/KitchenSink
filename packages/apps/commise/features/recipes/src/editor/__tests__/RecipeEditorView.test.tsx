@@ -221,6 +221,16 @@ describe('the content gutter (buildSpec §1.2)', () => {
         expect(classes.filter((name) => /^px-/u.test(name))).toEqual(['px-4']);
     });
 
+    it('makes the PADDED column the main container, so a 620 px window is a 572 px (narrow) editor like the food page', () => {
+        render(view(makeEditorResult()));
+
+        const column = screen.getByRole('heading', { name: 'Details' }).closest('section')?.parentElement;
+
+        // The shell's `<main>` has no gutter on a focused task, so measuring it called 620 px `regular`; the column's
+        // content box is the width the fields get, and what `@regular/main:` and `useMainContainerClass` must read.
+        expect(column?.className.split(/\s+/u)).toContain('@container/main');
+    });
+
     it('spells the spec’s three gutters in Tailwind steps of 4 px (the layout tokens’ numbers)', () => {
         const pxOf = (utility: string): number => Number(utility.replace(/^.*px-/u, '')) * 4;
         const [compact, medium, expanded] = EDITOR_GUTTER.split(' ').map(pxOf);

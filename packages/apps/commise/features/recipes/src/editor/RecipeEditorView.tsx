@@ -24,6 +24,7 @@ import { ScrollHost } from '@commise/ui/scroll-host';
 import { SectionIndex } from '@commise/ui/section-index';
 import { useCallback, type FC } from 'react';
 
+import { MainColumn } from '../layout/MainColumn.js';
 import { RecipeConflictView } from '../versions/RecipeConflictView.js';
 import { readChromeInsets } from './chromeInsets.js';
 import { EditorActionBar } from './EditorActionBar.js';
@@ -150,7 +151,9 @@ const EditorPage: FC<RecipeEditorViewProps> = (props) => {
                         {...(entries.barCount === undefined ? {} : { barCount: entries.barCount })}
                         railFooter={railFooter}
                     />
-                    <div className={`flex w-full max-w-list min-w-0 flex-1 flex-col gap-10 pt-6 ${EDITOR_GUTTER}`}>
+                    <MainColumn
+                        className={`flex w-full max-w-list min-w-0 flex-1 flex-col gap-10 pt-6 ${EDITOR_GUTTER}`}
+                    >
                         {chrome.resumeBody !== undefined && (
                             <ResumeNotice
                                 body={chrome.resumeBody}
@@ -208,7 +211,7 @@ const EditorPage: FC<RecipeEditorViewProps> = (props) => {
                                 )
                             }
                         />
-                    </div>
+                    </MainColumn>
                 </div>
             </div>
             {chrome.discard !== undefined && (

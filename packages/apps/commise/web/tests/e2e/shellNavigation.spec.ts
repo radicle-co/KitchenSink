@@ -246,6 +246,22 @@ for (const colorScheme of ['light', 'dark'] as const) {
                 const box = await link.boundingBox();
                 expect((box?.x ?? 0) + (box?.width ?? 0), 'the tab ends inside the screen').toBeLessThanOrEqual(320.5);
             }
+
+            // A glyph never scales with the text: the You disc is the Discover icon's box, and all four labels share a top.
+            const nav = visibleNav(page);
+            const icon = await nav.getByRole('link', { name: 'Discover', exact: true }).locator('svg').boundingBox();
+            const disc = await nav
+                .getByRole('link', { name: 'You', exact: true })
+                .locator('[data-you-disc]')
+                .boundingBox();
+            expect(disc?.width, 'the You glyph is as wide as an icon').toBe(icon?.width);
+            expect(disc?.height, 'the You glyph is as tall as an icon').toBe(icon?.height);
+            expect(disc?.y, 'the You glyph starts where an icon does').toBe(icon?.y);
+
+            const tops = await nav
+                .locator('.text-caption')
+                .evaluateAll((labels) => labels.map((label) => label.getBoundingClientRect().top));
+            expect(new Set(tops).size, `the four labels share one top (${tops.join(', ')})`).toBe(1);
         });
 
         test('keeps the sidebar collapsed across a reload, at the right width from the first paint', async ({

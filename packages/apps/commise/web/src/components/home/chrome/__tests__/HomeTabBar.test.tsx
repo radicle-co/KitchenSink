@@ -16,6 +16,7 @@ import { homeMessages } from '@commise/features-core/home';
 import { RECIPE_HOME_WIDGET_CAPABILITY } from '@commise/features-recipes';
 import {
     TAB_LABEL_TEXT_CAP,
+    YOU_TAB_DISC_SIZE,
     YOU_TAB_INITIALS_SIZE,
     type HomeNavItemId,
     type ProfileEntry,
@@ -278,7 +279,10 @@ describe('HomeTabBar (web) — the You tab', () => {
 
         const disc = you().querySelector('[data-you-disc]');
 
-        expect(disc?.className).toContain('size-6');
+        // A glyph never scales with text: the box is 24 CSS px, not rem, the same as the icons beside it.
+        expect((disc as HTMLElement).style.width).toBe(`${String(YOU_TAB_DISC_SIZE)}px`);
+        expect((disc as HTMLElement).style.height).toBe(`${String(YOU_TAB_DISC_SIZE)}px`);
+        expect(disc?.className).not.toMatch(/\bsize-/u);
         expect(disc?.className).toContain('bg-action');
         expect(disc?.textContent).toBe('EM');
         expect((disc?.firstElementChild as HTMLElement).style.fontSize).toBe(`${String(YOU_TAB_INITIALS_SIZE)}px`);
@@ -310,8 +314,10 @@ describe('HomeTabBar (web) — the You tab', () => {
         const disc = you().querySelector('[data-you-disc]');
 
         expect(you().getAttribute('aria-current')).toBe('page');
+        // The ring is a box-shadow (`ring-*`), which takes no layout room, never a border.
         expect(disc?.className).toContain('ring-2');
         expect(disc?.className).toContain('ring-ink');
+        expect(disc?.className).not.toMatch(/\bborder/u);
         expect(you().querySelector('.bg-here-bar')).not.toBeNull();
         expect(you().querySelector('.text-caption')?.className).toContain('font-semibold');
     });

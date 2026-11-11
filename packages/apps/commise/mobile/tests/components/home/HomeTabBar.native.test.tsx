@@ -261,7 +261,10 @@ describe('HomeTabBar (native) — compact height', () => {
 describe('HomeTabBar (native) — the You tab', () => {
     const you = () => screen.getByRole('tab', { name: 'You' });
     const disc = () => you().querySelector('[data-testid="youTabDisc"]') as HTMLElement;
+    /** The glyph box the tab's column holds: exactly the icons' box. */
     const ring = () => you().querySelector('[data-testid="youTabRing"]') as HTMLElement;
+    /** The drawn ring, laid over the glyph box from outside it. */
+    const mark = () => you().querySelector('[data-testid="youTabRingMark"]') as HTMLElement;
 
     it('is named by its visible label alone, whatever the disc shows', () => {
         renderBar('home', vi.fn(), [RECIPE_HOME_WIDGET_CAPABILITY], { profile: READY });
@@ -307,18 +310,36 @@ describe('HomeTabBar (native) — the You tab', () => {
         renderBar('you');
 
         expect(you().getAttribute('aria-selected')).toBe('true');
-        expect(getComputedStyle(ring()).borderTopWidth).toBe('2px');
-        expect(resolvedColour(ring(), 'borderTopColor')).toBe(rgb(role.ink));
+        expect(getComputedStyle(mark()).borderTopWidth).toBe('2px');
+        expect(resolvedColour(mark(), 'borderTopColor')).toBe(rgb(role.ink));
         expect(getComputedStyle(you().firstElementChild as Element).backgroundColor).toBe(rgb(role.hereBar));
     });
 
-    it('keeps the ring’s room when inactive, so the disc does not move, but paints no ring', () => {
+    it('paints no ring when inactive', () => {
         renderBar('home');
 
-        expect(getComputedStyle(ring()).borderTopWidth).toBe('2px');
-        expect(resolvedColour(ring(), 'borderTopColor')).not.toBe(rgb(role.ink));
+        expect(resolvedColour(mark(), 'borderTopColor')).not.toBe(rgb(role.ink));
         expect(you().getAttribute('aria-selected')).toBe('false');
     });
+
+    // The disc is a glyph: exactly the icons' 24 pt box at every system text size, and the ring adds no layout size, so the
+    // "You" label shares one baseline with the other three whatever the tab's state (a border on the disc made it 28).
+    it.each([1, 2, 3.1])(
+        'is 24 × 24 at font scale %s, active or not, with a ring that adds no layout size',
+        (scale) => {
+            for (const active of ['home', 'you'] as const) {
+                renderBarIn('light', active, scale);
+
+                expect(getComputedStyle(disc()).width).toBe('24px');
+                expect(getComputedStyle(disc()).height).toBe('24px');
+                expect(getComputedStyle(ring()).width).toBe('24px');
+                expect(getComputedStyle(ring()).height).toBe('24px');
+                expect(getComputedStyle(ring()).borderTopWidth).not.toBe('2px');
+                expect(getComputedStyle(mark()).position).toBe('absolute');
+                cleanup();
+            }
+        },
+    );
 
     it('reports a press of You, the active one’s too', () => {
         const onPress = vi.fn();

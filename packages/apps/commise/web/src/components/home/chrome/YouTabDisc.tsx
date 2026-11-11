@@ -12,7 +12,7 @@
  *
  * @pattern Visitor — an exhaustive switch over the disc's three faces
  */
-import { YOU_TAB_INITIALS_SIZE, initialsFor, type ProfileEntry } from '@commise/features-core';
+import { YOU_TAB_DISC_SIZE, YOU_TAB_INITIALS_SIZE, initialsFor, type ProfileEntry } from '@commise/features-core';
 import { avatarFaceOf } from '@commise/ui/avatar-props';
 import { Icon } from '@commise/ui/icon';
 import type { JSX } from 'react';
@@ -23,6 +23,9 @@ const FACE_CLASS: Readonly<Record<ReturnType<typeof avatarFaceOf>, string>> = {
     initials: 'bg-action font-semibold leading-none text-on-action',
     glyph: 'bg-surface-muted text-ink-muted',
 };
+
+/** The disc's box, in CSS px and not rem: a glyph never scales with the text size, and the icons beside it are 24 px. */
+const DISC_BOX = { width: YOU_TAB_DISC_SIZE, height: YOU_TAB_DISC_SIZE } as const;
 
 /** Props for {@link YouTabDisc}. */
 export interface YouTabDiscProps {
@@ -46,7 +49,8 @@ export function YouTabDisc({ profile, active }: YouTabDiscProps): JSX.Element {
         <span
             aria-hidden="true"
             data-you-disc=""
-            className={`flex size-6 shrink-0 items-center justify-center rounded-full ${FACE_CLASS[face]} ${
+            style={DISC_BOX}
+            className={`flex shrink-0 items-center justify-center rounded-full ${FACE_CLASS[face]} ${
                 active ? 'ring-2 ring-ink' : ''
             }`}
         >

@@ -118,7 +118,8 @@ const shellRoutes: readonly ShellRoute[] = [
         path: '/[locale]/foods/[foodId]',
         load: () => import('../[locale]/foods/[foodId]/page'),
         props: () => ({ params: Promise.resolve({ locale: 'en', foodId: '01JFOOD0000000000000000001' }) }),
-        activeId: null,
+        // A food page belongs to Your foods, so it marks the You tab, as navHref maps /foods (2026-11-11).
+        activeId: 'you',
         titleId: 'food',
     },
     {

@@ -6,7 +6,7 @@
  * arrived: the raw source line (migration 0024), the measure the source PRINTED before a historical unit
  * was restated (migration 0027), the ingredient PHRASE the parse lifted out of the line — the memo
  * tier's key grain (migration 0041, owner ruling 2026-08-31) — and whether the recipe's OWNER supplied that
- * line (migration 0070, ADR-0090), which decides who is shown it. A name that enumerated only one of them was
+ * line (migration 0072, ADR-0090), which decides who is shown it. A name that enumerated only one of them was
  * an invitation to add the next carry-forward somewhere else instead of here.
  *
  * DESIGN PATTERN: **Specification / Policy module**, the sibling of `provenancePolicy.ts` and

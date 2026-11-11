@@ -1,9 +1,9 @@
 /**
- * LOCAL e2e (`docs/CODING_STANDARDS.md` §7.1a): migration 0070, `ingredients.source_line_transcribed_by_owner`
+ * LOCAL e2e (`docs/CODING_STANDARDS.md` §7.1a): migration 0072, `ingredients.source_line_transcribed_by_owner`
  * (ADR-0090), on real Postgres under the production role model, migrated by recipe's own runner.
  *
  * The backfill is the risk this suite exists for, and only a real database can show it. A throwaway database is
- * migrated to just BEFORE 0070, seeded with recipes as the previous release would have left them, and then 0070 runs.
+ * migrated to just BEFORE 0072, seeded with recipes as the previous release would have left them, and then 0072 runs.
  * Its predicate is a TIME bound: a recipe with no clone pointer is proven not to be a clone only when it was created
  * after the latest erasure or purge job, because those two jobs are what NULL a clone's pointer. So:
  *
@@ -34,7 +34,7 @@ import { runMigrations } from '../../../src/lambdas/migrate/handler.js';
 import { migrationsDir, recipeDbSpec } from '../../support/roleDb.js';
 
 /** The migration under test: its `schema_migrations` name, and its file. */
-const MIGRATION = '0070_ingredient_source_line_transcribed_by_owner';
+const MIGRATION = '0072_ingredient_source_line_transcribed_by_owner';
 const MIGRATION_FILE = `${MIGRATION}.sql`;
 const DATABASE = 'recipe_transcribed_by_owner_test';
 
@@ -47,7 +47,7 @@ const JOB_AT = '2026-11-10T12:00:00Z';
 const BEFORE_JOB = '2026-11-09T12:00:00Z';
 const AFTER_JOB = '2026-11-11T12:00:00Z';
 
-/** Every migration except 0070, so the database stands where the previous release left it. */
+/** Every migration except 0072, so the database stands where the previous release left it. */
 let beforeDir: string;
 let handle: RoleDatabase;
 
@@ -106,9 +106,9 @@ async function flagsOf(client: pg.PoolClient, recipeId: string): Promise<[string
 }
 
 /**
- * Rebuild the database at the previous release, seed it, then run 0070 with recipe's own runner as the migrator.
+ * Rebuild the database at the previous release, seed it, then run 0072 with recipe's own runner as the migrator.
  *
- * @param seed - The rows to seed before 0070 runs; returns what the assertions need.
+ * @param seed - The rows to seed before 0072 runs; returns what the assertions need.
  * @returns What `seed` returned.
  * @sideEffect Rebuilds the throwaway database and migrates it.
  */
@@ -126,7 +126,7 @@ async function migrateOver<T>(seed: (client: pg.PoolClient) => Promise<T>): Prom
             database: DATABASE,
         });
 
-        // Not vacuous: 0070 is the ONE migration this run applied.
+        // Not vacuous: 0072 is the ONE migration this run applied.
         expect(result.applied).toStrictEqual([MIGRATION]);
     } finally {
         await pool.end();
@@ -151,7 +151,7 @@ afterAll(async () => {
     await rm(beforeDir, { recursive: true, force: true });
 });
 
-describe('migration 0070 backfill — TRUE only where the owner is proven to have written the line', () => {
+describe('migration 0072 backfill — TRUE only where the owner is proven to have written the line', () => {
     it('backfills an owner-created recipe made after the latest job, and no clone, either way', async () => {
         const ids = await migrateOver(async (client) => {
             await client.query(
@@ -244,7 +244,7 @@ describe('migration 0070 backfill — TRUE only where the owner is proven to hav
     });
 });
 
-describe('migration 0070 schema', () => {
+describe('migration 0072 schema', () => {
     it('defaults to FALSE for an insert that does not name it, and refuses TRUE with no text', async () => {
         const recipeId = await migrateOver(async (client) =>
             seedRecipe(client, { ownerId: COOK, createdAt: AFTER_JOB, clonedFromId: null }),

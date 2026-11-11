@@ -1,4 +1,4 @@
--- 0070 — whether the recipe's OWNER supplied a line's source text (ADR-0090).
+-- 0072 — whether the recipe's OWNER supplied a line's source text (ADR-0090).
 --
 -- `source_line` is verbatim copied text, and ADR-0082 §2 forbids any line of it word for word on a public form. The
 -- recipe read shows it to one cook only: the owner, AND only on a line whose text that owner supplied

@@ -48,7 +48,7 @@ export interface IngredientLineInput {
     /** The ingredient PHRASE the parse lifted out of {@link sourceLine} — the memo tier's key grain (0041). */
     sourcePhrase?: string;
     /**
-     * Whether the recipe's OWNER supplied {@link sourceLine} (migration 0070, ADR-0090). REQUIRED, so every path that
+     * Whether the recipe's OWNER supplied {@link sourceLine} (migration 0072, ADR-0090). REQUIRED, so every path that
      * writes a line states it: a create (the caller is the owner), the carry-forward of an edit, and a clone (FALSE for
      * another cook's recipe). It is not derived from {@link sourceLine} being present, because a clone copies the text.
      */

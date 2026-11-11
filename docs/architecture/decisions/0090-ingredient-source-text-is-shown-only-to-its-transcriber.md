@@ -89,7 +89,7 @@ donated recipe is a reader. A cook who clones it gets FALSE.
 ### 5. The backfill
 
 Prod already holds recipes whose owners pasted their lines. With DEFAULT FALSE alone, those owners do not see their
-own lines. So migration 0070 sets TRUE where it can PROVE that the owner wrote the line. It leaves FALSE everywhere else.
+own lines. So migration 0072 sets TRUE where it can PROVE that the owner wrote the line. It leaves FALSE everywhere else.
 
 On this branch, no clone marker survives a detach. A clone is a draft, so it writes no version row (ADR-0058).
 `source_type`, `has_substantive_edit` and `bound_by` do not identify a clone. So the proof uses time:
@@ -122,7 +122,7 @@ the writer of the line, and it does not travel. This record adds that second fac
   the line's verdict, but not the other cook's words.
 - Lineage stays out of the rule. An erasure elsewhere does not change what a living cook sees.
 - The backfill fails closed in two known places. The first is an owner's recipe created before the latest erasure or
-  purge job. The second is each self-clone made before migration 0070. Those owners do not see their pasted lines. A
+  purge job. The second is each self-clone made before migration 0072. Those owners do not see their pasted lines. A
   durable `recipes.is_clone` fact lets a later migration prove more of them.
 - The migration is expand-only. The release before this one writes FALSE. It also inserts every line of a recipe
   again on every save. So a save that it serves after the migration, even a title edit, sets that recipe's flags back

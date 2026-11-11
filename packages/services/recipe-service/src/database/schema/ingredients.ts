@@ -82,7 +82,7 @@ export const ingredients = pgTable(
          */
         sourcePhrase: text('source_phrase'),
         /**
-         * Whether the recipe's OWNER supplied {@link ingredients.sourceLine} (migration 0070, ADR-0090). With ownership it
+         * Whether the recipe's OWNER supplied {@link ingredients.sourceLine} (migration 0072, ADR-0090). With ownership it
          * decides who is shown that text (`transcriptionDisclosure.ts`): a clone COPIES the text, so ownership alone
          * would show a cloner another cook's words. FALSE on a clone of another cook's recipe, and whenever the writer
          * is unknown. A CHECK refuses TRUE with no text.

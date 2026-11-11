@@ -68,7 +68,7 @@ describe('ReviewLineButton (native)', () => {
         render(<ReviewLineButton food="flour" onPress={() => undefined} />);
         const [pill, chevron] = Array.from(rowOf(screen.getByRole('button', { name: NAME })).children);
 
-        expect(getComputedStyle(pill as Element).flexShrink).toBe('1');
-        expect(getComputedStyle(chevron as Element).flexShrink).toBe('0');
+        expect(getComputedStyle(pill).flexShrink).toBe('1');
+        expect(getComputedStyle(chevron).flexShrink).toBe('0');
     });
 });

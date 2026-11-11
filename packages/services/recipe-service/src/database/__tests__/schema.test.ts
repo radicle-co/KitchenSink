@@ -234,7 +234,7 @@ describe('recipe-service schema — table contracts (T011–T014, T118, T119, T1
             // LINE, so merging them changes every key — and because absence of a verdict PUBLISHES
             // (migration 0023), that break would be SILENT rather than an error.
             source_phrase: { type: 'text', notNull: false },
-            // ADR-0090 / migration 0070 — whether the recipe's OWNER supplied `source_line`. It, with ownership, decides
+            // ADR-0090 / migration 0072 — whether the recipe's OWNER supplied `source_line`. It, with ownership, decides
             // who is shown the text. NOT NULL with no third state: a line whose writer is unknown is false (hidden).
             source_line_transcribed_by_owner: { type: 'boolean', notNull: true },
             // U7/U11 — what the SOURCE printed, before a historical measure was restated into one the USDA

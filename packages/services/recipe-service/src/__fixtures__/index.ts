@@ -97,7 +97,7 @@ export function makeIngredientLineRow(overrides: Partial<IngredientRow> = {}): I
         /** `null` = "this line was AUTHORED, not transcribed". */
         sourceLine: null,
         sourcePhrase: null,
-        /** `false` = "the owner did not supply a source line" (migration 0070); the column's own default. */
+        /** `false` = "the owner did not supply a source line" (migration 0072); the column's own default. */
         sourceLineTranscribedByOwner: false,
         /** All three `null` = "this line's quantity and unit are what the SOURCE said". */
         statedQuantity: null,

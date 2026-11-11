@@ -109,7 +109,8 @@ the editor. This ADR does not decide the card. When the read path ships it repla
   visibility makes erasure fail, and the fix belongs in the donation predicate (ADR-0074). It is recorded so nobody
   reads it as covered.
 - **Set-visibility reads the source outside its transaction.** A cook racing themselves on two devices (a `PATCH`
-  statement and a set-public on the same draft) can leave a web copy public. The cook owns that draft. A guard in the
-  write's predicate closes it, at the cost of a clearer error for a rare case.
+  statement and a set-public on the same draft) can leave a web copy public. It can only be an owner-only public DRAFT.
+  Publishing refuses it. `evaluatePublishedState` judges the state a write leaves. It reads the visibility under the
+  lock. So a published public web copy is never left.
 - The correction window is checked with the version compare-and-swap, not a lock. That is enough because
   `first_published_at` moves only inside a `PATCH` that advances the version.

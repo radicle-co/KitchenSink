@@ -122,6 +122,8 @@ beforeAll(async () => {
                     update,
                     findById: async (id: string) => (id === RECIPE_ID ? aggregateOf(stored) : undefined),
                     privateFoodLines: async () => [],
+                    lockAndCountPrivateSlots: async () => 0,
+                    lockSlotFacts: async () => ({ visibility: stored.visibility, status: stored.status }),
                     transaction: async (work: (tx: unknown) => Promise<unknown>) => work({ __tx: true }),
                 },
             },
@@ -362,6 +364,28 @@ describe('PATCH /api/v1/recipes/{id} — the source can be settled until the fir
         });
 
         expect(await refusalOf(response)).toMatchObject({ status: 403, details: { reason: 'SOURCE_LOCKED' } });
+        expect(update).not.toHaveBeenCalled();
+    });
+
+    it('refuses to PUBLISH a public web-copy draft (the state after the write), writing nothing', async () => {
+        stored = makeRecipeRow({
+            id: RECIPE_ID,
+            ownerId: COOK,
+            status: 'draft',
+            visibility: 'public',
+            cuisine: 'Italian',
+            sourceType: 'imported_public',
+            sourceKind: 'public_web',
+            sourceUrl: LINK,
+            sourceAttribution: 'allrecipes.com',
+        });
+
+        const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}`, {
+            expectedVersion: 1,
+            status: 'published',
+        });
+
+        expect(await refusalOf(response)).toMatchObject({ status: 400, code: 'INVALID_VISIBILITY' });
         expect(update).not.toHaveBeenCalled();
     });
 

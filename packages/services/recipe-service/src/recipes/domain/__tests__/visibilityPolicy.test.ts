@@ -13,7 +13,12 @@
 import { describe, it, expect } from 'vitest';
 import { RecipeSourceType, RecipeVisibility } from '@kitchensink/recipe-core';
 
-import { defaultCloneVisibility, evaluateVisibility, type VisibilityDecision } from '../visibilityPolicy.js';
+import {
+    defaultCloneVisibility,
+    evaluatePublishedState,
+    evaluateVisibility,
+    type VisibilityDecision,
+} from '../visibilityPolicy.js';
 import type { ContainmentSubject } from '../../../common/containmentPolicy.js';
 
 const PUBLIC = RecipeVisibility.PUBLIC;
@@ -220,6 +225,38 @@ describe('evaluateVisibility — a web copy is private only (ADR-0089)', () => {
 
         expectDecision(decision, allowed);
         expect(decision.allowed || decision.denial === 'privateSlots').toBe(true);
+    });
+});
+
+// The state a write LEAVES (ADR-0089): a private-only recipe may never be published AND public, whatever path got it public.
+describe('evaluatePublishedState — a private-only recipe is never left published and public', () => {
+    const state = (over: Partial<Parameters<typeof evaluatePublishedState>[0]>) =>
+        evaluatePublishedState({
+            status: 'published',
+            visibility: PUBLIC,
+            sourceType: RecipeSourceType.IMPORTED_PUBLIC,
+            sourceKind: 'public_web',
+            ...over,
+        });
+
+    it('DENIES a published, public web copy, as a policy denial with a reason', () => {
+        const decision = state({});
+
+        expectDecision(decision, false);
+        expect(decision.allowed === false && decision.denial).toBe('policy');
+    });
+
+    it.each([RecipeSourceType.IMPORTED_PHYSICAL, RecipeSourceType.IMPORTED_PAID])('DENIES published public %s', (t) => {
+        expectDecision(state({ sourceType: t, sourceKind: null }), false);
+    });
+
+    it.each([
+        ['an owner-only public draft', { status: 'draft' }],
+        ['a private published web copy', { visibility: PRIVATE }],
+        ['the curator text, public', { sourceKind: null }],
+        ['a recipe the cook wrote', { sourceType: RecipeSourceType.USER_CREATED, sourceKind: null }],
+    ] as const)('allows %s', (_name, over) => {
+        expectDecision(state(over), true);
     });
 });
 

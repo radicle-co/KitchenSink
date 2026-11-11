@@ -66,7 +66,12 @@ import {
     slotRuleApplies,
     type PrivateSlotStanding,
 } from './domain/privateSlotPolicy.js';
-import { defaultCloneVisibility, evaluateVisibility, type VisibilityPolicyInput } from './domain/visibilityPolicy.js';
+import {
+    defaultCloneVisibility,
+    evaluatePublishedState,
+    evaluateVisibility,
+    type VisibilityPolicyInput,
+} from './domain/visibilityPolicy.js';
 import { isContained, type ContainmentSubject } from '../common/containmentPolicy.js';
 import { assertNotContained, testPrincipalContained } from '../common/containment.error.js';
 import { isRecipeViewableBy } from './domain/recipeVisibility.js';
@@ -1281,10 +1286,25 @@ export class RecipesService {
                         ? RecipeVisibility.PRIVATE
                         : current.visibility;
 
+                // The state this write leaves, judged on the visibility read UNDER the lock (ADR-0089): a private-only recipe
+                // is never published and public, even if a race left its draft public.
+                const stateAfter = evaluatePublishedState({
+                    status: afterStatus,
+                    visibility: visibilityAfter,
+                    ...sourceAfter,
+                });
+
+                if (!stateAfter.allowed) {
+                    throw invalidVisibility(stateAfter.reason, {
+                        visibility: visibilityAfter,
+                        sourceType: sourceAfter.sourceType,
+                    });
+                }
+
                 if (visibilityAfter === RecipeVisibility.PRIVATE) {
-                    // Publishing a private draft is a move to private like any other, so it meets the SAME C-004 policy (the
-                    // only door a private `imported_public` recipe has is Premium plus a substantive edit - a slot never makes
-                    // one private, ADR-0073 section 6) with the slot fact counted under the lock where a slot can matter.
+                    // Publishing a private draft is a move to private like any other, so it meets the SAME C-004 policy, with
+                    // the slot fact counted under the lock where a slot can matter (ADR-0073: a free cook's private recipe
+                    // uses a slot, and ADR-0077 section 6 means no Premium or substantive edit is needed).
                     const takesSlot = requiresPrivateSlotCheck({
                         sourceType: sourceAfter.sourceType,
                         isPremium,

@@ -32,7 +32,13 @@
  * `evaluateContainment`, never re-derived here. `principalKind` and `containment` are REQUIRED inputs so every call
  * site had to decide what a test principal means to it.
  */
-import { RecipeSourceType, RecipeVisibility, privateRuleOf, type RecipeSourceKind } from '@kitchensink/recipe-core';
+import {
+    RecipeSourceType,
+    RecipeStatus,
+    RecipeVisibility,
+    privateRuleOf,
+    type RecipeSourceKind,
+} from '@kitchensink/recipe-core';
 
 import { evaluateContainment, isContained, type ContainmentSubject } from '../../common/containmentPolicy.js';
 
@@ -88,6 +94,45 @@ function denyNoSlot(reason: string): VisibilityDecision {
     return { allowed: false, denial: 'privateSlots', reason };
 }
 
+/** Why a private-only recipe may not be public. The only `imported_public` that is private-only is a web copy (ADR-0089). */
+function privateOnlyReason(sourceType: RecipeSourceType): string {
+    switch (sourceType) {
+        case RecipeSourceType.IMPORTED_PAID:
+            return 'An imported paid recipe is private-only and may never be made public.';
+        case RecipeSourceType.IMPORTED_PUBLIC:
+            // A full copy of a web page is private (ADR-0077 section 3), and a card for it is not built: fail closed.
+            return 'A recipe copied from a web page is private-only and may not be made public.';
+        case RecipeSourceType.IMPORTED_PHYSICAL:
+        case RecipeSourceType.USER_CREATED:
+            return 'An imported physical-book recipe is private-only and may not be made public.';
+    }
+}
+
+/**
+ * The state a write LEAVES (ADR-0089): a private-only recipe is never PUBLISHED and PUBLIC, whichever path made it public.
+ * `evaluateVisibility` judges a requested move; this judges the result, so a public draft that reached its state by a race
+ * is still refused at publish. An owner-only public DRAFT is allowed, because no one else can read it. Pure.
+ *
+ * @param input - The status and visibility after the write, and the source.
+ * @returns A `policy` denial for a published, public, private-only recipe; else an allow.
+ */
+export function evaluatePublishedState(input: {
+    readonly status: RecipeStatus;
+    readonly visibility: RecipeVisibility;
+    readonly sourceType: RecipeSourceType;
+    readonly sourceKind: RecipeSourceKind | null;
+}): VisibilityDecision {
+    if (
+        input.status === RecipeStatus.PUBLISHED &&
+        input.visibility === RecipeVisibility.PUBLIC &&
+        privateRuleOf(input.sourceType, input.sourceKind) === 'privateOnly'
+    ) {
+        return deny(privateOnlyReason(input.sourceType));
+    }
+
+    return allow('The recipe is not left published and public while private-only.');
+}
+
 /**
  * Evaluate the C-004 visibility policy for a requested transition. Pure — inputs only.
  */
@@ -109,17 +154,7 @@ export function evaluateVisibility(input: VisibilityPolicyInput): VisibilityDeci
             return allow('User-created and imported-public recipes may be public.');
         }
 
-        if (sourceType === RecipeSourceType.IMPORTED_PUBLIC) {
-            // The only `imported_public` that is private-only is a copy of a web page (ADR-0089): a full copy is private
-            // (ADR-0077 section 3), and a card for it is not built, so it fails closed.
-            return deny('A recipe copied from a web page is private-only and may not be made public.');
-        }
-
-        return deny(
-            sourceType === RecipeSourceType.IMPORTED_PAID
-                ? 'An imported paid recipe is private-only and may never be made public.'
-                : 'An imported physical-book recipe is private-only and may not be made public.',
-        );
+        return deny(privateOnlyReason(sourceType));
     }
 
     // requested === RecipeVisibility.PRIVATE

@@ -52,7 +52,11 @@ const UNMATCHED = makeUnresolvedArm({
 const BOUND = makeRootArm({ lookupId: 'l-bound', foodId: 'food-a' });
 
 /** A three-line recipe at version 3; the middle line (position 1) is bound to `middle`. */
-function aggregateWith(middle: FoodLookupArm, sourcePhrase: string | null = null): RecipeAggregate {
+function aggregateWith(
+    middle: FoodLookupArm,
+    sourcePhrase: string | null = null,
+    middleColumns: { readonly boundBy?: string | null; readonly importLineId?: string | null } = {},
+): RecipeAggregate {
     const recipe = makeRecipeRow({ id: 'r-1', ownerId: OWNER, currentVersion: 3 });
 
     return {
@@ -69,6 +73,7 @@ function aggregateWith(middle: FoodLookupArm, sourcePhrase: string | null = null
                 groupLabel: 'Sauce',
                 sourcePhrase,
                 sortOrder: 1,
+                ...middleColumns,
             }),
             makeIngredientLineRow({ id: 'line-2', foodLookupId: 'l-last', unit: '', sortOrder: 2 }),
         ],
@@ -225,7 +230,9 @@ describe('IngredientRebindService.rebind — the order of its effects', () => {
                 ],
             },
             CALLER,
-            { snapshot: { changeSummary: 'Changed ingredient' } },
+            // Rewritten for ADR-0072 §5: a rebind is the cook's own pick, so it always tells the update path that the moved
+            // line is `cook`'s (a `cook` directive at the line's position), beside the unchanged version summary.
+            { snapshot: { changeSummary: 'Changed ingredient' }, lineOrigins: new Map([[1, { kind: 'cook' }]]) },
         );
     });
 
@@ -307,6 +314,84 @@ describe('IngredientRebindService.rebind — the order of its effects', () => {
 
         expect(corrections.recordCorrection).toHaveBeenCalledWith(expect.objectContaining({ phrase: 'plain flour' }));
     });
+});
+
+const LINK = '00000000-0000-4000-8000-0000000000e1';
+
+describe('IngredientRebindService.rebind — who bound the line (ADR-0072 §5)', () => {
+    const sameFood = { expectedVersion: 3, target: { kind: 'catalogFood', foodId: 'food-a' } } as const;
+
+    it('⛔ a different food passes the import link on purpose, so the cook’s pick stays tied to its imported line', async () => {
+        const { service, recipes } = build(
+            aggregateWith(BOUND, 'plain flour', { boundBy: 'autoBest', importLineId: LINK }),
+            [BOUND],
+            bound('l-new', 'food-b'),
+        );
+
+        await service.rebind(PRINCIPAL, 'r-1', 1, byFood, CALLER);
+
+        expect(vi.mocked(recipes.update).mock.calls[0]?.[4]).toStrictEqual({
+            snapshot: { changeSummary: 'Changed ingredient' },
+            lineOrigins: new Map([[1, { kind: 'cook', importLineId: LINK }]]),
+        });
+    });
+
+    it('⛔ the SAME food on a line the import bound is not a no-op: it writes `cook` and records the correction', async () => {
+        const { service, recipes, corrections, deleteIfOrphanedFailure } = build(
+            aggregateWith(BOUND, 'plain flour', { boundBy: 'autoBest', importLineId: LINK }),
+            [BOUND],
+            bound('l-bound', 'food-a'),
+        );
+
+        const response = await service.rebind(PRINCIPAL, 'r-1', 1, sameFood, CALLER);
+
+        expect(response).toBe(DETAIL);
+        expect(recipes.update).toHaveBeenCalledOnce();
+        expect(vi.mocked(recipes.update).mock.calls[0]?.[4]).toStrictEqual({
+            snapshot: { changeSummary: 'Confirmed ingredient' },
+            lineOrigins: new Map([[1, { kind: 'cook', importLineId: LINK }]]),
+        });
+        expect(vi.mocked(recipes.update).mock.calls[0]?.[2].ingredients?.[1]?.ingredientId).toBe('l-bound');
+        expect(corrections.recordCorrection).toHaveBeenCalledWith(
+            expect.objectContaining({ phrase: 'plain flour', food: { kind: 'root', id: 'food-a' } }),
+        );
+        // The binding it holds is the SAME one the line keeps: there is nothing it left to delete.
+        expect(deleteIfOrphanedFailure).not.toHaveBeenCalled();
+    });
+
+    it.each(['exact', 'curated', 'review', 'default', 'autoBest'] as const)(
+        'confirms a line the import bound as %s',
+        async (boundBy) => {
+            const { service, recipes } = build(
+                aggregateWith(BOUND, 'plain flour', { boundBy }),
+                [BOUND],
+                bound('l-bound', 'food-a'),
+            );
+
+            await service.rebind(PRINCIPAL, 'r-1', 1, sameFood, CALLER);
+
+            expect(recipes.update).toHaveBeenCalledOnce();
+        },
+    );
+
+    it.each([
+        ['already the cook’s', 'cook'],
+        ['with no recorded origin', null],
+    ] as const)(
+        '⛔ the SAME food on a line %s is still a no-op (it would mint a version for nothing)',
+        async (_name, boundBy) => {
+            const { service, recipes, corrections } = build(
+                aggregateWith(BOUND, 'plain flour', { boundBy }),
+                [BOUND],
+                bound('l-bound', 'food-a'),
+            );
+
+            await service.rebind(PRINCIPAL, 'r-1', 1, sameFood, CALLER);
+
+            expect(recipes.update).not.toHaveBeenCalled();
+            expect(corrections.recordCorrection).not.toHaveBeenCalled();
+        },
+    );
 });
 
 describe('IngredientRebindService.rebind — what it refuses to write', () => {

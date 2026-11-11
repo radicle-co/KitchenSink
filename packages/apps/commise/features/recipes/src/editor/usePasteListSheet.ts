@@ -15,6 +15,7 @@ import { extractSourceLink, type SourceLinkExtraction } from '@kitchensink/recip
 import { useState } from 'react';
 
 import { pasteIngredientsOf, type PasteIngredientsModel, type PasteRefusalCopy } from '../form/pasteIngredients.js';
+import { isLinkOnly } from '../form/sourceLink.js';
 import type { PasteIntoIngredients } from './usePasteIntoIngredients.js';
 
 /** Options for {@link usePasteListSheet}. */
@@ -37,6 +38,8 @@ export interface PasteListSheet {
     readonly setText: (text: string) => void;
     /** The count and the refusals, before any round trip. */
     readonly model: PasteIngredientsModel;
+    /** The paste is nothing but a link (ADR-0089): nothing to add, so the sheet says what to do instead. */
+    readonly linkOnly: boolean;
     /** Send the text as a parse job; nothing happens when it may not be sent. */
     readonly add: () => void;
 }
@@ -76,6 +79,7 @@ export function usePasteListSheet(paste: PasteIntoIngredients, options: PasteLis
         text,
         setText,
         model,
+        linkOnly: isLinkOnly(extraction),
         add: () => {
             if (model.canSubmit && !paste.submitting) {
                 options.onSource?.(extraction);

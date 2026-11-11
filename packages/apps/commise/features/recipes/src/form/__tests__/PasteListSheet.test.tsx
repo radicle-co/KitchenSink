@@ -24,13 +24,18 @@ const form = recipeFormMessages.en;
 
 const fakePaste = (over: Partial<PasteIntoIngredients> = {}): PasteIntoIngredients => makePasteIntoIngredients(over);
 
-const Host: FC<{ readonly paste: PasteIntoIngredients }> = ({ paste }) => {
+const Host: FC<{ readonly paste: PasteIntoIngredients; readonly offersSource?: boolean }> = ({
+    paste,
+    offersSource = true,
+}) => {
     const sheet = usePasteListSheet(paste, {
         initiallyOpen: true,
         copy: { lineTooLong: form.pasteRefusalLineTooLong, tooManyLines: form.pasteRefusalTooManyLines },
     });
 
-    return <PasteListSheet sheet={sheet} submitting={paste.submitting} failed={paste.failed} />;
+    return (
+        <PasteListSheet sheet={sheet} submitting={paste.submitting} failed={paste.failed} offersSource={offersSource} />
+    );
 };
 
 const dialog = (): HTMLElement => screen.getByRole('dialog', { name: t.pasteTitle });
@@ -44,6 +49,41 @@ const addButton = (name: string): HTMLButtonElement =>
     within(dialog()).getByRole<HTMLButtonElement>('button', { name });
 const isDisabled = (button: HTMLButtonElement): boolean =>
     button.disabled || button.getAttribute('aria-disabled') === 'true';
+
+describe('PasteListSheet (web): a link in the paste (ADR-0089)', () => {
+    const LINK = 'https://www.allrecipes.com/recipe/1/soup/';
+
+    it('says a link can be pasted too only while the Source can be set', () => {
+        const { unmount } = render(<Host paste={fakePaste()} offersSource />);
+
+        expect(within(dialog()).getByText(`${t.pasteHint} ${t.pasteLinkHint}`)).toBeTruthy();
+
+        unmount();
+        render(<Host paste={fakePaste()} offersSource={false} />);
+
+        expect(within(dialog()).getByText(t.pasteHint)).toBeTruthy();
+        expect(within(dialog()).queryByText(/Paste its link/u)).toBeNull();
+    });
+
+    it('a paste that is only a link keeps Add off and says what to do instead', () => {
+        render(<Host paste={fakePaste()} />);
+
+        type(LINK);
+
+        expect(isDisabled(addButton('Add 0 ingredients'))).toBe(true);
+        expect(within(dialog()).getByText(editorMessages.en.source.linkOnly)).toBeTruthy();
+    });
+
+    it('says nothing of the kind for a paste with lines, or for no paste', () => {
+        render(<Host paste={fakePaste()} />);
+
+        expect(within(dialog()).queryByText(editorMessages.en.source.linkOnly)).toBeNull();
+
+        type(`2 cups flour\n${LINK}`);
+
+        expect(within(dialog()).queryByText(editorMessages.en.source.linkOnly)).toBeNull();
+    });
+});
 
 describe('PasteListSheet (web)', () => {
     it('is a sheet titled "Paste a list" with a labelled field described by its hint', () => {

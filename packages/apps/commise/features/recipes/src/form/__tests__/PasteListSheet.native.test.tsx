@@ -45,16 +45,54 @@ const form = recipeFormMessages.en;
 
 const fakePaste = (over: Partial<PasteIntoIngredients> = {}): PasteIntoIngredients => makePasteIntoIngredients(over);
 
-const Host: FC<{ readonly paste: PasteIntoIngredients }> = ({ paste }) => {
+const Host: FC<{ readonly paste: PasteIntoIngredients; readonly offersSource?: boolean }> = ({
+    paste,
+    offersSource = true,
+}) => {
     const sheet = usePasteListSheet(paste, {
         initiallyOpen: true,
         copy: { lineTooLong: form.pasteRefusalLineTooLong, tooManyLines: form.pasteRefusalTooManyLines },
     });
 
-    return <PasteListSheet sheet={sheet} submitting={paste.submitting} failed={paste.failed} />;
+    return (
+        <PasteListSheet sheet={sheet} submitting={paste.submitting} failed={paste.failed} offersSource={offersSource} />
+    );
 };
 
 const field = (): HTMLTextAreaElement => screen.getByRole<HTMLTextAreaElement>('textbox', { name: t.pasteLabel });
+
+describe('PasteListSheet (native): a link in the paste (ADR-0089)', () => {
+    const LINK = 'https://www.allrecipes.com/recipe/1/soup/';
+
+    it('says a link can be pasted too only while the Source can be set', () => {
+        const { unmount } = render(<Host paste={fakePaste()} offersSource />);
+
+        expect(screen.getByText(`${t.pasteHint} ${t.pasteLinkHint}`)).toBeTruthy();
+
+        unmount();
+        render(<Host paste={fakePaste()} offersSource={false} />);
+
+        expect(screen.getByText(t.pasteHint)).toBeTruthy();
+        expect(screen.queryByText(/Paste its link/u)).toBeNull();
+    });
+
+    it('a paste that is only a link keeps Add off and says what to do instead', () => {
+        render(<Host paste={fakePaste()} />);
+
+        fireEvent.change(field(), { target: { value: LINK } });
+
+        expect(screen.getByRole('button', { name: 'Add 0 ingredients' }).getAttribute('aria-disabled')).toBe('true');
+        expect(screen.getByText(editorMessages.en.source.linkOnly)).toBeTruthy();
+    });
+
+    it('says nothing of the kind for a paste with lines', () => {
+        render(<Host paste={fakePaste()} />);
+
+        fireEvent.change(field(), { target: { value: `2 cups flour\n${LINK}` } });
+
+        expect(screen.queryByText(editorMessages.en.source.linkOnly)).toBeNull();
+    });
+});
 
 describe('PasteListSheet (native)', () => {
     it('is a sheet titled "Paste a list" with the labelled field and its hint', () => {

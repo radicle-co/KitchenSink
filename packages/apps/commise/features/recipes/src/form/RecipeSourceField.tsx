@@ -26,9 +26,9 @@ import type { RecipeSourceFieldProps } from './sourceFieldProps.js';
 /** The Source row. */
 export const RecipeSourceField: FC<RecipeSourceFieldProps> = ({
     row,
-    notice,
     onChange,
     onRemove,
+    onTouched,
     focusRequested,
     onFocusHandled,
 }) => {
@@ -63,7 +63,8 @@ export const RecipeSourceField: FC<RecipeSourceFieldProps> = ({
     const pasted = row.kind === 'filled' && row.fromPaste;
 
     return (
-        <div className="flex flex-col gap-1">
+        // Leaving the field is the cook being done typing: the blur bubbles to here, so the leaf needs no ref.
+        <div className="flex flex-col gap-1" onBlur={onTouched}>
             <FieldLabel forId={sourceFieldId} label={m.label} hint={status} />
             <Input
                 id={sourceFieldId}
@@ -81,6 +82,7 @@ export const RecipeSourceField: FC<RecipeSourceFieldProps> = ({
                 focusRequested={focusRequested}
                 onFocusRequestHandled={onFocusHandled}
                 onChangeText={onChange}
+                onSubmit={onTouched}
             />
             {pasted ? (
                 <p id={sourceNoteId} className="text-caption text-ink-muted">
@@ -92,8 +94,7 @@ export const RecipeSourceField: FC<RecipeSourceFieldProps> = ({
                     {error}
                 </p>
             )}
-            {notice === undefined ? null : <p className="text-caption text-ink-muted">{notice}</p>}
-            {row.kind === 'empty' ? null : (
+            {row.text === '' ? null : (
                 <div>
                     <Button variant="ghost" onPress={onRemove}>
                         {m.remove}

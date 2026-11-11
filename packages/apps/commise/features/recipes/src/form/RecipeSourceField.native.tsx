@@ -45,9 +45,9 @@ const LinkText = styled(Text, {
 /** The Source row. */
 export const RecipeSourceField: FC<RecipeSourceFieldNativeProps> = ({
     row,
-    notice,
     onChange,
     onRemove,
+    onTouched,
     focusRequested,
     onFocusHandled,
     onOpen = openExternalUrl,
@@ -104,6 +104,7 @@ export const RecipeSourceField: FC<RecipeSourceFieldNativeProps> = ({
                 focusRequested={focusRequested}
                 onFocusRequestHandled={onFocusHandled}
                 onChangeText={onChange}
+                onSubmit={onTouched}
             />
             {pasted ? (
                 <Text nativeID={sourceNoteId} typeRole="meta" color="$inkMuted">
@@ -115,15 +116,13 @@ export const RecipeSourceField: FC<RecipeSourceFieldNativeProps> = ({
                     {error}
                 </Text>
             )}
-            {notice === undefined ? null : (
-                <Text typeRole="meta" color="$inkMuted">
-                    {notice}
-                </Text>
-            )}
-            {row.kind === 'empty' ? null : (
-                <Button variant="ghost" onPress={onRemove}>
-                    {m.remove}
-                </Button>
+            {row.text === '' ? null : (
+                // Hugging its label at the start, not stretched across the column.
+                <YStack alignItems="flex-start">
+                    <Button variant="ghost" onPress={onRemove}>
+                        {m.remove}
+                    </Button>
+                </YStack>
             )}
         </Column>
     );

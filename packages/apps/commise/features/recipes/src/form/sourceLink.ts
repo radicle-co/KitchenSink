@@ -209,6 +209,16 @@ export function pastedSourcePlanOf(input: {
     return removed === link.url ? {} : { set: link.url, note: { kind: 'set', site: link.site } };
 }
 
+/**
+ * Whether a paste was nothing but a link: a link was found and no other text is left. Such a paste has no lines to add, so
+ * the sheet says what to do instead of leaving its Add disabled without a word.
+ *
+ * @param extraction - What `extractSourceLink` found in the pasted text.
+ * @returns `true` when the link was the whole paste. Pure.
+ */
+export const isLinkOnly = (extraction: SourceLinkExtraction): boolean =>
+    extraction.link !== undefined && extraction.remaining.trim() === '';
+
 /** Every state of the Source row (the editor spec's table). */
 export type SourceRowModel =
     /** Published with no source: nothing to show. */
@@ -223,15 +233,21 @@ export type SourceRowModel =
 /**
  * What the Source row draws.
  *
- * @param input - The draft, the server's recipe and whether the link in the field came from a paste.
+ * @param input - The draft, the server's recipe, whether the link in the field came from a paste, and whether an unusable text
+ *   is shown as an error yet.
  * @returns The row's state. Pure.
  */
 export function sourceRowOf(input: {
     readonly values: Pick<RecipeFormValues, 'sourceLink'>;
     readonly recipe: StoredRecipe | undefined;
     readonly fromPaste: boolean;
+    /**
+     * Whether an unusable text is shown as the error it is: after the cook has left the field, or has tried to Publish.
+     * While they type it is plain text, because a half-typed address is not a mistake yet.
+     */
+    readonly showError: boolean;
 }): SourceRowModel {
-    const { values, recipe, fromPaste } = input;
+    const { values, recipe, fromPaste, showError } = input;
 
     if (sourceIsLocked(recipe)) {
         const stored = heldAsWebCopy(recipe) ? parseSourceLink(recipe?.sourceUrl ?? '') : undefined;
@@ -250,6 +266,6 @@ export function sourceRowOf(input: {
         case 'link':
             return { kind: 'filled', text, site: source.link.site, fromPaste };
         case 'refused':
-            return { kind: source.reason, text };
+            return showError ? { kind: source.reason, text } : { kind: 'empty', text };
     }
 }

@@ -34,9 +34,15 @@ afterEach(() => {
 });
 
 function renderRow(row: SourceRowModel, over: Partial<Parameters<typeof RecipeSourceField>[0]> = {}) {
-    const handlers = { onChange: vi.fn(), onRemove: vi.fn(), onFocusHandled: vi.fn(), onOpen: vi.fn() };
+    const handlers = {
+        onChange: vi.fn(),
+        onRemove: vi.fn(),
+        onFocusHandled: vi.fn(),
+        onOpen: vi.fn(),
+        onTouched: vi.fn(),
+    };
 
-    render(<RecipeSourceField row={row} notice={undefined} focusRequested={false} {...handlers} {...over} />);
+    render(<RecipeSourceField row={row} focusRequested={false} {...handlers} {...over} />);
 
     return handlers;
 }
@@ -117,9 +123,10 @@ describe('RecipeSourceField (native)', () => {
         expect(screen.queryByRole('textbox')).toBeNull();
     });
 
-    it('a note about a paste is shown beside the row', () => {
-        renderRow({ kind: 'empty', text: '' }, { notice: m.ownSiteLeftOut });
+    it('half-typed text is not an error yet, and can already be cleared', () => {
+        renderRow({ kind: 'empty', text: 'https://exa' });
 
-        expect(screen.getByText(m.ownSiteLeftOut)).toBeTruthy();
+        expect(screen.queryByText(m.invalid)).toBeNull();
+        expect(screen.getByRole('button', { name: m.remove })).toBeTruthy();
     });
 });

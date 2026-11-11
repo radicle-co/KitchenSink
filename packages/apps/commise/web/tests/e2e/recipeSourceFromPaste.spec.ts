@@ -67,6 +67,14 @@ test.describe('a pasted web link sets the recipe’s Source (ADR-0089)', () => {
         // The link is not a step: the count leaves it out.
         await page.getByRole('button', { name: 'Add 1 step' }).click();
 
+        // A sighted cook is told, under the control they used, that the recipe became private, and can undo it there.
+        const stepsSection = editorSection(page, 'Steps');
+
+        await expect(
+            stepsSection.getByText('Source set to allrecipes.com. This recipe will be private.'),
+        ).toBeVisible();
+        await expect(stepsSection.getByRole('button', { name: 'Remove', exact: true })).toBeVisible();
+
         // The Source is filled, says which site, and the recipe can only be private.
         const photosAndPublish = editorSection(page, 'Photos & publish');
 

@@ -19,9 +19,9 @@ const URL = 'https://www.allrecipes.com/recipe/1/soup/';
 afterEach(cleanup);
 
 function renderRow(row: SourceRowModel, over: Partial<Parameters<typeof RecipeSourceField>[0]> = {}) {
-    const handlers = { onChange: vi.fn(), onRemove: vi.fn(), onFocusHandled: vi.fn() };
+    const handlers = { onChange: vi.fn(), onRemove: vi.fn(), onFocusHandled: vi.fn(), onTouched: vi.fn() };
 
-    render(<RecipeSourceField row={row} notice={undefined} focusRequested={false} {...handlers} {...over} />);
+    render(<RecipeSourceField row={row} focusRequested={false} {...handlers} {...over} />);
 
     return handlers;
 }
@@ -111,8 +111,8 @@ describe('RecipeSourceField (web)', () => {
         const { container } = render(
             <RecipeSourceField
                 row={{ kind: 'hidden' }}
-                notice={undefined}
                 focusRequested={false}
+                onTouched={vi.fn()}
                 onChange={vi.fn()}
                 onRemove={vi.fn()}
                 onFocusHandled={vi.fn()}
@@ -122,10 +122,20 @@ describe('RecipeSourceField (web)', () => {
         expect(container.textContent).toBe('');
     });
 
-    it('a note about a paste is shown beside the row', () => {
-        renderRow({ kind: 'empty', text: '' }, { notice: m.ownSiteLeftOut });
+    it('half-typed text is not an error yet, and can already be cleared', () => {
+        renderRow({ kind: 'empty', text: 'https://exa' });
 
-        expect(screen.getByText(m.ownSiteLeftOut)).toBeTruthy();
+        expect(field().getAttribute('aria-invalid')).not.toBe('true');
+        expect(screen.queryByText(m.invalid)).toBeNull();
+        expect(screen.getByRole('button', { name: m.remove })).toBeTruthy();
+    });
+
+    it('leaving the field says the cook is done typing', () => {
+        const { onTouched } = renderRow({ kind: 'empty', text: 'https://exa' });
+
+        fireEvent.blur(field());
+
+        expect(onTouched).toHaveBeenCalledTimes(1);
     });
 
     it('a Remove asks the field for focus, and says when it took it', () => {

@@ -11,6 +11,7 @@ import { Button } from '@commise/ui/button';
 import { FieldLabel, TextArea } from '@commise/ui/input';
 import { nativeTokens } from '@commise/ui/native';
 import { Sheet } from '@commise/ui/sheet';
+import { Text } from '@commise/ui/text';
 import type { SourceLinkExtraction } from '@kitchensink/recipe-core';
 import type { FC } from 'react';
 import { StyleSheet, View } from 'react-native';
@@ -35,11 +36,24 @@ export interface PasteStepsControlProps {
      * published recipe still takes steps, and its source cannot change. Display only.
      */
     readonly offersSource?: boolean;
+    /**
+     * The button is asked for focus (the paste caption's Remove sends the cook back to the control they used). A level, until
+     * {@link PasteStepsControlProps.onFocusHandled}.
+     */
+    readonly focusRequested?: boolean;
+    /** The button took a requested focus. */
+    readonly onFocusHandled?: () => void;
 }
 
 /** "Paste steps": the button and its sheet. */
-export const PasteStepsControl: FC<PasteStepsControlProps> = ({ onAdd, onSource, offersSource = false }) => {
-    const { steps: s } = useMessages(editorMessages);
+export const PasteStepsControl: FC<PasteStepsControlProps> = ({
+    onAdd,
+    onSource,
+    offersSource = false,
+    focusRequested = false,
+    onFocusHandled,
+}) => {
+    const { steps: s, source } = useMessages(editorMessages);
     const m = useMessages(recipeFormMessages);
     const locale = useLocale();
     const paste = usePasteSteps(onAdd, onSource);
@@ -47,7 +61,13 @@ export const PasteStepsControl: FC<PasteStepsControlProps> = ({ onAdd, onSource,
 
     return (
         <>
-            <Button variant="ghost" icon="listPlus" onPress={() => paste.setOpen(true)}>
+            <Button
+                variant="ghost"
+                icon="listPlus"
+                focusRequested={focusRequested}
+                {...(onFocusHandled === undefined ? {} : { onFocusRequestHandled: onFocusHandled })}
+                onPress={() => paste.setOpen(true)}
+            >
                 {s.paste}
             </Button>
             <Sheet
@@ -72,6 +92,11 @@ export const PasteStepsControl: FC<PasteStepsControlProps> = ({ onAdd, onSource,
                         hint={hint}
                         onChangeText={paste.setText}
                     />
+                    {paste.linkOnly ? (
+                        <Text typeRole="meta" color="$inkMuted">
+                            {source.linkOnly}
+                        </Text>
+                    ) : null}
                 </View>
             </Sheet>
         </>

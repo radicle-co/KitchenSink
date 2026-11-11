@@ -555,7 +555,7 @@ describe('useRecipeEditorSession: the Source (ADR-0089)', () => {
 
     const paste = (view: ReturnType<typeof mount>, text: string) => {
         act(() => {
-            view.result.current.source.applyPasted(extractSourceLink(text));
+            view.result.current.source.applyPasted(extractSourceLink(text), 'steps');
         });
     };
 
@@ -659,7 +659,76 @@ describe('useRecipeEditorSession: the Source (ADR-0089)', () => {
         paste(view, BBC);
 
         expect(view.result.current.editor.values.sourceLink).toBe(ALLRECIPES);
-        expect(view.result.current.source.notice?.text).toBe('The source can’t be changed after publishing.');
+        expect(view.result.current.source.notice?.text).toBe(
+            'Left out the link. A published recipe’s source can’t be added or changed.',
+        );
+    });
+
+    it('the inline Remove takes the source off WITHOUT moving focus to the field: the paste control gets it back', () => {
+        const view = mount();
+
+        act(() => {
+            view.result.current.source.applyPasted(extractSourceLink(ALLRECIPES), 'ingredients');
+        });
+        expect(view.result.current.source.notice).toMatchObject({ kind: 'set', origin: 'ingredients' });
+
+        act(() => {
+            view.result.current.source.remove({ focus: false });
+        });
+
+        expect(view.result.current.editor.values).not.toHaveProperty('sourceLink');
+        expect(view.result.current.source.focusRequested).toBe(false);
+        expect(view.result.current.source.pasteFocus).toBe('ingredients');
+        expect(view.result.current.source.notice).toBeUndefined();
+
+        act(() => {
+            view.result.current.source.onPasteFocusHandled();
+        });
+        expect(view.result.current.source.pasteFocus).toBeUndefined();
+    });
+
+    it('the row’s own Remove asks the Source field for focus and not a paste control', () => {
+        const view = mount();
+
+        paste(view, ALLRECIPES);
+        act(() => {
+            view.result.current.source.remove();
+        });
+
+        expect(view.result.current.source.focusRequested).toBe(true);
+        expect(view.result.current.source.pasteFocus).toBeUndefined();
+    });
+
+    it('an address that is not a link yet is plain text while the cook types, and the error once they leave the field', () => {
+        const view = mount();
+
+        act(() => {
+            view.result.current.source.onChange('https://exa');
+        });
+        expect(view.result.current.source.row).toEqual({ kind: 'empty', text: 'https://exa' });
+
+        act(() => {
+            view.result.current.source.onTouched();
+        });
+        expect(view.result.current.source.row).toEqual({ kind: 'invalid', text: 'https://exa' });
+
+        act(() => {
+            view.result.current.source.onChange('https://exam');
+        });
+        expect(view.result.current.source.row).toEqual({ kind: 'empty', text: 'https://exam' });
+    });
+
+    it('a refused Publish shows the error at once', () => {
+        const view = mount();
+
+        act(() => {
+            view.result.current.source.onChange('soup');
+        });
+        act(() => {
+            view.result.current.editor.publish('');
+        });
+
+        expect(view.result.current.source.row).toEqual({ kind: 'invalid', text: 'soup' });
     });
 
     it('the preview shows a draft with a web link as Private, whatever the cook chose', () => {

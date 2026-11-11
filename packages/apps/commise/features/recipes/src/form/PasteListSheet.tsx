@@ -21,8 +21,9 @@ import { pasteListFieldId } from './fieldIds.js';
 import { recipeFormMessages } from './messages.js';
 
 /** The Paste a list sheet. */
-export const PasteListSheet: FC<PasteListSheetProps> = ({ sheet, submitting, failed }) => {
-    const { ingredients: t } = useMessages(editorMessages);
+export const PasteListSheet: FC<PasteListSheetProps> = ({ sheet, submitting, failed, offersSource = false }) => {
+    const { ingredients: t, source } = useMessages(editorMessages);
+    const hint = offersSource ? `${t.pasteHint} ${t.pasteLinkHint}` : t.pasteHint;
     const m = useMessages(recipeFormMessages);
     const locale = useLocale();
     const { lineCount, refusals, canSubmit } = sheet.model;
@@ -52,7 +53,7 @@ export const PasteListSheet: FC<PasteListSheetProps> = ({ sheet, submitting, fai
             }
         >
             <div className="flex flex-col gap-1">
-                <FieldLabel forId={pasteListFieldId} label={t.pasteLabel} hint={`${t.pasteHint} ${t.pasteLinkHint}`} />
+                <FieldLabel forId={pasteListFieldId} label={t.pasteLabel} hint={hint} />
                 {/* §7.5.4: ten rows at least, 72ch at most. */}
                 <div className="max-w-[72ch]">
                     <TextArea
@@ -66,6 +67,7 @@ export const PasteListSheet: FC<PasteListSheetProps> = ({ sheet, submitting, fai
                 <p className="text-body-sm font-semibold tabular-nums text-ink-muted">
                     {pluralOf(t.pasteCount, lineCount, locale)}
                 </p>
+                {sheet.linkOnly ? <p className="text-meta text-ink-muted">{source.linkOnly}</p> : null}
                 {refusals.map((refusal) => (
                     <p key={refusal} className="text-meta text-danger-text">
                         {refusal}

@@ -306,6 +306,10 @@ export interface EditorMessages {
         readonly keptExisting: string;
         readonly remove: string;
         readonly locked: string;
+        /** The paste note when the source is locked and a pasted link was left out. */
+        readonly lockedLeftOut: string;
+        /** Under a paste field when the paste is only a link: Add stays off, and this says what to do. */
+        readonly linkOnly: string;
         /** The locked site as a link, on the web. `{site}`. */
         readonly openLinkWeb: string;
         /** The locked site as a link, on a phone. `{site}`. */
@@ -613,6 +617,9 @@ export const editorMessages: LocalizedMessages<EditorMessages> = {
             keptExisting: 'Kept {site} as the source. The other link was left out.',
             remove: 'Remove source',
             locked: 'The source can’t be changed after publishing.',
+            lockedLeftOut: 'Left out the link. A published recipe’s source can’t be added or changed.',
+            linkOnly:
+                'That’s only a link. Paste the recipe’s text too. You can put the link in Source, under Photos & publish.',
             openLinkWeb: '{site} (opens in a new tab)',
             openLinkNative: '{site}, opens in your browser',
         },

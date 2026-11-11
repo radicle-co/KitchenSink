@@ -10,6 +10,7 @@ import { extractSourceLink, type SourceLinkExtraction } from '@kitchensink/recip
 import { useState } from 'react';
 
 import { splitPastedSteps } from './pasteSteps.js';
+import { isLinkOnly } from './sourceLink.js';
 
 /** The Paste steps sheet's state. */
 export interface PasteSteps {
@@ -20,6 +21,8 @@ export interface PasteSteps {
     readonly setText: (text: string) => void;
     /** The steps the text splits into, as the count and the add read them. */
     readonly steps: readonly string[];
+    /** The paste is nothing but a link (ADR-0089): nothing to add, so the sheet says what to do instead. */
+    readonly linkOnly: boolean;
     /** Add the steps and close the sheet; nothing happens with no steps. */
     readonly add: () => void;
 }
@@ -55,6 +58,7 @@ export function usePasteSteps(
         text,
         setText,
         steps,
+        linkOnly: isLinkOnly(extraction),
         add: () => {
             if (steps.length === 0) {
                 return;

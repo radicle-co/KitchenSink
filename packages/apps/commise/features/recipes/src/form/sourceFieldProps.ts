@@ -7,10 +7,10 @@ import type { SourceRowModel } from './sourceLink.js';
 export interface RecipeSourceFieldProps {
     /** What the row draws. */
     readonly row: SourceRowModel;
-    /** What a paste just said about the link it carried (kept the old Source, left out a Commise link, locked), shown beside the row. */
-    readonly notice: string | undefined;
     /** The cook typed in the field. */
     readonly onChange: (text: string) => void;
+    /** The cook left the field, or pressed its Done key: an unusable address is an error from now on. */
+    readonly onTouched: () => void;
     /** "Remove source". */
     readonly onRemove: () => void;
     /** The field is asked for focus (after Remove): a level, which stands until {@link onFocusHandled}. */

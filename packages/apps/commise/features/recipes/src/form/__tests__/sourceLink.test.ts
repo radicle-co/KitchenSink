@@ -10,6 +10,7 @@ import {
     derivedVisibility,
     draftPrivateRule,
     draftSourceOf,
+    isLinkOnly,
     pastedSourcePlanOf,
     sourceRowOf,
     sourceStatementOf,
@@ -201,7 +202,7 @@ describe('sourceRowOf: every state of the Source row', () => {
     const row = (
         values = makeRecipeFormValues(),
         recipe = undefined as ReturnType<typeof makeRecipeDetail> | undefined,
-    ) => sourceRowOf({ values, recipe, fromPaste: false });
+    ) => sourceRowOf({ values, recipe, fromPaste: false, showError: true });
 
     it('empty: the field with its hint and no Remove', () => {
         expect(row()).toEqual({ kind: 'empty', text: '' });
@@ -217,7 +218,9 @@ describe('sourceRowOf: every state of the Source row', () => {
     });
 
     it('filled from a paste says so', () => {
-        expect(sourceRowOf({ values: withLink(ALLRECIPES), recipe: undefined, fromPaste: true })).toMatchObject({
+        expect(
+            sourceRowOf({ values: withLink(ALLRECIPES), recipe: undefined, fromPaste: true, showError: true }),
+        ).toMatchObject({
             kind: 'filled',
             fromPaste: true,
         });
@@ -269,5 +272,43 @@ describe('sourceRowOf: every state of the Source row', () => {
 
     it('a never-published stored recipe still edits its source', () => {
         expect(row(withLink(ALLRECIPES), webCopy())).toMatchObject({ kind: 'filled' });
+    });
+});
+
+describe('sourceRowOf: an error is shown after the cook is done typing, not while they type', () => {
+    const row = (values: ReturnType<typeof withLink>, showError: boolean) =>
+        sourceRowOf({ values, recipe: undefined, fromPaste: false, showError });
+
+    it('text that is not yet a link reads as plain text while typing', () => {
+        expect(row(withLink('https://exa'), false)).toEqual({ kind: 'empty', text: 'https://exa' });
+        expect(row(withLink('https://commise.app/en'), false)).toEqual({
+            kind: 'empty',
+            text: 'https://commise.app/en',
+        });
+    });
+
+    it('the same text is the error once the cook has left the field or tried to Publish', () => {
+        expect(row(withLink('https://exa'), true)).toEqual({ kind: 'invalid', text: 'https://exa' });
+        expect(row(withLink('https://commise.app/en'), true)).toEqual({
+            kind: 'ownSite',
+            text: 'https://commise.app/en',
+        });
+    });
+
+    it('a usable link is filled either way', () => {
+        expect(row(withLink(ALLRECIPES), false)).toMatchObject({ kind: 'filled' });
+    });
+});
+
+describe('isLinkOnly: a paste that is nothing but a link', () => {
+    it('is true for a link with no other text, and for a link and blank lines', () => {
+        expect(isLinkOnly(extractSourceLink(ALLRECIPES))).toBe(true);
+        expect(isLinkOnly(extractSourceLink(`Source: ${ALLRECIPES}\n\n  \n`))).toBe(true);
+    });
+
+    it('is false with text beside the link, with no link, or with only a Commise link', () => {
+        expect(isLinkOnly(extractSourceLink(`2 eggs\n${ALLRECIPES}`))).toBe(false);
+        expect(isLinkOnly(extractSourceLink('2 eggs'))).toBe(false);
+        expect(isLinkOnly(extractSourceLink('https://commise.app/en/recipes/1'))).toBe(false);
     });
 });

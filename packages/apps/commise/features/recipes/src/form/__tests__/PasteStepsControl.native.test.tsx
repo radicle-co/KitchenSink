@@ -139,3 +139,15 @@ describe('PasteStepsControl (native): a pasted link (ADR-0089)', () => {
         expect(screen.queryByText(/Paste its link/u)).toBeNull();
     });
 });
+
+describe('PasteStepsControl (native): link-only (ADR-0089)', () => {
+    it('a paste that is only a link keeps Add off and says what to do instead', () => {
+        render(<PasteStepsControl onAdd={vi.fn()} onSource={vi.fn()} offersSource />);
+        fireEvent.click(screen.getByRole('button', { name: s.paste }));
+
+        fireEvent.change(field(), { target: { value: 'https://www.allrecipes.com/recipe/1/soup/' } });
+
+        expect(screen.getByRole('button', { name: 'Add 0 steps' }).getAttribute('aria-disabled')).toBe('true');
+        expect(screen.getByText(editorMessages.en.source.linkOnly)).toBeTruthy();
+    });
+});

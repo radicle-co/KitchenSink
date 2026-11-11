@@ -35,12 +35,14 @@ import { PasteStepsControl } from '../form/PasteStepsControl.js';
 import { RecipeBasicsFields } from '../form/RecipeBasicsFields.js';
 import { RecipeIngredientsFields } from '../form/RecipeIngredientsFields.js';
 import { RecipeInstructionsFields } from '../form/RecipeInstructionsFields.js';
+import { PastedSourceNotice } from '../form/PastedSourceNotice.js';
 import { RecipeSourceField } from '../form/RecipeSourceField.js';
 import { RecipeVisibilityField } from '../form/RecipeVisibilityField.js';
 import { entryFieldIdOf } from '../form/fieldIds.js';
 import { pendingIngredientIds } from '../form/ingredientStatus.js';
 import type { EditorSeed } from '../hooks/useRecipeEditor.js';
 import { useLastDefined } from '../hooks/useLastDefined.js';
+import type { PasteOrigin } from './useEditorSource.js';
 import type { RecipeEditorViewProps } from './frameProps.js';
 import { refusedRowsOf } from '../foodPage/privateFoodsRefusal.js';
 import { IngredientStatusPoller } from './IngredientStatusPoller.js';
@@ -162,6 +164,17 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
               ];
     });
 
+    // Whether a pasted link can still become the Source: false once it cannot be corrected (published, a book, a clone's).
+    const offersSource = source.row.kind !== 'locked' && source.row.kind !== 'hidden';
+    // What a paste did to the Source, drawn under the paste control the cook used; Remove only where it can be undone.
+    const noticeUnder = (origin: PasteOrigin): ReactNode =>
+        source.notice?.origin === origin ? (
+            <PastedSourceNotice
+                text={source.notice.text}
+                {...(source.notice.kind === 'set' ? { onRemove: () => source.remove({ focus: false }) } : {})}
+            />
+        ) : null;
+
     const sections: Readonly<Record<EditorSectionId, ReactNode>> = {
         details: (
             <RecipeBasicsFields
@@ -176,6 +189,7 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
                 {pendingIngredientIds(editor.values).map((id) => (
                     <IngredientStatusPoller key={id} ingredientId={id} onStatus={session.applyLineStatus} />
                 ))}
+                {noticeUnder('ingredients')}
                 <RecipeIngredientsFields
                     values={editor.values}
                     errors={errors}
@@ -186,16 +200,24 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
                     paste={paste.view}
                     {...(onOpenFood === undefined ? {} : { onOpenFood })}
                 />
-                <PasteListSheet sheet={paste.sheet} submitting={paste.submitting} failed={paste.failed} />
+                <PasteListSheet
+                    sheet={paste.sheet}
+                    submitting={paste.submitting}
+                    failed={paste.failed}
+                    offersSource={offersSource}
+                />
             </>
         ),
         steps: (
-            <RecipeInstructionsFields
-                values={editor.values}
-                errors={errors}
-                onChange={editor.setValues}
-                onFieldBlur={session.blur}
-            />
+            <>
+                {noticeUnder('steps')}
+                <RecipeInstructionsFields
+                    values={editor.values}
+                    errors={errors}
+                    onChange={editor.setValues}
+                    onFieldBlur={session.blur}
+                />
+            </>
         ),
         photos: (
             <>
@@ -208,10 +230,9 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
                       })}
                 <RecipeSourceField
                     row={source.row}
-                    // A set Source is shown by the row itself (its status and caption); the other notes have no place else.
-                    notice={source.notice?.kind === 'set' ? undefined : source.notice?.text}
                     onChange={source.onChange}
-                    onRemove={source.remove}
+                    onTouched={source.onTouched}
+                    onRemove={() => source.remove()}
                     focusRequested={source.focusRequested}
                     onFocusHandled={source.onFocusHandled}
                 />
@@ -254,7 +275,13 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
                     ...(paste.inHeading
                         ? {
                               ingredients: (
-                                  <Button variant="ghost" icon="clipboardPaste" onPress={paste.open}>
+                                  <Button
+                                      variant="ghost"
+                                      icon="clipboardPaste"
+                                      focusRequested={source.pasteFocus === 'ingredients'}
+                                      onFocusRequestHandled={source.onPasteFocusHandled}
+                                      onPress={paste.open}
+                                  >
                                       {ingredientsCopy.pasteList}
                                   </Button>
                               ),
@@ -263,8 +290,10 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
                     steps: (
                         <PasteStepsControl
                             onAdd={session.appendSteps}
-                            onSource={source.applyPasted}
-                            offersSource={source.row.kind !== 'locked' && source.row.kind !== 'hidden'}
+                            onSource={(extraction) => source.applyPasted(extraction, 'steps')}
+                            offersSource={offersSource}
+                            focusRequested={source.pasteFocus === 'steps'}
+                            onFocusHandled={source.onPasteFocusHandled}
                         />
                     ),
                 }}

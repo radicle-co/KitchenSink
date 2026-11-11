@@ -4,16 +4,16 @@
     "packageName": "@commise/features-recipes",
     "layer": "feature",
     "coverage": {
-        "components": 204,
-        "implementations": 347,
-        "props": 2400,
-        "documentedComponents": 204,
-        "implementationsWithModuleDoc": 347,
-        "implementationsWithComponentDoc": 236,
-        "documentedProps": 1828,
-        "classifiedComponents": 182,
+        "components": 205,
+        "implementations": 349,
+        "props": 2410,
+        "documentedComponents": 205,
+        "implementationsWithModuleDoc": 349,
+        "implementationsWithComponentDoc": 238,
+        "documentedProps": 1838,
+        "classifiedComponents": 183,
         "componentsWithPatternTag": 98,
-        "crossPlatformComponents": 143
+        "crossPlatformComponents": 144
     },
     "components": [
         {
@@ -21212,6 +21212,111 @@
             ]
         },
         {
+            "id": "featuresRecipes/form/PastedSourceNotice",
+            "name": "PastedSourceNotice",
+            "group": "featuresRecipes",
+            "packageName": "@commise/features-recipes",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/recipes/src/form",
+            "kind": "presentational",
+            "patterns": [],
+            "platforms": [
+                "web",
+                "native"
+            ],
+            "crossPlatform": true,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "PastedSourceNotice",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/form/PastedSourceNotice.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/form",
+                    "moduleDoc": "@commise/features-recipes/form — `PastedSourceNotice` (web): the caption under a paste control that says what a\npasted link did (ADR-0089), so a sighted cook sees what the live region speaks: the Source it set and that the recipe is\nprivate now, the link it kept or left out. When the paste made the recipe private, a ghost Remove undoes it in place.\n\nPresentational: text and an optional command in, markup out. The native leaf is `./PastedSourceNotice.native.tsx`.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes/form — `PastedSourceNotice` (web): the caption under a paste control that says what a"
+                        }
+                    ],
+                    "description": "What a paste did to the Source, under the paste control.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "onRemove",
+                            "type": "(() => void)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Take the source off, in place. ABSENT for a note with nothing to undo (a link kept, left out or locked).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/pastedSourceNoticeProps.ts"
+                        },
+                        {
+                            "name": "text",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "What the paste did to the Source, in the words the live region speaks.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/pastedSourceNoticeProps.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                },
+                {
+                    "name": "PastedSourceNotice",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/form/PastedSourceNotice.native.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/form",
+                    "moduleDoc": "@commise/features-recipes/form — `PastedSourceNotice` (native): the presentational React Native leaf of\n`./PastedSourceNotice.tsx`, on the same props and words. Styled with Tamagui only (ADR-0080). The Remove hugs its label\nat the start of the row rather than stretching across it.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes/form — `PastedSourceNotice` (native): the presentational React Native leaf of"
+                        }
+                    ],
+                    "description": "What a paste did to the Source, under the paste control.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "onRemove",
+                            "type": "(() => void)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Take the source off, in place. ABSENT for a note with nothing to undo (a link kept, left out or locked).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/pastedSourceNoticeProps.ts"
+                        },
+                        {
+                            "name": "text",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "What the paste did to the Source, in the words the live region speaks.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/pastedSourceNoticeProps.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
             "id": "featuresRecipes/form/PasteListSheet",
             "name": "PasteListSheet",
             "group": "featuresRecipes",
@@ -21252,6 +21357,15 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "The job could not be created: said as an alert, and the text stays.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/pasteListSheetProps.ts"
+                        },
+                        {
+                            "name": "offersSource",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "false",
+                            "description": "Whether the Source can still be set (ADR-0089), so the hint says a link may be pasted too. Paste a list is offered\nonly until the first publish, so this is false only for a source that cannot be corrected (a book, a clone's).\nDisplay only.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/form/pasteListSheetProps.ts"
                         },
                         {
@@ -21304,6 +21418,15 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "The job could not be created: said as an alert, and the text stays.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/pasteListSheetProps.ts"
+                        },
+                        {
+                            "name": "offersSource",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "false",
+                            "description": "Whether the Source can still be set (ADR-0089), so the hint says a link may be pasted too. Paste a list is offered\nonly until the first publish, so this is false only for a source that cannot be corrected (a book, a clone's).\nDisplay only.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/form/pasteListSheetProps.ts"
                         },
                         {
@@ -21829,6 +21952,15 @@
                     "exportKind": "named",
                     "props": [
                         {
+                            "name": "focusRequested",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "false",
+                            "description": "The button is asked for focus (the paste caption's Remove sends the cook back to the control they used). A level, until\n{@link PasteStepsControlProps.onFocusHandled}.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/PasteStepsControl.tsx"
+                        },
+                        {
                             "name": "offersSource",
                             "type": "boolean",
                             "typeDetail": null,
@@ -21844,6 +21976,15 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "Called with the pasted steps, in order, when the cook adds them.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/PasteStepsControl.tsx"
+                        },
+                        {
+                            "name": "onFocusHandled",
+                            "type": "(() => void)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The button took a requested focus.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/form/PasteStepsControl.tsx"
                         },
                         {
@@ -21881,6 +22022,15 @@
                     "exportKind": "named",
                     "props": [
                         {
+                            "name": "focusRequested",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "false",
+                            "description": "The button is asked for focus (the paste caption's Remove sends the cook back to the control they used). A level, until\n{@link PasteStepsControlProps.onFocusHandled}.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/PasteStepsControl.native.tsx"
+                        },
+                        {
                             "name": "offersSource",
                             "type": "boolean",
                             "typeDetail": null,
@@ -21896,6 +22046,15 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "Called with the pasted steps, in order, when the cook adds them.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/PasteStepsControl.native.tsx"
+                        },
+                        {
+                            "name": "onFocusHandled",
+                            "type": "(() => void)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The button took a requested focus.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/form/PasteStepsControl.native.tsx"
                         },
                         {
@@ -22560,15 +22719,6 @@
                             "declaredIn": "packages/apps/commise/features/recipes/src/form/sourceFieldProps.ts"
                         },
                         {
-                            "name": "notice",
-                            "type": "string | undefined",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "What a paste just said about the link it carried (kept the old Source, left out a Commise link, locked), shown beside the row.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/form/sourceFieldProps.ts"
-                        },
-                        {
                             "name": "onChange",
                             "type": "(text: string) => void",
                             "typeDetail": null,
@@ -22593,6 +22743,15 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "\"Remove source\".",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/sourceFieldProps.ts"
+                        },
+                        {
+                            "name": "onTouched",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The cook left the field, or pressed its Done key: an unusable address is an error from now on.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/form/sourceFieldProps.ts"
                         },
                         {
@@ -22647,15 +22806,6 @@
                             "declaredIn": "packages/apps/commise/features/recipes/src/form/sourceFieldProps.ts"
                         },
                         {
-                            "name": "notice",
-                            "type": "string | undefined",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "What a paste just said about the link it carried (kept the old Source, left out a Commise link, locked), shown beside the row.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/form/sourceFieldProps.ts"
-                        },
-                        {
                             "name": "onChange",
                             "type": "(text: string) => void",
                             "typeDetail": null,
@@ -22689,6 +22839,15 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "\"Remove source\".",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/sourceFieldProps.ts"
+                        },
+                        {
+                            "name": "onTouched",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The cook left the field, or pressed its Done key: an unusable address is an error from now on.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/form/sourceFieldProps.ts"
                         },
                         {

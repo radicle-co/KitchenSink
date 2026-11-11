@@ -594,7 +594,8 @@ describe('RecipeEditorSurface — the Source (ADR-0089)', () => {
 
         expect(sourceField().value).toBe(LINK);
         expect(screen.getByText('Copied from a public web page · allrecipes.com')).toBeTruthy();
-        expect(screen.getByText('Source set to allrecipes.com. This recipe will be private.')).toBeTruthy();
+        // Said once to a screen reader (the live region) and shown once under the paste control that was used.
+        expect(screen.getAllByText('Source set to allrecipes.com. This recipe will be private.')).toHaveLength(2);
         expect(screen.queryByDisplayValue(LINK, { exact: true })).toBe(sourceField());
 
         const publicCard = within(section()).getByRole('radio', { name: /^public/i });
@@ -691,5 +692,72 @@ describe('RecipeEditorSurface — the Source (ADR-0089)', () => {
             within(section()).getByRole('link', { name: 'allrecipes.com (opens in a new tab)' }).getAttribute('href'),
         ).toBe(LINK);
         expect(within(section()).getByText('The source can’t be changed after publishing.')).toBeTruthy();
+    });
+    const stepsSection = () =>
+        screen.getByRole('heading', { level: 2, name: 'Steps' }).closest('section') as HTMLElement;
+
+    it('a sighted cook sees the notice under Paste steps, with a Remove that keeps focus on the paste button', async () => {
+        mount({ seed: { recipe: neverPublished() } });
+        const user = await pasteSteps(`Boil the water.\n${LINK}`);
+
+        const caption = within(stepsSection()).getByText('Source set to allrecipes.com. This recipe will be private.');
+
+        expect(caption).toBeTruthy();
+
+        await user.click(within(stepsSection()).getByRole('button', { name: 'Remove' }));
+
+        expect(sourceField().value).toBe('');
+        expect(within(stepsSection()).queryByText(/Source set to/u)).toBeNull();
+        // Focus is where the cook was: on the paste control, not in a field they were not using.
+        expect(document.activeElement).toBe(within(stepsSection()).getByRole('button', { name: 'Paste steps' }));
+    });
+
+    it('the row’s own Remove still lands the cook in the empty Source field', async () => {
+        mount({ seed: { recipe: neverPublished() } });
+        const user = await pasteSteps(`Boil the water.\n${LINK}`);
+
+        await user.click(within(section()).getByRole('button', { name: 'Remove source' }));
+
+        expect(document.activeElement).toBe(sourceField());
+    });
+
+    it('a locked source says so under Paste steps when a link is pasted, and offers no Remove', async () => {
+        mount({
+            seed: {
+                recipe: makeRecipeDetail({
+                    id: 'rec_1',
+                    status: RecipeStatus.PUBLISHED,
+                    firstPublishedAt: '2026-11-01T00:00:00.000Z',
+                    visibility: RecipeVisibility.PRIVATE,
+                    sourceType: 'imported_public',
+                    sourceKind: 'public_web',
+                    sourceUrl: LINK,
+                    cuisine: 'Italian',
+                }),
+            },
+        });
+
+        await pasteSteps(`Boil the water.\nhttps://www.bbcgoodfood.com/recipes/soup`);
+
+        expect(
+            within(stepsSection()).getByText(
+                'Left out the link. A published recipe’s source can’t be added or changed.',
+            ),
+        ).toBeTruthy();
+        expect(within(stepsSection()).queryByRole('button', { name: 'Remove' })).toBeNull();
+    });
+
+    it('a half-typed address is no error while the cook types, and is one when they leave the field', async () => {
+        mount({ seed: { recipe: neverPublished() } });
+        const user = userEvent.setup();
+
+        await user.click(sourceField());
+        await user.paste('https://exa');
+
+        expect(within(section()).queryByText(/That isn’t a web link/u)).toBeNull();
+
+        await user.tab();
+
+        expect(within(section()).getByText(/That isn’t a web link/u)).toBeTruthy();
     });
 });

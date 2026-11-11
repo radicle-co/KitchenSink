@@ -8,7 +8,14 @@ import { ConfirmDialog } from '../ConfirmDialog.js';
 import type { ConfirmDialogProps } from '../props.js';
 import { rgb, rolesFor } from '../../testing/systemColorScheme.js';
 import { nativeTokens } from '../../tokens/native.js';
-import { pressFrameOf, render, resolvedColour, resolvedStyle } from '../../testing/tamaguiTesting.native.js';
+import { DISPLAY_FONT_SCALE_CAP } from '../../text/scaledType.js';
+import {
+    pressFrameOf,
+    render,
+    renderWithTamagui,
+    resolvedColour,
+    resolvedStyle,
+} from '../../testing/tamaguiTesting.native.js';
 
 /**
  * ConfirmDialog (native) — the house B6 confirmation modal (RN `Modal`), mirroring
@@ -137,30 +144,39 @@ describe('ConfirmDialog (native)', () => {
         );
     });
 
-    // A landscape phone is about 360 dp tall, and at 200% text the body pushes the actions below the window, where a
-    // card that does not scroll strands them (WCAG 2.2 SC 1.4.4).
-    it('keeps its body and both actions in a scroll region, so a short window can still reach them', () => {
+    // REWRITTEN (designer ruling 2026-11-11): the actions no longer scroll with the body. At the largest iOS text the body
+    // pushed Stay and Leave below the fold, so a cook had to scroll the dialog to answer it. The BODY scrolls, so a short
+    // window still reaches all of it (WCAG 2.2 SC 1.4.4), and the two actions stay pinned in view under it.
+    it('scrolls its body and keeps both actions pinned outside the scroll, in view', () => {
         render(<ConfirmDialog {...baseProps()} />);
 
-        const region = screen.getByRole('alert').querySelector('[data-scroll-region]');
+        const alert = screen.getByRole('alert');
+        const region = alert.querySelector('[data-scroll-region]');
 
         expect(region).not.toBeNull();
         expect(region?.contains(screen.getByText('You have unsaved changes. Leaving now will discard them.'))).toBe(
             true,
         );
-        expect(region?.contains(screen.getByLabelText('Keep editing'))).toBe(true);
-        expect(region?.contains(screen.getByLabelText('Discard changes'))).toBe(true);
+
+        for (const action of [screen.getByLabelText('Keep editing'), screen.getByLabelText('Discard changes')]) {
+            expect(alert.contains(action)).toBe(true);
+            expect(region?.contains(action)).toBe(false);
+        }
     });
 
     // `docs/design/compactHeightLayout.md` §9: the card is the design system's `DialogFrame`, so it clears the keyboard
     // and the safe area, and the first tap with the keyboard up reaches an action.
-    it('sits on the design system’s dialog frame: in the keyboard avoider, in a region whose first tap lands', () => {
+    it('sits on the design system’s dialog frame: its actions in the keyboard avoider, its body in a region whose first tap lands', () => {
         render(<ConfirmDialog {...baseProps()} />);
 
         for (const action of [screen.getByLabelText('Keep editing'), screen.getByLabelText('Discard changes')]) {
             expect(action.closest('[data-keyboard-avoider]')).not.toBeNull();
-            expect(action.closest('[data-scroll-region]')?.getAttribute('data-scroll-region')).toBe('handled');
         }
+
+        // The body's region still lets a first tap through with the keyboard up.
+        expect(
+            screen.getByRole('alert').querySelector('[data-scroll-region]')?.getAttribute('data-scroll-region'),
+        ).toBe('handled');
 
         expect(state.modal?.statusBarTranslucent).toBe(true);
     });
@@ -275,5 +291,41 @@ describe('ConfirmDialog (native) — the overhaul contract', () => {
         const actions = pressFrameOf(screen.getByRole('button', { name: 'Keep editing' })).parentElement as HTMLElement;
 
         expect(getComputedStyle(actions).flexDirection).toBe('column-reverse');
+    });
+});
+
+/**
+ * Designer ruling 2026-11-11: the body is never drawn larger than the title. The title's role stops growing at 1.5×
+ * (`DISPLAY_FONT_SCALE_CAP`); the body's own role grows to 2×, so at iOS's largest accessibility size (about 3.1×) the body
+ * outgrew the title and filled the card. The dialog caps its copy at the title's ceiling.
+ */
+describe('ConfirmDialog (native) text size', () => {
+    const BODY = 'You have unsaved changes. Leaving now will discard them.';
+    const fontSizeOf = (element: HTMLElement): number => Number.parseFloat(resolvedStyle(element, 'fontSize'));
+
+    it.each([
+        ['at 1x', 1, 1],
+        ['at 1.3x', 1.3, 1.3],
+        ['at the largest text size', 3.1, DISPLAY_FONT_SCALE_CAP],
+    ] as const)('draws its body %s at its capped scale, never past the title', (_label, scale, grown) => {
+        renderWithTamagui(<ConfirmDialog {...baseProps()} />, 'light', scale);
+
+        const body = fontSizeOf(screen.getByText(BODY));
+        const title = fontSizeOf(within(screen.getByRole('alert')).getByRole('heading'));
+
+        expect(body).toBeCloseTo(nativeTokens.type.body.fontSize * grown, 5);
+        expect(body / nativeTokens.type.body.fontSize).toBeLessThanOrEqual(
+            title / nativeTokens.type.sectionTitle.fontSize + 1e-9,
+        );
+    });
+
+    it('keeps both actions out of the scrolling body at the largest text size', () => {
+        renderWithTamagui(<ConfirmDialog {...baseProps()} />, 'light', 3.1);
+
+        const region = screen.getByRole('alert').querySelector('[data-scroll-region]');
+
+        expect(region?.contains(screen.getByText(BODY))).toBe(true);
+        expect(region?.contains(screen.getByLabelText('Keep editing'))).toBe(false);
+        expect(region?.contains(screen.getByLabelText('Discard changes'))).toBe(false);
     });
 });

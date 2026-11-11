@@ -38,9 +38,11 @@ export interface DialogEngineProps {
     /** The engine closed itself. */
     readonly onEngineClose: () => void;
     readonly children: ReactNode;
+    /** Pinned under the scrolling content, always in view (`DialogFrameProps.actions`). */
+    readonly actions?: ReactNode;
 }
 
-export const DialogEngine: FC<DialogEngineProps> = ({ role, heading, onEngineClose, children }) => (
+export const DialogEngine: FC<DialogEngineProps> = ({ role, heading, onEngineClose, children, actions }) => (
     <Dialog
         modal={false}
         open
@@ -62,13 +64,19 @@ export const DialogEngine: FC<DialogEngineProps> = ({ role, heading, onEngineClo
             backgroundColor="$background"
             overflow="hidden"
         >
-            {/* `flexGrow` 0: the card is as tall as its content until the avoided box caps it, and then the content scrolls. */}
-            <ScrollView keyboardShouldPersistTaps="handled" flexGrow={0}>
-                <YStack padding="$5" gap="$3">
+            {/* `flexGrow` 0: the card is as tall as its content until the avoided box caps it, and then the content scrolls.
+                `flexShrink` 1: pinned actions keep their height and the content gives way. */}
+            <ScrollView keyboardShouldPersistTaps="handled" flexGrow={0} flexShrink={1}>
+                <YStack padding="$5" paddingBottom={actions === undefined ? '$5' : '$3'} gap="$3">
                     {heading}
                     {children}
                 </YStack>
             </ScrollView>
+            {actions === undefined ? null : (
+                <YStack paddingHorizontal="$5" paddingBottom="$5" paddingTop="$2">
+                    {actions}
+                </YStack>
+            )}
         </Dialog.Content>
     </Dialog>
 );

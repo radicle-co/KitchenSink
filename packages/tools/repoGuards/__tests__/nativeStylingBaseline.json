@@ -166,7 +166,6 @@
         "packages/apps/commise/ui/src/choiceRow/ChoiceRow.native.tsx": 5,
         "packages/apps/commise/ui/src/chromeSurface/ChromeSurface.native.tsx": 9,
         "packages/apps/commise/ui/src/combobox/Combobox.native.tsx": 34,
-        "packages/apps/commise/ui/src/confirmDialog/ConfirmDialog.native.tsx": 6,
         "packages/apps/commise/ui/src/createFab/CreateFab.native.tsx": 2,
         "packages/apps/commise/ui/src/createFab/FabFace.native.tsx": 8,
         "packages/apps/commise/ui/src/dialogActions/DialogActions.native.tsx": 3,

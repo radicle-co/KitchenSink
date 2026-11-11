@@ -19,9 +19,8 @@
 -- (a default, or the best match) is judged under a different key; "flagged" and the view's `version` read the verdict by it,
 -- in SQL, without re-deriving a hash for every line on every poll.
 --
--- ⛔ `recipe_imports.updated_at` IS THE ACTIVITY CLOCK the purge reads (ADR-0072 §12): every write route bumps it, reads never
--- do, and an import untouched for 30 days has its working data deleted (the recipes it saved stay). The index lets the purge
--- find idle imports without scanning every import.
+-- ⛔ `recipe_imports.updated_at` IS THE CLOCK the purge reads: ADR-0072 §9 purges an import's working data 30 days after its
+-- last `advance` (the recipes it saved stay). The index lets the purge find idle imports without scanning every import.
 --
 -- Additive and expand-only (ADR-0035): two `NOT NULL DEFAULT 0` integers (a metadata-only change on PostgreSQL 11+), one
 -- nullable text column and one index, read and written only by the service lane. No GRANT: the service role's DML on these

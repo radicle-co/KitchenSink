@@ -265,7 +265,7 @@ describe('the bulk-import tables (LOCAL e2e; migrations 0059, 0060, 0066)', () =
 
             expect(result.rowCount).toBe(5);
             expect(defs).toMatch(/\(user_id, created_at\)/u);
-            // The purge (ADR-0072 §11) finds imports idle for 30 days by this key, and must not scan every import.
+            // The purge (ADR-0072 §9) finds imports idle for 30 days by this key, and must not scan every import.
             expect(defs).toMatch(/recipe_imports_updated_idx.*\(updated_at\)/su);
             expect(defs).toMatch(/UNIQUE INDEX recipe_import_items_parse_job_idx.*\(parse_job_id\).*WHERE/su);
             expect(defs).toMatch(/UNIQUE INDEX recipe_import_items_recipe_idx.*\(recipe_id\).*WHERE/su);

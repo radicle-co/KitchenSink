@@ -328,7 +328,7 @@ describe('recipe-service schema — table contracts (T011–T014, T118, T119, T1
             margin: { type: 'double precision', notNull: false },
             candidates: { type: 'jsonb', notNull: true },
             verification_key: { type: 'text', notNull: false },
-            // A KEY, never a verdict: where the verdict about the saved line lives (0059's header).
+            // A KEY, never a verdict: where the verdict about the saved line lives (0066's header).
             saved_verification_key: { type: 'text', notNull: false },
             review: { type: 'text', notNull: false },
             picked_food_id: { type: 'text', notNull: false },

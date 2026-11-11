@@ -25,6 +25,7 @@ import { nativeTokens } from '@commise/ui/native';
 import { PendingBar } from '@commise/ui/pending-bar';
 import { RefreshNotice } from '@commise/ui/refresh-notice';
 import type { ScrollBind } from '@commise/ui/scroll-host';
+import { Text as DsText } from '@commise/ui/text';
 import { useTheme } from '@commise/ui/theme';
 import { FlashList } from '@shopify/flash-list';
 import type { FC, ReactElement } from 'react';
@@ -69,9 +70,10 @@ const NoResult: FC<{
             refreshControl={refreshControl}
         >
             <View collapsable={false} accessibilityLiveRegion="polite" role="status" style={styles.status}>
-                <Text role="heading" aria-level={2} style={[styles.sectionTitle, { color: colors.ink }]}>
+                {/* The design-system Text: its `sectionTitle` scale ceiling keeps it below the page's large title. */}
+                <DsText role="heading" aria-level={2} typeRole="sectionTitle">
                     {noResultTitleOf(kind, query, discovery)}
-                </Text>
+                </DsText>
                 {kind === 'query' ? (
                     <Text style={[styles.body, { color: colors.inkMuted }]}>{discovery.noMatchQueryBody}</Text>
                 ) : null}
@@ -235,7 +237,6 @@ const styles = StyleSheet.create({
     status: { gap: nativeTokens.spacing[3], alignItems: 'flex-start', paddingVertical: nativeTokens.spacing[6] },
     actions: { flexDirection: 'row', flexWrap: 'wrap', gap: nativeTokens.spacing[3] },
     tryThese: { gap: nativeTokens.spacing[3] },
-    sectionTitle: { ...nativeTokens.type.sectionTitle },
     body: { ...nativeTokens.type.body },
     label: { ...nativeTokens.type.label },
 });

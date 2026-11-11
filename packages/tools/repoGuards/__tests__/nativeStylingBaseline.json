@@ -56,7 +56,7 @@
         "packages/apps/commise/features/recipes/src/discovery/RecipeBrowseRails.native.tsx": 9,
         "packages/apps/commise/features/recipes/src/discovery/RecipeDiscoveryFrame.native.tsx": 15,
         "packages/apps/commise/features/recipes/src/discovery/RecipeDiscoveryLoadError.native.tsx": 6,
-        "packages/apps/commise/features/recipes/src/discovery/RecipeDiscoveryResults.native.tsx": 23,
+        "packages/apps/commise/features/recipes/src/discovery/RecipeDiscoveryResults.native.tsx": 21,
         "packages/apps/commise/features/recipes/src/editor/EditorActionBar.native.tsx": 4,
         "packages/apps/commise/features/recipes/src/editor/EditorHeader.native.tsx": 7,
         "packages/apps/commise/features/recipes/src/editor/EditorSection.native.tsx": 4,

@@ -20,6 +20,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Recipe, RecipeSearchResult } from '@kitchensink/recipe-core';
 import { Text } from 'react-native';
 
+import { nativeTokens } from '@commise/ui/native';
 import { PENDING_BAR_DELAY_MS } from '@commise/ui/pending-bar';
 
 import { makeRecipe } from '../../__fixtures__/index.js';
@@ -30,9 +31,26 @@ import type { RecipeDiscoveryResultsProps } from '../model.js';
 import { isolate } from '../../byline/bylineText.js';
 import { ARIA_HIDDEN_CONTENT, fireScrollAndSettle, render } from '@commise/ui/testing/tamagui';
 
+/** The window's text scale, when a test sets it: jsdom has a scale of 1. */
+const dims = vi.hoisted(() => ({ fontScale: undefined as number | undefined }));
+
+vi.mock('react-native', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('react-native')>();
+
+    return {
+        ...actual,
+        useWindowDimensions: () => {
+            const real = actual.useWindowDimensions();
+
+            return { ...real, fontScale: dims.fontScale ?? real.fontScale };
+        },
+    };
+});
+
 afterEach(() => {
     cleanup();
     vi.useRealTimers();
+    dims.fontScale = undefined;
 });
 
 const noop = () => undefined;
@@ -84,6 +102,20 @@ describe('RecipeDiscoveryResults (native) — empty catalogue and no-result stat
 
         expect(screen.getByRole('heading', { name: 'No public recipes yet.' })).toBeTruthy();
         expect(screen.queryByRole('button', { name: /Clear/u })).toBeNull();
+    });
+
+    it('stops the heading at the display ceiling of 1.5x at the iOS maximum (fontScale 3.1), below the page title', () => {
+        // Designer ruling on #182: the heading is the design-system `sectionTitle`, so it never outgrows the H1
+        // ("Discover", `largeTitle`, held to the same 1.5x ceiling). An uncapped heading reached about 3x.
+        dims.fontScale = 3.1;
+        renderResults();
+        const size = parseFloat(
+            getComputedStyle(screen.getByRole('heading', { name: 'No public recipes yet.' })).fontSize,
+        );
+
+        expect(size).toBe(nativeTokens.type.sectionTitle.fontSize * 1.5);
+        // The narrow (phone) large title is the smallest H1, so staying below it holds at every container size.
+        expect(size).toBeLessThan(nativeTokens.type.largeTitle.narrow.fontSize * 1.5);
     });
 
     it('a search alone: names the term, advises on spelling, and offers Clear search', () => {

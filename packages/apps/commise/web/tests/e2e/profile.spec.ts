@@ -221,12 +221,12 @@ test.describe('the Profile page: a tab root with no Back', () => {
 
             await expect(page.getByRole('link', { name: /^Back/u })).toHaveCount(0);
             await expect(page.getByRole('button', { name: /^Back/u })).toHaveCount(0);
-            await expect(
-                page
-                    .getByRole('navigation', { name: /^(?:Main|Tabs)$/u })
-                    .filter({ visible: true })
-                    .getByRole('link', { name: /^(?:You|Profile)/u }),
-            ).toHaveAttribute('aria-current', 'page');
+            // From 840 the sidebar's first row is Profile (outside the nav list); below it the tab bar's You is.
+            const entry =
+                width >= 840
+                    ? page.getByRole('link', { name: /^Profile/u }).filter({ visible: true })
+                    : page.getByRole('navigation', { name: 'Tabs' }).getByRole('link', { name: 'You', exact: true });
+            await expect(entry).toHaveAttribute('aria-current', 'page');
         });
     }
 });

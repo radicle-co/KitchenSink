@@ -301,7 +301,7 @@ describe('recipe-service schema — table contracts (T011–T014, T118, T119, T1
         });
     });
 
-    it('recipe_import_lines — the snapshot of a match, with NO food name, NO verdict and NO bound_by (0059)', () => {
+    it('recipe_import_lines — the snapshot of a match, with NO catalog food name, NO verdict and NO bound_by (0059, 0067)', () => {
         expect(getTableName(recipeImportLines)).toBe('recipe_import_lines');
         expectColumns(recipeImportLines, {
             id: { type: 'uuid', notNull: true },
@@ -321,6 +321,10 @@ describe('recipe-service schema — table contracts (T011–T014, T118, T119, T1
             stated_quantity_high: { type: 'numeric(10,3)', notNull: false },
             stated_unit: { type: 'text', notNull: false },
             preparation: { type: 'text', notNull: false },
+            // The row the editor saves (0067's header): the cook's words, never a name food gave.
+            name: { type: 'text', notNull: false },
+            display_text: { type: 'text', notNull: false },
+            note: { type: 'text', notNull: false },
             matched_by: { type: 'text', notNull: false },
             food_id: { type: 'text', notNull: false },
             food_variant_id: { type: 'text', notNull: false },

@@ -167,3 +167,43 @@ export function evaluateImportAllowance(input: ImportAllowanceInput): ImportAllo
 
     return { kind: 'partial', units: room, resetsAt: whenUnitsLeave(afterAdmission, 1, windowMs) };
 }
+
+/** The caller's allowance on one channel as the import view shows it. */
+export interface ImportAllowanceState {
+    readonly limit: number;
+    /** Units spent inside the window on this channel. */
+    readonly used: number;
+    /** An ISO instant: when the oldest counted unit leaves the window and room opens, or `null` when nothing is spent. */
+    readonly resetsAt: string | null;
+}
+
+/**
+ * Describe a channel's allowance for the import view.
+ *
+ * Read with the SAME window edge and the same per-channel rows the decision uses, so what the view says and what the next
+ * `advance` does cannot disagree. An `advance` that reaches the allowance answers `200` with this state in the view (ADR-0072
+ * §8 as amended), so the client keeps the progress it paid for and explains the pause from `used`, `limit` and `resetsAt`.
+ *
+ * @param input - The channel, the user's ledger events and the clock.
+ * @returns The limit, the units spent and when more opens. Pure.
+ */
+export function describeImportAllowance(input: {
+    readonly channel: ImportAllowanceChannel;
+    readonly windowEvents: readonly AllowanceEvent[];
+    readonly now: Date;
+}): ImportAllowanceState {
+    const windowStart = importAllowanceWindowStart(input.channel, input.now).getTime();
+    const counted = input.windowEvents
+        .filter((event) => event.channel === input.channel && event.createdAt.getTime() > windowStart)
+        .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+    const [oldest] = counted;
+
+    return {
+        limit: IMPORT_ALLOWANCE_RULES[input.channel].limit,
+        used: counted.reduce((sum, event) => sum + event.units, 0),
+        resetsAt:
+            oldest === undefined
+                ? null
+                : new Date(oldest.createdAt.getTime() + IMPORT_ALLOWANCE_RULES[input.channel].windowMs).toISOString(),
+    };
+}

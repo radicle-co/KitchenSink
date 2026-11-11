@@ -1,0 +1,61 @@
+/**
+ * What a request that names an item the import may already hold does with it (ADR-0072 §3).
+ *
+ * DESIGN PATTERN: **Specification / Policy module**, pure and total. Items are keyed by ORDINAL, so a replay (a lost `201`, a
+ * second device, a retry) is safe. Once an item has paid its allowance unit, holds a parse job or has a match snapshot, the
+ * recipe it holds is what those were made from, so a DIFFERENT recipe is refused rather than replacing it: replacing it
+ * would orphan a paid parse and bill another. An identical recipe is a no-op, and a saved item is refused outright (its text
+ * was shed at the save, so nothing can be compared, and an item is saved once).
+ */
+import { isDeepStrictEqual } from 'node:util';
+
+import type { ImportStage } from '../../database/schema/recipeImports.js';
+
+/** The part of a held item the decision reads. */
+export interface HeldItem {
+    readonly stage: ImportStage;
+    /** The recipe as stored, or `null` once saved (the text is shed). */
+    readonly payload: unknown;
+}
+
+/** What to do with the incoming item. */
+export type ItemUpsertDecision =
+    | { readonly kind: 'insert' }
+    /** Hold the recipe as it is; the statement and visibility still merge. */
+    | { readonly kind: 'keep' }
+    | { readonly kind: 'replace' }
+    /** A different recipe for an item past `received`: `IMPORT_ITEM_LOCKED`. */
+    | { readonly kind: 'locked'; readonly stage: 'parsing' | 'matched' }
+    /** The item is saved: `IMPORT_ITEM_ALREADY_SAVED`. */
+    | { readonly kind: 'saved' };
+
+/**
+ * Decide what to do with one incoming item.
+ *
+ * @param input - The held item, if any, and the incoming recipe (parsed, so it carries no undefined keys that survived).
+ * @returns The decision. Pure and total.
+ */
+export function decideItemUpsert(input: {
+    readonly existing: HeldItem | undefined;
+    readonly recipe: unknown;
+}): ItemUpsertDecision {
+    const { existing } = input;
+
+    if (existing === undefined) {
+        return { kind: 'insert' };
+    }
+
+    if (existing.stage === 'saved') {
+        return { kind: 'saved' };
+    }
+
+    // The recipe is compared as JSON: the held one came back from jsonb (no undefined keys, keys in storage order), and
+    // `isDeepStrictEqual` ignores key order. The round trip drops an `undefined` the request left on a key.
+    const same = isDeepStrictEqual(existing.payload, JSON.parse(JSON.stringify(input.recipe)));
+
+    if (same) {
+        return { kind: 'keep' };
+    }
+
+    return existing.stage === 'received' ? { kind: 'replace' } : { kind: 'locked', stage: existing.stage };
+}

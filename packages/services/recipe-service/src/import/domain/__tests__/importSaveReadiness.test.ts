@@ -12,6 +12,7 @@ const line = (state: LineFacts['state'], cookChoice: LineFacts['cookChoice'] = u
     reason: state === 'confident' ? 'exactName' : state === 'checking' ? 'awaitingReview' : 'noProposal',
     proposedFoodId: state === 'confident' || state === 'checking' ? 'p' : undefined,
     candidates: [{ foodId: 'p', isDefault: false }],
+    budgetSpent: false,
     cookChoice,
 });
 
@@ -97,5 +98,21 @@ describe('review', () => {
 
     it('the wait does not apply (the cook, not a clock, ends a review)', () => {
         expect(review({ matchedForMs: WAIT * 10, lines: [line('checking')] })).toBe(false);
+    });
+});
+
+describe('⛔ lines whose AI review was skipped for want of budget (ADR-0072 §10)', () => {
+    const spent = (): LineFacts => ({ ...line('needsChoice'), budgetSpent: true });
+
+    it('do not hold keepAsWritten or bindBest back: they are saved as written', () => {
+        expect(ready({ mode: 'keepAsWritten', matchedForMs: 0, lines: [spent()] })).toBe(true);
+        expect(ready({ mode: 'bindBest', matchedForMs: 0, lines: [spent()] })).toBe(true);
+    });
+
+    it('keep a review item open until the cook accepts the line: it is an open line', () => {
+        expect(ready({ mode: 'review', matchedForMs: 0, lines: [spent()] })).toBe(false);
+        expect(
+            ready({ mode: 'review', matchedForMs: 0, lines: [{ ...spent(), cookChoice: { kind: 'asWritten' } }] }),
+        ).toBe(true);
     });
 });

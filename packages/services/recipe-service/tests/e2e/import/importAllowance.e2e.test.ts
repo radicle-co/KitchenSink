@@ -217,4 +217,48 @@ describe('the per-channel import allowance (LOCAL e2e)', () => {
         expect((await admit('bulk', 10)).kind).toBe('refused');
         expect(await spent('bulk')).toBe(before);
     });
+
+    describe('stateOf — what the import view shows (ADR-0072 §8 as amended: advance answers 200, not 429)', () => {
+        it('reads the units spent in the window, per channel, and when the oldest leaves, from the database’s own clock', async () => {
+            await seed('bulk', 30, 5);
+            await seed('bulk', 12, 1);
+            await seed('paste', 99, 1);
+            await seed('bulk', 500, 30); // outside the window
+
+            const state = await dal.stateOf(db, USER, 'bulk');
+
+            expect(state).toMatchObject({ limit: IMPORT_ALLOWANCE_RULES.bulk.limit, used: 42 });
+
+            const oldest = await pool.query<{ at: Date }>(
+                `SELECT min(created_at) AS at FROM import_allowance_events
+                  WHERE user_id = $1 AND channel = 'bulk' AND created_at > now() - interval '24 hours'`,
+                [USER],
+            );
+            const first = oldest.rows[0]?.at;
+
+            expect(state.resetsAt).toBe(
+                first === undefined ? undefined : new Date(first.getTime() + 24 * 3_600_000).toISOString(),
+            );
+        });
+
+        it('says nothing is spent for a caller with no ledger rows, and writes nothing', async () => {
+            expect(await dal.stateOf(db, OTHER, 'bulk')).toEqual({
+                limit: IMPORT_ALLOWANCE_RULES.bulk.limit,
+                used: 0,
+                resetsAt: null,
+            });
+            expect(await spent('bulk', OTHER)).toBe(0);
+        });
+
+        it('agrees with the next admission: a full day reads used = limit, and the admission is refused at the same resetsAt', async () => {
+            await seed('bulk', IMPORT_ALLOWANCE_RULES.bulk.limit, 2);
+
+            const state = await dal.stateOf(db, USER, 'bulk');
+            const refusal = await admit('bulk', 1);
+
+            expect(state.used).toBe(state.limit);
+            expect(refusal.kind).toBe('refused');
+            expect(refusal.kind === 'refused' && refusal.resetsAt.toISOString()).toBe(state.resetsAt);
+        });
+    });
 });

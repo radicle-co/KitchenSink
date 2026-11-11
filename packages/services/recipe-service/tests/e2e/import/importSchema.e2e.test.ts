@@ -42,7 +42,7 @@ const UNIQUE_VIOLATION = '23505';
 
 type Columns = Record<string, unknown>;
 
-describe('the bulk-import tables (LOCAL e2e; migrations 0059, 0060, 0066)', () => {
+describe('the bulk-import tables (LOCAL e2e; migrations 0059, 0060, 0066, 0067)', () => {
     let pool: pg.Pool;
 
     beforeAll(async () => {
@@ -206,10 +206,12 @@ describe('the bulk-import tables (LOCAL e2e; migrations 0059, 0060, 0066)', () =
             ]);
         });
 
-        it('recipe_import_lines holds NO food name, NO verdict and NO bound_by (the ingredient owns that)', async () => {
+        // `name` is the COOK'S words with a size word moved out (0067), never a name food gave: ADR-0045 still holds.
+        it('recipe_import_lines holds NO catalog food name, NO verdict and NO bound_by (the ingredient owns that)', async () => {
             expect(await columnsOf('recipe_import_lines')).toEqual([
                 'candidates',
                 'created_at',
+                'display_text',
                 'food_id',
                 'food_index',
                 'food_variant_id',
@@ -220,6 +222,8 @@ describe('the bulk-import tables (LOCAL e2e; migrations 0059, 0060, 0066)', () =
                 'line_index',
                 'margin',
                 'matched_by',
+                'name',
+                'note',
                 'ordinal',
                 'phrase',
                 'picked_against_digest',
@@ -732,6 +736,26 @@ describe('the bulk-import tables (LOCAL e2e; migrations 0059, 0060, 0066)', () =
             );
 
             expect(row['candidates']).toEqual(candidates);
+        });
+
+        it('⛔ keeps the row the editor saves: its name, the shown words and the note (0067, owner ruling 2026-11-08)', async () => {
+            const importId = await withItem();
+            const row = await insert(
+                'recipe_import_lines',
+                line(importId, 0, { name: 'pie pastry', display_text: 'my pie pastry', note: '9 inch' }),
+            );
+
+            expect([row['name'], row['display_text'], row['note']]).toEqual(['pie pastry', 'my pie pastry', '9 inch']);
+            // All three are optional: a line snapshotted before 0067 has none, and most lines have no note.
+            const bare = await insert('recipe_import_lines', line(importId, 0, { line_index: 1 }));
+
+            expect([bare['name'], bare['display_text'], bare['note']]).toEqual([null, null, null]);
+        });
+
+        it.each([['name'], ['display_text'], ['note']])('refuses a blank %s, as a recipe line does', async (column) => {
+            const importId = await withItem();
+
+            await refused(insert('recipe_import_lines', line(importId, 0, { [column]: '  ' })), CHECK_VIOLATION);
         });
 
         it('refuses the same (item, line, food) twice', async () => {

@@ -17,6 +17,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
     IMPORT_ALLOWANCE_RULES,
+    describeImportAllowance,
     evaluateImportAllowance,
     importAllowanceWindowStart,
     type AllowanceEvent,
@@ -238,5 +239,51 @@ describe('a request that is not a positive integer is a programmer error, not a 
     it.each([0, -1, 1.5, Number.NaN])('throws for requestedUnits = %s', (requestedUnits) => {
         expect(() => decide('bulk', [], requestedUnits)).toThrow(RangeError);
         expect(() => decide('paste', [], requestedUnits)).toThrow(RangeError);
+    });
+});
+
+describe('describeImportAllowance — the state the import view shows (ADR-0072 §8, as amended: advance answers 200)', () => {
+    const describeAt = (channel: ImportAllowanceChannel, windowEvents: readonly AllowanceEvent[], now: Date = NOW) =>
+        describeImportAllowance({ channel, windowEvents, now });
+
+    it('says nothing is spent and nothing resets for an empty ledger', () => {
+        expect(describeAt('bulk', [])).toStrictEqual({ limit: 1000, used: 0, resetsAt: null });
+    });
+
+    it('sums only this channel’s units in the window (kills: counting paste against bulk)', () => {
+        expect(describeAt('bulk', [eventAged(HOUR, 30, 'bulk'), eventAged(HOUR, 99, 'paste')]).used).toBe(30);
+        expect(describeAt('paste', [eventAged(HOUR, 30, 'bulk'), eventAged(HOUR, 99, 'paste')]).used).toBe(99);
+    });
+
+    it('reports each channel’s own limit', () => {
+        expect(describeAt('bulk', []).limit).toBe(IMPORT_ALLOWANCE_RULES.bulk.limit);
+        expect(describeAt('paste', []).limit).toBe(IMPORT_ALLOWANCE_RULES.paste.limit);
+    });
+
+    it('resets when the OLDEST counted event leaves the window', () => {
+        const oldest = eventAged(5 * HOUR, 10, 'bulk');
+        const result = describeAt('bulk', [eventAged(HOUR, 4, 'bulk'), oldest]);
+
+        expect(result.resetsAt).toBe(
+            new Date(oldest.createdAt.getTime() + IMPORT_ALLOWANCE_RULES.bulk.windowMs).toISOString(),
+        );
+    });
+
+    it('does not count an event at or past the window edge (the same edge the decision uses)', () => {
+        const windowMs = IMPORT_ALLOWANCE_RULES.bulk.windowMs;
+
+        expect(describeAt('bulk', [eventAged(windowMs, 5, 'bulk')])).toStrictEqual({
+            limit: 1000,
+            used: 0,
+            resetsAt: null,
+        });
+        expect(describeAt('bulk', [eventAged(windowMs - 1, 5, 'bulk')]).used).toBe(5);
+    });
+
+    it('shows a spent allowance as used equal to the limit, with the moment more opens', () => {
+        const result = describeAt('bulk', [eventAged(2 * HOUR, 1000, 'bulk')]);
+
+        expect(result.used).toBe(result.limit);
+        expect(result.resetsAt).not.toBeNull();
     });
 });

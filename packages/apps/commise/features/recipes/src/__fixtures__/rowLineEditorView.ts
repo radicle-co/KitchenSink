@@ -16,6 +16,7 @@ export function makeRowLineEditorView(overrides: Partial<RowLineEditorView> = {}
     return {
         title: 'Flour',
         closeLabel: 'Close',
+        needsReview: false,
         food: 'Flour',
         ids: {
             amount: 'amount-1',
@@ -51,6 +52,7 @@ export function makeRowLineEditorView(overrides: Partial<RowLineEditorView> = {}
         onChangeFood: undefined,
         onToggleDetails: vi.fn(),
         onDone: vi.fn(),
+        onCancel: vi.fn(),
         ...overrides,
     };
 }

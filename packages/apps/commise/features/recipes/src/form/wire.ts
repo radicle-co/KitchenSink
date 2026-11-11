@@ -23,7 +23,7 @@ import { canonicalCuisine, quantityLowerBound, type RecipeDetail, type RecipeSta
 import type { CreateRecipeRequest, RecipeStatementInput, UpdateRecipeRequest } from '@kitchensink/schema-recipe';
 import { type RecipeFormValues } from './values.js';
 import { sourceStatementOf } from './sourceLink.js';
-import { isStoredLine, seedLineKey } from './lineKey.js';
+import { isStoredLine, seedLineKey, type IngredientLineKey } from './lineKey.js';
 import { computeTotalTime } from './totalTime.js';
 import { draftQuantity } from './quantity.js';
 
@@ -167,6 +167,33 @@ export const toUpdateRecipeInput = (
         cuisine: rest.cuisine ?? null,
     };
 };
+
+/**
+ * The cook's own line for each stored line that has one, by the draft's line key, for display in a needs-review row
+ * editor. DISPLAY ONLY: it is derived at render from the server read, and is never put into the form value `sourceLine`
+ * (create-only write provenance) or into the device draft. The server decides who gets `sourceLine` (its owner), so a
+ * line without one simply has no entry. Pure.
+ *
+ * ⛔ Lined up by stored POSITION, so only when the keys and the read have the same number of lines: otherwise one line's
+ * words could be shown on another, and it answers nothing.
+ *
+ * @param detail - The recipe as the editor last read it.
+ * @param persistedKeys - The stored lines' keys, in stored order (`persistedLineKeysOf`).
+ * @returns The lines' own words, by key.
+ */
+export const originalLinesOf = (
+    detail: Pick<RecipeDetail, 'ingredients'>,
+    persistedKeys: readonly IngredientLineKey[],
+): ReadonlyMap<IngredientLineKey, string> =>
+    persistedKeys.length !== detail.ingredients.length
+        ? new Map()
+        : new Map(
+              detail.ingredients.flatMap((line, position) => {
+                  const key = persistedKeys[position];
+
+                  return key === undefined || line.sourceLine === undefined ? [] : [[key, line.sourceLine] as const];
+              }),
+          );
 
 /**
  * Project a loaded {@link RecipeDetail} onto the editor's {@link RecipeFormValues} seed shape (T067, unified

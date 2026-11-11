@@ -29,6 +29,7 @@ const m = recipeFormMessages.en;
 const view: RowLineEditorView = {
     title: 'Flour',
     closeLabel: 'Close',
+    needsReview: false,
     food: 'Flour',
     ids: {
         amount: 'amount-1',
@@ -64,6 +65,7 @@ const view: RowLineEditorView = {
     onChangeFood: undefined,
     onToggleDetails: vi.fn(),
     onDone: vi.fn(),
+    onCancel: vi.fn(),
 };
 
 /** The element that holds a field's label: the field's own box. */

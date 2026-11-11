@@ -128,11 +128,12 @@ import {
 import { visibilityFollowUp } from '../editor/visibilityFollowUp.js';
 import { gateOutcomeOf, refusedFieldsOf, type GateOutcome, type RefusedField } from '../editor/gate.js';
 import type { PasteHold } from '../editor/pasteHold.js';
+import type { LineAddress } from '../editor/editorArrival.js';
 import type { DraftKeep, MementoWrite, SaveStatus } from '../editor/saveStatus.js';
 import { VisibilityNotHeldError } from '../editor/visibilityNotHeldError.js';
 import { createLaneStore, isSettingVisibility, type LaneStore, type OutstandingWrite } from '../editor/writeLane.js';
 import type { DraftAction } from '../form/draftAction.js';
-import { isStoredLine, persistedLineKeysOf, type IngredientLineKey } from '../form/lineKey.js';
+import { isStoredLine, lineKeyAt, persistedLineKeysOf, type IngredientLineKey } from '../form/lineKey.js';
 import { derivedVisibility, draftSourceOf } from '../form/sourceLink.js';
 import { meetsDraftFloor, validateRecipeForm } from '../form/validate.js';
 import { defaultRecipeFormValues, recipeFormValuesEqual, type RecipeFormValues } from '../form/values.js';
@@ -406,6 +407,12 @@ export interface UseRecipeEditorResult {
     readonly cancelDiscard: () => void;
     /** The rebind command's port, for `useLineCommit`. */
     readonly lineCommand: LineCommandPort;
+    /**
+     * The key of the stored line a link's address names (`lineKeyAt`, `../form/lineKey.ts`), or `undefined`. Answers
+     * only for the version the editor's keys were seeded at (a device draft's base, else the read's), so a link can
+     * never open a different line than it meant. `undefined` while the server holds no such recipe.
+     */
+    readonly lineKeyAt: (address: LineAddress) => IngredientLineKey | undefined;
     /** Abandon an open conflict without resolving it (the conflict view's "Discard and close"). */
     readonly discardAndClose: () => void;
     readonly resolutions: {
@@ -2068,6 +2075,8 @@ export function useRecipeEditor(seed: EditorSeed, opts: UseRecipeEditorOptions):
             },
             run: (key, send) => runLineCommand(stores.core, key, send),
         },
+        lineKeyAt: (address) =>
+            core.server.kind === 'stored' ? lineKeyAt(persistedKeys, core.server.baseVersion, address) : undefined,
         discardAndClose: () => {
             discardAndClose(ctx);
         },

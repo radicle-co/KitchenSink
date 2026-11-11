@@ -37,7 +37,7 @@ import type { PrivateRefusal } from '../../actions/privateGate.js';
 import { errorsStillHolding } from '../../editor/gate.js';
 import { createPasteHold, type PasteHold } from '../../editor/pasteHold.js';
 import type { DraftMemento, DraftStore } from '../../editor/draftStore.js';
-import type { IngredientLineKey } from '../../form/lineKey.js';
+import { seedLineKey, type IngredientLineKey } from '../../form/lineKey.js';
 import { toDraftValues } from '../../editor/draftStore.js';
 import { toRecipeFormValues } from '../../form/wire.js';
 import { draftToSnapshot } from '../../versions/merge.js';
@@ -2439,6 +2439,56 @@ describe('characterization: the rebind command`s other answers', () => {
         expect(view.result.current.lineCommand.persistedKeys).toEqual(
             view.result.current.values.ingredients.map((line) => line.key),
         );
+    });
+
+    /**
+     * A link names a line by (version, stored position); only the editor knows which version its keys were seeded at,
+     * so it is the one that answers (`lineKeyAt`). It must never open a different line than the link meant.
+     */
+    describe('lineKeyAt — an arrival’s address', () => {
+        it('answers the key at that stored position for the version the editor was seeded at', () => {
+            const view = mount({ recipe: twoLines(3) });
+            const lines = view.result.current.values.ingredients;
+
+            expect(view.result.current.lineKeyAt({ version: 3, position: 1 })).toBe(lines[1]!.key);
+            expect(view.result.current.lineKeyAt({ version: 3, position: 0 })).toBe(lines[0]!.key);
+        });
+
+        it('answers nothing for another version or a position past the end', () => {
+            const view = mount({ recipe: twoLines(3) });
+
+            expect(view.result.current.lineKeyAt({ version: 2, position: 1 })).toBeUndefined();
+            expect(view.result.current.lineKeyAt({ version: 4, position: 1 })).toBeUndefined();
+            expect(view.result.current.lineKeyAt({ version: 3, position: 2 })).toBeUndefined();
+        });
+
+        it('a device draft edited from an older version answers for THAT version only', () => {
+            const server = twoLines(3);
+            const memento: DraftMemento = {
+                recipeRef: 'rec_1',
+                baseVersion: 2,
+                values: toDraftValues({
+                    ...toRecipeFormValues(server),
+                    ingredients: toRecipeFormValues(server).ingredients.map((line, index) => ({
+                        ...line,
+                        key: seedLineKey(2, index),
+                    })),
+                    description: 'Mine.',
+                }),
+                pendingRebinds: [],
+                savedAt: '2026-10-08T09:00:00.000Z',
+            };
+            const view = mount({ recipe: server, memento });
+
+            expect(view.result.current.lineKeyAt({ version: 3, position: 0 })).toBeUndefined();
+            expect(view.result.current.lineKeyAt({ version: 2, position: 0 })).toBe(seedLineKey(2, 0));
+        });
+
+        it('answers nothing before the server holds the recipe', () => {
+            const view = mount({});
+
+            expect(view.result.current.lineKeyAt({ version: 1, position: 0 })).toBeUndefined();
+        });
     });
 
     it('a line the server does not store fails without a send', async () => {

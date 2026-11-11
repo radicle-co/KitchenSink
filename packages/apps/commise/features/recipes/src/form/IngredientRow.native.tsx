@@ -169,6 +169,11 @@ export const IngredientRow: FC<IngredientRowProps> = ({
             <View style={styles.top}>
                 {row.inEntry ? (
                     <View style={styles.entry}>
+                        {row.youWroteInline !== undefined && (
+                            <Text typeRole="caption" color="$inkMuted">
+                                {row.youWroteInline}
+                            </Text>
+                        )}
                         <Combobox
                             {...rowEntryFieldOf(row.entryField, entryCopy)}
                             // PLATFORM-FORK: native has no `aria-describedby`, so a refused field says its row sentence as

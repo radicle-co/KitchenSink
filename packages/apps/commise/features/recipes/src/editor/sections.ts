@@ -81,16 +81,3 @@ export function firstSectionWithErrors(errors: RecipeFormErrors): EditorSectionI
 export function isEditorSectionId(value: string): value is EditorSectionId {
     return (EDITOR_SECTIONS as readonly string[]).includes(value);
 }
-
-/**
- * The section a URL hash names (blueprint A16): `#ingredients` → `ingredients`. Read once, on mount; the hash never
- * reaches the server.
- *
- * @param hash - `location.hash`, with or without its `#`.
- * @returns The section, or `undefined` for an empty or unknown hash. Pure.
- */
-export function sectionFromHash(hash: string): EditorSectionId | undefined {
-    const name = hash.startsWith('#') ? hash.slice(1) : hash;
-
-    return isEditorSectionId(name) ? name : undefined;
-}

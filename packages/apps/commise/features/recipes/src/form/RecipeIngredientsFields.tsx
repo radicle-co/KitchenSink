@@ -15,6 +15,7 @@
  */
 import { Button } from '@commise/ui/button';
 import { Combobox } from '@commise/ui/combobox';
+import { DialogActions } from '@commise/ui/dialog-actions';
 import { Icon } from '@commise/ui/icon';
 import { useOptionalScrollHost } from '@commise/ui/scroll-host';
 import { useLocale, useMessages } from '@commise/i18n/react';
@@ -191,11 +192,14 @@ export const RecipeIngredientsFields: FC<RecipeIngredientsFieldsProps> = (props)
                         }}
                     >
                         <IngredientLineEditor view={row.lineEditor} index={row.index} m={m} details={detailsOf(row)} />
-                        <div className="flex justify-end">
-                            <Button variant="secondary" icon="check" onPress={row.lineEditor.onDone}>
+                        <DialogActions sideBySideFrom={400}>
+                            <Button variant="secondary" width="fill" onPress={row.lineEditor.onCancel}>
+                                {m.rowCancel}
+                            </Button>
+                            <Button icon="check" width="fill" onPress={row.lineEditor.onDone}>
                                 {m.rowDone}
                             </Button>
-                        </div>
+                        </DialogActions>
                     </div>
                 ) : null
             }
@@ -244,6 +248,10 @@ export const RecipeIngredientsFields: FC<RecipeIngredientsFieldsProps> = (props)
             {/* What a row's settled pick did, politely, with the list closed (R3). Always rendered, as above. */}
             <p role="status" className="sr-only">
                 {model.settledMessage}
+            </p>
+            {/* A link named an ingredient the draft does not hold: said quietly and politely, until a row is opened. */}
+            <p role="status" className="text-caption text-ink-muted empty:hidden">
+                {model.jumpNotice ?? ''}
             </p>
             {model.listError !== undefined && (
                 <p id={ingredientsErrorId} className={errorText} role="alert">

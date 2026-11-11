@@ -1,14 +1,16 @@
 /**
  * @module @commise/features-recipes/form — `IngredientLineEditorSheet` (native): the row editor's phone frame (build
  * spec §7.5.2, §7.12): a content-height bottom sheet that lifts the fields above the keyboard, with Done (primary,
- * `check`) at its foot. The React Native leaf of `./IngredientLineEditorSheet.tsx`; every close route (Done, Close,
- * Android back, a swipe) is Done, and the leaf returns the screen-reader cursor to the row once the sheet has gone.
+ * `check`) at its foot, beside Cancel (secondary) in `DialogActions`. The React Native leaf of
+ * `./IngredientLineEditorSheet.tsx`; only Cancel discards the edits, every other close route (Done, Close, Android
+ * back, a swipe) is Done and keeps them, and the leaf returns the screen-reader cursor to the row once the sheet has gone.
  *
  * Presentational: it frames `IngredientLineEditor` over the open row's view.
  *
  * @pattern Decorator — the sheet frame around the row editor's one field layout
  */
 import { Button } from '@commise/ui/button';
+import { DialogActions } from '@commise/ui/dialog-actions';
 import { Sheet } from '@commise/ui/sheet';
 import type { FC } from 'react';
 
@@ -28,9 +30,14 @@ export const IngredientLineEditorSheet: FC<IngredientLineEditorSheetProps> = ({ 
         closeLabel={row?.lineEditor.closeLabel ?? ''}
         size="content"
         footer={
-            <Button icon="check" width="fill" onPress={() => row?.lineEditor.onDone()}>
-                {m.rowDone}
-            </Button>
+            <DialogActions sideBySideFrom={400}>
+                <Button variant="secondary" width="fill" onPress={() => row?.lineEditor.onCancel()}>
+                    {m.rowCancel}
+                </Button>
+                <Button icon="check" width="fill" onPress={() => row?.lineEditor.onDone()}>
+                    {m.rowDone}
+                </Button>
+            </DialogActions>
         }
     >
         {row === undefined ? null : (

@@ -31,6 +31,7 @@
  * and their routes are the navigator's, and this screen only looks at the route below it.
  */
 import {
+    type LineAddress,
     RecipeDetailSkeleton,
     RecipeDetailView,
     isUnreachableRecovery,
@@ -72,6 +73,8 @@ export interface RecipeDetailScreenProps {
     readonly onBack?: () => void;
     /** Invoked with the recipe id when the owner opens the editor. */
     readonly onEdit?: (recipeId: string) => void;
+    /** Invoked with the recipe id and the line when the owner opens the editor on one ingredient that needs review. */
+    readonly onReviewLine?: (recipeId: string, line: LineAddress) => void;
     /** Invoked with the recipe id when the owner opens the version history. */
     readonly onViewVersions?: (recipeId: string) => void;
     /** Open a food's page (the make-public refusal's Open food). */
@@ -188,6 +191,7 @@ function SettledRecipeDetail({
     recipeId,
     onBack,
     onEdit,
+    onReviewLine,
     onViewVersions,
     onOpenFood,
     onDeleted,
@@ -282,6 +286,9 @@ function SettledRecipeDetail({
             headerActions={primary}
             heroControls={heroControls}
             onEditSection={() => onEdit?.(recipeId)}
+            {...(onReviewLine === undefined
+                ? {}
+                : { onReviewLine: (line: LineAddress) => onReviewLine(recipeId, line) })}
             {...(page.viewerIsOwner ? { onViewVersions: () => onViewVersions?.(recipeId) } : {})}
             rating={<RecipeDetailRating {...page.rating} />}
             scrollFooter={<RecipeDetailDialogs {...page.dialogs} />}

@@ -34,10 +34,13 @@ import { LiveRegion } from '@commise/ui/live-region';
 import { RefreshNotice } from '@commise/ui/refresh-notice';
 import { StatusBadge } from '@commise/ui/status-badge';
 import { surfaceToneClass } from '@commise/ui/surface-tone';
+import type { RecipeIngredientView } from '@kitchensink/recipe-core';
 import { scaleRecipeForServings } from '@kitchensink/recipe-core/scaling';
 import Link from 'next/link';
-import { useId, type ComponentProps, type FC } from 'react';
+import { useId, type ComponentProps, type FC, type ReactNode } from 'react';
 
+import { arrivalHash } from '../editor/editorArrival.js';
+import type { EditorSectionId } from '../editor/sections.js';
 import { fillTemplate } from '../format/fillTemplate.js';
 import { recipeMessages } from '../messages.js';
 import { bylineMessages } from '../byline/messages.js';
@@ -57,7 +60,15 @@ import {
     STEPS_COLUMN,
 } from './detailLayoutClasses.js';
 import { IngredientRuns } from './IngredientRuns.js';
-import { allLinesFoodRemoved, detailNoticeState, removedFoodNotice, type RecipeDetailBodyWebProps } from './model.js';
+import { lineDisplayName } from './lineName.js';
+import {
+    allLinesFoodRemoved,
+    detailNoticeState,
+    needsReviewAddressOf,
+    removedFoodNotice,
+    type RecipeDetailBodyWebProps,
+} from './model.js';
+import { ReviewLineLink } from './ReviewLineLink.js';
 import { pinnedBarFactsOf } from './pinnedBarFacts.js';
 import { PinnedIngredientsBar } from './PinnedIngredientsBar.js';
 import { RecipeHero } from './RecipeHero.js';
@@ -114,7 +125,7 @@ export const RecipeDetailBody: FC<RecipeDetailBodyWebProps> = ({
     ingredientsEndRef,
     pinnedIngredients,
 }) => {
-    const { detail, duration, card } = useMessages(recipeMessages);
+    const { detail, duration, card, ingredientLineName } = useMessages(recipeMessages);
     const locale = useLocale();
     const bylineCopy = useMessages(bylineMessages);
     const owner = viewerIsOwner === true;
@@ -142,8 +153,21 @@ export const RecipeDetailBody: FC<RecipeDetailBodyWebProps> = ({
     const byline = detailByline(recipe, owner, detail, bylineCopy);
     const status = detailStatusLine(recipe, owner, { detail, card });
     const tags = [...recipe.dietaryFlags, ...recipe.tags];
-    const editSectionHref = (section: string): Href | undefined =>
-        owner && editHref !== undefined ? (`${editHref}#${section}` as Href) : undefined;
+    const editSectionHref = (section: EditorSectionId): Href | undefined =>
+        owner && editHref !== undefined ? (`${editHref}${arrivalHash({ section })}` as Href) : undefined;
+
+    // The owner's way from a line that needs review to that line in the editor; another cook keeps the plain badge.
+    const reviewAction = (position: number, ingredient: RecipeIngredientView): ReactNode => {
+        const address = owner && editHref !== undefined ? needsReviewAddressOf(recipe, position) : undefined;
+
+        return address === undefined ? undefined : (
+            <ReviewLineLink
+                href={`${editHref}${arrivalHash({ section: 'ingredients', line: address })}` as Href}
+                food={lineDisplayName(ingredient, ingredientLineName)}
+            />
+        );
+    };
+
     const ingredientsEdit = editSectionHref('ingredients');
     const stepsEdit = editSectionHref('steps');
 
@@ -353,6 +377,7 @@ export const RecipeDetailBody: FC<RecipeDetailBodyWebProps> = ({
                             checked={marks.checkedLines}
                             allRemoved={allRemoved}
                             onToggle={marks.toggleLine}
+                            reviewAction={reviewAction}
                         />
                     )}
                     {/* The marker the pinned bar watches (owner ruling R1): zero tall, at the card's end, and gone from a 720 px body, where the sticky card does this job. */}
@@ -388,6 +413,7 @@ export const RecipeDetailBody: FC<RecipeDetailBodyWebProps> = ({
                             checked={marks.checkedLines}
                             allRemoved={allRemoved}
                             onToggle={marks.toggleLine}
+                            reviewAction={reviewAction}
                         />
                     </PinnedIngredientsBar>
                 )}

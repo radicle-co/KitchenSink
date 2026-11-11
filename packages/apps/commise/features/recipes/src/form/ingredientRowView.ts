@@ -20,6 +20,7 @@
  */
 import type { Locale } from '@commise/i18n';
 import type { ActionMenuItem } from '@commise/ui/action-menu';
+import { FoodResolutionStatus } from '@kitchensink/recipe-core';
 
 import { isStandInName, lineAmountName } from '../detail/lineName.js';
 import { formatQuantity, lineSummary, lineTailOf } from '../detail/model.js';
@@ -38,6 +39,7 @@ import {
 } from './fieldErrorIds.js';
 import { ingredientEditorFieldId, type IngredientEditorField } from './fieldIds.js';
 import { canMoveIngredient, groupLabelOf } from './ingredientGroups.js';
+import type { LineFieldsMemento } from './lineFieldsMemento.js';
 import type { IngredientLineKey } from './lineKey.js';
 import type { LookupRetry } from './ingredientStatus.js';
 import { panelBodyOf, type RowPanelBody } from './ingredientRowPanel.js';
@@ -114,6 +116,8 @@ export interface IngredientRowContext {
     readonly groupCount: number;
     /** Open a food's page (`⋯` Open food); absent when the host offers none. */
     readonly openFood?: (foodId: string) => void;
+    /** The cook's original line by key, from the server read; display only, never part of the draft. */
+    readonly originalLines?: ReadonlyMap<IngredientLineKey, string>;
 }
 
 /**
@@ -125,6 +129,14 @@ export interface LineEditorState {
     /** Open a row's editor; another open one closes, keeping its values (they are the draft's already). */
     readonly open: (key: IngredientLineKey) => void;
     readonly close: () => void;
+    /**
+     * What the open editor's Cancel puts back: the line as it was when this row's editor opened, and whether its range was
+     * shown then. `undefined` for a row whose editor is not open. Dropped by `close`, so Change (which closes) keeps the
+     * food it picks.
+     */
+    readonly restorePoint: (
+        key: IngredientLineKey,
+    ) => { readonly memento: LineFieldsMemento; readonly rangeShown: boolean } | undefined;
     /** "+ Add a range" was pressed on this row, before it holds an upper bound. */
     readonly rangeShown: (key: IngredientLineKey) => boolean;
     readonly showRange: (key: IngredientLineKey) => void;
@@ -190,6 +202,10 @@ export interface RowLineEditorView {
     /** The phone sheet's title: the row's food. */
     readonly title: string;
     readonly closeLabel: string;
+    /** The line needs review: the editor opens with the notice, and Change is the secondary action. */
+    readonly needsReview: boolean;
+    /** The cook's own line as they wrote it, shown verbatim in the notice; only for a line that needs review. */
+    readonly originalLine?: string;
     /** The food as one line: its name, and its calories per 100 g when food publishes them. */
     readonly food: string;
     readonly ids: Readonly<Record<IngredientEditorField, string>>;
@@ -227,8 +243,10 @@ export interface RowLineEditorView {
     /** Change, beside the food; absent where the row's state forbids it (a shortlist row's panel is the remedy). */
     readonly onChangeFood: (() => void) | undefined;
     readonly onToggleDetails: () => void;
-    /** Done or Escape: the editor closes and focus returns to the row. */
+    /** Done or Escape: the editor closes, keeping what was edited, and focus returns to the row. */
     readonly onDone: () => void;
+    /** Cancel: what the editor edited is put back, the editor closes, and focus returns to the row. */
+    readonly onCancel: () => void;
 }
 
 /** One row, as both leaves draw it. */
@@ -277,6 +295,8 @@ export interface IngredientRowView {
     readonly amountInvalidNote: string | undefined;
     /** The row's food search is open: the name is the entry field (Change food, Find a food, no food). */
     readonly inEntry: boolean;
+    /** "You wrote: “…”", a caption above the food search while Change is open on a line that needs review. */
+    readonly youWroteInline: string | undefined;
     /** This row's editor is open. */
     readonly editorOpen: boolean;
     readonly lineEditor: RowLineEditorView;
@@ -550,6 +570,8 @@ interface LineEditorInput {
     readonly marks: ReturnType<typeof rowMarksOf>;
     readonly detailsOffered: boolean;
     readonly onChangeFood: (() => void) | undefined;
+    /** The cook's original line for this line, when the server sent one (whether or not it needs review). */
+    readonly originalLine: string | undefined;
 }
 
 /** What one bound of the Amount field shows, and whether its text states no amount. */
@@ -585,6 +607,23 @@ const amountFieldOf = (bound: number | undefined, typed: string | undefined): Am
 const describedWith = (ids: string | undefined, id: string | undefined): string | undefined =>
     id === undefined ? ids : [ids, id].filter((each) => each !== undefined).join(' ');
 
+/** "You wrote: …" above the food search, while Change is open on a line that needs review and the original is known. Pure. */
+const youWroteInlineOf = (
+    line: RecipeFormIngredient,
+    changing: boolean,
+    ctx: IngredientRowContext,
+): string | undefined => {
+    const original = ctx.originalLines?.get(line.key);
+
+    return changing && needsReviewLine(line) && original !== undefined
+        ? fillTemplate(ctx.m.rowYouWroteInline, { line: original })
+        : undefined;
+};
+
+/** Whether the server flagged this line for the cook to look at again. Pure. */
+const needsReviewLine = (line: RecipeFormIngredient): boolean =>
+    line.resolutionStatus === FoodResolutionStatus.NEEDS_REVIEW;
+
 /** The row editor's view (build spec §7.5.2). Pure: its handlers run only when a control calls them. */
 const lineEditorOf = (input: LineEditorInput, ctx: IngredientRowContext): RowLineEditorView => {
     const { line, index, displayName, foodName, marks } = input;
@@ -597,9 +636,13 @@ const lineEditorOf = (input: LineEditorInput, ctx: IngredientRowContext): RowLin
     const unreadable = low.unreadable || (rangeShown && high.unreadable);
     const amountNote = unreadable ? { id: ingredientAmountNoteId(line.key), text: m.rowAmountInvalid } : undefined;
 
+    const needsReview = needsReviewLine(line);
+
     return {
         title: displayName,
         closeLabel: fillTemplate(m.rowEditorClose, { food: displayName }),
+        needsReview,
+        ...(needsReview && input.originalLine !== undefined ? { originalLine: input.originalLine } : {}),
         food: editorFoodLine(line, foodName, ctx),
         ids: {
             amount: ingredientEditorFieldId(line.key, 'amount'),
@@ -646,6 +689,18 @@ const lineEditorOf = (input: LineEditorInput, ctx: IngredientRowContext): RowLin
         onChangeFood: input.onChangeFood,
         onToggleDetails: lineEditor.toggleDetails,
         onDone: () => {
+            lineEditor.close();
+            focus.request(line.key, 'open');
+        },
+        onCancel: () => {
+            const point = lineEditor.restorePoint(line.key);
+
+            if (point !== undefined) {
+                ctx.rowEditor.dispatch({ kind: 'restoreIngredientFields', key: line.key, memento: point.memento });
+                // The range was a view state of its own: put it back as it was, then close (which drops the typed amount text).
+                (point.rangeShown ? lineEditor.showRange : lineEditor.hideRange)(line.key);
+            }
+
             lineEditor.close();
             focus.request(line.key, 'open');
         },
@@ -868,6 +923,7 @@ export const ingredientRowViewOf = (
         privateFood: privateFoodViewOf(line, index, ctx),
         amountInvalidNote: marks.quantityInvalid ? m.rowAmountInvalid : undefined,
         inEntry: changing,
+        youWroteInline: youWroteInlineOf(line, changing, ctx),
         editorOpen: ctx.lineEditor.openKey === line.key,
         lineEditor: lineEditorOf(
             {
@@ -877,6 +933,7 @@ export const ingredientRowViewOf = (
                 foodName,
                 marks,
                 detailsOffered: foodDetails,
+                originalLine: ctx.originalLines?.get(line.key),
                 onChangeFood: canChangeFood
                     ? () => {
                           ctx.lineEditor.close();

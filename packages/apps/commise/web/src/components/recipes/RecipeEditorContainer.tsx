@@ -29,16 +29,16 @@
  * @pattern Adapter — the Next router behind the session's `EditorNavigation` port
  */
 import {
+    arrivalFromHash,
     FINISHED_OUTCOME_PARAM,
     finishedParamOf,
     nextEditorOpening,
-    sectionFromHash,
     useDeviceDraft,
     useRecipeEditorSession,
     useRecipePrivate,
     type DraftStore,
     type EditorNavigation,
-    type EditorSectionId,
+    type EditorArrival,
 } from '@commise/features-recipes';
 import { recipeLoadMessages } from '@commise/features-recipes/detail';
 import { cookDraftsOf, RecipeEditorSurface, type CookDrafts } from '@commise/features-recipes/editor';
@@ -347,7 +347,7 @@ const RecipeEditorSession: FC<RecipeEditorSessionProps> = ({ locale, mode, draft
         sourceKind: seed.recipe?.sourceKind ?? null,
         knownPaidFeatures,
     });
-    const [initialSection] = useState<EditorSectionId | undefined>(() => sectionFromHash(window.location.hash));
+    const [arrival] = useState<EditorArrival | undefined>(() => arrivalFromHash(window.location.hash));
     // The session's navigation port, on the Next router.
     const navigation: EditorNavigation = {
         // E8: how the editor finished goes to the recipe page in a one-shot parameter (a snackbar raised here would die
@@ -380,7 +380,7 @@ const RecipeEditorSession: FC<RecipeEditorSessionProps> = ({ locale, mode, draft
             knownPaidFeatures={knownPaidFeatures}
             slotStanding={recipePrivate.standing}
             renderPhotos={(target) => <RecipePhotoUploaderContainer {...target} />}
-            {...(initialSection === undefined ? {} : { initialSection })}
+            {...(arrival === undefined ? {} : { arrival })}
             onClose={() => {
                 const id = session.editor.recipeId;
 

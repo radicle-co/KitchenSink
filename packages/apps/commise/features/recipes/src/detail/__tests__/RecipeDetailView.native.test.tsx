@@ -690,6 +690,89 @@ describe('RecipeDetailView (native) — tap-to-check and the current step', () =
     });
 });
 
+/**
+ * The owner's "Needs review" control (needs-review jump), native: a press on a line that needs review calls
+ * `onReviewLine` with that line's stored position and the page's version (its own prop, not `onEditSection`), and does
+ * not tick the line. Another cook, or an owner with no handler, keeps the plain badge.
+ */
+describe('RecipeDetailView (native) — the owner’s Needs review control', () => {
+    const copy = recipeMessages.en.detail;
+    const recipe = makeRecipeDetail({
+        currentVersion: 4,
+        ingredients: [
+            makeIngredientView({ ingredientId: 'salt', name: 'Salt' }),
+            makeIngredientView({
+                ingredientId: 'flour',
+                name: 'Plain flour',
+                resolutionStatus: FoodResolutionStatus.NEEDS_REVIEW,
+            }),
+            makeIngredientView({
+                ingredientId: 'flour',
+                name: 'Plain flour',
+                resolutionStatus: FoodResolutionStatus.NEEDS_REVIEW,
+                groupLabel: 'Topping',
+            }),
+        ],
+    });
+
+    it('calls onReviewLine with the stored position and the version, and does not tick the line', () => {
+        const onReviewLine = vi.fn();
+
+        render(
+            <RecipeDetailView
+                unreachableRetry={idleUnreachableRetry}
+                viewerIsOwner
+                onEditSection={vi.fn()}
+                onReviewLine={onReviewLine}
+                recipe={recipe}
+            />,
+            OwnerScope,
+        );
+        const [first, second] = screen.getAllByRole('button', { name: 'Needs review: Plain flour' });
+
+        fireEvent.click(second as HTMLElement);
+        fireEvent.click(first as HTMLElement);
+
+        expect(onReviewLine).toHaveBeenNthCalledWith(1, { version: 4, position: 2 });
+        expect(onReviewLine).toHaveBeenNthCalledWith(2, { version: 4, position: 1 });
+        expect(screen.getAllByRole('checkbox', { name: /Plain flour/u })[0]?.getAttribute('aria-checked')).toBe(
+            'false',
+        );
+    });
+
+    it('does not reuse onEditSection: a section edit is not a line review', () => {
+        const onEditSection = vi.fn();
+
+        render(
+            <RecipeDetailView
+                unreachableRetry={idleUnreachableRetry}
+                viewerIsOwner
+                onEditSection={onEditSection}
+                onReviewLine={vi.fn()}
+                recipe={recipe}
+            />,
+            OwnerScope,
+        );
+        fireEvent.click(screen.getAllByRole('button', { name: 'Needs review: Plain flour' })[0] as HTMLElement);
+
+        expect(onEditSection).not.toHaveBeenCalled();
+    });
+
+    it('another cook, or an owner with no handler, keeps the plain badge', () => {
+        const { unmount } = render(
+            <RecipeDetailView unreachableRetry={idleUnreachableRetry} onReviewLine={vi.fn()} recipe={recipe} />,
+        );
+
+        expect(screen.queryByRole('button', { name: /Needs review/u })).toBeNull();
+        expect(screen.getAllByText(copy.needsReviewBadge).length).toBeGreaterThan(0);
+        unmount();
+
+        render(<RecipeDetailView unreachableRetry={idleUnreachableRetry} viewerIsOwner recipe={recipe} />, OwnerScope);
+
+        expect(screen.queryByRole('button', { name: /Needs review/u })).toBeNull();
+    });
+});
+
 describe('RecipeDetailView (native) — touch targets (U4 / RC-3)', () => {
     it('gives every ingredient row at least 44 dp (REWRITTEN for owner C5 + T1: it was 48) and the step toggle 44 pt', () => {
         render(<RecipeDetailView unreachableRetry={idleUnreachableRetry} recipe={makeRecipeDetail()} />);

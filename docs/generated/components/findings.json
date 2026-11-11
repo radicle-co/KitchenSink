@@ -6,7 +6,7 @@
         "cross-platform-props-diverge": 23,
         "missing-component-doc": 165,
         "missing-module-doc": 23,
-        "platform-singleton": 99,
+        "platform-singleton": 101,
         "ref-api": 19,
         "unclassified-layer": 93,
         "undocumented-prop": 220
@@ -2435,8 +2435,8 @@
             "sourcePath": "packages/apps/commise/features/recipes/src/detail/RecipeDetailBody.tsx",
             "message": "the web and native leaves declare different prop names",
             "evidence": [
-                "web: back dataSourcesHref descriptionExpanded editHref headerActions heroControls ingredientsEndRef marks nutritionExpanded onEditSection onServingsChange onToggleDescription onToggleNutrition onViewVersions pinnedIngredients rating recipe refreshNotice screenOn scrollFooter servings unreachableRetry versionsHref viewerIsOwner visibilityNotice",
-                "native: back dataSourcesHref dataSourcesReturnFocusSignal descriptionExpanded editHref headerActions heroControls layout marks nutritionExpanded onEditSection onIngredientsLayout onOpenDataSources onScroll onServingsChange onToggleDescription onToggleNutrition onViewVersions pinnedIngredients rating recipe refreshNotice screenOn scrollFooter servings unreachableRetry versionsHref viewerIsOwner visibilityNotice"
+                "web: back dataSourcesHref descriptionExpanded editHref headerActions heroControls ingredientsEndRef marks nutritionExpanded onEditSection onReviewLine onServingsChange onToggleDescription onToggleNutrition onViewVersions pinnedIngredients rating recipe refreshNotice screenOn scrollFooter servings unreachableRetry versionsHref viewerIsOwner visibilityNotice",
+                "native: back dataSourcesHref dataSourcesReturnFocusSignal descriptionExpanded editHref headerActions heroControls layout marks nutritionExpanded onEditSection onIngredientsLayout onOpenDataSources onReviewLine onScroll onServingsChange onToggleDescription onToggleNutrition onViewVersions pinnedIngredients rating recipe refreshNotice screenOn scrollFooter servings unreachableRetry versionsHref viewerIsOwner visibilityNotice"
             ]
         },
         {
@@ -2536,6 +2536,26 @@
             "sourcePath": "packages/apps/commise/features/recipes/src/detail/RecipeSourceLine.tsx",
             "message": "the component declaration has no JSDoc summary",
             "evidence": []
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "featuresRecipes/detail/ReviewLineButton",
+            "sourcePath": "packages/apps/commise/features/recipes/src/detail/ReviewLineButton.native.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "native"
+            ]
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "featuresRecipes/detail/ReviewLineLink",
+            "sourcePath": "packages/apps/commise/features/recipes/src/detail/ReviewLineLink.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "web"
+            ]
         },
         {
             "rule": "missing-component-doc",

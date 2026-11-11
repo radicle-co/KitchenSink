@@ -32,7 +32,7 @@ import { RecipeDetailBody } from '../RecipeDetailBody.js';
 import { RecipeDetailView } from '../RecipeDetailView.js';
 import { resetServingScale } from '../servingScale.js';
 import { recipeMessages } from '../../messages.js';
-import type { FC, ReactElement, ReactNode } from 'react';
+import type { ComponentProps, FC, ReactElement, ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RecipeServiceProvider } from '@kitchensink/recipe-service-client/hooks';
 import { idleDetailBodyState } from '../../__fixtures__/cookMarks.js';
@@ -1146,6 +1146,95 @@ describe('RecipeDetailView (web) — empty sections (§6.7)', () => {
         expect(screen.getByRole('link', { name: 'Edit ingredients' }).getAttribute('href')).toBe(
             '/en/recipes/rec_1/edit#ingredients',
         );
+    });
+});
+
+/**
+ * The owner's "Needs review" control (needs-review jump): on a line that needs review, the owner gets a link into the
+ * editor open on THAT line (`#ingredients/{version}.{position}`, the position in the stored order); another cook, or an
+ * owner without an editor address, keeps the plain badge. Two lines on one food each get their own link and their own
+ * tick (the rows were keyed by `ingredientId`, which is not unique per line).
+ */
+describe('RecipeDetailView (web) — the owner’s Needs review control', () => {
+    const copy = recipeMessages.en.detail;
+    const recipe = makeRecipeDetail({
+        currentVersion: 4,
+        ingredients: [
+            makeIngredientView({ ingredientId: 'salt', name: 'Salt' }),
+            makeIngredientView({
+                ingredientId: 'flour',
+                name: 'Plain flour',
+                resolutionStatus: FoodResolutionStatus.NEEDS_REVIEW,
+            }),
+            makeIngredientView({
+                ingredientId: 'flour',
+                name: 'Plain flour',
+                resolutionStatus: FoodResolutionStatus.NEEDS_REVIEW,
+                groupLabel: 'Topping',
+            }),
+        ],
+    });
+    const view = (over: Partial<ComponentProps<typeof RecipeDetailView>> = {}) => (
+        <RecipeDetailView
+            dataSourcesHref="/en/legal/sources"
+            unreachableRetry={idleUnreachableRetry}
+            editHref="/en/recipes/rec_1/edit"
+            recipe={recipe}
+            {...over}
+        />
+    );
+
+    it('links each line that needs review to the editor at its stored position and the page’s version', () => {
+        renderAsOwner(view({ viewerIsOwner: true }));
+        const links = screen.getAllByRole('link', { name: 'Needs review: Plain flour' });
+
+        expect(links.map((link) => link.getAttribute('href'))).toEqual([
+            '/en/recipes/rec_1/edit#ingredients/4.1',
+            '/en/recipes/rec_1/edit#ingredients/4.2',
+        ]);
+    });
+
+    it('is a sibling of the check control: the badge is not in the checkbox, and pressing the link does not tick', () => {
+        renderAsOwner(view({ viewerIsOwner: true }));
+        const [link] = screen.getAllByRole('link', { name: 'Needs review: Plain flour' });
+        const boxes = screen.getAllByRole('checkbox', { name: /Plain flour/u });
+
+        expect(boxes[0]?.contains(link ?? null)).toBe(false);
+        expect(boxes[0]?.textContent).not.toContain(copy.needsReviewBadge);
+
+        link?.addEventListener('click', (event) => event.preventDefault());
+        fireEvent.click(link as HTMLElement);
+        expect(boxes[0]?.getAttribute('aria-checked')).toBe('false');
+    });
+
+    it('draws two lines that share a food as two rows, with no duplicate-key warning', () => {
+        const warn = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+        renderAsOwner(view({ viewerIsOwner: true }));
+
+        expect(screen.getAllByRole('checkbox', { name: /Plain flour/u })).toHaveLength(2);
+        expect(warn.mock.calls.flat().join(' ')).not.toMatch(/same key/u);
+        warn.mockRestore();
+    });
+
+    it('another cook keeps the plain badge and gets no link', () => {
+        render(view());
+
+        expect(screen.queryByRole('link', { name: /Needs review/u })).toBeNull();
+        expect(screen.getAllByText(copy.needsReviewBadge).length).toBeGreaterThan(0);
+    });
+
+    it('an owner with no editor address gets no link', () => {
+        renderAsOwner(view({ viewerIsOwner: true, editHref: undefined }));
+
+        expect(screen.queryByRole('link', { name: /Needs review/u })).toBeNull();
+    });
+
+    it('a line that does not need review gets no control', () => {
+        renderAsOwner(view({ viewerIsOwner: true }));
+
+        expect(screen.getAllByRole('link', { name: /Needs review/u })).toHaveLength(2);
+        expect(screen.getByRole('checkbox', { name: /Salt/u }).closest('li')?.querySelector('a')).toBeNull();
     });
 });
 

@@ -246,6 +246,12 @@ export interface RecipeFormMessages {
     readonly rowAmountInvalid: string;
     /** The row editor's Done (§7.5.2, `row.done`). */
     readonly rowDone: string;
+    /** The row editor's Cancel: closes it and puts back what it edited. */
+    readonly rowCancel: string;
+    /** The label above the cook's own original line, in a needs-review row editor. */
+    readonly rowYouWroteLabel: string;
+    /** The original line above the food search during Change on a needs-review line. Holds `{line}`. */
+    readonly rowYouWroteInline: string;
     /** The phone row editor sheet's close control. Holds `{food}`. */
     readonly rowEditorClose: string;
     /** The row editor's amount field (`row.amountLabel`). */
@@ -751,6 +757,9 @@ export const recipeFormMessages: LocalizedMessages<RecipeFormMessages> = {
         rowAttentionLabel: '{state}: {food}',
         rowAmountInvalid: 'Check the amount',
         rowDone: 'Done',
+        rowCancel: 'Cancel',
+        rowYouWroteLabel: 'You wrote',
+        rowYouWroteInline: 'You wrote: “{line}”',
         rowEditorClose: 'Close {food}',
         rowAmountLabel: 'Amount',
         rowAmountTo: 'to',

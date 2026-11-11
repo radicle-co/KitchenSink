@@ -12,6 +12,7 @@ import { Button } from '@commise/ui/button';
 import { Combobox } from '@commise/ui/combobox';
 import { FieldLabel, Input } from '@commise/ui/input';
 import { PressScale } from '@commise/ui/press-scale';
+import { StatusBadge } from '@commise/ui/status-badge';
 import { Text as DesignText } from '@commise/ui/text';
 import type { FC } from 'react';
 import { useWindowDimensions } from 'react-native';
@@ -65,6 +66,27 @@ export const IngredientLineEditor: FC<IngredientLineEditorProps> = ({ view, inde
 
     return (
         <YStack gap="$3">
+            {view.needsReview && (
+                // The notice heads the editor: what is wrong, then the cook's own words, in a focusable group.
+                <YStack role="group" aria-label={m.statusNeedsReview} focusable gap="$1">
+                    <YStack alignSelf="flex-start">
+                        <StatusBadge status="attention">{m.statusNeedsReview}</StatusBadge>
+                    </YStack>
+                    <DesignText typeRole="caption" color="$inkMuted">
+                        {m.statusExplainNeedsReview}
+                    </DesignText>
+                    {view.originalLine !== undefined && (
+                        <>
+                            <DesignText typeRole="caption" color="$inkMuted">
+                                {m.rowYouWroteLabel}
+                            </DesignText>
+                            <DesignText typeRole="body" color="$ink" selectable>
+                                {view.originalLine}
+                            </DesignText>
+                        </>
+                    )}
+                </YStack>
+            )}
             <YStack gap="$1">
                 <DesignText typeRole="caption" color="$inkMuted">
                     {m.rowCountedAsLabel}
@@ -74,7 +96,7 @@ export const IngredientLineEditor: FC<IngredientLineEditorProps> = ({ view, inde
                         {view.food}
                     </DesignText>
                     {view.onChangeFood !== undefined && (
-                        <Button variant="ghost" onPress={view.onChangeFood}>
+                        <Button variant={view.needsReview ? 'secondary' : 'ghost'} onPress={view.onChangeFood}>
                             {m.rowChange}
                         </Button>
                     )}

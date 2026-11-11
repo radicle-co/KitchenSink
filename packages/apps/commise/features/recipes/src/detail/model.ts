@@ -21,6 +21,7 @@ import type {
     RecipeNutrition,
 } from '@kitchensink/recipe-core';
 
+import type { LineAddress } from '../editor/editorArrival.js';
 import type { RecipeFormMessages } from '../form/messages.js';
 import {
     sourceDisplayName,
@@ -297,6 +298,26 @@ export const staleNutritionNotice = (
  */
 export const isLineNeedsReview = (line: RecipeIngredientView): boolean =>
     line.resolutionStatus === FoodResolutionStatus.NEEDS_REVIEW;
+
+/**
+ * The address the owner's review control carries into the editor: the line's position in the recipe's STORED
+ * `ingredients` order, at the version the page was read at. Pure.
+ *
+ * ⛔ The position is the stored one, never an index the page made up: the scaled list and a group's own run do not count
+ * lines the way the server stores them, and the editor's `lineKeyAt` reads this against the stored order.
+ *
+ * @param recipe - The recipe as the detail read returns it.
+ * @param position - The line's position in `recipe.ingredients`.
+ * @returns The address, or `undefined` when the recipe holds no such line or it does not need review.
+ */
+export const needsReviewAddressOf = (
+    recipe: Pick<RecipeDetail, 'currentVersion' | 'ingredients'>,
+    position: number,
+): LineAddress | undefined => {
+    const line = Number.isInteger(position) ? recipe.ingredients[position] : undefined;
+
+    return line !== undefined && isLineNeedsReview(line) ? { version: recipe.currentVersion, position } : undefined;
+};
 
 /**
  * How many of a recipe's lines the gate contradicted. Pure.
@@ -918,6 +939,11 @@ export interface RecipeDetailViewProps {
     readonly versionsHref?: string;
     /** Native: open the editor at a section (the owner's Edit links and empty-state actions). */
     readonly onEditSection?: (section: DetailSection) => void;
+    /**
+     * Native, the owner only: open the editor on one ingredient that needs review, with its row editor open. Its own
+     * prop, not `onEditSection`: a section and a line are different arrivals.
+     */
+    readonly onReviewLine?: (address: LineAddress) => void;
     /** Native: open the version history from the status row. */
     readonly onViewVersions?: () => void;
     /**

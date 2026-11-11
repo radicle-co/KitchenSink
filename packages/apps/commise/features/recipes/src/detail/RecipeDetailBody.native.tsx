@@ -27,8 +27,9 @@ import { KeepAwakeToggle } from '@commise/ui/keep-awake';
 import { LiveRegion } from '@commise/ui/live-region';
 import { RefreshNotice } from '@commise/ui/refresh-notice';
 import { useScreenReaderFocusOnMount, useScreenReaderFocusOnSignal } from '@commise/ui/screen-reader-focus';
+import type { RecipeIngredientView } from '@kitchensink/recipe-core';
 import { scaleRecipeForServings } from '@kitchensink/recipe-core/scaling';
-import type { FC, ReactElement } from 'react';
+import type { FC, ReactElement, ReactNode } from 'react';
 import { ScrollView, View } from 'react-native';
 import { Text } from '@commise/ui/text';
 
@@ -46,11 +47,18 @@ import { DetailStatusRow } from './DetailStatusRow.native.js';
 import { PinnedServingsRow } from './ingredientFrames.native.js';
 import { IngredientRuns } from './IngredientRuns.native.js';
 import { detailStyles as styles } from './detailStyles.native.js';
-import { allLinesFoodRemoved, detailNoticeState, type RecipeDetailBodyNativeProps } from './model.js';
+import { lineDisplayName } from './lineName.js';
+import {
+    allLinesFoodRemoved,
+    detailNoticeState,
+    needsReviewAddressOf,
+    type RecipeDetailBodyNativeProps,
+} from './model.js';
 import { pinnedBarFactsOf } from './pinnedBarFacts.js';
 import { PinnedIngredientsBar } from './PinnedIngredientsBar.native.js';
 import { RecipeHero } from './RecipeHero.native.js';
 import { RecipeSourceLine } from './RecipeSourceLine.native.js';
+import { ReviewLineButton } from './ReviewLineButton.native.js';
 import { ServingScaleControl } from './ServingScaleControl.js';
 
 /** "Servings", the first thing in the opened list: it takes the screen-reader cursor when the list opens. */
@@ -88,6 +96,7 @@ export const RecipeDetailBody: FC<RecipeDetailBodyNativeProps> = ({
     onOpenDataSources,
     dataSourcesReturnFocusSignal,
     onEditSection,
+    onReviewLine,
     onViewVersions,
     viewerIsOwner,
     visibilityNotice,
@@ -102,7 +111,7 @@ export const RecipeDetailBody: FC<RecipeDetailBodyNativeProps> = ({
     onScroll,
     pinnedIngredients,
 }) => {
-    const { detail, duration, card } = useMessages(recipeMessages);
+    const { detail, duration, card, ingredientLineName } = useMessages(recipeMessages);
     const locale = useLocale();
     const bylineCopy = useMessages(bylineMessages);
     const owner = viewerIsOwner === true;
@@ -120,6 +129,19 @@ export const RecipeDetailBody: FC<RecipeDetailBodyNativeProps> = ({
     const tags = [...recipe.dietaryFlags, ...recipe.tags];
     const twoColumns = layout.columns === 'two';
     const editSection = owner ? onEditSection : undefined;
+
+    // The owner's way from a line that needs review to that line in the editor; another cook keeps the plain badge.
+    const reviewAction = (position: number, ingredient: RecipeIngredientView): ReactNode => {
+        const address = owner && onReviewLine !== undefined ? needsReviewAddressOf(recipe, position) : undefined;
+
+        return address === undefined || onReviewLine === undefined ? undefined : (
+            <ReviewLineButton
+                food={lineDisplayName(ingredient, ingredientLineName)}
+                onPress={() => onReviewLine(address)}
+            />
+        );
+    };
+
     const ingredients = (
         <DetailIngredientsSection
             recipe={recipe}
@@ -132,6 +154,7 @@ export const RecipeDetailBody: FC<RecipeDetailBodyNativeProps> = ({
             saysRecovered={saysRecovered}
             onEdit={editSection === undefined ? undefined : () => editSection('ingredients')}
             twoColumns={twoColumns}
+            reviewAction={reviewAction}
         />
     );
     const steps = (
@@ -308,6 +331,7 @@ export const RecipeDetailBody: FC<RecipeDetailBodyNativeProps> = ({
                         checked={marks.checkedLines}
                         allRemoved={allLinesFoodRemoved(recipe.ingredients)}
                         onToggle={marks.toggleLine}
+                        reviewAction={reviewAction}
                     />
                 </PinnedIngredientsBar>
             )}

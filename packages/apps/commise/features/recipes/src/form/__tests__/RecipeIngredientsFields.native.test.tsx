@@ -74,6 +74,7 @@ import { useFakeRowEditor } from '../../__fixtures__/useFakeRowEditor.js';
 import type { LookupRetry } from '../ingredientStatus.js';
 import type { IngredientNutrition, LookupEntry } from '../nutritionLookup.js';
 import type { DraftAction } from '../draftAction.js';
+import { seedLineKey, type IngredientLineKey } from '../lineKey.js';
 import { applyDraftAction } from '../props.js';
 import { toCreateRecipeInput } from '../wire.js';
 import type { IngredientsPasteView } from '../props.js';
@@ -149,7 +150,11 @@ const StatefulLeaf: FC<{
     readonly seen?: RecipeFormValues[];
     readonly nutrition?: IngredientNutrition;
     readonly dispatched?: DraftAction[];
-}> = ({ initial, seen, nutrition, dispatched }) => {
+    /** A row editor to open on arrival (`RecipeIngredientsFieldsProps.initialLine`). */
+    readonly initialLine?: IngredientLineKey;
+    /** The cook's original lines by key, for a line that needs review. */
+    readonly originalLines?: ReadonlyMap<IngredientLineKey, string>;
+}> = ({ initial, seen, nutrition, dispatched, initialLine, originalLines }) => {
     const [values, setValues] = useState(() => valuesWith(withLineKeys(initial)));
 
     const change = (next: RecipeFormValues): void => {
@@ -180,6 +185,8 @@ const StatefulLeaf: FC<{
             nutrition={nutrition ?? NUTRITION}
             lookupRetry={LOOKUP_RETRY}
             rowEditor={rowEditor}
+            {...(initialLine === undefined ? {} : { initialLine })}
+            {...(originalLines === undefined ? {} : { originalLines })}
         />
     );
 };
@@ -481,17 +488,102 @@ describe('RecipeIngredientsFields (native) — the row editor on a phone: a shee
         expect(queryDialogTitled('Arborio rice')).toBeNull();
     });
 
-    // F11 (`evaluateFinal.md`; `buildSpec.md` §5.1): the phone sheet's one primary fills it, and it has no Cancel.
-    it('the line editor sheet’s Done fills the sheet and the sheet has no Cancel', () => {
+    // REWRITTEN (needs-review jump): the sheet's footer is now a Cancel + Done PAIR in the design system's
+    // DialogActions. It proves Done still fills its slot, Cancel comes first, and the two are not the same surface
+    // (Done is the primary, Cancel the secondary). It used to prove "no Cancel", which the owner has reversed.
+    it('the sheet’s footer is Cancel then Done, both filling their slot, Done the primary', () => {
         render(<StatefulLeaf initial={[RICE]} />);
 
         press('Edit 300 g Arborio rice');
         const sheet = dialogTitled('Arborio rice');
+        const cancel = within(sheet).getByRole('button', { name: en.rowCancel });
+        const done = within(sheet).getByRole('button', { name: en.rowDone });
 
-        expect(getComputedStyle(pressFrameOf(within(sheet).getByRole('button', { name: en.rowDone }))).alignSelf).toBe(
-            'stretch',
+        expect(getComputedStyle(pressFrameOf(done)).alignSelf).toBe('stretch');
+        expect(getComputedStyle(pressFrameOf(cancel)).alignSelf).toBe('stretch');
+        expect(cancel.compareDocumentPosition(done) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+        // The primary's label is not the secondary's ink: the two are different surfaces.
+        expect(resolvedColour(within(cancel).getByText(en.rowCancel), 'color')).not.toBe(
+            resolvedColour(within(done).getByText(en.rowDone), 'color'),
         );
-        expect(within(sheet).queryByRole('button', { name: /cancel/i })).toBeNull();
+    });
+
+    it('Cancel puts back every edited field, closes the sheet, and the range goes back too', () => {
+        const seen: RecipeFormValues[] = [];
+        render(<StatefulLeaf initial={[{ ...RICE, preparation: 'rinsed' }]} seen={seen} />);
+
+        press('Edit 300 g Arborio rice, rinsed');
+        const sheet = dialogTitled('Arborio rice');
+
+        type(within(sheet).getByLabelText(en.rowAmountLabel), '250');
+        type(within(sheet).getByLabelText(en.rowNoteLabel), '9 inch');
+        fireEvent.click(within(sheet).getByRole('button', { name: en.rowAddRange }));
+        type(within(sheet).getByLabelText(en.rowAmountHighLabel), '400');
+
+        expect(seen.at(-1)?.ingredients[0]).toMatchObject({ quantity: 250, quantityHigh: 400, note: '9 inch' });
+
+        fireEvent.click(within(sheet).getByRole('button', { name: en.rowCancel }));
+
+        expect(queryDialogTitled('Arborio rice')).toBeNull();
+        expect(JSON.stringify(seen.at(-1)?.ingredients)).toBe(
+            JSON.stringify(withLineKeys([{ ...RICE, preparation: 'rinsed' }])),
+        );
+
+        press('Edit 300 g Arborio rice, rinsed');
+        expect(within(dialogTitled('Arborio rice')).queryByLabelText(en.rowAmountHighLabel)).toBeNull();
+    });
+
+    it('Done keeps the edits', () => {
+        const seen: RecipeFormValues[] = [];
+        render(<StatefulLeaf initial={[RICE]} seen={seen} />);
+
+        press('Edit 300 g Arborio rice');
+        type(within(dialogTitled('Arborio rice')).getByLabelText(en.rowPrepLabel), 'washed');
+        fireEvent.click(within(dialogTitled('Arborio rice')).getByRole('button', { name: en.rowDone }));
+
+        expect(seen.at(-1)?.ingredients[0]).toMatchObject({ preparation: 'washed' });
+    });
+
+    it('arriving at a row opens its sheet; a stale address opens nothing', () => {
+        const salt = { ...RICE, ingredientId: 'b', name: 'Salt' };
+        const second = withLineKeys([RICE, salt])[1]!.key;
+        const { unmount } = render(<StatefulLeaf initial={[RICE, salt]} initialLine={second} />);
+
+        expect(dialogTitled('Salt')).toBeTruthy();
+        unmount();
+
+        render(<StatefulLeaf initial={[RICE, salt]} initialLine={seedLineKey(9, 9)} />);
+        expect(queryDialogTitled('Salt')).toBeNull();
+        expect(queryDialogTitled('Arborio rice')).toBeNull();
+    });
+
+    it('a needs-review line opens with the notice and the cook’s original line, and Change is secondary', () => {
+        const review = { ...RICE, resolutionStatus: FoodResolutionStatus.NEEDS_REVIEW };
+        const key = withLineKeys([review])[0]!.key;
+
+        render(
+            <StatefulLeaf
+                initial={[review]}
+                initialLine={key}
+                originalLines={new Map([[key, '2 cups rice, or so']])}
+            />,
+        );
+        const sheet = dialogTitled('Arborio rice');
+
+        expect(within(sheet).getByRole('group', { name: en.statusNeedsReview })).toBeTruthy();
+        expect(within(sheet).getByText(en.statusExplainNeedsReview)).toBeTruthy();
+        expect(within(sheet).getByText(en.rowYouWroteLabel)).toBeTruthy();
+        expect(within(sheet).getByText('2 cups rice, or so')).toBeTruthy();
+    });
+
+    it('a resolved line shows neither the notice nor an original it was handed', () => {
+        const key = withLineKeys([RICE])[0]!.key;
+
+        render(<StatefulLeaf initial={[RICE]} initialLine={key} originalLines={new Map([[key, 'stale']])} />);
+        const sheet = dialogTitled('Arborio rice');
+
+        expect(within(sheet).queryByRole('group', { name: en.statusNeedsReview })).toBeNull();
+        expect(within(sheet).queryByText('stale')).toBeNull();
     });
 
     /** 2026-10-09 review, High 3: "1/2" stored no amount and the field emptied when it lost focus. */
@@ -635,6 +727,36 @@ describe('RecipeIngredientsFields (native) — the row editor on a tablet: inlin
 
         press(en.rowDone);
         expect(screen.queryByLabelText(en.rowAmountLabel)).toBeNull();
+    });
+
+    // New (needs-review jump): the inline panel has the same Cancel + Done pair, and Cancel discards.
+    it('Cancel comes first and discards the edits, closing the panel', () => {
+        const seen: RecipeFormValues[] = [];
+        render(<StatefulLeaf initial={[RICE]} seen={seen} />);
+
+        press('Edit 300 g Arborio rice');
+        const cancel = screen.getByRole('button', { name: en.rowCancel });
+        const done = screen.getByRole('button', { name: en.rowDone });
+
+        expect(cancel.compareDocumentPosition(done) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+        type(screen.getByLabelText(en.rowPrepLabel), 'washed');
+        expect(seen.at(-1)?.ingredients[0]).toMatchObject({ preparation: 'washed' });
+
+        fireEvent.click(cancel);
+
+        expect(screen.queryByLabelText(en.rowAmountLabel)).toBeNull();
+        expect(JSON.stringify(seen.at(-1)?.ingredients)).toBe(JSON.stringify(withLineKeys([RICE])));
+    });
+
+    it('arriving at a row opens that row’s inline editor and no other', () => {
+        const salt = { ...RICE, ingredientId: 'b', name: 'Salt' };
+        const second = withLineKeys([RICE, salt])[1]!.key;
+
+        render(<StatefulLeaf initial={[RICE, salt]} initialLine={second} />);
+
+        expect(screen.getAllByLabelText(en.rowAmountLabel)).toHaveLength(1);
+        expect(within(rowItems()[1]!).getByLabelText(en.rowAmountLabel)).toBeTruthy();
     });
 });
 

@@ -44,6 +44,7 @@ import {
     renameIngredientGroup,
 } from './ingredientGroups.js';
 import { withLineBinding } from './lineBinding.js';
+import { restoreLineFields } from './lineFieldsMemento.js';
 import type { IngredientLineKey } from './lineKey.js';
 import { settleIngredientLines, type LookupRetry } from './ingredientStatus.js';
 import type { PasteChoicePaneProps } from './pasteChoicePaneProps.js';
@@ -355,6 +356,18 @@ export interface RecipeIngredientsFieldsProps extends RecipeFormSectionProps {
     readonly rowEditor: IngredientRowEditor;
     /** Paste a list, while the editor offers it (`usePasteIntoIngredients`): its rows and the empty section's button. */
     readonly paste?: IngredientsPasteView;
+    /**
+     * The line whose row editor opens on arrival, resolved ONCE by the editor from a link's address (`lineKeyAt`). Read
+     * by the first render only: closing the editor never reopens it.
+     */
+    readonly initialLine?: IngredientLineKey;
+    /** A link named an ingredient the draft does not hold: one quiet line says so until the cook opens a row. */
+    readonly jumpMissing?: boolean;
+    /**
+     * The cook's own line as the import read it, by line key, for a line that needs review (plan: needs-review). Display
+     * only — never part of the draft.
+     */
+    readonly originalLines?: ReadonlyMap<IngredientLineKey, string>;
 }
 
 /**
@@ -540,6 +553,15 @@ export const applyDraftAction = (values: RecipeFormValues, action: DraftAction):
         case 'removeIngredient':
             return values.ingredients.some((line) => line.key === action.key)
                 ? { ...values, ingredients: values.ingredients.filter((line) => line.key !== action.key) }
+                : values;
+        case 'restoreIngredientFields':
+            return values.ingredients.some((line) => line.key === action.key)
+                ? {
+                      ...values,
+                      ingredients: values.ingredients.map((line) =>
+                          line.key === action.key ? restoreLineFields(line, action.memento) : line,
+                      ),
+                  }
                 : values;
         case 'rebindIngredient':
             return values.ingredients.some((line) => line.key === action.key)

@@ -65,14 +65,17 @@ export interface RowFocus {
  * The field group's focus levels.
  *
  * @param rowEditor - The row editor: what settled, and the R7 refusal's level.
+ * @param initial - A request to hold from the first render (an arrival at a row).
  * @returns The levels and the requests.
  * @sideEffect Calls `rowEditor.pendingFocusHandled` when a refusal's own acknowledgement is called for the field it
  *   points at.
  */
 export function useRowFocus(
     rowEditor: Pick<IngredientRowEditor, 'settled' | 'pendingFocusRequested' | 'pendingFocusHandled' | 'entry'>,
+    initial?: RowFocusRequest,
 ): RowFocus {
-    const [request, setRequest] = useState<RowFocusRequest | undefined>(undefined);
+    // `initial` is read once, by the lazy initialiser: an arrival from a link asks for a row's control on the first render.
+    const [request, setRequest] = useState<RowFocusRequest | undefined>(initial);
     const [trailingRequested, setTrailingRequested] = useState(false);
     const [afterAuthoredSheet, setAfterAuthoredSheet] = useState<SettledFocus | undefined>(undefined);
     const [seenSettled, setSeenSettled] = useState(rowEditor.settled);

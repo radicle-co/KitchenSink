@@ -5,6 +5,7 @@
  * Read by BOTH platform leaves, so the two cannot disagree about what a cell says, when a cell hides, or what a
  * checkable row is named. Every function here is pure.
  */
+import type { ReactNode } from 'react';
 import type { Locale } from '@commise/i18n';
 import { RecipeStatus, RecipeVisibility, type RecipeDetail, type RecipeIngredientView } from '@kitchensink/recipe-core';
 
@@ -205,6 +206,10 @@ export function ingredientRowName(
     return controlName([name, ...lineTailOf(line).map((words) => words.trim())].join(', '));
 }
 
+/** The `reviewAction` prop for a control, or nothing when the line has none (`exactOptionalPropertyTypes`). Pure. */
+export const withReviewAction = (control: ReactNode): { readonly reviewAction?: ReactNode } =>
+    control === undefined || control === null ? {} : { reviewAction: control };
+
 /** One consecutive run of ingredient lines under one group label. */
 export interface IngredientGroupRun<T> {
     /** The group's label, trimmed; absent for an ungrouped run, which draws no heading. */
@@ -358,12 +363,14 @@ export interface IngredientRowStatus {
  * @param line - The line.
  * @param allRemoved - Whether every line of the recipe is removed (`allLinesFoodRemoved`).
  * @param detail - The detail copy.
+ * @param reviewControl - The owner's review control carries the "Needs review" badge itself, so the row leaves it out.
  * @returns The badges.
  */
 export function ingredientRowStatuses(
     line: RecipeIngredientView,
     allRemoved: boolean,
     detail: RecipeDetailMessages,
+    reviewControl = false,
 ): readonly IngredientRowStatus[] {
     const statuses: IngredientRowStatus[] = [];
 
@@ -371,7 +378,7 @@ export function ingredientRowStatuses(
         statuses.push({ tone: 'note', text: detail.userEnteredBadge });
     }
 
-    if (isLineNeedsReview(line)) {
+    if (isLineNeedsReview(line) && !reviewControl) {
         statuses.push({ tone: 'attention', text: detail.needsReviewBadge });
     }
 

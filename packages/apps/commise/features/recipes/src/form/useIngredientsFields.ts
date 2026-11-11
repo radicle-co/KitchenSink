@@ -106,6 +106,8 @@ export interface IngredientsFieldsModel {
     readonly foodDetails: FoodDetailsView;
     /** The row whose editor is open, for the phone sheet that draws it outside the list. */
     readonly openRow: IngredientRowView | undefined;
+    /** One quiet line above the list: a link named an ingredient the draft does not hold. Gone once a row is opened. */
+    readonly jumpNotice: string | undefined;
     readonly trailing: TrailingRowView;
     /** The settled lookup retry's outcome, said politely; focus does not move (V1 sign-off 3c). */
     readonly lookupSettledMessage: string;
@@ -142,7 +144,13 @@ export function useIngredientsFields(props: RecipeIngredientsFieldsProps): Ingre
     const locale = useLocale();
     const { ingredients: addCopy } = useMessages(editorMessages);
     const { entry, naming } = rowEditor;
-    const focus = useRowFocus(rowEditor);
+    // An arrival at a row hands its open control focus once: the row exists, or nothing is asked for.
+    const focus = useRowFocus(
+        rowEditor,
+        props.initialLine !== undefined && values.ingredients.some((line) => line.key === props.initialLine)
+            ? { key: props.initialLine, control: 'open' }
+            : undefined,
+    );
     const trailingText = entry.textOf(TRAILING);
     const reading = liveReadingOf(trailingText, locale, addCopy.reading, shared.amountWords);
     // Said once the cook pauses: the debounced text's reading, and only while it is still the field's text.
@@ -155,7 +163,14 @@ export function useIngredientsFields(props: RecipeIngredientsFieldsProps): Ingre
     // (`docs/design/rowEditorOpenDecisions.md` E2). Whether the cook moved past it is the host's.
     const present = useContext(SectionPresenceContext);
     const [unheard, setUnheard] = useState(rowEditor.settled);
-    const lineEditor = useLineEditorState(values.ingredients.map((line) => line.key));
+    const lineEditor = useLineEditorState(values.ingredients, props.initialLine);
+    // The "couldn't find that ingredient" line goes the first time the cook opens any row. Adjusted during render.
+    const [jumpCleared, setJumpCleared] = useState(false);
+
+    if (!jumpCleared && lineEditor.openKey !== undefined) {
+        setJumpCleared(true);
+    }
+
     // A pick the cook typed over while it was in flight: the add field holds a new word, so its row is not scrolled to
     // (`ingredientArrival.md`). Decided once, when that pick settles.
     const [typedInFlight, setTypedInFlight] = useState(false);
@@ -275,6 +290,7 @@ export function useIngredientsFields(props: RecipeIngredientsFieldsProps): Ingre
             onClose: () => setFoodDetailsKey(undefined),
         },
         openRow: rows.find((row) => row.editorOpen),
+        jumpNotice: props.jumpMissing === true && !jumpCleared ? addCopy.jumpLineMissing : undefined,
         trailing: {
             entryField: {
                 entry,

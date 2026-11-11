@@ -20,6 +20,7 @@
  * @pattern Adapter — the route's hand-offs behind the session's `EditorNavigation` port
  */
 import {
+    arrivalOf,
     nextEditorOpening,
     useDeviceDraft,
     useRecipeEditorSession,
@@ -28,6 +29,7 @@ import {
     type EditorNavigation,
     type EditorSectionId,
     type EditorFinish,
+    type LineAddress,
 } from '@commise/features-recipes';
 import { recipeActionMessages, recipeMessages } from '@commise/features-recipes';
 import { recipeLoadMessages, RecipeLoadError } from '@commise/features-recipes/detail';
@@ -57,6 +59,8 @@ export interface RecipeEditorScreenProps {
     readonly recipeId?: string;
     /** The section a deep link names (route param, blueprint A16). */
     readonly section?: EditorSectionId;
+    /** The ingredient a deep link names (route param); parsed again here, as restored navigation state is untrusted. */
+    readonly line?: LineAddress;
     /** Open Paste a list at once: Home's first-run Paste ingredients (build spec §7.5.4). A new recipe only. */
     readonly openPaste?: boolean;
     /** The recipe was published, or its changes saved: show it, and say which, or that it stayed public (E8). */
@@ -184,6 +188,7 @@ function SeededEditor({
 /** The editor over its seed. */
 function RecipeEditorSession({
     section,
+    line,
     openPaste = false,
     onFinished,
     onClose,
@@ -200,6 +205,8 @@ function RecipeEditorSession({
     readonly seed: EditorSeed;
 }): JSX.Element {
     const locale = useLocale();
+    // A route param can arrive unparsed from restored navigation state: it is parsed here, once, at the edge.
+    const arrival = arrivalOf(section, line);
     const queue = useSyncQueue();
     const profile = useUserProfile();
     const paidFeatures = paidFeatureStateOf(profile);
@@ -247,7 +254,7 @@ function RecipeEditorSession({
                 knownPaidFeatures={knownPaidFeatures}
                 slotStanding={recipePrivate.standing}
                 renderPhotos={(target) => <RecipePhotoUploader {...target} />}
-                {...(section === undefined ? {} : { initialSection: section })}
+                {...(arrival === undefined ? {} : { arrival })}
                 onClose={onClose}
                 onOpenMyRecipes={onDiscarded}
                 foodOpensOverEditor

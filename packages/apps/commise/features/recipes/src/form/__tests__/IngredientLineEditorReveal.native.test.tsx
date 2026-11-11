@@ -19,6 +19,7 @@ const m = recipeFormMessages.en;
 const view: RowLineEditorView = {
     title: 'Flour',
     closeLabel: 'Close',
+    needsReview: false,
     food: 'Flour',
     ids: {
         amount: 'amount-1',
@@ -54,6 +55,7 @@ const view: RowLineEditorView = {
     onChangeFood: undefined,
     onToggleDetails: vi.fn(),
     onDone: vi.fn(),
+    onCancel: vi.fn(),
 };
 
 describe.each([[m.rowAmountLabel], [m.rowAmountHighLabel]])(

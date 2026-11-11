@@ -106,6 +106,7 @@ function RecipeEditRoute({ navigation, route }: TaskProps<'RecipeEdit'>): JSX.El
         <RecipeEditorScreen
             recipeId={route.params.recipeId}
             {...(route.params.section === undefined ? {} : { section: route.params.section })}
+            {...(route.params.line === undefined ? {} : { line: route.params.line })}
             onFinished={(recipeId, finish) => {
                 if (finish.privateRefused === undefined) {
                     navigation.goBack();

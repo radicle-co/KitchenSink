@@ -94,6 +94,7 @@ function rowOf(line: UnkeyedFormIngredient): IngredientRowView {
             openKey: undefined,
             open: vi.fn(),
             close: vi.fn(),
+            restorePoint: () => undefined,
             rangeShown: () => false,
             showRange: vi.fn(),
             hideRange: vi.fn(),

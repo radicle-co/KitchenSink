@@ -15,6 +15,7 @@ import { Button } from '@commise/ui/button';
 import { Combobox } from '@commise/ui/combobox';
 import { FieldLabel, FIELD_CLASS } from '@commise/ui/input';
 import { FOCUS_RING_CLASS } from '@commise/ui/focus-ring';
+import { StatusBadge } from '@commise/ui/status-badge';
 import { PRESS_FILL_CLASS } from '@commise/ui/surface-tone';
 import type { FC, ReactNode } from 'react';
 
@@ -63,12 +64,33 @@ const AmountField: FC<{
 /** The row editor's fields. */
 export const IngredientLineEditor: FC<IngredientLineEditorProps> = ({ view, index, m, details }) => (
     <div className="flex flex-col gap-4">
+        {view.needsReview && (
+            // The notice heads the editor: what is wrong, then the cook's own words. A group the arrival can focus, so a
+            // screen reader reads it first and no text field takes the keyboard (tabIndex -1: focusable, not a tab stop).
+            <div
+                role="group"
+                aria-label={m.statusNeedsReview}
+                tabIndex={-1}
+                className="flex flex-col gap-1 outline-none"
+            >
+                <div>
+                    <StatusBadge status="attention">{m.statusNeedsReview}</StatusBadge>
+                </div>
+                <p className="text-caption text-ink-muted">{m.statusExplainNeedsReview}</p>
+                {view.originalLine !== undefined && (
+                    <>
+                        <span className="text-caption text-ink-muted">{m.rowYouWroteLabel}</span>
+                        <p className="min-w-0 select-text break-words text-body-md text-ink">{view.originalLine}</p>
+                    </>
+                )}
+            </div>
+        )}
         <div className="flex flex-col gap-1">
             <span className="text-caption text-ink-muted">{m.rowCountedAsLabel}</span>
             <div className="flex min-w-0 flex-wrap items-center gap-2">
                 <p className="min-w-0 flex-1 break-words text-body-md text-ink">{view.food}</p>
                 {view.onChangeFood !== undefined && (
-                    <Button variant="ghost" onPress={view.onChangeFood}>
+                    <Button variant={view.needsReview ? 'secondary' : 'ghost'} onPress={view.onChangeFood}>
                         {m.rowChange}
                     </Button>
                 )}

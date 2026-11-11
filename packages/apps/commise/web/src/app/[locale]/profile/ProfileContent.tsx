@@ -18,7 +18,7 @@ import { ProfileSurface } from '@/components/profile/ProfileSurface';
  */
 export function ProfileContent(): React.ReactElement {
     return (
-        <AppShell activeId={null} titleId="profile">
+        <AppShell activeId="you" titleId="profile">
             <AccountStateGate>
                 <ProfileSurface />
             </AccountStateGate>

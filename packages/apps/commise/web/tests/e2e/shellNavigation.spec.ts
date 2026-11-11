@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import type { Page } from '@playwright/test';
+import type { Locator, Page } from '@playwright/test';
 
 import { route } from './utils/basePath';
 import { makeRecipeDetail, mockRecipeApi, readViewerAppId } from './utils/recipeApi';
@@ -9,7 +9,10 @@ import { signInWithTicket } from './utils/auth';
  * The web shell of the UI overhaul, slice 3 (`docs/design/uiOverhaul/buildSpec.md` §3.2-§3.6; ownerDecisions D5),
  * measured in a real browser with the real stylesheet, in BOTH themes (D15, D17):
  *
- * - below 840 px the bottom tab bar, from 840 the sidebar — exactly one primary navigation visible at a time;
+ * - below 840 px the bottom tab bar (Home, Recipes, Discover and You), from 840 the sidebar — exactly one primary
+ *   navigation visible at a time;
+ * - Profile is the You tab below 840 and the sidebar's first row from 840, where the wordmark was (owner ruling
+ *   2026-11-11, N3); no title row carries an avatar;
  * - no top bar, no hamburger, no "Soon" item;
  * - the sidebar's collapse persists across a reload, drawn at the right width on the first paint;
  * - the floating "New recipe" comes right after the page's H1 in DOM order, and hides with the on-screen keyboard;
@@ -36,6 +39,18 @@ async function signedIn(page: Page, count = 2): Promise<void> {
 const visibleNav = (page: Page) => page.getByRole('navigation', { name: /^(?:Main|Tabs)$/u }).filter({ visible: true });
 
 /**
+ * The tab bar's four links, by accessible name. The You tab's disc holds the cook's initials, so the links' text is not
+ * the list to compare: the names are (the disc is decorative, the visible label "You" names the tab, SC 2.5.3).
+ */
+async function expectTabNames(nav: Locator): Promise<void> {
+    await expect(nav.getByRole('link')).toHaveCount(4);
+
+    for (const name of ['Home', 'Recipes', 'Discover', 'You']) {
+        await expect(nav.getByRole('link', { name, exact: true })).toBeVisible();
+    }
+}
+
+/**
  * Owner 2026-10-13: a landscape phone (a window under 480 px tall, below the 840 px sidebar breakpoint) gets a compact
  * bottom bar — the label beside the glyph, 48 px tall — and the labels remain the links' names.
  */
@@ -47,7 +62,7 @@ test.describe('the bottom tab bar in landscape (a window under 480 px tall)', ()
 
         const nav = visibleNav(page);
         await expect(nav).toHaveCount(1);
-        await expect(nav.getByRole('link')).toHaveText(['Home', 'Recipes', 'Discover']);
+        await expectTabNames(nav);
 
         const box = await nav.boundingBox();
         expect(box?.height).toBeCloseTo(48, 0);
@@ -83,7 +98,7 @@ for (const colorScheme of ['light', 'dark'] as const) {
 
                 const nav = visibleNav(page);
                 await expect(nav).toHaveCount(1);
-                await expect(nav.getByRole('link')).toHaveText(['Home', 'Recipes', 'Discover']);
+                await expectTabNames(nav);
                 await expect(nav.getByRole('link', { name: 'Home' })).toHaveAttribute('aria-current', 'page');
                 // Home's roadmap placeholders say "Coming soon" by design; the NAVIGATION never does.
                 await expect(nav.getByText(/soon/iu)).toHaveCount(0);
@@ -96,7 +111,9 @@ for (const colorScheme of ['light', 'dark'] as const) {
         }
 
         for (const width of [840, 1024, 1280]) {
-            test(`draws the sidebar at ${width} px, New recipe first, and no tab bar`, async ({ page }) => {
+            test(`draws the sidebar at ${width} px, Profile first, then New recipe, and no tab bar`, async ({
+                page,
+            }) => {
                 await page.setViewportSize({ width, height: 900 });
                 await signedIn(page);
                 await page.goto(route('/'));
@@ -116,8 +133,90 @@ for (const colorScheme of ['light', 'dark'] as const) {
                 }, 'Main');
                 expect(order, 'New recipe comes before the destinations').toBe(true);
                 await expect(page.getByRole('banner')).toHaveCount(0);
+
+                // The profile row is the first row, where the wordmark was: before New recipe, to Profile, no wordmark,
+                // and no second Profile entry at the foot.
+                const profile = page.getByRole('link', { name: /^Profile/u }).filter({ visible: true });
+                await expect(profile).toHaveCount(1);
+                await expect(profile).toHaveAttribute('href', /\/profile$/u);
+                const profileFirst = await profile.evaluate(
+                    (row, button) => Boolean(row.compareDocumentPosition(button as Node) & 4),
+                    await newRecipe.elementHandle(),
+                );
+                expect(profileFirst, 'the profile row comes before New recipe').toBe(true);
+                await expect(page.getByText('Commise', { exact: true })).toHaveCount(0);
             });
         }
+
+        test('opens Profile from the sidebar’s first row at 1280 px, which takes the active style, with no Back', async ({
+            page,
+        }) => {
+            await page.setViewportSize({ width: 1280, height: 900 });
+            await signedIn(page);
+            await page.goto(route('/'));
+
+            await page
+                .getByRole('link', { name: /^Profile/u })
+                .filter({ visible: true })
+                .click();
+
+            await expect(page).toHaveURL(/\/profile$/u);
+            await expect(page.getByRole('heading', { level: 1, name: 'Profile' })).toBeVisible();
+            await expect(page.getByRole('link', { name: /^Profile/u }).filter({ visible: true })).toHaveAttribute(
+                'aria-current',
+                'page',
+            );
+            // A tab root: nothing to go back to.
+            await expect(page.getByRole('link', { name: /^Back/u })).toHaveCount(0);
+        });
+
+        test('opens Profile from the You tab at 390 px, which takes the ring, and no title row carries an avatar', async ({
+            page,
+        }) => {
+            await page.setViewportSize({ width: 390, height: 844 });
+            await signedIn(page);
+
+            for (const path of ['/', '/recipes', '/collections', '/discover']) {
+                await page.goto(route(path));
+                await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+                await expect(
+                    page.getByRole('main').getByRole('link', { name: /^Profile/u }),
+                    `${path}: no avatar link in the page`,
+                ).toHaveCount(0);
+                await expect(
+                    page.getByRole('main').getByRole('button', { name: /^Profile/u }),
+                    `${path}: no avatar button in the page`,
+                ).toHaveCount(0);
+            }
+
+            await page.goto(route('/'));
+            await visibleNav(page).getByRole('link', { name: 'You', exact: true }).click();
+
+            await expect(page).toHaveURL(/\/profile$/u);
+            await expect(page.getByRole('heading', { level: 1, name: 'Profile' })).toBeVisible();
+            await expect(visibleNav(page).getByRole('link', { name: 'You', exact: true })).toHaveAttribute(
+                'aria-current',
+                'page',
+            );
+            await expect(page.getByRole('link', { name: /^Back/u })).toHaveCount(0);
+        });
+
+        test('fits four tabs of at least 80 × 56 across 320 px with no horizontal scroll', async ({ page }) => {
+            await page.setViewportSize({ width: 320, height: 640 });
+            await signedIn(page);
+            await page.goto(route('/'));
+
+            const links = visibleNav(page).getByRole('link');
+            await expect(links).toHaveCount(4);
+
+            for (const link of await links.all()) {
+                const box = await link.boundingBox();
+                expect(box?.width ?? 0).toBeGreaterThanOrEqual(80);
+                expect(box?.height ?? 0).toBeGreaterThanOrEqual(56);
+            }
+
+            expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
+        });
 
         test('keeps the sidebar collapsed across a reload, at the right width from the first paint', async ({
             page,
@@ -213,10 +312,8 @@ for (const colorScheme of ['light', 'dark'] as const) {
                 );
                 const firstAfter = focusables.find((node) => Boolean(h1.compareDocumentPosition(node) & 4));
 
-                // The avatar is the header's action and comes first; the floating button is the next control.
-                const afterAvatar = focusables[focusables.indexOf(firstAfter as Element) + 1];
-
-                return button !== undefined && (firstAfter === button || afterAvatar === button);
+                // The title row carries no avatar (owner ruling 2026-11-11, N3): the floating button is the next control.
+                return button !== undefined && firstAfter === button;
             }, 'New recipe');
             expect(follows).toBe(true);
         });

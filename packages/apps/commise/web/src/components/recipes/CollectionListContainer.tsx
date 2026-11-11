@@ -30,7 +30,7 @@ import { useRefreshNotice } from '@commise/query/refresh-notice';
 import { useSuspenseInfiniteQuery } from '@tanstack/react-query';
 import type { Route } from 'next';
 import { useRouter } from 'next/navigation';
-import type { FC, ReactNode } from 'react';
+import type { FC } from 'react';
 
 import { ClientQueryBoundary } from '@/components/app/ClientQueryBoundary';
 
@@ -38,11 +38,6 @@ import { ClientQueryBoundary } from '@/components/app/ClientQueryBoundary';
 export interface CollectionListContainerProps {
     /** The active route locale, used to build locale-prefixed navigation targets. */
     readonly locale: string;
-    /**
-     * The large title's avatar (slice 3): the page hands in the app's `ProfileAvatarEntry`, so the profile read stays
-     * where data enters the chrome and this container does not depend on the auth session.
-     */
-    readonly avatar?: ReactNode;
 }
 
 /** The collections read the page prefetches and the results render. */
@@ -54,7 +49,7 @@ type CollectionListRead = CollectionsList['read'];
  * @param props - The active locale.
  * @returns The frame around the read boundary.
  */
-export const CollectionListContainer: FC<CollectionListContainerProps> = ({ locale, avatar }) => {
+export const CollectionListContainer: FC<CollectionListContainerProps> = ({ locale }) => {
     const router = useRouter();
     const recovery = useRecoverySignal();
     // The frame's session is shared with the mobile screen. Its `read` is built ONCE and handed to both sides, so the key
@@ -65,7 +60,6 @@ export const CollectionListContainer: FC<CollectionListContainerProps> = ({ loca
 
     return (
         <CollectionListFrame
-            {...(avatar === undefined ? {} : { headerAction: { kind: 'avatar', avatar } })}
             onCreate={list.sheet.onOpen}
             createEntryYields={list.createEntryYields}
             segments={{

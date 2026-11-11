@@ -1325,7 +1325,8 @@
                                 "\"recipes\"",
                                 "\"discover\"",
                                 "\"meal-plan\"",
-                                "\"grocery\""
+                                "\"grocery\"",
+                                "\"you\""
                             ],
                             "required": true,
                             "defaultValue": null,

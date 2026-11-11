@@ -6,12 +6,6 @@ import type { Locator, Page } from '@playwright/test';
 import { route } from './utils/basePath';
 import { signInWithTicket } from './utils/auth';
 import { mockRecipeApi, readViewerAppId } from './utils/recipeApi';
-import {
-    expectBackPinnedWhileScrolling,
-    expectBarIsChevronOnly,
-    expectEyebrowBackAndNoBar,
-    expectNoticeUnderBarAndAfterBack,
-} from './utils/pinnedBackBar';
 
 /**
  * The one Profile page (`docs/design/uiOverhaul/buildSpec.md` §9.1, slice 9). Settings and Account were folded into it,
@@ -215,44 +209,24 @@ for (const [scheme, colors] of [
 }
 
 /**
- * The pinned back bar (`docs/design/uiRefreshWorkshop5/pinnedBackBar.md` §6). Below 840 Back is pinned in a bar and is
- * reachable wherever the page is scrolled; from 840 the header's eyebrow is the Back and the fixed bar is not displayed.
+ * Profile is the You tab's ROOT (owner ruling 2026-11-11, N3): no Back at any width, neither the pinned bar below 840
+ * nor the header's eyebrow from it. This REPLACES the pinned-back-bar tests (`pinnedBackBar.md` §6) that asserted a
+ * "Back to Home" here; the pages Profile opens keep theirs (`dataSources.spec.ts`).
  */
-test.describe('the Profile page: the pinned back bar', () => {
-    test.describe('at 390', () => {
-        test.use({ viewport: { width: 390, height: 420 } });
-
-        test('Back stays in view at the end of the page, is never covered by a focused control, and goes Home', async ({
-            page,
-        }) => {
+test.describe('the Profile page: a tab root with no Back', () => {
+    for (const width of [390, 1280]) {
+        test(`has no Back link at ${width} px, and the tab to it stays current`, async ({ page }) => {
+            await page.setViewportSize({ width, height: 900 });
             await openProfile(page);
 
-            await expectBackPinnedWhileScrolling(page, 'Back to Home', /\/en\/?$/u);
+            await expect(page.getByRole('link', { name: /^Back/u })).toHaveCount(0);
+            await expect(page.getByRole('button', { name: /^Back/u })).toHaveCount(0);
+            await expect(
+                page
+                    .getByRole('navigation', { name: /^(?:Main|Tabs)$/u })
+                    .filter({ visible: true })
+                    .getByRole('link', { name: /^(?:You|Profile)/u }),
+            ).toHaveAttribute('aria-current', 'page');
         });
-
-        test('the connectivity notice sits under the bar and after Back, and the H1 starts at the bar’s edge', async ({
-            page,
-            context,
-        }) => {
-            await openProfile(page);
-
-            await expectNoticeUnderBarAndAfterBack(page, context, 'Back to Home', 'Profile');
-        });
-
-        test('the bar’s Back is the chevron alone on a phone', async ({ page }) => {
-            await openProfile(page);
-
-            await expectBarIsChevronOnly(page, 'Back to Home', 'Home');
-        });
-    });
-
-    test.describe('at 1280', () => {
-        test.use({ viewport: { width: 1280, height: 900 } });
-
-        test('the eyebrow link is the Back and the fixed bar is not displayed', async ({ page }) => {
-            await openProfile(page);
-
-            await expectEyebrowBackAndNoBar(page, 'Back to Home');
-        });
-    });
+    }
 });

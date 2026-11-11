@@ -110,7 +110,8 @@ const shellRoutes: readonly ShellRoute[] = [
         path: '/[locale]/foods',
         load: () => import('../[locale]/foods/page'),
         props: localeParams,
-        activeId: null,
+        // Your foods opens from Profile, so it belongs to the You tab (owner ruling 2026-11-11, N3).
+        activeId: 'you',
         titleId: 'yourFoods',
     },
     {

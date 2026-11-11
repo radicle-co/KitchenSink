@@ -6,11 +6,11 @@
     "coverage": {
         "components": 86,
         "implementations": 86,
-        "props": 104,
+        "props": 102,
         "documentedComponents": 83,
         "implementationsWithModuleDoc": 65,
         "implementationsWithComponentDoc": 62,
-        "documentedProps": 66,
+        "documentedProps": 64,
         "classifiedComponents": 39,
         "componentsWithPatternTag": 34,
         "crossPlatformComponents": 0
@@ -2721,7 +2721,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/web/src/components/home/chrome/HomeSidebar.tsx",
                     "dir": "packages/apps/commise/web/src/components/home/chrome",
-                    "moduleDoc": "home/chrome/HomeSidebar — the web sidebar at `nav` (840 px) and wider (`docs/design/uiOverhaul/buildSpec.md`\n§3.2; ownerDecisions D5). It replaces the tab bar there. Sticky and full height, so it never scrolls away; its list\nscrolls inside it if it is ever taller than the window. A flat `paper` panel over the canvas wash with no blur:\nnothing scrolls under it, so glass would only cost a compositing pass (`modernizeA.md` §5).\n\nTop to bottom: the wordmark; **New recipe** (`newRecipe`, one tap to the editor since slice 8); the destinations\n(`resolveHomeNav`); a divider; the profile row (the avatar and the cook's name, to Profile); the collapse control.\n256 px expanded, 80 px collapsed. Collapsed is a visual state, not an information state: each control keeps its\naccessible name.\n\nPresentational: every fact arrives in props; the collapse is the parent's state.",
+                    "moduleDoc": "home/chrome/HomeSidebar — the web sidebar at `nav` (840 px) and wider (`docs/design/uiOverhaul/buildSpec.md`\n§3.2; ownerDecisions D5). It replaces the tab bar there. Sticky and full height, so it never scrolls away; its list\nscrolls inside it if it is ever taller than the window. A flat `paper` panel over the canvas wash with no blur:\nnothing scrolls under it, so glass would only cost a compositing pass (`modernizeA.md` §5).\n\nTop to bottom: the profile row, in the 64 px first row the \"Commise\" wordmark used to hold (a 32 px avatar and the\ncook's name, to Profile, in the active style of a nav row on /profile; owner ruling 2026-11-11, N3); **New recipe**\n(`newRecipe`, one tap to the editor since slice 8); the destinations (`resolveHomeNav`, without You, which this row\nIS); the collapse control on the foot. 256 px expanded, 80 px collapsed. Collapsed is a visual state, not an information state: each control keeps its\naccessible name.\n\nPresentational: every fact arrives in props; the collapse is the parent's state.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -2748,7 +2748,7 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "The active destination, marked `aria-current`; `null` on a page that is none of them.",
+                            "description": "The active destination, marked `aria-current`; `null` on a page that is none of them. `you` marks the profile row.",
                             "declaredIn": "packages/apps/commise/web/src/components/home/chrome/HomeSidebar.tsx"
                         },
                         {
@@ -2847,7 +2847,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/web/src/components/home/chrome/HomeTabBar.tsx",
                     "dir": "packages/apps/commise/web/src/components/home/chrome",
-                    "moduleDoc": "home/chrome/HomeTabBar — the bottom tab bar on web below `nav` (840) (`docs/design/uiOverhaul/buildSpec.md`\n§3.2): the reachable destinations of the shared nav model (`resolveHomeNav` — Home, Recipes, Discover today), each a\n24 px glyph over a `caption` label, on the floating layer's material (`ChromeSurface`).\n\n- The active tab: `ink` glyph and label at weight 600 and a 32 × 3 px `hereBar` above the glyph, `aria-current`.\n  Inactive: `inkMuted`. (Lucide has no filled glyph set, and a filled compass hides its needle, so the active tab is\n  told by the bar, the weight and the colour — the blueprint's Q6, awaiting `staff-ux-engineer`.)\n- A second tap on the active tab goes to the tab's root from a pushed route, and at the root scrolls to the top\n  (`tabRootOf`; the page's `ScrollHost` moves the document).\n- The glyphs are one row: every tab's column starts at the top, 8 px down, glyph first and label under it, so a label\n  that wraps never moves its glyph (`deviceShots2.md` M-2).\n- 64 px plus the bottom safe-area inset; each item at least 96 × 56 at 320 px.\n- Compact height (owner 2026-10-13; a window under 480 px tall, which is a phone held sideways): the label sits BESIDE\n  the glyph and the bar is 48 px plus the inset. Both sides pad their safe-area inset, so a cutout or the 3-button navigation\n  bar never covers a tab. Pure CSS (`max-height: 479px`, one pixel under `isCompactHeight`'s 480): the bar already\n  exists only below `nav` (840), so that is the whole condition. The label stays the link's accessible name.\n\n⚠️ ORCHESTRATION in one respect: it reads the route (`usePathname`) and the page's scroll host to answer the second\ntap. Everything it draws is derived from props.",
+                    "moduleDoc": "home/chrome/HomeTabBar — the bottom tab bar on web below `nav` (840) (`docs/design/uiOverhaul/buildSpec.md`\n§3.2): the reachable destinations of the shared nav model (`resolveHomeNav` — Home, Recipes, Discover and You today),\neach a 24 px glyph over a `caption` label, on the floating layer's material (`ChromeSurface`). You is Profile, and\nits glyph is the cook's avatar as a 24 px disc ({@link YouTabDisc}; owner ruling 2026-11-11, N3), so the bar takes the\nprofile read.\n\n- The active tab: `ink` glyph and label at weight 600 and a 32 × 3 px `hereBar` above the glyph, `aria-current`.\n  Inactive: `inkMuted`. (Lucide has no filled glyph set, and a filled compass hides its needle, so the active tab is\n  told by the bar, the weight and the colour — the blueprint's Q6, awaiting `staff-ux-engineer`.)\n- A second tap on the active tab goes to the tab's root from a pushed route, and at the root scrolls to the top\n  (`tabRootOf`; the page's `ScrollHost` moves the document).\n- The glyphs are one row: every tab's column starts at the top, 8 px down, glyph first and label under it, so a label\n  that wraps never moves its glyph (`deviceShots2.md` M-2).\n- 64 px plus the bottom safe-area inset; each item at least 80 × 56, so four fit at 320 px.\n- Compact height (owner 2026-10-13; a window under 480 px tall, which is a phone held sideways): the label sits BESIDE\n  the glyph and the bar is 48 px plus the inset. Both sides pad their safe-area inset, so a cutout or the 3-button navigation\n  bar never covers a tab. Pure CSS (`max-height: 479px`, one pixel under `isCompactHeight`'s 480): the bar already\n  exists only below `nav` (840), so that is the whole condition. The label stays the link's accessible name.\n\n⚠️ ORCHESTRATION in one respect: it reads the route (`usePathname`) and the page's scroll host to answer the second\ntap. Everything it draws is derived from props.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -2862,7 +2862,7 @@
                     "tags": [
                         {
                             "name": "param",
-                            "text": "props - The chrome copy, locale, live capabilities and active destination."
+                            "text": "props - The chrome copy, locale, live capabilities, active destination and profile read."
                         },
                         {
                             "name": "returns",
@@ -2878,7 +2878,7 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "The active destination, marked `aria-current`; `null` on a page that is none of them (Profile, the 404).",
+                            "description": "The active destination, marked `aria-current`; `null` on a page that is none of them (the 404).",
                             "declaredIn": "packages/apps/commise/web/src/components/home/chrome/HomeTabBar.tsx"
                         },
                         {
@@ -2909,6 +2909,15 @@
                             "declaredIn": "packages/apps/commise/web/src/components/home/chrome/HomeTabBar.tsx"
                         },
                         {
+                            "name": "profile",
+                            "type": "ProfileEntry",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The profile read, for the You tab's disc.",
+                            "declaredIn": "packages/apps/commise/web/src/components/home/chrome/HomeTabBar.tsx"
+                        },
+                        {
                             "name": "ref",
                             "type": "Ref<HTMLElement>",
                             "typeDetail": null,
@@ -2916,76 +2925,6 @@
                             "defaultValue": null,
                             "description": "Receives the laid-out bar, so the shell can tell its popups what the bar covers (`tabBarInsets`).",
                             "declaredIn": "packages/apps/commise/web/src/components/home/chrome/HomeTabBar.tsx"
-                        }
-                    ],
-                    "usesRefApi": [],
-                    "booleanPropsSelectingSubtree": [],
-                    "docSignals": {
-                        "presentational": false,
-                        "orchestration": true
-                    }
-                }
-            ]
-        },
-        {
-            "id": "web/components/home/chrome/ProfileAvatarEntry",
-            "name": "ProfileAvatarEntry",
-            "group": "web",
-            "packageName": "@commise/web",
-            "layer": "app",
-            "dir": "packages/apps/commise/web/src/components/home/chrome",
-            "kind": "orchestration",
-            "patterns": [
-                "Adapter — the profile read and the router, as the design-system Avatar's props"
-            ],
-            "platforms": [
-                "web"
-            ],
-            "crossPlatform": false,
-            "propsDiverge": false,
-            "documented": true,
-            "implementations": [
-                {
-                    "name": "ProfileAvatarEntry",
-                    "platform": "web",
-                    "sourcePath": "packages/apps/commise/web/src/components/home/chrome/ProfileAvatarEntry.tsx",
-                    "dir": "packages/apps/commise/web/src/components/home/chrome",
-                    "moduleDoc": "home/chrome/ProfileAvatarEntry — the avatar at the end of a top-level page's header, opening Profile\n(`docs/design/uiOverhaul/buildSpec.md` §3.3). Home's header shows it at every width, as the Home boards draw it; the\nsidebar's profile row is the same entry beside it from `nav`.\n\nORCHESTRATION: it reads the signed-in profile (`useUserProfile`, the same cached query `AppShell` reads) and the\nrouter, and hands `@commise/ui/avatar` its state. Data enters the page chrome here, and only here.",
-                    "moduleTags": [
-                        {
-                            "name": "module",
-                            "text": "home/chrome/ProfileAvatarEntry — the avatar at the end of a top-level page's header, opening Profile"
-                        },
-                        {
-                            "name": "pattern",
-                            "text": "Adapter — the profile read and the router, as the design-system Avatar's props"
-                        }
-                    ],
-                    "description": "The page header's profile entry.",
-                    "tags": [
-                        {
-                            "name": "param",
-                            "text": "props - The disc's form."
-                        },
-                        {
-                            "name": "returns",
-                            "text": "The avatar link to Profile."
-                        }
-                    ],
-                    "detectedBy": "react-docgen-typescript",
-                    "exportKind": "named",
-                    "props": [
-                        {
-                            "name": "size",
-                            "type": "enum",
-                            "typeDetail": [
-                                "\"default\"",
-                                "\"large\""
-                            ],
-                            "required": false,
-                            "defaultValue": null,
-                            "description": "The disc's form; Home's header asks for `large`. Omitted, it is the 32 px disc.",
-                            "declaredIn": "packages/apps/commise/web/src/components/home/chrome/ProfileAvatarEntry.tsx"
                         }
                     ],
                     "usesRefApi": [],
@@ -3056,6 +2995,82 @@
             ]
         },
         {
+            "id": "web/components/home/chrome/YouTabDisc",
+            "name": "YouTabDisc",
+            "group": "web",
+            "packageName": "@commise/web",
+            "layer": "app",
+            "dir": "packages/apps/commise/web/src/components/home/chrome",
+            "kind": "presentational",
+            "patterns": [
+                "Visitor — an exhaustive switch over the disc's three faces"
+            ],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "YouTabDisc",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/web/src/components/home/chrome/YouTabDisc.tsx",
+                    "dir": "packages/apps/commise/web/src/components/home/chrome",
+                    "moduleDoc": "home/chrome/YouTabDisc — the You tab's glyph: the cook's avatar as a 24 px disc (`docs/design/uiOverhaul/buildSpec.md`\n§3.2, owner ruling 2026-11-11, N3). Same content rules as the chrome `Avatar` (`avatarFaceOf`): a `pearl` disc while the\nprofile loads, the initials in a 10 px label on the `action` fill, the 20 px outline `user` glyph with no name or after\na failed read. Active, a 2 px `ink` ring stands in for the filled glyph the other tabs cannot have.\n\nDecorative: the tab's own label, \"You\", is its name (SC 2.5.3). The design system's `AvatarDisc` has a 32 px and a 36 px\nform only, so this 24 px form is drawn here from the same face rule rather than added to its closed size union, which\nthe native disc must follow.\n\nPresentational: props → JSX.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "home/chrome/YouTabDisc — the You tab's glyph: the cook's avatar as a 24 px disc (`docs/design/uiOverhaul/buildSpec.md`"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Visitor — an exhaustive switch over the disc's three faces"
+                        }
+                    ],
+                    "description": "The You tab's disc.",
+                    "tags": [
+                        {
+                            "name": "param",
+                            "text": "props - The profile read and whether the tab is current."
+                        },
+                        {
+                            "name": "returns",
+                            "text": "The 24 px decorative disc."
+                        }
+                    ],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "active",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Whether the You tab is the current one: the disc takes its ink ring.",
+                            "declaredIn": "packages/apps/commise/web/src/components/home/chrome/YouTabDisc.tsx"
+                        },
+                        {
+                            "name": "profile",
+                            "type": "ProfileEntry",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The profile read.",
+                            "declaredIn": "packages/apps/commise/web/src/components/home/chrome/YouTabDisc.tsx"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
             "id": "web/components/home/HomeGreeting",
             "name": "HomeGreeting",
             "group": "web",
@@ -3076,7 +3091,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/web/src/components/home/HomeGreeting.tsx",
                     "dir": "packages/apps/commise/web/src/components/home",
-                    "moduleDoc": "home/HomeGreeting — Home's header: the time-of-day greeting as the page's H1 and the date under it (web;\nUS-000 / FR-046; `docs/design/uiOverhaul/buildSpec.md` §4.2), in ONE row as the Home boards draw it — the text stacked\non the start side, the 44 px profile button on the end side at every width — with the floating create button right\nafter the row in DOM order. It is no longer the shared `LargeTitleHeader`: the greeting is a `cardTitle`, not a large\ntitle.\n\n\"Good afternoon, Eliza\" over \"Sunday, May 31, 2026\"; \"Good afternoon\" when the cook has no name yet. Both are derived from the viewer's\nLOCAL clock, by the shared `useHomeGreeting` in `@commise/features-core/home`, so web and mobile greet\nidentically (FR-044).\n\n## Why the clock is read AFTER hydration, not during the server render (#144)\n\nThis surface is server-rendered and then hydrated, and only ONE of those two runtimes knows the viewer's\ntimezone: the client. Whatever the Next server's `new Date()` says is the server's zone, so a server-computed\nbucket greets an Auckland viewer at 9am with \"Good evening\" and can be a whole calendar day out.\n\n`suppressHydrationWarning` was the previous answer and it does NOT work: React never patches a suppressed\ntext mismatch — it KEEPS the server-rendered text — so the greeting and the long date were permanently the\nserver's clock (measured: with the browser clock pinned to 03:00, the `night` bucket, the DOM still read\n\"Good afternoon, Chef!\"). Suppression silences the warning about the divergence; it does not resolve it.\n\nSo the reading is gated on hydration ({@link useIsHydrated}) and the server pass renders a reserved,\n`aria-hidden` placeholder instead of a guess. Three consequences, all deliberate:\n - **No flash of a WRONG greeting.** The pre-hydration frame commits to no bucket at all, so the text never\n   changes from one greeting to a different one — the correction that would itself be the defect.\n - **No layout shift.** The placeholder lines carry the SAME typography classes as the real ones, so each\n   reserves its exact line box (`mb-1` included) rather than a hand-guessed pixel height.\n - **The greeting becomes testable end-to-end.** A browser-side clock pin (Playwright's `page.clock`) cannot\n   reach the Next server, which is why the visual suites had to MASK these two lines. Now that the client\n   clock is the authority, the pin reaches the render and the masks can be replaced by real assertions.\n\nA viewer's-timezone header (Vercel's geo-IP `x-vercel-ip-timezone`) or a zone cookie were both rejected: the\nformer is provider-coupled and wrong behind a VPN, the latter is wrong on the first visit — and neither is\nreachable from a browser test, so both would keep the masks.",
+                    "moduleDoc": "home/HomeGreeting — Home's header: the time-of-day greeting as the page's H1 and the date under it (web;\nUS-000 / FR-046; `docs/design/uiOverhaul/buildSpec.md` §4.2), in ONE row — the text stacked on the start side and\nnothing on the end side, because no title row carries the avatar (owner ruling 2026-11-11, N3) — with the floating create\nbutton right after the row in DOM order. It is no longer the shared `LargeTitleHeader`: the greeting is a `cardTitle`, not a large\ntitle.\n\n\"Good afternoon, Eliza\" over \"Sunday, May 31, 2026\"; \"Good afternoon\" when the cook has no name yet. Both are derived from the viewer's\nLOCAL clock, by the shared `useHomeGreeting` in `@commise/features-core/home`, so web and mobile greet\nidentically (FR-044).\n\n## Why the clock is read AFTER hydration, not during the server render (#144)\n\nThis surface is server-rendered and then hydrated, and only ONE of those two runtimes knows the viewer's\ntimezone: the client. Whatever the Next server's `new Date()` says is the server's zone, so a server-computed\nbucket greets an Auckland viewer at 9am with \"Good evening\" and can be a whole calendar day out.\n\n`suppressHydrationWarning` was the previous answer and it does NOT work: React never patches a suppressed\ntext mismatch — it KEEPS the server-rendered text — so the greeting and the long date were permanently the\nserver's clock (measured: with the browser clock pinned to 03:00, the `night` bucket, the DOM still read\n\"Good afternoon, Chef!\"). Suppression silences the warning about the divergence; it does not resolve it.\n\nSo the reading is gated on hydration ({@link useIsHydrated}) and the server pass renders a reserved,\n`aria-hidden` placeholder instead of a guess. Three consequences, all deliberate:\n - **No flash of a WRONG greeting.** The pre-hydration frame commits to no bucket at all, so the text never\n   changes from one greeting to a different one — the correction that would itself be the defect.\n - **No layout shift.** The placeholder lines carry the SAME typography classes as the real ones, so each\n   reserves its exact line box (`mb-1` included) rather than a hand-guessed pixel height.\n - **The greeting becomes testable end-to-end.** A browser-side clock pin (Playwright's `page.clock`) cannot\n   reach the Next server, which is why the visual suites had to MASK these two lines. Now that the client\n   clock is the authority, the pin reaches the render and the masks can be replaced by real assertions.\n\nA viewer's-timezone header (Vercel's geo-IP `x-vercel-ip-timezone`) or a zone cookie were both rejected: the\nformer is provider-coupled and wrong behind a VPN, the latter is wrong on the first visit — and neither is\nreachable from a browser test, so both would keep the masks.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -3087,7 +3102,7 @@
                     "tags": [
                         {
                             "name": "param",
-                            "text": "props - The cook's name, the header's action, and what follows the H1."
+                            "text": "props - The cook's name and what follows the H1."
                         },
                         {
                             "name": "returns",
@@ -3097,15 +3112,6 @@
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
                     "props": [
-                        {
-                            "name": "action",
-                            "type": "HeaderAction",
-                            "typeDetail": null,
-                            "required": false,
-                            "defaultValue": null,
-                            "description": "The header's action: the avatar, at every width.",
-                            "declaredIn": "packages/apps/commise/web/src/components/home/HomeGreeting.tsx"
-                        },
                         {
                             "name": "afterTitle",
                             "type": "ReactNode",
@@ -3779,7 +3785,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/web/src/components/profile/ProfileSurface.tsx",
                     "dir": "packages/apps/commise/web/src/components/profile",
-                    "moduleDoc": "components/profile/ProfileSurface — the one Profile page (web; `docs/design/uiOverhaul/buildSpec.md` §9.1).\nProfile, Settings and Account used to be three routes; this is all of it: who the cook is, the one thing they can\nchange (the display name), preferences, sign out, and the danger zone.\n\nORCHESTRATION. It owns the profile read (`useUserProfile`, the shell's own cached query), the settings read and write\n(a preference is a setting on the server, D19 / ADR-0059, saved optimistically and put back with a message when the\nsave fails), the router and the display-name editor, and hands the render leaves from `@commise/features-account/profile` their state. The read\ndecides one of three states — loading, failed, ready — and ONLY the account group depends on it: sign out and the\ndanger zone need no profile, so a failed read never takes them away (E15).\n\nThe page sits in the design system's `PushedPageFrame`: below 840 Back is pinned in a bar that follows the scroll, and\nfrom 840 the header's own eyebrow carries it (`docs/design/uiRefreshWorkshop5/pinnedBackBar.md` §6). Both are given\nthe one `back` value, so the two links cannot disagree.\n\nSign out is `LogoutButton`, which issues the one verified sign-out command (ADR-0009); close and erase keep their own\ndialogs and flows. Nothing here calls Clerk's `signOut`.",
+                    "moduleDoc": "components/profile/ProfileSurface — the one Profile page (web; `docs/design/uiOverhaul/buildSpec.md` §9.1).\nProfile, Settings and Account used to be three routes; this is all of it: who the cook is, the one thing they can\nchange (the display name), preferences, sign out, and the danger zone.\n\nORCHESTRATION. It owns the profile read (`useUserProfile`, the shell's own cached query), the settings read and write\n(a preference is a setting on the server, D19 / ADR-0059, saved optimistically and put back with a message when the\nsave fails), the router and the display-name editor, and hands the render leaves from `@commise/features-account/profile` their state. The read\ndecides one of three states — loading, failed, ready — and ONLY the account group depends on it: sign out and the\ndanger zone need no profile, so a failed read never takes them away (E15).\n\nProfile is the You tab's ROOT (owner ruling 2026-11-11, N3), not a page pushed from an avatar: it has no Back, neither\nthe pinned bar nor the header eyebrow, and it sits in the app shell's own scroll host like Recipes and Discover. What it\nopens (Your foods, the data sources) are the pushed pages and keep their Back.\n\nSign out is `LogoutButton`, which issues the one verified sign-out command (ADR-0009); close and erase keep their own\ndialogs and flows. Nothing here calls Clerk's `signOut`.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -3992,15 +3998,6 @@
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
                     "props": [
-                        {
-                            "name": "avatar",
-                            "type": "ReactNode",
-                            "typeDetail": null,
-                            "required": false,
-                            "defaultValue": null,
-                            "description": "The large title's avatar (slice 3): the page hands in the app's `ProfileAvatarEntry`, so the profile read stays\nwhere data enters the chrome and this container does not depend on the auth session.",
-                            "declaredIn": "packages/apps/commise/web/src/components/recipes/CollectionListContainer.tsx"
-                        },
                         {
                             "name": "locale",
                             "type": "string",
@@ -4253,7 +4250,7 @@
                     "tags": [
                         {
                             "name": "param",
-                            "text": "props - The active locale and the title's avatar."
+                            "text": "props - The active locale."
                         },
                         {
                             "name": "returns",
@@ -4263,15 +4260,6 @@
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
                     "props": [
-                        {
-                            "name": "avatar",
-                            "type": "ReactNode",
-                            "typeDetail": null,
-                            "required": false,
-                            "defaultValue": null,
-                            "description": "The large title's avatar (slice 3): the page hands in the app's `ProfileAvatarEntry`, so the profile read stays\nwhere data enters the chrome and this container does not depend on the auth session.",
-                            "declaredIn": "packages/apps/commise/web/src/components/recipes/RecipeDiscoveryContainer.tsx"
-                        },
                         {
                             "name": "locale",
                             "type": "string",
@@ -4440,7 +4428,7 @@
                     "tags": [
                         {
                             "name": "param",
-                            "text": "props - The active locale and the large title's avatar."
+                            "text": "props - The active locale."
                         },
                         {
                             "name": "returns",
@@ -4450,15 +4438,6 @@
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
                     "props": [
-                        {
-                            "name": "avatar",
-                            "type": "ReactNode",
-                            "typeDetail": null,
-                            "required": false,
-                            "defaultValue": null,
-                            "description": "The large title's avatar (slice 3): the page hands in the app's `ProfileAvatarEntry`, so the profile read stays\nwhere data enters the chrome and this container does not depend on the auth session.",
-                            "declaredIn": "packages/apps/commise/web/src/components/recipes/RecipeListContainer.tsx"
-                        },
                         {
                             "name": "locale",
                             "type": "string",

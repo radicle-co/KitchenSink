@@ -103,6 +103,7 @@ export const homeMessages: LocalizedMessages<HomeMessages> = {
                 discover: 'Discover',
                 'meal-plan': 'Plan',
                 grocery: 'Shop',
+                you: 'You',
             },
             profileButton: 'Profile, {name}',
             profileButtonNoName: 'Profile',

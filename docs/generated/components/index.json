@@ -4,11 +4,11 @@
     "totals": {
         "components": 448,
         "implementations": 657,
-        "props": 3599,
+        "props": 3597,
         "documentedComponents": 444,
         "implementationsWithModuleDoc": 634,
         "implementationsWithComponentDoc": 491,
-        "documentedProps": 2909,
+        "documentedProps": 2907,
         "classifiedComponents": 355,
         "componentsWithPatternTag": 255,
         "crossPlatformComponents": 209
@@ -80,11 +80,11 @@
             "coverage": {
                 "components": 86,
                 "implementations": 86,
-                "props": 104,
+                "props": 102,
                 "documentedComponents": 83,
                 "implementationsWithModuleDoc": 65,
                 "implementationsWithComponentDoc": 62,
-                "documentedProps": 66,
+                "documentedProps": 64,
                 "classifiedComponents": 39,
                 "componentsWithPatternTag": 34,
                 "crossPlatformComponents": 0

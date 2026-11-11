@@ -42,7 +42,6 @@ import { ErrorBoundary } from 'react-error-boundary';
 import { AppShell } from '@/components/app/AppShell';
 import { useUserProfile } from '@/hooks/useUserProfile';
 
-import { ProfileAvatarEntry } from './chrome/ProfileAvatarEntry';
 import { HomeGreeting } from './HomeGreeting';
 import { homeContainer } from './homeContainer';
 import { HomeWidgetErrorNotice } from './HomeWidgetErrorNotice';
@@ -188,7 +187,6 @@ export function HomeWidgetSurface({ container = homeContainer, renderers }: Home
                     (§3.4); offline or on a load error it shows. */}
                 <HomeGreeting
                     {...(cookName === undefined ? {} : { name: cookName })}
-                    action={{ kind: 'avatar', avatar: <ProfileAvatarEntry size="large" /> }}
                     afterTitle={
                         <RecipeCreateButton
                             yielded={createEntryYields}

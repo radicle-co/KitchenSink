@@ -5,11 +5,11 @@
  * elsewhere (`ChromeSurface`).
  *
  * While a finish waits for its photos (`finishing`), Preview and the primary give way to one secondary control,
- * "Finish without the remaining photos", under a line that says what is happening.
+ * "Finish without the remaining photos", under a line that says what is happening. Both phases share the bar on
+ * purpose: the line lands in a live region that already exists, which a screen reader announces, where a region
+ * mounted together with its text is often not read out.
  *
  * Presentational: props → JSX.
- *
- * @pattern State — the controls follow the editor's phase: editing (Preview, primary) or waiting for photos (Finish)
  */
 import { Button } from '@commise/ui/button';
 import { ChromeSurface } from '@commise/ui/chrome-surface';

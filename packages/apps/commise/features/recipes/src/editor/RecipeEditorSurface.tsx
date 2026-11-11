@@ -46,7 +46,6 @@ import type { PhotoFinishBar, RecipeEditorViewProps } from './frameProps.js';
 import { pluralOf } from '../format/plural.js';
 import type { UseRecipePhotoManagerResult } from '../hooks/useRecipePhotoManager.js';
 import { photoMessages } from '../photos/messages.js';
-import { visibleQueueItems } from '../photos/model.js';
 import { refusedRowsOf } from '../foodPage/privateFoodsRefusal.js';
 import { IngredientStatusPoller } from './IngredientStatusPoller.js';
 import { editorMessages } from './messages.js';
@@ -187,8 +186,6 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
                   focusRequested: photos.finishFocusRequested,
                   onFocusRequestHandled: photos.onFinishFocusHandled,
               };
-    const photosAtRiskCount = visibleQueueItems(photos.manager.queue.items).length;
-
     const sections: Readonly<Record<EditorSectionId, ReactNode>> = {
         details: (
             <RecipeBasicsFields
@@ -290,7 +287,7 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
                 title={photoCopy.leaveTitle}
                 body={pluralOf(
                     photos.waitingForTitle ? photoCopy.leaveBodyNoTitle : photoCopy.leaveBody,
-                    photosAtRiskCount,
+                    photos.atRiskCount,
                     locale,
                 )}
                 confirm={{ label: photoCopy.leaveConfirm, icon: 'trash' }}

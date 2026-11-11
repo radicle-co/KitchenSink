@@ -57,14 +57,14 @@ import { useEditorPage } from './useEditorPage.js';
 const ACTIVATION_OFFSET_PT = 96;
 
 /** The one section a finish waiting for its photos shows. */
-const PHOTOS_ONLY: readonly EditorSectionId[] = ['photos'];
 
 /** The native one-page recipe editor. */
 export const RecipeEditorView: FC<RecipeEditorViewProps> = (props) => {
     const { editor } = props;
 
-    // A finish waiting for its photos keeps the screen (its Photos section and Finish control) until they settle.
-    if (editor.state.status === 'done' && props.photoFinish === undefined) {
+    // A finish waiting for its photos keeps the screen (its Photos section and Finish control) until they settle, and so
+    // does a photo still at risk before that finish is held: the uploader must not unmount under it.
+    if (editor.state.status === 'done' && props.photoFinish === undefined && props.photosAtRisk !== true) {
         return null;
     }
 
@@ -101,9 +101,7 @@ const EditorScreen: FC<RecipeEditorViewProps & { readonly bind: ScrollBind }> = 
     const { sections, headingActions, railFooter, onPreview, bind, photoFinish } = props;
     const page = useEditorPage(props);
     const { m, chrome, entries } = page;
-    // Waiting for photos after the finish: only Photos & publish, and no index, discard or resume (see `photoFinish`).
-    const draining = photoFinish !== undefined;
-    const shownSections = draining ? PHOTOS_ONLY : EDITOR_SECTIONS;
+    const { draining, shownSections } = page;
     const { colors } = useTheme();
     const host = useScrollHost();
     const wide = useContainerClass() === 'wide';
@@ -142,7 +140,7 @@ const EditorScreen: FC<RecipeEditorViewProps & { readonly bind: ScrollBind }> = 
             busy={chrome.primary.busy}
             keyboardShown={keyboardShown}
             {...(chrome.fixLine === undefined ? {} : { fixLine: chrome.fixLine })}
-            {...(page.publishNote === undefined || draining ? {} : { readyLine: page.publishNote })}
+            {...(page.publishNote === undefined ? {} : { readyLine: page.publishNote })}
             {...(photoFinish === undefined ? {} : { finishing: photoFinish })}
             notice={
                 chrome.failure === undefined || firstAction === undefined ? undefined : (
@@ -183,7 +181,7 @@ const EditorScreen: FC<RecipeEditorViewProps & { readonly bind: ScrollBind }> = 
                         status={chrome.status.text}
                         closeLabel={m.close}
                         onClose={page.close}
-                        {...(chrome.discard === undefined || draining
+                        {...(chrome.discard === undefined
                             ? {}
                             : {
                                   menu: {
@@ -217,7 +215,7 @@ const EditorScreen: FC<RecipeEditorViewProps & { readonly bind: ScrollBind }> = 
                                 keyboardShouldPersistTaps="handled"
                                 onLayout={reveal.onViewportLayout}
                             >
-                                {chrome.resumeBody === undefined || draining ? null : (
+                                {chrome.resumeBody === undefined ? null : (
                                     <View>
                                         <ResumeNotice
                                             body={chrome.resumeBody}
@@ -243,11 +241,10 @@ const EditorScreen: FC<RecipeEditorViewProps & { readonly bind: ScrollBind }> = 
                                                 ? {}
                                                 : { action: headingActions[section] })}
                                         >
-                                            {section === 'photos' && !draining && page.publishNote !== undefined ? (
+                                            {section === 'photos' && page.publishNote !== undefined ? (
                                                 <UnmatchedNote text={page.publishNote} />
                                             ) : null}
                                             {section === 'photos' &&
-                                            !draining &&
                                             page.publishNote === undefined &&
                                             page.readyLine !== undefined ? (
                                                 <PublishLine line={page.readyLine} onJump={page.goToSection} />

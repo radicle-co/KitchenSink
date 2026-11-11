@@ -202,4 +202,68 @@ describe('useEditorPhotos — leaving', () => {
         expect(result.current.leave.open).toBe(false);
         expect(result.current.atRisk).toBe(false);
     });
+
+    /**
+     * staff-architect REVIEW 2026-11-10, finding 1: a leave confirmed while a finish is held used to run BOTH the leave
+     * and the released finish, two navigations. The recipe is already saved, so the held finish is the one that runs.
+     */
+    it('a leave confirmed while a finish is held navigates once, through the finish', async () => {
+        fetchMock.mockResolvedValue({ ok: false, status: 500 });
+        const { result } = renderPhotos({ recipeId: 'rec_1', titled: true });
+        const go = vi.fn();
+        const proceed = vi.fn();
+
+        act(() => {
+            result.current.manager.enqueuePicked([fileOf('a.png')], 'add');
+        });
+        act(() => result.current.finishWhenSettled(go));
+        await waitFor(() => expect(result.current.finish?.kind).toBe('failed'));
+
+        act(() => result.current.leave.request(proceed));
+        act(() => result.current.leave.confirm());
+
+        await waitFor(() => expect(go).toHaveBeenCalledOnce());
+        expect(proceed).not.toHaveBeenCalled();
+    });
+});
+
+/**
+ * staff-architect REVIEW 2026-11-10, finding 2: a file the device refused (too large, or not a JPEG, PNG or WebP) has no
+ * bytes that could ever upload, so it puts nothing at risk. It still shows as a failed tile with Remove; it does not ask
+ * on a leave, hold a finish, count in the leave ask, or ask for a create.
+ */
+describe('useEditorPhotos — a file the device refused is not at risk', () => {
+    const gif = { ...fileOf('clip.gif'), blob: new Blob(['x'], { type: 'image/gif' }), contentType: 'image/gif' };
+
+    it('does not ask on a leave, hold a finish, or ask for the create', () => {
+        const { result, checkpoint } = renderPhotos({ titled: true });
+        const go = vi.fn();
+        const proceed = vi.fn();
+
+        act(() => {
+            result.current.manager.enqueuePicked([gif], 'add');
+        });
+
+        expect(result.current.manager.queue.items[0]?.status).toBe('failed');
+        expect(result.current.atRisk).toBe(false);
+        expect(result.current.atRiskCount).toBe(0);
+        expect(checkpoint).not.toHaveBeenCalled();
+
+        act(() => result.current.leave.request(proceed));
+        expect(proceed).toHaveBeenCalledOnce();
+
+        act(() => result.current.finishWhenSettled(go));
+        expect(go).toHaveBeenCalledOnce();
+    });
+
+    it('counts only the photos at risk beside it', () => {
+        const { result } = renderPhotos();
+
+        act(() => {
+            result.current.manager.enqueuePicked([gif, fileOf('a.png')], 'add');
+        });
+
+        expect(result.current.atRisk).toBe(true);
+        expect(result.current.atRiskCount).toBe(1);
+    });
 });

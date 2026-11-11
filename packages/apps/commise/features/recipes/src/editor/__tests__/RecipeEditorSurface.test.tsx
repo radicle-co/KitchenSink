@@ -236,6 +236,7 @@ describe('RecipeEditorSurface — photos', () => {
             photosOver: (photos) => ({
                 ...photos,
                 atRisk: true,
+                atRiskCount: 1,
                 waitingForTitle: true,
                 manager: {
                     ...photos.manager,
@@ -274,6 +275,20 @@ describe('RecipeEditorSurface — photos', () => {
         expect(screen.getByText('Recipe saved. Finishing your photo uploads…')).toBeTruthy();
         expect(screen.getByRole('button', { name: 'Finish without the remaining photos' })).toBeTruthy();
         expect(screen.queryByRole('button', { name: 'Publish' })).toBeNull();
+    });
+
+    /**
+     * staff-architect REVIEW 2026-11-10, finding 3: the editor reaching "done" and its finish being held may land in
+     * different commits. In between, a photo still at risk keeps the page mounted, so the uploader (and the previews it
+     * owns) never unmounts under a photo that is still going.
+     */
+    it('keeps the page while a photo is at risk, even before the finish is held', () => {
+        mount({
+            photosOver: (photos) => ({ ...photos, atRisk: true, atRiskCount: 1 }),
+            editorOver: { state: { status: 'done' } },
+        });
+
+        expect(screen.getAllByRole('heading', { level: 2 }).length).toBeGreaterThan(0);
     });
 
     it('says how many photos failed while a finish waits on them', () => {

@@ -41,7 +41,7 @@ import {
     EDITOR_TOP_CHROME_IDS,
     type RecipeEditorViewProps,
 } from './frameProps.js';
-import { EDITOR_SECTIONS, type EditorSectionId } from './sections.js';
+import { EDITOR_SECTIONS } from './sections.js';
 import { closingTabLosesWork } from './saveStatus.js';
 import { useEditorPage } from './useEditorPage.js';
 import { useEditorScrollPadding } from './useEditorScrollPadding.js';
@@ -51,14 +51,14 @@ import { useUnloadGuard } from './useUnloadGuard.js';
 const ACTIVATION_OFFSET_PX = 120;
 
 /** The one section a finish waiting for its photos shows. */
-const PHOTOS_ONLY: readonly EditorSectionId[] = ['photos'];
 
 /** The web one-page recipe editor. */
 export const RecipeEditorView: FC<RecipeEditorViewProps> = (props) => {
     const { editor } = props;
 
-    // A finish waiting for its photos keeps the page (its Photos section and Finish control) until they settle.
-    if (editor.state.status === 'done' && props.photoFinish === undefined) {
+    // A finish waiting for its photos keeps the page (its Photos section and Finish control) until they settle, and so
+    // does a photo still at risk before that finish is held: the uploader must not unmount under it.
+    if (editor.state.status === 'done' && props.photoFinish === undefined && props.photosAtRisk !== true) {
         return null;
     }
 
@@ -101,9 +101,7 @@ const EditorPage: FC<RecipeEditorViewProps> = (props) => {
     const { m, chrome, entries } = page;
     // A1: the header is stuck to the viewport's top, so the viewport is the frame.
     const pinning = usePinnedFooter({ frame: 'viewport' });
-    // Waiting for photos after the finish: only Photos & publish, and no index, discard or resume (see `photoFinish`).
-    const draining = photoFinish !== undefined;
-    const shownSections = draining ? PHOTOS_ONLY : EDITOR_SECTIONS;
+    const { draining, shownSections } = page;
 
     // Closing the tab loses whatever the server does not hold yet: the draft and the outbox live in the tab (D7), and a
     // photo's bytes live nowhere else.
@@ -131,7 +129,7 @@ const EditorPage: FC<RecipeEditorViewProps> = (props) => {
                     status={chrome.status.text}
                     closeLabel={m.close}
                     onClose={page.close}
-                    {...(chrome.discard === undefined || draining
+                    {...(chrome.discard === undefined
                         ? {}
                         : {
                               menu: {
@@ -167,7 +165,7 @@ const EditorPage: FC<RecipeEditorViewProps> = (props) => {
                         />
                     )}
                     <div className={`flex w-full max-w-list min-w-0 flex-1 flex-col gap-10 pt-6 ${EDITOR_GUTTER}`}>
-                        {chrome.resumeBody !== undefined && !draining && (
+                        {chrome.resumeBody !== undefined && (
                             <ResumeNotice
                                 body={chrome.resumeBody}
                                 saveLabel={m.resume.save}
@@ -189,11 +187,10 @@ const EditorPage: FC<RecipeEditorViewProps> = (props) => {
                                     ? {}
                                     : { action: headingActions[section] })}
                             >
-                                {section === 'photos' && !draining && page.publishNote !== undefined && (
+                                {section === 'photos' && page.publishNote !== undefined && (
                                     <UnmatchedNote text={page.publishNote} />
                                 )}
                                 {section === 'photos' &&
-                                    !draining &&
                                     page.publishNote === undefined &&
                                     page.readyLine !== undefined && (
                                         <PublishLine line={page.readyLine} onJump={page.goToSection} />
@@ -212,7 +209,7 @@ const EditorPage: FC<RecipeEditorViewProps> = (props) => {
                             primaryDisabled={chrome.primary.disabled || props.pastePending === true}
                             busy={chrome.primary.busy}
                             {...(chrome.fixLine === undefined ? {} : { fixLine: chrome.fixLine })}
-                            {...(page.publishNote === undefined || draining ? {} : { readyLine: page.publishNote })}
+                            {...(page.publishNote === undefined ? {} : { readyLine: page.publishNote })}
                             {...(photoFinish === undefined ? {} : { finishing: photoFinish })}
                             notice={
                                 chrome.failure === undefined || firstAction === undefined ? undefined : (

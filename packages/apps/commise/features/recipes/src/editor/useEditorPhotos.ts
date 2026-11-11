@@ -13,16 +13,19 @@
  *
  * - **A pick asks for the create.** An accepted pick raises the `photoPicked` checkpoint; the policy creates a titled
  *   draft not yet on the server and does nothing else (`checkpointPolicy.ts`).
- * - **The finish waits** while a photo is unsettled (queued, waiting, uploading or failed), and leaves once none is.
- *   A failure holds it until the cook retries or removes that photo, or chooses "Finish without the remaining photos".
- * - **A leave asks** only when a photo would be lost; text never asks (Settled 24 — the device draft keeps it).
+ * - **The finish waits** while a photo is at risk (`photoIsAtRisk`: queued, waiting, uploading, or failed in a way a
+ *   retry can fix), and leaves once none is. A failure holds it until the cook retries or removes that photo, or
+ *   chooses "Finish without the remaining photos". A file the device refused can never upload, so it holds nothing.
+ * - **A leave asks** only when a photo would be lost; text never asks (Settled 24 — the device draft keeps it). A leave
+ *   confirmed while a finish is held runs the finish: the recipe is saved, and one navigation is the finish's.
  *
  * @pattern Mediator — between the editor's exits and the photo queue
  * @pattern Barrier — the finish is released once every photo has settled, or the cook lets them go
  */
 import { useEffect, useState } from 'react';
 
-import { visibleQueueItems } from '../photos/model.js';
+import { photoIsAtRisk } from '../photos/model.js';
+import { validatePhotoFile } from '../photos/photoValidation.js';
 import { useRecipePhotoManager, type UseRecipePhotoManagerResult } from '../hooks/useRecipePhotoManager.js';
 
 /** What a held finish is waiting on: photos still uploading, or photos that failed and wait on the cook. */
@@ -56,6 +59,8 @@ export interface EditorPhotos {
     readonly manager: UseRecipePhotoManagerResult;
     /** Whether a photo would be lost by leaving now: one is not uploaded yet, and the cook has not let it go. */
     readonly atRisk: boolean;
+    /** How many photos would be lost (the leave ask's count), whether or not the cook has let them go. */
+    readonly atRiskCount: number;
     /** Whether the held photos wait for a title (the leave ask says so). */
     readonly waitingForTitle: boolean;
     /** Set while a finish is held for photos; `undefined` otherwise. */
@@ -85,7 +90,7 @@ export function useEditorPhotos({ recipeId, titled, checkpoint }: UseEditorPhoto
         recipeId: recipeId ?? null,
         holdWithoutId: titled ? 'untilSaved' : 'untilTitled',
     });
-    const unsettled = visibleQueueItems(manager.queue.items);
+    const unsettled = manager.queue.items.filter(photoIsAtRisk);
     const failedCount = unsettled.filter((item) => item.status === 'failed').length;
     // The cook let the unsent photos go ("Leave without photos", "Finish without…"): nothing is at risk any more.
     const [abandoned, setAbandoned] = useState(false);
@@ -110,7 +115,8 @@ export function useEditorPhotos({ recipeId, titled, checkpoint }: UseEditorPhoto
     const enqueuePicked: UseRecipePhotoManagerResult['enqueuePicked'] = (files, intent) => {
         const admission = manager.enqueuePicked(files, intent);
 
-        if (admission.status === 'accepted' && files.length > 0) {
+        // A pick of files the device refuses has nothing to upload, so it asks for no create.
+        if (admission.status === 'accepted' && files.some((file) => validatePhotoFile(file).ok)) {
             setAbandoned(false);
             checkpoint('photoPicked');
         }
@@ -132,6 +138,7 @@ export function useEditorPhotos({ recipeId, titled, checkpoint }: UseEditorPhoto
     return {
         manager: { ...manager, enqueuePicked },
         atRisk,
+        atRiskCount: unsettled.length,
         waitingForTitle: recipeId === undefined && !titled,
         finish:
             heldFinish === undefined
@@ -156,7 +163,11 @@ export function useEditorPhotos({ recipeId, titled, checkpoint }: UseEditorPhoto
             confirm: () => {
                 setLeaveAsk(undefined);
                 setAbandoned(true);
-                leaveAsk?.proceed();
+
+                // A held finish is released by the abandon above; running the leave too would navigate twice.
+                if (heldFinish === undefined) {
+                    leaveAsk?.proceed();
+                }
             },
             stay: () => setLeaveAsk(undefined),
         },

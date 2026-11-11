@@ -232,6 +232,32 @@ export const queueStatusWord = (
  */
 export const isQueueItemRemovable = (status: RecipePhotoQueueStatus): boolean => status !== 'uploading';
 
+/**
+ * Whether a queue tile is a photo the cook would lose by leaving or finishing now: one whose bytes can still upload.
+ * A file the device refused (too large, or the wrong type) can never upload, so it is not at risk; an uploaded one is
+ * kept already. The ONE statement of the rule the editor's leave ask, finish barrier and tab-close prompt share. Pure.
+ *
+ * @pattern Specification
+ */
+export const photoIsAtRisk = (item: RecipePhotoQueueItem): boolean => {
+    switch (item.status) {
+        case 'queued':
+        case 'waiting':
+        case 'uploading':
+            return true;
+        case 'failed':
+            return item.retryable;
+        case 'ok':
+            return false;
+
+        default: {
+            const unreachable: never = item.status;
+
+            return unreachable;
+        }
+    }
+};
+
 /** Whether the recipe is at the photo cap (used to hide the add control and show the cap notice). */
 export const isAtPhotoCap = (photoCount: number): boolean => photoCount >= MAX_RECIPE_PHOTOS;
 

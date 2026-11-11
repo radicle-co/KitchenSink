@@ -50,13 +50,23 @@ appId: ${APP_ID}
 - extendedWaitUntil:
       visible: 'Copied from a public web page · allrecipes.com'
       timeout: 20000
-- assertVisible: 'Remove source'
+# The row's Remove sits under the field, below the fold on a phone once the section heading is at the top.
 - runFlow:
       file: common/scrollIntoTapView.yaml
       env:
-          TARGET: 'Not for this recipe\. It’s copied from a web page.*'
+          TARGET: 'Remove source'
           DIRECTION: DOWN
           TIMEOUT: 30000
+# The refused Public card is labelled by its title alone (its reason is the card's hint, which iOS folds into one element),
+# and iOS does not report a radio's checked state to Maestro, so the device proof is behaviour: the cook presses Public,
+# publishes, and the detail below still says Private.
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Private.*'
+          DIRECTION: DOWN
+          TIMEOUT: 30000
+- tapOn: '^Public$'
 
 - tapOn:
       text: 'Publish'

@@ -5,8 +5,8 @@
  * the three trailing sheets).
  *
  * What is pinned: the section map holds each section's real leaves; a pending ingredient line gets ONE status poller;
- * the photos section asks the app for its uploader only once the recipe exists on the server (the upload takes a recipe
- * id, and a picked photo's bytes cannot live in the device draft, ADR-0057); Private is offered from the viewer's paid
+ * the photos section asks the app for its uploader from the first render, a new recipe included (owner ruling U33: a
+ * pick waits in the editor's photo queue until the recipe has an id); a leave that would lose photos asks first; Private is offered from the viewer's paid
  * features alone (E1, plan 2026-10-14-009 D14); the app's close and "My recipes" hand-offs are the ones the view calls.
  * Real hooks over the type-checked fake client, as `useRecipeEditorSession.test.tsx` has them.
  */
@@ -71,6 +71,8 @@ interface HarnessProps {
     readonly onOpenFood?: (foodId: string) => void;
     /** The editor's photo session as a state the session itself would reach (its own tests drive the reaching). */
     readonly photosOver?: (photos: EditorPhotos) => EditorPhotos;
+    /** Where the app asks before a leave that would lose photos: in the page (web), or by the navigator (native). */
+    readonly leaveAsk?: 'inPage' | 'byNavigator';
 }
 
 /** The surface over a real session, as an app's container mounts it. */
@@ -120,6 +122,7 @@ function Harness(props: HarnessProps): ReactElement {
             renderPhotos={renderPhotos}
             onClose={onClose}
             onOpenMyRecipes={onOpenMyRecipes}
+            leaveAsk={props.leaveAsk ?? 'inPage'}
             {...(props.onOpenFood === undefined ? {} : { onOpenFood: props.onOpenFood })}
         />
     );
@@ -261,6 +264,39 @@ describe('RecipeEditorSurface — photos', () => {
         expect(confirm).toHaveBeenCalledOnce();
     });
 
+    /**
+     * Where the ask lives (GATE 2026-11-10). On web the page asks for EVERY exit it hands the app: × and the "My recipes"
+     * hand-offs, which are client-side navigations the tab-close prompt cannot see. On native the navigator's guard
+     * (`PreventLeave`) catches every removal of the screen, so the page must not ask too: the cook would be asked twice.
+     */
+    it('web: × with a photo at risk asks first, and closes only when the leave goes', async () => {
+        const request = vi.fn<(proceed: () => void) => void>();
+        const { props } = mount({
+            photosOver: (photos) => ({ ...photos, atRisk: true, leave: { ...photos.leave, request } }),
+        });
+
+        await userEvent.click(screen.getByRole('button', { name: 'Close editor' }));
+
+        expect(request).toHaveBeenCalledOnce();
+        expect(props.onClose).not.toHaveBeenCalled();
+
+        act(() => request.mock.lastCall?.[0]());
+        expect(props.onClose).toHaveBeenCalledOnce();
+    });
+
+    it('native: × leaves at once and asks nothing in the page: the navigator asks', async () => {
+        const request = vi.fn<(proceed: () => void) => void>();
+        const { props } = mount({
+            leaveAsk: 'byNavigator',
+            photosOver: (photos) => ({ ...photos, atRisk: true, leave: { ...photos.leave, request } }),
+        });
+
+        await userEvent.click(screen.getByRole('button', { name: 'Close editor' }));
+
+        expect(request).not.toHaveBeenCalled();
+        expect(props.onClose).toHaveBeenCalledOnce();
+    });
+
     it('during a finish that waits for photos, shows only Photos & publish, without the visibility choice', () => {
         mount({
             photosOver: (photos) => ({ ...photos, finish: { kind: 'uploading' } }),
@@ -365,6 +401,30 @@ describe('RecipeEditorSurface — the Private choice', () => {
 
         await user.click(screen.getByRole('button', { name: /Get Pro/u }));
         expect(await screen.findByRole('dialog')).toBeTruthy();
+    });
+
+    /** GATE 2026-11-10: on web, "My recipes" is a leave too, and a photo still uploading would be lost by it. */
+    it('web: with a photo at risk, a refusal`s way forward asks before it leaves for My recipes', async () => {
+        const user = userEvent.setup();
+        const request = vi.fn<(proceed: () => void) => void>();
+        const { props } = mount(
+            {
+                seed: PUBLISHED_PUBLIC,
+                paidFeatures: 'upsell',
+                knownPaidFeatures: 'upsell',
+                photosOver: (photos) => ({ ...photos, atRisk: true, leave: { ...photos.leave, request } }),
+            },
+            withSlots(50),
+        );
+
+        expect(await screen.findByText('Not available. All 50 of your private slots are in use.')).toBeTruthy();
+        await user.click(screen.getByRole('button', { name: /Make a private recipe public/u }));
+
+        expect(request).toHaveBeenCalledOnce();
+        expect(props.onOpenMyRecipes).not.toHaveBeenCalled();
+
+        act(() => request.mock.lastCall?.[0]());
+        expect(props.onOpenMyRecipes).toHaveBeenCalledOnce();
     });
 
     describe('a private DRAFT with every slot used (ADR-0073 section 12)', () => {

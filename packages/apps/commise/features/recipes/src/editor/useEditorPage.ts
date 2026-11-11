@@ -75,7 +75,7 @@ export interface EditorPage {
     /** Keep editing: closes the confirm, and takes back a Discard that waits or dismisses one refused (`editor.cancelDiscard`). */
     readonly keepEditing: () => void;
     readonly confirmDiscard: () => void;
-    /** × : checkpoint the exit, then leave. Never asks. */
+    /** × : ask first if photos would be lost (`requestLeave`), then checkpoint the exit and leave. */
     readonly close: () => void;
     /**
      * The primary: Publish, or a published recipe's Save changes. A refusal jumps to the first section holding one. A
@@ -125,6 +125,7 @@ export function useEditorPage(props: RecipeEditorViewProps): EditorPage {
         pendingEntryFieldId,
         initialSection,
         onClose,
+        requestLeave,
         onRefused,
         onOpenMyRecipes,
         openChoices,
@@ -319,8 +320,10 @@ export function useEditorPage(props: RecipeEditorViewProps): EditorPage {
             editor.discard();
         },
         close: () => {
-            checkpoint('editorExit');
-            onClose();
+            requestLeave(() => {
+                checkpoint('editorExit');
+                onClose();
+            });
         },
         finish,
         openChoices: {
@@ -341,3 +344,17 @@ export function useEditorPage(props: RecipeEditorViewProps): EditorPage {
         actionOf,
     };
 }
+
+/**
+ * Whether the editor page stays drawn. It goes once the editor has handed off, EXCEPT while a finish waits for its
+ * photos (`finishing`), or while a photo is still at risk before that finish is held: the two can land in different
+ * commits, and the uploader must not unmount under a photo that is still going. The one rule both leaves read. Pure.
+ *
+ * @param input - The editor's status, whether a finish waits for photos, and whether a photo is at risk.
+ * @returns `true` while the page is drawn.
+ */
+export const editorPageStays = (input: {
+    readonly status: RecipeEditorViewProps['editor']['state']['status'];
+    readonly finishing: boolean;
+    readonly photosAtRisk: boolean;
+}): boolean => input.status !== 'done' || input.finishing || input.photosAtRisk;

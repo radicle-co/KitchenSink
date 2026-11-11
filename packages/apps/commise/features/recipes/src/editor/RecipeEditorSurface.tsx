@@ -95,6 +95,12 @@ export interface RecipeEditorSurfaceProps {
     /** "Check My recipes": from an unknown create's alert, and after a Discard. */
     readonly onOpenMyRecipes: () => void;
     /**
+     * Where a leave that would lose photos is asked about. `inPage` (web): the page asks before every exit it hands the
+     * app, × and "My recipes", which are client-side navigations no browser prompt sees. `byNavigator` (native): the
+     * route's guard (`PreventLeave`) catches every removal of the screen, so the page must not ask a second time.
+     */
+    readonly leaveAsk: 'inPage' | 'byNavigator';
+    /**
      * Open a food's page (the row's `⋯ Open food`, and the refusal's Open food). Web opens a new tab so the draft stays here;
      * native pushes the page above the editor. Absent when the app has no such page.
      */
@@ -117,6 +123,7 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
     initialSection,
     onClose,
     onOpenMyRecipes,
+    leaveAsk,
     onOpenFood,
     foodOpensOverEditor = false,
 }) => {
@@ -186,6 +193,18 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
                   focusRequested: photos.finishFocusRequested,
                   onFocusRequestHandled: photos.onFinishFocusHandled,
               };
+
+    // The page asks before a leave that would lose photos only where the navigator cannot (see `leaveAsk`).
+    const requestLeave = (proceed: () => void): void => {
+        if (leaveAsk === 'inPage') {
+            photos.leave.request(proceed);
+        } else {
+            proceed();
+        }
+    };
+
+    const openMyRecipes = (): void => requestLeave(onOpenMyRecipes);
+
     const sections: Readonly<Record<EditorSectionId, ReactNode>> = {
         details: (
             <RecipeBasicsFields
@@ -239,7 +258,7 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
                         onConfirmPublic={privateChoice.onConfirmPublic}
                         // The refusal's "Make a private recipe public" and "Delete a private recipe": either frees a slot
                         // in the cook's recipes (the session checkpoints the draft as the cook leaves).
-                        onFreeASlot={onOpenMyRecipes}
+                        onFreeASlot={openMyRecipes}
                     />
                 ) : null}
             </>
@@ -276,9 +295,10 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
                 }}
                 {...(initialSection === undefined ? {} : { initialSection })}
                 onClose={onClose}
+                requestLeave={requestLeave}
                 onPreview={session.preview.show}
                 onRefused={session.rowEditor.refused}
-                onOpenMyRecipes={onOpenMyRecipes}
+                onOpenMyRecipes={openMyRecipes}
                 {...(photoFinish === undefined ? {} : { photoFinish })}
                 photosAtRisk={photos.atRisk}
             />

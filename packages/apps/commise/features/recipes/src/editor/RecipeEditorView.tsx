@@ -43,22 +43,24 @@ import {
 } from './frameProps.js';
 import { EDITOR_SECTIONS } from './sections.js';
 import { closingTabLosesWork } from './saveStatus.js';
-import { useEditorPage } from './useEditorPage.js';
+import { editorPageStays, useEditorPage } from './useEditorPage.js';
 import { useEditorScrollPadding } from './useEditorScrollPadding.js';
 import { useUnloadGuard } from './useUnloadGuard.js';
 
 /** How far below the viewport's top the scroll spy's activation line sits: under the header and the index bar. */
 const ACTIVATION_OFFSET_PX = 120;
 
-/** The one section a finish waiting for its photos shows. */
-
 /** The web one-page recipe editor. */
 export const RecipeEditorView: FC<RecipeEditorViewProps> = (props) => {
     const { editor } = props;
 
-    // A finish waiting for its photos keeps the page (its Photos section and Finish control) until they settle, and so
-    // does a photo still at risk before that finish is held: the uploader must not unmount under it.
-    if (editor.state.status === 'done' && props.photoFinish === undefined && props.photosAtRisk !== true) {
+    if (
+        !editorPageStays({
+            status: editor.state.status,
+            finishing: props.photoFinish !== undefined,
+            photosAtRisk: props.photosAtRisk,
+        })
+    ) {
         return null;
     }
 
@@ -111,7 +113,7 @@ const EditorPage: FC<RecipeEditorViewProps> = (props) => {
             status: editor.saveStatus,
             lifecycle: editor.lifecycle,
             values: editor.values,
-            photosAtRisk: props.photosAtRisk === true,
+            photosAtRisk: props.photosAtRisk,
         }),
     );
 

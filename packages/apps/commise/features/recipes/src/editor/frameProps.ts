@@ -174,6 +174,11 @@ export interface RecipeEditorViewProps {
     readonly initialSection?: EditorSectionId;
     /** Leave the editor (× ). The editor has already checkpointed the exit. */
     readonly onClose: () => void;
+    /**
+     * Ask before a leave that would lose photos, then `proceed`; or `proceed` at once. × goes through it BEFORE the exit
+     * checkpoint, so a cook who stays has not left (`RecipeEditorSurface`'s `leaveAsk`).
+     */
+    readonly requestLeave: (proceed: () => void) => void;
     readonly onPreview: () => void;
     /** A Publish or Save changes was refused: the row editor points at its pending text. */
     readonly onRefused?: (outcome: GateOutcome) => void;
@@ -185,6 +190,9 @@ export interface RecipeEditorViewProps {
      * field changed now would be lost, because the editor has already handed off.
      */
     readonly photoFinish?: PhotoFinishBar;
-    /** A photo is not uploaded yet: on web, closing the tab would lose it, so the browser asks. */
-    readonly photosAtRisk?: boolean;
+    /**
+     * A photo is not uploaded yet: on web, closing the tab would lose it, so the browser asks; and the page stays drawn
+     * past the hand-off until the finish holds for it ({@link editorPageStays}).
+     */
+    readonly photosAtRisk: boolean;
 }

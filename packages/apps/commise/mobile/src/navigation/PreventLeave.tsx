@@ -14,13 +14,7 @@
  */
 import { useNavigation, usePreventRemove } from '@react-navigation/native';
 
-/** Props for {@link PreventLeave}. */
-export interface PreventLeaveProps {
-    /** Stop leaving while this holds: a photo is not uploaded yet. */
-    readonly when: boolean;
-    /** A leave was stopped: ask, and call `proceed` to leave after all. */
-    readonly onBlocked: (proceed: () => void) => void;
-}
+import type { LeaveGuard } from '../screens/RecipeEditorScreen.js';
 
 /**
  * Hold the screen while a photo would be lost.
@@ -28,7 +22,7 @@ export interface PreventLeaveProps {
  * @returns Nothing: the guard is behaviour only.
  * @sideEffect Registers a removal guard on the current screen; `proceed` dispatches the stopped navigation action.
  */
-export function PreventLeave({ when, onBlocked }: PreventLeaveProps): null {
+export function PreventLeave({ when, onBlocked }: LeaveGuard): null {
     const navigation = useNavigation();
 
     usePreventRemove(when, ({ data }) => onBlocked(() => navigation.dispatch(data.action)));

@@ -133,7 +133,7 @@ import { VisibilityNotHeldError } from '../editor/visibilityNotHeldError.js';
 import { createLaneStore, isSettingVisibility, type LaneStore, type OutstandingWrite } from '../editor/writeLane.js';
 import type { DraftAction } from '../form/draftAction.js';
 import { isStoredLine, persistedLineKeysOf, type IngredientLineKey } from '../form/lineKey.js';
-import { draftFloorErrors, validateRecipeForm } from '../form/validate.js';
+import { meetsDraftFloor, validateRecipeForm } from '../form/validate.js';
 import { defaultRecipeFormValues, recipeFormValuesEqual, type RecipeFormValues } from '../form/values.js';
 import { toRecipeFormValues } from '../form/wire.js';
 import { recipeMessages, type IngredientLineNameMessages } from '../messages.js';
@@ -705,7 +705,7 @@ function submitWrite(ctx: EditorContext, trigger: CheckpointTrigger, drained: bo
     const write = serverWriteFor({
         trigger,
         lifecycle: lifecycleNow(ctx),
-        draftFloorMet: Object.keys(draftFloorErrors(draft)).length === 0,
+        draftFloorMet: meetsDraftFloor(draft),
         changedSinceServerWrite: serverValues === undefined || !recipeFormValuesEqual(draft, serverValues),
         pastePending: pasteHeld(ctx),
     });

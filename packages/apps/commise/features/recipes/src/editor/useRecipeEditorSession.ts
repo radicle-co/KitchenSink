@@ -43,7 +43,7 @@ import { useCallback, useEffect, useEffectEvent, useState } from 'react';
 import { effectiveVisibility, heldVisibility, type PrivateRefusal } from '../actions/privateGate.js';
 import { recipeIsPublished, refusalWhileDrafting } from '../actions/recipePrivateGate.js';
 import type { LookupRetry, ObservedIngredientStatus, SettledAnswer } from '../form/ingredientStatus.js';
-import { draftFloorErrors } from '../form/validate.js';
+import { draftFloorErrors, meetsDraftFloor } from '../form/validate.js';
 import { rebindRequestOf } from '../hooks/lineCommit.js';
 import { useIngredientRowEditor, type IngredientRowEditor } from '../hooks/useIngredientRowEditor.js';
 import { useLineNutrition } from '../hooks/useLineNutrition.js';
@@ -225,7 +225,8 @@ export function useRecipeEditorSession(options: UseRecipeEditorSessionOptions): 
 
     const photos = useEditorPhotos({
         recipeId: editor.recipeId,
-        titled: Object.keys(draftFloorErrors(editor.values)).length === 0,
+        draftFloorMet: meetsDraftFloor(editor.values),
+        titleMissing: draftFloorErrors(editor.values).title === 'titleRequired',
         checkpoint: editor.checkpoint,
     });
 

@@ -235,6 +235,8 @@ function RecipeEditorSession({
                 seed={seed}
                 mode={mode}
                 keep="disk"
+                // Every removal of the route is held by its own guard (`renderLeaveGuard`), so the page asks nothing.
+                leaveAsk="byNavigator"
                 paidFeatures={paidFeatures}
                 knownPaidFeatures={knownPaidFeatures}
                 privateRule={recipePrivate.rule}

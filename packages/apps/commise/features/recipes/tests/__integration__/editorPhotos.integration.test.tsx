@@ -50,14 +50,15 @@ function photoRoutes(state: PhotoServer) {
 
 interface HostProps {
     readonly recipeId: string | undefined;
-    readonly titled: boolean;
+    readonly draftFloorMet: boolean;
+    readonly titleMissing: boolean;
     readonly onCheckpoint: () => void;
     readonly onFinished: () => void;
 }
 
 /** A new recipe's Photos section: the grid over the editor's photo session, an add control and a Publish. */
-const Host: FC<HostProps> = ({ recipeId, titled, onCheckpoint, onFinished }) => {
-    const photos = useEditorPhotos({ recipeId, titled, checkpoint: onCheckpoint });
+const Host: FC<HostProps> = ({ recipeId, draftFloorMet, titleMissing, onCheckpoint, onFinished }) => {
+    const photos = useEditorPhotos({ recipeId, draftFloorMet, titleMissing, checkpoint: onCheckpoint });
     const { manager } = photos;
 
     return (
@@ -117,17 +118,17 @@ function renderHost(state: PhotoServer) {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
     const onCheckpoint = vi.fn();
     const onFinished = vi.fn();
-    const tree = (props: Pick<HostProps, 'recipeId' | 'titled'>) => (
+    const tree = (props: Pick<HostProps, 'recipeId' | 'draftFloorMet' | 'titleMissing'>) => (
         <QueryClientProvider client={queryClient}>
             <RecipeServiceProvider client={origins.recipes}>
                 <Host {...props} onCheckpoint={onCheckpoint} onFinished={onFinished} />
             </RecipeServiceProvider>
         </QueryClientProvider>
     );
-    const view = render(tree({ recipeId: undefined, titled: false }));
+    const view = render(tree({ recipeId: undefined, draftFloorMet: false, titleMissing: true }));
 
     return {
-        rerender: (props: Pick<HostProps, 'recipeId' | 'titled'>) => view.rerender(tree(props)),
+        rerender: (props: Pick<HostProps, 'recipeId' | 'draftFloorMet' | 'titleMissing'>) => view.rerender(tree(props)),
         sent: () => origins.sentTo('recipe').map((request) => `${request.method} ${request.path}`),
         onCheckpoint,
         onFinished,
@@ -153,11 +154,11 @@ describe('Photos on a new recipe', () => {
         expect(host.sent()).toEqual([]);
         expect(s3).not.toHaveBeenCalled();
 
-        host.rerender({ recipeId: undefined, titled: true });
+        host.rerender({ recipeId: undefined, draftFloorMet: true, titleMissing: false });
         expect(screen.getByRole('status', { name: 'Queued' })).toBeTruthy();
         expect(host.sent()).toEqual([]);
 
-        host.rerender({ recipeId: RECIPE_ID, titled: true });
+        host.rerender({ recipeId: RECIPE_ID, draftFloorMet: true, titleMissing: false });
 
         expect(await screen.findByRole('img', { name: 'Recipe photo 1' })).toBeTruthy();
         expect(host.sent().filter((route) => route.startsWith('POST'))).toEqual([
@@ -181,7 +182,7 @@ describe('Photos on a new recipe', () => {
                 }),
         };
         const host = renderHost(state);
-        host.rerender({ recipeId: RECIPE_ID, titled: true });
+        host.rerender({ recipeId: RECIPE_ID, draftFloorMet: true, titleMissing: false });
 
         await userEvent.click(screen.getByRole('button', { name: 'Add a photo' }));
         await waitFor(() => expect(host.sent()).toContain(`POST /api/v1/recipes/${RECIPE_ID}/photos/confirm`));

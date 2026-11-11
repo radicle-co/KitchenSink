@@ -29,10 +29,10 @@ import { validatePhotoFile } from '../photos/photoValidation.js';
 import { useRecipePhotoManager, type UseRecipePhotoManagerResult } from '../hooks/useRecipePhotoManager.js';
 
 /** What a held finish is waiting on: photos still uploading, or photos that failed and wait on the cook. */
-export type PhotoFinish = { readonly kind: 'uploading' } | { readonly kind: 'failed'; readonly count: number };
+type PhotoFinish = { readonly kind: 'uploading' } | { readonly kind: 'failed'; readonly count: number };
 
 /** The ask before a leave that would lose photos. */
-export interface PhotoLeaveGuard {
+interface PhotoLeaveGuard {
     /** The ask is showing. */
     readonly open: boolean;
     /** Leave: at once when no photo would be lost, else after the cook confirms. */
@@ -47,8 +47,10 @@ export interface PhotoLeaveGuard {
 export interface UseEditorPhotosOptions {
     /** The recipe's server id, once it has one. */
     readonly recipeId: string | undefined;
-    /** Whether the draft passes the floor a server write needs (a title): the first checkpoint needs it. */
-    readonly titled: boolean;
+    /** Whether the draft passes the floor a server write needs (`meetsDraftFloor`): the first checkpoint needs it. */
+    readonly draftFloorMet: boolean;
+    /** Whether the title is what is missing: the leave ask then says the photos wait for a title. */
+    readonly titleMissing: boolean;
     /** Raise the editor's photo checkpoint (`useRecipeEditor`'s `checkpoint`). */
     readonly checkpoint: (trigger: 'photoPicked') => void;
 }
@@ -61,7 +63,7 @@ export interface EditorPhotos {
     readonly atRisk: boolean;
     /** How many photos would be lost (the leave ask's count), whether or not the cook has let them go. */
     readonly atRiskCount: number;
-    /** Whether the held photos wait for a title (the leave ask says so). */
+    /** Whether the held photos wait for a title, the floor's missing part (the leave ask says so). */
     readonly waitingForTitle: boolean;
     /** Set while a finish is held for photos; `undefined` otherwise. */
     readonly finish: PhotoFinish | undefined;
@@ -85,10 +87,15 @@ export interface EditorPhotos {
  * @returns The session; see {@link EditorPhotos}.
  * @sideEffect Drives the photo upload queue, raises a checkpoint on a pick, and runs a held finish when photos settle.
  */
-export function useEditorPhotos({ recipeId, titled, checkpoint }: UseEditorPhotosOptions): EditorPhotos {
+export function useEditorPhotos({
+    recipeId,
+    draftFloorMet,
+    titleMissing,
+    checkpoint,
+}: UseEditorPhotosOptions): EditorPhotos {
     const manager = useRecipePhotoManager({
         recipeId: recipeId ?? null,
-        holdWithoutId: titled ? 'untilSaved' : 'untilTitled',
+        holdWithoutId: draftFloorMet ? 'untilSaved' : 'untilTitled',
     });
     const unsettled = manager.queue.items.filter(photoIsAtRisk);
     const failedCount = unsettled.filter((item) => item.status === 'failed').length;
@@ -139,7 +146,7 @@ export function useEditorPhotos({ recipeId, titled, checkpoint }: UseEditorPhoto
         manager: { ...manager, enqueuePicked },
         atRisk,
         atRiskCount: unsettled.length,
-        waitingForTitle: recipeId === undefined && !titled,
+        waitingForTitle: recipeId === undefined && titleMissing,
         finish:
             heldFinish === undefined
                 ? undefined

@@ -2560,8 +2560,8 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "A leave was stopped: ask, and call `proceed` to leave after all.",
-                            "declaredIn": "packages/apps/commise/mobile/src/navigation/PreventLeave.tsx"
+                            "description": "A leave was held: ask, and call `proceed` to leave after all.",
+                            "declaredIn": "packages/apps/commise/mobile/src/screens/RecipeEditorScreen.tsx"
                         },
                         {
                             "name": "when",
@@ -2569,8 +2569,8 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "Stop leaving while this holds: a photo is not uploaded yet.",
-                            "declaredIn": "packages/apps/commise/mobile/src/navigation/PreventLeave.tsx"
+                            "description": "A photo is not uploaded yet: hold every leave.",
+                            "declaredIn": "packages/apps/commise/mobile/src/screens/RecipeEditorScreen.tsx"
                         }
                     ],
                     "usesRefApi": [],

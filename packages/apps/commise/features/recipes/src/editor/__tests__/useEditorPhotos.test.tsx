@@ -51,7 +51,7 @@ afterEach(() => {
 function renderPhotos(initial: Partial<UseEditorPhotosOptions> = {}) {
     const checkpoint = vi.fn();
     const hook = renderHook((props: UseEditorPhotosOptions) => useEditorPhotos(props), {
-        initialProps: { recipeId: undefined, titled: false, checkpoint, ...initial },
+        initialProps: { recipeId: undefined, draftFloorMet: false, titleMissing: true, checkpoint, ...initial },
     });
 
     return { ...hook, checkpoint };
@@ -67,17 +67,17 @@ describe('useEditorPhotos — a photo picked before the recipe exists', () => {
         expect(result.current.manager.queue.items[0]?.status).toBe('waiting');
         expect(result.current.waitingForTitle).toBe(true);
 
-        rerender({ recipeId: undefined, titled: true, checkpoint });
+        rerender({ recipeId: undefined, draftFloorMet: true, titleMissing: false, checkpoint });
         expect(result.current.manager.queue.items[0]?.status).toBe('queued');
         expect(presignMock).not.toHaveBeenCalled();
 
-        rerender({ recipeId: 'rec_new', titled: true, checkpoint });
+        rerender({ recipeId: 'rec_new', draftFloorMet: true, titleMissing: false, checkpoint });
         await waitFor(() => expect(result.current.manager.queue.items[0]?.status).toBe('ok'));
         expect(presignMock.mock.calls[0]?.[0]).toMatchObject({ id: 'rec_new' });
     });
 
     it('asks for the photo checkpoint when a pick is taken, and not when the pick is refused', () => {
-        const { result, checkpoint } = renderPhotos({ titled: true });
+        const { result, checkpoint } = renderPhotos({ draftFloorMet: true, titleMissing: false });
 
         act(() => {
             result.current.manager.enqueuePicked([fileOf('a.png')], 'add');
@@ -94,9 +94,26 @@ describe('useEditorPhotos — a photo picked before the recipe exists', () => {
     });
 });
 
+describe('useEditorPhotos — waiting for more than a title', () => {
+    /**
+     * GATE 2026-11-10: the hold follows the whole draft floor, but the leave ask's "uploads once this recipe has a
+     * title" is said only when the title is what is missing.
+     */
+    it('a titled draft below the floor still waits, but is not "waiting for a title"', () => {
+        const { result } = renderPhotos({ draftFloorMet: false, titleMissing: false });
+
+        act(() => {
+            result.current.manager.enqueuePicked([fileOf('soup.png')], 'add');
+        });
+
+        expect(result.current.manager.queue.items[0]?.status).toBe('waiting');
+        expect(result.current.waitingForTitle).toBe(false);
+    });
+});
+
 describe('useEditorPhotos — the finish barrier', () => {
     it('leaves at once when no photo is pending', () => {
-        const { result } = renderPhotos({ recipeId: 'rec_1', titled: true });
+        const { result } = renderPhotos({ recipeId: 'rec_1', draftFloorMet: true, titleMissing: false });
         const go = vi.fn();
 
         act(() => result.current.finishWhenSettled(go));
@@ -108,7 +125,7 @@ describe('useEditorPhotos — the finish barrier', () => {
     it('holds the leave while a photo uploads, then leaves once it lands', async () => {
         let answerPresign: (value: { uploadUrl: string; key: string }) => void = () => undefined;
         presignMock.mockReturnValue(new Promise((resolve) => (answerPresign = resolve)));
-        const { result } = renderPhotos({ recipeId: 'rec_1', titled: true });
+        const { result } = renderPhotos({ recipeId: 'rec_1', draftFloorMet: true, titleMissing: false });
         const go = vi.fn();
 
         act(() => {
@@ -133,7 +150,7 @@ describe('useEditorPhotos — the finish barrier', () => {
 
     it('stays on a failed photo and says how many failed; removing it then leaves', async () => {
         fetchMock.mockResolvedValue({ ok: false, status: 500 });
-        const { result } = renderPhotos({ recipeId: 'rec_1', titled: true });
+        const { result } = renderPhotos({ recipeId: 'rec_1', draftFloorMet: true, titleMissing: false });
         const go = vi.fn();
 
         act(() => {
@@ -151,7 +168,7 @@ describe('useEditorPhotos — the finish barrier', () => {
 
     it('"Finish without the remaining photos" leaves at once, once', async () => {
         fetchMock.mockResolvedValue({ ok: false, status: 500 });
-        const { result } = renderPhotos({ recipeId: 'rec_1', titled: true });
+        const { result } = renderPhotos({ recipeId: 'rec_1', draftFloorMet: true, titleMissing: false });
         const go = vi.fn();
 
         act(() => {
@@ -169,7 +186,7 @@ describe('useEditorPhotos — the finish barrier', () => {
 
 describe('useEditorPhotos — leaving', () => {
     it('goes straight away when no photo would be lost', () => {
-        const { result } = renderPhotos({ recipeId: 'rec_1', titled: true });
+        const { result } = renderPhotos({ recipeId: 'rec_1', draftFloorMet: true, titleMissing: false });
         const proceed = vi.fn();
 
         act(() => result.current.leave.request(proceed));
@@ -209,7 +226,7 @@ describe('useEditorPhotos — leaving', () => {
      */
     it('a leave confirmed while a finish is held navigates once, through the finish', async () => {
         fetchMock.mockResolvedValue({ ok: false, status: 500 });
-        const { result } = renderPhotos({ recipeId: 'rec_1', titled: true });
+        const { result } = renderPhotos({ recipeId: 'rec_1', draftFloorMet: true, titleMissing: false });
         const go = vi.fn();
         const proceed = vi.fn();
 
@@ -236,7 +253,7 @@ describe('useEditorPhotos — a file the device refused is not at risk', () => {
     const gif = { ...fileOf('clip.gif'), blob: new Blob(['x'], { type: 'image/gif' }), contentType: 'image/gif' };
 
     it('does not ask on a leave, hold a finish, or ask for the create', () => {
-        const { result, checkpoint } = renderPhotos({ titled: true });
+        const { result, checkpoint } = renderPhotos({ draftFloorMet: true, titleMissing: false });
         const go = vi.fn();
         const proceed = vi.fn();
 

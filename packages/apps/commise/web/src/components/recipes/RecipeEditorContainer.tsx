@@ -376,16 +376,15 @@ const RecipeEditorSession: FC<RecipeEditorSessionProps> = ({ locale, mode, draft
             slotStanding={recipePrivate.standing}
             renderPhotos={(target) => <RecipePhotoUploaderContainer {...target} />}
             {...(initialSection === undefined ? {} : { initialSection })}
-            // × asks first when it would lose a photo not uploaded yet (`useEditorPhotos`); the browser's own Back cannot be
-            // held, and closing the tab is asked about by the unload guard.
-            onClose={() =>
-                session.photos.leave.request(() => {
-                    const id = session.editor.recipeId;
+            onClose={() => {
+                const id = session.editor.recipeId;
 
-                    router.push((id === undefined ? `/${locale}/recipes` : `/${locale}/recipes/${id}`) as Route);
-                })
-            }
+                router.push((id === undefined ? `/${locale}/recipes` : `/${locale}/recipes/${id}`) as Route);
+            }}
             onOpenMyRecipes={() => router.push(`/${locale}/recipes` as Route)}
+            // The page asks before × or "My recipes" would lose a photo not uploaded yet; closing the tab is asked about by
+            // the unload guard, and the browser's own Back cannot be held.
+            leaveAsk="inPage"
             // A new tab, so the draft stays where the cook left it (private foods spec D5, D6).
             onOpenFood={(foodId) => {
                 openFoodInNewTab(locale, foodId);

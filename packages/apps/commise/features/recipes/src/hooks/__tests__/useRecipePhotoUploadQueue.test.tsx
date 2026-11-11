@@ -789,10 +789,10 @@ describe('useRecipePhotoUploadQueue — held until the recipe exists', () => {
         expect(presign.mock.calls[1]?.[0]).toMatchObject({ id: 'rec_new', request: { fileName: 'b.png' } });
     });
 
-    it('shows a pick as waiting while the recipe has no title, and it can still be removed', () => {
+    it('shows a pick as waiting while the draft is below its save floor, and it can still be removed', () => {
         const upload = vi.fn();
         const { result } = renderHook(() =>
-            useRecipePhotoUploadQueue({ upload }, 0, VALIDATION_MESSAGES, 'untilTitled'),
+            useRecipePhotoUploadQueue({ upload }, 0, VALIDATION_MESSAGES, 'untilDraftFloor'),
         );
 
         act(() => {
@@ -813,7 +813,7 @@ describe('useRecipePhotoUploadQueue — held until the recipe exists', () => {
     it('still admits a rejected file straight to failed while held, so its reason shows before any save', () => {
         const upload = vi.fn();
         const { result } = renderHook(() =>
-            useRecipePhotoUploadQueue({ upload }, 0, VALIDATION_MESSAGES, 'untilTitled'),
+            useRecipePhotoUploadQueue({ upload }, 0, VALIDATION_MESSAGES, 'untilDraftFloor'),
         );
 
         act(() => {

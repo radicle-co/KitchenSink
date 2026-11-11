@@ -95,7 +95,7 @@ export function useEditorPhotos({
 }: UseEditorPhotosOptions): EditorPhotos {
     const manager = useRecipePhotoManager({
         recipeId: recipeId ?? null,
-        holdWithoutId: draftFloorMet ? 'untilSaved' : 'untilTitled',
+        holdWithoutId: draftFloorMet ? 'untilSaved' : 'untilDraftFloor',
     });
     const unsettled = manager.queue.items.filter(photoIsAtRisk);
     const failedCount = unsettled.filter((item) => item.status === 'failed').length;

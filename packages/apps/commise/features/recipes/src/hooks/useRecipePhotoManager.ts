@@ -59,7 +59,8 @@ export interface UseRecipePhotoManagerOptions {
     readonly recipeId: string | null;
     /**
      * What the queue is waiting for while {@link recipeId} is `null` (ignored once there is an id, when it uploads):
-     * `untilSaved` by default, or `untilTitled` while the draft has no title, which the cook sees as "Waiting to upload".
+     * `untilSaved` by default, or `untilDraftFloor` while the draft is below the floor a server write needs (a title,
+     * positive servings…), which the cook sees as "Waiting to upload".
      */
     readonly holdWithoutId?: Exclude<RecipePhotoQueueHold, 'none'>;
 }

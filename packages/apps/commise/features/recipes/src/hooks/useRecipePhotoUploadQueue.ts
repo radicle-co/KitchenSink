@@ -87,17 +87,17 @@ type StoredStatus = 'queued' | 'ok' | 'failed';
 
 /**
  * The status the grid renders for a queue item — `uploading` is synthesized from the active file id, and `waiting` from
- * a `queued` item the hold is keeping while the recipe has no title (see {@link RecipePhotoQueueHold}).
+ * a `queued` item the hold is keeping while the draft is below its save floor (see {@link RecipePhotoQueueHold}).
  */
 export type RecipePhotoQueueStatus = StoredStatus | 'uploading' | 'waiting';
 
 /**
  * Why the queue may not start an upload yet. A new recipe has no server id until its first checkpoint, so a photo picked
  * before then has nothing to presign against and WAITS in the queue (owner ruling U33: photos behave like every other
- * field, so the picker is never withheld). `untilTitled` is the case the cook can act on — the first checkpoint needs a
- * title — and is shown as `waiting`; `untilSaved` is the short gap while the create is on its way, shown as `queued`.
+ * field, so the picker is never withheld). `untilDraftFloor` is the case the cook can act on — the first checkpoint needs
+ * the draft floor (`meetsDraftFloor`: a title, positive servings…) — and is shown as `waiting`; `untilSaved` is the short gap while the create is on its way, shown as `queued`.
  */
-export type RecipePhotoQueueHold = 'none' | 'untilSaved' | 'untilTitled';
+export type RecipePhotoQueueHold = 'none' | 'untilSaved' | 'untilDraftFloor';
 
 /**
  * A file handed to {@link UseRecipePhotoUploadQueueResult.enqueue}. Extends the underlying single-flight
@@ -367,13 +367,13 @@ function queueReducer(state: QueueState, action: QueueAction): QueueState {
     }
 }
 
-/** The status a stored item shows: the active file is `uploading`, and a queued one waits on a recipe with no title. */
+/** The status a stored item shows: the active file is `uploading`, and a queued one waits on a draft below its floor. */
 function publicStatusOf(item: StoredItem, active: boolean, hold: RecipePhotoQueueHold): RecipePhotoQueueStatus {
     if (active) {
         return 'uploading';
     }
 
-    return item.status === 'queued' && hold === 'untilTitled' ? 'waiting' : item.status;
+    return item.status === 'queued' && hold === 'untilDraftFloor' ? 'waiting' : item.status;
 }
 
 /** Project the reducer's stored items to the public shape (see {@link publicStatusOf}). */

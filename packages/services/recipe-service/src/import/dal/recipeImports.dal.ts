@@ -47,13 +47,17 @@ export interface ImportHeader {
     readonly updatedAt: Date;
 }
 
-/** How many of the arrived items are at each stage. */
+/**
+ * How many of the arrived items are at each stage. A REFUSED item (ADR-0072 §3) is terminal and is counted under `refused`
+ * only, so `received` is the items still waiting to move on; `total` is every arrived item.
+ */
 export interface StageCounts {
     readonly total: number;
     readonly received: number;
     readonly parsing: number;
     readonly matched: number;
     readonly saved: number;
+    readonly refused: number;
 }
 
 /** A header and its counts, for the list. */
@@ -107,7 +111,7 @@ function toHeader(row: RecipeImportRow, createdAtIso: string): ImportHeader {
 /** `created_at` to the microsecond, in SQL: the only precision-safe way to page by it. */
 const CREATED_AT_ISO = sql<string>`to_char(${recipeImports.createdAt} AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`;
 
-const EMPTY_COUNTS: StageCounts = { total: 0, received: 0, parsing: 0, matched: 0, saved: 0 };
+const EMPTY_COUNTS: StageCounts = { total: 0, received: 0, parsing: 0, matched: 0, saved: 0, refused: 0 };
 
 /**
  * Move an import's activity clock (`updated_at`), which the purge reads as its last activity. The ONE statement of it,
@@ -368,17 +372,32 @@ export class RecipeImportsDal {
             .select({
                 importId: recipeImportItems.importId,
                 stage: recipeImportItems.stage,
+                refused: sql<boolean>`${recipeImportItems.refusal} IS NOT NULL`,
                 count: sql<number>`count(*)::int`,
             })
             .from(recipeImportItems)
             .where(sql`${recipeImportItems.importId} IN ${importIds}`)
-            .groupBy(recipeImportItems.importId, recipeImportItems.stage);
+            .groupBy(
+                recipeImportItems.importId,
+                recipeImportItems.stage,
+                sql`${recipeImportItems.refusal} IS NOT NULL`,
+            );
         const byImport = new Map<string, { -readonly [K in keyof StageCounts]: number }>();
 
         for (const row of rows) {
-            const counts = byImport.get(row.importId) ?? { total: 0, received: 0, parsing: 0, matched: 0, saved: 0 };
+            const counts = byImport.get(row.importId) ?? {
+                total: 0,
+                received: 0,
+                parsing: 0,
+                matched: 0,
+                saved: 0,
+                refused: 0,
+            };
 
-            if (
+            if (row.refused) {
+                counts.refused += row.count;
+                counts.total += row.count;
+            } else if (
                 row.stage === 'received' ||
                 row.stage === 'parsing' ||
                 row.stage === 'matched' ||

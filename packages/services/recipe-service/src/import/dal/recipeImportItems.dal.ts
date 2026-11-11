@@ -9,8 +9,8 @@
  *     starting it. The header lock also serialises two chunks inserting the same new ordinal.
  *  2. **Paying is `SELECT … FOR UPDATE` of the unpaid items, THEN the allowance lock, THEN a mark of exactly the admitted
  *     items.** Two concurrent calls cannot pay one item twice (the second waits on the row, then re-reads it as paid), and the
- *     units spent are the units marked. A recipe with no ingredient lines is never charged: nothing is sent for parsing, so no
- *     LLM spend starts.
+ *     units spent are the units marked. A REFUSED recipe (no ingredient line or no step, `refusal`) is never charged, parsed or
+ *     saved: the refusal is a stored fact set when the item is written, and every query that moves an item forward leaves it out.
  *  3. **Each step is a compare-and-swap on the state it leaves** (`attachJob` on the generation, `snapshot` on `parsing`,
  *     `claimSave` on `matched` and `saved_at IS NULL`): zero rows IS "someone else did it", and a repeated step writes nothing.
  *  4. **The save claim joins the recipe's own transaction** (`claimSave(tx, …)`), so the claim and the recipe commit or vanish
@@ -18,12 +18,13 @@
  *  5. **`saved_at` and `allowance_spent_at` are facts of their own**; nothing here infers either from `recipe_id` or
  *     `parse_job_id`.
  */
-import { and, asc, eq, gt, inArray, isNotNull, isNull, or, sql, type SQL, type SQLWrapper } from 'drizzle-orm';
+import { and, asc, eq, gt, inArray, isNotNull, isNull, sql, type SQL, type SQLWrapper } from 'drizzle-orm';
 import { isDeepStrictEqual } from 'node:util';
 
 import { ImportAllowanceDal } from '../../common/dal/importAllowance.dal.js';
 import type { RecipeDrizzle } from '../../database/client.js';
 import {
+    IMPORT_REFUSALS,
     IMPORT_STAGES,
     IMPORT_VISIBILITIES,
     recipeImportItems,
@@ -35,6 +36,8 @@ import type { RecipeTx } from '../../database/unitOfWork.js';
 import type { ImportRecipe, ImportStatement } from '../../recipes/import.schema.js';
 import { ITEM_REVIEWS, type ItemReview } from '../domain/importBindingPolicy.js';
 import { decideItemUpsert } from '../domain/importItemUpsert.js';
+import { importRefusalOf, type ImportRefusal } from '../domain/importRefusal.js';
+import type { ImportFileFacts } from '../domain/importSaveGap.js';
 import { columnsOfStatement } from '../domain/importStatement.js';
 import { lockImportHeader } from './importLocks.js';
 import { ImportItemAlreadyClaimedError, ImportItemChangedError } from './recipeImportItems.errors.js';
@@ -42,10 +45,12 @@ import { touchImport, type ImportVisibility } from './recipeImports.dal.js';
 import type { NewImportLine } from './recipeImportLines.dal.js';
 
 /** One item as the DAL returns it, with its stage, review mark and visibility narrowed to the CHECK vocabularies. */
-export type ImportItem = Omit<RecipeImportItemRow, 'stage' | 'review' | 'visibility'> & {
+export type ImportItem = Omit<RecipeImportItemRow, 'stage' | 'review' | 'visibility' | 'refusal'> & {
     readonly stage: ImportStage;
     readonly review: ItemReview;
     readonly visibility: ImportVisibility | null;
+    /** Why the import refuses the recipe, or `null` (set when the item is written). */
+    readonly refusal: ImportRefusal | null;
 };
 
 /** One item of a request. */
@@ -69,17 +74,23 @@ export interface ChoicesPatch {
     readonly visibility?: ImportVisibility | null;
     /** The cuisine the save uses, replacing the file's (ADR-0072 §3 as amended 2026-11-11). */
     readonly cuisine?: string;
+    /** The servings the save uses, replacing the file's. */
+    readonly servings?: number;
+    /** The prep minutes the save uses, replacing the file's. */
+    readonly prepTimeMinutes?: number;
+    /** The cook minutes the save uses, replacing the file's. */
+    readonly cookTimeMinutes?: number;
 }
 
-/** What Publish needs, as the payload states it, read in SQL so the item list needs no document. */
-interface ItemPublishFacts {
-    readonly fileCuisine: string | null;
+/** What the save needs, as the payload states it, read in SQL so the item list needs no document. */
+export interface ItemSaveFacts {
+    readonly file: ImportFileFacts;
     readonly ingredientLineCount: number;
     readonly stepCount: number;
 }
 
-/** One item of the list: no payload, and what Publish needs read out of it. */
-export type ListedImportItem = ImportItem & { readonly publishFacts: ItemPublishFacts };
+/** One item of the list: no payload, and what the save needs read out of it. */
+export type ListedImportItem = ImportItem & { readonly saveFacts: ItemSaveFacts };
 
 /** What paying answers. */
 export type PayOutcome =
@@ -95,14 +106,15 @@ function toItem(row: RecipeImportItemRow): ImportItem {
     const stage = IMPORT_STAGES.find((value) => value === row.stage);
     const review = ITEM_REVIEWS.find((value) => value === row.review);
     const visibility = row.visibility === null ? null : IMPORT_VISIBILITIES.find((value) => value === row.visibility);
+    const refusal = row.refusal === null ? null : IMPORT_REFUSALS.find((value) => value === row.refusal);
 
-    if (stage === undefined || review === undefined || visibility === undefined) {
+    if (stage === undefined || review === undefined || visibility === undefined || refusal === undefined) {
         throw new Error(
             `recipe_import_items ${row.importId}/${String(row.ordinal)} holds a value this build does not know`,
         );
     }
 
-    return { ...row, stage, review, visibility };
+    return { ...row, stage, review, visibility, refusal };
 }
 
 /** The columns a request's statement, when it has one, writes. Pure. */
@@ -120,14 +132,14 @@ function statementPatch(statement: ImportStatement | undefined) {
 const BUMP_DECISION_REV = { decisionRev: sql`${recipeImportItems.decisionRev} + 1` } as const;
 
 /**
- * The ingredient-line count a payload holds, in SQL. The ONE statement of it: the item list counts with it, and a recipe
- * with none is never paid for or sent for parsing. Takes the payload column so a query that aliases the table can use it.
+ * The ingredient-line count a payload holds, in SQL. The ONE statement of it: the item list counts with it. Takes the payload
+ * column so a query that aliases the table can use it.
  */
 const lineCountOf = (payload: SQLWrapper): SQL<number> =>
     sql<number>`jsonb_array_length(COALESCE(${payload} -> 'ingredientLines', '[]'::jsonb))`;
 
-/** Whether an item's payload has an ingredient line. */
-const HAS_LINES = sql`${lineCountOf(recipeImportItems.payload)} > 0`;
+/** An integer a payload states, read in SQL: `NULL` when it states none (the contract admitted it as an int4). */
+const payloadInt = (key: string) => sql<number | null>`(${recipeImportItems.payload} ->> ${key})::int`;
 
 export class RecipeImportItemsDal {
     public constructor(
@@ -197,6 +209,7 @@ export class RecipeImportItemsDal {
                         ordinal: input.ordinal,
                         title: input.recipe.title,
                         payload: input.recipe,
+                        refusal: importRefusalOf(input.recipe),
                         ...patch,
                     });
                 } else if (decision.kind === 'replace') {
@@ -205,6 +218,8 @@ export class RecipeImportItemsDal {
                         .set({
                             title: input.recipe.title,
                             payload: input.recipe,
+                            // A fixed recipe clears the refusal; an emptied one sets it (the unit a paid item spent stays spent).
+                            refusal: importRefusalOf(input.recipe),
                             ...patch,
                             ...BUMP_DECISION_REV,
                             // A new recipe needs a new parse job. The job id is derived from the generation, and a paid item
@@ -252,6 +267,10 @@ export class RecipeImportItemsDal {
             .select({
                 ...itemColumnsWithoutPayload(),
                 fileCuisine: sql<string | null>`${recipeImportItems.payload} ->> 'cuisine'`,
+                fileServings: payloadInt('servings'),
+                filePrepTimeMinutes: payloadInt('prepTimeMinutes'),
+                fileCookTimeMinutes: payloadInt('cookTimeMinutes'),
+                fileTotalTimeMinutes: payloadInt('totalTimeMinutes'),
                 ingredientLineCount: lineCountOf(recipeImportItems.payload).mapWith(Number),
                 stepCount:
                     sql<number>`jsonb_array_length(COALESCE(${recipeImportItems.payload} -> 'steps', '[]'::jsonb))`.mapWith(
@@ -268,10 +287,31 @@ export class RecipeImportItemsDal {
             .orderBy(asc(recipeImportItems.ordinal))
             .limit(limit);
 
-        return rows.map(({ fileCuisine, ingredientLineCount, stepCount, ...row }) => ({
-            ...toItem({ ...row, payload: null }),
-            publishFacts: { fileCuisine, ingredientLineCount, stepCount },
-        }));
+        return rows.map(
+            ({
+                fileCuisine,
+                fileServings,
+                filePrepTimeMinutes,
+                fileCookTimeMinutes,
+                fileTotalTimeMinutes,
+                ingredientLineCount,
+                stepCount,
+                ...row
+            }) => ({
+                ...toItem({ ...row, payload: null }),
+                saveFacts: {
+                    file: {
+                        cuisine: fileCuisine,
+                        servings: fileServings,
+                        prepTimeMinutes: filePrepTimeMinutes,
+                        cookTimeMinutes: fileCookTimeMinutes,
+                        totalTimeMinutes: fileTotalTimeMinutes,
+                    },
+                    ingredientLineCount,
+                    stepCount,
+                },
+            }),
+        );
     }
 
     /**
@@ -305,9 +345,8 @@ export class RecipeImportItemsDal {
     }
 
     /**
-     * The items that can be given a parse job NOW: still received or parsing, holding no job, and either paid or with no
-     * ingredient lines to parse. An unpaid item that has lines is NOT here (it waits for the allowance), and neither is one
-     * that already holds a job.
+     * The items that can be given a parse job NOW: still received or parsing, holding no job, and paid. An unpaid item is NOT
+     * here (it waits for the allowance), and neither is a REFUSED one (it is never parsed) or one that already holds a job.
      *
      * ⛔ Selected in SQL rather than filtered from a page of everything, so an import with a thousand items already in flight
      * does not starve the ones that are ready for a job (head-of-line blocking). LEAST RECENTLY LOOKED AT first, with
@@ -325,7 +364,8 @@ export class RecipeImportItemsDal {
                         eq(recipeImportItems.importId, importId),
                         inArray(recipeImportItems.stage, ['received', 'parsing']),
                         isNull(recipeImportItems.parseJobId),
-                        or(isNotNull(recipeImportItems.allowanceSpentAt), sql`NOT (${HAS_LINES})`),
+                        isNull(recipeImportItems.refusal),
+                        isNotNull(recipeImportItems.allowanceSpentAt),
                     ),
                 )
                 .orderBy(asc(recipeImportItems.updatedAt), asc(recipeImportItems.ordinal))
@@ -494,6 +534,9 @@ export class RecipeImportItemsDal {
                         ...statementPatch(entry.statement),
                         ...(entry.visibility === undefined ? {} : { visibility: entry.visibility }),
                         ...(entry.cuisine === undefined ? {} : { cuisine: entry.cuisine }),
+                        ...(entry.servings === undefined ? {} : { servings: entry.servings }),
+                        ...(entry.prepTimeMinutes === undefined ? {} : { prepTimeMinutes: entry.prepTimeMinutes }),
+                        ...(entry.cookTimeMinutes === undefined ? {} : { cookTimeMinutes: entry.cookTimeMinutes }),
                         ...BUMP_DECISION_REV,
                         updatedAt: sql`now()`,
                     })
@@ -531,7 +574,7 @@ export class RecipeImportItemsDal {
                    AND h.user_id = ${userId}
                    AND i.stage = 'received'
                    AND i.allowance_spent_at IS NULL
-                   AND ${lineCountOf(sql`i.payload`)} > 0
+                   AND i.refusal IS NULL
                  ORDER BY i.ordinal
                  LIMIT ${request.limit}
                    FOR UPDATE OF i
@@ -609,28 +652,6 @@ export class RecipeImportItemsDal {
             .returning({ ordinal: recipeImportItems.ordinal });
 
         return detached.length > 0;
-    }
-
-    /**
-     * A recipe with no ingredient lines has nothing to parse: it is matched at once, and never charged.
-     *
-     * @returns Whether this call moved it. @sideEffect Writes the item.
-     */
-    public async markMatchedWithoutLines(importId: string, ordinal: number): Promise<boolean> {
-        const moved = await this.db
-            .update(recipeImportItems)
-            .set({ stage: 'matched', matchedAt: sql`now()`, updatedAt: sql`now()` })
-            .where(
-                and(
-                    eq(recipeImportItems.importId, importId),
-                    eq(recipeImportItems.ordinal, ordinal),
-                    eq(recipeImportItems.stage, 'received'),
-                    sql`NOT (${HAS_LINES})`,
-                ),
-            )
-            .returning({ ordinal: recipeImportItems.ordinal });
-
-        return moved.length > 0;
     }
 
     /**
@@ -754,6 +775,10 @@ function itemColumnsWithoutPayload() {
         visibility: rest.visibility,
         cuisine: rest.cuisine,
         heldAtRev: rest.heldAtRev,
+        servings: rest.servings,
+        prepTimeMinutes: rest.prepTimeMinutes,
+        cookTimeMinutes: rest.cookTimeMinutes,
+        refusal: rest.refusal,
         createdAt: rest.createdAt,
         updatedAt: rest.updatedAt,
     };

@@ -9,8 +9,9 @@
  *     `200` with this state (ADR-0072 §8 as amended), so the client keeps the progress it paid for and explains the pause
  *     from `used`, `limit` and `resetsAt`. The state is read with the same clock, window and rows the admission uses.
  *  2. **The pause and each item's issue are DERIVED** (`importItemIssueOf`, and the live slot count): a stored issue is wrong
- *     the moment the cook fixes it, the reason "flagged" is not stored either. What Publish still needs is judged by the one
- *     publish policy over facts the page reads out of the payload in SQL (`importPublishGapOf`), never from the save's hold.
+ *     the moment the cook fixes it, the reason "flagged" is not stored either. What the save still needs (a cuisine, servings or
+ *     times) is judged by the one policy over facts the page reads out of the payload in SQL (`importSaveGapOf`), never from
+ *     the save's hold, and a refusal (`importRefusalOf`) is the stored fact the write set.
  *  3. **`version` digests what the view was built from, VERDICTS INCLUDED.** The review gate writes its verdict by key from the
  *     worker, so no counter this service bumps could see one land; the digest takes the verdicts on record for the import's
  *     lines as an input, read in SQL by either key a line holds.
@@ -28,7 +29,7 @@ import type { ImportView } from '../recipes/import.schema.js';
 import type { ImportHeader, ImportVisibility, RecipeImportsDal } from './dal/recipeImports.dal.js';
 import type { ListedImportItem, RecipeImportItemsDal } from './dal/recipeImportItems.dal.js';
 import { importItemIssueOf } from './domain/importItemIssue.js';
-import { importCuisineOf, importPublishGapOf } from './domain/importPublishGap.js';
+import { importSaveFactsOf, importSaveGapOf } from './domain/importSaveGap.js';
 import { statementOfColumns } from './domain/importStatement.js';
 import { importViewVersionOf } from './domain/importViewVersion.js';
 import { visibilityRefusedFor } from './domain/importVisibility.js';
@@ -159,14 +160,17 @@ export class ImportViewBuilder {
             outOfSlots: read.outOfSlots,
             paid: item.allowanceSpentAt !== null,
             allowanceSpent: read.allowanceSpent,
-            publishGap:
-                statement === null
+            refusal: item.refusal,
+            // Only a matched, unrefused item can be held: a refused one has no ingredient line or step to judge, and a saved
+            // one has no payload left. (`importSaveGapOf` throws for either, which is a defect, not a hold.)
+            saveGap:
+                statement === null || item.stage !== 'matched' || item.refusal !== null
                     ? null
-                    : importPublishGapOf({
+                    : importSaveGapOf({
                           statement,
-                          cuisine: importCuisineOf(item.cuisine, item.publishFacts.fileCuisine),
-                          ingredientLineCount: item.publishFacts.ingredientLineCount,
-                          stepCount: item.publishFacts.stepCount,
+                          ...importSaveFactsOf(item, item.saveFacts.file),
+                          ingredientLineCount: item.saveFacts.ingredientLineCount,
+                          stepCount: item.saveFacts.stepCount,
                       }),
         });
 

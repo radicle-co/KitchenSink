@@ -5,34 +5,38 @@
  * wrong the moment the cook fixes it, the same reason "flagged" is not stored (ADR-0072 §6). The stage enum is closed and
  * parsed strictly by installed clients, so a new stuck state arrives as a new key here and never as a new stage.
  *
- * Precedence, first match wins: a saved item has none; an unpaid item waits for the allowance; then a matched item needs
- * its statement, then its visibility must be allowed for the label the statement sets, then it must have what Publish needs
- * (ADR-0072 §3 as amended 2026-11-11), then a private one may be paused for want of a slot (ADR-0073). The statement comes
- * first because the label, and with it the cuisine requirement, is derived from it. A publish gap comes before the slot
- * pause because a recipe that cannot be saved uses no slot.
+ * Precedence, first match wins: a saved item has none; a REFUSED recipe (no ingredient line or no step, ADR-0072 §3) names its
+ * refusal, because it is never paid for, parsed or saved; an unpaid item waits for the allowance; then a matched item needs
+ * its statement, then its visibility must be allowed for the label the statement sets, then it must have what the save needs
+ * (cuisine, servings, times; ADR-0072 §3 as amended 2026-11-11), then a private one may be paused for want of a slot
+ * (ADR-0073). The statement comes first because the label, and with it the cuisine requirement, is derived from it. A save gap
+ * comes before the slot pause because a recipe that cannot be saved uses no slot.
  */
-import type { PublishRequirement } from '@kitchensink/recipe-core';
-
 import type { ImportStage } from '../../database/schema/recipeImports.js';
+import type { ImportRefusal } from './importRefusal.js';
+import type { ImportSaveGap } from './importSaveGap.js';
 
-/** The issue key for each publish requirement the recipe still lacks. */
-const PUBLISH_GAP_ISSUES = {
+/** The issue key for each thing the save still needs. */
+const SAVE_GAP_ISSUES = {
     cuisine: 'needsCuisine',
-    ingredients: 'needsIngredients',
-    steps: 'needsSteps',
-} as const satisfies Record<PublishRequirement, string>;
+    servings: 'needsServings',
+    times: 'needsTimes',
+} as const satisfies Record<ImportSaveGap, string>;
 
 /** One issue key. A closed set for the service; the wire carries it as an opaque string. */
 export type ItemIssue =
+    | ImportRefusal
     | 'waitingForAllowance'
     | 'needsStatement'
     | 'visibilityRefused'
-    | (typeof PUBLISH_GAP_ISSUES)[PublishRequirement]
+    | (typeof SAVE_GAP_ISSUES)[ImportSaveGap]
     | 'outOfSlots';
 
 /** What the issue is derived from. */
 export interface ItemIssueFacts {
     readonly stage: ImportStage;
+    /** Why the import refused the recipe (`importRefusalOf`, stored at write time), or `null`. */
+    readonly refusal: ImportRefusal | null;
     /** Whether the cook has said where the recipe came from. */
     readonly hasStatement: boolean;
     /** Whether the visibility policy refuses this recipe's requested visibility for the label its statement sets. */
@@ -45,8 +49,8 @@ export interface ItemIssueFacts {
     readonly paid: boolean;
     /** Whether the caller's bulk allowance has no unit left today. */
     readonly allowanceSpent: boolean;
-    /** The first thing Publish still needs (`importPublishGapOf`), or `null`. */
-    readonly publishGap: PublishRequirement | null;
+    /** The first thing the save still needs (`importSaveGapOf`), or `null`. */
+    readonly saveGap: ImportSaveGap | null;
 }
 
 /**
@@ -58,6 +62,11 @@ export interface ItemIssueFacts {
 export function importItemIssueOf(facts: ItemIssueFacts): ItemIssue | null {
     if (facts.stage === 'saved') {
         return null;
+    }
+
+    // A refused recipe is never paid for, parsed or saved, so its reason is the only one that is true of it.
+    if (facts.refusal !== null) {
+        return facts.refusal;
     }
 
     if (facts.stage === 'received' && !facts.paid && facts.allowanceSpent) {
@@ -76,8 +85,8 @@ export function importItemIssueOf(facts: ItemIssueFacts): ItemIssue | null {
         return 'visibilityRefused';
     }
 
-    if (facts.publishGap !== null) {
-        return PUBLISH_GAP_ISSUES[facts.publishGap];
+    if (facts.saveGap !== null) {
+        return SAVE_GAP_ISSUES[facts.saveGap];
     }
 
     return facts.private && facts.outOfSlots ? 'outOfSlots' : null;

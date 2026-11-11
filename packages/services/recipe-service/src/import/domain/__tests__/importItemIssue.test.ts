@@ -14,7 +14,8 @@ const READY: ItemIssueFacts = {
     outOfSlots: false,
     paid: true,
     allowanceSpent: false,
-    publishGap: null,
+    refusal: null,
+    saveGap: null,
 };
 const issue = (patch: Partial<ItemIssueFacts>) => importItemIssueOf({ ...READY, ...patch });
 
@@ -53,19 +54,32 @@ describe('importItemIssueOf', () => {
         expect(issue({ private: true, outOfSlots: false })).toBeNull();
     });
 
-    it('⛔ names what Publish still needs, one key per requirement (ADR-0072 §3 as amended 2026-11-11)', () => {
-        expect(issue({ publishGap: 'cuisine' })).toBe('needsCuisine');
-        expect(issue({ publishGap: 'ingredients' })).toBe('needsIngredients');
-        expect(issue({ publishGap: 'steps' })).toBe('needsSteps');
+    it('⛔ names what the save still needs, one key per gap (ADR-0072 §3 as amended 2026-11-11)', () => {
+        expect(issue({ saveGap: 'cuisine' })).toBe('needsCuisine');
+        expect(issue({ saveGap: 'servings' })).toBe('needsServings');
+        expect(issue({ saveGap: 'times' })).toBe('needsTimes');
     });
 
-    it('asks for a publish requirement only on a matched item, after the statement and the visibility, before the slots', () => {
-        expect(issue({ stage: 'parsing', publishGap: 'cuisine' })).toBeNull();
+    it('asks for a save gap only on a matched item, after the statement and the visibility, before the slots', () => {
+        expect(issue({ stage: 'parsing', saveGap: 'cuisine' })).toBeNull();
         // The statement can lift the cuisine requirement (a public-domain import needs none), so it is asked first.
-        expect(issue({ hasStatement: false, publishGap: 'cuisine' })).toBe('needsStatement');
-        expect(issue({ visibilityRefused: true, publishGap: 'cuisine' })).toBe('visibilityRefused');
-        // A recipe that cannot publish uses no slot, so the slot pause is not its reason.
-        expect(issue({ private: true, outOfSlots: true, publishGap: 'cuisine' })).toBe('needsCuisine');
+        expect(issue({ hasStatement: false, saveGap: 'cuisine' })).toBe('needsStatement');
+        expect(issue({ visibilityRefused: true, saveGap: 'cuisine' })).toBe('visibilityRefused');
+        // A recipe that cannot be saved uses no slot, so the slot pause is not its reason.
+        expect(issue({ private: true, outOfSlots: true, saveGap: 'times' })).toBe('needsTimes');
+    });
+
+    it('⛔ names a refusal FIRST: before the allowance wait and before the matched-stage early return', () => {
+        expect(issue({ stage: 'received', paid: false, allowanceSpent: true, refusal: 'noIngredients' })).toBe(
+            'noIngredients',
+        );
+        expect(issue({ stage: 'received', paid: false, allowanceSpent: false, refusal: 'noSteps' })).toBe('noSteps');
+        expect(issue({ stage: 'received', paid: true, hasStatement: false, refusal: 'noSteps' })).toBe('noSteps');
+        expect(issue({ hasStatement: false, saveGap: 'cuisine', refusal: 'noIngredients' })).toBe('noIngredients');
+    });
+
+    it('a refusal does not outrank a saved item (a saved item has no issue)', () => {
+        expect(issue({ stage: 'saved', refusal: 'noSteps' })).toBeNull();
     });
 
     it('puts a refused visibility ahead of the slot pause (the cook fixes the label first)', () => {

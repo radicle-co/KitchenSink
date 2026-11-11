@@ -10,8 +10,8 @@
  *     the units it marks). When the day is spent nothing is paid and the call goes on to the work it can still do; it
  *     answers `200` with the allowance in the view (never a `429`), so the client keeps the progress it paid for.
  *  2. **PARSE**: give each paid item without a job one, created under an id DERIVED from (import, ordinal, generation) so a
- *     retry after a crash finds the same job instead of paying for a second. No ingredient lines means nothing to parse and no
- *     charge.
+ *     retry after a crash finds the same job instead of paying for a second. A REFUSED recipe (no ingredient line or no step,
+ *     ADR-0072 §3) is never paid for or parsed: the queries leave it out.
  *  3. **MATCH**: match the finished jobs' foods under ONE deadline (`proposeForJobs`), and copy a complete job's matches into
  *     the import's own rows (the snapshot), because the job lives a day. An expired job is let go (the generation moves) and
  *     replaced without charging the item again.
@@ -30,10 +30,13 @@
  *  - **A private save is not even tried when the cook has no slot** (ADR-0073); the authoritative check is the create path's, and
  *    its `PRIVATE_SLOTS_FULL` denial pauses the rest of the private saves in the call.
  *  - **An item that cannot save yet goes to the back of the line** (`deferItem`), so the items behind it are not starved.
- *  - **An item only the cook can unblock is HELD, not deferred**: one that lacks what Publish needs (ADR-0072 §3 as amended
- *    2026-11-11), and one whose visibility the policy refuses for its label. Looking at it again would re-queue it forever.
- *    `holdItem` records the revision the save read, the candidates leave it out while that revision stands, and the cook's
- *    next decision moves the revision and releases it. Nothing fills the gap: no default cuisine, no AI pick, no draft save.
+ *  - **An item only the cook can unblock is HELD, not deferred**: one that lacks a cuisine, servings or times (ADR-0072 §3
+ *    as amended 2026-11-11), and one whose visibility the policy refuses for its label. Looking at it again would re-queue it
+ *    forever. `holdItem` records the revision the save read, the candidates leave it out while that revision stands, and the
+ *    cook's next decision moves the revision and releases it. Nothing fills the gap: no default cuisine, no "1 serving", no
+ *    "0 minutes", no AI pick, and no draft save.
+ *  - **A recipe with no ingredient line or no step is REFUSED** when it is written (`importRefusalOf`): it stays `received`,
+ *    and the paying, parsing and saving queries all leave it alone in SQL, so no advance ever picks it up again.
  *  - **The save and the item list agree on why an item waits**: both ask `importItemIssueOf`, in its precedence.
  */
 import { Inject, Injectable, Logger } from '@nestjs/common';
@@ -79,7 +82,12 @@ import {
 } from './import.tokens.js';
 import { importItemIssueOf, type ItemIssue } from './domain/importItemIssue.js';
 import { IMPORT_DEFAULT_PAGE_SIZE, type ImportAdvanceLimits } from './domain/importLimits.js';
-import { importCuisineOf, importPublishGapOf } from './domain/importPublishGap.js';
+import {
+    fileSaveFactsOf,
+    importSaveFactsOf,
+    importSaveGapOf,
+    type ImportResolvedFacts,
+} from './domain/importSaveGap.js';
 import { isReadyToSave } from './domain/importSaveReadiness.js';
 import { statementOfColumns } from './domain/importStatement.js';
 import { visibilityRefusedFor } from './domain/importVisibility.js';
@@ -110,8 +118,12 @@ const SAVE_OUTCOME_OF_ISSUE = {
     needsStatement: 'waiting',
     visibilityRefused: 'held',
     needsCuisine: 'held',
-    needsIngredients: 'held',
-    needsSteps: 'held',
+    needsServings: 'held',
+    needsTimes: 'held',
+    // A refused recipe never leaves `received` (a CHECK), so it is never a save candidate. Should one reach the save all the
+    // same, nothing the save can do changes it, so it is held rather than looked at again on every advance.
+    noIngredients: 'held',
+    noSteps: 'held',
     outOfSlots: 'paused',
 } as const satisfies Record<ItemIssue, SaveOutcome>;
 
@@ -142,27 +154,47 @@ function outcomeOfCreateRefusal(error: unknown): SaveOutcome | 'unpublishable' |
     return undefined;
 }
 
+/** The facts the create body needs, each known: the cook's choice or the file's (ADR-0072 §3 as amended 2026-11-11). */
+interface SaveableFacts {
+    readonly cuisine: string | null;
+    readonly servings: number;
+    readonly prepTimeMinutes: number;
+    readonly cookTimeMinutes: number;
+    readonly totalTimeMinutes: number;
+}
+
+/** The resolved facts, when the create body has every one it requires; `undefined` when one is unknown. Pure. */
+function saveableFactsOf(facts: ImportResolvedFacts): SaveableFacts | undefined {
+    const { cuisine, servings, prepTimeMinutes, cookTimeMinutes, totalTimeMinutes } = facts;
+
+    if (servings === null || prepTimeMinutes === null || cookTimeMinutes === null || totalTimeMinutes === null) {
+        return undefined;
+    }
+
+    return { cuisine, servings, prepTimeMinutes, cookTimeMinutes, totalTimeMinutes };
+}
+
 /** The create body for an imported recipe, PUBLISHED with the visibility the cook chose. Pure. */
 function createDtoOf(
     recipe: ImportRecipe,
-    cuisine: string | null,
+    facts: SaveableFacts,
     requested: ImportVisibility,
     ingredients: CreateRecipeDto['ingredients'],
 ): CreateRecipeDto {
     return {
         title: recipe.title,
         ...(recipe.description === undefined ? {} : { description: recipe.description }),
-        ...(cuisine === null ? {} : { cuisine }),
+        ...(facts.cuisine === null ? {} : { cuisine: facts.cuisine }),
         ...(recipe.difficulty === undefined ? {} : { difficulty: recipe.difficulty }),
         ...(recipe.mealType === undefined ? {} : { mealType: recipe.mealType }),
         status: 'published',
         visibility: requested === 'public' ? RecipeVisibility.PUBLIC : RecipeVisibility.PRIVATE,
-        // The create route requires these and another app's export often states none. They are not what Publish needs,
-        // so the neutral values stand in (one serving, no time stated) and the cook edits them in the editor.
-        servings: recipe.servings ?? 1,
-        prepTimeMinutes: recipe.prepTimeMinutes ?? 0,
-        cookTimeMinutes: recipe.cookTimeMinutes ?? 0,
-        totalTimeMinutes: recipe.totalTimeMinutes ?? (recipe.prepTimeMinutes ?? 0) + (recipe.cookTimeMinutes ?? 0),
+        // The create route requires these and another app's export often states none. Nothing makes one up: an item missing
+        // one is held for the cook, so these are the cook's choice or the file's, never a neutral stand-in.
+        servings: facts.servings,
+        prepTimeMinutes: facts.prepTimeMinutes,
+        cookTimeMinutes: facts.cookTimeMinutes,
+        totalTimeMinutes: facts.totalTimeMinutes,
         ...(recipe.tags === undefined ? {} : { tags: recipe.tags }),
         ...(recipe.dietaryFlags === undefined ? {} : { dietaryFlags: recipe.dietaryFlags }),
         ingredients,
@@ -249,7 +281,6 @@ export class ImportAdvanceService {
             | 'holdItem'
             | 'attachJob'
             | 'detachExpiredJob'
-            | 'markMatchedWithoutLines'
             | 'snapshot'
             | 'claimSave'
         >,
@@ -324,14 +355,8 @@ export class ImportAdvanceService {
     }
 
     private async startParsing(principal: Principal, header: ImportHeader, item: ImportItem): Promise<void> {
+        // A refused recipe (no ingredient line) never gets here: `findNeedingJob` leaves it out, so there is always a line to parse.
         const payload = payloadLinesSchema.parse(item.payload);
-
-        if (payload.ingredientLines.length === 0) {
-            // Nothing is sent for parsing, so no LLM spend starts and nothing is charged.
-            await this.items.markMatchedWithoutLines(header.id, item.ordinal);
-
-            return;
-        }
 
         const jobId = importJobIdOf(header.id, item.ordinal, item.parseGeneration, sha256Hex);
 
@@ -496,7 +521,8 @@ export class ImportAdvanceService {
      * review gate.
      *
      * @returns `saved` (this call or a racing one); `waiting` (not ready, no statement, food could not be asked); `paused`
-     *   (no private slot); `held` (only the cook can fix it: a refused visibility or a publish gap; held at the revision read).
+     *   (no private slot); `held` (only the cook can fix it: a refused visibility, or a missing cuisine, servings or times;
+     *   held at the revision read).
      */
     private async saveOne(
         principal: Principal,
@@ -508,9 +534,10 @@ export class ImportAdvanceService {
         const requested: ImportVisibility = item.visibility ?? header.visibility;
         const statement = statementOfColumns(item);
         const recipe = importRecipeSchema.parse(item.payload);
-        const cuisine = importCuisineOf(item.cuisine, recipe.cuisine);
+        const facts = importSaveFactsOf(item, fileSaveFactsOf(item.payload));
         const issue = importItemIssueOf({
             stage: item.stage,
+            refusal: item.refusal,
             // A save candidate is matched, so the allowance facts (which only a received item reads) do not apply.
             paid: true,
             allowanceSpent: false,
@@ -526,12 +553,12 @@ export class ImportAdvanceService {
                     statement,
                     requested,
                 ),
-            publishGap:
+            saveGap:
                 statement === undefined
                     ? null
-                    : importPublishGapOf({
+                    : importSaveGapOf({
                           statement,
-                          cuisine,
+                          ...facts,
                           ingredientLineCount: recipe.ingredientLines.length,
                           stepCount: recipe.steps.length,
                       }),
@@ -551,9 +578,16 @@ export class ImportAdvanceService {
             return 'waiting';
         }
 
+        const saveable = saveableFactsOf(facts);
+
+        // The issue above holds an item missing servings or a time, so `undefined` here only narrows the type.
+        if (saveable === undefined) {
+            return this.hold(header, item);
+        }
+
         const snapshot = await this.lines.findForItem(header.id, item.ordinal);
         const matches = await this.lineView.matchesOf(actingPrincipalOf(principal), caller, snapshot, deadline);
-        const facts = snapshot.map((line) => {
+        const lineFacts = snapshot.map((line) => {
             const match = matches.get(line.id);
 
             return match === null || match === undefined
@@ -566,11 +600,11 @@ export class ImportAdvanceService {
         });
 
         // A line food could not be asked about is decided later, never on a guess.
-        if (facts.some((entry) => entry === undefined)) {
+        if (lineFacts.some((entry) => entry === undefined)) {
             return 'waiting';
         }
 
-        const known = facts.flatMap((entry) => (entry === undefined ? [] : [entry]));
+        const known = lineFacts.flatMap((entry) => (entry === undefined ? [] : [entry]));
         const reviewClosed = header.reviewClosedAt !== null;
 
         if (
@@ -616,7 +650,7 @@ export class ImportAdvanceService {
         try {
             await this.recipes.create(
                 principal,
-                createDtoOf(recipe, cuisine, requested, built.lines),
+                createDtoOf(recipe, saveable, requested, built.lines),
                 caller,
                 imported,
             );

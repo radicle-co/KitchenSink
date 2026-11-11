@@ -43,7 +43,7 @@ import {
     IMPORT_LINES_DEFAULT_PAGE_SIZE,
 } from './domain/importLimits.js';
 import { decodeLineCursor, encodeLineCursor, type LineCursor } from './domain/importPaging.js';
-import { fileCuisineOf, importCuisineOf } from './domain/importPublishGap.js';
+import { fileSaveFactsOf, importSaveFactsOf } from './domain/importSaveGap.js';
 import { statementOfColumns } from './domain/importStatement.js';
 import { ImportLineView, type FlaggedRead } from './importLineView.js';
 import { RECIPE_IMPORT_ITEMS_DAL, RECIPE_IMPORT_LINES_DAL, RECIPE_IMPORTS_DAL } from './import.tokens.js';
@@ -440,8 +440,9 @@ export class ImportStepService {
             review: item.review,
             statement: statementOfColumns(item) ?? null,
             visibility: item.visibility,
-            // A saved item's payload is gone, so its step shows only a cuisine the cook gave; the recipe holds what was saved.
-            cuisine: importCuisineOf(item.cuisine, fileCuisineOf(item.payload)),
+            // The facts the save will send, so the wizard shows what the save sends. A saved item's payload is gone, so its step
+            // shows only what the cook gave; the recipe holds what was saved.
+            ...importSaveFactsOf(item, fileSaveFactsOf(item.payload)),
             lines: lines.map((line) => ({
                 lineIndex: line.lineIndex,
                 foodIndex: line.foodIndex,

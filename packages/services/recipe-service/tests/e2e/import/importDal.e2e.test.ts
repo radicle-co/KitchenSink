@@ -286,6 +286,27 @@ describe('the bulk-import DALs (LOCAL e2e, real Postgres)', () => {
                 parsing: 1,
                 matched: 0,
                 saved: 0,
+                refused: 0,
+            });
+        });
+
+        it('⛔ counts a refused item in `total` and in `refused`, and NOT in `received`', async () => {
+            const header = await newImport(4);
+
+            await items.upsertItems(header.id, [
+                { ordinal: 0, recipe: recipe('fine') },
+                { ordinal: 1, recipe: recipe('no lines', []) },
+                { ordinal: 2, recipe: { ...recipe('no steps'), steps: [] } },
+                { ordinal: 3, recipe: recipe('also fine') },
+            ]);
+
+            expect(await imports.countsByStage(header.id)).toEqual({
+                total: 4,
+                received: 2,
+                parsing: 0,
+                matched: 0,
+                saved: 0,
+                refused: 2,
             });
         });
 
@@ -484,20 +505,126 @@ describe('the bulk-import DALs (LOCAL e2e, real Postgres)', () => {
             expect(page.every((item) => item.payload === null)).toBe(true);
         });
 
-        it('⛔ reads what Publish needs from the payload in SQL, so the list can name the gap without the document', async () => {
+        it('⛔ reads what the save needs from the payload in SQL, so the list can name the gap without the document', async () => {
             const header = await newImport(3);
 
             await items.upsertItems(header.id, [
-                { ordinal: 0, recipe: { ...recipe('Stated', ['1 egg', '2 cups flour']), cuisine: 'French' } },
+                {
+                    ordinal: 0,
+                    recipe: {
+                        ...recipe('Stated', ['1 egg', '2 cups flour']),
+                        cuisine: 'French',
+                        servings: 4,
+                        prepTimeMinutes: 0,
+                        cookTimeMinutes: 25,
+                        totalTimeMinutes: 30,
+                    },
+                },
                 { ordinal: 1, recipe: { ...recipe('Bare', []), steps: [] } },
             ]);
 
             const page = await items.findPage(header.id, undefined, 5);
 
-            expect(page.map((item) => item.publishFacts)).toEqual([
-                { fileCuisine: 'French', ingredientLineCount: 2, stepCount: 1 },
-                { fileCuisine: null, ingredientLineCount: 0, stepCount: 0 },
+            expect(page.map((item) => item.saveFacts)).toEqual([
+                {
+                    file: {
+                        cuisine: 'French',
+                        servings: 4,
+                        prepTimeMinutes: 0,
+                        cookTimeMinutes: 25,
+                        totalTimeMinutes: 30,
+                    },
+                    ingredientLineCount: 2,
+                    stepCount: 1,
+                },
+                {
+                    file: {
+                        cuisine: null,
+                        servings: null,
+                        prepTimeMinutes: null,
+                        cookTimeMinutes: null,
+                        totalTimeMinutes: null,
+                    },
+                    ingredientLineCount: 0,
+                    stepCount: 0,
+                },
             ]);
+            expect(page.map((item) => item.refusal)).toEqual([null, 'noIngredients']);
+        });
+    });
+
+    describe('⛔ a refused recipe (no ingredient line or no step; ADR-0072 §3, owner ruling 2026-11-11)', () => {
+        const noSteps = (title: string) => ({ ...recipe(title), steps: [] });
+
+        it('stores the refusal at write time: noIngredients, noSteps, and none for a whole recipe', async () => {
+            const header = await newImport(4);
+
+            await items.upsertItems(header.id, [
+                { ordinal: 0, recipe: recipe('whole') },
+                { ordinal: 1, recipe: recipe('empty', []) },
+                { ordinal: 2, recipe: noSteps('stepless') },
+                { ordinal: 3, recipe: { ...noSteps('bare'), ingredientLines: [] } },
+            ]);
+
+            expect((await items.findItem(header.id, 0))?.refusal).toBeNull();
+            expect((await items.findItem(header.id, 1))?.refusal).toBe('noIngredients');
+            expect((await items.findItem(header.id, 2))?.refusal).toBe('noSteps');
+            // Both are missing: the first in the publish order wins.
+            expect((await items.findItem(header.id, 3))?.refusal).toBe('noIngredients');
+        });
+
+        it('a replace with a fixed recipe CLEARS the refusal, and a replace with an empty one sets it, even on a paid item', async () => {
+            const header = await newImport(1);
+
+            await items.upsertItems(header.id, [{ ordinal: 0, recipe: recipe('empty', []) }]);
+            expect((await items.findItem(header.id, 0))?.refusal).toBe('noIngredients');
+
+            await items.upsertItems(header.id, [{ ordinal: 0, recipe: recipe('fixed') }]);
+            expect((await items.findItem(header.id, 0))?.refusal).toBeNull();
+
+            await pool.query(
+                `UPDATE recipe_import_items SET allowance_spent_at = now() WHERE import_id = $1 AND ordinal = 0`,
+                [header.id],
+            );
+            await items.upsertItems(header.id, [{ ordinal: 0, recipe: noSteps('emptied') }]);
+            expect(await items.findItem(header.id, 0)).toMatchObject({ refusal: 'noSteps', stage: 'received' });
+        });
+
+        it('a replay of the same refused recipe leaves its refusal as it was', async () => {
+            const header = await newImport(1);
+
+            await items.upsertItems(header.id, [{ ordinal: 0, recipe: recipe('empty', []) }]);
+            await items.upsertItems(header.id, [{ ordinal: 0, recipe: recipe('empty', []) }]);
+
+            expect((await items.findItem(header.id, 0))?.refusal).toBe('noIngredients');
+        });
+
+        it('⛔ payUnpaid never pays for a refused item: only the whole recipes spend a unit', async () => {
+            const header = await newImport(3);
+
+            await items.upsertItems(header.id, [
+                { ordinal: 0, recipe: recipe('empty', []) },
+                { ordinal: 1, recipe: recipe('whole') },
+                { ordinal: 2, recipe: noSteps('stepless') },
+            ]);
+
+            expect(await items.payUnpaid(USER, header.id, { limit: 10, isPremium: true })).toEqual({
+                kind: 'paid',
+                ordinals: [1],
+            });
+            expect((await items.findItem(header.id, 0))?.allowanceSpentAt).toBeNull();
+            expect((await items.findItem(header.id, 2))?.allowanceSpentAt).toBeNull();
+        });
+
+        it('⛔ a refused item is never listed for a job, so it never reaches parsing or a match', async () => {
+            const header = await newImport(2);
+
+            await items.upsertItems(header.id, [
+                { ordinal: 0, recipe: recipe('empty', []) },
+                { ordinal: 1, recipe: noSteps('stepless') },
+            ]);
+
+            expect(await items.findNeedingJob(header.id, 10)).toEqual([]);
         });
     });
 
@@ -514,18 +641,18 @@ describe('the bulk-import DALs (LOCAL e2e, real Postgres)', () => {
             await pool.query('DELETE FROM recipe_parse_jobs WHERE owner_id = $1', [USER]);
         });
 
-        it('findNeedingJob returns the items that can be given a job NOW: paid with none, or with no lines to parse; never an unpaid one or one that has a job', async () => {
+        it('findNeedingJob returns the items that can be given a job NOW: paid with none; never an unpaid one, a refused one or one that has a job (rewritten: a recipe with no lines used to be listed here and matched at once, and is now refused)', async () => {
             const header = await newImport(5);
 
             await items.upsertItems(header.id, [
                 { ordinal: 0, recipe: recipe('unpaid') },
                 { ordinal: 1, recipe: recipe('paid, no job') },
                 { ordinal: 2, recipe: recipe('has a job') },
-                { ordinal: 3, recipe: recipe('no lines', []) },
+                { ordinal: 3, recipe: recipe('no lines, refused', []) },
                 { ordinal: 4, recipe: recipe('detached, paid') },
             ]);
             await pool.query(
-                `UPDATE recipe_import_items SET allowance_spent_at = now() WHERE import_id = $1 AND ordinal IN (1, 2, 4)`,
+                `UPDATE recipe_import_items SET allowance_spent_at = now() WHERE import_id = $1 AND ordinal IN (1, 2, 3, 4)`,
                 [header.id],
             );
             await items.attachJob(header.id, 2, 0, await job());
@@ -535,9 +662,10 @@ describe('the bulk-import DALs (LOCAL e2e, real Postgres)', () => {
 
             const found = await items.findNeedingJob(header.id, 10);
 
-            expect(found.map((item) => item.ordinal)).toEqual([1, 3, 4]);
+            // Item 3 is PAID and refused: the refusal alone keeps it out.
+            expect(found.map((item) => item.ordinal)).toEqual([1, 4]);
             expect(found.every((item) => item.payload !== null)).toBe(true);
-            expect((await items.findNeedingJob(header.id, 2)).map((item) => item.ordinal)).toEqual([1, 3]);
+            expect((await items.findNeedingJob(header.id, 1)).map((item) => item.ordinal)).toEqual([1]);
         });
 
         it('findParsing returns only the items that hold a job, without their payloads, in the order they were last looked at (rewritten: it was ordinal order before the stuck-job fence)', async () => {
@@ -655,6 +783,44 @@ describe('the bulk-import DALs (LOCAL e2e, real Postgres)', () => {
                 expect(await items.findItem(header.id, 0)).toMatchObject({
                     cuisine: 'Mexican',
                     decisionRev: (before?.decisionRev ?? Number.NaN) + 1,
+                });
+            });
+
+            it('servings and times are decisions too: stored, a 0 kept as a value, and each moves the revision', async () => {
+                const header = await newImport(1);
+
+                await put(header.id, [0]);
+
+                const before = await items.findItem(header.id, 0);
+
+                expect(await items.recordChoices(header.id, 0, { servings: 6 })).toBe('ok');
+                expect(
+                    await items.recordChoicesBatch(header.id, [
+                        { ordinal: 0, prepTimeMinutes: 0, cookTimeMinutes: 45 },
+                    ]),
+                ).toEqual({
+                    kind: 'ok',
+                });
+
+                expect(await items.findItem(header.id, 0)).toMatchObject({
+                    servings: 6,
+                    prepTimeMinutes: 0,
+                    cookTimeMinutes: 45,
+                    decisionRev: (before?.decisionRev ?? Number.NaN) + 2,
+                });
+            });
+
+            it('a choice that names only some of them leaves the others as they were', async () => {
+                const header = await newImport(1);
+
+                await put(header.id, [0]);
+                await items.recordChoices(header.id, 0, { servings: 6, prepTimeMinutes: 5 });
+                await items.recordChoices(header.id, 0, { cookTimeMinutes: 10 });
+
+                expect(await items.findItem(header.id, 0)).toMatchObject({
+                    servings: 6,
+                    prepTimeMinutes: 5,
+                    cookTimeMinutes: 10,
                 });
             });
         });
@@ -927,15 +1093,6 @@ describe('the bulk-import DALs (LOCAL e2e, real Postgres)', () => {
                 [1, 0, 'salt', 'salt', null, null],
                 [1, 1, 'pepper', 'pepper', null, null],
             ]);
-        });
-
-        it('moves a recipe with no lines straight to matched', async () => {
-            const header = await newImport();
-
-            await items.upsertItems(header.id, [{ ordinal: 0, recipe: recipe('Nothing', []) }]);
-
-            expect(await items.markMatchedWithoutLines(header.id, 0)).toBe(true);
-            expect(await items.findItem(header.id, 0)).toMatchObject({ stage: 'matched', allowanceSpentAt: null });
         });
 
         it('⛔ the save claim takes the item inside the recipe’s transaction once; the second finds zero rows and throws', async () => {

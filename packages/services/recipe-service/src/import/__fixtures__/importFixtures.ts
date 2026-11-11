@@ -84,17 +84,25 @@ export function makeItem(overrides: Partial<ImportItem> = {}): ImportItem {
         visibility: null,
         cuisine: null,
         heldAtRev: null,
+        servings: null,
+        prepTimeMinutes: null,
+        cookTimeMinutes: null,
+        refusal: null,
         createdAt: new Date('2026-10-26T12:00:00.000Z'),
         updatedAt: new Date('2026-10-26T12:00:00.000Z'),
         ...overrides,
     };
 }
 
-/** An item as the list reads it. Its file states everything Publish needs by default. */
+/** An item as the list reads it. Its file states everything the save needs by default. */
 export function makeListedItem(overrides: Partial<ListedImportItem> = {}): ListedImportItem {
     return {
         ...makeItem(overrides),
-        publishFacts: { fileCuisine: 'Italian', ingredientLineCount: 1, stepCount: 1 },
+        saveFacts: {
+            file: { cuisine: 'Italian', servings: 4, prepTimeMinutes: 10, cookTimeMinutes: 20, totalTimeMinutes: 30 },
+            ingredientLineCount: 1,
+            stepCount: 1,
+        },
         ...overrides,
     };
 }
@@ -235,7 +243,7 @@ export function makeImportView(overrides: Partial<ImportView> = {}): ImportView 
         expectedTotal: 1,
         allowance: { limit: 1000, used: 0, resetsAt: null },
         pause: null,
-        counts: { total: 0, received: 0, parsing: 0, matched: 0, saved: 0 },
+        counts: { total: 0, received: 0, parsing: 0, matched: 0, saved: 0, refused: 0 },
         items: [],
         nextAfter: null,
         ...overrides,

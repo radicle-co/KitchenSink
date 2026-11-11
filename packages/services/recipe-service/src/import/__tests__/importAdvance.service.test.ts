@@ -18,6 +18,7 @@
 import { HttpException, HttpStatus } from '@nestjs/common';
 import { describe, expect, it, vi, type Mock } from 'vitest';
 
+import type { Role } from '@kitchensink/clerk-verify';
 import { RecipeSourceType, RecipeVisibility, type IngredientQuantity } from '@kitchensink/recipe-core';
 
 import { CallerToken } from '../../auth/CallerToken.js';
@@ -291,7 +292,8 @@ interface World {
     readonly create?: RecipesService['create'];
     readonly addByRef?: IngredientsService['addByRef'];
     readonly limits?: Partial<ImportAdvanceLimits>;
-    readonly tier?: 'free' | 'premium';
+    /** The cook's plan roles, read from the signed token (`isPremiumPrincipal`). None is a free cook. */
+    readonly roles?: readonly Role[];
 }
 
 function build(world: World = {}) {
@@ -418,7 +420,7 @@ function build(world: World = {}) {
         builder,
         limits,
     );
-    const principal = world.tier === 'premium' ? makePrincipal({ roles: ['premium'] }) : COOK;
+    const principal = world.roles === undefined ? COOK : makePrincipal({ roles: [...world.roles] });
 
     return {
         service,
@@ -450,17 +452,27 @@ describe('ImportAdvanceService — paying and giving each item its parse job', (
 
         expect(store.payUnpaid).toHaveBeenCalledWith(USER, IMPORT_ID, {
             limit: DEFAULT_IMPORT_ADVANCE_LIMITS.payBatch,
+            isPremium: false,
         });
     });
 
-    // REWRITTEN: this used to assert a Premium cook's tier reached the allowance. The allowance has ONE flat limit per channel
-    // until 010 specifies tier rules (main dropped the tier input), so a Premium cook pays exactly as a free one does.
-    it('a Premium cook pays under the same flat limit: no tier reaches the allowance', async () => {
-        const { answered, store } = run({ items: [received(0)], tier: 'premium' });
+    // REWRITTEN twice: owner ruling 2026-11-11 puts bulk at 200 a day on Free and 1,000 on a paid plan, so the cook's plan
+    // reaches the allowance again. Superusers and VIPs count as paid, read through the ONE policy (`isPremiumPrincipal`).
+    it.each([
+        ['a Premium cook', ['premium'] as const, true],
+        ['⛔ a superuser on Free billing', ['superuser'] as const, true],
+        ['⛔ a VIP on Free billing', ['vip'] as const, true],
+        ['an admin, who is not a paid plan', ['admin'] as const, false],
+        ['a free cook', [] as const, false],
+    ] satisfies readonly (readonly [string, readonly Role[], boolean])[])('%s pays under the plan it holds', async (_name, roles, isPremium) => {
+        const { answered, store } = run({ items: [received(0)], roles });
 
         await answered;
 
-        expect(store.payUnpaid.mock.calls[0]?.[2]).toStrictEqual({ limit: DEFAULT_IMPORT_ADVANCE_LIMITS.payBatch });
+        expect(store.payUnpaid.mock.calls[0]?.[2]).toStrictEqual({
+            limit: DEFAULT_IMPORT_ADVANCE_LIMITS.payBatch,
+            isPremium,
+        });
     });
 
     it('⛔ creates each paid item’s job under the DERIVED id, from the TRIMMED lines, and names it on the item', async () => {

@@ -7,7 +7,8 @@
  *  - paste and bulk never borrow from each other (kills: summing every channel against one limit);
  *  - a file larger than the room left admits what fits and writes ONLY that (kills: all-or-nothing, or writing the
  *    request instead of the admitted units);
- *  - a 2,000-recipe file at an empty ledger admits exactly 1,000 (kills: a per-file cap, a limit of 200 on bulk);
+ *  - a 2,000-recipe file at an empty ledger admits exactly 1,000 on a paid plan (kills: a per-file cap, Free's 200 for
+ *    everyone), and the Free plan's 200th recipe is admitted and its 201st refused (kills: one limit for every plan);
  *  - `resetsAt` is read back from the table: the oldest counted bulk unit plus 24 h, and `now + 24 h` when the units
  *    just admitted are the oldest (kills: ignoring the admitted units, or reading another channel's rows);
  *  - the lock is real, deterministically: while another session holds the user's key a bulk admit WAITS and writes
@@ -23,13 +24,19 @@ import pg from 'pg';
 import { ADVISORY_LOCK_CLASSES } from '@kitchensink/db-schema-guard';
 
 import { ImportAllowanceDal, type AdmitOutcome } from '../../../src/common/dal/importAllowance.dal.js';
-import { IMPORT_ALLOWANCE_RULES } from '../../../src/common/importAllowancePolicy.js';
+import {
+    IMPORT_ALLOWANCE_RULES,
+    importAllowanceLimitOf,
+    type ImportAllowanceScope,
+} from '../../../src/common/importAllowancePolicy.js';
 import { createRecipeDrizzle, type RecipeDrizzle } from '../../../src/database/client.js';
 import { recipeDb } from '../../support/roleDb.js';
 
 const USER = '01JIMPORTALLOWANCEE2E00001';
 const OTHER = '01JIMPORTALLOWANCEE2E00002';
 const roleDb = recipeDb();
+const PAID_BULK_LIMIT = importAllowanceLimitOf({ channel: 'bulk', isPremium: true });
+const FREE_BULK_LIMIT = importAllowanceLimitOf({ channel: 'bulk', isPremium: false });
 
 describe('the per-channel import allowance (LOCAL e2e)', () => {
     let pool: pg.Pool;
@@ -49,9 +56,19 @@ describe('the per-channel import allowance (LOCAL e2e)', () => {
         await pool.end();
     });
 
+    /** The scope a case runs under: bulk on the paid plan, whose limit most cases were written for, unless it names Free. */
+    function scopeOf(channel: 'paste' | 'bulk', isPremium = true): ImportAllowanceScope {
+        return channel === 'paste' ? { channel } : { channel, isPremium };
+    }
+
     /** One admission in its own transaction, the way a service call makes it. */
-    function admit(channel: 'paste' | 'bulk', units: number, userId: string = USER): Promise<AdmitOutcome> {
-        return db.transaction((tx) => dal.admit(tx, userId, { channel, units }));
+    function admit(
+        channel: 'paste' | 'bulk',
+        units: number,
+        userId: string = USER,
+        isPremium = true,
+    ): Promise<AdmitOutcome> {
+        return db.transaction((tx) => dal.admit(tx, userId, { ...scopeOf(channel, isPremium), units }));
     }
 
     /** One ledger row of `units` on `channel`, `ageHours` old. */
@@ -78,11 +95,11 @@ describe('the per-channel import allowance (LOCAL e2e)', () => {
         expect(await admit('bulk', 3)).toEqual({ kind: 'admitted', units: 3 });
         expect((await admit('paste', 1)).kind).toBe('refused');
 
-        await seed('bulk', IMPORT_ALLOWANCE_RULES.bulk.limit - 3, 1);
+        await seed('bulk', PAID_BULK_LIMIT - 3, 1);
 
         expect((await admit('bulk', 1)).kind).toBe('refused');
         expect(await spent('paste')).toBe(IMPORT_ALLOWANCE_RULES.paste.limit);
-        expect(await spent('bulk')).toBe(IMPORT_ALLOWANCE_RULES.bulk.limit);
+        expect(await spent('bulk')).toBe(PAID_BULK_LIMIT);
     });
 
     it('⛔ a 2,000-recipe file at an empty ledger admits exactly 1,000 and names a day from now', async () => {
@@ -204,14 +221,25 @@ describe('the per-channel import allowance (LOCAL e2e)', () => {
         ]);
     });
 
+    it('⛔ a free cook admits the 200th bulk recipe and is refused the 201st; the view reads Free’s 200', async () => {
+        await seed('bulk', FREE_BULK_LIMIT - 1, 1);
+
+        expect(await admit('bulk', 1, USER, false)).toEqual({ kind: 'admitted', units: 1 });
+        expect((await admit('bulk', 1, USER, false)).kind).toBe('refused');
+        expect(await spent('bulk')).toBe(FREE_BULK_LIMIT);
+        expect(await dal.stateOf(db, USER, scopeOf('bulk', false))).toMatchObject({ limit: 200, used: 200 });
+        // The same ledger is 800 short of a paid cook's day.
+        expect(await admit('bulk', 1)).toEqual({ kind: 'admitted', units: 1 });
+    });
+
     it("counts each caller's allowance separately", async () => {
-        await seed('bulk', IMPORT_ALLOWANCE_RULES.bulk.limit, 1, OTHER);
+        await seed('bulk', PAID_BULK_LIMIT, 1, OTHER);
 
         expect(await admit('bulk', 10)).toEqual({ kind: 'admitted', units: 10 });
     });
 
     it('a refusal writes no ledger row', async () => {
-        await seed('bulk', IMPORT_ALLOWANCE_RULES.bulk.limit, 1);
+        await seed('bulk', PAID_BULK_LIMIT, 1);
         const before = await spent('bulk');
 
         expect((await admit('bulk', 10)).kind).toBe('refused');
@@ -225,9 +253,9 @@ describe('the per-channel import allowance (LOCAL e2e)', () => {
             await seed('paste', 99, 1);
             await seed('bulk', 500, 30); // outside the window
 
-            const state = await dal.stateOf(db, USER, 'bulk');
+            const state = await dal.stateOf(db, USER, scopeOf('bulk'));
 
-            expect(state).toMatchObject({ limit: IMPORT_ALLOWANCE_RULES.bulk.limit, used: 42 });
+            expect(state).toMatchObject({ limit: PAID_BULK_LIMIT, used: 42 });
 
             const oldest = await pool.query<{ at: Date }>(
                 `SELECT min(created_at) AS at FROM import_allowance_events
@@ -242,8 +270,8 @@ describe('the per-channel import allowance (LOCAL e2e)', () => {
         });
 
         it('says nothing is spent for a caller with no ledger rows, and writes nothing', async () => {
-            expect(await dal.stateOf(db, OTHER, 'bulk')).toEqual({
-                limit: IMPORT_ALLOWANCE_RULES.bulk.limit,
+            expect(await dal.stateOf(db, OTHER, scopeOf('bulk'))).toEqual({
+                limit: PAID_BULK_LIMIT,
                 used: 0,
                 resetsAt: null,
             });
@@ -251,9 +279,9 @@ describe('the per-channel import allowance (LOCAL e2e)', () => {
         });
 
         it('agrees with the next admission: a full day reads used = limit, and the admission is refused at the same resetsAt', async () => {
-            await seed('bulk', IMPORT_ALLOWANCE_RULES.bulk.limit, 2);
+            await seed('bulk', PAID_BULK_LIMIT, 2);
 
-            const state = await dal.stateOf(db, USER, 'bulk');
+            const state = await dal.stateOf(db, USER, scopeOf('bulk'));
             const refusal = await admit('bulk', 1);
 
             expect(state.used).toBe(state.limit);

@@ -296,7 +296,10 @@ export class ImportAdvanceService {
 
     private async payAndStartParsing(principal: Principal, header: ImportHeader, deadlineAt: number): Promise<void> {
         // The outcome is not needed: the view reads the allowance from the ledger, and a spent day simply pays nothing.
-        await this.items.payUnpaid(principal.userId, header.id, { limit: this.limits.payBatch });
+        await this.items.payUnpaid(principal.userId, header.id, {
+            limit: this.limits.payBatch,
+            isPremium: isPremiumPrincipal(principal),
+        });
 
         for (const item of await this.items.findNeedingJob(header.id, this.limits.payBatch)) {
             if (this.limits.now() >= deadlineAt) {

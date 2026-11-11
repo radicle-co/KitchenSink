@@ -724,16 +724,16 @@ describe('the bulk-import DALs (LOCAL e2e, real Postgres)', () => {
 
             await put(header.id, [0, 1, 2, 3, 4, 5]);
 
-            const outcome = await items.payUnpaid(USER, header.id, { limit: 4 });
+            const outcome = await items.payUnpaid(USER, header.id, { limit: 4, isPremium: true });
 
             expect(outcome).toEqual({ kind: 'paid', ordinals: [0, 1, 2, 3] });
             expect(await ledger()).toBe(4);
 
-            const again = await items.payUnpaid(USER, header.id, { limit: 4 });
+            const again = await items.payUnpaid(USER, header.id, { limit: 4, isPremium: true });
 
             expect(again).toEqual({ kind: 'paid', ordinals: [4, 5] });
             expect(await ledger()).toBe(6);
-            expect(await items.payUnpaid(USER, header.id, { limit: 4 })).toEqual({ kind: 'nothing' });
+            expect(await items.payUnpaid(USER, header.id, { limit: 4, isPremium: true })).toEqual({ kind: 'nothing' });
         });
 
         it('⛔ pays only what fits the day: 997 spent leaves room for 3, and the rest waits', async () => {
@@ -745,10 +745,26 @@ describe('the bulk-import DALs (LOCAL e2e, real Postgres)', () => {
                 [USER],
             );
 
-            const outcome = await items.payUnpaid(USER, header.id, { limit: 5 });
+            const outcome = await items.payUnpaid(USER, header.id, { limit: 5, isPremium: true });
 
             expect(outcome).toMatchObject({ kind: 'paid', ordinals: [0, 1, 2] });
             expect(await ledger()).toBe(1000);
+            expect((await items.findItem(header.id, 3))?.allowanceSpentAt).toBeNull();
+        });
+
+        it('⛔ a free cook pays under Free’s 200: 197 spent leaves room for 3, where a paid cook would have 803', async () => {
+            const header = await newImport(5);
+
+            await put(header.id, [0, 1, 2, 3, 4]);
+            await pool.query(
+                `INSERT INTO import_allowance_events (user_id, channel, units, created_at) VALUES ($1, 'bulk', 197, clock_timestamp() - interval '1 hour')`,
+                [USER],
+            );
+
+            const outcome = await items.payUnpaid(USER, header.id, { limit: 5, isPremium: false });
+
+            expect(outcome).toMatchObject({ kind: 'paid', ordinals: [0, 1, 2] });
+            expect(await ledger()).toBe(200);
             expect((await items.findItem(header.id, 3))?.allowanceSpentAt).toBeNull();
         });
 
@@ -761,7 +777,7 @@ describe('the bulk-import DALs (LOCAL e2e, real Postgres)', () => {
                 [USER],
             );
 
-            const outcome = await items.payUnpaid(USER, header.id, { limit: 2 });
+            const outcome = await items.payUnpaid(USER, header.id, { limit: 2, isPremium: true });
 
             expect(outcome.kind).toBe('refused');
             expect(await ledger()).toBe(1000);
@@ -776,7 +792,7 @@ describe('the bulk-import DALs (LOCAL e2e, real Postgres)', () => {
                 { ordinal: 1, recipe: recipe('Has lines') },
             ]);
 
-            expect(await items.payUnpaid(USER, header.id, { limit: 5 })).toEqual({
+            expect(await items.payUnpaid(USER, header.id, { limit: 5, isPremium: true })).toEqual({
                 kind: 'paid',
                 ordinals: [1],
             });
@@ -792,8 +808,8 @@ describe('the bulk-import DALs (LOCAL e2e, real Postgres)', () => {
             );
 
             const outcomes = await Promise.all([
-                items.payUnpaid(USER, header.id, { limit: 10 }),
-                items.payUnpaid(USER, header.id, { limit: 10 }),
+                items.payUnpaid(USER, header.id, { limit: 10, isPremium: true }),
+                items.payUnpaid(USER, header.id, { limit: 10, isPremium: true }),
             ]);
             const paid = outcomes.flatMap((outcome) => (outcome.kind === 'paid' ? outcome.ordinals : []));
 
@@ -807,7 +823,7 @@ describe('the bulk-import DALs (LOCAL e2e, real Postgres)', () => {
 
             await put(theirs.id, [0, 1]);
 
-            expect(await items.payUnpaid(USER, theirs.id, { limit: 5 })).toEqual({ kind: 'nothing' });
+            expect(await items.payUnpaid(USER, theirs.id, { limit: 5, isPremium: true })).toEqual({ kind: 'nothing' });
             expect(await ledger()).toBe(0);
         });
     });
@@ -1163,7 +1179,7 @@ describe('the bulk-import DALs (LOCAL e2e, real Postgres)', () => {
                     db.transaction((tx) => items.claimSave(tx, header.id, 0, RECIPE_ID, 0)),
                     imports.moveCursor(USER, header.id, { from: 0, to: 1, mark: { ordinal: 0, review: 'reviewed' } }),
                     items.recordChoicesBatch(header.id, [{ ordinal: 0, visibility: 'public' }]),
-                    items.payUnpaid(USER, header.id, { limit: 10 }),
+                    items.payUnpaid(USER, header.id, { limit: 10, isPremium: true }),
                 ]);
 
                 failures.push(

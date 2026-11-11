@@ -151,7 +151,7 @@ describe('ImportAllowanceDal.admit', () => {
             })),
         );
 
-        const outcome = await dal.admit(control.db, USER, { channel: 'bulk', units: 5 });
+        const outcome = await dal.admit(control.db, USER, { channel: 'bulk', isPremium: true, units: 5 });
 
         expect(outcome).toEqual({ kind: 'admitted', units: 5 });
         expect(valuesPayloads()).toEqual([{ userId: USER, channel: 'bulk', units: 5, createdAt: NOW }]);
@@ -160,7 +160,7 @@ describe('ImportAllowanceDal.admit', () => {
     it('⛔ writes ONLY the units that fit, and answers partial with when more opens', async () => {
         queueReads([{ channel: 'bulk', units: 990, createdAt: new Date(NOW.getTime() - 3_600_000) }]);
 
-        const outcome = await dal.admit(control.db, USER, { channel: 'bulk', units: 50 });
+        const outcome = await dal.admit(control.db, USER, { channel: 'bulk', isPremium: true, units: 50 });
 
         expect(outcome).toEqual({
             kind: 'partial',

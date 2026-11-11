@@ -61,7 +61,7 @@ export interface RecipeRowInput {
     /** `recipes.first_published_at`, which the 0053 trigger sets on the first publish and never clears (ADR-0058). */
     firstPublishedAt: Date | string | null;
     sourceType: string;
-    /** `recipes.source_kind` (0065): what the cook said the source is, or `null` (ADR-0089). */
+    /** `recipes.source_kind` (0071): what the cook said the source is, or `null` (ADR-0089). */
     sourceKind: string | null;
     sourceUrl: string | null;
     sourceAttribution: string | null;

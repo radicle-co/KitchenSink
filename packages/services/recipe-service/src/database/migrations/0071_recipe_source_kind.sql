@@ -1,4 +1,4 @@
--- 0065 — what the cook said a copied recipe's source is: `recipes.source_kind` (ADR-0089).
+-- 0071 — what the cook said a copied recipe's source is: `recipes.source_kind` (ADR-0089).
 --
 -- `source_type = 'imported_public'` alone cannot tell a copy of a public WEB PAGE (private only, ADR-0089) from the curator's
 -- public-domain text (ADR-0023, which may be public). The cook's statement ADR-0072 section 9 already names settles it:

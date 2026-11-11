@@ -281,7 +281,7 @@ describe('a pasted web link as the recipe source (e2e)', () => {
             expect(privateRuleOf('imported_public', read.json['sourceKind'] as 'public_web')).toBe('privateOnly');
         });
 
-        it('every statement form resolves to a row the 0065 CHECK accepts', async () => {
+        it('every statement form resolves to a row the 0071 CHECK accepts', async () => {
             for (const statement of [
                 STATEMENT,
                 { kind: 'book', citation: 'Joy of Cooking, p. 12' },

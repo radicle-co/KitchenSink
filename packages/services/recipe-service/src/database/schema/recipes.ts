@@ -137,7 +137,7 @@ export const recipes = pgTable(
         // change it after, for every writer, so a demotion cannot reopen in-place overwrites.
         firstPublishedAt: timestamp('first_published_at', { withTimezone: true }),
         sourceType: text('source_type').$type<RecipeSourceType>().notNull().default('user_created'),
-        // What the cook said the source is (ADR-0089, 0065 migration): `public_web`, `book` or `paid_site`. NULL: no
+        // What the cook said the source is (ADR-0089, 0071 migration): `public_web`, `book` or `paid_site`. NULL: no
         // statement, which includes the curator's public-domain text. The vocabulary is recipe-core's, as the import
         // tables' is; `public_web` is only ever stored with `imported_public` and an address (CHECK below).
         sourceKind: text('source_kind').$type<RecipeSourceKind>(),
@@ -222,7 +222,7 @@ export const recipes = pgTable(
         ),
         // The vocabulary is recipe-core's, spelled once, as `recipeImports.ts` does for its own kind column.
         check('recipes_source_kind_check', inArray(table.sourceKind, [...RECIPE_SOURCE_KINDS])),
-        // Every kind is paired with its label; a web copy also needs its address (0065).
+        // Every kind is paired with its label; a web copy also needs its address (0071).
         check(
             'recipes_source_kind_pairs_source_type',
             sql`${table.sourceKind} IS NULL

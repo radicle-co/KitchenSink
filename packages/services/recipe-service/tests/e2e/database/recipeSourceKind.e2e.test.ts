@@ -1,5 +1,5 @@
 /**
- * Migration 0065 — `recipes.source_kind` and its two CHECKs, asserted against a real Docker PostgreSQL as the service
+ * Migration 0071 — `recipes.source_kind` and its two CHECKs, asserted against a real Docker PostgreSQL as the service
  * role (ADR-0089).
  *
  * ⛔ WHY THIS TIER IS MANDATORY: a unit test cannot observe a migration that did not apply. What is asserted:
@@ -21,7 +21,7 @@ const roleDb = recipeDb();
 const OWNER_ID = '01JU7SRCKIND0000000000OWNER';
 const RECIPE_ID = '55555555-5555-4555-8555-000000000961';
 
-describe('recipes.source_kind and its CHECKs (migration 0065)', () => {
+describe('recipes.source_kind and its CHECKs (migration 0071)', () => {
     let pool: pg.Pool;
 
     beforeAll(() => {

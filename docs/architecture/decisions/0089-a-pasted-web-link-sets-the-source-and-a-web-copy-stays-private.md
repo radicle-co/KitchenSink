@@ -53,11 +53,13 @@ web copy from the curator's public-domain text, which carry the same label. A cu
 
 ### 4. The source kind is stored beside the label
 
-Migration `0065` adds `recipes.source_kind` (nullable, no default, expand-only, no backfill). A CHECK keeps the
+Migration `0071` adds `recipes.source_kind` (nullable, no default, expand-only, no backfill). A CHECK keeps the
 vocabulary closed (`public_web`, `book`, `paid_site`, the import tables' vocabulary, now stated once in `recipe-core`).
 A second CHECK pairs every kind with its label: `public_web` with `imported_public` and an address, `book` with
 `imported_physical`, `paid_site` with `imported_paid`. `null` means no statement. Clone copies
-the kind. The account export carries it. The detail and list responses carry `sourceKind`, and leave it out for `null`.
+the kind. The kind is the label half of a source. A bulk import also has a citation: a book or paid-site text. The recipe has no
+column for it yet. The bulk import's slice 5 owes it, and this column leaves room for it. The account export carries
+the kind. The detail and list responses carry `sourceKind`, and leave it out for `null`.
 
 ### 5. A web copy is private only
 

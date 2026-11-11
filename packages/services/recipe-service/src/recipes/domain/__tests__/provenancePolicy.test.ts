@@ -167,7 +167,7 @@ describe('resolveStatementProvenance — the one reading of a statement, for cre
         expect(resolveStatementProvenance({ kind: 'public_web', citation: 'https://commise.app/r/1' })).toBeUndefined();
     });
 
-    it('every resolution satisfies the pairing the 0065 CHECK enforces, so no import write can violate it', () => {
+    it('every resolution satisfies the pairing the 0071 CHECK enforces, so no import write can violate it', () => {
         for (const statement of [
             { kind: 'public_web', citation: 'https://example.com/r' },
             { kind: 'book', citation: 'A book' },

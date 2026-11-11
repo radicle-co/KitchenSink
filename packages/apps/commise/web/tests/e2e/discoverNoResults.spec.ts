@@ -98,6 +98,18 @@ for (const scheme of ['light', 'dark'] as const) {
             await expect(results.getByRole('button', { name: 'Clear filters' })).toBeVisible();
         });
 
+        test('an empty catalogue says so once, with no rails and no Filters', async ({ page }) => {
+            // No other cook has a public, published recipe: one heading (buildSpec §4.6), never three rails that each
+            // say "Nothing here yet.", and no Filters over nothing to filter.
+            await signInWithTicket(page);
+            await mockRecipeApi(page, { viewerId: await readViewerAppId(page), recipes: [] });
+            await page.goto(route('/discover'));
+
+            await expect(page.getByRole('heading', { level: 2, name: 'No public recipes yet.' })).toBeVisible();
+            await expect(page.getByRole('heading', { name: 'Trending' })).toHaveCount(0);
+            await expect(page.getByRole('button', { name: /^Filters/ })).toHaveCount(0);
+        });
+
         test('the count line and the no-result state say the same title', async ({ page }) => {
             await discoverWithRecipes(page);
             await page.goto(route('/discover'));

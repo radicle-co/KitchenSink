@@ -192,7 +192,7 @@ export interface RecipeEditorViewProps {
     readonly photoFinish?: PhotoFinishBar;
     /**
      * A photo is not uploaded yet: on web, closing the tab would lose it, so the browser asks; and the page stays drawn
-     * past the hand-off until the finish holds for it ({@link editorPageStays}).
+     * past the hand-off until the finish holds for it (`editorPageStays`).
      */
     readonly photosAtRisk: boolean;
 }

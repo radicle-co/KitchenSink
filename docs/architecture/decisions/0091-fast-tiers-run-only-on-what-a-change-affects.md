@@ -160,7 +160,10 @@ skipped job red except the sandbox jobs (owner rule, 2026-10-03).
   graph, so a change to that sibling does not select it. The `no-extraneous-dependencies` rule covers only the
   packages that build an image. The push to main still runs everything and catches it after merge.
 - **An undeclared outside read is invisible.** A test that reads a file outside its package without declaring it in
-  turbo.json is wrong for caching today and is now also wrong for selection. The fix is the same: declare it.
+  turbo.json is wrong for caching today and is now also wrong for selection. The fix is the same: declare it. One
+  declaration also tells the other fast tasks that they do not read the file. If another task declares the same file, a reader
+  that is not declared is still skipped. A declaration states one reader. It does not prove that
+  nothing else reads the file.
 - **A nested non-workspace folder is attributed to the workspace around it.** That is right while no other workspace
   imports from it, which npm workspaces cannot do without a relative import across a boundary, and the house rules ban
   those.

@@ -84,11 +84,13 @@ describe('changed-only selection over the real graph', () => {
     });
 
     it('checks the format of every package when the shared Prettier config changes', async () => {
-        const all = await select('format:check', ['packages/tools/e2ePlan/__tests__/env.test.ts']);
+        const everything = await select('format:check', ['package.json']);
         const shared = await select('format:check', ['packages/tools/prettier/index.json']);
 
-        expect(shared.packages).toEqual(expect.arrayContaining(['@commise/web', '@kitchensink/food-service']));
-        expect(shared.packages.length).toBeGreaterThan(all.packages.length + 20);
+        // Equal, not merely larger: a package that formats without declaring `@kitchensink/prettier` has no graph edge
+        // to it, and would be skipped here.
+        expect(everything.scope.kind).toBe('all');
+        expect(shared.packages).toEqual(everything.packages);
     });
 
     it('does not widen lint or typecheck for the regenerated component catalogue, which only a test reads', async () => {

@@ -25,6 +25,7 @@ import {
     InvalidRequestError,
     ImportCursorMovedError,
     ImportItemAlreadySavedError,
+    ImportItemLockedError,
     ImportQuotaExceededError,
     PrivateSlotsFullError,
     NotFoundError,
@@ -72,6 +73,7 @@ const CLASSIFICATION: Readonly<Record<string, { readonly error: RecipeServiceCli
         PrivateSlotsFullError: { error: new PrivateSlotsFullError(50, 50), retry: false },
         ImportCursorMovedError: { error: new ImportCursorMovedError(3), retry: false },
         ImportItemAlreadySavedError: { error: new ImportItemAlreadySavedError(3), retry: false },
+        ImportItemLockedError: { error: new ImportItemLockedError(3, 'parsing'), retry: false },
         // Plan 002 R52 — the same restore fails the same way; the cook needs another version or an edit.
         VersionLineUnrestorableError: { error: new VersionLineUnrestorableError([0]), retry: false },
         // The same body meets the same refusal: terminal, through its BadRequestError base.

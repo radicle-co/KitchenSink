@@ -1590,6 +1590,19 @@ export const RecipeErrorCode = {
      * (`privateFoodLinesDetailsSchema`); a client matches by `foodId` and breaks ties by `sortOrder`.
      */
     PRIVATE_FOODS_ON_PUBLIC_RECIPE: 'PRIVATE_FOODS_ON_PUBLIC_RECIPE',
+    /**
+     * ADR-0072 §3 — a DIFFERENT recipe was sent for an item that is past `received`. Once an item has paid its allowance
+     * unit, holds a parse job or has a match snapshot, the recipe it holds is what those were made from, so replacing it
+     * would orphan a paid parse. A 409; `details.ordinal` names the item and `details.stage` where it stands. (A saved item
+     * is `IMPORT_ITEM_ALREADY_SAVED`; this is the not-yet-saved refusal the wire contract left for the service lane to name.)
+     */
+    IMPORT_ITEM_LOCKED: 'IMPORT_ITEM_LOCKED',
+    /**
+     * ADR-0072 §1 — the client-minted import id is already an import of the caller's with DIFFERENT choices (match mode,
+     * visibility or expected total). A replay of the same body is not this: it answers the same import. A 409 with no
+     * details. (An id some OTHER cook holds is `IMPORT_NOT_FOUND`: a different answer would confirm the id exists.)
+     */
+    IMPORT_ID_IN_USE: 'IMPORT_ID_IN_USE',
 } as const;
 
 /**
@@ -1637,7 +1650,18 @@ export const recipeErrorCodeSchema = z.enum([
     RecipeErrorCode.IMPORT_ITEM_ALREADY_SAVED,
     RecipeErrorCode.PRIVATE_SLOTS_FULL,
     RecipeErrorCode.PRIVATE_FOODS_ON_PUBLIC_RECIPE,
+    RecipeErrorCode.IMPORT_ITEM_LOCKED,
+    RecipeErrorCode.IMPORT_ID_IN_USE,
 ]);
+
+/**
+ * Where an `IMPORT_ITEM_LOCKED` item stands (its `details.stage`): past `received`, not yet `saved`. The ONE statement of the
+ * vocabulary, read by the service's error schema and factory and by the client's error.
+ */
+export const IMPORT_LOCKED_STAGES = ['parsing', 'matched'] as const;
+
+/** One stage an item can be locked at. */
+export type ImportLockedStage = (typeof IMPORT_LOCKED_STAGES)[number];
 
 /**
  * Structured domain error contract for recipe operations.

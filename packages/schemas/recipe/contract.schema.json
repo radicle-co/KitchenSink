@@ -3098,104 +3098,111 @@
                     "type": "integer"
                 },
                 "match": {
-                    "additionalProperties": false,
-                    "properties": {
-                        "candidates": {
-                            "items": {
-                                "additionalProperties": false,
-                                "properties": {
-                                    "id": {
-                                        "minLength": 1,
-                                        "type": "string"
-                                    },
-                                    "isDefault": {
-                                        "type": "boolean"
-                                    },
-                                    "kind": {
-                                        "enum": [
-                                            "root",
-                                            "variant"
+                    "anyOf": [
+                        {
+                            "additionalProperties": false,
+                            "properties": {
+                                "candidates": {
+                                    "items": {
+                                        "additionalProperties": false,
+                                        "properties": {
+                                            "id": {
+                                                "minLength": 1,
+                                                "type": "string"
+                                            },
+                                            "isDefault": {
+                                                "type": "boolean"
+                                            },
+                                            "kind": {
+                                                "enum": [
+                                                    "root",
+                                                    "variant"
+                                                ],
+                                                "type": "string"
+                                            },
+                                            "name": {
+                                                "minLength": 1,
+                                                "type": "string"
+                                            }
+                                        },
+                                        "required": [
+                                            "kind",
+                                            "id",
+                                            "name",
+                                            "isDefault"
                                         ],
-                                        "type": "string"
+                                        "type": "object"
                                     },
-                                    "name": {
-                                        "minLength": 1,
-                                        "type": "string"
-                                    }
+                                    "type": "array"
                                 },
-                                "required": [
-                                    "kind",
-                                    "id",
-                                    "name",
-                                    "isDefault"
-                                ],
-                                "type": "object"
-                            },
-                            "type": "array"
-                        },
-                        "proposed": {
-                            "anyOf": [
-                                {
-                                    "additionalProperties": false,
-                                    "properties": {
-                                        "id": {
-                                            "minLength": 1,
-                                            "type": "string"
-                                        },
-                                        "kind": {
-                                            "enum": [
-                                                "root",
-                                                "variant"
+                                "proposed": {
+                                    "anyOf": [
+                                        {
+                                            "additionalProperties": false,
+                                            "properties": {
+                                                "id": {
+                                                    "minLength": 1,
+                                                    "type": "string"
+                                                },
+                                                "kind": {
+                                                    "enum": [
+                                                        "root",
+                                                        "variant"
+                                                    ],
+                                                    "type": "string"
+                                                },
+                                                "name": {
+                                                    "minLength": 1,
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "kind",
+                                                "id",
+                                                "name"
                                             ],
-                                            "type": "string"
+                                            "type": "object"
                                         },
-                                        "name": {
-                                            "minLength": 1,
-                                            "type": "string"
+                                        {
+                                            "type": "null"
                                         }
-                                    },
-                                    "required": [
-                                        "kind",
-                                        "id",
-                                        "name"
-                                    ],
-                                    "type": "object"
+                                    ]
                                 },
-                                {
-                                    "type": "null"
+                                "reason": {
+                                    "minLength": 1,
+                                    "type": "string"
+                                },
+                                "reviewNote": {
+                                    "minLength": 1,
+                                    "type": "string"
+                                },
+                                "reviewResetsAt": {
+                                    "minLength": 1,
+                                    "type": "string"
+                                },
+                                "state": {
+                                    "enum": [
+                                        "checking",
+                                        "confident",
+                                        "default",
+                                        "needsChoice",
+                                        "noMatch"
+                                    ],
+                                    "type": "string"
                                 }
-                            ]
-                        },
-                        "reason": {
-                            "minLength": 1,
-                            "type": "string"
-                        },
-                        "reviewNote": {
-                            "minLength": 1,
-                            "type": "string"
-                        },
-                        "reviewResetsAt": {
-                            "minLength": 1,
-                            "type": "string"
-                        },
-                        "state": {
-                            "enum": [
-                                "checking",
-                                "confident",
-                                "default",
-                                "needsChoice",
-                                "noMatch"
+                            },
+                            "required": [
+                                "state",
+                                "reason",
+                                "proposed",
+                                "candidates"
                             ],
-                            "type": "string"
+                            "type": "object"
+                        },
+                        {
+                            "type": "null"
                         }
-                    },
-                    "required": [
-                        "state",
-                        "reason",
-                        "proposed",
-                        "candidates"
-                    ],
-                    "type": "object"
+                    ]
                 },
                 "ordinal": {
                     "maximum": 9007199254740991,
@@ -3374,104 +3381,111 @@
                                 "type": "integer"
                             },
                             "match": {
-                                "additionalProperties": false,
-                                "properties": {
-                                    "candidates": {
-                                        "items": {
-                                            "additionalProperties": false,
-                                            "properties": {
-                                                "id": {
-                                                    "minLength": 1,
-                                                    "type": "string"
-                                                },
-                                                "isDefault": {
-                                                    "type": "boolean"
-                                                },
-                                                "kind": {
-                                                    "enum": [
-                                                        "root",
-                                                        "variant"
+                                "anyOf": [
+                                    {
+                                        "additionalProperties": false,
+                                        "properties": {
+                                            "candidates": {
+                                                "items": {
+                                                    "additionalProperties": false,
+                                                    "properties": {
+                                                        "id": {
+                                                            "minLength": 1,
+                                                            "type": "string"
+                                                        },
+                                                        "isDefault": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "kind": {
+                                                            "enum": [
+                                                                "root",
+                                                                "variant"
+                                                            ],
+                                                            "type": "string"
+                                                        },
+                                                        "name": {
+                                                            "minLength": 1,
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "kind",
+                                                        "id",
+                                                        "name",
+                                                        "isDefault"
                                                     ],
-                                                    "type": "string"
+                                                    "type": "object"
                                                 },
-                                                "name": {
-                                                    "minLength": 1,
-                                                    "type": "string"
-                                                }
+                                                "type": "array"
                                             },
-                                            "required": [
-                                                "kind",
-                                                "id",
-                                                "name",
-                                                "isDefault"
-                                            ],
-                                            "type": "object"
-                                        },
-                                        "type": "array"
-                                    },
-                                    "proposed": {
-                                        "anyOf": [
-                                            {
-                                                "additionalProperties": false,
-                                                "properties": {
-                                                    "id": {
-                                                        "minLength": 1,
-                                                        "type": "string"
-                                                    },
-                                                    "kind": {
-                                                        "enum": [
-                                                            "root",
-                                                            "variant"
+                                            "proposed": {
+                                                "anyOf": [
+                                                    {
+                                                        "additionalProperties": false,
+                                                        "properties": {
+                                                            "id": {
+                                                                "minLength": 1,
+                                                                "type": "string"
+                                                            },
+                                                            "kind": {
+                                                                "enum": [
+                                                                    "root",
+                                                                    "variant"
+                                                                ],
+                                                                "type": "string"
+                                                            },
+                                                            "name": {
+                                                                "minLength": 1,
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "kind",
+                                                            "id",
+                                                            "name"
                                                         ],
-                                                        "type": "string"
+                                                        "type": "object"
                                                     },
-                                                    "name": {
-                                                        "minLength": 1,
-                                                        "type": "string"
+                                                    {
+                                                        "type": "null"
                                                     }
-                                                },
-                                                "required": [
-                                                    "kind",
-                                                    "id",
-                                                    "name"
-                                                ],
-                                                "type": "object"
+                                                ]
                                             },
-                                            {
-                                                "type": "null"
+                                            "reason": {
+                                                "minLength": 1,
+                                                "type": "string"
+                                            },
+                                            "reviewNote": {
+                                                "minLength": 1,
+                                                "type": "string"
+                                            },
+                                            "reviewResetsAt": {
+                                                "minLength": 1,
+                                                "type": "string"
+                                            },
+                                            "state": {
+                                                "enum": [
+                                                    "checking",
+                                                    "confident",
+                                                    "default",
+                                                    "needsChoice",
+                                                    "noMatch"
+                                                ],
+                                                "type": "string"
                                             }
-                                        ]
-                                    },
-                                    "reason": {
-                                        "minLength": 1,
-                                        "type": "string"
-                                    },
-                                    "reviewNote": {
-                                        "minLength": 1,
-                                        "type": "string"
-                                    },
-                                    "reviewResetsAt": {
-                                        "minLength": 1,
-                                        "type": "string"
-                                    },
-                                    "state": {
-                                        "enum": [
-                                            "checking",
-                                            "confident",
-                                            "default",
-                                            "needsChoice",
-                                            "noMatch"
+                                        },
+                                        "required": [
+                                            "state",
+                                            "reason",
+                                            "proposed",
+                                            "candidates"
                                         ],
-                                        "type": "string"
+                                        "type": "object"
+                                    },
+                                    {
+                                        "type": "null"
                                     }
-                                },
-                                "required": [
-                                    "state",
-                                    "reason",
-                                    "proposed",
-                                    "candidates"
-                                ],
-                                "type": "object"
+                                ]
                             },
                             "ordinal": {
                                 "maximum": 9007199254740991,
@@ -3872,6 +3886,20 @@
                                         "citation"
                                     ],
                                     "type": "object"
+                                },
+                                {
+                                    "additionalProperties": false,
+                                    "description": "Client-side only: what a client reads for a statement kind newer than it knows. The server never sends it.",
+                                    "properties": {
+                                        "kind": {
+                                            "const": "unrecognised",
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "kind"
+                                    ],
+                                    "type": "object"
                                 }
                             ]
                         },
@@ -3925,6 +3953,119 @@
                     "type": "integer"
                 }
             },
+            "type": "object"
+        },
+        "importListResponseSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+                "imports": {
+                    "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                            "counts": {
+                                "additionalProperties": false,
+                                "properties": {
+                                    "matched": {
+                                        "maximum": 9007199254740991,
+                                        "minimum": 0,
+                                        "type": "integer"
+                                    },
+                                    "parsing": {
+                                        "maximum": 9007199254740991,
+                                        "minimum": 0,
+                                        "type": "integer"
+                                    },
+                                    "received": {
+                                        "maximum": 9007199254740991,
+                                        "minimum": 0,
+                                        "type": "integer"
+                                    },
+                                    "saved": {
+                                        "maximum": 9007199254740991,
+                                        "minimum": 0,
+                                        "type": "integer"
+                                    },
+                                    "total": {
+                                        "maximum": 9007199254740991,
+                                        "minimum": 0,
+                                        "type": "integer"
+                                    }
+                                },
+                                "required": [
+                                    "total",
+                                    "received",
+                                    "parsing",
+                                    "matched",
+                                    "saved"
+                                ],
+                                "type": "object"
+                            },
+                            "createdAt": {
+                                "format": "date-time",
+                                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
+                                "type": "string"
+                            },
+                            "expectedTotal": {
+                                "exclusiveMinimum": 0,
+                                "maximum": 9007199254740991,
+                                "type": "integer"
+                            },
+                            "id": {
+                                "format": "uuid",
+                                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                                "type": "string"
+                            },
+                            "matchMode": {
+                                "enum": [
+                                    "keepAsWritten",
+                                    "bindBest",
+                                    "review"
+                                ],
+                                "type": "string"
+                            },
+                            "updatedAt": {
+                                "format": "date-time",
+                                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
+                                "type": "string"
+                            },
+                            "visibility": {
+                                "enum": [
+                                    "public",
+                                    "private"
+                                ],
+                                "type": "string"
+                            }
+                        },
+                        "required": [
+                            "id",
+                            "matchMode",
+                            "visibility",
+                            "expectedTotal",
+                            "counts",
+                            "createdAt",
+                            "updatedAt"
+                        ],
+                        "type": "object"
+                    },
+                    "type": "array"
+                },
+                "nextAfter": {
+                    "anyOf": [
+                        {
+                            "minLength": 1,
+                            "type": "string"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ]
+                }
+            },
+            "required": [
+                "imports",
+                "nextAfter"
+            ],
             "type": "object"
         },
         "importMatchModeSchema": {
@@ -4029,6 +4170,17 @@
                 "step": {
                     "additionalProperties": false,
                     "properties": {
+                        "cuisine": {
+                            "anyOf": [
+                                {
+                                    "minLength": 1,
+                                    "type": "string"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ]
+                        },
                         "lines": {
                             "items": {
                                 "additionalProperties": false,
@@ -4050,6 +4202,10 @@
                                                 "type": "null"
                                             }
                                         ]
+                                    },
+                                    "displayText": {
+                                        "minLength": 1,
+                                        "type": "string"
                                     },
                                     "flag": {
                                         "anyOf": [
@@ -4157,104 +4313,111 @@
                                         "type": "integer"
                                     },
                                     "match": {
-                                        "additionalProperties": false,
-                                        "properties": {
-                                            "candidates": {
-                                                "items": {
-                                                    "additionalProperties": false,
-                                                    "properties": {
-                                                        "id": {
-                                                            "minLength": 1,
-                                                            "type": "string"
-                                                        },
-                                                        "isDefault": {
-                                                            "type": "boolean"
-                                                        },
-                                                        "kind": {
-                                                            "enum": [
-                                                                "root",
-                                                                "variant"
+                                        "anyOf": [
+                                            {
+                                                "additionalProperties": false,
+                                                "properties": {
+                                                    "candidates": {
+                                                        "items": {
+                                                            "additionalProperties": false,
+                                                            "properties": {
+                                                                "id": {
+                                                                    "minLength": 1,
+                                                                    "type": "string"
+                                                                },
+                                                                "isDefault": {
+                                                                    "type": "boolean"
+                                                                },
+                                                                "kind": {
+                                                                    "enum": [
+                                                                        "root",
+                                                                        "variant"
+                                                                    ],
+                                                                    "type": "string"
+                                                                },
+                                                                "name": {
+                                                                    "minLength": 1,
+                                                                    "type": "string"
+                                                                }
+                                                            },
+                                                            "required": [
+                                                                "kind",
+                                                                "id",
+                                                                "name",
+                                                                "isDefault"
                                                             ],
-                                                            "type": "string"
+                                                            "type": "object"
                                                         },
-                                                        "name": {
-                                                            "minLength": 1,
-                                                            "type": "string"
-                                                        }
+                                                        "type": "array"
                                                     },
-                                                    "required": [
-                                                        "kind",
-                                                        "id",
-                                                        "name",
-                                                        "isDefault"
-                                                    ],
-                                                    "type": "object"
-                                                },
-                                                "type": "array"
-                                            },
-                                            "proposed": {
-                                                "anyOf": [
-                                                    {
-                                                        "additionalProperties": false,
-                                                        "properties": {
-                                                            "id": {
-                                                                "minLength": 1,
-                                                                "type": "string"
-                                                            },
-                                                            "kind": {
-                                                                "enum": [
-                                                                    "root",
-                                                                    "variant"
+                                                    "proposed": {
+                                                        "anyOf": [
+                                                            {
+                                                                "additionalProperties": false,
+                                                                "properties": {
+                                                                    "id": {
+                                                                        "minLength": 1,
+                                                                        "type": "string"
+                                                                    },
+                                                                    "kind": {
+                                                                        "enum": [
+                                                                            "root",
+                                                                            "variant"
+                                                                        ],
+                                                                        "type": "string"
+                                                                    },
+                                                                    "name": {
+                                                                        "minLength": 1,
+                                                                        "type": "string"
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "kind",
+                                                                    "id",
+                                                                    "name"
                                                                 ],
-                                                                "type": "string"
+                                                                "type": "object"
                                                             },
-                                                            "name": {
-                                                                "minLength": 1,
-                                                                "type": "string"
+                                                            {
+                                                                "type": "null"
                                                             }
-                                                        },
-                                                        "required": [
-                                                            "kind",
-                                                            "id",
-                                                            "name"
-                                                        ],
-                                                        "type": "object"
+                                                        ]
                                                     },
-                                                    {
-                                                        "type": "null"
+                                                    "reason": {
+                                                        "minLength": 1,
+                                                        "type": "string"
+                                                    },
+                                                    "reviewNote": {
+                                                        "minLength": 1,
+                                                        "type": "string"
+                                                    },
+                                                    "reviewResetsAt": {
+                                                        "minLength": 1,
+                                                        "type": "string"
+                                                    },
+                                                    "state": {
+                                                        "enum": [
+                                                            "checking",
+                                                            "confident",
+                                                            "default",
+                                                            "needsChoice",
+                                                            "noMatch"
+                                                        ],
+                                                        "type": "string"
                                                     }
-                                                ]
-                                            },
-                                            "reason": {
-                                                "minLength": 1,
-                                                "type": "string"
-                                            },
-                                            "reviewNote": {
-                                                "minLength": 1,
-                                                "type": "string"
-                                            },
-                                            "reviewResetsAt": {
-                                                "minLength": 1,
-                                                "type": "string"
-                                            },
-                                            "state": {
-                                                "enum": [
-                                                    "checking",
-                                                    "confident",
-                                                    "default",
-                                                    "needsChoice",
-                                                    "noMatch"
+                                                },
+                                                "required": [
+                                                    "state",
+                                                    "reason",
+                                                    "proposed",
+                                                    "candidates"
                                                 ],
-                                                "type": "string"
+                                                "type": "object"
+                                            },
+                                            {
+                                                "type": "null"
                                             }
-                                        },
-                                        "required": [
-                                            "state",
-                                            "reason",
-                                            "proposed",
-                                            "candidates"
-                                        ],
-                                        "type": "object"
+                                        ]
                                     },
                                     "measure": {
                                         "additionalProperties": false,
@@ -4333,6 +4496,14 @@
                                         ],
                                         "type": "object"
                                     },
+                                    "name": {
+                                        "pattern": "\\S",
+                                        "type": "string"
+                                    },
+                                    "note": {
+                                        "minLength": 1,
+                                        "type": "string"
+                                    },
                                     "phrase": {
                                         "type": "string"
                                     },
@@ -4405,6 +4576,7 @@
                                     "foodIndex",
                                     "sourceLine",
                                     "phrase",
+                                    "name",
                                     "measure",
                                     "judgementDigest",
                                     "match",
@@ -4511,6 +4683,20 @@
                                                 "citation"
                                             ],
                                             "type": "object"
+                                        },
+                                        {
+                                            "additionalProperties": false,
+                                            "description": "Client-side only: what a client reads for a statement kind newer than it knows. The server never sends it.",
+                                            "properties": {
+                                                "kind": {
+                                                    "const": "unrecognised",
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "kind"
+                                            ],
+                                            "type": "object"
                                         }
                                     ]
                                 },
@@ -4544,6 +4730,7 @@
                         "review",
                         "statement",
                         "visibility",
+                        "cuisine",
                         "lines"
                     ],
                     "type": "object"
@@ -4834,6 +5021,20 @@
                         "citation"
                     ],
                     "type": "object"
+                },
+                {
+                    "additionalProperties": false,
+                    "description": "Client-side only: what a client reads for a statement kind newer than it knows. The server never sends it.",
+                    "properties": {
+                        "kind": {
+                            "const": "unrecognised",
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "kind"
+                    ],
+                    "type": "object"
                 }
             ]
         },
@@ -4858,6 +5059,10 @@
                             "type": "null"
                         }
                     ]
+                },
+                "displayText": {
+                    "minLength": 1,
+                    "type": "string"
                 },
                 "flag": {
                     "anyOf": [
@@ -4965,104 +5170,111 @@
                     "type": "integer"
                 },
                 "match": {
-                    "additionalProperties": false,
-                    "properties": {
-                        "candidates": {
-                            "items": {
-                                "additionalProperties": false,
-                                "properties": {
-                                    "id": {
-                                        "minLength": 1,
-                                        "type": "string"
-                                    },
-                                    "isDefault": {
-                                        "type": "boolean"
-                                    },
-                                    "kind": {
-                                        "enum": [
-                                            "root",
-                                            "variant"
+                    "anyOf": [
+                        {
+                            "additionalProperties": false,
+                            "properties": {
+                                "candidates": {
+                                    "items": {
+                                        "additionalProperties": false,
+                                        "properties": {
+                                            "id": {
+                                                "minLength": 1,
+                                                "type": "string"
+                                            },
+                                            "isDefault": {
+                                                "type": "boolean"
+                                            },
+                                            "kind": {
+                                                "enum": [
+                                                    "root",
+                                                    "variant"
+                                                ],
+                                                "type": "string"
+                                            },
+                                            "name": {
+                                                "minLength": 1,
+                                                "type": "string"
+                                            }
+                                        },
+                                        "required": [
+                                            "kind",
+                                            "id",
+                                            "name",
+                                            "isDefault"
                                         ],
-                                        "type": "string"
+                                        "type": "object"
                                     },
-                                    "name": {
-                                        "minLength": 1,
-                                        "type": "string"
-                                    }
+                                    "type": "array"
                                 },
-                                "required": [
-                                    "kind",
-                                    "id",
-                                    "name",
-                                    "isDefault"
-                                ],
-                                "type": "object"
-                            },
-                            "type": "array"
-                        },
-                        "proposed": {
-                            "anyOf": [
-                                {
-                                    "additionalProperties": false,
-                                    "properties": {
-                                        "id": {
-                                            "minLength": 1,
-                                            "type": "string"
-                                        },
-                                        "kind": {
-                                            "enum": [
-                                                "root",
-                                                "variant"
+                                "proposed": {
+                                    "anyOf": [
+                                        {
+                                            "additionalProperties": false,
+                                            "properties": {
+                                                "id": {
+                                                    "minLength": 1,
+                                                    "type": "string"
+                                                },
+                                                "kind": {
+                                                    "enum": [
+                                                        "root",
+                                                        "variant"
+                                                    ],
+                                                    "type": "string"
+                                                },
+                                                "name": {
+                                                    "minLength": 1,
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "kind",
+                                                "id",
+                                                "name"
                                             ],
-                                            "type": "string"
+                                            "type": "object"
                                         },
-                                        "name": {
-                                            "minLength": 1,
-                                            "type": "string"
+                                        {
+                                            "type": "null"
                                         }
-                                    },
-                                    "required": [
-                                        "kind",
-                                        "id",
-                                        "name"
-                                    ],
-                                    "type": "object"
+                                    ]
                                 },
-                                {
-                                    "type": "null"
+                                "reason": {
+                                    "minLength": 1,
+                                    "type": "string"
+                                },
+                                "reviewNote": {
+                                    "minLength": 1,
+                                    "type": "string"
+                                },
+                                "reviewResetsAt": {
+                                    "minLength": 1,
+                                    "type": "string"
+                                },
+                                "state": {
+                                    "enum": [
+                                        "checking",
+                                        "confident",
+                                        "default",
+                                        "needsChoice",
+                                        "noMatch"
+                                    ],
+                                    "type": "string"
                                 }
-                            ]
-                        },
-                        "reason": {
-                            "minLength": 1,
-                            "type": "string"
-                        },
-                        "reviewNote": {
-                            "minLength": 1,
-                            "type": "string"
-                        },
-                        "reviewResetsAt": {
-                            "minLength": 1,
-                            "type": "string"
-                        },
-                        "state": {
-                            "enum": [
-                                "checking",
-                                "confident",
-                                "default",
-                                "needsChoice",
-                                "noMatch"
+                            },
+                            "required": [
+                                "state",
+                                "reason",
+                                "proposed",
+                                "candidates"
                             ],
-                            "type": "string"
+                            "type": "object"
+                        },
+                        {
+                            "type": "null"
                         }
-                    },
-                    "required": [
-                        "state",
-                        "reason",
-                        "proposed",
-                        "candidates"
-                    ],
-                    "type": "object"
+                    ]
                 },
                 "measure": {
                     "additionalProperties": false,
@@ -5141,6 +5353,14 @@
                     ],
                     "type": "object"
                 },
+                "name": {
+                    "pattern": "\\S",
+                    "type": "string"
+                },
+                "note": {
+                    "minLength": 1,
+                    "type": "string"
+                },
                 "phrase": {
                     "type": "string"
                 },
@@ -5213,6 +5433,7 @@
                 "foodIndex",
                 "sourceLine",
                 "phrase",
+                "name",
                 "measure",
                 "judgementDigest",
                 "match",
@@ -5226,6 +5447,17 @@
             "$schema": "https://json-schema.org/draft/2020-12/schema",
             "additionalProperties": false,
             "properties": {
+                "cuisine": {
+                    "anyOf": [
+                        {
+                            "minLength": 1,
+                            "type": "string"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ]
+                },
                 "lines": {
                     "items": {
                         "additionalProperties": false,
@@ -5247,6 +5479,10 @@
                                         "type": "null"
                                     }
                                 ]
+                            },
+                            "displayText": {
+                                "minLength": 1,
+                                "type": "string"
                             },
                             "flag": {
                                 "anyOf": [
@@ -5354,104 +5590,111 @@
                                 "type": "integer"
                             },
                             "match": {
-                                "additionalProperties": false,
-                                "properties": {
-                                    "candidates": {
-                                        "items": {
-                                            "additionalProperties": false,
-                                            "properties": {
-                                                "id": {
-                                                    "minLength": 1,
-                                                    "type": "string"
-                                                },
-                                                "isDefault": {
-                                                    "type": "boolean"
-                                                },
-                                                "kind": {
-                                                    "enum": [
-                                                        "root",
-                                                        "variant"
+                                "anyOf": [
+                                    {
+                                        "additionalProperties": false,
+                                        "properties": {
+                                            "candidates": {
+                                                "items": {
+                                                    "additionalProperties": false,
+                                                    "properties": {
+                                                        "id": {
+                                                            "minLength": 1,
+                                                            "type": "string"
+                                                        },
+                                                        "isDefault": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "kind": {
+                                                            "enum": [
+                                                                "root",
+                                                                "variant"
+                                                            ],
+                                                            "type": "string"
+                                                        },
+                                                        "name": {
+                                                            "minLength": 1,
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "kind",
+                                                        "id",
+                                                        "name",
+                                                        "isDefault"
                                                     ],
-                                                    "type": "string"
+                                                    "type": "object"
                                                 },
-                                                "name": {
-                                                    "minLength": 1,
-                                                    "type": "string"
-                                                }
+                                                "type": "array"
                                             },
-                                            "required": [
-                                                "kind",
-                                                "id",
-                                                "name",
-                                                "isDefault"
-                                            ],
-                                            "type": "object"
-                                        },
-                                        "type": "array"
-                                    },
-                                    "proposed": {
-                                        "anyOf": [
-                                            {
-                                                "additionalProperties": false,
-                                                "properties": {
-                                                    "id": {
-                                                        "minLength": 1,
-                                                        "type": "string"
-                                                    },
-                                                    "kind": {
-                                                        "enum": [
-                                                            "root",
-                                                            "variant"
+                                            "proposed": {
+                                                "anyOf": [
+                                                    {
+                                                        "additionalProperties": false,
+                                                        "properties": {
+                                                            "id": {
+                                                                "minLength": 1,
+                                                                "type": "string"
+                                                            },
+                                                            "kind": {
+                                                                "enum": [
+                                                                    "root",
+                                                                    "variant"
+                                                                ],
+                                                                "type": "string"
+                                                            },
+                                                            "name": {
+                                                                "minLength": 1,
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "kind",
+                                                            "id",
+                                                            "name"
                                                         ],
-                                                        "type": "string"
+                                                        "type": "object"
                                                     },
-                                                    "name": {
-                                                        "minLength": 1,
-                                                        "type": "string"
+                                                    {
+                                                        "type": "null"
                                                     }
-                                                },
-                                                "required": [
-                                                    "kind",
-                                                    "id",
-                                                    "name"
-                                                ],
-                                                "type": "object"
+                                                ]
                                             },
-                                            {
-                                                "type": "null"
+                                            "reason": {
+                                                "minLength": 1,
+                                                "type": "string"
+                                            },
+                                            "reviewNote": {
+                                                "minLength": 1,
+                                                "type": "string"
+                                            },
+                                            "reviewResetsAt": {
+                                                "minLength": 1,
+                                                "type": "string"
+                                            },
+                                            "state": {
+                                                "enum": [
+                                                    "checking",
+                                                    "confident",
+                                                    "default",
+                                                    "needsChoice",
+                                                    "noMatch"
+                                                ],
+                                                "type": "string"
                                             }
-                                        ]
-                                    },
-                                    "reason": {
-                                        "minLength": 1,
-                                        "type": "string"
-                                    },
-                                    "reviewNote": {
-                                        "minLength": 1,
-                                        "type": "string"
-                                    },
-                                    "reviewResetsAt": {
-                                        "minLength": 1,
-                                        "type": "string"
-                                    },
-                                    "state": {
-                                        "enum": [
-                                            "checking",
-                                            "confident",
-                                            "default",
-                                            "needsChoice",
-                                            "noMatch"
+                                        },
+                                        "required": [
+                                            "state",
+                                            "reason",
+                                            "proposed",
+                                            "candidates"
                                         ],
-                                        "type": "string"
+                                        "type": "object"
+                                    },
+                                    {
+                                        "type": "null"
                                     }
-                                },
-                                "required": [
-                                    "state",
-                                    "reason",
-                                    "proposed",
-                                    "candidates"
-                                ],
-                                "type": "object"
+                                ]
                             },
                             "measure": {
                                 "additionalProperties": false,
@@ -5530,6 +5773,14 @@
                                 ],
                                 "type": "object"
                             },
+                            "name": {
+                                "pattern": "\\S",
+                                "type": "string"
+                            },
+                            "note": {
+                                "minLength": 1,
+                                "type": "string"
+                            },
                             "phrase": {
                                 "type": "string"
                             },
@@ -5602,6 +5853,7 @@
                             "foodIndex",
                             "sourceLine",
                             "phrase",
+                            "name",
                             "measure",
                             "judgementDigest",
                             "match",
@@ -5708,6 +5960,20 @@
                                         "citation"
                                     ],
                                     "type": "object"
+                                },
+                                {
+                                    "additionalProperties": false,
+                                    "description": "Client-side only: what a client reads for a statement kind newer than it knows. The server never sends it.",
+                                    "properties": {
+                                        "kind": {
+                                            "const": "unrecognised",
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "kind"
+                                    ],
+                                    "type": "object"
                                 }
                             ]
                         },
@@ -5741,7 +6007,112 @@
                 "review",
                 "statement",
                 "visibility",
+                "cuisine",
                 "lines"
+            ],
+            "type": "object"
+        },
+        "importSummarySchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+                "counts": {
+                    "additionalProperties": false,
+                    "properties": {
+                        "matched": {
+                            "maximum": 9007199254740991,
+                            "minimum": 0,
+                            "type": "integer"
+                        },
+                        "parsing": {
+                            "maximum": 9007199254740991,
+                            "minimum": 0,
+                            "type": "integer"
+                        },
+                        "received": {
+                            "maximum": 9007199254740991,
+                            "minimum": 0,
+                            "type": "integer"
+                        },
+                        "saved": {
+                            "maximum": 9007199254740991,
+                            "minimum": 0,
+                            "type": "integer"
+                        },
+                        "total": {
+                            "maximum": 9007199254740991,
+                            "minimum": 0,
+                            "type": "integer"
+                        }
+                    },
+                    "required": [
+                        "total",
+                        "received",
+                        "parsing",
+                        "matched",
+                        "saved"
+                    ],
+                    "type": "object"
+                },
+                "createdAt": {
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
+                    "type": "string"
+                },
+                "expectedTotal": {
+                    "exclusiveMinimum": 0,
+                    "maximum": 9007199254740991,
+                    "type": "integer"
+                },
+                "id": {
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "type": "string"
+                },
+                "matchMode": {
+                    "enum": [
+                        "keepAsWritten",
+                        "bindBest",
+                        "review"
+                    ],
+                    "type": "string"
+                },
+                "updatedAt": {
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
+                    "type": "string"
+                },
+                "visibility": {
+                    "enum": [
+                        "public",
+                        "private"
+                    ],
+                    "type": "string"
+                }
+            },
+            "required": [
+                "id",
+                "matchMode",
+                "visibility",
+                "expectedTotal",
+                "counts",
+                "createdAt",
+                "updatedAt"
+            ],
+            "type": "object"
+        },
+        "importToCheckCountResponseSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+                "count": {
+                    "maximum": 9007199254740991,
+                    "minimum": 0,
+                    "type": "integer"
+                }
+            },
+            "required": [
+                "count"
             ],
             "type": "object"
         },
@@ -5764,104 +6135,111 @@
                     "type": "integer"
                 },
                 "match": {
-                    "additionalProperties": false,
-                    "properties": {
-                        "candidates": {
-                            "items": {
-                                "additionalProperties": false,
-                                "properties": {
-                                    "id": {
-                                        "minLength": 1,
-                                        "type": "string"
-                                    },
-                                    "isDefault": {
-                                        "type": "boolean"
-                                    },
-                                    "kind": {
-                                        "enum": [
-                                            "root",
-                                            "variant"
+                    "anyOf": [
+                        {
+                            "additionalProperties": false,
+                            "properties": {
+                                "candidates": {
+                                    "items": {
+                                        "additionalProperties": false,
+                                        "properties": {
+                                            "id": {
+                                                "minLength": 1,
+                                                "type": "string"
+                                            },
+                                            "isDefault": {
+                                                "type": "boolean"
+                                            },
+                                            "kind": {
+                                                "enum": [
+                                                    "root",
+                                                    "variant"
+                                                ],
+                                                "type": "string"
+                                            },
+                                            "name": {
+                                                "minLength": 1,
+                                                "type": "string"
+                                            }
+                                        },
+                                        "required": [
+                                            "kind",
+                                            "id",
+                                            "name",
+                                            "isDefault"
                                         ],
-                                        "type": "string"
+                                        "type": "object"
                                     },
-                                    "name": {
-                                        "minLength": 1,
-                                        "type": "string"
-                                    }
+                                    "type": "array"
                                 },
-                                "required": [
-                                    "kind",
-                                    "id",
-                                    "name",
-                                    "isDefault"
-                                ],
-                                "type": "object"
-                            },
-                            "type": "array"
-                        },
-                        "proposed": {
-                            "anyOf": [
-                                {
-                                    "additionalProperties": false,
-                                    "properties": {
-                                        "id": {
-                                            "minLength": 1,
-                                            "type": "string"
-                                        },
-                                        "kind": {
-                                            "enum": [
-                                                "root",
-                                                "variant"
+                                "proposed": {
+                                    "anyOf": [
+                                        {
+                                            "additionalProperties": false,
+                                            "properties": {
+                                                "id": {
+                                                    "minLength": 1,
+                                                    "type": "string"
+                                                },
+                                                "kind": {
+                                                    "enum": [
+                                                        "root",
+                                                        "variant"
+                                                    ],
+                                                    "type": "string"
+                                                },
+                                                "name": {
+                                                    "minLength": 1,
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "kind",
+                                                "id",
+                                                "name"
                                             ],
-                                            "type": "string"
+                                            "type": "object"
                                         },
-                                        "name": {
-                                            "minLength": 1,
-                                            "type": "string"
+                                        {
+                                            "type": "null"
                                         }
-                                    },
-                                    "required": [
-                                        "kind",
-                                        "id",
-                                        "name"
-                                    ],
-                                    "type": "object"
+                                    ]
                                 },
-                                {
-                                    "type": "null"
+                                "reason": {
+                                    "minLength": 1,
+                                    "type": "string"
+                                },
+                                "reviewNote": {
+                                    "minLength": 1,
+                                    "type": "string"
+                                },
+                                "reviewResetsAt": {
+                                    "minLength": 1,
+                                    "type": "string"
+                                },
+                                "state": {
+                                    "enum": [
+                                        "checking",
+                                        "confident",
+                                        "default",
+                                        "needsChoice",
+                                        "noMatch"
+                                    ],
+                                    "type": "string"
                                 }
-                            ]
-                        },
-                        "reason": {
-                            "minLength": 1,
-                            "type": "string"
-                        },
-                        "reviewNote": {
-                            "minLength": 1,
-                            "type": "string"
-                        },
-                        "reviewResetsAt": {
-                            "minLength": 1,
-                            "type": "string"
-                        },
-                        "state": {
-                            "enum": [
-                                "checking",
-                                "confident",
-                                "default",
-                                "needsChoice",
-                                "noMatch"
+                            },
+                            "required": [
+                                "state",
+                                "reason",
+                                "proposed",
+                                "candidates"
                             ],
-                            "type": "string"
+                            "type": "object"
+                        },
+                        {
+                            "type": "null"
                         }
-                    },
-                    "required": [
-                        "state",
-                        "reason",
-                        "proposed",
-                        "candidates"
-                    ],
-                    "type": "object"
+                    ]
                 },
                 "ordinal": {
                     "maximum": 9007199254740991,
@@ -5909,104 +6287,111 @@
                                 "type": "integer"
                             },
                             "match": {
-                                "additionalProperties": false,
-                                "properties": {
-                                    "candidates": {
-                                        "items": {
-                                            "additionalProperties": false,
-                                            "properties": {
-                                                "id": {
-                                                    "minLength": 1,
-                                                    "type": "string"
-                                                },
-                                                "isDefault": {
-                                                    "type": "boolean"
-                                                },
-                                                "kind": {
-                                                    "enum": [
-                                                        "root",
-                                                        "variant"
+                                "anyOf": [
+                                    {
+                                        "additionalProperties": false,
+                                        "properties": {
+                                            "candidates": {
+                                                "items": {
+                                                    "additionalProperties": false,
+                                                    "properties": {
+                                                        "id": {
+                                                            "minLength": 1,
+                                                            "type": "string"
+                                                        },
+                                                        "isDefault": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "kind": {
+                                                            "enum": [
+                                                                "root",
+                                                                "variant"
+                                                            ],
+                                                            "type": "string"
+                                                        },
+                                                        "name": {
+                                                            "minLength": 1,
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "kind",
+                                                        "id",
+                                                        "name",
+                                                        "isDefault"
                                                     ],
-                                                    "type": "string"
+                                                    "type": "object"
                                                 },
-                                                "name": {
-                                                    "minLength": 1,
-                                                    "type": "string"
-                                                }
+                                                "type": "array"
                                             },
-                                            "required": [
-                                                "kind",
-                                                "id",
-                                                "name",
-                                                "isDefault"
-                                            ],
-                                            "type": "object"
-                                        },
-                                        "type": "array"
-                                    },
-                                    "proposed": {
-                                        "anyOf": [
-                                            {
-                                                "additionalProperties": false,
-                                                "properties": {
-                                                    "id": {
-                                                        "minLength": 1,
-                                                        "type": "string"
-                                                    },
-                                                    "kind": {
-                                                        "enum": [
-                                                            "root",
-                                                            "variant"
+                                            "proposed": {
+                                                "anyOf": [
+                                                    {
+                                                        "additionalProperties": false,
+                                                        "properties": {
+                                                            "id": {
+                                                                "minLength": 1,
+                                                                "type": "string"
+                                                            },
+                                                            "kind": {
+                                                                "enum": [
+                                                                    "root",
+                                                                    "variant"
+                                                                ],
+                                                                "type": "string"
+                                                            },
+                                                            "name": {
+                                                                "minLength": 1,
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "kind",
+                                                            "id",
+                                                            "name"
                                                         ],
-                                                        "type": "string"
+                                                        "type": "object"
                                                     },
-                                                    "name": {
-                                                        "minLength": 1,
-                                                        "type": "string"
+                                                    {
+                                                        "type": "null"
                                                     }
-                                                },
-                                                "required": [
-                                                    "kind",
-                                                    "id",
-                                                    "name"
-                                                ],
-                                                "type": "object"
+                                                ]
                                             },
-                                            {
-                                                "type": "null"
+                                            "reason": {
+                                                "minLength": 1,
+                                                "type": "string"
+                                            },
+                                            "reviewNote": {
+                                                "minLength": 1,
+                                                "type": "string"
+                                            },
+                                            "reviewResetsAt": {
+                                                "minLength": 1,
+                                                "type": "string"
+                                            },
+                                            "state": {
+                                                "enum": [
+                                                    "checking",
+                                                    "confident",
+                                                    "default",
+                                                    "needsChoice",
+                                                    "noMatch"
+                                                ],
+                                                "type": "string"
                                             }
-                                        ]
-                                    },
-                                    "reason": {
-                                        "minLength": 1,
-                                        "type": "string"
-                                    },
-                                    "reviewNote": {
-                                        "minLength": 1,
-                                        "type": "string"
-                                    },
-                                    "reviewResetsAt": {
-                                        "minLength": 1,
-                                        "type": "string"
-                                    },
-                                    "state": {
-                                        "enum": [
-                                            "checking",
-                                            "confident",
-                                            "default",
-                                            "needsChoice",
-                                            "noMatch"
+                                        },
+                                        "required": [
+                                            "state",
+                                            "reason",
+                                            "proposed",
+                                            "candidates"
                                         ],
-                                        "type": "string"
+                                        "type": "object"
+                                    },
+                                    {
+                                        "type": "null"
                                     }
-                                },
-                                "required": [
-                                    "state",
-                                    "reason",
-                                    "proposed",
-                                    "candidates"
-                                ],
-                                "type": "object"
+                                ]
                             },
                             "ordinal": {
                                 "maximum": 9007199254740991,
@@ -6279,6 +6664,20 @@
                                                     "citation"
                                                 ],
                                                 "type": "object"
+                                            },
+                                            {
+                                                "additionalProperties": false,
+                                                "description": "Client-side only: what a client reads for a statement kind newer than it knows. The server never sends it.",
+                                                "properties": {
+                                                    "kind": {
+                                                        "const": "unrecognised",
+                                                        "type": "string"
+                                                    }
+                                                },
+                                                "required": [
+                                                    "kind"
+                                                ],
+                                                "type": "object"
                                             }
                                         ]
                                     },
@@ -6339,6 +6738,26 @@
                         }
                     ]
                 },
+                "pause": {
+                    "anyOf": [
+                        {
+                            "additionalProperties": false,
+                            "properties": {
+                                "reason": {
+                                    "minLength": 1,
+                                    "type": "string"
+                                }
+                            },
+                            "required": [
+                                "reason"
+                            ],
+                            "type": "object"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ]
+                },
                 "reviewClosed": {
                     "type": "boolean"
                 },
@@ -6363,6 +6782,7 @@
                 "version",
                 "expectedTotal",
                 "allowance",
+                "pause",
                 "counts",
                 "items",
                 "nextAfter"
@@ -9972,6 +10392,46 @@
                     "additionalProperties": {},
                     "properties": {
                         "code": {
+                            "const": "IMPORT_ITEM_LOCKED",
+                            "type": "string"
+                        },
+                        "details": {
+                            "additionalProperties": {},
+                            "properties": {
+                                "ordinal": {
+                                    "maximum": 9007199254740991,
+                                    "minimum": 0,
+                                    "type": "integer"
+                                },
+                                "stage": {
+                                    "enum": [
+                                        "parsing",
+                                        "matched"
+                                    ],
+                                    "type": "string"
+                                }
+                            },
+                            "required": [
+                                "ordinal",
+                                "stage"
+                            ],
+                            "type": "object"
+                        },
+                        "message": {
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "code",
+                        "message",
+                        "details"
+                    ],
+                    "type": "object"
+                },
+                {
+                    "additionalProperties": {},
+                    "properties": {
+                        "code": {
                             "const": "VERSION_LINE_UNRESTORABLE",
                             "type": "string"
                         },
@@ -10260,6 +10720,23 @@
                     "properties": {
                         "code": {
                             "const": "IMPORT_NOT_FOUND",
+                            "type": "string"
+                        },
+                        "message": {
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "code",
+                        "message"
+                    ],
+                    "type": "object"
+                },
+                {
+                    "additionalProperties": {},
+                    "properties": {
+                        "code": {
+                            "const": "IMPORT_ID_IN_USE",
                             "type": "string"
                         },
                         "message": {
@@ -11076,6 +11553,8 @@
                 "IMPORT_ITEM_ALREADY_SAVED",
                 "PRIVATE_SLOTS_FULL",
                 "PRIVATE_FOODS_ON_PUBLIC_RECIPE",
+                "IMPORT_ITEM_LOCKED",
+                "IMPORT_ID_IN_USE",
                 "UNAUTHORIZED",
                 "IDENTITY_SYNC_PENDING",
                 "FORBIDDEN",
@@ -12806,10 +13285,137 @@
             ],
             "type": "object"
         },
+        "recordImportChoicesBatchRequestSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+                "items": {
+                    "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                            "cuisine": {
+                                "maxLength": 100,
+                                "minLength": 1,
+                                "type": "string"
+                            },
+                            "ordinal": {
+                                "maximum": 2147483646,
+                                "minimum": 0,
+                                "type": "integer"
+                            },
+                            "statement": {
+                                "oneOf": [
+                                    {
+                                        "additionalProperties": false,
+                                        "properties": {
+                                            "kind": {
+                                                "const": "authored",
+                                                "type": "string"
+                                            }
+                                        },
+                                        "required": [
+                                            "kind"
+                                        ],
+                                        "type": "object"
+                                    },
+                                    {
+                                        "additionalProperties": false,
+                                        "properties": {
+                                            "citation": {
+                                                "format": "uri",
+                                                "maxLength": 2000,
+                                                "type": "string"
+                                            },
+                                            "kind": {
+                                                "const": "public_web",
+                                                "type": "string"
+                                            }
+                                        },
+                                        "required": [
+                                            "kind",
+                                            "citation"
+                                        ],
+                                        "type": "object"
+                                    },
+                                    {
+                                        "additionalProperties": false,
+                                        "properties": {
+                                            "citation": {
+                                                "maxLength": 2000,
+                                                "minLength": 1,
+                                                "type": "string"
+                                            },
+                                            "kind": {
+                                                "const": "book",
+                                                "type": "string"
+                                            }
+                                        },
+                                        "required": [
+                                            "kind",
+                                            "citation"
+                                        ],
+                                        "type": "object"
+                                    },
+                                    {
+                                        "additionalProperties": false,
+                                        "properties": {
+                                            "citation": {
+                                                "maxLength": 2000,
+                                                "minLength": 1,
+                                                "type": "string"
+                                            },
+                                            "kind": {
+                                                "const": "paid_site",
+                                                "type": "string"
+                                            }
+                                        },
+                                        "required": [
+                                            "kind",
+                                            "citation"
+                                        ],
+                                        "type": "object"
+                                    }
+                                ]
+                            },
+                            "visibility": {
+                                "anyOf": [
+                                    {
+                                        "enum": [
+                                            "public",
+                                            "private"
+                                        ],
+                                        "type": "string"
+                                    },
+                                    {
+                                        "type": "null"
+                                    }
+                                ]
+                            }
+                        },
+                        "required": [
+                            "ordinal"
+                        ],
+                        "type": "object"
+                    },
+                    "maxItems": 100,
+                    "minItems": 1,
+                    "type": "array"
+                }
+            },
+            "required": [
+                "items"
+            ],
+            "type": "object"
+        },
         "recordImportChoicesRequestSchema": {
             "$schema": "https://json-schema.org/draft/2020-12/schema",
             "additionalProperties": false,
             "properties": {
+                "cuisine": {
+                    "maxLength": 100,
+                    "minLength": 1,
+                    "type": "string"
+                },
                 "statement": {
                     "oneOf": [
                         {

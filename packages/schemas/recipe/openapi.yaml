@@ -5076,6 +5076,34 @@ components:
             code:
               type: string
               enum:
+                - IMPORT_ITEM_LOCKED
+            message:
+              type: string
+            details:
+              type: object
+              properties:
+                ordinal:
+                  type: integer
+                  minimum: 0
+                stage:
+                  type: string
+                  enum:
+                    - parsing
+                    - matched
+              required:
+                - ordinal
+                - stage
+              additionalProperties: {}
+          required:
+            - code
+            - message
+            - details
+          additionalProperties: {}
+        - type: object
+          properties:
+            code:
+              type: string
+              enum:
                 - VERSION_LINE_UNRESTORABLE
             message:
               type: string
@@ -5279,6 +5307,18 @@ components:
               type: string
               enum:
                 - IMPORT_NOT_FOUND
+            message:
+              type: string
+          required:
+            - code
+            - message
+          additionalProperties: {}
+        - type: object
+          properties:
+            code:
+              type: string
+              enum:
+                - IMPORT_ID_IN_USE
             message:
               type: string
           required:

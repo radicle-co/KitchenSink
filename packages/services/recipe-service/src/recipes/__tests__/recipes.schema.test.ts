@@ -84,7 +84,7 @@ import {
     updateRecipeRequestSchema,
     MAX_NUTRITION_RECIPE_IDS,
 } from '../recipes.schema.js';
-import { importStatementSchema } from '../import.schema.js';
+import { importStatementSchema, importStatementViewSchema } from '../import.schema.js';
 import type {
     CreateRecipeRequest,
     RecipeIngredientInput,
@@ -771,6 +771,25 @@ describe('createRecipeRequestSchema — the optional `statement` (ADR-0089)', ()
             'paid_site',
             'public_web',
         ]);
+    });
+
+    // `KNOWN_STATEMENT_KINDS` is built from `importStatementSchema.options` and is not exported, so it is observed through what
+    // it decides: a statement of a KNOWN kind that is broken still FAILS the response read (a server bug is not swallowed),
+    // while a kind outside the four reads as `unrecognised`. After the refined-member swap that is exactly the four kinds.
+    it.each([
+        ['authored', { kind: 'authored', extra: 1 }],
+        ['public_web', { kind: 'public_web', citation: 'javascript:alert(1)' }],
+        ['book', { kind: 'book', citation: '' }],
+        ['paid_site', { kind: 'paid_site', citation: '' }],
+    ])('the response read treats %s as a KNOWN kind: a broken one fails, it is not "unrecognised"', (_kind, broken) => {
+        const parsed = importStatementViewSchema.safeParse(broken);
+
+        expect(parsed.success && (parsed.data as { kind: string }).kind === 'unrecognised').toBe(false);
+        expect(parsed.success).toBe(_kind === 'authored');
+    });
+
+    it('a kind outside the four reads as unrecognised', () => {
+        expect(importStatementViewSchema.parse({ kind: 'adapted' })).toEqual({ kind: 'unrecognised' });
     });
 
     it('is the SAME member the bulk import statement uses, not a second copy of the shape', () => {

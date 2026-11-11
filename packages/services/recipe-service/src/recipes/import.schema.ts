@@ -11,19 +11,25 @@
  *
  * ## The routes this contract serves (ADR-0072 §1; `importId` is a UUID, parsed as one at the boundary)
  *
- * | Method | Path                                                | Request                              | Answer           |
- * | ------ | --------------------------------------------------- | ------------------------------------ | ---------------- |
- * | `POST` | `/api/v1/import`                                    | {@link createImportRequestSchema}    | `201` view       |
- * | `PUT`  | `/api/v1/import/{importId}/items`                   | {@link putImportItemsRequestSchema}  | `200` view       |
- * | `GET`  | `/api/v1/import/{importId}`                         | query: `after`, `limit`              | `200` view       |
- * | `POST` | `/api/v1/import/{importId}/advance`                 | {@link advanceImportRequestSchema}   | `200` view / `429 IMPORT_QUOTA_EXCEEDED` |
- * | `GET`  | `/api/v1/import/{importId}/steps/{ordinal}`         | —                                    | `200` step       |
- * | `POST` | `/api/v1/import/{importId}/cursor`                  | {@link importCursorRequestSchema}    | `200` view / `409 IMPORT_CURSOR_MOVED` |
- * | `PUT`  | `/api/v1/import/{importId}/items/{ordinal}/pick`    | {@link importPickRequestSchema}      | `200` pick       |
- * | `POST` | `/api/v1/import/{importId}/items/{ordinal}`         | {@link recordImportChoicesRequestSchema} | `200` step / `409 IMPORT_ITEM_ALREADY_SAVED` |
- * | `POST` | `/api/v1/import/{importId}/leave`                   | {@link leaveImportRequestSchema}     | `200` view       |
- * | `GET`  | `/api/v1/import/{importId}/flagged`                 | query: {@link importListQuerySchema} | `200` flagged    |
- * | `GET`  | `/api/v1/import/{importId}/to-check`                | query: {@link importListQuerySchema} | `200` to-check   |
+ * | Method   | Path                                                | Request                              | Answer           |
+ * | -------- | --------------------------------------------------- | ------------------------------------ | ---------------- |
+ * | `POST`   | `/api/v1/import`                                    | {@link createImportRequestSchema}    | `201` view       |
+ * | `GET`    | `/api/v1/import`                                    | query: {@link importListQuerySchema} | `200` list of the caller's imports |
+ * | `GET`    | `/api/v1/import/to-check-count`                     | —                                    | `200` library-wide count |
+ * | `PUT`    | `/api/v1/import/{importId}/items`                   | {@link putImportItemsRequestSchema}  | `200` view / `409 IMPORT_ITEM_LOCKED` / `409 IMPORT_ITEM_ALREADY_SAVED` |
+ * | `GET`    | `/api/v1/import/{importId}`                         | query: `after`, `limit`              | `200` view       |
+ * | `DELETE` | `/api/v1/import/{importId}`                         | —                                    | `204` (saved recipes stay) |
+ * | `POST`   | `/api/v1/import/{importId}/advance`                 | {@link advanceImportRequestSchema}   | `200` view (ALWAYS, the allowance state is in it) |
+ * | `GET`    | `/api/v1/import/{importId}/steps/{ordinal}`         | —                                    | `200` step       |
+ * | `POST`   | `/api/v1/import/{importId}/cursor`                  | {@link importCursorRequestSchema}    | `200` view / `409 IMPORT_CURSOR_MOVED` |
+ * | `PUT`    | `/api/v1/import/{importId}/items/{ordinal}/pick`    | {@link importPickRequestSchema}      | `200` pick       |
+ * | `POST`   | `/api/v1/import/{importId}/items/{ordinal}`         | {@link recordImportChoicesRequestSchema} | `200` step / `409 IMPORT_ITEM_ALREADY_SAVED` |
+ * | `POST`   | `/api/v1/import/{importId}/choices`                 | {@link recordImportChoicesBatchRequestSchema} | `200` view / `409 IMPORT_ITEM_ALREADY_SAVED` |
+ * | `POST`   | `/api/v1/import/{importId}/leave`                   | {@link leaveImportRequestSchema}     | `200` view       |
+ * | `GET`    | `/api/v1/import/{importId}/flagged`                 | query: {@link importListQuerySchema} | `200` flagged    |
+ * | `GET`    | `/api/v1/import/{importId}/to-check`                | query: {@link importListQuerySchema} | `200` to-check   |
+ *
+ * ⚠️ `to-check-count` is a literal word, never a UUID, so it cannot shadow `{importId}` (ADR-0072 §1).
  *
  * ## The rules this contract carries
  *
@@ -45,6 +51,9 @@ import { z } from 'zod';
 import {
     boundBySchema,
     ingredientQuantitySchema,
+    recipeCuisineSchema,
+    recipeIngredientDisplayTextSchema,
+    recipeIngredientNoteSchema,
     recipeStepInstructionSchema,
     recipeVisibilitySchema,
     MAX_PARSE_JOB_LINES,
@@ -95,6 +104,13 @@ export const IMPORT_MAX_CITATION_LENGTH = SOURCE_LINK_MAX_LENGTH;
 
 /** The most item rows one `GET` returns. */
 export const MAX_IMPORT_PAGE_SIZE = 500;
+
+/**
+ * The most items one batch of choices names. “Make the rest public” is one list and one confirm (owner ruling
+ * 2026-10-26), and a free cook out of slots can hold hundreds of items, so it is a batch rather than one request per
+ * recipe. A recipe-free body, so the 100 kB limit is no constraint at this size.
+ */
+export const MAX_IMPORT_CHOICES_PER_REQUEST = 100;
 
 /** An item's position in the file the client read: a non-negative `int4`, below {@link MAX_IMPORT_ITEMS}. */
 const importOrdinalSchema = z
@@ -156,13 +172,49 @@ export const importStatementSchema = z.discriminatedUnion('kind', [
 /** One statement, as a request carries it. */
 export type ImportStatement = z.infer<typeof importStatementSchema>;
 
-/** The same four forms as a RESPONSE reads them: loose, so a newer server's field does not break an installed client. */
-export const importStatementViewSchema = z.discriminatedUnion('kind', [
-    authoredStatement,
-    publicWebStatement,
-    bookStatement,
-    paidSiteStatement,
-]);
+/** The statement kinds this contract knows, as the request schema spells them. */
+const KNOWN_STATEMENT_KINDS: readonly string[] = importStatementSchema.options.map((option) => option.shape.kind.value);
+
+/**
+ * A statement whose kind this client does not know: a newer server's kind ("adapted" and "family" wait on the owner).
+ *
+ * ⛔ Its OWN arm, never `null` (that reads "Needs your statement", and a client that then saved would write an older kind
+ * over the newer one) and never a bare `{ kind: string }` (which breaks narrowing for every consumer). A client shows it as
+ * a statement it cannot edit and never sends it back: the request schema stays closed.
+ */
+const unrecognisedStatement = z
+    .object({ kind: z.literal('unrecognised') })
+    .describe(
+        'Client-side only: what a client reads for a statement kind newer than it knows. The server never sends it.',
+    );
+
+/** Whether a value is a statement whose kind is a string this contract does not know. Pure. */
+const hasUnknownKind = (value: unknown): boolean =>
+    typeof value === 'object' &&
+    value !== null &&
+    'kind' in value &&
+    typeof value.kind === 'string' &&
+    !KNOWN_STATEMENT_KINDS.includes(value.kind);
+
+/**
+ * The same four forms as a RESPONSE reads them: loose, so a newer server's field does not break an installed client.
+ *
+ * ⚠️ The statement kind is the ONE open vocabulary on the way out (lead ruling 2026-11-11), so a new kind is an
+ * expand-first union change with the server deployed first. Only an UNKNOWN kind reads as `unrecognised`: a broken KNOWN
+ * statement (a `public_web` with a `javascript:` citation) still fails, so a server bug is not swallowed. The stage and
+ * review vocabularies stay closed. A preprocess, not a transform, because the contract fingerprint describes the OUTPUT
+ * side and records a transform as unrepresentable.
+ */
+export const importStatementViewSchema = z.preprocess(
+    (value) => (hasUnknownKind(value) ? { kind: 'unrecognised' } : value),
+    z.discriminatedUnion('kind', [
+        authoredStatement,
+        publicWebStatement,
+        bookStatement,
+        paidSiteStatement,
+        unrecognisedStatement,
+    ]),
+);
 
 /** One statement, as a response carries it. */
 export type ImportStatementView = z.infer<typeof importStatementViewSchema>;
@@ -211,6 +263,9 @@ export const importRecipeSchema = createRecipeRequestSchema
             )
             .max(MAX_IMPORT_STEPS),
     })
+    // The item table keeps the title beside the payload and refuses a blank one (`btrim(title) <> ''`); a title of spaces
+    // passes the create bound (`min(1)`), so it is refused here rather than as a database error on a request the client sent.
+    .refine((recipe) => hasText(recipe.title), { message: 'title is blank', path: ['title'] })
     .refine((recipe) => jsonBytes(recipe) <= MAX_IMPORT_RECIPE_BYTES, {
         message: `a recipe may be at most ${String(MAX_IMPORT_RECIPE_BYTES)} bytes as JSON`,
     });
@@ -371,22 +426,56 @@ export const importPickRequestSchema = z.strictObject({
 /** Body of `PUT …/items/{ordinal}/pick`. */
 export type ImportPickRequest = z.infer<typeof importPickRequestSchema>;
 
+/** Whether a choices body says anything: a statement, a visibility or a cuisine. */
+const saysSomething = (body: { statement?: unknown; visibility?: unknown; cuisine?: unknown }): boolean =>
+    body.statement !== undefined || body.visibility !== undefined || body.cuisine !== undefined;
+
 /**
  * Body of `POST /api/v1/import/{importId}/items/{ordinal}`: the cook's choices on one item — what they say about the
- * recipe, and whether it is public or private. At least one; `visibility: null` clears the recipe's own choice so it
- * follows the import again.
+ * recipe, whether it is public or private, and its cuisine. At least one; `visibility: null` clears the recipe's own choice
+ * so it follows the import again.
+ *
+ * `cuisine` exists because the import saves every recipe PUBLISHED (ADR-0072 §3) and Publish needs one: a file that states
+ * none holds the item under "Needs a cuisine" until the cook gives it (ADR-0072 §3 as amended 2026-11-11). It replaces the
+ * file's cuisine for this recipe. Nothing picks one for the cook.
  */
 export const recordImportChoicesRequestSchema = z
     .strictObject({
         statement: importStatementSchema.optional(),
         visibility: recipeVisibilitySchema.nullable().optional(),
+        cuisine: recipeCuisineSchema.optional(),
     })
-    .refine((body) => body.statement !== undefined || body.visibility !== undefined, {
-        message: 'send a statement, a visibility, or both',
-    });
+    .refine(saysSomething, { message: 'send a statement, a visibility, a cuisine, or several' });
 
 /** Body of `POST …/items/{ordinal}`. */
 export type RecordImportChoicesRequest = z.infer<typeof recordImportChoicesRequestSchema>;
+
+/**
+ * Body of `POST /api/v1/import/{importId}/choices`: the same choices for several items at once, each item carrying its OWN
+ * statement (a statement is per recipe; one for a whole file is not the attestation 004 FR-014a asks for). Each entry
+ * carries at least one of a statement, a visibility and a cuisine, and an ordinal appears once.
+ */
+export const recordImportChoicesBatchRequestSchema = z.strictObject({
+    items: z
+        .array(
+            z
+                .strictObject({
+                    ordinal: importOrdinalSchema,
+                    statement: importStatementSchema.optional(),
+                    visibility: recipeVisibilitySchema.nullable().optional(),
+                    cuisine: recipeCuisineSchema.optional(),
+                })
+                .refine(saysSomething, { message: 'send a statement, a visibility, a cuisine, or several' }),
+        )
+        .min(1)
+        .max(MAX_IMPORT_CHOICES_PER_REQUEST)
+        .refine((entries) => new Set(entries.map((entry) => entry.ordinal)).size === entries.length, {
+            message: 'two entries in one request share an ordinal',
+        }),
+});
+
+/** Body of `POST …/choices`. */
+export type RecordImportChoicesBatchRequest = z.infer<typeof recordImportChoicesBatchRequestSchema>;
 
 /** A non-negative integer spelled in digits. `''`, `' '`, `-1`, `1.5` and `1e3` are NOT numbers here, and `''` is not `0`. */
 const digitsSchema = z.string().regex(/^\d{1,10}$/u);
@@ -429,6 +518,15 @@ const foodRefViewSchema = z.object({
     name: z.string().min(1).nullable(),
 });
 
+/** How many of an import's items stand at each stage; `total` is how many have ARRIVED. */
+const importCountsSchema = z.object({
+    total: z.number().int().nonnegative(),
+    received: z.number().int().nonnegative(),
+    parsing: z.number().int().nonnegative(),
+    matched: z.number().int().nonnegative(),
+    saved: z.number().int().nonnegative(),
+});
+
 /** One item as the list shows it. */
 export const importItemSummarySchema = z.object({
     ordinal: z.number().int().nonnegative(),
@@ -443,7 +541,7 @@ export const importItemSummarySchema = z.object({
     recipeId: z.uuid().nullable(),
     /**
      * Why the item cannot be saved yet, as an opaque key the clients localize (`visibilityRefused`, `waitingForAllowance`,
-     * a pick the server rejected, a review that is stuck), or `null`. The stage enum is closed and parsed strictly, so a
+     * `needsCuisine` and the other publish requirements, a pick the server rejected, a review that is stuck), or `null`. The stage enum is closed and parsed strictly, so a
      * new stuck state arrives as a new key here and never as a new stage.
      */
     issue: z.object({ reason: z.string().min(1) }).nullable(),
@@ -473,21 +571,25 @@ export const importViewSchema = z.object({
     expectedTotal: z.number().int().positive(),
     /**
      * The caller's bulk allowance now: what it is, how much of it the last day spent, and when the next unit frees (an ISO
-     * instant), or `null` when nothing is spent. A paused import explains itself from this; an `advance` that stops on the
-     * allowance answers `429 IMPORT_QUOTA_EXCEEDED` with the same `resetsAt` after doing the work it could pay for.
+     * instant), or `null` when nothing is spent. A paused import explains itself from this.
+     *
+     * ⛔ AN `advance` THAT REACHES THE ALLOWANCE ANSWERS `200`, NOT `429` (ADR-0072 §8 as amended). It does the work it can
+     * still pay for and returns this view, so the client keeps the progress it paid for and reads `used >= limit` with
+     * `resetsAt` to explain the pause. A `429` would discard that progress at the client.
      */
     allowance: z.object({
         limit: z.number().int().nonnegative(),
         used: z.number().int().nonnegative(),
         resetsAt: z.iso.datetime().nullable(),
     }),
-    counts: z.object({
-        total: z.number().int().nonnegative(),
-        received: z.number().int().nonnegative(),
-        parsing: z.number().int().nonnegative(),
-        matched: z.number().int().nonnegative(),
-        saved: z.number().int().nonnegative(),
-    }),
+    /**
+     * Why the whole import is paused, as an opaque key the clients localize, or `null` while it runs. Today the one key is
+     * `outOfSlots`: a free cook's 50 private slots are used (ADR-0073 §8), so no more private recipe is saved until the cook
+     * chooses to stop, or to make the rest public. DERIVED at read time from the live slot count and never stored. The
+     * allowance's own pause is NOT here: it reads from `allowance`. A new key is an additive value, never a new field.
+     */
+    pause: z.object({ reason: z.string().min(1) }).nullable(),
+    counts: importCountsSchema,
     items: z.array(importItemSummarySchema),
     /** The last ordinal on this page when more follow (pass it as `after`), else `null`. */
     nextAfter: z.number().int().nonnegative().nullable(),
@@ -525,13 +627,26 @@ export const importStepLineSchema = z.object({
     foodIndex: z.number().int().nonnegative(),
     /** The line as the file stated it. */
     sourceLine: z.string(),
-    /** The ingredient phrase the parse lifted out of it. */
+    /** The ingredient phrase the parse lifted out of it: what the match was asked. */
     phrase: z.string(),
+    /**
+     * The row the import saves, as the editor saves a pasted row (recipe-core's `pastedLineRowOf`): `name` is the food's
+     * name with a leading size word moved into the unit, and a line kept as written is saved under it; `displayText` is the
+     * cook's words when the parse chose them as the shown name; `note` is a dimension in parentheses, never the unit (owner
+     * ruling 2026-11-08). The wizard shows the line as it will be saved, so it never reads "3 large large eggs".
+     */
+    name: z.string().regex(/\S/u),
+    displayText: recipeIngredientDisplayTextSchema.optional(),
+    note: recipeIngredientNoteSchema.optional(),
     measure: z.object({ quantity: ingredientQuantitySchema, unit: z.string(), preparation: z.string().optional() }),
     /** Pass this back as `against` when picking. */
     judgementDigest: z.string().min(1),
-    /** The paste screen's match view: the closed state, the proposal and the candidates, names resolved as the caller. */
-    match: parseProposalMatchSchema,
+    /**
+     * The paste screen's match view: the closed state, the proposal and the candidates, names resolved as the caller. `null`
+     * when food could not be asked on this read: the contract has no place for a name taken from storage (ADR-0045), so the
+     * line shows no match and the client asks again.
+     */
+    match: parseProposalMatchSchema.nullable(),
     /** `null` for a line the import has not bound. */
     flag: importFlagSchema.nullable(),
     /** The cook's decision, or `null`. */
@@ -551,6 +666,8 @@ export const importStepResponseSchema = z.object({
     review: importReviewMarkSchema,
     statement: importStatementViewSchema.nullable(),
     visibility: recipeVisibilitySchema.nullable(),
+    /** The cuisine the save will use: the cook's choice, else the file's, else `null` (the item then needs one). */
+    cuisine: z.string().min(1).nullable(),
     lines: z.array(importStepLineSchema),
 });
 
@@ -582,8 +699,8 @@ export const importFlaggedLineSchema = z.object({
     flag: importListedFlagSchema,
     /** Pass this back as `against` to pick another food. */
     judgementDigest: z.string().min(1),
-    /** The paste screen's match view, so the cook sees the candidates without opening the step. */
-    match: parseProposalMatchSchema,
+    /** The paste screen's match view, so the cook sees the candidates without opening the step. `null` when food was down. */
+    match: parseProposalMatchSchema.nullable(),
 });
 
 /** `GET /api/v1/import/{importId}/flagged`: the lines the import bound that the review gate did not agree with, or is still checking. */
@@ -604,8 +721,8 @@ export const importToCheckLineSchema = z.object({
     title: z.string(),
     sourceLine: z.string(),
     judgementDigest: z.string().min(1),
-    /** The match view, so the cook can pick a food or keep the line as written. */
-    match: parseProposalMatchSchema,
+    /** The match view, so the cook can pick a food or keep the line as written. `null` when food was down on this read. */
+    match: parseProposalMatchSchema.nullable(),
 });
 
 /**
@@ -620,3 +737,42 @@ export const importToCheckResponseSchema = z.object({
 
 /** The to-check list. */
 export type ImportToCheckResponse = z.infer<typeof importToCheckResponseSchema>;
+
+/** One import as the list shows it: enough for a second device to find it and resume. */
+export const importSummarySchema = z.object({
+    id: z.uuid(),
+    matchMode: importMatchModeSchema,
+    visibility: recipeVisibilitySchema,
+    expectedTotal: z.number().int().positive(),
+    counts: importCountsSchema,
+    createdAt: z.iso.datetime(),
+    /** The last time the cook or a step wrote to the import. The working data is purged 30 days after it (ADR-0072 §12). */
+    updatedAt: z.iso.datetime(),
+});
+
+/** One import in the list. */
+export type ImportSummary = z.infer<typeof importSummarySchema>;
+
+/**
+ * `GET /api/v1/import`: the caller's imports, newest first, paged by the opaque `nextAfter` of the previous page. A cook who
+ * signs in on a second device finds the import here and resumes it.
+ */
+export const importListResponseSchema = z.object({
+    imports: z.array(importSummarySchema),
+    /** Pass as `after` for the next page, or `null` on the last. */
+    nextAfter: z.string().min(1).nullable(),
+});
+
+/** The list of the caller's imports. */
+export type ImportListResponse = z.infer<typeof importListResponseSchema>;
+
+/**
+ * `GET /api/v1/import/to-check-count`: how many lines, across every import the caller still holds, were saved as written and
+ * wait for the cook to pick a food or keep them (the “{count} to check” at the top of My recipes). A line leaves the count
+ * when the cook picks or keeps it, or edits it into a food in the editor; it also leaves when its import's working data is
+ * purged (ADR-0072 §12).
+ */
+export const importToCheckCountResponseSchema = z.object({ count: z.number().int().nonnegative() });
+
+/** The library-wide to-check count. */
+export type ImportToCheckCountResponse = z.infer<typeof importToCheckCountResponseSchema>;

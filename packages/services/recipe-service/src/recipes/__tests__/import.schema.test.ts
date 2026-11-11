@@ -42,9 +42,15 @@ import {
     importPickRequestSchema,
     importRecipeSchema,
     importStatementSchema,
+    importStatementViewSchema,
+    importStepLineSchema,
     importStepResponseSchema,
     importToCheckResponseSchema,
+    importToCheckCountResponseSchema,
+    importListResponseSchema,
     importViewSchema,
+    recordImportChoicesBatchRequestSchema,
+    MAX_IMPORT_CHOICES_PER_REQUEST,
     leaveImportRequestSchema,
     putImportItemsRequestSchema,
     recordImportChoicesRequestSchema,
@@ -155,6 +161,14 @@ describe('putImportItemsRequestSchema', () => {
         expect(putImportItemsRequestSchema.safeParse({ items: [ITEM] }).success).toBe(true);
         expect(putImportItemsRequestSchema.safeParse({ items: [] }).success).toBe(false);
         expect(putImportItemsRequestSchema.safeParse({ items: [ITEM], matchMode: 'review' }).success).toBe(false);
+    });
+});
+
+describe('importRecipeSchema — a title the list can show', () => {
+    it('⛔ refuses a blank title: the item table’s CHECK would answer it with a 500 (23514), so the wire refuses it first', () => {
+        expect(importRecipeSchema.safeParse({ title: '   ', ingredientLines: [], steps: [] }).success).toBe(false);
+        expect(importRecipeSchema.safeParse({ title: '\u200b', ingredientLines: [], steps: [] }).success).toBe(true);
+        expect(importRecipeSchema.safeParse({ title: ' x ', ingredientLines: [], steps: [] }).success).toBe(true);
     });
 });
 
@@ -287,6 +301,53 @@ describe('importStatementSchema — the per-recipe statement (ADR-0072 §9)', ()
     });
 });
 
+describe('⛔ the cuisine a recipe needs to be published (ADR-0072 §3 as amended 2026-11-11)', () => {
+    // An imported recipe is saved PUBLISHED, and Publish needs a cuisine. A file often states none, so the cook gives it
+    // here, one recipe at a time or in a batch. Nothing makes one up.
+    it('a choices body may carry a cuisine alone, or with a statement and a visibility', () => {
+        expect(recordImportChoicesRequestSchema.safeParse({ cuisine: 'Italian' }).success).toBe(true);
+        expect(
+            recordImportChoicesRequestSchema.safeParse({
+                cuisine: 'Italian',
+                statement: { kind: 'authored' },
+                visibility: 'private',
+            }).success,
+        ).toBe(true);
+        expect(
+            recordImportChoicesBatchRequestSchema.safeParse({ items: [{ ordinal: 0, cuisine: 'Thai' }] }).success,
+        ).toBe(true);
+    });
+
+    it('refuses a blank cuisine, as the create route does', () => {
+        expect(recordImportChoicesRequestSchema.safeParse({ cuisine: '' }).success).toBe(false);
+        expect(recordImportChoicesBatchRequestSchema.safeParse({ items: [{ ordinal: 0, cuisine: '' }] }).success).toBe(
+            false,
+        );
+    });
+
+    it('still refuses a body that says nothing', () => {
+        expect(recordImportChoicesRequestSchema.safeParse({}).success).toBe(false);
+        expect(recordImportChoicesBatchRequestSchema.safeParse({ items: [{ ordinal: 0 }] }).success).toBe(false);
+    });
+
+    it('the wizard step shows the cuisine the save will use, or null', () => {
+        const step = {
+            ordinal: 0,
+            title: 'Soup',
+            stage: 'matched',
+            review: 'pending',
+            statement: null,
+            visibility: null,
+            cuisine: 'Italian',
+            lines: [],
+        };
+
+        expect(importStepResponseSchema.parse(step).cuisine).toBe('Italian');
+        expect(importStepResponseSchema.parse({ ...step, cuisine: null }).cuisine).toBeNull();
+        expect(importStepResponseSchema.safeParse({ ...step, cuisine: undefined }).success).toBe(false);
+    });
+});
+
 describe('recordImportChoicesRequestSchema (POST …/items/{ordinal})', () => {
     it('accepts a statement, a visibility, or both', () => {
         expect(recordImportChoicesRequestSchema.safeParse({ statement: { kind: 'authored' } }).success).toBe(true);
@@ -398,6 +459,7 @@ describe('responses are loose and reuse the paste match view', () => {
         version: 'abc123',
         expectedTotal: 2,
         allowance: { limit: 1000, used: 3, resetsAt: null },
+        pause: null,
         counts: { total: 2, received: 1, parsing: 0, matched: 0, saved: 1 },
         items: [
             {
@@ -442,10 +504,70 @@ describe('responses are loose and reuse the paste match view', () => {
         expect(importViewSchema.safeParse({ ...view, cursorOrdinal: null }).success).toBe(true);
     });
 
+    describe('⛔ the statement kind is the ONE open vocabulary on the way out (lead ruling 2026-11-11)', () => {
+        // "Adapted" and "family" wait on the owner. Added later they are an expand-first union change with the server
+        // deployed first, so an installed client must read a kind it does not know as its own arm, never as a crash and
+        // never as "no statement" (which would read "Needs your statement" and could be saved over a newer kind).
+        it('reads a kind it does not know as `unrecognised`', () => {
+            expect(importStatementViewSchema.parse({ kind: 'adapted', citation: 'x' })).toEqual({
+                kind: 'unrecognised',
+            });
+            expect(importStatementViewSchema.parse({ kind: 'family' })).toEqual({ kind: 'unrecognised' });
+        });
+
+        it('reads the four known kinds exactly as before', () => {
+            expect(importStatementViewSchema.parse({ kind: 'authored' })).toEqual({ kind: 'authored' });
+            expect(importStatementViewSchema.parse({ kind: 'book', citation: 'Joy, p. 12' })).toEqual({
+                kind: 'book',
+                citation: 'Joy, p. 12',
+            });
+        });
+
+        it('⛔ still refuses a BROKEN known statement: a server bug fails loudly, it is not swallowed as unknown', () => {
+            expect(
+                importStatementViewSchema.safeParse({ kind: 'public_web', citation: 'javascript:alert(1)' }).success,
+            ).toBe(false);
+            expect(importStatementViewSchema.safeParse({ kind: 'book' }).success).toBe(false);
+            expect(importStatementViewSchema.safeParse({ kind: 7 }).success).toBe(false);
+            expect(importStatementViewSchema.safeParse({}).success).toBe(false);
+        });
+
+        it('⛔ the REQUEST stays closed: a client never sends a kind the server does not take', () => {
+            expect(importStatementSchema.safeParse({ kind: 'adapted' }).success).toBe(false);
+            expect(importStatementSchema.safeParse({ kind: 'unrecognised' }).success).toBe(false);
+        });
+    });
+
     it('closes the stage and review vocabularies on the way OUT too', () => {
         expect(importViewSchema.safeParse({ ...view, items: [{ ...view.items[0], stage: 'ready' }] }).success).toBe(
             false,
         );
+    });
+
+    it('⛔ carries the row the import saves: its name, and the shown words and note the parse gave (owner ruling 2026-11-08)', () => {
+        const line = {
+            lineIndex: 0,
+            foodIndex: 0,
+            sourceLine: '1 (9 inch) double-crust pie pastry',
+            phrase: '9 inch double-crust pie pastry',
+            name: 'double-crust pie pastry',
+            note: '9 inch',
+            measure: { quantity: { kind: 'exact', value: 1 }, unit: '' },
+            judgementDigest: 'jd',
+            match: null,
+            flag: null,
+            pick: null,
+            boundBy: null,
+        };
+
+        expect(importStepLineSchema.safeParse(line).success).toBe(true);
+        expect(importStepLineSchema.safeParse({ ...line, displayText: 'my pie pastry' }).success).toBe(true);
+        // The name is what a line kept as written is saved under, so it is never missing or blank.
+        expect(importStepLineSchema.safeParse({ ...line, name: undefined }).success).toBe(false);
+        expect(importStepLineSchema.safeParse({ ...line, name: '  ' }).success).toBe(false);
+        // A blank shown name or note is refused, as on a recipe line.
+        expect(importStepLineSchema.safeParse({ ...line, displayText: '' }).success).toBe(false);
+        expect(importStepLineSchema.safeParse({ ...line, note: '' }).success).toBe(false);
     });
 
     it('uses the paste match view, not a second copy of it', () => {
@@ -454,6 +576,7 @@ describe('responses are loose and reuse the paste match view', () => {
             foodIndex: 0,
             sourceLine: '2 cups tomatoes',
             phrase: 'tomatoes',
+            name: 'tomatoes',
             measure: { quantity: { kind: 'exact', value: 2 }, unit: 'cup' },
             judgementDigest: 'jd',
             match: {
@@ -473,6 +596,7 @@ describe('responses are loose and reuse the paste match view', () => {
             review: 'pending',
             statement: null,
             visibility: null,
+            cuisine: null,
             lines: [line],
         };
 
@@ -570,6 +694,7 @@ describe('a pick answers whether it applied (a stale pick is not an error and no
         review: 'pending',
         statement: null,
         visibility: null,
+        cuisine: null,
         lines: [],
     };
 
@@ -601,5 +726,142 @@ describe('the read queries page, and a blank value is not zero', () => {
         expect(importListQuerySchema.safeParse({}).success).toBe(true);
         expect(importListQuerySchema.safeParse({ after: '' }).success).toBe(false);
         expect(importListQuerySchema.safeParse({ limit: '501' }).success).toBe(false);
+    });
+});
+
+describe('ADR-0072 service lane additions to the contract', () => {
+    const view = {
+        id: '66666666-6666-4666-8666-000000000001',
+        matchMode: 'keepAsWritten',
+        visibility: 'private',
+        cursorOrdinal: 0,
+        reviewClosed: false,
+        version: 'abc123',
+        expectedTotal: 2,
+        allowance: { limit: 1000, used: 3, resetsAt: null },
+        pause: null,
+        counts: { total: 2, received: 1, parsing: 0, matched: 0, saved: 1 },
+        items: [],
+        nextAfter: null,
+    };
+
+    it('⛔ the view says whether the import is paused, as an opaque key, and a pause is required (null when running)', () => {
+        expect(importViewSchema.safeParse(view).success).toBe(true);
+        expect(importViewSchema.safeParse({ ...view, pause: { reason: 'outOfSlots' } }).success).toBe(true);
+        expect(importViewSchema.safeParse({ ...view, pause: { reason: '' } }).success).toBe(false);
+        expect(importViewSchema.safeParse({ ...view, pause: undefined }).success).toBe(false);
+    });
+
+    it('⛔ a match is null when food could not be asked, on the step, the flagged line and the to-check line', () => {
+        const line = {
+            lineIndex: 0,
+            foodIndex: 0,
+            sourceLine: '1 cup milk',
+            phrase: 'milk',
+            name: 'milk',
+            measure: { quantity: { kind: 'exact', value: 1 }, unit: 'cup' },
+            judgementDigest: 'jd',
+            match: null,
+            flag: null,
+            pick: null,
+            boundBy: null,
+        };
+        const step = {
+            ordinal: 0,
+            title: 'Soup',
+            stage: 'matched',
+            review: 'pending',
+            statement: null,
+            visibility: null,
+            cuisine: null,
+            lines: [line],
+        };
+        const flagged = {
+            ordinal: 0,
+            lineIndex: 0,
+            foodIndex: 0,
+            title: 'Soup',
+            sourceLine: '1 cup milk',
+            recipeId: null,
+            judgementDigest: 'jd',
+            bound: { kind: 'root', id: 'f1', name: null },
+            boundBy: 'exact',
+            flag: { state: 'checking' },
+            match: null,
+        };
+        const waiting = {
+            ordinal: 0,
+            lineIndex: 0,
+            foodIndex: 0,
+            title: 'Soup',
+            sourceLine: '1 cup milk',
+            judgementDigest: 'jd',
+            match: null,
+        };
+
+        expect(importStepResponseSchema.safeParse(step).success).toBe(true);
+        expect(importFlaggedResponseSchema.safeParse({ lines: [flagged], nextAfter: null }).success).toBe(true);
+        expect(importToCheckResponseSchema.safeParse({ lines: [waiting], nextAfter: null }).success).toBe(true);
+        // Absent is still not null: the key is required, so a server that forgot it fails the client's parse.
+        expect(
+            importToCheckResponseSchema.safeParse({ lines: [{ ...waiting, match: undefined }], nextAfter: null })
+                .success,
+        ).toBe(false);
+    });
+
+    it('lists the cook’s imports, paged, so a second device can resume', () => {
+        const summary = {
+            id: view.id,
+            matchMode: 'review',
+            visibility: 'public',
+            expectedTotal: 864,
+            counts: { total: 864, received: 800, parsing: 0, matched: 0, saved: 64 },
+            createdAt: '2026-10-26T12:00:00.000Z',
+            updatedAt: '2026-10-26T13:00:00.000Z',
+        };
+
+        expect(importListResponseSchema.safeParse({ imports: [summary], nextAfter: null }).success).toBe(true);
+        expect(importListResponseSchema.safeParse({ imports: [], nextAfter: 'opaque' }).success).toBe(true);
+        expect(
+            importListResponseSchema.safeParse({ imports: [{ ...summary, id: 'x' }], nextAfter: null }).success,
+        ).toBe(false);
+        expect(importListResponseSchema.safeParse({ imports: [summary] }).success).toBe(false);
+    });
+
+    it('counts the lines waiting on the cook across the whole library', () => {
+        expect(importToCheckCountResponseSchema.safeParse({ count: 0 }).success).toBe(true);
+        expect(importToCheckCountResponseSchema.safeParse({ count: 7 }).success).toBe(true);
+        expect(importToCheckCountResponseSchema.safeParse({ count: -1 }).success).toBe(false);
+        expect(importToCheckCountResponseSchema.safeParse({ count: 1.5 }).success).toBe(false);
+    });
+
+    describe('the batch of choices (“make the rest public” is one list and one confirm)', () => {
+        const entry = {
+            ordinal: 3,
+            statement: { kind: 'public_web', citation: 'https://example.com/r' },
+            visibility: 'public',
+        };
+
+        it('takes 1..MAX entries, each a statement, a visibility or both, with distinct ordinals', () => {
+            expect(recordImportChoicesBatchRequestSchema.safeParse({ items: [entry] }).success).toBe(true);
+            expect(recordImportChoicesBatchRequestSchema.safeParse({ items: [] }).success).toBe(false);
+            expect(
+                recordImportChoicesBatchRequestSchema.safeParse({
+                    items: Array.from({ length: MAX_IMPORT_CHOICES_PER_REQUEST + 1 }, (_, ordinal) => ({
+                        ...entry,
+                        ordinal,
+                    })),
+                }).success,
+            ).toBe(false);
+            expect(recordImportChoicesBatchRequestSchema.safeParse({ items: [entry, entry] }).success).toBe(false);
+            expect(recordImportChoicesBatchRequestSchema.safeParse({ items: [{ ordinal: 1 }] }).success).toBe(false);
+        });
+
+        it('is strict: an invented key is a 400 and boundBy can never ride it', () => {
+            expect(
+                recordImportChoicesBatchRequestSchema.safeParse({ items: [{ ...entry, boundBy: 'cook' }] }).success,
+            ).toBe(false);
+            expect(recordImportChoicesBatchRequestSchema.safeParse({ items: [entry], extra: 1 }).success).toBe(false);
+        });
     });
 });

@@ -61,6 +61,7 @@ import {
     isGoneError,
     isImportCursorMovedError,
     isImportItemAlreadySavedError,
+    isImportItemLockedError,
     isImportQuotaExceededError,
     isInvalidRequestError,
     isNotFoundError,
@@ -144,6 +145,7 @@ export function shouldRetryRecipeServiceFailure(error: unknown): boolean {
         // ADR-0072: two 409s whose remedy is to adopt the server's state (move the cursor, treat the item as done), never to resend.
         isImportCursorMovedError(error) ||
         isImportItemAlreadySavedError(error) ||
+        isImportItemLockedError(error) ||
         isVersionLineUnrestorableError(error)
     ) {
         return false;

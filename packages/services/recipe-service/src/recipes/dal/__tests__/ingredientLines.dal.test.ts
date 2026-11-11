@@ -61,6 +61,9 @@ describe('IngredientLinesDal.replaceForRecipe', () => {
             note: null,
             sourceLine: null,
             sourcePhrase: null,
+            // ADR-0072 §5: the two origin columns are named on every row, `null` included.
+            boundBy: null,
+            importLineId: null,
             statedQuantity: null,
             statedQuantityHigh: null,
             statedUnit: null,
@@ -72,6 +75,19 @@ describe('IngredientLinesDal.replaceForRecipe', () => {
             userCarbsG: null,
             userFatG: null,
         });
+    });
+
+    it('⛔ writes the origin the save path decided into bound_by and import_line_id (ADR-0072 §5)', async () => {
+        const control = createFakeDb();
+        const dal = new IngredientLinesDal();
+        control.enqueue([{ id: LINE.foodLookupId }], [], undefined, [makeIngredientLineRow({ recipeId: 'r-1' })]);
+
+        await dal.replaceForRecipe(control.db, 'r-1', [
+            { ...LINE, boundBy: 'autoBest', importLineId: '00000000-0000-4000-8000-0000000000e1' },
+        ]);
+
+        const rows = control.calls.find((call) => call.method === 'values')?.args[0] as Record<string, unknown>[];
+        expect(rows[0]).toMatchObject({ boundBy: 'autoBest', importLineId: '00000000-0000-4000-8000-0000000000e1' });
     });
 
     it('serializes per-line user-entered nutrition overrides to the numeric columns (FR-007a)', async () => {

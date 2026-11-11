@@ -201,15 +201,43 @@ interface ParsedLine extends ParsedLineMeasure {
     readonly phrases: readonly string[];
 }
 
-/** One (line, food) that needs a match: its slot, the line it belongs to, the food's name and its judgement. */
+/** One (line, food) that needs a match: its job, its slot, the line it belongs to, the food's name and its judgement. */
 interface OwedSlot extends MatchSlot {
+    readonly jobId: string;
     readonly line: ParsedLine;
     readonly phrase: string;
     readonly judgementDigest: string;
 }
 
-/** A computed match before food has been asked about its proposal. */
-type DraftMatch = DraftParseJobMatch;
+/** A computed match before food has been asked about its proposal. It remembers its job. */
+type DraftMatch = DraftParseJobMatch & { readonly jobId: string };
+
+/** What one job of a batch needs and has: its record, its lines, the rows already current, and what is owed and made. */
+interface JobContext {
+    readonly jobId: string;
+    readonly record: ParseJobRecord;
+    readonly lines: ReadonlyMap<number, ParsedLine>;
+    current: ReadonlyMap<string, ParseJobMatch>;
+    owed: readonly OwedSlot[];
+    /** How many of {@link owed} got a stored match this call. */
+    made: number;
+}
+
+/** What one job of a batch came to (`proposeForJobs`). */
+export type JobProposeResult =
+    /** Matched as far as the budget allowed. `matchesComplete`: every owed food now has a current match. */
+    | {
+          readonly jobId: string;
+          readonly kind: 'ok';
+          readonly record: ParseJobRecord;
+          readonly matchesComplete: boolean;
+      }
+    /** An absent job, or one the caller does not own: ONE answer. */
+    | { readonly jobId: string; readonly kind: 'missing' }
+    /** The TTL passed. */
+    | { readonly jobId: string; readonly kind: 'expired' }
+    /** The deadline passed before the job was read; the next call looks at it. */
+    | { readonly jobId: string; readonly kind: 'skipped' };
 
 /**
  * The judgement digest the CURRENT parse yields for one food of a line, or `undefined` when the line names no such food.
@@ -272,6 +300,8 @@ export class MatchProposalService {
     /**
      * Match every parsed food of the owner's job that has no current match, and ask the gate about each proposal.
      *
+     * A single-job {@link proposeForJobs}: it delegates, and answers the job it read.
+     *
      * @param acting - The verified caller's acting slice: only their job is read, and their containment decides the enqueue.
      * @param caller - The caller's credential, forwarded to food.
      * @param jobId - The job.
@@ -285,94 +315,172 @@ export class MatchProposalService {
         caller: CallerToken | undefined,
         jobId: string,
     ): Promise<ParseJobRecord> {
+        const [result] = await this.proposeForJobs(acting, caller, [jobId]);
+
+        if (result?.kind === 'ok') {
+            return result.record;
+        }
+
+        if (result?.kind === 'expired') {
+            throw parseJobExpired(jobId);
+        }
+
+        // `missing`; `skipped` cannot happen for the one job a call is asked about, because a deadline that passes before
+        // the first read is thrown, not skipped.
+        throw parseJobNotFound(jobId);
+    }
+
+    /**
+     * Match the parsed foods of SEVERAL of the owner's jobs in one bounded call, as the cook (ADR-0072 §2): a bulk import's
+     * `advance` matches many recipes in one request, and the request has ONE budget.
+     *
+     * ⛔ ONE deadline for the whole batch, taken before any I/O (rule 9), not one per job: the jobs share the waves of catalog
+     * searches, ONE batched food read and the tail kept for the saves and the sends. What does not fit waits for the next
+     * call, which the idempotency of every step makes safe, and the job reports `matchesComplete: false`.
+     *
+     * A job that cannot be matched does not fail the batch: an expired or absent one (a stranger's is the same answer) is one
+     * entry of the answer, and the other jobs are still matched.
+     *
+     * @param acting - The verified caller's acting slice.
+     * @param caller - The caller's credential, forwarded to food.
+     * @param jobIds - The jobs, in the order they should be matched.
+     * @returns One entry per job, in order: the record as read and whether every owed food now has a current match
+     *   (`matchesComplete`); `missing`; `expired`; or `skipped` when the deadline passed before the job was read.
+     * @throws `DeadlineExceededError` when not even the first job could be read before the deadline.
+     * @sideEffect Food searches and refs reads as the caller, match writes, verification enqueues.
+     */
+    public async proposeForJobs(
+        acting: ActingPrincipal,
+        caller: CallerToken | undefined,
+        jobIds: readonly string[],
+    ): Promise<readonly JobProposeResult[]> {
         // ⛔ ONE deadline for the whole call (rule 9), taken before any I/O, as an instant and as a signal.
         const deadlineAt = this.limits.now() + MATCH_PROPOSE_DEADLINE_MS;
         const deadline = this.limits.signalAt(deadlineAt);
-        const read: { job: ParseJobRecord | undefined } = { job: undefined };
+        const contexts = new Map<string, JobContext>();
+        const settled = new Map<string, JobProposeResult>();
 
         try {
-            await this.proposeWithin(acting, caller, jobId, deadlineAt, deadline, read);
+            await this.proposeWithin(acting, caller, jobIds, deadlineAt, deadline, contexts, settled);
         } catch (error) {
-            if (!isDeadlineExceededError(error) || read.job === undefined) {
+            if (!isDeadlineExceededError(error) || contexts.size + settled.size === 0) {
                 throw error;
             }
 
             // A database call outlived the request. What it was doing is idempotent or undone (see `sendOwed`), so the
             // client's next call finishes the job.
-            this.logger.warn(`parse-job ${jobId}: the request deadline passed in a database call; the rest waits`);
+            this.logger.warn(
+                `parse-jobs ${jobIds.join(',')}: the request deadline passed in a database call; the rest waits`,
+            );
         }
 
-        if (read.job === undefined) {
-            throw new Error('unreachable: proposeWithin returns only after reading the job');
-        }
+        return jobIds.map((jobId): JobProposeResult => {
+            const context = contexts.get(jobId);
 
-        return read.job;
+            if (context !== undefined) {
+                return {
+                    jobId,
+                    kind: 'ok',
+                    record: context.record,
+                    matchesComplete: context.owed.length === 0 || context.made >= context.owed.length,
+                };
+            }
+
+            return settled.get(jobId) ?? { jobId, kind: 'skipped' };
+        });
     }
 
-    /** `propose` under its deadline: every database wait ends with `deadline`, and an unfinished call reports itself. */
+    /** `proposeForJobs` under its deadline: every database wait ends with `deadline`, and an unfinished call reports itself. */
     private async proposeWithin(
         acting: ActingPrincipal,
         caller: CallerToken | undefined,
-        jobId: string,
+        jobIds: readonly string[],
         deadlineAt: number,
         deadline: AbortSignal,
-        read: { job: ParseJobRecord | undefined },
+        contexts: Map<string, JobContext>,
+        settled: Map<string, JobProposeResult>,
     ): Promise<void> {
         const ownerId = acting.userId;
-        const job = await boundedBy(deadline, () => this.jobs.getJob(ownerId, jobId));
 
-        if (job === undefined) {
-            throw parseJobNotFound(jobId);
-        }
+        for (const jobId of jobIds) {
+            const job = await boundedBy(deadline, () => this.jobs.getJob(ownerId, jobId));
 
-        read.job = job;
-
-        if (isParseJobExpired(job, this.limits.now())) {
-            throw parseJobExpired(jobId);
+            if (job === undefined) {
+                settled.set(jobId, { jobId, kind: 'missing' });
+            } else if (isParseJobExpired(job, this.limits.now())) {
+                settled.set(jobId, { jobId, kind: 'expired' });
+            } else {
+                contexts.set(jobId, {
+                    jobId,
+                    record: job,
+                    lines: this.parsedLines(job),
+                    current: new Map(),
+                    owed: [],
+                    made: 0,
+                });
+            }
         }
 
         if (!this.catalog.enabled) {
             // Rule 4: a switched-off catalog cannot rank, and a no-match stored now would stick.
-            this.logger.warn(`parse-job ${jobId}: the catalog blend is switched off; no matches proposed`);
+            this.logger.warn(`parse-jobs ${jobIds.join(',')}: the catalog blend is switched off; no matches proposed`);
 
             return;
         }
 
-        const lines = this.parsedLines(job);
-        const stored = await boundedBy(deadline, () => this.matches.findForJob(ownerId, jobId));
-        const current = new Map(
-            stored.filter((match) => isCurrentFor(lines, match)).map((match) => [slotKey(match), match] as const),
-        );
-        const owed = [...lines.values()].flatMap((line) =>
-            line.phrases.flatMap((phrase, foodIndex) => {
-                const judgementDigest = judgementNow(line, foodIndex);
+        for (const context of contexts.values()) {
+            const stored = await boundedBy(deadline, () => this.matches.findForJob(ownerId, context.jobId));
+            const current = new Map(
+                stored
+                    .filter((match) => isCurrentFor(context.lines, match))
+                    .map((match) => [slotKey(match), match] as const),
+            );
 
-                return current.has(slotKey({ lineIndex: line.lineIndex, foodIndex })) || judgementDigest === undefined
-                    ? []
-                    : [{ lineIndex: line.lineIndex, foodIndex, line, phrase, judgementDigest }];
-            }),
-        );
-        const progress = { started: 0, made: 0 };
+            context.current = current;
+            context.owed = [...context.lines.values()].flatMap((line) =>
+                line.phrases.flatMap((phrase, foodIndex) => {
+                    const judgementDigest = judgementNow(line, foodIndex);
+
+                    return current.has(slotKey({ lineIndex: line.lineIndex, foodIndex })) ||
+                        judgementDigest === undefined
+                        ? []
+                        : [
+                              {
+                                  jobId: context.jobId,
+                                  lineIndex: line.lineIndex,
+                                  foodIndex,
+                                  line,
+                                  phrase,
+                                  judgementDigest,
+                              },
+                          ];
+                }),
+            );
+        }
+
+        const allOwed = [...contexts.values()].flatMap((context) => context.owed);
+        let started = 0;
 
         try {
-            const { drafts, started } = await this.matchWithinBudget(ownerId, caller, owed, deadlineAt, deadline);
+            const matched = await this.matchWithinBudget(ownerId, caller, allOwed, deadlineAt, deadline);
 
-            progress.started = started;
+            started = matched.started;
 
             // ONE batched refs read, under the deadline: the new proposals, and the stored ones this call may send (rule 9).
             const nowMs = this.limits.now();
             const answers = await this.askFoodAbout(
                 caller,
                 [
-                    ...drafts.flatMap((draft) => (draft.proposal === null ? [] : [draft.proposal.food])),
-                    ...[...current.values()].flatMap((match) =>
-                        isSendable(match, nowMs) && match.proposal !== null ? [match.proposal.food] : [],
+                    ...matched.drafts.flatMap((draft) => (draft.proposal === null ? [] : [draft.proposal.food])),
+                    ...[...contexts.values()].flatMap((context) =>
+                        [...context.current.values()].flatMap((match) =>
+                            isSendable(match, nowMs) && match.proposal !== null ? [match.proposal.food] : [],
+                        ),
                     ),
                 ],
                 deadlineAt,
                 deadline,
             );
-            const fresh = drafts.flatMap((draft) => this.withLiveProposal(jobId, draft, lines, answers));
             // A stored proposal is the LIVE end of what the chain named, so the message lookup is by that end too.
             const known = new Map(answers);
 
@@ -382,12 +490,25 @@ export class MatchProposalService {
                 }
             }
 
-            // An idempotent write (first writer wins), so a save that lands after the request gave up is harmless.
-            await boundedBy(deadline, () => this.matches.saveMatches(jobId, fresh));
-            progress.made = fresh.length;
-            await this.sendOwed(acting, jobId, lines, known, deadlineAt, deadline);
+            for (const context of contexts.values()) {
+                const fresh = matched.drafts
+                    .filter((draft) => draft.jobId === context.jobId)
+                    .flatMap((draft) => this.withLiveProposal(context.jobId, draft, context.lines, answers));
+
+                // An idempotent write (first writer wins), so a save that lands after the request gave up is harmless.
+                await boundedBy(deadline, () => this.matches.saveMatches(context.jobId, fresh));
+                context.made = fresh.length;
+                await this.sendOwed(acting, context.jobId, context.lines, known, deadlineAt, deadline);
+            }
         } finally {
-            this.reportIfUnmade(jobId, owed.length, progress);
+            const startedSlots = allOwed.slice(0, started);
+
+            for (const context of contexts.values()) {
+                this.reportIfUnmade(context.jobId, context.owed.length, {
+                    started: startedSlots.filter((slot) => slot.jobId === context.jobId).length,
+                    made: context.made,
+                });
+            }
         }
     }
 
@@ -493,6 +614,7 @@ export class MatchProposalService {
         deadline: AbortSignal,
     ): Promise<DraftMatch | undefined> {
         const base = {
+            jobId: slot.jobId,
             lineIndex: slot.lineIndex,
             foodIndex: slot.foodIndex,
             lineDigest: slot.line.lineDigest,
@@ -616,10 +738,13 @@ export class MatchProposalService {
      */
     private withLiveProposal(
         jobId: string,
-        draft: DraftMatch,
+        tagged: DraftMatch,
         lines: ReadonlyMap<number, ParsedLine>,
         answers: ReadonlyMap<string, FoodRefAnswer>,
     ): readonly NewParseJobMatch[] {
+        // The draft remembers its job only so a batch can be split back into jobs; the stored row is keyed by the job it is
+        // written under.
+        const { jobId: _jobOfDraft, ...draft } = tagged;
         const line = lines.get(draft.lineIndex);
 
         if (draft.proposal === null) {

@@ -176,18 +176,27 @@ for (const colorScheme of ['light', 'dark'] as const) {
             await page.setViewportSize({ width: 390, height: 844 });
             await signedIn(page);
 
-            for (const path of ['/', '/recipes', '/collections', '/discover']) {
-                await page.goto(route(path));
+            // Each goto states its path literally, so the screen registry can read which screens this spec reaches.
+            const expectNoTitleRowAvatar = async (where: string): Promise<void> => {
                 await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
                 await expect(
                     page.getByRole('main').getByRole('link', { name: /^Profile/u }),
-                    `${path}: no avatar link in the page`,
+                    `${where}: no avatar link in the page`,
                 ).toHaveCount(0);
                 await expect(
                     page.getByRole('main').getByRole('button', { name: /^Profile/u }),
-                    `${path}: no avatar button in the page`,
+                    `${where}: no avatar button in the page`,
                 ).toHaveCount(0);
-            }
+            };
+
+            await page.goto(route('/'));
+            await expectNoTitleRowAvatar('/');
+            await page.goto(route('/recipes'));
+            await expectNoTitleRowAvatar('/recipes');
+            await page.goto(route('/collections'));
+            await expectNoTitleRowAvatar('/collections');
+            await page.goto(route('/discover'));
+            await expectNoTitleRowAvatar('/discover');
 
             await page.goto(route('/'));
             await visibleNav(page).getByRole('link', { name: 'You', exact: true }).click();

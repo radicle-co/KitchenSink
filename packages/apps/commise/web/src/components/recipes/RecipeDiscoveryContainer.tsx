@@ -16,10 +16,9 @@
  * @pattern Adapter — the web host's criteria store and platform plugged into the shared discovery screen
  */
 import { DiscoveryScreen } from '@commise/features-recipes/discovery';
-import type { HeaderAction } from '@commise/ui/large-title-header';
 import type { Route } from 'next';
 import { useRouter } from 'next/navigation';
-import type { FC, ReactNode } from 'react';
+import type { FC } from 'react';
 
 import { webDiscoveryPlatform } from '@/components/recipes/webDiscoveryPlatform';
 import { useUrlCriteriaStore } from '@/hooks/useUrlCriteriaStore';
@@ -28,24 +27,17 @@ import { useUrlCriteriaStore } from '@/hooks/useUrlCriteriaStore';
 export interface RecipeDiscoveryContainerProps {
     /** The active route locale, used to build locale-prefixed navigation targets. */
     readonly locale: string;
-    /**
-     * The large title's avatar (slice 3): the page hands in the app's `ProfileAvatarEntry`, so the profile read stays
-     * where data enters the chrome and this container does not depend on the auth session.
-     */
-    readonly avatar?: ReactNode;
 }
 
 /**
  * The live public-discovery container.
  *
- * @param props - The active locale and the title's avatar.
+ * @param props - The active locale.
  * @returns The shared discovery screen over the URL and the web platform.
  */
-export const RecipeDiscoveryContainer: FC<RecipeDiscoveryContainerProps> = ({ locale, avatar }) => {
+export const RecipeDiscoveryContainer: FC<RecipeDiscoveryContainerProps> = ({ locale }) => {
     const router = useRouter();
     const criteria = useUrlCriteriaStore();
-    // Slice 3: Discover is its own tab, with the avatar as its large title's action below 840.
-    const headerAction: HeaderAction | undefined = avatar === undefined ? undefined : { kind: 'avatar', avatar };
 
     return (
         <DiscoveryScreen
@@ -54,7 +46,6 @@ export const RecipeDiscoveryContainer: FC<RecipeDiscoveryContainerProps> = ({ lo
             onEditCopy={(copyId) => router.push(`/${locale}/recipes/${copyId}/edit` as Route)}
             onSelectRecipe={(id) => router.push(`/${locale}/recipes/${id}` as Route)}
             hrefOf={(recipeId) => `/${locale}/recipes/${recipeId}`}
-            {...(headerAction === undefined ? {} : { headerAction })}
         />
     );
 };

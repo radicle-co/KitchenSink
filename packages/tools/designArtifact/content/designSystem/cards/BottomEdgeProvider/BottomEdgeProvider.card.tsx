@@ -4,10 +4,20 @@
  */
 import { defineCard } from '../../../../src/cards/defineCard.js';
 
+/** The cook the You tab's disc shows. */
+const PROFILE = { status: 'ready', name: 'Ana Ruiz' } as const;
+
 const noop = (): void => undefined;
 
 const chrome = {
-    destinations: { home: 'Home', recipes: 'Recipes', discover: 'Discover', 'meal-plan': 'Plan', grocery: 'Shop' },
+    destinations: {
+        home: 'Home',
+        recipes: 'Recipes',
+        discover: 'Discover',
+        'meal-plan': 'Plan',
+        grocery: 'Shop',
+        you: 'You',
+    },
     profileButton: 'Profile, {name}',
     profileButtonNoName: 'Profile',
     tabNavLabel: 'Tabs',
@@ -42,6 +52,7 @@ export default defineCard({
                     chrome={chrome}
                     liveCapabilities={[]}
                     activeId="home"
+                    profile={PROFILE}
                     onPress={noop}
                     bottomInset={34}
                     compact={false}

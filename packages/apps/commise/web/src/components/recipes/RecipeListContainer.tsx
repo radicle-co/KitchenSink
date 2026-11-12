@@ -38,7 +38,7 @@ import { useRefreshNotice } from '@commise/query/refresh-notice';
 import { useSuspenseInfiniteQuery } from '@tanstack/react-query';
 import type { Route } from 'next';
 import { useRouter } from 'next/navigation';
-import type { FC, ReactNode } from 'react';
+import type { FC } from 'react';
 
 import { ClientQueryBoundary } from '@/components/app/ClientQueryBoundary';
 import { pasteIngredientsHref } from '@/components/recipes/pasteIngredientsHref';
@@ -49,20 +49,15 @@ import { useRecipeViewSetting } from '@/hooks/useRecipeViewSetting';
 export interface RecipeListContainerProps {
     /** The active route locale, used to build locale-prefixed navigation targets. */
     readonly locale: string;
-    /**
-     * The large title's avatar (slice 3): the page hands in the app's `ProfileAvatarEntry`, so the profile read stays
-     * where data enters the chrome and this container does not depend on the auth session.
-     */
-    readonly avatar?: ReactNode;
 }
 
 /**
  * The live My recipes container.
  *
- * @param props - The active locale and the large title's avatar.
+ * @param props - The active locale.
  * @returns The frame around the read boundary.
  */
-export const RecipeListContainer: FC<RecipeListContainerProps> = ({ locale, avatar }) => {
+export const RecipeListContainer: FC<RecipeListContainerProps> = ({ locale }) => {
     const router = useRouter();
     const controls = useRecipeLibraryControls();
     // The cook's grid/list choice is an account setting (ADR-0059); the page's server render put it in the cache.
@@ -75,7 +70,6 @@ export const RecipeListContainer: FC<RecipeListContainerProps> = ({ locale, avat
 
     return (
         <RecipeListFrame
-            {...(avatar === undefined ? {} : { headerAction: { kind: 'avatar', avatar } })}
             searchValue={controls.searchValue}
             onSearchChange={controls.onSearchChange}
             searchVisible={controls.searchVisible}

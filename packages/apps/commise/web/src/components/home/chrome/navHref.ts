@@ -24,6 +24,8 @@ export function homeNavHref(id: HomeNavItemId, locale: string): Route | undefine
             return `/${locale}/recipes` as Route;
         case 'discover':
             return `/${locale}/discover` as Route;
+        case 'you':
+            return `/${locale}/profile` as Route;
         case 'meal-plan':
         case 'grocery':
             return undefined;
@@ -41,12 +43,19 @@ const TAB_OF_SEGMENT: Readonly<Record<string, HomeNavItemId>> = {
     recipes: 'recipes',
     collections: 'recipes',
     discover: 'discover',
+    // Profile is the You tab's root; what it pushes (Your foods, the data sources) belongs to the same tab.
+    profile: 'you',
+    foods: 'you',
+    legal: 'you',
 };
+
+/** Segments that are never a tab's root: they open from a tab's root, so a second tap on the tab leaves them. */
+const PUSHED_SEGMENTS: ReadonlySet<string> = new Set(['foods', 'legal']);
 
 /**
  * @param pathname - The current path, with or without a preview base path in front of the locale.
  * @param locale - The active locale segment.
- * @returns The route's tab (`null` for Profile, legal and the 404, which belong to no tab) and whether it is the root.
+ * @returns The route's tab (`null` for the 404, which belongs to no tab) and whether it is the root.
  *     Pure.
  */
 export function tabRootOf(pathname: string, locale: string): TabRoot {
@@ -60,5 +69,7 @@ export function tabRootOf(pathname: string, locale: string): TabRoot {
 
     const tab = TAB_OF_SEGMENT[first];
 
-    return tab === undefined ? { tab: null, atRoot: false } : { tab, atRoot: rest.length === 0 };
+    return tab === undefined
+        ? { tab: null, atRoot: false }
+        : { tab, atRoot: rest.length === 0 && !PUSHED_SEGMENTS.has(first) };
 }

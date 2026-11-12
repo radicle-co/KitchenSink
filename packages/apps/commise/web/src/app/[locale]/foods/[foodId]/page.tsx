@@ -24,7 +24,7 @@ export default async function FoodPage({
     await requireSignedIn(locale, foodHref(locale, foodId));
 
     return (
-        <AppShell activeId={null} titleId="food">
+        <AppShell activeId="you" titleId="food">
             <FoodPageContainer foodId={foodId} locale={locale} />
         </AppShell>
     );

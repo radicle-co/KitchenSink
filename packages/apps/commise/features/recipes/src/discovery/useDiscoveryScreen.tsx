@@ -50,6 +50,7 @@ import {
     DISCOVERY_SEARCH_DEBOUNCE_MS,
     discoverySearchParams,
     isDiscoveryBrowsing,
+    isDiscoveryCatalogueEmpty,
     isDiscoverySearching,
     type DiscoveryFilterSlots,
     type RecipeDiscoveryCriteria,
@@ -61,8 +62,8 @@ import type { RecentSearchStore } from './recentSearches.js';
 
 /** Everything the screen renders from, in the three groups it renders them in. */
 export interface DiscoveryScreenState {
-    /** The persistent frame's props (every one but its title action and its body). */
-    readonly frame: Omit<RecipeDiscoveryFrameProps, 'children' | 'headerAction'>;
+    /** The persistent frame's props (every one but its body). */
+    readonly frame: Omit<RecipeDiscoveryFrameProps, 'children'>;
     /** The suspense read for the settled criteria, and the criteria it belongs to. */
     readonly read: DiscoverySearchRead;
     readonly settled: RecipeDiscoveryCriteria;
@@ -153,6 +154,8 @@ export function useDiscoveryScreen({
     const cardVariant = cardVariantOf(container, 'list', 'discover') === 'compact' ? 'compact' : 'grid';
 
     const searchingNow = isDiscoverySearching({ filters, query: searchInput });
+    // Only the count line reads this. An empty catalogue also draws no rails (`DiscoveryResultsView`), and its own
+    // status region announces it, so the count line staying silent there is right.
     const browsing = isDiscoveryBrowsing(settled);
     // The announced sentence describes results on screen, so nothing is announced while the rails are the body.
     const resultsSummary: RecipeDiscoveryResultsSummary | undefined =
@@ -216,7 +219,8 @@ export function useDiscoveryScreen({
                 onSelect: onSearchChange,
                 onClear: recentSearches.clear,
             },
-            filters: filterSlots,
+            // Over an empty catalogue there is nothing to filter (buildSpec §4.6), so the frame draws no Filters.
+            ...(isDiscoveryCatalogueEmpty(settled, settledSearch.data?.pages[0]) ? {} : { filters: filterSlots }),
             sort: !browseDismissed && !searchingNow ? undefined : { active: sortBy, onChange: setSortBy },
             onExitToBrowse: browseDismissed && !searchingNow ? () => setBrowseDismissed(false) : undefined,
         },

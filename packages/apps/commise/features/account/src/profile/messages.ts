@@ -11,14 +11,8 @@ import type { LocalizedMessages } from '@commise/i18n';
 export interface ProfileMessages {
     /** The page's H1 and its document title. */
     readonly title: string;
-    /** Web's "Back to {parent}" for a Profile opened from anywhere: Home is its parent. */
-    readonly backToHome: string;
-    /** The parent's name in the 840+ eyebrow ("‹ Home"). */
-    readonly homeParent: string;
     /** The Data sources page's way back to Profile. */
     readonly backToProfile: string;
-    /** Native's back control: the tab stack knows no single parent. */
-    readonly back: string;
     /** The accessible name of the loading skeleton. */
     readonly loading: string;
     /** Shown in place of the header and rows' values when the read failed; the groups still work. */
@@ -85,10 +79,7 @@ export interface ProfileMessages {
 export const profileMessages: LocalizedMessages<ProfileMessages> = {
     en: {
         title: 'Profile',
-        backToHome: 'Back to Home',
-        homeParent: 'Home',
         backToProfile: 'Back to Profile',
-        back: 'Back',
         loading: 'Loading your profile',
         loadError: 'We couldn’t load your profile.',
         retry: 'Try again',

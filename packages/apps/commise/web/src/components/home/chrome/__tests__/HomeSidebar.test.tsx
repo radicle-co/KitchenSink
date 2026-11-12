@@ -1,8 +1,13 @@
 // @vitest-environment jsdom
 /**
- * The web sidebar at 840 and wider (`buildSpec.md` §3.2; slice 3): sticky and full height, New recipe FIRST, the three
- * destinations, a divider, the profile row (truncated, named "Profile, {name}"), and the collapse control on the foot
+ * The web sidebar at 840 and wider (`buildSpec.md` §3.2; slice 3): sticky and full height; the profile row FIRST, in the
+ * 64 px row the "Commise" wordmark used to hold (owner ruling 2026-11-11, N3; truncated, named "Profile, {name}", the
+ * active style of a nav row on /profile); then New recipe, the three destinations and the collapse control on the foot
  * with `aria-expanded`. Collapsed it is the 80 px rail and every control keeps its name.
+ *
+ * Rewritten for the You tab (2026-11-11): the profile row used to sit after a divider near the foot and the wordmark
+ * filled the first row, so the tests that pinned "New recipe first" and "the divider and foot row" now pin the new
+ * order, and the wordmark and foot-row absences are asserted.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
@@ -45,13 +50,57 @@ describe('HomeSidebar (web)', () => {
         expect(root?.className).toContain('nav:flex');
     });
 
-    it('puts New recipe FIRST, before the destinations', () => {
+    it('puts the profile row FIRST, then New recipe, then the destinations', () => {
         renderSidebar();
 
+        const profile = screen.getByRole('link', { name: 'Profile, Eliza Montgomery-Hargreaves' });
         const newRecipe = screen.getByRole('button', { name: 'New recipe' });
         const nav = screen.getByRole('navigation', { name: chrome.primaryNavLabel });
 
+        expect(profile.compareDocumentPosition(newRecipe) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
         expect(newRecipe.compareDocumentPosition(nav) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
+    it('is no longer headed by the wordmark, and has no profile row or divider at the foot', () => {
+        const { container } = renderSidebar();
+
+        expect(screen.queryByText('Commise')).toBeNull();
+        expect(screen.getAllByRole('link', { name: /^Profile/u })).toHaveLength(1);
+        expect(container.querySelector('.border-t')).toBeNull();
+        expect(screen.getByRole('button', { name: 'Collapse' }).closest('.mt-auto')).not.toBeNull();
+    });
+
+    it('draws the profile row in the 64 px first row, a 32 px disc beside the name', () => {
+        renderSidebar();
+
+        const row = screen.getByRole('link', { name: 'Profile, Eliza Montgomery-Hargreaves' });
+
+        expect(row.closest('.h-16')).not.toBeNull();
+        expect(row.querySelector('.size-8')).not.toBeNull();
+    });
+
+    it('marks the profile row as the current page on /profile, in the style of an active nav row', () => {
+        renderSidebar({ activeId: 'you' });
+
+        const row = screen.getByRole('link', { name: 'Profile, Eliza Montgomery-Hargreaves' });
+
+        expect(row.getAttribute('aria-current')).toBe('page');
+        expect(row.className).toContain('bg-selected-fill');
+        expect(row.querySelector('.bg-here-bar')).not.toBeNull();
+        expect(
+            within(screen.getByRole('navigation', { name: chrome.primaryNavLabel }))
+                .getAllByRole('link')
+                .every((link) => link.getAttribute('aria-current') === null),
+        ).toBe(true);
+    });
+
+    it('leaves the profile row unmarked on any other page, and keeps You out of the destination list', () => {
+        renderSidebar({ activeId: 'recipes' });
+
+        expect(
+            screen.getByRole('link', { name: 'Profile, Eliza Montgomery-Hargreaves' }).getAttribute('aria-current'),
+        ).toBeNull();
+        expect(within(screen.getByRole('navigation', { name: chrome.primaryNavLabel })).queryByText('You')).toBeNull();
     });
 
     it('lists Home, Recipes and Discover with the active one marked, and no "Soon" item', () => {
@@ -125,6 +174,7 @@ describe('HomeSidebar (web)', () => {
         expect(container.firstElementChild?.className).toContain('w-20');
         expect(screen.getByRole('link', { name: 'Recipes' })).toBeTruthy();
         expect(screen.getByRole('link', { name: 'Profile, Eliza Montgomery-Hargreaves' }).textContent).toBe('EM');
+        expect(screen.queryByText('Commise')).toBeNull();
         expect(screen.getByRole('button', { name: 'Expand sidebar' }).getAttribute('aria-expanded')).toBe('false');
     });
 

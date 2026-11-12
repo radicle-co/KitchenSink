@@ -25,6 +25,7 @@ import { useDiscoveryPlatform } from './DiscoveryPlatformProvider.js';
 import type { DiscoveryCardActions } from './discoveryScreenModel.js';
 import {
     isDiscoveryBrowsing,
+    isDiscoveryCatalogueEmpty,
     recipeIdPagesOf,
     type RecipeBrowseCuisineShortcut,
     type RecipeDiscoveryCriteria,
@@ -88,7 +89,8 @@ export const DiscoveryResultsView: FC<DiscoveryResultsViewProps> = ({
     scrollBind,
     ...actions
 }) => {
-    const browsing = isDiscoveryBrowsing(criteria);
+    // An empty catalogue draws its own no-result state, never three empty rails.
+    const browsing = isDiscoveryBrowsing(criteria) && !isDiscoveryCatalogueEmpty(criteria, pages[0]);
     // The compact card asks too: a Discover card draws the full meta line, calories included (UI Designer ruling 2026-11-03).
     const renderNutrition = useDiscoveryPlatform().useRenderNutrition(browsing ? [] : recipeIdPagesOf(pages));
 

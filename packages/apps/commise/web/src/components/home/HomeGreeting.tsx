@@ -2,9 +2,9 @@
 
 /**
  * @module home/HomeGreeting — Home's header: the time-of-day greeting as the page's H1 and the date under it (web;
- * US-000 / FR-046; `docs/design/uiOverhaul/buildSpec.md` §4.2), in ONE row as the Home boards draw it — the text stacked
- * on the start side, the 44 px profile button on the end side at every width — with the floating create button right
- * after the row in DOM order. It is no longer the shared `LargeTitleHeader`: the greeting is a `cardTitle`, not a large
+ * US-000 / FR-046; `docs/design/uiOverhaul/buildSpec.md` §4.2), in ONE row — the text stacked on the start side and
+ * nothing on the end side, because no title row carries the avatar (owner ruling 2026-11-11, N3) — with the floating create
+ * button right after the row in DOM order. It is no longer the shared `LargeTitleHeader`: the greeting is a `cardTitle`, not a large
  * title.
  *
  * "Good afternoon, Eliza" over "Sunday, May 31, 2026"; "Good afternoon" when the cook has no name yet. Both are derived from the viewer's
@@ -37,7 +37,6 @@
  * reachable from a browser test, so both would keep the masks.
  */
 import { useHomeGreeting } from '@commise/features-core/home';
-import type { HeaderAction } from '@commise/ui/large-title-header';
 import type { JSX, ReactNode } from 'react';
 
 import { useIsHydrated } from '@/hooks/useIsHydrated';
@@ -58,8 +57,6 @@ const HOME_TITLE_ID = 'home-title';
 export interface HomeGreetingProps {
     /** The cook's display name, if any. */
     readonly name?: string;
-    /** The header's action: the avatar, at every width. */
-    readonly action?: HeaderAction;
     /** What comes right after the H1: the floating create button. */
     readonly afterTitle?: ReactNode;
 }
@@ -70,11 +67,11 @@ const PLACEHOLDER_BAR = 'max-w-full rounded-md bg-surface-muted';
 /**
  * The Home large title.
  *
- * @param props - The cook's name, the header's action, and what follows the H1.
+ * @param props - The cook's name and what follows the H1.
  * @returns The time-of-day greeting as the H1 and the localized full-date subtitle once the viewer's clock is readable;
  *          before that, the same two lines reserved as an `aria-hidden` placeholder.
  */
-export function HomeGreeting({ name, action, afterTitle }: HomeGreetingProps = {}): JSX.Element {
+export function HomeGreeting({ name, afterTitle }: HomeGreetingProps = {}): JSX.Element {
     // Read unconditionally (hook order), but SHOWN only once hydrated: before that the clock is the server's, not the
     // viewer's, and the placeholder below stands in for it.
     const { title, subtitle } = useHomeGreeting(name);
@@ -101,12 +98,6 @@ export function HomeGreeting({ name, action, afterTitle }: HomeGreetingProps = {
                     </h1>
                     <p className={DATE_LINE}>{subtitle}</p>
                 </div>
-                {action?.kind === 'avatar' ? (
-                    // The 44 px target is the floor; the -mr-1 lines the 32 px disc up with the page gutter.
-                    <div className="-mr-1 flex min-h-11 min-w-11 shrink-0 items-center justify-center">
-                        {action.avatar}
-                    </div>
-                ) : null}
             </div>
             {afterTitle}
         </header>

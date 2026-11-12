@@ -1,7 +1,7 @@
 /**
  * @module home/HomeGreeting — Home's header on native (US-000 / FR-046; `docs/design/uiOverhaul/buildSpec.md` §4.2): ONE
- * row, as the Home boards draw it. The greeting ("Good afternoon, Eliza"; "Good afternoon" without a name) and the local
- * date stack on the start side; the 44 pt profile button sits on the end side, centred on the pair.
+ * row. The greeting ("Good afternoon, Eliza"; "Good afternoon" without a name) and the local date stack on the start
+ * side, and nothing sits on the end side: no title row carries the avatar (owner ruling 2026-11-11, N3).
  *
  * It is no longer the shared `LargeTitleHeader`: Home's greeting is a `cardTitle`, not a large title, and the condensed
  * bar that echoed a large title is gone from Home (designer, 2026-11-02). Both lines derive from the viewer's local
@@ -11,7 +11,6 @@
  * Presentational once the greeting is read: the layout is Tamagui stacks, the colours are theme keys.
  */
 import { useHomeGreeting } from '@commise/features-core/home';
-import type { HeaderAction } from '@commise/ui/large-title-header';
 import { nativeTokens } from '@commise/ui/native';
 import { Text } from '@commise/ui/text';
 import type { JSX } from 'react';
@@ -31,17 +30,15 @@ const TOP_GAP = 32;
 export interface HomeGreetingProps {
     /** The cook's display name, if any. */
     readonly name?: string;
-    /** The header's action: the avatar. */
-    readonly action?: HeaderAction;
 }
 
 /**
  * Home's header (native).
  *
- * @param props - The cook's name and the header's action.
- * @returns The greeting over the date, with the profile button at the end of the same row.
+ * @param props - The cook's name.
+ * @returns The greeting over the date.
  */
-export function HomeGreeting({ name, action }: HomeGreetingProps = {}): JSX.Element {
+export function HomeGreeting({ name }: HomeGreetingProps = {}): JSX.Element {
     const { title, subtitle } = useHomeGreeting(name);
 
     return (
@@ -62,12 +59,6 @@ export function HomeGreeting({ name, action }: HomeGreetingProps = {}): JSX.Elem
                     {subtitle}
                 </Text>
             </YStack>
-            {action?.kind === 'avatar' ? (
-                // The 44 pt target is the floor; the disc inside it is optically aligned with the 16 pt gutter.
-                <XStack minWidth={44} minHeight={44} alignItems="center" justifyContent="center" marginEnd={-4}>
-                    {action.avatar}
-                </XStack>
-            ) : null}
         </XStack>
     );
 }

@@ -56,7 +56,6 @@ export const RecipeDiscoveryFrame: FC<RecipeDiscoveryFrameProps> = ({
     searching,
     headingFocusSignal,
     resultsSummary,
-    headerAction,
     recentSearches,
     filters,
     sort,
@@ -138,16 +137,13 @@ export const RecipeDiscoveryFrame: FC<RecipeDiscoveryFrameProps> = ({
     // keeps the field alone.
     return (
         <View style={[styles.container, compact && styles.containerCompact]}>
-            {panel === undefined || compact ? null : (
-                <DiscoveryTitle focusSignal={headingFocusSignal} action={headerAction} />
-            )}
+            {panel === undefined || compact ? null : <DiscoveryTitle focusSignal={headingFocusSignal} />}
             <View style={panel === undefined ? styles.fill : styles.panelRow}>
                 {panel?.panel}
                 <View style={panel === undefined ? styles.fill : styles.resultsColumn}>
                     <DiscoveryHeaderGroup
                         compact={compact}
                         headingFocusSignal={headingFocusSignal}
-                        headerAction={headerAction}
                         search={search}
                         drawsHeading={panel === undefined}
                     />

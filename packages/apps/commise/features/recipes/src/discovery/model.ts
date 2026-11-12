@@ -7,7 +7,6 @@
  * — one authoritative implementation of pluralization + placeholder filling for the whole feature.
  */
 import type { Locale } from '@commise/i18n';
-import type { HeaderAction } from '@commise/ui/large-title-header';
 import type { ScrollBind } from '@commise/ui/scroll-host';
 import type { ReactNode } from 'react';
 
@@ -172,6 +171,20 @@ export const isDiscoverySearching = ({ filters, query }: Pick<RecipeDiscoveryCri
  */
 export const isDiscoveryBrowsing = (criteria: RecipeDiscoveryCriteria): boolean =>
     !criteria.browseDismissed && !isDiscoverySearching(criteria);
+
+/**
+ * Whether the catalogue itself is empty (`docs/design/uiOverhaul/buildSpec.md` §4.6 "Empty catalogue"): nothing narrowed
+ * the search and its first page settled with no recipe, so no other cook has a public, published recipe. The rails and
+ * the filters would only show nothing, so the screen says so instead. Pure.
+ *
+ * @param criteria - The criteria the page answers.
+ * @param firstPage - The search's first page, or `undefined` while it has not settled.
+ * @returns `true` only for a settled, unnarrowed search that found nothing.
+ */
+export const isDiscoveryCatalogueEmpty = (
+    criteria: Pick<RecipeDiscoveryCriteria, 'filters' | 'query'>,
+    firstPage: { readonly results: readonly unknown[] } | undefined,
+): boolean => firstPage !== undefined && firstPage.results.length === 0 && !isDiscoverySearching(criteria);
 
 /**
  * The recipe ids of a discovery search's FETCHED PAGES, one list per page. Pure.
@@ -424,12 +437,6 @@ export interface RecipeDiscoveryFrameProps {
      * header shows. Absent while nothing has settled, or while the rails are the body — neither is announced.
      */
     readonly resultsSummary?: RecipeDiscoveryResultsSummary;
-    /**
-     * The large title's action: the avatar, which opens Profile (`buildSpec.md` §3.3). The app supplies it, because
-     * the profile read and the navigation are the app's. Discover is a tab of its own since slice 3, so this surface
-     * takes no source switcher.
-     */
-    readonly headerAction?: HeaderAction;
     /** The recent-search memory (U7). Absent → no recent searches on this surface. */
     readonly recentSearches?: RecipeRecentSearchesControl;
     /**

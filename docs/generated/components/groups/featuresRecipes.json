@@ -6,11 +6,11 @@
     "coverage": {
         "components": 206,
         "implementations": 350,
-        "props": 2420,
+        "props": 2411,
         "documentedComponents": 206,
         "implementationsWithModuleDoc": 350,
         "implementationsWithComponentDoc": 239,
-        "documentedProps": 1848,
+        "documentedProps": 1839,
         "classifiedComponents": 184,
         "componentsWithPatternTag": 99,
         "crossPlatformComponents": 144
@@ -1996,15 +1996,6 @@
                             "declaredIn": "packages/apps/commise/features/recipes/src/collections/model.ts"
                         },
                         {
-                            "name": "headerAction",
-                            "type": "HeaderAction",
-                            "typeDetail": null,
-                            "required": false,
-                            "defaultValue": null,
-                            "description": "The large title's action (slice 3): the avatar, which opens Profile. The app supplies it.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/collections/model.ts"
-                        },
-                        {
                             "name": "headingFocusSignal",
                             "type": "number",
                             "typeDetail": null,
@@ -2099,15 +2090,6 @@
                             "required": false,
                             "defaultValue": "false",
                             "description": "The floating button takes focus (native): raised when the new-collection sheet closes without creating one, so\nfocus returns to the control that opened it. The frame passes it to the button, which acknowledges it.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/collections/model.ts"
-                        },
-                        {
-                            "name": "headerAction",
-                            "type": "HeaderAction",
-                            "typeDetail": null,
-                            "required": false,
-                            "defaultValue": null,
-                            "description": "The large title's action (slice 3): the avatar, which opens Profile. The app supplies it.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/collections/model.ts"
                         },
                         {
@@ -10749,15 +10731,6 @@
                             "declaredIn": "packages/apps/commise/features/recipes/src/discovery/DiscoveryHeaderGroup.native.tsx"
                         },
                         {
-                            "name": "headerAction",
-                            "type": "HeaderAction | undefined",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "The large title's action.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/discovery/DiscoveryHeaderGroup.native.tsx"
-                        },
-                        {
                             "name": "headingFocusSignal",
                             "type": "number",
                             "typeDetail": null,
@@ -11207,15 +11180,6 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "Where the shareable criteria live.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/discovery/DiscoveryScreen.tsx"
-                        },
-                        {
-                            "name": "headerAction",
-                            "type": "HeaderAction",
-                            "typeDetail": null,
-                            "required": false,
-                            "defaultValue": null,
-                            "description": "The large title's action (the avatar, which opens Profile). The app supplies it, since the profile read is its.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/discovery/DiscoveryScreen.tsx"
                         },
                         {
@@ -11712,11 +11676,11 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/recipes/src/discovery/DiscoveryTitle.native.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/discovery",
-                    "moduleDoc": "@commise/features-recipes — the native discovery page's large title with the app's action (the avatar, which\nopens Profile): `buildSpec.md` §3.3. The one place the title is drawn, for the stacked header and the panel layout.\n\nPresentational: props → JSX.",
+                    "moduleDoc": "@commise/features-recipes — the native discovery page's large title (`buildSpec.md` §3.3), which carries no\navatar (owner ruling 2026-11-11, N3). The one place the title is drawn, for the stacked header and the panel layout.\n\nPresentational: props → JSX.",
                     "moduleTags": [
                         {
                             "name": "module",
-                            "text": "@commise/features-recipes — the native discovery page's large title with the app's action (the avatar, which"
+                            "text": "@commise/features-recipes — the native discovery page's large title (`buildSpec.md` §3.3), which carries no"
                         }
                     ],
                     "description": "The native discovery title.",
@@ -11724,15 +11688,6 @@
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
                     "props": [
-                        {
-                            "name": "action",
-                            "type": "HeaderAction | undefined",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "The title's action, when the app supplies one.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/discovery/DiscoveryTitle.native.tsx"
-                        },
                         {
                             "name": "focusSignal",
                             "type": "number",
@@ -13858,15 +13813,6 @@
                             "declaredIn": "packages/apps/commise/features/recipes/src/discovery/model.ts"
                         },
                         {
-                            "name": "headerAction",
-                            "type": "HeaderAction",
-                            "typeDetail": null,
-                            "required": false,
-                            "defaultValue": null,
-                            "description": "The large title's action: the avatar, which opens Profile (`buildSpec.md` §3.3). The app supplies it, because\nthe profile read and the navigation are the app's. Discover is a tab of its own since slice 3, so this surface\ntakes no source switcher.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/discovery/model.ts"
-                        },
-                        {
                             "name": "headingFocusSignal",
                             "type": "number",
                             "typeDetail": null,
@@ -13979,15 +13925,6 @@
                             "required": false,
                             "defaultValue": null,
                             "description": "The filters, in the one presentation the container decided (`filterPresentationOf`). A union, so a panel and a\nsheet can never both be drawn, and the facets exist exactly once.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/discovery/model.ts"
-                        },
-                        {
-                            "name": "headerAction",
-                            "type": "HeaderAction",
-                            "typeDetail": null,
-                            "required": false,
-                            "defaultValue": null,
-                            "description": "The large title's action: the avatar, which opens Profile (`buildSpec.md` §3.3). The app supplies it, because\nthe profile read and the navigation are the app's. Discover is a tab of its own since slice 3, so this surface\ntakes no source switcher.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/discovery/model.ts"
                         },
                         {
@@ -32703,15 +32640,6 @@
                             "declaredIn": "packages/apps/commise/features/recipes/src/list/model.ts"
                         },
                         {
-                            "name": "headerAction",
-                            "type": "HeaderAction",
-                            "typeDetail": null,
-                            "required": false,
-                            "defaultValue": null,
-                            "description": "The large title's action (slice 3, `buildSpec.md` §3.3, §4.3): the avatar, which opens Profile. The app supplies\nit, because the profile read and the navigation are the app's.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/list/model.ts"
-                        },
-                        {
                             "name": "headingFocusSignal",
                             "type": "number",
                             "typeDetail": null,
@@ -32806,15 +32734,6 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "The floating button yields (see `RecipeLibraryControls.createEntryYields`): first load in flight, or the first run.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/list/model.ts"
-                        },
-                        {
-                            "name": "headerAction",
-                            "type": "HeaderAction",
-                            "typeDetail": null,
-                            "required": false,
-                            "defaultValue": null,
-                            "description": "The large title's action (slice 3, `buildSpec.md` §3.3, §4.3): the avatar, which opens Profile. The app supplies\nit, because the profile read and the navigation are the app's.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/list/model.ts"
                         },
                         {

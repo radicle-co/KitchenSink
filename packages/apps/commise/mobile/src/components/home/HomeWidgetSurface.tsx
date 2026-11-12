@@ -13,7 +13,7 @@
  *    `renderers`; a **placeholder** through the generic {@link RoadmapWidgetSlot} loader seam. A live id with
  *    no bespoke renderer is **skipped** (graceful version skew).
  *
- * The host also renders Home's large title (the greeting, with the avatar as its action) as the scroller's first
+ * The host also renders Home's large title (the greeting, which carries no avatar) as the scroller's first
  * child, takes the scroller's `bind` from the screen's `ScrollHost`, and threads the navigation intents down to the
  * recipe slot. The tab bar and the floating create button are NOT here: the navigator owns the
  * bar and `HomeScreen` floats the other two over this scroller. `container` and `renderers` are injectable seams.
@@ -33,7 +33,6 @@ import { paidFeatureStateOf } from '@commise/features-account';
 import { useFabReservedBottom } from '@commise/ui/create-fab';
 import { nativeTokens } from '@commise/ui/native';
 import { Text } from '@commise/ui/text';
-import type { HeaderAction } from '@commise/ui/large-title-header';
 import type { ScrollBind } from '@commise/ui/scroll-host';
 import type { Container } from 'ditox';
 import { Suspense, useMemo, type ComponentType, type JSX, type ReactNode } from 'react';
@@ -60,8 +59,6 @@ export interface HomeWidgetSurfaceProps {
     readonly onSelectRecipe: (id: string) => void;
     /** The bind for this screen's one vertical scroller, from its `ScrollHost` (`TabRootScreen`). */
     readonly scrollBind?: ScrollBind;
-    /** The large title's action: the avatar, which opens Profile. */
-    readonly headerAction?: HeaderAction;
     /** The recent block's first run: open an empty editor (`buildSpec.md` §4.2). With Discover, its ways in show. */
     readonly onCreateRecipe?: () => void;
     /** The first run: paste an ingredient list. */
@@ -84,7 +81,6 @@ export function HomeWidgetSurface({
     onSeeAllRecipes,
     onSelectRecipe,
     scrollBind,
-    headerAction,
     onCreateRecipe,
     onPasteIngredients,
     onFindOnDiscover,
@@ -192,10 +188,7 @@ export function HomeWidgetSurface({
                         contentContainerStyle={[styles.regionContent, { paddingBottom: fabRoom }]}
                     >
                         {/* The one-row header is the scroller's first child; it sits on the app canvas, never in a card (§1.6). */}
-                        <HomeGreeting
-                            {...(cookName === undefined ? {} : { name: cookName })}
-                            {...(headerAction === undefined ? {} : { action: headerAction })}
-                        />
+                        <HomeGreeting {...(cookName === undefined ? {} : { name: cookName })} />
 
                         {/* The widgets pad themselves: the header insets its own sides, so the region does not pad. */}
                         <View style={styles.widgets}>

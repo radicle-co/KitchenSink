@@ -97,7 +97,6 @@
                                 component-from-global-scope="Commise.Native.LargeTitleHeader"
                                 heading-id="discover-title"
                                 title="Discover"
-                                action="{{action}}"
                             ></x-import>
                             <x-import
                                 component-from-global-scope="Commise.Native.SearchField"
@@ -279,6 +278,7 @@
                     </div>
                     <x-import
                         component-from-global-scope="Commise.Native.HomeTabBar"
+                        profile="{{profile}}"
                         chrome="{{chrome}}"
                         live-capabilities="{{none}}"
                         active-id="discover"
@@ -295,8 +295,8 @@
             const mk=(k)=>{const [title,cuisine,mins,level,rating,count,cal,serves,tags,user]=D[k];return {recipe:{id:'r-'+k,title,totalTimeMinutes:mins,servings:serves,difficulty:level,averageRating:rating,ratingCount:count,usesPremiumCapability:false,createdAt:'2026-09-01T10:00:00.000Z',updatedAt:'2026-09-01T10:00:00.000Z',cuisine,tags,currentVersion:1,visibility:'public',status:'published'},user:user||undefined,cal:h('span',{style:{fontSize:13,color:'var(--ink-muted)'}},cal+' cal')};};
             const out={no:false,n0:0,n2:2,n34:34,none:[],noop:()=>{},fill:{flex:1},idle:{kind:'idle'},
             pillOpts:[{value:'trending',label:'Trending'},{value:'new',label:'New'},{value:'quick',label:'Quick'},{value:'italian',label:'Italian'},{value:'indian',label:'Indian'},{value:'mexican',label:'Mexican'},{value:'thai',label:'Thai'},{value:'japanese',label:'Japanese'},{value:'greek',label:'Greek'},{value:'american',label:'American'},{value:'middle-eastern',label:'Middle Eastern'},{value:'korean',label:'Korean'},{value:'vietnamese',label:'Vietnamese'},{value:'spanish',label:'Spanish'},{value:'moroccan',label:'Moroccan'}],
-            chrome:{destinations:{home:'Home',recipes:'Recipes',discover:'Discover','meal-plan':'Plan',grocery:'Shop'},profileButton:'Profile, {name}',profileButtonNoName:'Profile',tabNavLabel:'Tabs'},
-            action:{kind:'avatar',avatar:h(window.Commise.Native.Avatar,{status:'ready',initials:'ER',label:'Profile, Eliza Ramirez',onPress:()=>{}})}};
+            profile:{status:'ready',name:'Sam Rivera'},chrome:{destinations:{home:'Home',recipes:'Recipes',discover:'Discover','meal-plan':'Plan',grocery:'Shop',you:'You'},profileButton:'Profile, {name}',profileButtonNoName:'Profile',tabNavLabel:'Tabs'},
+            };
             Object.assign(out,{"timeOpts": [{"value": "any", "label": "Any"}, {"value": "15", "label": "Under 15 min"}, {"value": "30", "label": "Under 30 min"}, {"value": "60", "label": "Under 60 min"}], "cnt": {"vegetarian": 38, "vegan": 21, "gluten_free": 17, "dairy_free": 12, "nut_free": 9, "italian": 42, "american": 33, "indian": 27, "mexican": 19, "thai": 16, "japanese": 14, "weeknight": 56, "baking": 31, "soup": 24, "one_pot": 22, "breakfast": 19, "noodles": 17, "dessert": 15, "sheet_pan": 12, "salad": 11, "grilling": 10, "brunch": 9, "make_ahead": 8, "holiday": 7, "snack": 6}, "n3": 3, "n20": 20, "yes": true, "one": 1});for(const id in C)out[id]=mk(C[id]); return out; } }
         </script>
     </body>

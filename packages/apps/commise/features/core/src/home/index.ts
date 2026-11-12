@@ -15,7 +15,6 @@ export type { HomeChromeMessages, HomeMessages } from './messages.js';
 export { homeWidgetSlotOf } from './homeWidgetSlot.js';
 export type { HomeWidgetSlot } from './homeWidgetSlot.js';
 export { homeWidgetTierOf } from './homeWidgetTier.js';
-export { profileAvatarPropsOf } from './profileAvatarProps.js';
 export { useHomeWidgets } from './useHomeWidgets.js';
 export type { HomeWidgetSlots, UseHomeWidgetsInput } from './useHomeWidgets.js';
 export { useOncePerSessionNudge } from './useOncePerSessionNudge.js';

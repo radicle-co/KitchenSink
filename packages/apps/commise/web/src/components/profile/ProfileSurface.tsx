@@ -11,9 +11,9 @@
  * decides one of three states — loading, failed, ready — and ONLY the account group depends on it: sign out and the
  * danger zone need no profile, so a failed read never takes them away (E15).
  *
- * The page sits in the design system's `PushedPageFrame`: below 840 Back is pinned in a bar that follows the scroll, and
- * from 840 the header's own eyebrow carries it (`docs/design/uiRefreshWorkshop5/pinnedBackBar.md` §6). Both are given
- * the one `back` value, so the two links cannot disagree.
+ * Profile is the You tab's ROOT (owner ruling 2026-11-11, N3), not a page pushed from an avatar: it has no Back, neither
+ * the pinned bar nor the header eyebrow, and it sits in the app shell's own scroll host like Recipes and Discover. What it
+ * opens (Your foods, the data sources) are the pushed pages and keep their Back.
  *
  * Sign out is `LogoutButton`, which issues the one verified sign-out command (ADR-0009); close and erase keep their own
  * dialogs and flows. Nothing here calls Clerk's `signOut`.
@@ -35,8 +35,7 @@ import {
 } from '@commise/features-account/profile';
 import { YourFoodsRow, foodPageMessages } from '@commise/features-recipes/food-page';
 import { useLocale, useMessages } from '@commise/i18n/react';
-import { LargeTitleHeader, type HeaderBack } from '@commise/ui/large-title-header';
-import { PushedPageFrame } from '@commise/ui/pushed-page';
+import { LargeTitleHeader } from '@commise/ui/large-title-header';
 import type { Route } from 'next';
 import { useRouter } from 'next/navigation';
 import { useMutation } from '@tanstack/react-query';
@@ -72,77 +71,66 @@ export const ProfileSurface: FC = () => {
     const patchSettings = useMutation(profileMutations(client).patchSettings());
     const sourcesPath = `/${locale}/legal/sources`;
     const foodsPath = `/${locale}/foods`;
-    const homePath = `/${locale}`;
-    const back: HeaderBack = {
-        label: t.backToHome,
-        parent: t.homeParent,
-        onPress: () => router.push(homePath as Route),
-        href: withBasePath(homePath),
-    };
 
     return (
-        <PushedPageFrame back={back} headingId={headingId} title={t.title}>
-            {() => (
-                <div className="mx-auto flex w-full max-w-reading flex-col gap-6 pb-12">
-                    <LargeTitleHeader headingId={headingId} title={t.title} back={back} />
-                    <ProfileHeader
-                        read={read}
-                        initials={read.status === 'ready' ? initialsFor(read.displayName) : ''}
-                        onRetry={() => void query.refetch()}
-                    />
-                    {read.status === 'ready' ? (
-                        <ProfileAccountGroup
-                            displayName={read.displayName}
-                            username={read.username}
-                            email={read.email}
-                            onEditDisplayName={editor.openSheet}
-                        />
-                    ) : null}
-                    <ProfileGroup heading={t.preferences}>
-                        <ProfileRow
-                            label={t.dataSources}
-                            tone="ink"
-                            chevron
-                            href={withBasePath(sourcesPath)}
-                            onPress={() => router.push(sourcesPath as Route)}
-                        />
-                        <ShortcutSwitchRow
-                            checked={settings.data?.searchShortcut ?? SETTINGS_DEFAULTS.searchShortcut}
-                            // Not awaited: the cache is already updated and a paused (offline) save resumes by itself.
-                            onChange={(searchShortcut) => patchSettings.mutate({ searchShortcut })}
-                        />
-                    </ProfileGroup>
-                    <ProfileGroup label={foodsT.yourFoods.title}>
-                        <YourFoodsRow
-                            unseenDecisions={ownFoods.data?.pages[0]?.unseenDecisions ?? 0}
-                            href={withBasePath(foodsPath)}
-                            onPress={() => router.push(foodsPath as Route)}
-                        />
-                    </ProfileGroup>
-                    {patchSettings.isError ? (
-                        <p role="alert" className="text-meta text-danger-text">
-                            {t.settingSaveFailed}
-                        </p>
-                    ) : null}
-                    <ProfileGroup label={t.signOut}>
-                        <LogoutButton />
-                    </ProfileGroup>
-                    <ProfileGroup heading={t.dangerZone}>
-                        <AccountCloseForm />
-                        <AccountEraseForm />
-                    </ProfileGroup>
-                    <DisplayNameSheet
-                        open={editor.open}
-                        onOpenChange={editor.setOpen}
-                        draft={editor.draft}
-                        onDraftChange={editor.setDraft}
-                        canSave={editor.canSave}
-                        saving={editor.saving}
-                        failed={editor.failed}
-                        onSave={editor.save}
-                    />
-                </div>
-            )}
-        </PushedPageFrame>
+        <div className="mx-auto flex w-full max-w-reading flex-col gap-6 pb-12">
+            <LargeTitleHeader headingId={headingId} title={t.title} />
+            <ProfileHeader
+                read={read}
+                initials={read.status === 'ready' ? initialsFor(read.displayName) : ''}
+                onRetry={() => void query.refetch()}
+            />
+            {read.status === 'ready' ? (
+                <ProfileAccountGroup
+                    displayName={read.displayName}
+                    username={read.username}
+                    email={read.email}
+                    onEditDisplayName={editor.openSheet}
+                />
+            ) : null}
+            <ProfileGroup heading={t.preferences}>
+                <ProfileRow
+                    label={t.dataSources}
+                    tone="ink"
+                    chevron
+                    href={withBasePath(sourcesPath)}
+                    onPress={() => router.push(sourcesPath as Route)}
+                />
+                <ShortcutSwitchRow
+                    checked={settings.data?.searchShortcut ?? SETTINGS_DEFAULTS.searchShortcut}
+                    // Not awaited: the cache is already updated and a paused (offline) save resumes by itself.
+                    onChange={(searchShortcut) => patchSettings.mutate({ searchShortcut })}
+                />
+            </ProfileGroup>
+            <ProfileGroup label={foodsT.yourFoods.title}>
+                <YourFoodsRow
+                    unseenDecisions={ownFoods.data?.pages[0]?.unseenDecisions ?? 0}
+                    href={withBasePath(foodsPath)}
+                    onPress={() => router.push(foodsPath as Route)}
+                />
+            </ProfileGroup>
+            {patchSettings.isError ? (
+                <p role="alert" className="text-meta text-danger-text">
+                    {t.settingSaveFailed}
+                </p>
+            ) : null}
+            <ProfileGroup label={t.signOut}>
+                <LogoutButton />
+            </ProfileGroup>
+            <ProfileGroup heading={t.dangerZone}>
+                <AccountCloseForm />
+                <AccountEraseForm />
+            </ProfileGroup>
+            <DisplayNameSheet
+                open={editor.open}
+                onOpenChange={editor.setOpen}
+                draft={editor.draft}
+                onDraftChange={editor.setDraft}
+                canSave={editor.canSave}
+                saving={editor.saving}
+                failed={editor.failed}
+                onSave={editor.save}
+            />
+        </div>
     );
 };

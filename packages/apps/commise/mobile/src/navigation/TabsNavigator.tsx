@@ -1,11 +1,12 @@
 /**
  * @module navigation/TabsNavigator — the bottom tabs, one native stack each (ADR-0056; blueprint A6), drawn by our own
- * bar (`AppTabBar`, D6/D14). `backBehavior="initialRoute"`: Android Back from the root of Recipes or Discover goes to
- * Home, and from Home leaves the app (`buildSpec.md` §3.5).
+ * bar (`AppTabBar`, D6/D14). `backBehavior="initialRoute"`: Android Back from the root of Recipes, Discover or You goes
+ * to Home, and from Home leaves the app (`buildSpec.md` §3.5). You is Profile's own `profile` stack (owner ruling
+ * 2026-11-11, N3).
  *
  * ORCHESTRATION: it composes the navigator; the bar it draws is presentational (`HomeTabBar`).
  *
- * @pattern Composite — three per-tab stacks under one tab navigator
+ * @pattern Composite — four per-tab stacks under one tab navigator
  */
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import type { JSX } from 'react';
@@ -41,6 +42,7 @@ export function TabsNavigator({ onTabBarHeight }: TabsNavigatorProps): JSX.Eleme
             <Tabs.Screen name="home">{() => <TabStack tab="home" />}</Tabs.Screen>
             <Tabs.Screen name="recipes">{() => <TabStack tab="recipes" />}</Tabs.Screen>
             <Tabs.Screen name="discover">{() => <TabStack tab="discover" />}</Tabs.Screen>
+            <Tabs.Screen name="you">{() => <TabStack tab="you" />}</Tabs.Screen>
         </Tabs.Navigator>
     );
 }

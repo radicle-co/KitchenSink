@@ -23,7 +23,6 @@ import { collectionListRowsOf, useCollectionsList, type CollectionsList } from '
 import { QueryBoundary } from '@commise/query/boundary';
 import { useRecoverySignal } from '@commise/query/recovery-signal';
 import { useRefreshNotice } from '@commise/query/refresh-notice';
-import type { HeaderAction } from '@commise/ui/large-title-header';
 import type { ScrollBind } from '@commise/ui/scroll-host';
 import { useSuspenseInfiniteQuery } from '@tanstack/react-query';
 import type { JSX } from 'react';
@@ -37,8 +36,6 @@ export interface CollectionsScreenProps {
     readonly onCreateRecipe: () => void;
     /** The My recipes · Collections segments (slice 3: the Recipes tab's one root switches them). */
     readonly segments?: RecipesSegmentControl;
-    /** The large title's action: the avatar, which pushes Profile. The route supplies it. */
-    readonly headerAction?: HeaderAction;
     /** The bind for this screen's one vertical scroller, from its `ScrollHost` (`TabRootScreen`). */
     readonly scrollBind?: ScrollBind;
 }
@@ -55,7 +52,6 @@ export function CollectionsScreen({
     onSelect,
     onCreateRecipe,
     segments,
-    headerAction,
     scrollBind,
 }: CollectionsScreenProps): JSX.Element {
     useScreenTrace('CollectionsScreen');
@@ -71,7 +67,6 @@ export function CollectionsScreen({
             onCreateFocusHandled={list.createFocus.onHandled}
             headingFocusSignal={recovery.signal}
             {...(segments === undefined ? {} : { segments })}
-            {...(headerAction === undefined ? {} : { headerAction })}
         >
             <QueryBoundary
                 loading={<CollectionListLoading />}

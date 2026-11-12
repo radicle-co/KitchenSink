@@ -24,13 +24,13 @@ appId: ${APP_ID}
 # 30 s to paint, and `makePublicConfirm` failed here AFTER its body had passed. The wait ends on the first match, so a fast
 # start pays nothing for the longer limit.
 - extendedWaitUntil:
-      visible: 'Sign in to Commise|Profile.*'
+      visible: 'Sign in to Commise|You'
       timeout: 45000
 - runFlow:
       when:
-          visible: 'Profile.*'
+          visible: 'You'
       commands:
-          - tapOn: 'Profile.*'
+          - tapOn: 'You'
           - runFlow:
                 file: ../recipes/common/scrollIntoTapView.yaml
                 env:

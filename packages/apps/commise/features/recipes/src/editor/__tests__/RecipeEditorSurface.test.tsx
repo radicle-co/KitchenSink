@@ -17,7 +17,7 @@ import { RecipeStatus, RecipeVisibility } from '@kitchensink/recipe-core';
 import { RecipeServiceProvider } from '@kitchensink/recipe-service-client/hooks';
 import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-client/testing';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ReactElement, ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -79,7 +79,11 @@ interface HarnessProps {
 function Harness(props: HarnessProps): ReactElement {
     const { seed, paidFeatures, knownPaidFeatures, renderPhotos, onClose, onOpenMyRecipes } = props;
     // What the app's container does: the rule, the slot standing and the known refusal, from one hook.
-    const recipePrivate = useRecipePrivate({ sourceType: seed.recipe?.sourceType, knownPaidFeatures });
+    const recipePrivate = useRecipePrivate({
+        sourceType: seed.recipe?.sourceType,
+        sourceKind: seed.recipe?.sourceKind ?? null,
+        knownPaidFeatures,
+    });
     const session = useRecipeEditorSession({
         seed,
         locale: 'en',
@@ -117,7 +121,6 @@ function Harness(props: HarnessProps): ReactElement {
             keep="disk"
             paidFeatures={paidFeatures}
             knownPaidFeatures={knownPaidFeatures}
-            privateRule={recipePrivate.rule}
             slotStanding={recipePrivate.standing}
             renderPhotos={renderPhotos}
             onClose={onClose}
@@ -735,5 +738,220 @@ describe('RecipeEditorSurface — the refusal of a private food in a public reci
             },
         });
         expect(screen.queryByRole('dialog', { name: sheetName })).toBeNull();
+    });
+});
+
+/**
+ * ADDED for ADR-0089: the Source row, over a real session. Pasting steps that carry a link line sets the Source; the draft
+ * is then private only (Public is refused with the web-source reason, Private is shown chosen), and the cook's own choice
+ * comes back when the Source is removed. With every slot used, Publish asks about a slot with the web-source words and no
+ * "Publish as public". A published recipe's Source is locked.
+ */
+describe('RecipeEditorSurface — the Source (ADR-0089)', () => {
+    const LINK = 'https://www.allrecipes.com/recipe/1/soup/';
+    const neverPublished = () =>
+        makeRecipeDetail({
+            id: 'rec_1',
+            status: RecipeStatus.DRAFT,
+            visibility: RecipeVisibility.PUBLIC,
+            cuisine: 'Italian',
+        });
+
+    const section = () =>
+        screen.getByRole('heading', { level: 2, name: 'Photos & publish' }).closest('section') as HTMLElement;
+    const sourceField = () => within(section()).getByRole<HTMLInputElement>('textbox', { name: 'Source' });
+
+    async function pasteSteps(text: string) {
+        const user = userEvent.setup();
+
+        await user.click(screen.getByRole('button', { name: 'Paste steps' }));
+        fireEvent.change(screen.getByRole('textbox', { name: 'Steps' }), { target: { value: text } });
+        await user.click(screen.getByRole('button', { name: /^Add \d+ steps?$/u }));
+
+        return user;
+    }
+
+    it('sits in Photos & publish, after the photos and before "Who can see it"', () => {
+        mount({ seed: { recipe: neverPublished() } });
+
+        const photos = within(section()).getByText('photo uploader');
+        const legend = within(section()).getByText('Who can see it');
+
+        expect(photos.compareDocumentPosition(sourceField()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+        expect(sourceField().compareDocumentPosition(legend) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
+    it('pasted steps with a link: the link is the Source, not a step, and the recipe becomes private only', async () => {
+        mount({ seed: { recipe: neverPublished() } });
+
+        await pasteSteps(`Boil the water.\n${LINK}`);
+
+        expect(sourceField().value).toBe(LINK);
+        expect(screen.getByText('Copied from a public web page · allrecipes.com')).toBeTruthy();
+        // Said once to a screen reader (the live region) and shown once under the paste control that was used.
+        expect(screen.getAllByText('Source set to allrecipes.com. This recipe will be private.')).toHaveLength(2);
+        expect(screen.queryByDisplayValue(LINK, { exact: true })).toBe(sourceField());
+
+        const publicCard = within(section()).getByRole('radio', { name: /^public/i });
+
+        expect(publicCard.getAttribute('aria-disabled')).toBe('true');
+        expect(within(section()).getByText(/copied from a web page, and its author owns the writing/u)).toBeTruthy();
+        expect(within(section()).getByRole<HTMLInputElement>('radio', { name: /^private/i }).checked).toBe(true);
+    });
+
+    it('Remove puts the cook’s own choice back and returns focus to the empty field', async () => {
+        mount({ seed: { recipe: neverPublished() } });
+        const user = await pasteSteps(`Boil the water.\n${LINK}`);
+
+        await user.click(screen.getByRole('button', { name: 'Remove source' }));
+
+        expect(sourceField().value).toBe('');
+        expect(document.activeElement).toBe(sourceField());
+        expect(
+            within(section())
+                .getByRole('radio', { name: /^public/i })
+                .getAttribute('aria-disabled'),
+        ).not.toBe('true');
+        expect(within(section()).getByRole<HTMLInputElement>('radio', { name: /^public/i }).checked).toBe(true);
+    });
+
+    it('a link typed into the field has the same effect as a pasted one', async () => {
+        mount({ seed: { recipe: neverPublished() } });
+        const user = userEvent.setup();
+
+        await user.click(sourceField());
+        await user.paste(LINK);
+
+        expect(screen.getByText('Copied from a public web page · allrecipes.com')).toBeTruthy();
+        expect(
+            within(section())
+                .getByRole('radio', { name: /^public/i })
+                .getAttribute('aria-disabled'),
+        ).toBe('true');
+    });
+
+    it('with every slot used, Publish asks with the web-source words and offers no Publish as public', async () => {
+        // A stored never-published web copy: the draft opens with its link, and Publish was refused for want of a slot.
+        mount({
+            seed: {
+                recipe: makeRecipeDetail({
+                    id: 'rec_1',
+                    status: RecipeStatus.DRAFT,
+                    visibility: RecipeVisibility.PRIVATE,
+                    sourceType: 'imported_public',
+                    sourceKind: 'public_web',
+                    sourceUrl: LINK,
+                    cuisine: 'Italian',
+                }),
+            },
+            publishBlocked: { ask: { kind: 'noSlot', total: 50 }, keepAsDraft: vi.fn(), publishAsPublic: vi.fn() },
+        });
+
+        const dialog = await screen.findByRole('dialog', { name: 'Your private slots are full' });
+
+        expect(within(dialog).getByText(/A recipe copied from a web page can only be private/u)).toBeTruthy();
+        expect(within(dialog).queryByRole('button', { name: 'Publish as public' })).toBeNull();
+        expect(within(dialog).getByRole('button', { name: 'Keep as draft' })).toBeTruthy();
+    });
+
+    it('without a Source the same ask still offers Publish as public', async () => {
+        mount({
+            seed: { recipe: neverPublished() },
+            publishBlocked: { ask: { kind: 'noSlot', total: 50 }, keepAsDraft: vi.fn(), publishAsPublic: vi.fn() },
+        });
+
+        const dialog = await screen.findByRole('dialog', { name: 'Your private slots are full' });
+
+        expect(within(dialog).getByRole('button', { name: 'Publish as public' })).toBeTruthy();
+    });
+
+    it('a published web copy: the Source is read only, with the site as a link', () => {
+        mount({
+            seed: {
+                recipe: makeRecipeDetail({
+                    id: 'rec_1',
+                    status: RecipeStatus.PUBLISHED,
+                    firstPublishedAt: '2026-11-01T00:00:00.000Z',
+                    visibility: RecipeVisibility.PRIVATE,
+                    sourceType: 'imported_public',
+                    sourceKind: 'public_web',
+                    sourceUrl: LINK,
+                    cuisine: 'Italian',
+                }),
+            },
+        });
+
+        expect(within(section()).queryByRole('textbox', { name: 'Source' })).toBeNull();
+        expect(
+            within(section()).getByRole('link', { name: 'allrecipes.com (opens in a new tab)' }).getAttribute('href'),
+        ).toBe(LINK);
+        expect(within(section()).getByText('The source can’t be changed after publishing.')).toBeTruthy();
+    });
+    const stepsSection = () =>
+        screen.getByRole('heading', { level: 2, name: 'Steps' }).closest('section') as HTMLElement;
+
+    it('a sighted cook sees the notice under Paste steps, with a Remove that keeps focus on the paste button', async () => {
+        mount({ seed: { recipe: neverPublished() } });
+        const user = await pasteSteps(`Boil the water.\n${LINK}`);
+
+        const caption = within(stepsSection()).getByText('Source set to allrecipes.com. This recipe will be private.');
+
+        expect(caption).toBeTruthy();
+
+        await user.click(within(stepsSection()).getByRole('button', { name: 'Remove' }));
+
+        expect(sourceField().value).toBe('');
+        expect(within(stepsSection()).queryByText(/Source set to/u)).toBeNull();
+        // Focus is where the cook was: on the paste control, not in a field they were not using.
+        expect(document.activeElement).toBe(within(stepsSection()).getByRole('button', { name: 'Paste steps' }));
+    });
+
+    it('the row’s own Remove still lands the cook in the empty Source field', async () => {
+        mount({ seed: { recipe: neverPublished() } });
+        const user = await pasteSteps(`Boil the water.\n${LINK}`);
+
+        await user.click(within(section()).getByRole('button', { name: 'Remove source' }));
+
+        expect(document.activeElement).toBe(sourceField());
+    });
+
+    it('a locked source says so under Paste steps when a link is pasted, and offers no Remove', async () => {
+        mount({
+            seed: {
+                recipe: makeRecipeDetail({
+                    id: 'rec_1',
+                    status: RecipeStatus.PUBLISHED,
+                    firstPublishedAt: '2026-11-01T00:00:00.000Z',
+                    visibility: RecipeVisibility.PRIVATE,
+                    sourceType: 'imported_public',
+                    sourceKind: 'public_web',
+                    sourceUrl: LINK,
+                    cuisine: 'Italian',
+                }),
+            },
+        });
+
+        await pasteSteps(`Boil the water.\nhttps://www.bbcgoodfood.com/recipes/soup`);
+
+        expect(
+            within(stepsSection()).getByText(
+                'Left out the link. A published recipe’s source can’t be added or changed.',
+            ),
+        ).toBeTruthy();
+        expect(within(stepsSection()).queryByRole('button', { name: 'Remove' })).toBeNull();
+    });
+
+    it('a half-typed address is no error while the cook types, and is one when they leave the field', async () => {
+        mount({ seed: { recipe: neverPublished() } });
+        const user = userEvent.setup();
+
+        await user.click(sourceField());
+        await user.paste('https://exa');
+
+        expect(within(section()).queryByText(/That isn’t a web link/u)).toBeNull();
+
+        await user.tab();
+
+        expect(within(section()).getByText(/That isn’t a web link/u)).toBeTruthy();
     });
 });

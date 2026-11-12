@@ -24,7 +24,7 @@
  *
  * Pure: no I/O, no mutation, no external calls — a straight structural translation.
  */
-import { usesPremiumCapability } from '@kitchensink/recipe-core';
+import { recipeSourceKindSchema, usesPremiumCapability } from '@kitchensink/recipe-core';
 import type {
     Recipe,
     RecipeDifficulty,
@@ -61,6 +61,8 @@ export interface RecipeRowInput {
     /** `recipes.first_published_at`, which the 0053 trigger sets on the first publish and never clears (ADR-0058). */
     firstPublishedAt: Date | string | null;
     sourceType: string;
+    /** `recipes.source_kind` (0071): what the cook said the source is, or `null` (ADR-0089). */
+    sourceKind: string | null;
     sourceUrl: string | null;
     sourceAttribution: string | null;
     clonedFromId: string | null;
@@ -146,6 +148,9 @@ export function recipeRowToDomain(row: RecipeRowInput): Recipe {
         // Denormalized headline per-serving calories — OMITTED when NULL (no accounted nutrition), never 0.
         ...(row.authorDisplayName !== null ? { authorDisplayName: row.authorDisplayName } : {}),
         ...(row.authorUsername !== null ? { authorUsername: row.authorUsername } : {}),
+        // OMITTED when NULL (no statement), never `null`: a client locks and judges the source from it (ADR-0089).
+        // `!= null`, like `firstPublishedAt`: a raw read whose hand-named column list lacks the column passes `undefined`.
+        ...(row.sourceKind != null ? { sourceKind: recipeSourceKindSchema.parse(row.sourceKind) } : {}),
         ...(row.sourceUrl !== null ? { sourceUrl: row.sourceUrl } : {}),
         ...(row.sourceAttribution !== null ? { sourceAttribution: row.sourceAttribution } : {}),
         ...(row.clonedFromId !== null ? { clonedFromId: row.clonedFromId } : {}),

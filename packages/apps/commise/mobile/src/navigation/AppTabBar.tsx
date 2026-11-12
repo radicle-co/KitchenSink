@@ -10,19 +10,22 @@
  * Compact height (owner 2026-10-13): in a window under 480 dp tall it draws the compact bar, and while a keyboard is open
  * there it draws none (`isFrameCollapsed`), so a phone held sideways keeps room for the field the cook is typing in.
  *
- * ORCHESTRATION: it drives the navigator (emit, navigate); the bar it draws is presentational.
+ * ORCHESTRATION: it drives the navigator (emit, navigate) and reads the profile for the You tab's disc; the bar it draws is
+ * presentational.
  *
  * @pattern Adapter from `BottomTabBarProps` to the presentational `HomeTabBar`
  */
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import type { HomeNavItemId } from '@commise/features-core';
 import { LIVE_CAPABILITIES } from '@commise/features-recipes/widget';
+import { profileEntryOf } from '@commise/features-core';
 import { homeMessages } from '@commise/features-core/home';
 import { useMessages } from '@commise/i18n/react';
 import { useCompactHeight, useFrameCollapsed } from '@commise/ui/layout';
 import type { JSX } from 'react';
 
 import { HomeTabBar } from '../components/home/chrome/HomeTabBar.js';
+import { useUserProfile } from '../hooks/useUserProfile.js';
 import { isTabRoute } from './routes.js';
 
 /**
@@ -33,6 +36,7 @@ export function AppTabBar({ state, navigation, insets }: BottomTabBarProps): JSX
     const home = useMessages(homeMessages);
     const compact = useCompactHeight();
     const collapsed = useFrameCollapsed();
+    const profile = profileEntryOf(useUserProfile());
     const active = state.routes[state.index];
     const activeName = active?.name;
 
@@ -45,6 +49,7 @@ export function AppTabBar({ state, navigation, insets }: BottomTabBarProps): JSX
     return (
         <HomeTabBar
             chrome={home.chrome}
+            profile={profile}
             liveCapabilities={LIVE_CAPABILITIES}
             activeId={activeName !== undefined && isTabRoute(activeName) ? activeName : 'home'}
             bottomInset={insets.bottom}

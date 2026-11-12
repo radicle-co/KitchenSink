@@ -59,11 +59,7 @@ afterEach(() => {
 const noop = (): void => undefined;
 
 /** Render Home in its scroll host, as the Home tab's root does, handing back a way to scroll it. */
-function renderHome(
-    onOpenProfile = noop,
-    onCreateRecipe = noop,
-    queryClient = new QueryClient(),
-): { scroll: (y: number) => void } {
+function renderHome(onCreateRecipe = noop, queryClient = new QueryClient()): { scroll: (y: number) => void } {
     const seen: { scroll?: (y: number) => void } = {};
 
     renderWithProviders(
@@ -84,7 +80,6 @@ function renderHome(
                             scrollBind={bind}
                             onOpenRecipes={noop}
                             onOpenRecipe={noop}
-                            onOpenProfile={onOpenProfile}
                             onCreateRecipe={onCreateRecipe}
                             onPasteIngredients={noop}
                             onFindOnDiscover={noop}
@@ -111,13 +106,11 @@ describe('HomeScreen (mobile) — the large title, the avatar and the create but
         expect(heading.closest('[data-commise-stub="linear-gradient"]')).toBeNull();
     });
 
-    it('opens Profile from the avatar, named "Profile, Jane Doe"', () => {
-        const onOpenProfile = vi.fn();
-        renderHome(onOpenProfile);
+    // Owner ruling 2026-11-11, N3: no title row carries the avatar. Profile is the You tab, so Home draws no entry to it.
+    it('draws no avatar in the title row: Profile is the You tab', () => {
+        renderHome();
 
-        fireEvent.click(screen.getByRole('button', { name: 'Profile, Jane Doe' }));
-
-        expect(onOpenProfile).toHaveBeenCalledOnce();
+        expect(screen.queryByRole('button', { name: /^Profile/u })).toBeNull();
     });
 
     // §3.4 (first fetch in flight: none; offline or load error: shown; first run: start buttons). ⚠️ REWRITTEN: the old
@@ -144,20 +137,20 @@ describe('HomeScreen (mobile) — the large title, the avatar and the create but
         it('populated and warm: floats over the screen from the first frame', () => {
             const queryClient = new QueryClient();
             queryClient.setQueryData(recentKey, page(3));
-            renderHome(noop, noop, queryClient);
+            renderHome(noop, queryClient);
 
             expect(create()).toBeTruthy();
         });
 
         it('loading: absent', () => {
-            renderHome(noop, noop, withState({ fetchStatus: 'fetching' }));
+            renderHome(noop, withState({ fetchStatus: 'fetching' }));
 
             expect(create()).toBeNull();
         });
 
         it('loading, then empty: it never appears, so it cannot vanish', async () => {
             const queryClient = new QueryClient();
-            renderHome(noop, noop, queryClient);
+            renderHome(noop, queryClient);
             expect(create()).toBeNull();
 
             act(() => {
@@ -169,7 +162,7 @@ describe('HomeScreen (mobile) — the large title, the avatar and the create but
 
         it('loading, then populated: appears when the page settles', async () => {
             const queryClient = new QueryClient();
-            renderHome(noop, noop, queryClient);
+            renderHome(noop, queryClient);
 
             act(() => {
                 queryClient.setQueryData(recentKey, page(2));
@@ -182,7 +175,7 @@ describe('HomeScreen (mobile) — the large title, the avatar and the create but
         it('empty (the first run): absent', async () => {
             const queryClient = new QueryClient();
             queryClient.setQueryData(recentKey, page(0));
-            renderHome(noop, noop, queryClient);
+            renderHome(noop, queryClient);
 
             await waitFor(() => expect(create()).toBeNull());
         });
@@ -191,7 +184,7 @@ describe('HomeScreen (mobile) — the large title, the avatar and the create but
             const queryClient = new QueryClient();
             queryClient.setQueryData(recentKey, page(3));
             queryClient.getQueryCache().find({ queryKey: recentKey })?.setState({ fetchStatus: 'fetching' });
-            renderHome(noop, noop, queryClient);
+            renderHome(noop, queryClient);
 
             expect(create()).toBeTruthy();
         });
@@ -205,7 +198,7 @@ describe('HomeScreen (mobile) — the large title, the avatar and the create but
         });
 
         it('unreachable, load error (nothing cached): shown', async () => {
-            renderHome(noop, noop, withState({ status: 'error', fetchStatus: 'idle', error: new Error('503') }));
+            renderHome(noop, withState({ status: 'error', fetchStatus: 'idle', error: new Error('503') }));
 
             expect(await screen.findByRole('button', { name: 'New recipe' })).toBeTruthy();
         });
@@ -214,7 +207,7 @@ describe('HomeScreen (mobile) — the large title, the avatar and the create but
             const onCreateRecipe = vi.fn();
             const queryClient = new QueryClient();
             queryClient.setQueryData(recentKey, page(1));
-            renderHome(noop, onCreateRecipe, queryClient);
+            renderHome(onCreateRecipe, queryClient);
 
             fireEvent.click(await screen.findByRole('button', { name: 'New recipe' }));
 
@@ -225,7 +218,7 @@ describe('HomeScreen (mobile) — the large title, the avatar and the create but
         it('a focused floating button stays when the library turns empty, and goes once focus leaves it', async () => {
             const queryClient = new QueryClient();
             queryClient.setQueryData(recentKey, page(3));
-            renderHome(noop, noop, queryClient);
+            renderHome(noop, queryClient);
             const button = screen.getByRole('button', { name: 'New recipe' });
             act(() => button.focus());
 

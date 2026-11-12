@@ -793,6 +793,12 @@ normative source [ADR-0019](../../docs/architecture/decisions/0019-recipe-import
   `imported_physical` (whose attestation and citation, `FR-014a`, are not built on that route). Those
   classifications are set by the server from the channel it observed, **or declared by a principal holding
   the grant that channel requires**.
+  **Amended 2026-11-10 ([ADR-0089](../../docs/architecture/decisions/0089-a-pasted-web-link-sets-the-source-and-a-web-copy-stays-private.md)):**
+  a cook's own `statement` on `POST /api/v1/recipes`, a pasted public web link, is a second way to set
+  `imported_public`, and it needs no grant. The server derives the label, the address and the site from the link, and
+  stores the source kind `public_web`. A recipe with that kind is private only. The statement is open to a `PATCH` until
+  the first publish and is frozen after it. It never travels with the curator's `source`, and the grant is never read
+  for it.
     > ⚠️ **The word "unprivileged" is an AMENDMENT, not a reading of the original.** This requirement previously
     > forbade **any** caller from declaring `imported_public`, justified by the server setting it "from the
     > channel it observed". That justification assumes **the server performs the fetch**. For the curated

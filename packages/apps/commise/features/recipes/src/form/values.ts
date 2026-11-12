@@ -183,6 +183,15 @@ export interface RecipeFormValues {
     readonly visibility: RecipeVisibility;
     readonly ingredients: readonly RecipeFormIngredient[];
     readonly steps: readonly RecipeFormStep[];
+    /**
+     * The web page the cook says this recipe was copied from, as typed or pasted (ADR-0089). ABSENT means none: an emptied
+     * field REMOVES the key (`setSourceLink`), so a draft without one compares equal to a recipe that has none.
+     *
+     * ⛔ The text, not a proved link. `draftSourceOf` (`./sourceLink.ts`) reads it, and a refused or half-typed text stays
+     * in the draft (and on the device) but is never sent. Optional and LAST on purpose: an old device draft has none and
+     * still parses (`LOCAL_SCHEMA_VERSION` does not move), and `recipeFormValuesEqual` reads key order.
+     */
+    readonly sourceLink?: string;
 }
 
 /**

@@ -7,6 +7,10 @@
   "Adapted in my own words" and "From a family member or friend, with their permission". A family or friend recipe is
   no longer labelled like a paid source. The rest of §9 stands, except that a web import now goes private for any cook,
   using a slot, as ADR-0077 §6 says. The Premium-and-substantive-edit notes in §9 no longer apply.
+- **Amended by:** [ADR-0089](0089-a-pasted-web-link-sets-the-source-and-a-web-copy-stays-private.md): §9. The web
+  statement is the same member a recipe's own `statement` uses, and a recipe from a public web page is private only. The
+  exception to ADR-0023 is no longer this route alone: a cook's pasted link sets the same label on
+  `POST /api/v1/recipes`.
 - **Relates to:** [ADR-0071](0071-paste-matches-are-proposals.md): matching runs as the cook, and a paste match is a
   proposal. [ADR-0070](0070-catalog-ranking-head-noun-and-defaults.md): defaults serve imports and are never selected
   for the cook. [ADR-0024](0024-llm-spend-ceiling-reserve-then-settle.md): the one spend pool, and the exception this
@@ -242,20 +246,24 @@ The owner ruled that bulk import has an allowance of its own, separate from past
   statement, oldest first, and stops after 20 seconds of the Lambda's 60. A failure fails the tick, and it runs last, so
   a failure costs the other sweeps nothing. The import row goes, and its items and snapshot lines go with it by
   cascade. Every saved recipe stays with its ingredients and `bound_by`, and the ingredient's `import_line_id` becomes
-  NULL. The allowance ledger is not touched and nothing is refunded.
+  NULL. The allowance ledger is not touched and nothing is refunded. The purge takes its rows `FOR UPDATE SKIP LOCKED`,
+  so it skips an import that a cook's transaction holds and does not delete it under them. If the band drain fails,
+  the tick still runs the sweeps, and then it fails with the drain's error. Every tick publishes the purged count and the
+  age of the oldest import left, both with `Stage` (ADR-0062). If that age is a day past the 30-day bound,
+  `BulkImportPurgeBehindAlarm` fires.
 - **The import sets the provenance label from the statement:**
 
-    | Statement                            | `sourceType`        | Visibility the policy allows                         |
-    | ------------------------------------ | ------------------- | ---------------------------------------------------- |
-    | I wrote this                         | `user_created`      | Public. Private needs Premium or a free slot.        |
-    | From a public web page, with its URL | `imported_public`   | Public. Private needs Premium and a substantive edit |
-    | From a book, with a citation         | `imported_physical` | Private only. Needs Premium or a free slot.          |
-    | From a paid site, with a citation    | `imported_paid`     | Private only. Needs Premium or a free slot.          |
+    | Statement                            | `sourceType`        | Visibility the policy allows                      |
+    | ------------------------------------ | ------------------- | ------------------------------------------------- |
+    | I wrote this                         | `user_created`      | Public. Private needs Premium or a free slot.     |
+    | From a public web page, with its URL | `imported_public`   | Private only. Needs Pro or a free slot (ADR-0089) |
+    | From a book, with a citation         | `imported_physical` | Private only. Needs Premium or a free slot.       |
+    | From a paid site, with a citation    | `imported_paid`     | Private only. Needs Premium or a free slot.       |
 
-- **This is an exception to ADR-0023's curator-only rule for `imported_public`, for this route only.** On
-  `POST /api/v1/recipes` only a principal holding the curator grant can declare `imported_public`. On the bulk import
-  route the cook's own statement sets it, and the stored statement and citation are what back the label. ADR-0023
-  names the exception. `imported_paid` and `imported_physical` are set the same way, from the statement, and stay
+- **This is an exception to ADR-0023's curator-only rule for `imported_public`.** On `POST /api/v1/recipes` only a
+  principal holding the curator grant can DECLARE `imported_public` with its `source`. On the bulk import route the
+  cook's own statement sets it, and the stored statement and citation are what back the label. A cook's pasted web link
+  (`statement` on `POST /api/v1/recipes`, ADR-0089) sets the same label in the same way. ADR-0023 names the exception. `imported_paid` and `imported_physical` are set the same way, from the statement, and stay
   undeclarable on `POST /api/v1/recipes`.
 - **The cook still chooses Public or Private.** The import flow asks once for the whole import, and the review wizard
   can change it per recipe, the way the editor's visibility field does. The visibility policy (`visibilityPolicy.ts`)

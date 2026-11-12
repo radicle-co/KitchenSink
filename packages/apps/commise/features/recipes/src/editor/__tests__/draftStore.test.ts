@@ -118,6 +118,27 @@ describe('createDraftStore', () => {
         });
     });
 
+    /**
+     * ADR-0089: the Source is an OPTIONAL key, so a device draft written before it existed still parses (the format version
+     * does not move), and a draft that has one keeps it: a strict schema without the key would quarantine every draft.
+     */
+    it('round-trips a draft with a Source, and a draft written before the Source existed', async () => {
+        const drafts = createDraftStore(createMemoryOutboxStore(), 'user_a');
+        const withSource = memento({
+            values: toDraftValues(makeRecipeFormValues({ sourceLink: 'https://www.allrecipes.com/recipe/1/soup/' })),
+        });
+
+        await drafts.save(withSource);
+
+        expect(await drafts.load(LOCAL_REF)).toStrictEqual(withSource);
+        expect((await drafts.load(LOCAL_REF))?.values.sourceLink).toBe('https://www.allrecipes.com/recipe/1/soup/');
+
+        await drafts.save(memento());
+
+        expect(await drafts.load(LOCAL_REF)).not.toHaveProperty('values.sourceLink');
+        expect(draftValuesSchema.safeParse(memento().values).success).toBe(true);
+    });
+
     it('round-trips a memento, and answers nothing for a recipe it holds no draft for', async () => {
         const drafts = createDraftStore(createMemoryOutboxStore(), 'user_a');
 

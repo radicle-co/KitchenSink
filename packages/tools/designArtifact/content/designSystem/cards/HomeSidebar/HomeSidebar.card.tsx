@@ -1,6 +1,7 @@
 /**
  * @module HomeSidebar.card — the design-system card of the Home sidebar: expanded and collapsed side by side at a
- * fixed rail height, with the primary action as a button and as a round icon button.
+ * fixed rail height, with the profile row first (where the wordmark was; owner ruling 2026-11-11, N3) and the primary
+ * action as a button and as a round icon button.
  */
 import { defineCard } from '../../../../src/cards/defineCard.js';
 
@@ -8,12 +9,18 @@ const noop = (): void => undefined;
 
 const CHROME = {
     wordmark: 'Commise',
-    logoAlt: 'Commise',
     primaryNavLabel: 'Main',
     collapseNav: 'Collapse',
     expandNav: 'Expand sidebar',
     backToTop: 'Back to top',
-    destinations: { home: 'Home', recipes: 'Recipes', discover: 'Discover', 'meal-plan': 'Plan', grocery: 'Shop' },
+    destinations: {
+        home: 'Home',
+        recipes: 'Recipes',
+        discover: 'Discover',
+        'meal-plan': 'Plan',
+        grocery: 'Shop',
+        you: 'You',
+    },
     profileButton: 'Profile, {name}',
     profileButtonNoName: 'Profile',
     tabNavLabel: 'Tabs',

@@ -1292,7 +1292,7 @@ describe('visibilityChoice', () => {
     });
 
     it('REWRITTEN for ADR-0077 section 6: an imported public-web recipe takes the slots path (applies with a slot free, refuses none when unknown)', () => {
-        const rule = privateRuleForDraft(RecipeSourceType.IMPORTED_PUBLIC);
+        const rule = privateRuleForDraft(RecipeSourceType.IMPORTED_PUBLIC, null);
 
         expect(visibilityChoice('public', 'private', 'public', { rule, standing: OPEN, state: 'upsell' })).toEqual({
             visibility: 'private',
@@ -1328,7 +1328,7 @@ describe('visibilityFieldOf', () => {
 
     it('REWRITTEN for ADR-0077 section 6: an imported public-web recipe shows the slots line, an offered Private and no Pro way', () => {
         const facts: RecipePrivateFacts = {
-            rule: privateRuleForDraft(RecipeSourceType.IMPORTED_PUBLIC),
+            rule: privateRuleForDraft(RecipeSourceType.IMPORTED_PUBLIC, null),
             standing: OPEN,
             state: 'upsell',
         };
@@ -1480,7 +1480,7 @@ describe('visibilityFieldOf', () => {
 
     it('the Public card is never refused under the slots rule, an imported public-web recipe included', () => {
         const facts: RecipePrivateFacts = {
-            rule: privateRuleForDraft(RecipeSourceType.IMPORTED_PUBLIC),
+            rule: privateRuleForDraft(RecipeSourceType.IMPORTED_PUBLIC, null),
             standing: OPEN,
             state: 'upsell',
         };

@@ -155,6 +155,9 @@ export const draftValuesSchema = z
         steps: z
             .array(z.strictObject({ instruction: z.string(), timerSeconds: z.number().optional() }).readonly())
             .readonly(),
+        // ADR-0089: absent in every draft written before the Source existed, so those still parse and the format version
+        // does not move. LAST, because the form's key order is.
+        sourceLink: z.string().optional(),
     })
     .readonly();
 

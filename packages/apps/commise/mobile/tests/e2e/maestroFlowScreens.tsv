@@ -36,7 +36,7 @@ recipes/rating	HomeScreen, RecipeDetailScreen, RecipeDiscoveryScreen, RecipeEdit
 recipes/listDetail	HomeScreen, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen, RecipeVersionsScreen
 recipes/headerScrollsAway	HomeScreen, RecipeListScreen
 recipes/viewSetting	HomeScreen, RecipeListScreen
-shell/tabBar	CollectionDetailScreen, CollectionsScreen, CompleteSignUpScreen, HomeScreen, RecipeDetailScreen, RecipeDiscoveryScreen, RecipeEditorScreen, RecipeListScreen, RecipeVersionsScreen, login, profile, signup
+shell/tabBar	CompleteSignUpScreen, HomeScreen, RecipeDetailScreen, RecipeDiscoveryScreen, RecipeListScreen, login, profile, signup
 recipes/landscape	HomeScreen, RecipeDetailScreen, RecipeDiscoveryScreen, RecipeEditorScreen, RecipeListScreen, RecipeVersionsScreen
 recipes/servingScale	HomeScreen, RecipeDetailScreen, RecipeListScreen
 recipes/detailCooking	HomeScreen, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen, RecipeVersionsScreen
@@ -79,6 +79,7 @@ recipes/pasteList	HomeScreen, RecipeEditorScreen, RecipeListScreen
 recipes/pasteListSettle	HomeScreen, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen, RecipeVersionsScreen
 recipes/pasteMatchChoose	HomeScreen, RecipeEditorScreen, RecipeListScreen
 recipes/pastePublishOpenChoices	HomeScreen, RecipeEditorScreen, RecipeListScreen
+recipes/sourceFromPaste	HomeScreen, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen
 recipes/quantityRange	HomeScreen, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen
 recipes/preparationGroups	HomeScreen, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen
 recipes/ingredientGroups	HomeScreen, RecipeEditorScreen, RecipeListScreen
@@ -120,3 +121,5 @@ recipes/common/privateIsAChoice	HomeScreen, RecipeEditorScreen, RecipeListScreen
 recipes/common/scrollIntoTapView	
 recipes/common/scrollOpenList	
 recipes/common/typeIngredientFilter	
+offline/signOutWhileOffline	HomeScreen, RecipeListScreen, login, profile
+visual/shellCapture	HomeScreen, RecipeDiscoveryScreen, RecipeListScreen, login, profile

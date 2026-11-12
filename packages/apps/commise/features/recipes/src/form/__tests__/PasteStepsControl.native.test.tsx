@@ -109,3 +109,45 @@ describe('PasteStepsControl (native) — what a screen reader receives', () => {
         expect(recordedTextInput(pasteStepsFieldId).accessibilityHint).toBe(s.pasteHint);
     });
 });
+
+describe('PasteStepsControl (native): a pasted link (ADR-0089)', () => {
+    const LINK = 'https://www.allrecipes.com/recipe/1/soup/';
+
+    it('a link line is not a step: the count leaves it out and it goes up through onSource', () => {
+        const onAdd = vi.fn();
+        const onSource = vi.fn();
+        render(<PasteStepsControl onAdd={onAdd} onSource={onSource} offersSource />);
+        fireEvent.click(screen.getByRole('button', { name: s.paste }));
+
+        fireEvent.change(field(), { target: { value: `Boil.\n\nDrain.\n${LINK}` } });
+        fireEvent.click(screen.getByRole('button', { name: 'Add 2 steps' }));
+
+        expect(onAdd).toHaveBeenCalledWith(['Boil.', 'Drain.']);
+        expect(onSource).toHaveBeenCalledWith(expect.objectContaining({ link: { url: LINK, site: 'allrecipes.com' } }));
+    });
+
+    it('says a link can be pasted too, only while the Source can be set', () => {
+        const { unmount } = render(<PasteStepsControl onAdd={vi.fn()} offersSource />);
+        fireEvent.click(screen.getByRole('button', { name: s.paste }));
+
+        expect(screen.getByText(`${s.pasteHint} ${s.pasteLinkHint}`)).toBeTruthy();
+
+        unmount();
+        render(<PasteStepsControl onAdd={vi.fn()} />);
+        fireEvent.click(screen.getByRole('button', { name: s.paste }));
+
+        expect(screen.queryByText(/Paste its link/u)).toBeNull();
+    });
+});
+
+describe('PasteStepsControl (native): link-only (ADR-0089)', () => {
+    it('a paste that is only a link keeps Add off and says what to do instead', () => {
+        render(<PasteStepsControl onAdd={vi.fn()} onSource={vi.fn()} offersSource />);
+        fireEvent.click(screen.getByRole('button', { name: s.paste }));
+
+        fireEvent.change(field(), { target: { value: 'https://www.allrecipes.com/recipe/1/soup/' } });
+
+        expect(screen.getByRole('button', { name: 'Add 0 steps' }).getAttribute('aria-disabled')).toBe('true');
+        expect(screen.getByText(editorMessages.en.source.linkOnly)).toBeTruthy();
+    });
+});

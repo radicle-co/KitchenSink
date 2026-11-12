@@ -45,6 +45,7 @@ export function makeRecipeRow(overrides: Partial<RecipeRow> = {}): RecipeRow {
         // instant, and a draft defaults to never published. A suite wanting a re-drafted recipe overrides it.
         firstPublishedAt: status === 'published' ? BASE_DATE : null,
         sourceType: 'user_created',
+        sourceKind: null,
         sourceUrl: null,
         sourceAttribution: null,
         clonedFromId: null,

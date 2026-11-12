@@ -3,11 +3,12 @@ appId: ${APP_ID}
 # The native shell (slice 3 of the UI overhaul; ADR-0056; `docs/design/uiOverhaul/buildSpec.md` §3.1, §3.5, §3.7), on
 # a device, where React Navigation's own back handling runs (jsdom cannot see it). It replaces `appTabBar.yaml`.
 #
-# - The three tabs — Home, Recipes, Discover — each reachable, and no "Soon" tab.
+# - The four tabs — Home, Recipes, Discover and You — each reachable, and no "Soon" tab.
 # - Recipes → Home and back through the app's tabs, with each tab keeping its own stack.
 # - A second tap on the active tab pops a pushed recipe back to the tab's root.
 # - Android Back from the Recipes root goes Home (`backBehavior="initialRoute"`).
-# - The avatar pushes Profile onto the current tab.
+# - You opens Profile as the ROOT of its own stack (owner ruling 2026-11-11, N3: no title row carries an avatar), and
+#   a second tap on You pops a pushed Data sources page back to Profile.
 #
 # Signs in through the shared login, which lands on Home and then opens Recipes from "See all recipes".
 - runFlow: ../auth/signin.yaml
@@ -77,20 +78,33 @@ appId: ${APP_ID}
       direction: DOWN
       timeout: 20000
 
-# The avatar ("Profile, {name}", or "Profile" with no name) pushes Profile onto the Home tab, under the same tab bar.
-- runFlow:
-      file: ../recipes/common/scrollIntoTapView.yaml
-      env:
-          TARGET: 'Profile.*'
-          DIRECTION: UP
-          TIMEOUT: 20000
-- tapOn: 'Profile.*'
+# No title row carries the avatar: Home's header has no Profile button.
+- assertNotVisible: 'Profile.*'
+
+# The You tab opens Profile as the root of its own stack, under the same tab bar, with no way back.
+- tapOn: 'You'
 - extendedWaitUntil:
       visible: 'Display name'
       timeout: 20000
 - assertVisible: 'Discover'
+- assertNotVisible: 'Back.*'
 
-# Back from Profile returns to Home.
+# What Profile opens is pushed onto the You stack, and a second tap on You pops it back to Profile.
+- runFlow:
+      file: ../recipes/common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Food data sources'
+          DIRECTION: DOWN
+- tapOn: 'Food data sources'
+- extendedWaitUntil:
+      visible: 'Back to Profile'
+      timeout: 20000
+- tapOn: 'You'
+- extendedWaitUntil:
+      visible: 'Display name'
+      timeout: 20000
+
+# Android Back from the You root goes Home (`backBehavior="initialRoute"`).
 - back
 - scrollUntilVisible:
       element: 'See all recipes'

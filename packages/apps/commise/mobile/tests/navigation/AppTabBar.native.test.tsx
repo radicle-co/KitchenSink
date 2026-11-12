@@ -13,6 +13,11 @@ import { render } from '@commise/ui/testing/tamagui';
 
 const layout = vi.hoisted(() => ({ compact: false, collapsed: false }));
 
+// The bar reads the profile for the You tab's disc; the real hook imports Clerk, which jsdom cannot parse.
+vi.mock('../../src/hooks/useUserProfile.js', () => ({
+    useUserProfile: () => ({ isError: false, data: { user: { displayName: 'Eliza Montgomery' } } }),
+}));
+
 vi.mock('@commise/ui/layout', async (importOriginal) => ({
     ...(await importOriginal<typeof import('@commise/ui/layout')>()),
     useCompactHeight: () => layout.compact,
@@ -32,6 +37,7 @@ function renderAdapter(prevent = false, index = 0, insets = { top: 0, bottom: 20
         { key: 'home-1', name: 'home', params: undefined },
         { key: 'recipes-1', name: 'recipes', params: undefined },
         { key: 'discover-1', name: 'discover', params: undefined },
+        { key: 'you-1', name: 'you', params: undefined },
     ];
     const props = {
         state: { index, routes },
@@ -52,6 +58,23 @@ describe('AppTabBar', () => {
         renderAdapter();
 
         expect(screen.getByRole('tablist').getAttribute('data-testid')).toBe('appTabBar');
+    });
+
+    // The You tab is Profile, the root of its own stack (owner ruling 2026-11-11, N3): it navigates like any other tab, and
+    // its disc shows the cook's initials from the shell's own profile read.
+    it('navigates to the You tab, whose disc shows the cook’s initials', () => {
+        const { navigate } = renderAdapter();
+
+        fireEvent.click(screen.getByRole('tab', { name: 'You' }));
+
+        expect(navigate).toHaveBeenCalledWith('you', undefined);
+        expect(screen.getByRole('tab', { name: 'You' }).textContent).toContain('EM');
+    });
+
+    it('marks You selected when the You route is active', () => {
+        renderAdapter(false, 3);
+
+        expect(screen.getByRole('tab', { name: 'You' }).getAttribute('aria-selected')).toBe('true');
     });
 
     it('emits a preventable tabPress for the pressed tab, then navigates to it', () => {
@@ -93,7 +116,8 @@ describe('AppTabBar', () => {
         renderAdapter(false, 0, { top: 0, bottom: 0, left: 48, right: 0 });
 
         expect(getComputedStyle(screen.getByRole('tab', { name: 'Home' })).flexDirection).toBe('row');
-        expect(getComputedStyle(screen.getByRole('tablist')).paddingLeft).toBe('52px');
+        // The inset alone: the bar has no side padding of its own (four tabs are 80 wide at 320, 2026-11-11).
+        expect(getComputedStyle(screen.getByRole('tablist')).paddingLeft).toBe('48px');
     });
 
     it('draws the stacked bar when the window is not compact', () => {

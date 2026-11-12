@@ -114,6 +114,11 @@ export interface RecipeVisibilityFieldProps extends Omit<RecipeFormSectionProps,
      * where either frees a slot. REQUIRED, so no host can ship the refusal's ways forward as dead rows.
      */
     readonly onFreeASlot: () => void;
+    /**
+     * Whether the recipe can only be private because its source is a copied web page (ADR-0089): the Public card then says
+     * so, instead of the book and paid-site reason.
+     */
+    readonly webSource?: boolean;
 }
 
 /** One card of the "Who can see it" field. */
@@ -177,9 +182,18 @@ export function visibilityFieldOf(input: {
     readonly facts: RecipePrivateFacts;
     readonly refusal: PrivateRefusal | undefined;
     readonly messages: EditorMessages['visibility'];
+    /**
+     * Whether the recipe can only be private because it was copied from a web page (ADR-0089), which changes the reason the
+     * Public card gives. Absent is a book or paid-site recipe.
+     */
+    readonly webSource?: boolean;
 }): VisibilityFieldModel {
-    const { draft, saved, facts, refusal, messages: v } = input;
+    const { saved, facts, refusal, messages: v } = input;
     const { standing } = facts;
+    // ⛔ DERIVED, NOT WRITTEN (ADR-0089): a recipe that may never be public is Private whatever the cook chose, and the
+    // draft's own choice is left alone so taking the source off brings it back.
+    const privateOnly = !mayBePublic(facts.rule);
+    const draft = privateOnly ? RecipeVisibility.PRIVATE : input.draft;
     const refused = refusedDraftPrivate(refusal, saved, draft);
     const holdsItsSlot = saved === RecipeVisibility.PRIVATE;
     const slotsFullNote =
@@ -192,14 +206,18 @@ export function visibilityFieldOf(input: {
     const refusedNote = refused === 'slots' ? slotsFullNote : undefined;
 
     return {
-        shown: effectiveVisibility(refusal, saved, draft),
+        shown: privateOnly ? RecipeVisibility.PRIVATE : effectiveVisibility(refusal, saved, draft),
         options: [
             {
                 value: RecipeVisibility.PUBLIC,
                 title: v.public,
                 hint: v.publicHint,
-                note: mayBePublic(facts.rule) ? (refusedNote ?? costNote) : v.publicRefused,
-                refused: !mayBePublic(facts.rule),
+                note: privateOnly
+                    ? input.webSource === true
+                        ? v.publicRefusedWebSource
+                        : v.publicRefused
+                    : (refusedNote ?? costNote),
+                refused: privateOnly,
             },
             {
                 value: RecipeVisibility.PRIVATE,
@@ -613,6 +631,13 @@ export const applyDraftAction = (values: RecipeFormValues, action: DraftAction):
             const { mealType: _current, ...rest } = values;
 
             return action.value === undefined ? rest : { ...rest, mealType: action.value };
+        }
+
+        case 'setSourceLink': {
+            // Removed and re-added, never overwritten in place: the key stays LAST, which `recipeFormValuesEqual` reads.
+            const { sourceLink: _current, ...rest } = values;
+
+            return action.link === '' ? rest : { ...rest, sourceLink: action.link };
         }
 
         default:

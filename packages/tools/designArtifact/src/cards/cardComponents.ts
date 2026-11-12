@@ -33,7 +33,7 @@ import type {
     recipeMessages,
 } from '@commise/features-recipes';
 import type { ActionMenu } from '@commise/ui/action-menu';
-import type { Avatar, AvatarDisc } from '@commise/ui/avatar';
+import type { AvatarDisc } from '@commise/ui/avatar';
 import type { BackToTop } from '@commise/ui/back-to-top';
 import type { Button } from '@commise/ui/button';
 import type { CheckBoxGlyph } from '@commise/ui/check-box-glyph';
@@ -118,7 +118,6 @@ import type { Spinner } from '#commise/ui/src/spinner/Spinner';
  */
 export interface CardComponents {
     readonly ActionMenu: typeof ActionMenu;
-    readonly Avatar: typeof Avatar;
     readonly AvatarDisc: typeof AvatarDisc;
     readonly BackToTop: typeof BackToTop;
     readonly BottomChromeFrame: typeof BottomChromeFrame;

@@ -61,7 +61,6 @@ describe('initials do not scale: 40% of the disc, so two letters fit at every si
 
     it.each([
         ['the default avatar disc', AVATAR_DISC_PT.default],
-        ['the large avatar disc', AVATAR_DISC_PT.large],
         ["the discovery footer's disc", FOOTER_DISC],
     ] as const)('%s (%i pt)', (_name, disc) => {
         const px = initialsPxOf(disc);

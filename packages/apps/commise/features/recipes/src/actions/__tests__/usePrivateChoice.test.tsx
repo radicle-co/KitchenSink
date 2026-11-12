@@ -182,7 +182,7 @@ describe('usePrivateChoice - a DRAFT holds no slot (ADR-0073 section 12)', () =>
     });
 
     it('REWRITTEN for ADR-0077 section 6: an imported public-web recipe is under the slots rule, draft and published alike', () => {
-        const rule = privateRuleForDraft(RecipeSourceType.IMPORTED_PUBLIC);
+        const rule = privateRuleForDraft(RecipeSourceType.IMPORTED_PUBLIC, null);
 
         expect(
             mount('hidden', RecipeVisibility.PUBLIC, PRIVATE_DRAFT, rule, FULL, 'hidden', DRAFT).result.current.field

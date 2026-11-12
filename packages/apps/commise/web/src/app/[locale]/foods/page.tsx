@@ -20,7 +20,7 @@ export default async function YourFoodsPage({
     await requireSignedIn(locale, `/${locale}/foods`);
 
     return (
-        <AppShell activeId={null} titleId="yourFoods">
+        <AppShell activeId="you" titleId="yourFoods">
             <YourFoodsContainer locale={locale} />
         </AppShell>
     );

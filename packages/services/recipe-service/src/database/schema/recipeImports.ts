@@ -28,6 +28,8 @@ import {
     varchar,
 } from 'drizzle-orm/pg-core';
 
+import { RECIPE_SOURCE_KINDS } from '@kitchensink/recipe-core';
+
 import { recipeParseJobs } from './parseJobs.js';
 import { recipes } from './recipes.js';
 
@@ -46,8 +48,8 @@ export const IMPORT_ITEM_REVIEWS = ['pending', 'reviewed', 'skipped'] as const;
 /** The two forms of the per-recipe statement (ADR-0072 §9): "I wrote this" and "From a source". */
 export const IMPORT_STATEMENT_KINDS = ['authored', 'source'] as const;
 
-/** What a "from a source" statement says the source is. */
-export const IMPORT_SOURCE_KINDS = ['public_web', 'book', 'paid_site'] as const;
+/** What a "from a source" statement says the source is: recipe-core's vocabulary, which `recipes.source_kind` stores too. */
+export const IMPORT_SOURCE_KINDS = RECIPE_SOURCE_KINDS;
 
 /** The tiers that may propose a food, as 0057 stores them. */
 export const IMPORT_MATCHED_BY = ['curated', 'memo', 'lexical'] as const;

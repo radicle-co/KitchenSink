@@ -123,20 +123,20 @@ afterEach(() => {
 
 /**
  * Slice 3 (`buildSpec.md` §3.1): Discover is a tab of its own, so the source switcher that was its way back to My
- * recipes is gone (the tab bar and the sidebar are the way), and the page hands in the large title's avatar.
+ * recipes is gone (the tab bar and the sidebar are the way). The title row carries NO avatar (owner ruling 2026-11-11, N3):
+ * the container no longer accepts one, and nothing in the page is a Profile control. Rewritten from the test that handed
+ * the title an avatar and asserted it was drawn.
  */
 describe('RecipeDiscoveryContainer — the large title', () => {
-    it('draws no source switcher, and the avatar the page hands in as the title’s action', () => {
+    it('draws no source switcher and no avatar in the title row', () => {
         const client = discoveryClient();
         vi.spyOn(client, 'searchRecipes').mockResolvedValue(makeSearchResponse([]));
 
-        renderWithSnackbar(
-            <RecipeDiscoveryContainer locale="en" avatar={<button type="button">Profile</button>} />,
-            client,
-        );
+        renderWithSnackbar(<RecipeDiscoveryContainer locale="en" />, client);
 
         expect(screen.queryByRole('navigation', { name: 'Recipe source' })).toBeNull();
-        expect(screen.getByRole('button', { name: 'Profile' })).toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: /profile/iu })).toBeNull();
+        expect(screen.queryByRole('link', { name: /profile/iu })).toBeNull();
     });
 });
 

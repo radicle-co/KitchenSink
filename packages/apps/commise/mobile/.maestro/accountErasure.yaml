@@ -76,7 +76,7 @@ appId: ${APP_ID}
           E2E_SIGNIN_EMAIL: ${E2E_ERASURE_EMAIL}
 
 # Cross into the Profile page, whose last group is the danger zone (the "Account settings" hub is gone).
-- tapOn: 'Profile.*'
+- tapOn: 'You'
 # ⛔ PROVE WHOSE ACCOUNT THIS IS BEFORE ANYTHING IS DESTROYED. The two guards above make a signer session unlikely, but
 # neither reads the account back, and the erase below cannot be undone: run 38988891871 erased the SIGNER. The Profile
 # header shows the signed-in email (`ProfileHeader.tsx`), so the flow stops here, before the danger zone, unless it is

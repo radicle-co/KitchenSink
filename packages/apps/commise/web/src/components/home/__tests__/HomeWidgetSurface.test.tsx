@@ -117,7 +117,7 @@ const warmClient = (total: number): QueryClient => {
 const FakeRecipeWidget: FC = () => <div>fake-recipe-widget</div>;
 
 describe('HomeWidgetSurface (web) — host composition', () => {
-    it('renders the greeting as the page’s one H1, the avatar and the create button after it, and the region', () => {
+    it('renders the greeting as the page’s one H1, no avatar in its row, the create button after it, and the region', () => {
         vi.useFakeTimers();
         vi.setSystemTime(new Date(2026, 4, 31, 14, 0, 0));
 
@@ -131,8 +131,9 @@ describe('HomeWidgetSurface (web) — host composition', () => {
             warmClient(3),
         );
 
-        // Slice 3 (`buildSpec.md` §4.2): the greeting IS the page's large title, its only H1; the avatar is the header's
-        // action and the floating create button comes right after it in DOM order (§3.4).
+        // Slice 3 (`buildSpec.md` §4.2): the greeting IS the page's large title, its only H1; the
+        // floating create button comes right after it in DOM order (§3.4). The header carries NO avatar (owner ruling
+        // 2026-11-11, N3: Profile is the You tab and the sidebar's first row).
         const heading = screen.getByRole('heading', { level: 1, name: /^Good afternoon/u });
         const fab = screen
             .getAllByRole('button', { name: 'New recipe' })
@@ -140,8 +141,11 @@ describe('HomeWidgetSurface (web) — host composition', () => {
 
         expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
         expect(screen.getByRole('region', { name: 'Home' })).toBeTruthy();
-        // The header's avatar, and the sidebar's profile row (CSS shows one of them at a time).
-        expect(screen.getAllByRole('link', { name: /^Profile/u })).toHaveLength(2);
+        // The sidebar's profile row is the one entry named "Profile"; the tab bar's is named "You"; the header has none.
+        expect(screen.getAllByRole('link', { name: /^Profile/u })).toHaveLength(1);
+        expect(screen.getByRole('link', { name: 'You' }).getAttribute('href')).toBe('/en/profile');
+        // The title row is the heading's text block and its row; the create button after it is the header's other child.
+        expect(heading.parentElement?.parentElement?.querySelector('a, button')).toBeNull();
         expect(fab).toBeDefined();
         expect(heading.compareDocumentPosition(fab as HTMLElement) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     });

@@ -26,6 +26,7 @@ import { type RecipeTx, type Writer } from '../../database/unitOfWork.js';
 import type {
     RecipeDifficulty,
     RecipeMealType,
+    RecipeSourceKind,
     RecipeSourceType,
     RecipeStatus,
     RecipeVisibility,
@@ -77,6 +78,8 @@ export interface CreateRecipeInput {
     // ── Provenance (C-004) — omitted on a plain create (DB defaults apply); set when cloning. ──
     /** Recipe provenance classification (defaults to `user_created` when omitted). */
     sourceType?: RecipeSourceType;
+    /** What the cook said the source is (ADR-0089), or `null`. Omitted: the column stays NULL. */
+    sourceKind?: RecipeSourceKind | null;
     /** Original source URL (imported/cloned recipes), or `null`. */
     sourceUrl?: string | null;
     /** Human-readable attribution string (imported/cloned recipes), or `null`. */
@@ -136,6 +139,22 @@ export interface UpdateRecipeInput {
      * the Publish action, `draft` = re-draft). Two-state (never `null` — status is NOT NULL).
      */
     status?: RecipeStatus;
+    /**
+     * Replace the recipe's source (ADR-0089): all four columns are written together, so a web copy can never be half
+     * written (`recipes_source_kind_pairs_source_type`). ABSENT leaves the source alone; the service sends it only inside the
+     * correction window, which the policy (`evaluateSourceCorrection`) decides, not this DAL.
+     */
+    provenance?: {
+        sourceType: RecipeSourceType;
+        sourceKind: RecipeSourceKind | null;
+        sourceUrl: string | null;
+        sourceAttribution: string | null;
+    };
+    /**
+     * Set the visibility in this same write, for a statement that makes a public draft private (ADR-0089). ABSENT leaves it
+     * alone; every other visibility change goes through {@link RecipesDal.setVisibility}.
+     */
+    visibility?: RecipeVisibility;
     tags?: string[];
     dietaryFlags?: string[];
     ingredientNamesText?: string;
@@ -365,6 +384,7 @@ export class RecipesDal {
                     ...(input.authorUsername !== undefined ? { authorUsername: input.authorUsername } : {}),
                     // Provenance is only present when cloning; omit otherwise so the column defaults apply.
                     ...(input.sourceType !== undefined ? { sourceType: input.sourceType } : {}),
+                    ...(input.sourceKind !== undefined ? { sourceKind: input.sourceKind } : {}),
                     ...(input.sourceUrl !== undefined ? { sourceUrl: input.sourceUrl } : {}),
                     ...(input.sourceAttribution !== undefined ? { sourceAttribution: input.sourceAttribution } : {}),
                     ...(input.clonedFromId !== undefined ? { clonedFromId: input.clonedFromId } : {}),
@@ -670,6 +690,8 @@ export class RecipesDal {
                     ...(input.mealType !== undefined ? { mealType: input.mealType } : {}),
                     // Publication status (W8-a.3) — absent leaves it unchanged; a value sets it (publish/re-draft).
                     ...(input.status !== undefined ? { status: input.status } : {}),
+                    ...(input.provenance !== undefined ? input.provenance : {}),
+                    ...(input.visibility !== undefined ? { visibility: input.visibility } : {}),
                     ...(input.tags !== undefined ? { tags: input.tags } : {}),
                     ...(input.dietaryFlags !== undefined ? { dietaryFlags: input.dietaryFlags } : {}),
                     ...(input.ingredientNamesText !== undefined

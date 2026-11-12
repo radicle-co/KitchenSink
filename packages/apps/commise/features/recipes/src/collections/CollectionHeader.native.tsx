@@ -95,7 +95,7 @@ export const CollectionHeader: FC<CollectionHeaderProps> = ({
                 headingId={headingId}
                 title={name}
                 focusSignal={focusSignal}
-                {...(actionsPlacement === 'title' ? { action: { kind: 'controls', button: add } } : {})}
+                {...(actionsPlacement === 'title' ? { action: { button: add } } : {})}
             />
             <View style={styles.lines}>
                 <View style={styles.metaRow}>

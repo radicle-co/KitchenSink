@@ -53,19 +53,12 @@ vi.mock('@tanstack/react-query', async (importOriginal) => ({
 // Stub the default ('home') destination screen so a render throw is fully under this test's control — every
 // other screen (`RecipesScreen`, `ProfileScreen`) is imported for real but never rendered in these cases.
 vi.mock('../../src/screens/HomeScreen.js', () => ({
-    HomeScreen: ({ onOpenProfile }: { readonly onOpenProfile: () => void }) => {
+    HomeScreen: () => {
         if (shouldThrowRef.current) {
             throw new Error('boom');
         }
 
-        return (
-            <>
-                <Text>Recovered home</Text>
-                <Text accessibilityRole="button" onPress={onOpenProfile}>
-                    Open profile
-                </Text>
-            </>
-        );
+        return <Text>Recovered home</Text>;
     },
 }));
 
@@ -130,7 +123,8 @@ describe('AppRoot — each screen’s crash boundary (slice 3: per routed screen
         profileThrowsRef.current = true;
         renderWithProviders(<AppRoot />);
 
-        fireEvent.click(screen.getByRole('button', { name: 'Open profile' }));
+        // Profile is the You tab's root now (owner ruling 2026-11-11, N3), opened from the tab bar, not an avatar.
+        fireEvent.click(screen.getByRole('tab', { name: 'You' }));
         expect(screen.getByRole('alert')).toBeTruthy();
         expect(screen.getByText('We couldn’t load this.')).toBeTruthy();
 

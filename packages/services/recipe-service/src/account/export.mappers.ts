@@ -51,6 +51,7 @@ export function mapRecipe(row: RecipeExportRow): RecipeExport {
         status: row.status,
         firstPublishedAt: toIsoStringOrNull(row.firstPublishedAt),
         sourceType: row.sourceType,
+        sourceKind: row.sourceKind,
         sourceUrl: row.sourceUrl,
         sourceAttribution: row.sourceAttribution,
         clonedFromId: row.clonedFromId,

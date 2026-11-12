@@ -5,7 +5,6 @@
  * views, so the two renders can never drift on shape or formatting. No React, no platform APIs — just the
  * view-model projection and the copy-formatting primitives.
  */
-import type { HeaderAction } from '@commise/ui/large-title-header';
 import type { Locale } from '@commise/i18n';
 import type { ReactElement, ReactNode } from 'react';
 
@@ -255,11 +254,6 @@ export interface RecipeListFrameProps {
      * succeeds, because that retry removed the button the viewer pressed. The frame never moves focus on mount.
      */
     readonly headingFocusSignal: number;
-    /**
-     * The large title's action (slice 3, `buildSpec.md` §3.3, §4.3): the avatar, which opens Profile. The app supplies
-     * it, because the profile read and the navigation are the app's.
-     */
-    readonly headerAction?: HeaderAction;
     /** The read boundary: its loading or error fallback, or the settled results. */
     readonly children: ReactNode;
 }

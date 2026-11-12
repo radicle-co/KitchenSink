@@ -1,5 +1,5 @@
 import { expect } from '@playwright/test';
-import type { BrowserContext, Page } from '@playwright/test';
+import type { Page } from '@playwright/test';
 
 /**
  * Assertions for a pushed page that sits in the design system's `PushedPageFrame`
@@ -180,67 +180,6 @@ export async function expectEyebrowBackAndNoBar(page: Page, backName: string): P
 }
 
 /**
- * Below 840: the page's H1 starts at the bar's bottom edge (56 px), not 24 px below it, and the shell's connectivity notice
- * sits UNDER the bar and AFTER Back in reading order. `<main>` takes the bar's height as its top padding on a pushed page, and
- * the shell draws the bar into a slot ahead of the notice.
- *
- * The H1 is measured first, with no notice, so a notice cannot move it; then the device goes offline and the notice is
- * measured. Both Back and the notice are located by role, and the order is the DOM's (`compareDocumentPosition`), which is
- * the reading and the tab order.
- *
- * @sideEffect Takes the browser context offline and leaves it offline.
- * @param page - A page already open on the pushed page.
- * @param context - Its browser context.
- * @param backName - The Back's accessible name.
- * @param h1Name - The H1's accessible name.
- */
-export async function expectNoticeUnderBarAndAfterBack(
-    page: Page,
-    context: BrowserContext,
-    backName: string,
-    h1Name: string,
-): Promise<void> {
-    const h1 = page.getByRole('heading', { level: 1, name: h1Name });
-    const back = page.getByRole('link', { name: backName });
-    const notice = page.getByRole('status', { name: 'Sync status' });
-
-    await expect(h1).toBeVisible();
-    await page.evaluate(() => window.scrollTo(0, 0));
-    const h1Top = (await h1.boundingBox())?.y ?? Number.NaN;
-
-    // 56, not 80: the frame adds nothing to the 56 px `<main>` takes. The eyebrow is `display: none` here.
-    expect(h1Top, 'the H1 starts at the bar’s bottom edge').toBeGreaterThanOrEqual(BAR_PX);
-    expect(h1Top, 'the H1 is not pushed 24 px below the bar').toBeLessThan(BAR_PX + 8);
-
-    await context.setOffline(true);
-    await expect(notice.getByText('You’re offline')).toBeVisible();
-
-    const barBottom = (await back.boundingBox())?.y ?? Number.NaN;
-    const noticeBox = await notice.boundingBox();
-
-    expect(barBottom, 'the bar is at the top of the viewport').toBeLessThan(BAR_PX);
-    expect(noticeBox?.y ?? Number.NaN, 'the notice is not covered by the bar').toBeGreaterThanOrEqual(BAR_PX);
-
-    const backFirst = await page.evaluate(
-        ([backLabel]) => {
-            const link = Array.from(document.querySelectorAll('a, button')).find(
-                (node) => node.getAttribute('aria-label') === backLabel && node.closest('[data-condensed]') !== null,
-            );
-            const status = document.querySelector('[role="status"][aria-label="Sync status"]');
-
-            return (
-                link !== undefined &&
-                status !== null &&
-                (link.compareDocumentPosition(status) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0
-            );
-        },
-        [backName],
-    );
-
-    expect(backFirst, 'Back comes before the notice in reading and tab order').toBe(true);
-}
-
-/**
  * From tablet width (600) to 840 the bar's Back names its parent beside the chevron, as native's does ("‹ Collections");
  * the accessible name stays the full "Back to {parent}".
  *
@@ -253,17 +192,6 @@ export async function expectBarNamesItsParent(page: Page, backName: string, pare
 
     await expect(back).toHaveCount(1);
     await expect(back.getByText(parent, { exact: true })).toBeVisible();
-}
-
-/**
- * Below 600 the bar's Back is the chevron alone: the parent's name is not drawn.
- *
- * @param page - A page already open on the pushed page, narrower than 600.
- * @param backName - The Back's accessible name.
- * @param parent - The parent's name, which must not be visible.
- */
-export async function expectBarIsChevronOnly(page: Page, backName: string, parent: string): Promise<void> {
-    await expect(page.getByRole('link', { name: backName }).getByText(parent, { exact: true })).toBeHidden();
 }
 
 /**

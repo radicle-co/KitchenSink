@@ -24,13 +24,7 @@ appId: ${APP_ID}
       timeout: 20000
 - takeScreenshot: shell_discover
 - runFlow: ../shell/goHome.yaml
-- runFlow:
-      file: ../recipes/common/scrollIntoTapView.yaml
-      env:
-          TARGET: 'Profile.*'
-          DIRECTION: UP
-          TIMEOUT: 20000
-- tapOn: 'Profile.*'
+- tapOn: 'You'
 - extendedWaitUntil:
       visible: 'Display name'
       timeout: 20000

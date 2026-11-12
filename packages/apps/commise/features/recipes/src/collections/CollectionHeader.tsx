@@ -129,7 +129,7 @@ export const CollectionHeader: FC<CollectionHeaderProps> = ({
                 title={name}
                 focusSignal={focusSignal}
                 back={collectionsBackOf(messages, onBack, backHref)}
-                {...(actionsPlacement === 'title' ? { action: { kind: 'controls', button: add, menu } } : {})}
+                {...(actionsPlacement === 'title' ? { action: { button: add, menu } } : {})}
             />
             <div className="overflow-hidden">
                 <p className={META_LINE}>

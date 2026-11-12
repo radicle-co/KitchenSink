@@ -13,8 +13,10 @@
  * would be a second copy of that fact, and the two would drift the day the service deployed.
  *
  * **An unreachable destination is not shown** (owner ruling, `docs/design/uiOverhaul/ownerDecisions.md`: "Navigation
- * shows no 'Soon' items"). The tabs are Home, Recipes and Discover; Plan and Shop join as tabs 4 and 5 when their
- * capability goes live. Profile is not a destination — it opens from the avatar — and nutrition sits inside Plan.
+ * shows no 'Soon' items"). The tabs are Home, Recipes, Discover and You. Plan and Shop join BEFORE You when their
+ * capability goes live, so You stays last (owner ruling 2026-11-11, `ownerFeedback.md` N3). You is Profile: the web tab
+ * bar and the native bar draw it as the cook's avatar and the web sidebar leaves it out of its list, because the
+ * sidebar's first row is the same entry. Nutrition sits inside Plan.
  * This reverses the CR-001 rule that rendered a gated destination as "coming soon".
  *
  * @pattern Registry — the destinations, keyed by id, with a total glyph table beside them
@@ -35,12 +37,12 @@ export interface HomeNavItem {
 }
 
 /** Every navigation destination id, in tab order (`docs/design/uiOverhaul/buildSpec.md` §3.1). */
-export type HomeNavItemId = 'home' | 'recipes' | 'discover' | 'meal-plan' | 'grocery';
+export type HomeNavItemId = 'home' | 'recipes' | 'discover' | 'meal-plan' | 'grocery' | 'you';
 
 /**
- * The destinations, in tab order: the three shipped tabs, then Plan and Shop, each waiting on its capability from the
+ * The destinations, in tab order: the three shipped tabs, Plan and Shop (each waiting on its capability from the
  * shared {@link ROADMAP_CAPABILITIES} vocabulary — `grocery` waits on `shopping`, the same 005–009 cohort even though
- * it has no Home widget of its own.
+ * it has no Home widget of its own), then You, which is last and always reachable.
  */
 export const HOME_NAV_ITEMS: readonly HomeNavItem[] = [
     { id: 'home' },
@@ -48,6 +50,7 @@ export const HOME_NAV_ITEMS: readonly HomeNavItem[] = [
     { id: 'discover' },
     { id: 'meal-plan', capability: ROADMAP_CAPABILITIES.mealPlanning },
     { id: 'grocery', capability: ROADMAP_CAPABILITIES.shopping },
+    { id: 'you' },
 ];
 
 /**
@@ -60,6 +63,7 @@ export const NAV_ITEM_GLYPH: Readonly<Record<HomeNavItemId, IconName>> = {
     discover: 'compass',
     'meal-plan': 'calendar',
     grocery: 'shoppingCart',
+    you: 'user',
 };
 
 /**

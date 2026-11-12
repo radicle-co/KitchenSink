@@ -1551,6 +1551,14 @@
                         },
                         {
                             "kind": "alarm",
+                            "logicalId": "BulkImportPurgeBehindAlarm",
+                            "nameTemplate": "kitchensink-recipe-import-purge-behind-{stage}",
+                            "handler": null,
+                            "condition": "props.alarmsEnabled",
+                            "notes": []
+                        },
+                        {
+                            "kind": "alarm",
                             "logicalId": "RecipeParseThrottlesAlarm",
                             "nameTemplate": "kitchensink-recipe-parse-throttles-{stage}",
                             "handler": null,

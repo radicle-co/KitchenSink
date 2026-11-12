@@ -7,7 +7,7 @@
  * `sandboxReapClosed.yml`'s `reap-abandoned` job (moved from `sandbox-deploy.yml` by ADR-0060) is a two-stage machine. Stage one DISCOVERS candidate `pr-{N}`
  * tokens by enumerating live resources; stage two hands each token to `teardownSandboxPr.sh`, which
  * re-applies the anchored `pr-{N}` match and deletes what belongs to it. Those two stages have no shared
- * definition of "the things a preview owns" — the teardown knows five resource classes, the discovery step
+ * definition of "the things a preview owns" — the teardown knows several resource classes, the discovery step
  * happens to enumerate some subset of them — so they can drift silently, and the drift is invisible in the
  * only direction that matters:
  *
@@ -25,7 +25,7 @@
  * dependency silently removed a whole service. In all three the code reads correctly and does nothing.
  *
  * Route 53 is the precedent that proves the rule was already understood one class at a time: it is in the
- * source list precisely because a web-only PR owns no stack, repo or log group. This test generalizes that
+ * source list precisely because a web-only PR owns no stack or log group. This test generalizes that
  * one-off reasoning into an invariant over the whole set, so the NEXT resource class the teardown learns to
  * delete cannot be added without a way to find it.
  *
@@ -95,12 +95,6 @@ const RECLAIMED_CLASSES: readonly ReclaimedClass[] = [
             'reaper is the only retry it ever gets',
     },
     {
-        name: 'ECR repositories',
-        deletedBy: '§3/§4 (tag sweep and name sweep)',
-        probe: /aws ecr describe-repositories/,
-        whyDiscovery: 'a build that pushed an image but never deployed leaves a repo and nothing else',
-    },
-    {
         name: 'CloudWatch log groups',
         deletedBy: '§3/§4 (tag sweep and path-anchored name sweep)',
         probe: /aws logs describe-log-groups/,
@@ -113,7 +107,7 @@ const RECLAIMED_CLASSES: readonly ReclaimedClass[] = [
         deletedBy: '§0 (teardownPreviewDomain.ts, exact first-label match)',
         probe: /aws route53 list-resource-record-sets/,
         whyDiscovery:
-            'a WEB-only PR owns no stack, repo or log group, so its dangling CNAME — a subdomain-takeover ' +
+            'a WEB-only PR owns no stack or log group, so its dangling CNAME — a subdomain-takeover ' +
             'vector — is invisible without this source',
     },
     {
@@ -181,7 +175,7 @@ const REAPER_WORKFLOW = 'sandboxReapClosed.yml';
 const CLEANUP_WORKFLOW = 'sandboxCleanup.yml';
 
 describe('the reaper can discover every class the teardown deletes', () => {
-    it('enumerates a signal for all five reclaimed resource classes', () => {
+    it('enumerates a signal for every reclaimed resource class', () => {
         const missing = missingDiscoverySources(stepBody(REAPER_WORKFLOW, 'reap-abandoned', REAPER_STEP));
 
         expect(
@@ -192,6 +186,12 @@ describe('the reaper can discover every class the teardown deletes', () => {
                 `behind a green check. Add an enumeration for it to the discovery block, or delete the ` +
                 `teardown code that claims to reclaim it.`,
         ).toEqual([]);
+    });
+
+    it('makes no ECR listing, which the CI role is refused and the step would read as "nothing found"', () => {
+        // The role may describe only `repository/kitchensink-*`, so an unscoped `describe-repositories` is denied, and
+        // behind `2>/dev/null` the denial is an empty list. No preview owns a repository of its own to discover.
+        expect(stepBody(REAPER_WORKFLOW, 'reap-abandoned', REAPER_STEP)).not.toMatch(/aws ecr describe-repositories/);
     });
 
     it('derives tokens through the ONE `pr-[0-9]+` extraction, not a per-source matcher', () => {

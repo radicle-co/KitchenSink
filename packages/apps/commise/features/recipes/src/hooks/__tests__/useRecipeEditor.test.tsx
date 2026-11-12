@@ -4266,3 +4266,75 @@ describe('a Publish refused for a private food after the editor was closed and o
         expectRefusalShown(second, port, await publishRefusedIn(second, port));
     });
 });
+
+/**
+ * ADDED for ADR-0089: a draft whose source is a copied web page is private only. The visibility it is sent with is DERIVED
+ * (`derivedVisibility`), so every place the editor decides Private reads the link: the gate asks for a slot, the create is
+ * sent Private, and "Publish as public" is not a way out. The cook's own choice is left alone.
+ */
+describe('a draft with a web link as its Source (ADR-0089)', () => {
+    const ALLRECIPES = 'https://www.allrecipes.com/recipe/1/soup/';
+    const webCopy = () => ({ ...complete(), visibility: RecipeVisibility.PUBLIC, sourceLink: ALLRECIPES });
+
+    it('⛔ Publish asks about a slot though the cook chose Public, because the draft is private only', async () => {
+        const { result, port } = mount({}, undefined, fakePort(), 'slots');
+
+        act(() => {
+            result.current.setValues(webCopy());
+        });
+        let outcome: unknown;
+        act(() => {
+            outcome = result.current.publish('');
+        });
+        await settle();
+
+        expect(outcome).toEqual({ kind: 'slotsFull' });
+        expect(result.current.publishBlocked).toEqual({ kind: 'noSlot' });
+        expect(port.submitExclusive).not.toHaveBeenCalled();
+        // The cook's own choice is never written: taking the link off brings Public back.
+        expect(result.current.values.visibility).toBe(RecipeVisibility.PUBLIC);
+    });
+
+    it('⛔ "Publish as public" does nothing for it: no write, the choice and the ask stay', async () => {
+        const { result, port } = mount({}, undefined, fakePort(), 'slots');
+
+        act(() => {
+            result.current.setValues(webCopy());
+        });
+        act(() => {
+            result.current.publish('');
+        });
+        await settle();
+        act(() => {
+            result.current.publishAsPublic();
+        });
+        await settle();
+
+        expect(port.submitExclusive).not.toHaveBeenCalled();
+        expect(result.current.values.visibility).toBe(RecipeVisibility.PUBLIC);
+        expect(result.current.publishBlocked).toEqual({ kind: 'noSlot' });
+    });
+
+    it('a Publish with a slot free creates it with the statement, Private', async () => {
+        const { result, port } = mount({}, undefined, fakePort());
+
+        act(() => {
+            result.current.setValues(webCopy());
+        });
+        act(() => {
+            result.current.publish('');
+        });
+        await settle();
+
+        expect(port.submitted[0]).toMatchObject({
+            intentKind: 'create',
+            payload: {
+                input: {
+                    status: 'published',
+                    visibility: RecipeVisibility.PRIVATE,
+                    statement: { kind: 'public_web', citation: ALLRECIPES },
+                },
+            },
+        });
+    });
+});

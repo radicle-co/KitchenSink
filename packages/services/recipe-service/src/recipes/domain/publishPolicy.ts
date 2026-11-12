@@ -37,6 +37,7 @@ import {
     RecipeSourceType,
     RecipeStatus,
     type PublishRequirement,
+    type RecipeSourceKind,
 } from '@kitchensink/recipe-core';
 
 /** The complete input to a publish decision: the state a write would leave the recipe in. */
@@ -45,6 +46,8 @@ export interface PublishPolicyInput {
     readonly status: RecipeStatus;
     /** The recipe's provenance (the resolved one on create, the stored one on update). */
     readonly sourceType: RecipeSourceType;
+    /** What the cook said the source is (resolved on create, stored on update), or `null`. */
+    readonly sourceKind: RecipeSourceKind | null;
     /** The cuisine after the write, or `null` for none. */
     readonly cuisine: string | null;
     /** The ingredient lines after the write. */
@@ -68,15 +71,17 @@ export type PublishDecision =
 /**
  * Whether a recipe of this provenance needs a cuisine to be published. Only the public-domain cookbook import is exempt
  * (the curator path, ADR-0023): its source books state no cuisine. A physical or paid import is a cook's own copy of a
- * book, and is asked for one like any other recipe. Pure.
+ * book, and a web copy is a cook's own copy of a page (ADR-0089): both are asked for one like any other recipe. Pure.
  *
  * @param sourceType - The recipe's provenance.
- * @returns `true` unless it is `imported_public`.
+ * @param sourceKind - What the cook said the source is, or `null`. A web copy carries the curator's label, so the kind is
+ *   what tells them apart.
+ * @returns `false` only for the curator reading: `imported_public` with no source kind.
  */
-export function requiresCuisine(sourceType: RecipeSourceType): boolean {
+export function requiresCuisine(sourceType: RecipeSourceType, sourceKind: RecipeSourceKind | null): boolean {
     switch (sourceType) {
         case RecipeSourceType.IMPORTED_PUBLIC:
-            return false;
+            return sourceKind !== null;
         case RecipeSourceType.USER_CREATED:
         case RecipeSourceType.IMPORTED_PHYSICAL:
         case RecipeSourceType.IMPORTED_PAID:
@@ -96,7 +101,7 @@ export function evaluatePublication(input: PublishPolicyInput): PublishDecision 
     }
 
     const unmet: Readonly<Record<PublishRequirement, boolean>> = {
-        cuisine: requiresCuisine(input.sourceType) && (input.cuisine ?? '').trim() === '',
+        cuisine: requiresCuisine(input.sourceType, input.sourceKind) && (input.cuisine ?? '').trim() === '',
         ingredients: input.ingredientCount === 0,
         steps: input.stepCount === 0,
     };

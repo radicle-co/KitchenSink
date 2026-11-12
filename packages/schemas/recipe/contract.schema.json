@@ -432,6 +432,21 @@
                                     "null"
                                 ]
                             },
+                            "sourceKind": {
+                                "anyOf": [
+                                    {
+                                        "enum": [
+                                            "public_web",
+                                            "book",
+                                            "paid_site"
+                                        ],
+                                        "type": "string"
+                                    },
+                                    {
+                                        "type": "null"
+                                    }
+                                ]
+                            },
                             "sourceType": {
                                 "type": "string"
                             },
@@ -485,6 +500,7 @@
                             "status",
                             "firstPublishedAt",
                             "sourceType",
+                            "sourceKind",
                             "sourceUrl",
                             "sourceAttribution",
                             "clonedFromId",
@@ -1193,6 +1209,14 @@
                     "minLength": 1,
                     "type": "string"
                 },
+                "sourceKind": {
+                    "enum": [
+                        "public_web",
+                        "book",
+                        "paid_site"
+                    ],
+                    "type": "string"
+                },
                 "sourceType": {
                     "enum": [
                         "user_created",
@@ -1563,6 +1587,14 @@
                             },
                             "sourceAttribution": {
                                 "minLength": 1,
+                                "type": "string"
+                            },
+                            "sourceKind": {
+                                "enum": [
+                                    "public_web",
+                                    "book",
+                                    "paid_site"
+                                ],
                                 "type": "string"
                             },
                             "sourceType": {
@@ -2527,6 +2559,25 @@
                             "type": "object"
                         }
                     ]
+                },
+                "statement": {
+                    "additionalProperties": false,
+                    "properties": {
+                        "citation": {
+                            "format": "uri",
+                            "maxLength": 2000,
+                            "type": "string"
+                        },
+                        "kind": {
+                            "const": "public_web",
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "kind",
+                        "citation"
+                    ],
+                    "type": "object"
                 },
                 "status": {
                     "enum": [
@@ -8914,6 +8965,26 @@
                 }
             ]
         },
+        "publicWebStatementSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+                "citation": {
+                    "format": "uri",
+                    "maxLength": 2000,
+                    "type": "string"
+                },
+                "kind": {
+                    "const": "public_web",
+                    "type": "string"
+                }
+            },
+            "required": [
+                "kind",
+                "citation"
+            ],
+            "type": "object"
+        },
         "pullDiffSchema": {
             "$schema": "https://json-schema.org/draft/2020-12/schema",
             "additionalProperties": false,
@@ -11335,6 +11406,14 @@
                     "minLength": 1,
                     "type": "string"
                 },
+                "sourceKind": {
+                    "enum": [
+                        "public_web",
+                        "book",
+                        "paid_site"
+                    ],
+                    "type": "string"
+                },
                 "sourceType": {
                     "enum": [
                         "user_created",
@@ -11625,6 +11704,21 @@
                         "null"
                     ]
                 },
+                "sourceKind": {
+                    "anyOf": [
+                        {
+                            "enum": [
+                                "public_web",
+                                "book",
+                                "paid_site"
+                            ],
+                            "type": "string"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ]
+                },
                 "sourceType": {
                     "type": "string"
                 },
@@ -11678,6 +11772,7 @@
                 "status",
                 "firstPublishedAt",
                 "sourceType",
+                "sourceKind",
                 "sourceUrl",
                 "sourceAttribution",
                 "clonedFromId",
@@ -12182,6 +12277,14 @@
                 },
                 "sourceAttribution": {
                     "minLength": 1,
+                    "type": "string"
+                },
+                "sourceKind": {
+                    "enum": [
+                        "public_web",
+                        "book",
+                        "paid_site"
+                    ],
                     "type": "string"
                 },
                 "sourceType": {
@@ -12692,6 +12795,14 @@
                                         "minLength": 1,
                                         "type": "string"
                                     },
+                                    "sourceKind": {
+                                        "enum": [
+                                            "public_web",
+                                            "book",
+                                            "paid_site"
+                                        ],
+                                        "type": "string"
+                                    },
                                     "sourceType": {
                                         "enum": [
                                             "user_created",
@@ -12835,6 +12946,26 @@
                     "type": "object"
                 }
             ]
+        },
+        "recipeStatementSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+                "citation": {
+                    "format": "uri",
+                    "maxLength": 2000,
+                    "type": "string"
+                },
+                "kind": {
+                    "const": "public_web",
+                    "type": "string"
+                }
+            },
+            "required": [
+                "kind",
+                "citation"
+            ],
+            "type": "object"
         },
         "recipeStepInputSchema": {
             "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -13837,6 +13968,14 @@
                             "minLength": 1,
                             "type": "string"
                         },
+                        "sourceKind": {
+                            "enum": [
+                                "public_web",
+                                "book",
+                                "paid_site"
+                            ],
+                            "type": "string"
+                        },
                         "sourceType": {
                             "enum": [
                                 "user_created",
@@ -14348,6 +14487,32 @@
                     "exclusiveMinimum": 0,
                     "maximum": 2147483647,
                     "type": "integer"
+                },
+                "statement": {
+                    "anyOf": [
+                        {
+                            "additionalProperties": false,
+                            "properties": {
+                                "citation": {
+                                    "format": "uri",
+                                    "maxLength": 2000,
+                                    "type": "string"
+                                },
+                                "kind": {
+                                    "const": "public_web",
+                                    "type": "string"
+                                }
+                            },
+                            "required": [
+                                "kind",
+                                "citation"
+                            ],
+                            "type": "object"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ]
                 },
                 "status": {
                     "enum": [

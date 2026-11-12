@@ -147,6 +147,7 @@ export function HomeChrome({
                     locale={locale}
                     liveCapabilities={liveCapabilities}
                     activeId={activeId}
+                    profile={profile}
                 />
             )}
         </div>

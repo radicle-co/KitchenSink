@@ -10,12 +10,18 @@
  *    CASCADE on that key, which would delete a cook's recipe lines because their import aged out);
  *  - the allowance ledger is untouched: a purge is retention, not a refund (kills: a sweep that "tidies" the ledger too);
  *  - another cook's recent import is untouched;
- *  - a backlog larger than one batch is drained within a tick (kills: a loop that stops after one batch).
+ *  - a backlog larger than one batch is drained within a tick (kills: a loop that stops after one batch);
+ *  - an aged import another transaction holds is skipped, not waited for and not deleted (kills: removing SKIP LOCKED);
+ *  - the oldest-age gauge reads the real oldest row (kills: reading the newest import, or an age that is not in seconds).
  */
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import pg from 'pg';
 
-import { IMPORT_PURGE_BATCH_SIZE, purgeFinishedImports } from '../../../src/import/importPurge.js';
+import {
+    IMPORT_PURGE_BATCH_SIZE,
+    oldestImportAgeSeconds,
+    purgeFinishedImports,
+} from '../../../src/import/importPurge.js';
 import { recipeWorkersDb } from '../roleDb.js';
 
 const roleDb = recipeWorkersDb();
@@ -144,6 +150,44 @@ describe('bulk import purge (LOCAL e2e)', () => {
 
         expect(ledger.rows).toStrictEqual([{ units: 5 }]);
         expect(await treeOf(theirs.id)).toStrictEqual({ imports: 1, items: 1, lines: 1 });
+    });
+
+    /**
+     * Review finding 5 on #185-#188: the purge picked its rows by age and then deleted by id, so an import a cook held at
+     * that moment was deleted under them. A row another transaction holds is now SKIPPED, not waited for and not deleted;
+     * the next tick, 15 minutes later, sees it again with whatever `updated_at` that transaction left. The purge's own
+     * connection carries a short `lock_timeout`, so a purge that WAITED for the lock fails this case instead of hanging.
+     */
+    it('⛔ skips an aged import another transaction holds, without waiting for it, and deletes the rest', async () => {
+        const held = await importAged(USER, '40 days');
+        const free = await importAged(USER, '41 days');
+        const cook = await pool.connect();
+        const purger = new pg.Pool({ connectionString: roleDb.appUrl, options: '-c lock_timeout=2000' });
+
+        try {
+            await cook.query('BEGIN');
+            await cook.query(`SELECT 1 FROM recipe_imports WHERE id = $1 FOR UPDATE`, [held.id]);
+
+            expect(await purgeFinishedImports(purger)).toBe(1);
+            expect(await treeOf(free.id)).toStrictEqual({ imports: 0, items: 0, lines: 0 });
+            expect(await treeOf(held.id)).toStrictEqual({ imports: 1, items: 1, lines: 1 });
+        } finally {
+            await cook.query('ROLLBACK');
+            cook.release();
+            await purger.end();
+        }
+    });
+
+    it('reads the age of the oldest import left, from the database’s own clock, and 0 when there is none', async () => {
+        expect(await oldestImportAgeSeconds(pool)).toBe(0);
+
+        await importAged(USER, '3 days');
+        await importAged(OTHER, '2 days');
+
+        const age = await oldestImportAgeSeconds(pool);
+
+        expect(age).toBeGreaterThanOrEqual(3 * 86_400);
+        expect(age).toBeLessThan(3 * 86_400 + 60);
     });
 
     it('drains a backlog larger than one batch within a tick', async () => {

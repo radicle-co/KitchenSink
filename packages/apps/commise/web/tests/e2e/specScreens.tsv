@@ -96,6 +96,7 @@ recipePhotos.spec.ts	/, /recipes, /recipes/[id], /recipes/[id]/edit, /recipes/ne
 recipeQuantityRange.spec.ts	/, /recipes, /recipes/[id], /recipes/[id]/edit, /recipes/new, /sign-in/[[...sign-in]]
 recipeRating.spec.ts	/, /recipes/[id], /sign-in/[[...sign-in]]
 recipeSourceAndScale.spec.ts	/, /recipes/[id], /sign-in/[[...sign-in]]
+recipeSourceFromPaste.spec.ts	/, /recipes/[id], /recipes/[id]/edit, /recipes/new, /sign-in/[[...sign-in]]
 recipeStepTimer.spec.ts	/, /recipes/[id], /recipes/[id]/edit, /recipes/new, /sign-in/[[...sign-in]]
 recipeUnsavedChangesGuard.spec.ts	/, /recipes/[id], /recipes/[id]/edit, /sign-in/[[...sign-in]]
 recipeViewSetting.spec.ts	*
@@ -104,7 +105,7 @@ saveACopy.spec.ts	/, /collections/[id], /discover, /recipes, /recipes/[id], /rec
 search.spec.ts	/, /discover, /recipes, /sign-in/[[...sign-in]]
 searchShortcut.spec.ts	*
 sessionHandoff.spec.ts	/, /profile, /recipes, /sign-in/[[...sign-in]]
-shellNavigation.spec.ts	/, /recipes, /sign-in/[[...sign-in]]
+shellNavigation.spec.ts	/, /collections, /discover, /profile, /recipes, /sign-in/[[...sign-in]]
 shellOffline.spec.ts	/, /recipes, /sign-in/[[...sign-in]]
 signIn.spec.ts	/, /collections, /profile, /sign-in/[[...sign-in]]
 signOut.spec.ts	/, /profile, /sign-in/[[...sign-in]]

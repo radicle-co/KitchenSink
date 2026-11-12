@@ -26,7 +26,6 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { DiscoveryTitle } from './DiscoveryTitle.native.js';
 import { discoveryMessages } from './messages.js';
-import type { RecipeDiscoveryFrameProps } from './model.js';
 
 /** Props for {@link DiscoveryHeaderGroup}. */
 export interface DiscoveryHeaderGroupProps {
@@ -34,8 +33,6 @@ export interface DiscoveryHeaderGroupProps {
     readonly compact: boolean;
     /** Advances when a refresh retry succeeds. */
     readonly headingFocusSignal: number;
-    /** The large title's action. */
-    readonly headerAction: RecipeDiscoveryFrameProps['headerAction'];
     /** The keyword field. */
     readonly search: ReactNode;
     /** Whether the heading is drawn here; `false` while the filter panel is shown and the frame draws it above the row. */
@@ -46,7 +43,6 @@ export interface DiscoveryHeaderGroupProps {
 export const DiscoveryHeaderGroup: FC<DiscoveryHeaderGroupProps> = ({
     compact,
     headingFocusSignal,
-    headerAction,
     search,
     drawsHeading,
 }) => {
@@ -63,7 +59,7 @@ export const DiscoveryHeaderGroup: FC<DiscoveryHeaderGroupProps> = ({
                     {discovery.heading}
                 </Text>
             ) : (
-                <DiscoveryTitle focusSignal={headingFocusSignal} action={headerAction} />
+                <DiscoveryTitle focusSignal={headingFocusSignal} />
             )}
             <View style={!drawsHeading ? undefined : compact ? styles.searchCompact : styles.inset}>{search}</View>
         </View>

@@ -30,6 +30,9 @@ export const pasteStepsFieldId = 'recipe-paste-steps';
 /** The Paste a list sheet's field. */
 export const pasteListFieldId = 'recipe-paste-list';
 
+/** The Source field in Photos & publish (ADR-0089). */
+export const sourceFieldId = 'recipe-source';
+
 /**
  * The ids that describe a field, space-separated, or `undefined` for none: a field's `describedBy` when a message and a
  * counter may each be shown. Pure.

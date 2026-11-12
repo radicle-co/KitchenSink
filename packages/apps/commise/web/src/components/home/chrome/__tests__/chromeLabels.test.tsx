@@ -54,6 +54,7 @@ describe('home chrome navigation landmark names', () => {
                     locale="en"
                     liveCapabilities={[RECIPE_HOME_WIDGET_CAPABILITY]}
                     activeId="home"
+                    profile={{ status: 'ready', name: 'Eliza' }}
                 />
             </ScrollHost>,
         );

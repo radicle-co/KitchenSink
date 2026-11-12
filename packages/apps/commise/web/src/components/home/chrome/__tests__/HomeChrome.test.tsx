@@ -63,6 +63,17 @@ describe('HomeChrome (web)', () => {
         expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
     });
 
+    it('feeds the ONE profile read to the sidebar’s first row and the tab bar’s You disc (owner ruling 2026-11-11, N3)', () => {
+        renderChrome();
+
+        const [sidebarNav, tabBar] = screen.getAllByRole('navigation');
+        const row = screen.getByRole('link', { name: 'Profile, Eliza' });
+
+        expect(row.querySelector('.size-8')?.textContent).toBe('E');
+        expect(tabBar?.querySelector('[data-avatar-disc]')?.textContent).toBe('E');
+        expect(sidebarNav).toBeTruthy();
+    });
+
     it('renders both navigations, which CSS switches at nav: the sidebar from 840, the tab bar below', () => {
         renderChrome();
 

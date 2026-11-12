@@ -3,7 +3,6 @@ import { HydrationBoundary, QueryClient, dehydrate } from '@tanstack/react-query
 
 import { requireSignedIn } from '@/lib/requireSignedIn';
 import { AppShell } from '@/components/app/AppShell';
-import { ProfileAvatarEntry } from '@/components/home/chrome/ProfileAvatarEntry';
 import { CollectionListContainer } from '@/components/recipes/CollectionListContainer';
 import { RECIPE_SERVICE_BASE_URL } from '@/lib/recipeServiceConfig';
 
@@ -44,7 +43,7 @@ export default async function CollectionsPage({
     return (
         <HydrationBoundary state={dehydrate(queryClient)}>
             <AppShell activeId="recipes" titleId="collections">
-                <CollectionListContainer locale={locale} avatar={<ProfileAvatarEntry />} />
+                <CollectionListContainer locale={locale} />
             </AppShell>
         </HydrationBoundary>
     );

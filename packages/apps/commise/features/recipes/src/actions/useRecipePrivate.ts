@@ -14,7 +14,7 @@
  * @pattern Adapter - the private-slots query to the pure rule's vocabulary (`slotStandingOf`)
  */
 import type { PaidFeatureState } from '@commise/features-account';
-import type { RecipeSourceType } from '@kitchensink/recipe-core';
+import type { RecipeSourceKind, RecipeSourceType } from '@kitchensink/recipe-core';
 import { usePrivateSlots } from '@kitchensink/recipe-service-client/hooks';
 
 import type { PrivateRefusal } from './privateGate.js';
@@ -30,6 +30,8 @@ import {
 export interface UseRecipePrivateOptions {
     /** The recipe's label, `undefined` for one never saved. */
     readonly sourceType: RecipeSourceType | undefined;
+    /** What the source is (ADR-0089), `null` for none. The stored kind of a recipe on screen; the editor passes the draft's. */
+    readonly sourceKind: RecipeSourceKind | null;
     /** The profile's own answer (`knownPaidFeaturesOf`): `undefined` while unknown, a failed read included. */
     readonly knownPaidFeatures: Exclude<PaidFeatureState, 'loading'> | undefined;
 }
@@ -50,7 +52,7 @@ export interface RecipePrivate {
  * @sideEffect Subscribes to `GET /api/v1/recipes/private-slots` under the slots rule.
  */
 export function useRecipePrivate(options: UseRecipePrivateOptions): RecipePrivate {
-    const rule = privateRuleForDraft(options.sourceType);
+    const rule = privateRuleForDraft(options.sourceType, options.sourceKind);
     const usage = usePrivateSlots({ enabled: true });
     const standing = slotStandingOf(usage.data, usage.isPending);
 

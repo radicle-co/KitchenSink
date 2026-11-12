@@ -26,7 +26,7 @@ tags:
 
 # ── go offline, then try to sign out ──────────────────────────────────────────
 - setAirplaneMode: enabled
-- tapOn: 'Profile.*'
+- tapOn: 'You'
 - runFlow:
       file: ../recipes/common/scrollIntoTapView.yaml
       env:

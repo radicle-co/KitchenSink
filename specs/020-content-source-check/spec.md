@@ -725,6 +725,20 @@ are kept as the record and read with these changes.
 - **A purchase gives the sold version and a file to keep. A subscription gives the live view.** Every file passes the
   hold, and a takedown closes every download door (FR-057, FR-079, `018-FR-029` to `018-FR-029k`).
 
+### Session 2026-11-11: who the source line names
+
+Owner ruling, 2026-11-11, verbatim: "We should note that it was adapted by commise if the parser pipeline changes the
+instruction. I want to make sure this gets noted in the feature document for the review feature: right now we reword
+automatically; when we implement the review feature I want to only reword if the review agent finds the need to do so.
+If a user creates the recipe, then the source should indicate that it was created by the username. If a user edits a
+recipe that comes from another source (I.e. they imported it), then we should append that it was edited by the
+username. No need to call out family recipes."
+
+- **The ruling is recorded as FR-080.** It sits beside the rewording rules (FR-075 to FR-078) and changes none of
+  them yet. The open questions (Q-4 to Q-7) wait for the owner. Q-6 checks the ruling's premise against the code. The others are conflicts with earlier rulings or open points.
+- **What the code does today.** The search found no step rewording (Q-6). That is why the ruling's first premise is
+  open.
+
 ## Requirements _(mandatory)_
 
 ### Functional Requirements
@@ -1876,6 +1890,17 @@ Counsel review is owed before launch (`016-FR-050`).
   shares ADR-0024's pool, and its spend mechanism are OPEN (owner ruling 2026-11-03): decided when feature 020 starts. If the call cannot run, no
   suggestion is shown (FR-076), the recipe waits for a person, and the cook can still edit by hand (fail closed).
     - Counsel review is owed before launch (`016-FR-050`).
+- **FR-080** _(owner ruling 2026-11-11; open questions Q-4 to Q-7)_: **The source line says who made or
+  changed the recipe's words.** [House rule]
+    - When the import pipeline changes the wording of a step, the recipe's source label MUST say it was adapted by
+      Commise.
+    - Today steps are reworded automatically (the owner's words; see Q-6 for what the code shows). Once this review
+      feature ships, a step MUST be reworded only when the review agent finds that it needs rewording (FR-075).
+    - A recipe a cook creates MUST show "Created by {username}" as its source.
+    - When a cook edits a recipe that came from another source (an import), "Edited by {username}" MUST be appended
+      to the source.
+    - A family recipe needs no special label.
+    - Counsel review is owed before launch (`016-FR-050`).
 
 **Founder questions (Q-1 and Q-3 settled 2026-11-03, owner rulings, ADR-0082 §9).**
 
@@ -1888,6 +1913,37 @@ Counsel review is owed before launch (`016-FR-050`).
 - **Q-3.** Does "private is never blocked" mean private bulk-import recipes skip review (FR-003b)? SETTLED
   2026-11-03, owner ruling: yes. A private bulk-imported recipe is usable at once. Only going public or on sale waits
   for review (FR-003b as amended).
+
+**Open questions for the owner (added 2026-11-11, ruling in FR-080).** Not resolved here. Each states what it asks and cites the text it rests on.
+
+- **Q-4. "Adapted by Commise" or "Adapted by you"?** FR-080 says the source says the recipe was adapted by Commise
+  when the pipeline changes a step. FR-077 and ADR-0082 (the bullet "The copy check runs at import, and suggests fresh
+  wording") say a step from an accepted suggestion makes the recipe "Adapted by you", and that AI text is never the
+  cook's own words (`016-FR-015i`). Both can be true only if they are two different things: the rights label (one
+  derived label, `016-FR-015c`, `016-FR-015d`) and the source line (FR-080). Which one does each rewording set, and
+  does a cook who accepts a suggestion get both?
+- **Q-5. Does the label make Commise the publisher? Counsel review (`016-FR-050`).** ADR-0082 section 6 says an AI
+  rewrite of another site's recipe published as Commise's own is not built at launch, because Commise is then the
+  publisher, outside the 17 U.S.C. §512(c) safe harbour and DSA Art. 6. FR-080 has Commise saying it adapted the
+  text. Does that label make Commise the publisher of the reworded step? FR-075 and FR-076 keep the cook as the one
+  who accepts, edits or disputes, which is the safeguard ADR-0082 relies on. A pipeline that rewords with no cook
+  choice is the case section 6 names.
+- **Q-6. Does "right now we reword automatically" match the code?** The search (2026-11-11) of
+  `packages/shared/recipe-import-core/src`, `packages/services/recipe-workers/src`,
+  `packages/services/recipe-service/src` and `packages/tools/cookbook-import/src` found no step rewording. It found
+  only these step-text changes. `packages/tools/cookbook-import/src/proseRecipe.ts` (around line 838) splits a body
+  into steps at sentence ends and collapses white space, which changes layout, not words.
+  `packages/shared/recipe-import-core/src/contentSanitizer.ts` (`sanitizeToPlainText`) strips markup, and it has no
+  caller in the service source outside the package's own tests and export. `proseRecipe.ts` also moves a trailing
+  instruction out of an ingredient line and returns it as `droppedInstructions`; the search found that value stored
+  or shown nowhere else. Every model call the search found (`recipe-workers/src/parsing/gatedLlm.ts`,
+  `recipe-workers/src/handlers/parseLine.ts`, `recipe-workers/src/handlers/verifyLine.ts`,
+  `cookbook-import/src/parsing/llmEngine.ts`) reads an ingredient line or a match candidate, never a step. If the owner means something not in this list, name it. If not, FR-080's "today" line has
+  no behaviour behind it yet.
+- **Q-7. Created by, edited by, and the label rules.** `016-FR-015c` already derives one rights label per recipe.
+  Does "Created by {username}" and "Edited by {username}" add a second line beside it, replace the source line, or
+  show on a public recipe at all? A username is shown to every reader, so the owner needs to say whether the
+  cook agreed to that.
 
 ### Non-Functional Requirements _(constitution-derived)_
 

@@ -6,11 +6,11 @@
     "coverage": {
         "components": 55,
         "implementations": 55,
-        "props": 152,
+        "props": 154,
         "documentedComponents": 54,
         "implementationsWithModuleDoc": 53,
         "implementationsWithComponentDoc": 41,
-        "documentedProps": 143,
+        "documentedProps": 145,
         "classifiedComponents": 40,
         "componentsWithPatternTag": 26,
         "crossPlatformComponents": 0
@@ -3756,6 +3756,15 @@
                             "declaredIn": "packages/apps/commise/mobile/src/screens/RecipeDetailScreen.tsx"
                         },
                         {
+                            "name": "onReviewLine",
+                            "type": "((recipeId: string, line: LineAddress) => void)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Invoked with the recipe id and the line when the owner opens the editor on one ingredient that needs review.",
+                            "declaredIn": "packages/apps/commise/mobile/src/screens/RecipeDetailScreen.tsx"
+                        },
+                        {
                             "name": "onViewVersions",
                             "type": "((recipeId: string) => void)",
                             "typeDetail": null,
@@ -3931,6 +3940,15 @@
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
                     "props": [
+                        {
+                            "name": "line",
+                            "type": "LineAddress",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The ingredient a deep link names (route param); parsed again here, as restored navigation state is untrusted.",
+                            "declaredIn": "packages/apps/commise/mobile/src/screens/RecipeEditorScreen.tsx"
+                        },
                         {
                             "name": "onClose",
                             "type": "() => void",

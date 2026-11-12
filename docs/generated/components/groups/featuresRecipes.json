@@ -4,14 +4,14 @@
     "packageName": "@commise/features-recipes",
     "layer": "feature",
     "coverage": {
-        "components": 206,
-        "implementations": 350,
-        "props": 2411,
-        "documentedComponents": 206,
-        "implementationsWithModuleDoc": 350,
-        "implementationsWithComponentDoc": 239,
-        "documentedProps": 1839,
-        "classifiedComponents": 184,
+        "components": 208,
+        "implementations": 352,
+        "props": 2430,
+        "documentedComponents": 208,
+        "implementationsWithModuleDoc": 352,
+        "implementationsWithComponentDoc": 241,
+        "documentedProps": 1858,
+        "classifiedComponents": 186,
         "componentsWithPatternTag": 99,
         "crossPlatformComponents": 144
     },
@@ -6858,6 +6858,15 @@
                             "declaredIn": "packages/apps/commise/features/recipes/src/detail/DetailIngredientsSection.native.tsx"
                         },
                         {
+                            "name": "reviewAction",
+                            "type": "((position: number, ingredient: RecipeIngredientView) => ReactNode)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The owner's review control for a line, by its stored position; see `IngredientRunsProps.reviewAction`.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/DetailIngredientsSection.native.tsx"
+                        },
+                        {
                             "name": "saysRecovered",
                             "type": "boolean",
                             "typeDetail": null,
@@ -7322,6 +7331,15 @@
                             "defaultValue": null,
                             "description": "Called with the line's key (`ingredientId`).",
                             "declaredIn": "packages/apps/commise/features/recipes/src/detail/cookRowProps.ts"
+                        },
+                        {
+                            "name": "reviewAction",
+                            "type": "ReactNode",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The owner's control that opens this line in the editor, for a line that needs review. Drawn as a SIBLING of the\ncheck control, under the row text (a control inside the checkbox would tick the line when pressed). When it is\ngiven, the row leaves the \"Needs review\" badge to it.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/cookRowProps.ts"
                         }
                     ],
                     "usesRefApi": [],
@@ -7391,6 +7409,15 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "Called with the line's key (`ingredientId`).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/cookRowProps.ts"
+                        },
+                        {
+                            "name": "reviewAction",
+                            "type": "ReactNode",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The owner's control that opens this line in the editor, for a line that needs review. Drawn as a SIBLING of the\ncheck control, under the row text (a control inside the checkbox would tick the line when pressed). When it is\ngiven, the row leaves the \"Needs review\" badge to it.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/detail/cookRowProps.ts"
                         }
                     ],
@@ -7472,6 +7499,15 @@
                             "defaultValue": null,
                             "description": "",
                             "declaredIn": "packages/apps/commise/features/recipes/src/detail/IngredientRuns.tsx"
+                        },
+                        {
+                            "name": "reviewAction",
+                            "type": "((position: number, ingredient: RecipeIngredientView) => ReactNode)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The owner's review control for a line, by its position in `ingredients` (the stored order: scaling keeps it), or\n`undefined` for a line with none. The row draws it beside its check control.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/IngredientRuns.tsx"
                         }
                     ],
                     "usesRefApi": [],
@@ -7532,6 +7568,15 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/IngredientRuns.tsx"
+                        },
+                        {
+                            "name": "reviewAction",
+                            "type": "((position: number, ingredient: RecipeIngredientView) => ReactNode)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The owner's review control for a line, by its position in `ingredients` (the stored order: scaling keeps it), or\n`undefined` for a line with none. The row draws it beside its check control.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/detail/IngredientRuns.tsx"
                         }
                     ],
@@ -8202,6 +8247,15 @@
                             "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
                         },
                         {
+                            "name": "onReviewLine",
+                            "type": "((address: LineAddress) => void)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Native, the owner only: open the editor on one ingredient that needs review, with its row editor open. Its own\nprop, not `onEditSection`: a section and a line are different arrivals.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
+                        },
+                        {
                             "name": "onServingsChange",
                             "type": "(servings: number) => void",
                             "typeDetail": null,
@@ -8480,6 +8534,15 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "Open the Data sources sheet.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
+                        },
+                        {
+                            "name": "onReviewLine",
+                            "type": "((address: LineAddress) => void)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Native, the owner only: open the editor on one ingredient that needs review, with its row editor open. Its own\nprop, not `onEditSection`: a section and a line are different arrivals.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
                         },
                         {
@@ -9062,6 +9125,15 @@
                             "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
                         },
                         {
+                            "name": "onReviewLine",
+                            "type": "((address: LineAddress) => void)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Native, the owner only: open the editor on one ingredient that needs review, with its row editor open. Its own\nprop, not `onEditSection`: a section and a line are different arrivals.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
+                        },
+                        {
                             "name": "onViewVersions",
                             "type": "(() => void)",
                             "typeDetail": null,
@@ -9223,6 +9295,15 @@
                             "required": false,
                             "defaultValue": null,
                             "description": "Native: open the editor at a section (the owner's Edit links and empty-state actions).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
+                        },
+                        {
+                            "name": "onReviewLine",
+                            "type": "((address: LineAddress) => void)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Native, the owner only: open the editor on one ingredient that needs review, with its row editor open. Its own\nprop, not `onEditSection`: a section and a line are different arrivals.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
                         },
                         {
@@ -9641,6 +9722,128 @@
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
                         "presentational": false,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "featuresRecipes/detail/ReviewLineButton",
+            "name": "ReviewLineButton",
+            "group": "featuresRecipes",
+            "packageName": "@commise/features-recipes",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/recipes/src/detail",
+            "kind": "presentational",
+            "patterns": [],
+            "platforms": [
+                "native"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "ReviewLineButton",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/detail/ReviewLineButton.native.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/detail",
+                    "moduleDoc": "@commise/features-recipes — the owner's \"Needs review\" control on a recipe page's ingredient row (native): the\nmirror of `ReviewLineLink.tsx`. A press surface with the attention badge and a chevron, at least 44 pt tall, named\n\"Needs review: {food}\". It is drawn BESIDE the row's check control (`IngredientCheckRow`'s `reviewAction` slot), so\npressing it never ticks the line.\n\nPresentational: props → JSX.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes — the owner's \"Needs review\" control on a recipe page's ingredient row (native): the"
+                        }
+                    ],
+                    "description": "The owner's way from a line that needs review to that line in the editor.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "food",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The line's food, for the control's name.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/ReviewLineButton.native.tsx"
+                        },
+                        {
+                            "name": "onPress",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Open the editor on this line.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/ReviewLineButton.native.tsx"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "featuresRecipes/detail/ReviewLineLink",
+            "name": "ReviewLineLink",
+            "group": "featuresRecipes",
+            "packageName": "@commise/features-recipes",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/recipes/src/detail",
+            "kind": "presentational",
+            "patterns": [],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "ReviewLineLink",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/detail/ReviewLineLink.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/detail",
+                    "moduleDoc": "@commise/features-recipes — the owner's \"Needs review\" control on a recipe page's ingredient row (web): a real\nlink to the editor, open on that ingredient. It shows the attention badge and a chevron, is at least 44 px tall, and is\nnamed \"Needs review: {food}\" so a list of them is not a list of identical links (WCAG 2.4.4). It is a SIBLING of the\nrow's check control (`IngredientCheckRow`'s `reviewAction` slot), so pressing it never ticks the line.\n\nIt is `next/link`, as the page's other Edit links are: `RouteAction` (`@commise/ui/route-link`) asks for an `onPress`\nrouter call, and this page owns no router, only hrefs.\n\nPresentational: props → JSX.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes — the owner's \"Needs review\" control on a recipe page's ingredient row (web): a real"
+                        }
+                    ],
+                    "description": "The owner's way from a line that needs review to that line in the editor.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "food",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The line's food, for the control's name.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/ReviewLineLink.tsx"
+                        },
+                        {
+                            "name": "href",
+                            "type": "any",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The editor's address, ending in the line's `#ingredients/{version}.{position}`.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/ReviewLineLink.tsx"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
                         "orchestration": false
                     }
                 }
@@ -16111,26 +16314,21 @@
                     "exportKind": "named",
                     "props": [
                         {
+                            "name": "arrival",
+                            "type": "EditorArrival",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Where a deep link opens: a section, and optionally one ingredient line (`#ingredients/{version}.{position}`, or the\nnative params). The section is jumped to once on mount (blueprint A16); the line's address is turned into the\ndraft's own key ONCE, on the first render, and its row opens.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/editor/RecipeEditorSurface.tsx"
+                        },
+                        {
                             "name": "foodOpensOverEditor",
                             "type": "boolean",
                             "typeDetail": null,
                             "required": false,
                             "defaultValue": "false",
                             "description": "The app leaves this editor in place when it opens a food (native pushes a screen over it): the refusal then closes first.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/editor/RecipeEditorSurface.tsx"
-                        },
-                        {
-                            "name": "initialSection",
-                            "type": "enum",
-                            "typeDetail": [
-                                "\"ingredients\"",
-                                "\"steps\"",
-                                "\"details\"",
-                                "\"photos\""
-                            ],
-                            "required": false,
-                            "defaultValue": null,
-                            "description": "The section a deep link names, jumped to once on mount (blueprint A16).",
                             "declaredIn": "packages/apps/commise/features/recipes/src/editor/RecipeEditorSurface.tsx"
                         },
                         {
@@ -16312,6 +16510,15 @@
                     "exportKind": "named",
                     "props": [
                         {
+                            "name": "arrival",
+                            "type": "ResolvedArrival",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Where a deep link opens (the URL's hash, the native route params): the section, and the line the surface resolved\nfrom the link's address. Jumped to once on mount (blueprint A16).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/editor/frameProps.ts"
+                        },
+                        {
                             "name": "editor",
                             "type": "UseRecipeEditorResult",
                             "typeDetail": null,
@@ -16327,20 +16534,6 @@
                             "required": false,
                             "defaultValue": null,
                             "description": "Controls in a section's heading row (Paste steps; slice 8's Paste a list).",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/editor/frameProps.ts"
-                        },
-                        {
-                            "name": "initialSection",
-                            "type": "enum",
-                            "typeDetail": [
-                                "\"ingredients\"",
-                                "\"steps\"",
-                                "\"details\"",
-                                "\"photos\""
-                            ],
-                            "required": false,
-                            "defaultValue": null,
-                            "description": "The section a deep link names (the URL's hash), jumped to once on mount (blueprint A16).",
                             "declaredIn": "packages/apps/commise/features/recipes/src/editor/frameProps.ts"
                         },
                         {
@@ -16541,6 +16734,15 @@
                     "exportKind": "named",
                     "props": [
                         {
+                            "name": "arrival",
+                            "type": "ResolvedArrival",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Where a deep link opens (the URL's hash, the native route params): the section, and the line the surface resolved\nfrom the link's address. Jumped to once on mount (blueprint A16).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/editor/frameProps.ts"
+                        },
+                        {
                             "name": "editor",
                             "type": "UseRecipeEditorResult",
                             "typeDetail": null,
@@ -16556,20 +16758,6 @@
                             "required": false,
                             "defaultValue": null,
                             "description": "Controls in a section's heading row (Paste steps; slice 8's Paste a list).",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/editor/frameProps.ts"
-                        },
-                        {
-                            "name": "initialSection",
-                            "type": "enum",
-                            "typeDetail": [
-                                "\"ingredients\"",
-                                "\"steps\"",
-                                "\"details\"",
-                                "\"photos\""
-                            ],
-                            "required": false,
-                            "defaultValue": null,
-                            "description": "The section a deep link names (the URL's hash), jumped to once on mount (blueprint A16).",
                             "declaredIn": "packages/apps/commise/features/recipes/src/editor/frameProps.ts"
                         },
                         {
@@ -19849,7 +20037,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/recipes/src/form/IngredientLineEditorSheet.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/form",
-                    "moduleDoc": "@commise/features-recipes/form — `IngredientLineEditorSheet` (web): the row editor's phone frame (build spec\n§7.5.2, below a 600 container): a content-height bottom sheet, so the list stays still and the fields rise above the\nkeyboard, with Done (primary, `check`) pinned at its foot. Every close route (Done, Escape, the scrim, Close) is Done:\nthe editor closes and focus returns to the row.\n\nPresentational: it frames `IngredientLineEditor` over the open row's view.",
+                    "moduleDoc": "@commise/features-recipes/form — `IngredientLineEditorSheet` (web): the row editor's phone frame (build spec\n§7.5.2, below a 600 container): a content-height bottom sheet, so the list stays still and the fields rise above the\nkeyboard, with Cancel (secondary) and Done (primary, `check`) pinned at its foot in `DialogActions`. Only Cancel discards the\nedits. Every other close route (Done, Escape, the scrim, Close) is Done: the editor closes keeping them, and focus\nreturns to the row.\n\nPresentational: it frames `IngredientLineEditor` over the open row's view.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -19914,7 +20102,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/recipes/src/form/IngredientLineEditorSheet.native.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/form",
-                    "moduleDoc": "@commise/features-recipes/form — `IngredientLineEditorSheet` (native): the row editor's phone frame (build\nspec §7.5.2, §7.12): a content-height bottom sheet that lifts the fields above the keyboard, with Done (primary,\n`check`) at its foot. The React Native leaf of `./IngredientLineEditorSheet.tsx`; every close route (Done, Close,\nAndroid back, a swipe) is Done, and the leaf returns the screen-reader cursor to the row once the sheet has gone.\n\nPresentational: it frames `IngredientLineEditor` over the open row's view.",
+                    "moduleDoc": "@commise/features-recipes/form — `IngredientLineEditorSheet` (native): the row editor's phone frame (build\nspec §7.5.2, §7.12): a content-height bottom sheet that lifts the fields above the keyboard, with Done (primary,\n`check`) at its foot, beside Cancel (secondary) in `DialogActions`. The React Native leaf of\n`./IngredientLineEditorSheet.tsx`; only Cancel discards the edits, every other close route (Done, Close, Android\nback, a swipe) is Done and keeps them, and the leaf returns the screen-reader cursor to the row once the sheet has gone.\n\nPresentational: it frames `IngredientLineEditor` over the open row's view.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -22375,6 +22563,24 @@
                             "declaredIn": "packages/apps/commise/features/recipes/src/form/props.ts"
                         },
                         {
+                            "name": "initialLine",
+                            "type": "IngredientLineKey",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The line whose row editor opens on arrival, resolved ONCE by the editor from a link's address (`lineKeyAt`). Read\nby the first render only: closing the editor never reopens it.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/props.ts"
+                        },
+                        {
+                            "name": "jumpMissing",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "A link named an ingredient the draft does not hold: one quiet line says so until the cook opens a row.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/props.ts"
+                        },
+                        {
                             "name": "lookupRetry",
                             "type": "LookupRetry",
                             "typeDetail": null,
@@ -22408,6 +22614,15 @@
                             "required": false,
                             "defaultValue": null,
                             "description": "Open a food's page: the row's `⋯ Open food` for a line that uses a food only the cook can see (private foods spec\nD6). Web opens a new tab (the draft stays here); native pushes the food page above the editor. Absent when the host\nhas no such page, and the item is then not offered.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/props.ts"
+                        },
+                        {
+                            "name": "originalLines",
+                            "type": "ReadonlyMap<IngredientLineKey, string>",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The cook's own line as the import read it, by line key, for a line that needs review (plan: needs-review). Display\nonly — never part of the draft.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/form/props.ts"
                         },
                         {
@@ -22476,6 +22691,24 @@
                             "declaredIn": "packages/apps/commise/features/recipes/src/form/props.ts"
                         },
                         {
+                            "name": "initialLine",
+                            "type": "IngredientLineKey",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The line whose row editor opens on arrival, resolved ONCE by the editor from a link's address (`lineKeyAt`). Read\nby the first render only: closing the editor never reopens it.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/props.ts"
+                        },
+                        {
+                            "name": "jumpMissing",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "A link named an ingredient the draft does not hold: one quiet line says so until the cook opens a row.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/props.ts"
+                        },
+                        {
                             "name": "lookupRetry",
                             "type": "LookupRetry",
                             "typeDetail": null,
@@ -22509,6 +22742,15 @@
                             "required": false,
                             "defaultValue": null,
                             "description": "Open a food's page: the row's `⋯ Open food` for a line that uses a food only the cook can see (private foods spec\nD6). Web opens a new tab (the draft stays here); native pushes the food page above the editor. Absent when the host\nhas no such page, and the item is then not offered.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/props.ts"
+                        },
+                        {
+                            "name": "originalLines",
+                            "type": "ReadonlyMap<IngredientLineKey, string>",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The cook's own line as the import read it, by line key, for a line that needs review (plan: needs-review). Display\nonly — never part of the draft.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/form/props.ts"
                         },
                         {

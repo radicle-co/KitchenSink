@@ -33,7 +33,7 @@ import { Text as DsText } from '@commise/ui/text';
 import { useTheme } from '@commise/ui/theme';
 import { Image } from 'expo-image';
 import { useState, type FC } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { fillTemplate } from '../format/fillTemplate.js';
 import { photoMessages } from './messages.js';
@@ -82,9 +82,9 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
     return (
         <View style={styles.container}>
             {/* The section name: an H3 in the `label` role, muted — the Details groups' heading (buildSpec §7.7). */}
-            <Text accessibilityRole="header" style={[styles.heading, { color: colors.inkMuted }]}>
+            <DsText typeRole="label" color="$inkMuted" role="heading">
                 {m.heading}
-            </Text>
+            </DsText>
 
             {/* WCAG 4.1.3, the web leaf's pair: both regions mounted EMPTY before anything uploads (Android speaks a
                 CHANGE to a live region it already holds; iOS is handed an announcement by `LiveRegion`). The first
@@ -97,13 +97,9 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
                 {finished > 0 && uploading !== true ? m.uploadedLabel : ''}
             </LiveRegion>
             {errorMessage !== undefined ? (
-                <Text
-                    accessibilityRole="alert"
-                    accessibilityLiveRegion="assertive"
-                    style={[styles.error, { color: colors.dangerText }]}
-                >
+                <DsText typeRole="meta" color="$dangerText" role="alert" aria-live="assertive">
                     {errorMessage}
-                </Text>
+                </DsText>
             ) : null}
 
             {photos.length === 0 && pendingItems.length === 0 ? (
@@ -119,7 +115,9 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
                             />
                         </View>
                     )}
-                    <Text style={[styles.muted, { color: colors.inkMuted }]}>{m.emptyBody}</Text>
+                    <DsText typeRole="meta" color="$inkMuted">
+                        {m.emptyBody}
+                    </DsText>
                 </View>
             ) : (
                 <View style={styles.grid} onLayout={(event) => setGridWidth(event.nativeEvent.layout.width)}>
@@ -288,14 +286,14 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
             ) : null}
 
             {atCap ? (
-                <Text style={[styles.muted, { color: colors.inkMuted }]}>
+                <DsText typeRole="meta" color="$inkMuted">
                     {fillTemplate(m.maxReached, { max: MAX_RECIPE_PHOTOS })}
-                </Text>
+                </DsText>
             ) : (
                 <>
-                    <Text style={[styles.formatHint, { color: colors.inkMuted }]}>
+                    <DsText typeRole="meta" color="$inkMuted">
                         {fillTemplate(m.formatHint, { maxMb: MAX_RECIPE_PHOTO_UPLOAD_MB })}
-                    </Text>
+                    </DsText>
                     {addControl}
                 </>
             )}
@@ -308,12 +306,8 @@ const CELL_WIDTH = { 3: '31%', 4: '23%' } as const;
 
 const styles = StyleSheet.create({
     container: { gap: 12 },
-    heading: nativeTokens.type.label,
     empty: { gap: 12 },
     coverPreview: { width: '100%', maxWidth: 320, borderRadius: nativeTokens.radius.lg, overflow: 'hidden' },
-    muted: { ...nativeTokens.type.meta },
-    formatHint: { ...nativeTokens.type.meta },
-    error: { ...nativeTokens.type.meta },
     // Each cell claims its share of the row (`CELL_WIDTH`), minus the inter-cell gap.
     grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
     // A queue cell's image box: square like a photo cell, but it does not hold the failure's message.

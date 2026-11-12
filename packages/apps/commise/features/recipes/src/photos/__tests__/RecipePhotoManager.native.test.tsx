@@ -814,13 +814,14 @@ describe.each(['light', 'dark'] as const)('RecipePhotoManager (native) — the %
     it('paints the heading as a muted label-role H3, and the empty copy in inkMuted', () => {
         systemScheme.current = scheme;
         renderManager();
-        const heading = style(screen.getByRole('heading', { name: 'Photos' }));
+        // The lines are design-system text now (2026-11-11), so their colour is a theme token resolved per scheme.
+        const heading = screen.getByRole('heading', { name: 'Photos' });
 
-        expect(heading.color).toBe(rgb(colours.inkMuted));
-        expect(heading.fontSize).toBe(`${nativeTokens.type.label.fontSize}px`);
-        expect(style(screen.getByText('No photo? This cover is used instead. Add one any time.')).color).toBe(
-            rgb(colours.inkMuted),
-        );
+        expect(resolvedColour(heading, 'color')).toBe(rgb(colours.inkMuted));
+        expect(style(heading).fontSize).toBe(`${nativeTokens.type.label.fontSize}px`);
+        expect(
+            resolvedColour(screen.getByText('No photo? This cover is used instead. Add one any time.'), 'color'),
+        ).toBe(rgb(colours.inkMuted));
     });
 
     // REWRITTEN (designer ruling 2026-11-11): "Cover" left the photo for the slot under it, so it is a line of ink text
@@ -967,5 +968,58 @@ describe('RecipePhotoManager (native) — the photo carries only its ⋯ disc (2
         });
 
         expect(screen.queryByText('Stale.')).toBeNull();
+    });
+});
+
+/**
+ * Designer review 2026-11-11: at the largest iOS text size the "Photos" label drew bigger than its section heading,
+ * because the manager's own lines were plain React Native text with no ceiling. Every line the manager writes now goes
+ * through the design-system text, which stops at its role's 2× ceiling (ADR-0080 §8).
+ */
+describe('RecipePhotoManager (native) — its own lines stop at the 2× text ceiling (2026-11-11)', () => {
+    const LARGEST = 3.1;
+    const sizeAt = (element: Element): string => getComputedStyle(element).fontSize;
+    const capped = (roleName: 'label' | 'meta'): string => `${String(scaledTypeSize(roleName, LARGEST).fontSize)}px`;
+
+    it('draws the "Photos" label in the label role at its ceiling, still a header', () => {
+        renderWithTamagui(<RecipePhotoManager photos={[]} onRemovePhoto={noop} />, 'light', LARGEST);
+
+        const heading = screen.getByRole('heading', { name: 'Photos' });
+        expect(sizeAt(heading)).toBe(capped('label'));
+    });
+
+    it('draws the empty line, the format hint and a section error in the meta role at its ceiling', () => {
+        renderWithTamagui(
+            <RecipePhotoManager photos={[]} onRemovePhoto={noop} errorMessage="That file is too large." />,
+            'light',
+            LARGEST,
+        );
+
+        for (const text of [
+            'No photo? This cover is used instead. Add one any time.',
+            'JPEG, PNG, or WebP · max 5 MB',
+            'That file is too large.',
+        ]) {
+            expect(sizeAt(screen.getByText(text))).toBe(capped('meta'));
+        }
+    });
+
+    it('draws the at-the-limit line in the meta role at its ceiling', () => {
+        renderWithTamagui(
+            <RecipePhotoManager
+                photos={Array.from({ length: MAX_RECIPE_PHOTOS }, (_, index) =>
+                    makePhoto({
+                        id: `ph_${String(index)}`,
+                        url: `https://cdn.example/${String(index)}.jpg`,
+                        order: index,
+                    }),
+                )}
+                onRemovePhoto={noop}
+            />,
+            'light',
+            LARGEST,
+        );
+
+        expect(sizeAt(screen.getByText(new RegExp(`${String(MAX_RECIPE_PHOTOS)}`, 'u')))).toBe(capped('meta'));
     });
 });

@@ -41,7 +41,7 @@ Only one fact decides disclosure: who supplied the text. Only the write of the l
 
 ### 1. The boundary and its rule
 
-Migration 0070 adds `ingredients.source_line_transcribed_by_owner boolean NOT NULL DEFAULT false`. It records whether
+Migration 0072 adds `ingredients.source_line_transcribed_by_owner boolean NOT NULL DEFAULT false`. It records whether
 the recipe's owner supplied the line's `source_line`. A database constraint refuses TRUE on a line with no text.
 
 The rule lives in `transcriptionDisclosure.ts` and nowhere else:

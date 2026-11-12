@@ -45,6 +45,8 @@
  * included, and the age of the oldest import still held. The age is read and published FIRST, before any delete, so a purge
  * that fails, hangs or has fallen behind still shows as an age past the bound; `BulkImportPurgeBehindAlarm` watches it.
  */
+import pg from 'pg';
+
 import type { EmfMetric } from '../common/metrics.js';
 import { logger } from '../common/logger.js';
 import type { ExpiryQueryable } from '../parsing/parseJobExpiry.js';
@@ -177,9 +179,20 @@ async function purgeOneBatch(client: ExpiryQueryable): Promise<number | undefine
 
         return Number((result.rows[0] as { n: number | string } | undefined)?.n ?? 0);
     } catch (error) {
-        await client.query('ROLLBACK', []);
+        try {
+            await client.query('ROLLBACK', []);
+        } catch (rollbackFailure) {
+            // The batch's own failure is the cause; a rollback on a broken connection must not replace it.
+            throw new AggregateError(
+                [error, rollbackFailure],
+                'bulk import purge batch failed, and so did its rollback',
+                {
+                    cause: rollbackFailure,
+                },
+            );
+        }
 
-        if ((error as { code?: unknown } | null)?.code === LOCK_NOT_AVAILABLE) {
+        if (error instanceof pg.DatabaseError && error.code === LOCK_NOT_AVAILABLE) {
             return undefined;
         }
 

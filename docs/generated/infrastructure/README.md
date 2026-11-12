@@ -404,6 +404,7 @@ Construct `RecipeWorkersStack` — `packages/services/recipe-workers/infra/lib/R
 | --- | --- | --- | --- |
 | alarm | `AccountErasureDlqAlarm` | `kitchensink-recipe-account-erasure-dlq-{stage}` | `props.alarmsEnabled` |
 | alarm | `ArchiveOrphansDeletedAlarm` | `kitchensink-recipe-erasure-orphan-{stage}` | `props.alarmsEnabled` |
+| alarm | `BulkImportPurgeBehindAlarm` | `kitchensink-recipe-import-purge-behind-{stage}` | `props.alarmsEnabled` |
 | alarm | `CrfEngineUnavailableAlarm` | `kitchensink-recipe-parse-crf-unavailable-{stage}` | `props.alarmsEnabled` |
 | alarm | `HandleSyncDlqAlarm` | `kitchensink-recipe-handle-sync-dlq-{stage}` | `props.alarmsEnabled` |
 | alarm | `IngredientVerificationDlqAlarm` | `kitchensink-recipe-verification-dlq-{stage}` | `props.alarmsEnabled` |

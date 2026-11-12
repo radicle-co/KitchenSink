@@ -384,7 +384,8 @@ describe('RecipePhotoUploaderContainer (web) — cancel-safe replace (U6)', () =
 
         await user.upload(screen.getByLabelText('Choose a replacement photo'), makeFile('new.png'));
 
-        await waitFor(() => expect(screen.getByRole('alert', { name: 'Upload failed' })).toBeTruthy());
+        // The failed slot's alert is named by its status and its reason (designer ruling 2026-11-11), so match the status.
+        await waitFor(() => expect(screen.getByRole('alert', { name: /^Upload failed/u })).toBeTruthy());
         expect(deleteMutate).not.toHaveBeenCalled();
         expect(screen.getByRole('img', { name: 'Recipe photo 2' })).toBeTruthy();
     });

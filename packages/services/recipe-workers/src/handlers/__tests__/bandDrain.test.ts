@@ -21,6 +21,7 @@ import {
     DRAIN_MAX_BATCH,
     drainRevokedBands,
     publishParseStallGauge,
+    runDrainTick,
     type BandDrainDeps,
 } from '../bandDrain.js';
 import type { ExpiryQueryable } from '../../parsing/parseJobExpiry.js';
@@ -316,5 +317,56 @@ describe('the parse-job stall gauge', () => {
         await expect(publishParseStallGauge({ pool, stage: 'prod', emit })).resolves.toBeUndefined();
 
         expect(emit).not.toHaveBeenCalled();
+    });
+});
+
+/**
+ * Review finding 6 on #185-#188: the handler ran the sweeps only after `drainRevokedBands` returned, so a drain that threw
+ * on every tick (Bedrock headroom read, SQS send) also stopped the TTL sweep, the stall gauge and the bulk import purge,
+ * and user content stayed past its retention bound for as long as the drain was broken.
+ */
+describe('runDrainTick', () => {
+    it('⛔ runs the sweeps when the drain throws, then fails the tick with the drain’s error', async () => {
+        const sweeps = vi.fn().mockResolvedValue(undefined);
+        const drainFailure = new Error('sqs unavailable');
+
+        await expect(runDrainTick(vi.fn().mockRejectedValue(drainFailure), sweeps)).rejects.toBe(drainFailure);
+        expect(sweeps).toHaveBeenCalledTimes(1);
+    });
+
+    it('runs the drain before the sweeps, and resolves when both succeed', async () => {
+        const order: string[] = [];
+
+        await runDrainTick(
+            async () => {
+                order.push('drain');
+            },
+            async () => {
+                order.push('sweeps');
+            },
+        );
+
+        expect(order).toStrictEqual(['drain', 'sweeps']);
+    });
+
+    it('fails with the sweeps’ error when only the sweeps fail', async () => {
+        const sweepFailure = new Error('purge failed');
+
+        await expect(
+            runDrainTick(vi.fn().mockResolvedValue(undefined), vi.fn().mockRejectedValue(sweepFailure)),
+        ).rejects.toBe(sweepFailure);
+    });
+
+    it('⛔ reports BOTH failures when both fail, so neither hides the other', async () => {
+        const drainFailure = new Error('sqs unavailable');
+        const sweepFailure = new Error('purge failed');
+
+        const failure: unknown = await runDrainTick(
+            vi.fn().mockRejectedValue(drainFailure),
+            vi.fn().mockRejectedValue(sweepFailure),
+        ).catch((error: unknown) => error);
+
+        expect(failure).toBeInstanceOf(AggregateError);
+        expect((failure as AggregateError).errors).toStrictEqual([drainFailure, sweepFailure]);
     });
 });

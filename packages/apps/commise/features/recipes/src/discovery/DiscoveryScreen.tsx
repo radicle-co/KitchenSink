@@ -20,7 +20,6 @@
  *     and the recovery counter lifted to the frame's side
  * @pattern Ports and Adapters — the criteria store and the platform are injected by each host
  */
-import type { HeaderAction } from '@commise/ui/large-title-header';
 import type { ScrollBind } from '@commise/ui/scroll-host';
 import type { FC } from 'react';
 
@@ -41,8 +40,6 @@ export interface DiscoveryScreenProps extends Omit<DiscoveryCardActions, 'saveCo
     readonly platform: DiscoveryPlatform;
     /** Opens a saved copy in the editor: the Save a copy snackbar's Edit action. */
     readonly onEditCopy: (copyId: string) => void;
-    /** The large title's action (the avatar, which opens Profile). The app supplies it, since the profile read is its. */
-    readonly headerAction?: HeaderAction;
     /** The bind for this screen's one vertical scroller, from its `ScrollHost` — native only. */
     readonly scrollBind?: ScrollBind;
 }
@@ -59,7 +56,6 @@ export const DiscoveryScreen: FC<DiscoveryScreenProps> = ({
     onEditCopy,
     onSelectRecipe,
     hrefOf,
-    headerAction,
     scrollBind,
 }) => {
     const screen = useDiscoveryScreen({
@@ -80,7 +76,7 @@ export const DiscoveryScreen: FC<DiscoveryScreenProps> = ({
 
     return (
         <DiscoveryPlatformProvider platform={platform}>
-            <RecipeDiscoveryFrame {...screen.frame} {...(headerAction === undefined ? {} : { headerAction })}>
+            <RecipeDiscoveryFrame {...screen.frame}>
                 <Boundary
                     prefetchedKeys={[screen.read.queryKey]}
                     resetKeys={[screen.settled]}

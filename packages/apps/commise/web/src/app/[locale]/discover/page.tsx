@@ -7,7 +7,6 @@ import { HydrationBoundary, QueryClient, dehydrate } from '@tanstack/react-query
 import { requireSignedIn } from '@/lib/requireSignedIn';
 import { AppShell } from '@/components/app/AppShell';
 import { ShellBackToTop } from '@/components/app/ShellBackToTop';
-import { ProfileAvatarEntry } from '@/components/home/chrome/ProfileAvatarEntry';
 import { RecipeDiscoveryContainer } from '@/components/recipes/RecipeDiscoveryContainer';
 import { RECIPE_SERVICE_BASE_URL } from '@/lib/recipeServiceConfig';
 
@@ -88,7 +87,7 @@ export default async function DiscoverPage({
         <HydrationBoundary state={dehydrate(queryClient)}>
             <AppShell activeId="discover" titleId="discover">
                 <Suspense>
-                    <RecipeDiscoveryContainer locale={locale} avatar={<ProfileAvatarEntry />} />
+                    <RecipeDiscoveryContainer locale={locale} />
                 </Suspense>
                 {/* A long results list: "Back to top", last in DOM order (`buildSpec.md` §3.6). No floating button here. */}
                 <ShellBackToTop />

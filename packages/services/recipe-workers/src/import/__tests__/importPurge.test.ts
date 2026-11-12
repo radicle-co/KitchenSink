@@ -7,12 +7,18 @@
  */
 import { describe, expect, it, vi } from 'vitest';
 
+import type { EmfMetric } from '../../common/metrics.js';
+
 import {
     IMPORT_PURGE_AFTER_DAYS,
     IMPORT_PURGE_BATCH_SIZE,
     IMPORT_PURGE_MAX_BATCHES_PER_TICK,
     IMPORT_PURGE_TIME_BUDGET_MS,
+    IMPORT_METRIC_NAMESPACE,
+    IMPORTS_PURGED_METRIC_NAME,
+    OLDEST_IMPORT_AGE_METRIC_NAME,
     purgeFinishedImports,
+    runImportPurge,
 } from '../importPurge.js';
 
 /** A pool whose successive batches delete the given counts. */
@@ -90,5 +96,93 @@ describe('purgeFinishedImports', () => {
         const pool = { query: vi.fn().mockRejectedValue(new Error('connection reset')) };
 
         await expect(purgeFinishedImports(pool)).rejects.toThrow('connection reset');
+    });
+});
+
+/**
+ * `runImportPurge` — the purge plus what an operator sees of it (review finding 6 on #185-#188): a purged count and the
+ * age of the oldest import still held, both with `Stage` (ADR-0062). Before this the purge logged only when it deleted
+ * something, so a purge that had stopped, or fallen behind, looked exactly like one with nothing to do.
+ */
+describe('runImportPurge', () => {
+    const STAGE = 'pr-7';
+
+    /** A pool whose purge batches answer `purged` (then a short batch) and whose age read answers `ageSeconds`. */
+    function poolWith(options: { purged?: number; ageSeconds?: number; purgeFails?: boolean; ageFails?: boolean }) {
+        const query = vi.fn(async (text: string) => {
+            if (/DELETE FROM recipe_imports/u.test(text)) {
+                if (options.purgeFails === true) {
+                    throw new Error('purge failed');
+                }
+
+                return { rows: [{ n: query.mock.calls.length === 1 ? (options.purged ?? 0) : 0 }] };
+            }
+
+            if (options.ageFails === true) {
+                throw new Error('age read failed');
+            }
+
+            return { rows: [{ age: options.ageSeconds ?? 0 }] };
+        });
+
+        return { query };
+    }
+
+    it('⛔ publishes the purged count EVERY tick, zero included, so a stopped purge is not mistaken for an idle one', async () => {
+        const emit = vi.fn<(metric: EmfMetric) => void>();
+
+        await runImportPurge({ pool: poolWith({ purged: 0 }), stage: STAGE, emit });
+
+        expect(emit).toHaveBeenCalledWith({
+            namespace: IMPORT_METRIC_NAMESPACE,
+            name: IMPORTS_PURGED_METRIC_NAME,
+            unit: 'Count',
+            stage: STAGE,
+            value: 0,
+        });
+    });
+
+    it('publishes how many imports it deleted, and the age of the oldest import left, after the delete', async () => {
+        const emit = vi.fn<(metric: EmfMetric) => void>();
+        const pool = poolWith({ purged: 2, ageSeconds: 86_400 });
+
+        await runImportPurge({ pool, stage: STAGE, emit });
+
+        expect(emit.mock.calls.map(([metric]) => metric)).toStrictEqual([
+            {
+                namespace: IMPORT_METRIC_NAMESPACE,
+                name: IMPORTS_PURGED_METRIC_NAME,
+                unit: 'Count',
+                stage: STAGE,
+                value: 2,
+            },
+            {
+                namespace: IMPORT_METRIC_NAMESPACE,
+                name: OLDEST_IMPORT_AGE_METRIC_NAME,
+                unit: 'Seconds',
+                stage: STAGE,
+                value: 86_400,
+            },
+        ]);
+        // The age is read AFTER the delete: it reports what the purge left, not what it was about to clear.
+        expect(pool.query.mock.calls.at(-1)?.[0]).not.toMatch(/DELETE/u);
+    });
+
+    it('⛔ still publishes the oldest age when the purge fails, then fails the tick: the age is how a broken purge shows', async () => {
+        const emit = vi.fn<(metric: EmfMetric) => void>();
+
+        await expect(
+            runImportPurge({ pool: poolWith({ purgeFails: true, ageSeconds: 3_000_000 }), stage: STAGE, emit }),
+        ).rejects.toThrow('purge failed');
+
+        expect(emit.mock.calls.map(([metric]) => metric.name)).toStrictEqual([OLDEST_IMPORT_AGE_METRIC_NAME]);
+    });
+
+    it('swallows its own age-read failure, so observation never fails a purge that worked', async () => {
+        const emit = vi.fn<(metric: EmfMetric) => void>();
+
+        await runImportPurge({ pool: poolWith({ purged: 1, ageFails: true }), stage: STAGE, emit });
+
+        expect(emit.mock.calls.map(([metric]) => metric.name)).toStrictEqual([IMPORTS_PURGED_METRIC_NAME]);
     });
 });

@@ -442,9 +442,9 @@ describe('the alarm feature flag — discovery is not vacuous', () => {
             'packages/services/remote-search/infra/lib/RemoteSearchStack.ts',
         ]);
         // An exact count, not a floor: a floor cannot tell "an alarm was added" from "the walk counted the gated
-        // branch twice". A new alarm changes this number on purpose, in the commit that adds it. 41: the paste
-        // fallback's `VerificationBudgetSpentAlarm` (2026-10-26) joined the recipe-workers block.
-        expect(ALARM_SOURCES.flatMap(discoverAlarms).length).toBe(41);
+        // branch twice". A new alarm changes this number on purpose, in the commit that adds it. 42: the bulk
+        // import purge's `BulkImportPurgeBehindAlarm` joined the recipe-workers block.
+        expect(ALARM_SOURCES.flatMap(discoverAlarms).length).toBe(42);
         expect(ALARM_SOURCES.flatMap(discoverAlarms).map((alarm) => alarm.id)).toHaveLength(
             new Set(ALARM_SOURCES.flatMap(discoverAlarms).map((alarm) => `${alarm.file}#${alarm.id}`)).size,
         );

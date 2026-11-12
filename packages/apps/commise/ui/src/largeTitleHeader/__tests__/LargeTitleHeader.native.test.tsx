@@ -1,6 +1,5 @@
 /**
- * The native LargeTitleHeader (buildSpec §3.3): the H1 is a header in `largeTitle`, read BEFORE the avatar and the
- * floating button; the back control is named "Back to {parent}"; inside a ScrollHost the title block reports its layout
+ * The native LargeTitleHeader (buildSpec §3.3): the H1 is a header in `largeTitle`, read BEFORE the floating button; the back control is named "Back to {parent}"; inside a ScrollHost the title block reports its layout
  * so the host can condense; and a screen-reader focus signal moves the cursor to it.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -17,19 +16,11 @@ import { LargeTitleHeader } from '../LargeTitleHeader.native.js';
 afterEach(cleanup);
 
 describe('LargeTitleHeader (native)', () => {
-    it('renders the title as a header, read before the avatar and the floating button', () => {
+    it('renders the title as a header, read before the floating button', () => {
         render(
             <LargeTitleHeader
                 headingId="h"
                 title="Recipes"
-                action={{
-                    kind: 'avatar',
-                    avatar: (
-                        <Pressable accessibilityRole="button" accessibilityLabel="Profile">
-                            <Text>E</Text>
-                        </Pressable>
-                    ),
-                }}
                 afterTitle={
                     <Pressable accessibilityRole="button" accessibilityLabel="New recipe">
                         <Text>+</Text>
@@ -39,11 +30,9 @@ describe('LargeTitleHeader (native)', () => {
         );
 
         const heading = screen.getByRole('heading', { name: 'Recipes' });
-        const avatar = screen.getByRole('button', { name: 'Profile' });
         const fab = screen.getByRole('button', { name: 'New recipe' });
 
-        expect(heading.compareDocumentPosition(avatar) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-        expect(avatar.compareDocumentPosition(fab) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+        expect(heading.compareDocumentPosition(fab) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     });
 
     // Pinned back bar (`docs/design/uiRefreshWorkshop5/pinnedBackBar.md` §4 "No duplicate"). REWRITES the old "names the
@@ -75,13 +64,7 @@ describe('LargeTitleHeader (native)', () => {
 
         expect(getComputedStyle(titleBlock()).paddingTop).not.toBe('44px');
 
-        rerender(
-            <LargeTitleHeader
-                headingId="h"
-                title="Weeknight dinners"
-                action={{ kind: 'controls', menu: <Text>more</Text> }}
-            />,
-        );
+        rerender(<LargeTitleHeader headingId="h" title="Weeknight dinners" action={{ menu: <Text>more</Text> }} />);
 
         expect(getComputedStyle(titleBlock()).paddingTop).toBe('44px');
     });
@@ -95,11 +78,7 @@ describe('LargeTitleHeader (native)', () => {
         ] as const) {
             withPlatformOs(os, () => {
                 const { unmount } = render(
-                    <LargeTitleHeader
-                        headingId="h"
-                        title="Recipes"
-                        action={{ kind: 'controls', menu: <Text>more</Text> }}
-                    />,
+                    <LargeTitleHeader headingId="h" title="Recipes" action={{ menu: <Text>more</Text> }} />,
                 );
 
                 expect(getComputedStyle(screen.getByText('more').parentElement!).height, os).toBe(height);
@@ -118,7 +97,7 @@ describe('LargeTitleHeader (native)', () => {
                 headingId="h"
                 title="Recipes"
                 subtitle="12 recipes"
-                action={{ kind: 'controls', menu: <Text>more</Text> }}
+                action={{ menu: <Text>more</Text> }}
             />,
         );
         const header = screen.getByRole('heading', { name: 'Recipes' }).parentElement!.parentElement!;

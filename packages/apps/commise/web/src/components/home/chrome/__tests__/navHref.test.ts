@@ -12,6 +12,8 @@ describe('homeNavHref', () => {
         ['home', '/en'],
         ['recipes', '/en/recipes'],
         ['discover', '/en/discover'],
+        // The You tab is Profile (owner ruling 2026-11-11, N3).
+        ['you', '/en/profile'],
     ] as const)('routes %s to %s', (id, href) => {
         expect(homeNavHref(id, 'en')).toBe(href);
     });
@@ -36,9 +38,12 @@ describe('tabRootOf', () => {
         ['/en/recipes/parse', { tab: 'recipes', atRoot: false }],
         ['/en/collections/01HY', { tab: 'recipes', atRoot: false }],
         ['/en/discover', { tab: 'discover', atRoot: true }],
-        // Profile and legal open from the avatar, pushed onto whatever tab was current: on web, Home owns them.
-        ['/en/profile', { tab: null, atRoot: false }],
-        ['/en/legal/sources', { tab: null, atRoot: false }],
+        // Profile is the You tab's ROOT (owner ruling 2026-11-11, N3: it no longer opens from an avatar). What Profile
+        // pushes, Your foods and the data sources, belongs to the same tab and is pushed.
+        ['/en/profile', { tab: 'you', atRoot: true }],
+        ['/en/foods', { tab: 'you', atRoot: false }],
+        ['/en/foods/01HZ', { tab: 'you', atRoot: false }],
+        ['/en/legal/sources', { tab: 'you', atRoot: false }],
         ['/en/no-such-page', { tab: null, atRoot: false }],
     ];
 

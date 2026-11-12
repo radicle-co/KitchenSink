@@ -11,7 +11,7 @@ appId: ${APP_ID}
 ---
 - runFlow: auth/signinHome.yaml
 
-- tapOn: 'Profile.*'
+- tapOn: 'You'
 
 # The Username row. ⚠️ The row is ONE accessibility element (`ProfileFactRow`, c01e63343): iOS publishes a single node
 # named "Username, @name", while Android publishes the label and the value as two nodes ("Username", "@name"). So the

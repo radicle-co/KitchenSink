@@ -60,6 +60,15 @@ describe('recipeRowToDomain', () => {
     });
 
     /**
+     * ADR-0089: what the cook said the source is. A client locks and judges the source from it, so a stated kind is on the
+     * wire, and none is OMITTED (never `null`), like every other optional field.
+     */
+    it('maps the source kind when stated and OMITS it (not null) when the cook stated none', () => {
+        expect(recipeRowToDomain(row({ sourceKind: 'public_web' })).sourceKind).toBe('public_web');
+        expect(recipeRowToDomain(row({ sourceKind: null }))).not.toHaveProperty('sourceKind');
+    });
+
+    /**
      * ADR-0058 rule 1 on the wire: the fact a client keys "was this recipe ever published" on, which `status` is not —
      * a published recipe can be set back to draft and keeps versioning. Stated once set, OMITTED (never null) before.
      */

@@ -33,7 +33,6 @@ export const CollectionListFrame: FC<CollectionListFrameProps> = ({
     onCreate,
     segments,
     headingFocusSignal,
-    headerAction,
     createEntryYields = false,
     search,
     createFocusRequested = false,
@@ -56,7 +55,6 @@ export const CollectionListFrame: FC<CollectionListFrameProps> = ({
                     headingId={RECIPES_TITLE_ID}
                     title={recipes.heading}
                     focusSignal={headingFocusSignal}
-                    {...(headerAction === undefined ? {} : { action: headerAction })}
                     {...(segments === undefined
                         ? {}
                         : {

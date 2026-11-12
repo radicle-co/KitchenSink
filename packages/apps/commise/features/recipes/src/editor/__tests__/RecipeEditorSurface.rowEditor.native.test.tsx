@@ -82,7 +82,11 @@ const STORED = makeRecipeDetail({
 
 function Harness({ seed, port }: { seed: EditorSeed; port: ReturnType<typeof makeFakeEditorWritePort> }): ReactElement {
     // What the app's container does: the rule, the slot standing and the known refusal, from one hook.
-    const recipePrivate = useRecipePrivate({ sourceType: seed.recipe?.sourceType, knownPaidFeatures: 'granted' });
+    const recipePrivate = useRecipePrivate({
+        sourceType: seed.recipe?.sourceType,
+        sourceKind: seed.recipe?.sourceKind ?? null,
+        knownPaidFeatures: 'granted',
+    });
     const session = useRecipeEditorSession({
         seed,
         locale: 'en',
@@ -103,7 +107,6 @@ function Harness({ seed, port }: { seed: EditorSeed; port: ReturnType<typeof mak
             keep="disk"
             paidFeatures="granted"
             knownPaidFeatures="granted"
-            privateRule={recipePrivate.rule}
             slotStanding={recipePrivate.standing}
             renderPhotos={() => null}
             onClose={vi.fn()}

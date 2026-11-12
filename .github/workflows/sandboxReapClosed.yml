@@ -9,8 +9,8 @@ name: Sandbox Reap Closed
 #     door. Its sweep is unchanged and runs the SAME `teardownSandboxPr.sh` as every other reclamation path.
 #
 # ⚠️ WHAT IS LOST, stated rather than hidden: nothing retries a failed close on its own any more. The midnight stop
-#     still scales a leaked preview's ECS to zero, so what a leak costs now is its idle resources (log groups, ECR,
-#     its ALB rule), not its compute.
+#     still scales a leaked preview's ECS to zero, so what a leak costs now is its idle resources (log groups, its
+#     ALB rule), not its compute.
 on:
     # ⛔ A REGISTRATION TRIGGER, NOT A WORK TRIGGER — see `sandboxDown.yml`. Pushing this one file creates a run
     # whose only job is skipped, which is what registers the workflow so it can be dispatched from a branch.
@@ -107,11 +107,13 @@ jobs:
                   set -uo pipefail
                   chmod +x .github/scripts/teardownSandboxPr.sh
 
-                  # Distinct pr-{N} tokens from CFN stack names, ECR repos, log groups, Route 53 record
-                  # names, and legacy GitHub Environments. Route 53 is load-bearing, not belt-and-braces:
-                  # a PR that only ever had a WEB preview owns no stack, repo or log group, so without
-                  # this source its dangling `pr-{N}.sandbox.<domain>` CNAME would be invisible to the
-                  # reaper forever. This is only CANDIDATE discovery — the teardown script re-applies the
+                  # Distinct pr-{N} tokens from CFN stack names, log groups, Route 53 record names, and
+                  # legacy GitHub Environments. There is no ECR source: no preview owns a repository, and
+                  # the CI role is refused an unscoped listing, which `2>/dev/null` turned into "none".
+                  # Route 53 is load-bearing, not belt-and-braces: a PR that only ever had a WEB preview
+                  # owns no stack or log group, so without this source its dangling
+                  # `pr-{N}.sandbox.<domain>` CNAME would be invisible to the reaper forever.
+                  # This is only CANDIDATE discovery — the teardown script re-applies the
                   # anchored pr-{N} match (and the DNS half re-checks the exact record label), so an
                   # incidental "pr-5" substring can never widen the blast radius.
                   #
@@ -119,7 +121,7 @@ jobs:
                   # it cannot see becomes unreclaimable the moment the others are gone. That asymmetry was
                   # real: teardown §0b deletes the legacy `sandbox-preview/pr-{N}` GitHub Environment, but
                   # nothing here enumerated environments, so a close whose §0b failed (expired token, API
-                  # 403) stranded that name PERMANENTLY — by the next sweep the stacks, ECR repos and the
+                  # 403) stranded that name PERMANENTLY — by the next sweep the stacks, log groups and the
                   # CNAME were already reclaimed, leaving no token to rediscover the PR by. Same defect
                   # shape as the log-group sweep that matched nothing for two years, and cheap to close.
                   # Asserted by `packages/tools/repoGuards/__tests__/reaperDiscoveryCoversTeardown.test.ts`.
@@ -129,8 +131,6 @@ jobs:
                   tokens=$(
                       {
                           printf '%s\n' "$stacks"
-                          aws ecr describe-repositories --region "$REGION" \
-                              --query 'repositories[].repositoryName' --output text 2>/dev/null | tr '\t' '\n'
                           aws logs describe-log-groups --region "$REGION" \
                               --query 'logGroups[].logGroupName' --output text 2>/dev/null | tr '\t' '\n'
                           aws route53 list-resource-record-sets --hosted-zone-id "$PREVIEW_HOSTED_ZONE_ID" \

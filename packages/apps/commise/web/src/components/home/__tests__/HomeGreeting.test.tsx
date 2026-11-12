@@ -42,7 +42,8 @@ const EVERY_GREETING: readonly string[] = Object.values(homeMessages.en.greeting
 /**
  * Designer ruling, web only (`nativeBoards/designAnswers.md`, 438f7e542): below 400 px of window height the New recipe
  * button stops floating and takes its own row under the header, after the greeting and the date, 16 below the date,
- * start-aligned, in flow, with no shadow. The profile button holds the end of the H1 row, so the button never goes there.
+ * start-aligned, in flow, with no shadow. (The header's avatar is gone — owner ruling 2026-11-11, N3 — so these tests no longer
+ * hand the header an action; the button's row placement is unchanged.)
  * jsdom has no media queries: the floating-only classes sit behind the `fab-floats` variant, so what is pinned here is the
  * order in the page and the classes that put it on its own row.
  */
@@ -53,7 +54,6 @@ describe('HomeGreeting (web) — the New recipe button below 400 px of height', 
         renderWithProviders(
             <HomeGreeting
                 name="Eliza"
-                action={{ kind: 'avatar', avatar: <button type="button">Profile, Eliza</button> }}
                 afterTitle={<CreateFab label="New recipe" icon="plus" onPress={() => undefined} />}
             />,
             { locale: 'en' },
@@ -72,7 +72,7 @@ describe('HomeGreeting (web) — the New recipe button below 400 px of height', 
         expect(follows(screen.getByText(/^Sunday, May 31/u), create)).toBe(true);
     });
 
-    it('is not the profile button’s neighbour at the end of the H1 row: it spans the row beneath', () => {
+    it('spans the row beneath the title block rather than sitting at the end of the H1 row', () => {
         const classes = renderHeader().className.split(' ');
 
         expect(classes).toEqual(expect.arrayContaining(['col-span-3', 'justify-self-start', 'mt-4']));
@@ -134,36 +134,31 @@ describe('HomeGreeting (web) — the large title', () => {
 });
 
 /**
- * The Home header board (HomeWeb1280 / HomeIphone390): ONE row — the greeting and date stacked on the start side, the
- * 44 px profile button on the end side — at every width. jsdom loads no stylesheet, so the row is pinned by structure
- * and by the utilities that make it a row.
+ * The Home header board (HomeWeb1280 / HomeIphone390): ONE row holding the greeting and the date stacked on the start side
+ * and NOTHING on the end side — the profile avatar left the title row (owner ruling 2026-11-11, N3; it is the You tab and
+ * the sidebar's first row now). jsdom loads no stylesheet, so the row is pinned by structure and by the utilities that
+ * make it a row. Rewritten from the board that drew the 44 px profile button at the end of this row.
  */
 describe('HomeGreeting (web) — the one-row header', () => {
     const renderRow = (): HTMLElement => {
         vi.useFakeTimers();
         vi.setSystemTime(new Date(2026, 4, 31, 14, 0, 0));
-        renderWithProviders(
-            <HomeGreeting
-                name="Eliza"
-                action={{ kind: 'avatar', avatar: <button type="button">Profile, Eliza</button> }}
-                afterTitle={<button type="button">New recipe</button>}
-            />,
-            { locale: 'en' },
-        );
+        renderWithProviders(<HomeGreeting name="Eliza" afterTitle={<button type="button">New recipe</button>} />, {
+            locale: 'en',
+        });
 
-        return screen.getByRole('button', { name: 'Profile, Eliza' }).closest('header') as HTMLElement;
+        return screen.getByRole('heading', { level: 1 }).closest('header') as HTMLElement;
     };
 
-    it('puts the text block and the profile button in the SAME row, the button on the end side', () => {
+    it('holds only the text block in the row: no profile button at the end', () => {
         const header = renderRow();
         const row = header.firstElementChild as HTMLElement;
-        const heading = screen.getByRole('heading', { level: 1 });
 
         expect(row.className).toMatch(/\bflex\b/u);
-        expect(row.className).toMatch(/\bitems-center\b/u);
-        expect(row.children).toHaveLength(2);
-        expect(row.firstElementChild?.contains(heading)).toBe(true);
-        expect(row.lastElementChild?.contains(screen.getByRole('button', { name: 'Profile, Eliza' }))).toBe(true);
+        expect(row.children).toHaveLength(1);
+        expect(row.firstElementChild?.contains(screen.getByRole('heading', { level: 1 }))).toBe(true);
+        expect(screen.queryByRole('button', { name: /profile/iu })).toBeNull();
+        expect(screen.queryByRole('link', { name: /profile/iu })).toBeNull();
     });
 
     it('stacks the date directly under the greeting in the start block', () => {
@@ -174,15 +169,6 @@ describe('HomeGreeting (web) — the one-row header', () => {
         expect(text.children[1]?.textContent).toBe('Sunday, May 31');
     });
 
-    it('gives the profile button a 44 px target and never hides it at a wide width', () => {
-        const header = renderRow();
-        const action = (header.firstElementChild as HTMLElement).lastElementChild as HTMLElement;
-
-        expect(action.className).toContain('min-h-11');
-        expect(action.className).toContain('min-w-11');
-        expect(action.className).not.toMatch(/(^|\s)(nav:)?hidden(\s|$)/u);
-    });
-
     it('keeps the create button right after the H1 in DOM order', () => {
         renderRow();
         const heading = screen.getByRole('heading', { level: 1 });
@@ -191,7 +177,7 @@ describe('HomeGreeting (web) — the one-row header', () => {
         expect(heading.compareDocumentPosition(create) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     });
 
-    it('shows the greeting and no profile button when there is no action', () => {
+    it('shows the greeting and no button of its own', () => {
         vi.useFakeTimers();
         vi.setSystemTime(new Date(2026, 4, 31, 14, 0, 0));
         renderWithProviders(<HomeGreeting />, { locale: 'en' });

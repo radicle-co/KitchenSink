@@ -242,7 +242,7 @@ describe('RecipeVisibilityField (native) - private slots (ADR-0073)', () => {
 
     it('REWRITTEN for ADR-0077 section 6: an imported public-web recipe gets the slots line and an offered Private, no Pro badge', () => {
         const facts: RecipePrivateFacts = {
-            rule: privateRuleForDraft(RecipeSourceType.IMPORTED_PUBLIC),
+            rule: privateRuleForDraft(RecipeSourceType.IMPORTED_PUBLIC, null),
             standing: OPEN,
             state: 'upsell',
         };

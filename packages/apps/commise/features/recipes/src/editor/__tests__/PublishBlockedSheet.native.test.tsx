@@ -37,6 +37,16 @@ function renderSheet() {
     return handlers;
 }
 
+describe('PublishBlockedSheet (native) for a recipe copied from a web page (ADR-0089)', () => {
+    it('says it can only be private, and offers Keep as draft but no Publish as public', () => {
+        render(<PublishBlockedSheet open slotTotal={50} webSource onKeepDraft={vi.fn()} />);
+
+        expect(screen.getByText(/A recipe copied from a web page can only be private/u)).toBeTruthy();
+        expect(screen.queryByRole('button', { name: 'Publish as public' })).toBeNull();
+        expect(screen.getByRole('button', { name: 'Keep as draft' })).toBeTruthy();
+    });
+});
+
 describe('PublishBlockedSheet (native)', () => {
     it('noSlot: a dialog named "Your private slots are full", saying how many are in use', () => {
         renderSheet();

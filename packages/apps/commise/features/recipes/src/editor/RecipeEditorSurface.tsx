@@ -24,10 +24,11 @@ import type { PaidFeatureState } from '@commise/features-account';
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { Button } from '@commise/ui/button';
 import { ConfirmDialog } from '@commise/ui/confirm-dialog';
+import { LiveRegion } from '@commise/ui/live-region';
 import { RecipeVisibility } from '@kitchensink/recipe-core';
 import { useState, type FC, type ReactNode } from 'react';
 
-import { recipeIsPublished, type PrivateRule, type SlotStanding } from '../actions/recipePrivateGate.js';
+import { recipeIsPublished, type SlotStanding } from '../actions/recipePrivateGate.js';
 import { usePrivateChoice } from '../actions/usePrivateChoice.js';
 import { RecipeMakePublicDialog } from '../actions/RecipeMakePublicDialog.js';
 import { RecipeUpsellSheet } from '../actions/RecipeUpsellSheet.js';
@@ -37,11 +38,14 @@ import { PasteStepsControl } from '../form/PasteStepsControl.js';
 import { RecipeBasicsFields } from '../form/RecipeBasicsFields.js';
 import { RecipeIngredientsFields } from '../form/RecipeIngredientsFields.js';
 import { RecipeInstructionsFields } from '../form/RecipeInstructionsFields.js';
+import { PastedSourceNotice } from '../form/PastedSourceNotice.js';
+import { RecipeSourceField } from '../form/RecipeSourceField.js';
 import { RecipeVisibilityField } from '../form/RecipeVisibilityField.js';
 import { entryFieldIdOf } from '../form/fieldIds.js';
 import { pendingIngredientIds } from '../form/ingredientStatus.js';
 import type { EditorSeed } from '../hooks/useRecipeEditor.js';
 import { useLastDefined } from '../hooks/useLastDefined.js';
+import type { PasteOrigin } from './useEditorSource.js';
 import type { PhotoFinishBar, RecipeEditorViewProps } from './frameProps.js';
 import { pluralOf } from '../format/plural.js';
 import type { UseRecipePhotoManagerResult } from '../hooks/useRecipePhotoManager.js';
@@ -82,8 +86,6 @@ export interface RecipeEditorSurfaceProps {
     readonly paidFeatures: PaidFeatureState;
     /** The profile's own answer, for what will be SENT (`knownPaidFeaturesOf`); never the display's fail-closed `hidden`. */
     readonly knownPaidFeatures: Exclude<PaidFeatureState, 'loading'> | undefined;
-    /** Which rule the recipe's Private is under (`useRecipePrivate`): the cook's slots, or (an imported public-web recipe) Premium. */
-    readonly privateRule: PrivateRule;
     /** Where the cook stands on private slots (`useRecipePrivate`), from the server's read. */
     readonly slotStanding: SlotStanding;
     /** The app's photo uploader, over the editor's photo session. Drawn on a new recipe too. */
@@ -117,7 +119,6 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
     keep,
     paidFeatures,
     knownPaidFeatures,
-    privateRule,
     slotStanding,
     renderPhotos,
     initialSection,
@@ -127,7 +128,7 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
     onOpenFood,
     foodOpensOverEditor = false,
 }) => {
-    const { editor, paste, photos } = session;
+    const { editor, paste, photos, source } = session;
     const photoCopy = useMessages(photoMessages);
     // ⛔ READ FROM THE ENTRY AS IT IS NOW: the editor learns the entry's text only at a press (`errorsStillHolding`).
     const { pending } = session.rowEditor.entry;
@@ -144,7 +145,9 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
     const privateChoice = usePrivateChoice({
         state: paidFeatures,
         knownPaidFeatures,
-        rule: privateRule,
+        // ⛔ The DRAFT's rule (ADR-0089), not the stored one: a link the cook has just pasted makes the draft private only, and
+        // taking the source off gives its slots back. The session reads it from the draft and the recipe the editor opened with.
+        rule: source.privateRule,
         standing: slotStanding,
         // ADR-0073 section 12: a draft holds no slot, so the field counts and refuses nothing for one. A Publish that
         // needs a slot asks in the blocked-publish dialog instead (owner ruling 2026-10-26).
@@ -177,6 +180,17 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
                   },
               ];
     });
+
+    // Whether a pasted link can still become the Source: false once it cannot be corrected (published, a book, a clone's).
+    const offersSource = source.row.kind !== 'locked' && source.row.kind !== 'hidden';
+    // What a paste did to the Source, drawn under the paste control the cook used; Remove only where it can be undone.
+    const noticeUnder = (origin: PasteOrigin): ReactNode =>
+        source.notice?.origin === origin ? (
+            <PastedSourceNotice
+                text={source.notice.text}
+                {...(source.notice.kind === 'set' ? { onRemove: () => source.remove({ focus: false }) } : {})}
+            />
+        ) : null;
 
     // A finish waiting for its photos (`useEditorPhotos`): the action bar's line and its one control.
     const photoFinish: PhotoFinishBar | undefined =
@@ -219,6 +233,7 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
                 {pendingIngredientIds(editor.values).map((id) => (
                     <IngredientStatusPoller key={id} ingredientId={id} onStatus={session.applyLineStatus} />
                 ))}
+                {noticeUnder('ingredients')}
                 <RecipeIngredientsFields
                     values={editor.values}
                     errors={errors}
@@ -229,16 +244,24 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
                     paste={paste.view}
                     {...(onOpenFood === undefined ? {} : { onOpenFood })}
                 />
-                <PasteListSheet sheet={paste.sheet} submitting={paste.submitting} failed={paste.failed} />
+                <PasteListSheet
+                    sheet={paste.sheet}
+                    submitting={paste.submitting}
+                    failed={paste.failed}
+                    offersSource={offersSource}
+                />
             </>
         ),
         steps: (
-            <RecipeInstructionsFields
-                values={editor.values}
-                errors={errors}
-                onChange={editor.setValues}
-                onFieldBlur={session.blur}
-            />
+            <>
+                {noticeUnder('steps')}
+                <RecipeInstructionsFields
+                    values={editor.values}
+                    errors={errors}
+                    onChange={editor.setValues}
+                    onFieldBlur={session.blur}
+                />
+            </>
         ),
         photos: (
             <>
@@ -248,19 +271,34 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
                     cuisine: editor.values.cuisine,
                     manager: photos.manager,
                 })}
-                {/* Waiting for photos after the finish, the recipe is already sent: a visibility change now would be lost. */}
+                {/* Waiting for photos after the finish, the recipe is already sent: a source or visibility change now would be lost. */}
                 {photoFinish === undefined ? (
-                    <RecipeVisibilityField
-                        values={editor.values}
-                        onChange={editor.setValues}
-                        {...privateChoice.field}
-                        onPremiumRequired={privateChoice.onPremiumRequired}
-                        onConfirmPublic={privateChoice.onConfirmPublic}
-                        // The refusal's "Make a private recipe public" and "Delete a private recipe": either frees a slot
-                        // in the cook's recipes (the session checkpoints the draft as the cook leaves).
-                        onFreeASlot={openMyRecipes}
-                    />
+                    <>
+                        <RecipeSourceField
+                            row={source.row}
+                            onChange={source.onChange}
+                            onTouched={source.onTouched}
+                            onRemove={() => source.remove()}
+                            focusRequested={source.focusRequested}
+                            onFocusHandled={source.onFocusHandled}
+                        />
+                        <RecipeVisibilityField
+                            values={editor.values}
+                            onChange={editor.setValues}
+                            webSource={source.webSource}
+                            {...privateChoice.field}
+                            onPremiumRequired={privateChoice.onPremiumRequired}
+                            onConfirmPublic={privateChoice.onConfirmPublic}
+                            // The refusal's "Make a private recipe public" and "Delete a private recipe": either frees a slot
+                            // in the cook's recipes (the session checkpoints the draft as the cook leaves).
+                            onFreeASlot={openMyRecipes}
+                        />
+                    </>
                 ) : null}
+                {/* What a paste did to the Source, spoken once per paste (the occurrence changes for a repeat). */}
+                <LiveRegion politeness="polite" visuallyHidden occurrence={source.notice?.n ?? 0}>
+                    {source.notice?.text ?? ''}
+                </LiveRegion>
             </>
         ),
     };
@@ -285,13 +323,27 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
                     ...(paste.inHeading
                         ? {
                               ingredients: (
-                                  <Button variant="ghost" icon="clipboardPaste" onPress={paste.open}>
+                                  <Button
+                                      variant="ghost"
+                                      icon="clipboardPaste"
+                                      focusRequested={source.pasteFocus === 'ingredients'}
+                                      onFocusRequestHandled={source.onPasteFocusHandled}
+                                      onPress={paste.open}
+                                  >
                                       {ingredientsCopy.pasteList}
                                   </Button>
                               ),
                           }
                         : {}),
-                    steps: <PasteStepsControl onAdd={session.appendSteps} />,
+                    steps: (
+                        <PasteStepsControl
+                            onAdd={session.appendSteps}
+                            onSource={(extraction) => source.applyPasted(extraction, 'steps')}
+                            offersSource={offersSource}
+                            focusRequested={source.pasteFocus === 'steps'}
+                            onFocusHandled={source.onPasteFocusHandled}
+                        />
+                    ),
                 }}
                 {...(initialSection === undefined ? {} : { initialSection })}
                 onClose={onClose}
@@ -360,7 +412,8 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
                               : undefined
                     }
                     onKeepDraft={editor.keepAsDraft}
-                    onPublishPublic={editor.publishAsPublic}
+                    // ⛔ A recipe copied from a web page can only be private (ADR-0089): the ask has no such control.
+                    {...(source.webSource ? { webSource: true } : { onPublishPublic: editor.publishAsPublic })}
                 />
             )}
         </>

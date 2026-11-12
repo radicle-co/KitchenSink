@@ -392,8 +392,11 @@ describe('RecipeDiscoveryScreen — browse rails (U7)', () => {
     });
 
     it('offers the sort on the keystroke that starts a search, while the rails are still what is on screen', async () => {
+        // The browse reads hold a recipe: an EMPTY catalogue draws its own state instead of the rails.
         vi.spyOn(client, 'searchRecipes').mockImplementation((params) =>
-            params?.query === undefined ? Promise.resolve(makeSearchResponse()) : new Promise(() => {}),
+            params?.query === undefined
+                ? Promise.resolve(makeSearchResponse([makeRecipeSearchResult({ id: 'rec_1', title: 'Curated' })]))
+                : new Promise(() => {}),
         );
 
         render(<RecipeDiscoveryScreen onEditRecipe={() => undefined} onSelectRecipe={noop} />);
@@ -420,6 +423,49 @@ describe('RecipeDiscoveryScreen — browse rails (U7)', () => {
 
         expect(await screen.findByRole('heading', { name: 'Trending' })).toBeTruthy();
         expect(screen.queryByRole('button', { name: 'Back to browse' })).toBeNull();
+    });
+});
+
+/**
+ * The empty catalogue (`buildSpec.md` §4.6, the redesign board's "No public recipes at all" frame): no other cook has a
+ * public, published recipe, so the browse search settles with nothing. The screen says so once, in place of three rails
+ * that each said "Nothing here yet.", and offers no Filters over nothing to filter. A pull re-checks the catalogue.
+ */
+describe('RecipeDiscoveryScreen — the empty catalogue', () => {
+    it('says "No public recipes yet." in place of the rails, with no Filters', async () => {
+        answerSearches(makeSearchResponse([]));
+
+        render(<RecipeDiscoveryScreen onEditRecipe={() => undefined} onSelectRecipe={noop} />);
+
+        expect(await screen.findByRole('heading', { name: 'No public recipes yet.' })).toBeTruthy();
+        expect(screen.queryByRole('heading', { name: 'Trending' })).toBeNull();
+        expect(screen.queryByText('Nothing here yet.')).toBeNull();
+        expect(screen.queryByRole('button', { name: /^Filters/ })).toBeNull();
+    });
+
+    it('re-checks the catalogue from a pull, and shows the rails once a recipe is there', async () => {
+        const search = answerSearches(makeSearchResponse([]));
+
+        render(<RecipeDiscoveryScreen onEditRecipe={() => undefined} onSelectRecipe={noop} />);
+        await screen.findByRole('heading', { name: 'No public recipes yet.' });
+        search.mockResolvedValue(makeSearchResponse([makeRecipeSearchResult({ id: 'rec_1', title: 'Curated' })]));
+
+        await act(async () => {
+            fireEvent.click(screen.getByRole('button', { name: 'Pull to refresh' }));
+        });
+
+        expect(await screen.findByRole('heading', { name: 'Trending' })).toBeTruthy();
+        expect(screen.queryByRole('heading', { name: 'No public recipes yet.' })).toBeNull();
+        expect(screen.getByRole('button', { name: /^Filters/ })).toBeTruthy();
+    });
+
+    it('⛔ never claims the catalogue is empty when the browse search FAILED', async () => {
+        vi.spyOn(client, 'searchRecipes').mockRejectedValue(new Error('down'));
+
+        render(<RecipeDiscoveryScreen onEditRecipe={() => undefined} onSelectRecipe={noop} />);
+
+        expect(await screen.findByRole('button', { name: 'Try again' })).toBeTruthy();
+        expect(screen.queryByRole('heading', { name: 'No public recipes yet.' })).toBeNull();
     });
 });
 
@@ -598,9 +644,14 @@ describe('RecipeDiscoveryScreen — ingredient facet (FR-006 gap #3)', () => {
     }
 
     beforeEach(() => {
-        // An empty result set, so an APPLIED ingredient filter lands on the no-match state and a DROPPED one leaves the
-        // curated browse rails up — the two are distinguishable, which is the whole point.
-        answerSearches(makeSearchResponse([]));
+        // The ingredient-filtered search finds nothing, so an APPLIED ingredient filter lands on the no-match state and a
+        // DROPPED one leaves the curated browse rails up — the two are distinguishable, which is the whole point. Every
+        // other search holds a recipe, because an EMPTY catalogue draws its own state instead of the rails.
+        vi.spyOn(client, 'searchRecipes').mockImplementation(async (params) =>
+            params?.foodIds === undefined
+                ? makeSearchResponse([makeRecipeSearchResult({ id: 'rec_1', title: 'Curated' })])
+                : makeSearchResponse([]),
+        );
         vi.spyOn(client, 'searchIngredients').mockResolvedValue([flour] as never);
     });
 

@@ -5,7 +5,7 @@ import type { SQSEvent } from 'aws-lambda';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import type { SQL } from 'drizzle-orm';
 import { PgDialect } from 'drizzle-orm/pg-core';
-import { pseudonymizedAuthorHandle } from '@kitchensink/recipe-core';
+import { PRIVATE_ONLY_SOURCE_KEYS, pseudonymizedAuthorHandle } from '@kitchensink/recipe-core';
 
 /**
  * T135-test — unit tests for the GDPR account-erasure worker (C-007 / D7).
@@ -335,7 +335,8 @@ describe('eraseRecipeRows (CR-002 / U3 — SCOPED, owner-only erasure)', () => {
         // to publish someone else's recipe. The election binds as one jsonb param (no array list-expansion).
         expect(flip?.text).toMatch(/id in \(select jsonb_array_elements_text\(\$\d::jsonb\)::uuid\)/i);
         expect(flip?.text).toMatch(/and owner_id = \$\d/i);
-        expect(flip?.params).toEqual([JSON.stringify([DONATE_1]), OWNER]);
+        // The election, the owner, and (ADR-0089) the private-only keys the flip must not match.
+        expect(flip?.params).toEqual([JSON.stringify([DONATE_1]), OWNER, JSON.stringify(PRIVATE_ONLY_SOURCE_KEYS)]);
     });
 
     it('⛔ donates an elected recipe ONLY if it holds no private food: a dead author’s private foods stay unreferenced (ADR-0029 section 6)', async () => {
@@ -349,6 +350,23 @@ describe('eraseRecipeRows (CR-002 / U3 — SCOPED, owner-only erasure)', () => {
         // The database's own rule (migration 0064), not a second copy of it: an elected recipe that holds a private
         // food is not flipped, so it joins the removed set and the author's private foods are deleted with it.
         expect(flip?.text).toMatch(/and not recipe_holds_private_food\(id\)/i);
+    });
+
+    it('⛔ donates an elected recipe ONLY if it is not private-only: a book, a paid-site recipe or a web copy is removed, never made public (ADR-0089)', async () => {
+        const control = createFakeDb();
+        seedRemoved(control, REMOVED_A);
+
+        await eraseRecipeRows(control.db, OWNER, [DONATE_1]);
+
+        const flip = control.statements().find((s) => /update recipes set visibility/i.test(s.text));
+
+        // recipe-core's private-only keys, derived from `privateRuleOf` and BOUND as one parameter: no rule text is copied
+        // here, and nothing is spliced into the statement. The flip makes a recipe public, and a private-only recipe may
+        // never be, so it joins the removed set like one that holds a private food.
+        expect(flip?.text).toMatch(
+            /and \(source_type \|\| ':' \|\| coalesce\(source_kind, ''\)\) not in \(select jsonb_array_elements_text\(\$\d::jsonb\)\)/i,
+        );
+        expect(flip?.params).toEqual([JSON.stringify([DONATE_1]), OWNER, JSON.stringify(PRIVATE_ONLY_SOURCE_KEYS)]);
     });
 
     it('computes the removed set on BOTH axes — owner AND NOT (public AND published)', async () => {
@@ -1223,7 +1241,7 @@ describe('handler', () => {
         await runHandler(makeErasureEvent({ ownerId: OWNER, publishRecipeIds: [] }));
 
         const flip = rowControl.statements().find((s) => /update recipes set visibility/i.test(s.text));
-        expect(flip?.params).toEqual([JSON.stringify([DONATE]), OWNER]);
+        expect(flip?.params).toEqual([JSON.stringify([DONATE]), OWNER, JSON.stringify(PRIVATE_ONLY_SOURCE_KEYS)]);
     });
 
     describe('CDN invalidation (HAZ-051/067/039)', () => {

@@ -1,6 +1,6 @@
 /**
- * The web LargeTitleHeader (buildSpec §3.3): the page's one H1, its focus target; the avatar action below 840 only;
- * at most one button and one ⋯; the back control, an eyebrow "‹ {parent}" at 840; the segments; and the DOM order
+ * The web LargeTitleHeader (buildSpec §3.3): the page's one H1, its focus target; at most one button and one ⋯ (no avatar
+ * variant since 2026-11-11); the back control, an eyebrow "‹ {parent}" at 840; the segments; and the DOM order
  * back → H1 → action → afterTitle (the floating button) a screen reader depends on.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -34,32 +34,12 @@ describe('LargeTitleHeader (web)', () => {
         expect(document.activeElement).toBe(screen.getByRole('heading', { level: 1 }));
     });
 
-    it('puts the avatar action after the H1 in DOM order, and hides it from 840 (the sidebar has it)', () => {
-        render(
-            <LargeTitleHeader
-                headingId="h"
-                title="Recipes"
-                action={{ kind: 'avatar', avatar: <button type="button">Profile</button> }}
-                afterTitle={<button type="button">New recipe</button>}
-            />,
-        );
-
-        const heading = screen.getByRole('heading', { level: 1 });
-        const avatar = screen.getByRole('button', { name: 'Profile' });
-        const fab = screen.getByRole('button', { name: 'New recipe' });
-
-        expect(heading.compareDocumentPosition(avatar) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-        expect(avatar.compareDocumentPosition(fab) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-        expect(avatar.parentElement?.className).toContain('nav:hidden');
-    });
-
     it('keeps a controls action at every width', () => {
         render(
             <LargeTitleHeader
                 headingId="h"
                 title="Weeknight dinners"
                 action={{
-                    kind: 'controls',
                     button: <button type="button">Add recipes</button>,
                     menu: <button type="button">More</button>,
                 }}
@@ -124,7 +104,7 @@ describe('LargeTitleHeader (web)', () => {
                 headingId="h"
                 title="Dinners"
                 back={back}
-                action={{ kind: 'controls', menu: <button type="button">More</button> }}
+                action={{ menu: <button type="button">More</button> }}
             />,
         );
 

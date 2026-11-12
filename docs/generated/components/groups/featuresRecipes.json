@@ -4,16 +4,16 @@
     "packageName": "@commise/features-recipes",
     "layer": "feature",
     "coverage": {
-        "components": 204,
-        "implementations": 346,
-        "props": 2390,
-        "documentedComponents": 204,
-        "implementationsWithModuleDoc": 346,
-        "implementationsWithComponentDoc": 235,
-        "documentedProps": 1818,
-        "classifiedComponents": 182,
-        "componentsWithPatternTag": 98,
-        "crossPlatformComponents": 142
+        "components": 206,
+        "implementations": 350,
+        "props": 2411,
+        "documentedComponents": 206,
+        "implementationsWithModuleDoc": 350,
+        "implementationsWithComponentDoc": 239,
+        "documentedProps": 1839,
+        "classifiedComponents": 184,
+        "componentsWithPatternTag": 99,
+        "crossPlatformComponents": 144
     },
     "components": [
         {
@@ -1996,15 +1996,6 @@
                             "declaredIn": "packages/apps/commise/features/recipes/src/collections/model.ts"
                         },
                         {
-                            "name": "headerAction",
-                            "type": "HeaderAction",
-                            "typeDetail": null,
-                            "required": false,
-                            "defaultValue": null,
-                            "description": "The large title's action (slice 3): the avatar, which opens Profile. The app supplies it.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/collections/model.ts"
-                        },
-                        {
                             "name": "headingFocusSignal",
                             "type": "number",
                             "typeDetail": null,
@@ -2099,15 +2090,6 @@
                             "required": false,
                             "defaultValue": "false",
                             "description": "The floating button takes focus (native): raised when the new-collection sheet closes without creating one, so\nfocus returns to the control that opened it. The frame passes it to the button, which acknowledges it.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/collections/model.ts"
-                        },
-                        {
-                            "name": "headerAction",
-                            "type": "HeaderAction",
-                            "typeDetail": null,
-                            "required": false,
-                            "defaultValue": null,
-                            "description": "The large title's action (slice 3): the avatar, which opens Profile. The app supplies it.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/collections/model.ts"
                         },
                         {
@@ -2784,7 +2766,7 @@
                         },
                         {
                             "name": "member",
-                            "type": "Readonly<{ id: string; ownerId: string; title: string; description: string; prepTimeMinutes: number; cookTimeMinutes: number; totalTimeMinutes: number; servings: number; visibility: \"public\" | \"private\"; ... 23 more ...; deletedAt?: string | undefined; }>",
+                            "type": "Readonly<{ id: string; ownerId: string; title: string; description: string; prepTimeMinutes: number; cookTimeMinutes: number; totalTimeMinutes: number; servings: number; visibility: \"public\" | \"private\"; ... 24 more ...; deletedAt?: string | undefined; }>",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
@@ -2871,7 +2853,7 @@
                         },
                         {
                             "name": "member",
-                            "type": "Readonly<{ id: string; ownerId: string; title: string; description: string; prepTimeMinutes: number; cookTimeMinutes: number; totalTimeMinutes: number; servings: number; visibility: \"public\" | \"private\"; ... 23 more ...; deletedAt?: string | undefined; }>",
+                            "type": "Readonly<{ id: string; ownerId: string; title: string; description: string; prepTimeMinutes: number; cookTimeMinutes: number; totalTimeMinutes: number; servings: number; visibility: \"public\" | \"private\"; ... 24 more ...; deletedAt?: string | undefined; }>",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
@@ -2982,7 +2964,7 @@
                         },
                         {
                             "name": "members",
-                            "type": "readonly Readonly<{ id: string; ownerId: string; title: string; description: string; prepTimeMinutes: number; cookTimeMinutes: number; totalTimeMinutes: number; servings: number; visibility: \"public\" | \"private\"; ... 23 more ...; deletedAt?: string | undefined; }>[]",
+                            "type": "readonly Readonly<{ id: string; ownerId: string; title: string; description: string; prepTimeMinutes: number; cookTimeMinutes: number; totalTimeMinutes: number; servings: number; visibility: \"public\" | \"private\"; ... 24 more ...; deletedAt?: string | undefined; }>[]",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
@@ -3113,7 +3095,7 @@
                         },
                         {
                             "name": "members",
-                            "type": "readonly Readonly<{ id: string; ownerId: string; title: string; description: string; prepTimeMinutes: number; cookTimeMinutes: number; totalTimeMinutes: number; servings: number; visibility: \"public\" | \"private\"; ... 23 more ...; deletedAt?: string | undefined; }>[]",
+                            "type": "readonly Readonly<{ id: string; ownerId: string; title: string; description: string; prepTimeMinutes: number; cookTimeMinutes: number; totalTimeMinutes: number; servings: number; visibility: \"public\" | \"private\"; ... 24 more ...; deletedAt?: string | undefined; }>[]",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
@@ -10749,15 +10731,6 @@
                             "declaredIn": "packages/apps/commise/features/recipes/src/discovery/DiscoveryHeaderGroup.native.tsx"
                         },
                         {
-                            "name": "headerAction",
-                            "type": "HeaderAction | undefined",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "The large title's action.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/discovery/DiscoveryHeaderGroup.native.tsx"
-                        },
-                        {
                             "name": "headingFocusSignal",
                             "type": "number",
                             "typeDetail": null,
@@ -11210,15 +11183,6 @@
                             "declaredIn": "packages/apps/commise/features/recipes/src/discovery/DiscoveryScreen.tsx"
                         },
                         {
-                            "name": "headerAction",
-                            "type": "HeaderAction",
-                            "typeDetail": null,
-                            "required": false,
-                            "defaultValue": null,
-                            "description": "The large title's action (the avatar, which opens Profile). The app supplies it, since the profile read is its.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/discovery/DiscoveryScreen.tsx"
-                        },
-                        {
                             "name": "hrefOf",
                             "type": "((recipeId: string) => string)",
                             "typeDetail": null,
@@ -11341,7 +11305,7 @@
                         },
                         {
                             "name": "read",
-                            "type": "OmitKeyof<UseInfiniteQueryOptions<Readonly<{ results: readonly { recipe: { id: string; ownerId: string; title: string; description: string; prepTimeMinutes: number; cookTimeMinutes: number; totalTimeMinutes: number; servings: number; visibility: \"public\" | \"private\"; ... 22 more ...; deletedAt?: string | undefined; ...",
+                            "type": "OmitKeyof<UseInfiniteQueryOptions<Readonly<{ results: readonly { recipe: { id: string; ownerId: string; title: string; description: string; prepTimeMinutes: number; cookTimeMinutes: number; totalTimeMinutes: number; servings: number; visibility: \"public\" | \"private\"; ... 23 more ...; deletedAt?: string | undefined; ...",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
@@ -11519,7 +11483,7 @@
                         },
                         {
                             "name": "read",
-                            "type": "OmitKeyof<UseInfiniteQueryOptions<Readonly<{ results: readonly { recipe: { id: string; ownerId: string; title: string; description: string; prepTimeMinutes: number; cookTimeMinutes: number; totalTimeMinutes: number; servings: number; visibility: \"public\" | \"private\"; ... 22 more ...; deletedAt?: string | undefined; ...",
+                            "type": "OmitKeyof<UseInfiniteQueryOptions<Readonly<{ results: readonly { recipe: { id: string; ownerId: string; title: string; description: string; prepTimeMinutes: number; cookTimeMinutes: number; totalTimeMinutes: number; servings: number; visibility: \"public\" | \"private\"; ... 23 more ...; deletedAt?: string | undefined; ...",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
@@ -11712,11 +11676,11 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/recipes/src/discovery/DiscoveryTitle.native.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/discovery",
-                    "moduleDoc": "@commise/features-recipes — the native discovery page's large title with the app's action (the avatar, which\nopens Profile): `buildSpec.md` §3.3. The one place the title is drawn, for the stacked header and the panel layout.\n\nPresentational: props → JSX.",
+                    "moduleDoc": "@commise/features-recipes — the native discovery page's large title (`buildSpec.md` §3.3), which carries no\navatar (owner ruling 2026-11-11, N3). The one place the title is drawn, for the stacked header and the panel layout.\n\nPresentational: props → JSX.",
                     "moduleTags": [
                         {
                             "name": "module",
-                            "text": "@commise/features-recipes — the native discovery page's large title with the app's action (the avatar, which"
+                            "text": "@commise/features-recipes — the native discovery page's large title (`buildSpec.md` §3.3), which carries no"
                         }
                     ],
                     "description": "The native discovery title.",
@@ -11724,15 +11688,6 @@
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
                     "props": [
-                        {
-                            "name": "action",
-                            "type": "HeaderAction | undefined",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "The title's action, when the app supplies one.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/discovery/DiscoveryTitle.native.tsx"
-                        },
                         {
                             "name": "focusSignal",
                             "type": "number",
@@ -13858,15 +13813,6 @@
                             "declaredIn": "packages/apps/commise/features/recipes/src/discovery/model.ts"
                         },
                         {
-                            "name": "headerAction",
-                            "type": "HeaderAction",
-                            "typeDetail": null,
-                            "required": false,
-                            "defaultValue": null,
-                            "description": "The large title's action: the avatar, which opens Profile (`buildSpec.md` §3.3). The app supplies it, because\nthe profile read and the navigation are the app's. Discover is a tab of its own since slice 3, so this surface\ntakes no source switcher.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/discovery/model.ts"
-                        },
-                        {
                             "name": "headingFocusSignal",
                             "type": "number",
                             "typeDetail": null,
@@ -13979,15 +13925,6 @@
                             "required": false,
                             "defaultValue": null,
                             "description": "The filters, in the one presentation the container decided (`filterPresentationOf`). A union, so a panel and a\nsheet can never both be drawn, and the facets exist exactly once.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/discovery/model.ts"
-                        },
-                        {
-                            "name": "headerAction",
-                            "type": "HeaderAction",
-                            "typeDetail": null,
-                            "required": false,
-                            "defaultValue": null,
-                            "description": "The large title's action: the avatar, which opens Profile (`buildSpec.md` §3.3). The app supplies it, because\nthe profile read and the navigation are the app's. Discover is a tab of its own since slice 3, so this surface\ntakes no source switcher.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/discovery/model.ts"
                         },
                         {
@@ -15756,11 +15693,11 @@
                         },
                         {
                             "name": "onPublishPublic",
-                            "type": "() => void",
+                            "type": "(() => void)",
                             "typeDetail": null,
-                            "required": true,
+                            "required": false,
                             "defaultValue": null,
-                            "description": "Publish with visibility public. Only this control calls it.",
+                            "description": "Publish with visibility public. Only this control calls it. ABSENT for a recipe copied from a web page, which can\nonly be private (ADR-0089): the sheet then draws no such control at all.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/editor/publishBlockedSheetProps.ts"
                         },
                         {
@@ -15779,6 +15716,15 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "The cook's private-slot limit, for the `noSlot` words; `undefined` when not known (the words then say no number).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/editor/publishBlockedSheetProps.ts"
+                        },
+                        {
+                            "name": "webSource",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "false",
+                            "description": "The recipe is a copy of a web page: the words say so (`publishBlockedCopyOf`). Passed with the absent `onPublishPublic`.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/editor/publishBlockedSheetProps.ts"
                         }
                     ],
@@ -15821,11 +15767,11 @@
                         },
                         {
                             "name": "onPublishPublic",
-                            "type": "() => void",
+                            "type": "(() => void)",
                             "typeDetail": null,
-                            "required": true,
+                            "required": false,
                             "defaultValue": null,
-                            "description": "Publish with visibility public. Only this control calls it.",
+                            "description": "Publish with visibility public. Only this control calls it. ABSENT for a recipe copied from a web page, which can\nonly be private (ADR-0089): the sheet then draws no such control at all.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/editor/publishBlockedSheetProps.ts"
                         },
                         {
@@ -15844,6 +15790,15 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "The cook's private-slot limit, for the `noSlot` words; `undefined` when not known (the words then say no number).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/editor/publishBlockedSheetProps.ts"
+                        },
+                        {
+                            "name": "webSource",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "false",
+                            "description": "The recipe is a copy of a web page: the words say so (`publishBlockedCopyOf`). Passed with the absent `onPublishPublic`.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/editor/publishBlockedSheetProps.ts"
                         }
                     ],
@@ -16267,18 +16222,6 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "The viewer's paid-feature state, for what is SHOWN (`paidFeatureStateOf`).",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/editor/RecipeEditorSurface.tsx"
-                        },
-                        {
-                            "name": "privateRule",
-                            "type": "enum",
-                            "typeDetail": [
-                                "\"slots\"",
-                                "\"privateOnly\""
-                            ],
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "Which rule the recipe's Private is under (`useRecipePrivate`): the cook's slots, or (an imported public-web recipe) Premium.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/editor/RecipeEditorSurface.tsx"
                         },
                         {
@@ -21290,6 +21233,111 @@
             ]
         },
         {
+            "id": "featuresRecipes/form/PastedSourceNotice",
+            "name": "PastedSourceNotice",
+            "group": "featuresRecipes",
+            "packageName": "@commise/features-recipes",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/recipes/src/form",
+            "kind": "presentational",
+            "patterns": [],
+            "platforms": [
+                "web",
+                "native"
+            ],
+            "crossPlatform": true,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "PastedSourceNotice",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/form/PastedSourceNotice.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/form",
+                    "moduleDoc": "@commise/features-recipes/form — `PastedSourceNotice` (web): the caption under a paste control that says what a\npasted link did (ADR-0089), so a sighted cook sees what the live region speaks: the Source it set and that the recipe is\nprivate now, the link it kept or left out. When the paste made the recipe private, a ghost Remove undoes it in place.\n\nPresentational: text and an optional command in, markup out. The native leaf is `./PastedSourceNotice.native.tsx`.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes/form — `PastedSourceNotice` (web): the caption under a paste control that says what a"
+                        }
+                    ],
+                    "description": "What a paste did to the Source, under the paste control.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "onRemove",
+                            "type": "(() => void)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Take the source off, in place. ABSENT for a note with nothing to undo (a link kept, left out or locked).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/pastedSourceNoticeProps.ts"
+                        },
+                        {
+                            "name": "text",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "What the paste did to the Source, in the words the live region speaks.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/pastedSourceNoticeProps.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                },
+                {
+                    "name": "PastedSourceNotice",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/form/PastedSourceNotice.native.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/form",
+                    "moduleDoc": "@commise/features-recipes/form — `PastedSourceNotice` (native): the presentational React Native leaf of\n`./PastedSourceNotice.tsx`, on the same props and words. Styled with Tamagui only (ADR-0080). The Remove hugs its label\nat the start of the row rather than stretching across it.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes/form — `PastedSourceNotice` (native): the presentational React Native leaf of"
+                        }
+                    ],
+                    "description": "What a paste did to the Source, under the paste control.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "onRemove",
+                            "type": "(() => void)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Take the source off, in place. ABSENT for a note with nothing to undo (a link kept, left out or locked).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/pastedSourceNoticeProps.ts"
+                        },
+                        {
+                            "name": "text",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "What the paste did to the Source, in the words the live region speaks.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/pastedSourceNoticeProps.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
             "id": "featuresRecipes/form/PasteListSheet",
             "name": "PasteListSheet",
             "group": "featuresRecipes",
@@ -21330,6 +21378,15 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "The job could not be created: said as an alert, and the text stays.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/pasteListSheetProps.ts"
+                        },
+                        {
+                            "name": "offersSource",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "false",
+                            "description": "Whether the Source can still be set (ADR-0089), so the hint says a link may be pasted too. Paste a list is offered\nonly until the first publish, so this is false only for a source that cannot be corrected (a book, a clone's).\nDisplay only.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/form/pasteListSheetProps.ts"
                         },
                         {
@@ -21382,6 +21439,15 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "The job could not be created: said as an alert, and the text stays.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/pasteListSheetProps.ts"
+                        },
+                        {
+                            "name": "offersSource",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "false",
+                            "description": "Whether the Source can still be set (ADR-0089), so the hint says a link may be pasted too. Paste a list is offered\nonly until the first publish, so this is false only for a source that cannot be corrected (a book, a clone's).\nDisplay only.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/form/pasteListSheetProps.ts"
                         },
                         {
@@ -21907,12 +21973,48 @@
                     "exportKind": "named",
                     "props": [
                         {
+                            "name": "focusRequested",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "false",
+                            "description": "The button is asked for focus (the paste caption's Remove sends the cook back to the control they used). A level, until\n{@link PasteStepsControlProps.onFocusHandled}.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/PasteStepsControl.tsx"
+                        },
+                        {
+                            "name": "offersSource",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "false",
+                            "description": "Whether the Source can still be set, so the hint says a link may be pasted too. It follows the Source's lock: a\npublished recipe still takes steps, and its source cannot change. Display only.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/PasteStepsControl.tsx"
+                        },
+                        {
                             "name": "onAdd",
                             "type": "(instructions: readonly string[]) => void",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
                             "description": "Called with the pasted steps, in order, when the cook adds them.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/PasteStepsControl.tsx"
+                        },
+                        {
+                            "name": "onFocusHandled",
+                            "type": "(() => void)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The button took a requested focus.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/PasteStepsControl.tsx"
+                        },
+                        {
+                            "name": "onSource",
+                            "type": "((extraction: SourceLinkExtraction) => void)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "A link line the pasted steps carried (ADR-0089): it is taken out of the steps and handed up to set the recipe's Source.\nAbsent where there is no Source to set.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/form/PasteStepsControl.tsx"
                         }
                     ],
@@ -21941,12 +22043,48 @@
                     "exportKind": "named",
                     "props": [
                         {
+                            "name": "focusRequested",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "false",
+                            "description": "The button is asked for focus (the paste caption's Remove sends the cook back to the control they used). A level, until\n{@link PasteStepsControlProps.onFocusHandled}.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/PasteStepsControl.native.tsx"
+                        },
+                        {
+                            "name": "offersSource",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "false",
+                            "description": "Whether the Source can still be set, so the hint says a link may be pasted too. It follows the Source's lock: a\npublished recipe still takes steps, and its source cannot change. Display only.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/PasteStepsControl.native.tsx"
+                        },
+                        {
                             "name": "onAdd",
                             "type": "(instructions: readonly string[]) => void",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
                             "description": "Called with the pasted steps, in order, when the cook adds them.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/PasteStepsControl.native.tsx"
+                        },
+                        {
+                            "name": "onFocusHandled",
+                            "type": "(() => void)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The button took a requested focus.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/PasteStepsControl.native.tsx"
+                        },
+                        {
+                            "name": "onSource",
+                            "type": "((extraction: SourceLinkExtraction) => void)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "A link line the pasted steps carried (ADR-0089): it is taken out of the steps and handed up to set the recipe's Source.\nAbsent where there is no Source to set.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/form/PasteStepsControl.native.tsx"
                         }
                     ],
@@ -22552,6 +22690,207 @@
             ]
         },
         {
+            "id": "featuresRecipes/form/RecipeSourceField",
+            "name": "RecipeSourceField",
+            "group": "featuresRecipes",
+            "packageName": "@commise/features-recipes",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/recipes/src/form",
+            "kind": "presentational",
+            "patterns": [
+                "Adapter — `onOpen` wraps the platform's URL opener",
+                "Visitor — an exhaustive switch over the discriminated union `SourceRowModel`"
+            ],
+            "platforms": [
+                "web",
+                "native"
+            ],
+            "crossPlatform": true,
+            "propsDiverge": true,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "RecipeSourceField",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/form/RecipeSourceField.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/form",
+                    "moduleDoc": "@commise/features-recipes/form — `RecipeSourceField` (web): the Source row in Photos & publish (ADR-0089), the web\npage a recipe was copied from. A presentational render of the row's state (`sourceRowOf`): the editor's session owns the text, the\npaste's caption and the focus request, and this leaf holds none.\n\nA single-line URL field under its label, with the hint or status under it (the hint when empty, \"Copied from a public web\npage · {site}\" when filled) and a \"Remove source\" text button once there is text. A published recipe's source is locked\n(ADR-0023 section 1b): the site is then a link that opens in a new tab, with the address and the reason, and no field.\nThe status, the paste's caption and the error are all named by the field's `aria-describedby`.\n\nThe native leaf is `./RecipeSourceField.native.tsx`.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes/form — `RecipeSourceField` (web): the Source row in Photos & publish (ADR-0089), the web"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Visitor — an exhaustive switch over the discriminated union `SourceRowModel`"
+                        }
+                    ],
+                    "description": "The Source row.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "focusRequested",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The field is asked for focus (after Remove): a level, which stands until {@link onFocusHandled}.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/sourceFieldProps.ts"
+                        },
+                        {
+                            "name": "onChange",
+                            "type": "(text: string) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The cook typed in the field.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/sourceFieldProps.ts"
+                        },
+                        {
+                            "name": "onFocusHandled",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The field took a requested focus.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/sourceFieldProps.ts"
+                        },
+                        {
+                            "name": "onRemove",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "\"Remove source\".",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/sourceFieldProps.ts"
+                        },
+                        {
+                            "name": "onTouched",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The cook left the field, or pressed its Done key: an unusable address is an error from now on.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/sourceFieldProps.ts"
+                        },
+                        {
+                            "name": "row",
+                            "type": "SourceRowModel",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "What the row draws.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/sourceFieldProps.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                },
+                {
+                    "name": "RecipeSourceField",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/form/RecipeSourceField.native.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/form",
+                    "moduleDoc": "@commise/features-recipes/form — `RecipeSourceField` (native): the Source row in Photos & publish (ADR-0089), the\nReact Native leaf of `./RecipeSourceField.tsx`, on the same props, the same row model (`sourceRowOf`) and the same copy.\nStyled with Tamagui only (ADR-0080).\n\nWhat differs from web, and why:\n- React Native has no `aria-describedby`, so the field is given its hint, status and error as its accessibility hint\n  (`hint`, `error`), and each is also drawn.\n- React Native has no declarative link: the locked site opens through `onOpen`, which defaults to the platform's URL\n  opener, and its accessible name says it opens in the browser.\n- The field asks for a URL keyboard with no capitalisation or autocorrect, as on web.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes/form — `RecipeSourceField` (native): the Source row in Photos & publish (ADR-0089), the"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Visitor — an exhaustive switch over the discriminated union `SourceRowModel`"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Adapter — `onOpen` wraps the platform's URL opener"
+                        }
+                    ],
+                    "description": "The Source row.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "focusRequested",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The field is asked for focus (after Remove): a level, which stands until {@link onFocusHandled}.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/sourceFieldProps.ts"
+                        },
+                        {
+                            "name": "onChange",
+                            "type": "(text: string) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The cook typed in the field.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/sourceFieldProps.ts"
+                        },
+                        {
+                            "name": "onFocusHandled",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The field took a requested focus.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/sourceFieldProps.ts"
+                        },
+                        {
+                            "name": "onOpen",
+                            "type": "((url: string) => void)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Open the locked site's address in the browser. Defaults to the platform's URL opener.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/sourceFieldProps.ts"
+                        },
+                        {
+                            "name": "onRemove",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "\"Remove source\".",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/sourceFieldProps.ts"
+                        },
+                        {
+                            "name": "onTouched",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The cook left the field, or pressed its Done key: an unusable address is an error from now on.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/sourceFieldProps.ts"
+                        },
+                        {
+                            "name": "row",
+                            "type": "SourceRowModel",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "What the row draws.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/sourceFieldProps.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
             "id": "featuresRecipes/form/RecipeVisibilityField",
             "name": "RecipeVisibilityField",
             "group": "featuresRecipes",
@@ -22670,6 +23009,15 @@
                             "defaultValue": null,
                             "description": "The full editable form state — sections read only the slice they render.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/form/props.ts"
+                        },
+                        {
+                            "name": "webSource",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Whether the recipe can only be private because its source is a copied web page (ADR-0089): the Public card then says\nso, instead of the book and paid-site reason.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/props.ts"
                         }
                     ],
                     "usesRefApi": [],
@@ -22778,6 +23126,15 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "The full editable form state — sections read only the slice they render.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/props.ts"
+                        },
+                        {
+                            "name": "webSource",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Whether the recipe can only be private because its source is a copied web page (ADR-0089): the Public card then says\nso, instead of the book and paid-site reason.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/form/props.ts"
                         }
                     ],
@@ -32283,15 +32640,6 @@
                             "declaredIn": "packages/apps/commise/features/recipes/src/list/model.ts"
                         },
                         {
-                            "name": "headerAction",
-                            "type": "HeaderAction",
-                            "typeDetail": null,
-                            "required": false,
-                            "defaultValue": null,
-                            "description": "The large title's action (slice 3, `buildSpec.md` §3.3, §4.3): the avatar, which opens Profile. The app supplies\nit, because the profile read and the navigation are the app's.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/list/model.ts"
-                        },
-                        {
                             "name": "headingFocusSignal",
                             "type": "number",
                             "typeDetail": null,
@@ -32386,15 +32734,6 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "The floating button yields (see `RecipeLibraryControls.createEntryYields`): first load in flight, or the first run.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/list/model.ts"
-                        },
-                        {
-                            "name": "headerAction",
-                            "type": "HeaderAction",
-                            "typeDetail": null,
-                            "required": false,
-                            "defaultValue": null,
-                            "description": "The large title's action (slice 3, `buildSpec.md` §3.3, §4.3): the avatar, which opens Profile. The app supplies\nit, because the profile read and the navigation are the app's.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/list/model.ts"
                         },
                         {

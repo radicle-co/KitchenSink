@@ -60,10 +60,8 @@ export interface WebMessages {
          * without copy is a compile error rather than a blank bar.
          */
         readonly chrome: {
-            /** The product wordmark beside the logo in the sidebar. */
+            /** The product wordmark: the document title's suffix. */
             readonly wordmark: string;
-            /** Accessible name of the logo/wordmark. */
-            readonly logoAlt: string;
             /** Accessible name of the primary (sidebar) navigation landmark. The tab bar's is `homeMessages.chrome.tabNavLabel`. */
             readonly primaryNavLabel: string;
             /**
@@ -132,7 +130,6 @@ export const webMessages: LocalizedMessages<WebMessages> = {
             tagline: 'Your personal AI-powered recipe assistant.',
             chrome: {
                 wordmark: 'Commise',
-                logoAlt: 'Commise',
                 primaryNavLabel: 'Main',
                 pageTitles: {
                     home: 'Home',

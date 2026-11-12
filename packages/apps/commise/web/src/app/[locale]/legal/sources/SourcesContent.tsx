@@ -26,7 +26,7 @@ export function SourcesContent(): React.ReactElement {
     const profilePath = `/${locale}/profile`;
 
     return (
-        <AppShell activeId={null} titleId="dataSources">
+        <AppShell activeId="you" titleId="dataSources">
             <DataSourcesScreen
                 back={{
                     label: t.backToProfile,

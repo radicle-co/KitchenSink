@@ -27,6 +27,28 @@ describe('publishBlockedCopyOf', () => {
         });
     });
 
+    describe('a recipe copied from a web page (ADR-0089)', () => {
+        it('says it can only be private, and never offers to publish it as public', () => {
+            const copy = publishBlockedCopyOf(50, m, false, FEATURES, true);
+
+            expect(copy.body).toBe(
+                'All 50 of your private slots are in use. A recipe copied from a web page can only be private. Keep it as a draft for now, or free a slot. Nothing is lost.',
+            );
+            expect(copy.body).not.toMatch(/publish it as public/iu);
+        });
+
+        it('without a slot total, states no number', () => {
+            const body = publishBlockedCopyOf(undefined, m, false, FEATURES, true).body;
+
+            expect(body).not.toMatch(/\d/u);
+            expect(body).toContain('copied from a web page');
+        });
+
+        it('never offers removing the source as the way past the limit', () => {
+            expect(publishBlockedCopyOf(50, m, false, FEATURES, true).body).not.toMatch(/remove (the )?source/iu);
+        });
+    });
+
     describe('switch on', () => {
         it('adds the Pro line with the feature list', () => {
             const copy = publishBlockedCopyOf(50, m, true, FEATURES);

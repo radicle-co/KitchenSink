@@ -300,16 +300,28 @@ describe('the leaf property', () => {
     // into recipe-core with that reader so the editor and the paste matcher read a pasted line's measure one way. It
     // is pure, has NO dependencies of its own (asserted below), and web and mobile already bundled it through
     // `@commise/features-recipes` before the move. Anything else still fails here.
-    it('is only safe because recipe-core is ITSELF a leaf of zod and a dependency-free parser', async () => {
+    //
+    // ⚠️ Re-justified again for ADR-0089: `tldts` joined them. It reads the registrable domain of a pasted source link from
+    // the Public Suffix List (`sourceLink.ts`), which the editor and the service must read one way: a hand-rolled suffix
+    // table would be the reinvention library-first refuses. It is pure and browser-safe, and its ONLY dependency is its own
+    // data-and-parser core, `tldts-core`, which has none (asserted below).
+    it('is only safe because recipe-core is ITSELF a leaf of zod and dependency-free parsers', async () => {
         const manifest = JSON.parse(
             await readFile(join(SERVICE_ROOT, '../../shared/recipe-core/package.json'), 'utf8'),
         ) as { dependencies: Record<string, string> };
-        const parser = JSON.parse(
-            await readFile(join(SERVICE_ROOT, '../../../node_modules/numeric-quantity/package.json'), 'utf8'),
-        ) as { dependencies?: Record<string, string>; peerDependencies?: Record<string, string> };
 
-        expect(Object.keys(manifest.dependencies).sort()).toStrictEqual(['numeric-quantity', 'zod']);
-        expect(Object.keys({ ...parser.dependencies, ...parser.peerDependencies })).toStrictEqual([]);
+        const dependenciesOf = async (name: string): Promise<string[]> => {
+            const parser = JSON.parse(
+                await readFile(join(SERVICE_ROOT, `../../../node_modules/${name}/package.json`), 'utf8'),
+            ) as { dependencies?: Record<string, string>; peerDependencies?: Record<string, string> };
+
+            return Object.keys({ ...parser.dependencies, ...parser.peerDependencies });
+        };
+
+        expect(Object.keys(manifest.dependencies).sort()).toStrictEqual(['numeric-quantity', 'tldts', 'zod']);
+        expect(await dependenciesOf('numeric-quantity')).toStrictEqual([]);
+        expect(await dependenciesOf('tldts')).toStrictEqual(['tldts-core']);
+        expect(await dependenciesOf('tldts-core')).toStrictEqual([]);
     });
 });
 

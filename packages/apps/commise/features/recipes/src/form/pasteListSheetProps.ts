@@ -11,4 +11,10 @@ export interface PasteListSheetProps {
     readonly submitting: boolean;
     /** The job could not be created: said as an alert, and the text stays. */
     readonly failed: boolean;
+    /**
+     * Whether the Source can still be set (ADR-0089), so the hint says a link may be pasted too. Paste a list is offered
+     * only until the first publish, so this is false only for a source that cannot be corrected (a book, a clone's).
+     * Display only.
+     */
+    readonly offersSource?: boolean;
 }

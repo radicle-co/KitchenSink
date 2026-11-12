@@ -32,9 +32,10 @@ export const PublishBlockedSheet: FC<PublishBlockedSheetProps> = ({
     slotTotal,
     onKeepDraft,
     onPublishPublic,
+    webSource = false,
 }) => {
     const { publishBlocked: m } = useMessages(editorMessages);
-    const copy = publishBlockedCopyOf(slotTotal, m, SUBSCRIPTION_ENTRY_POINTS_ON);
+    const copy = publishBlockedCopyOf(slotTotal, m, SUBSCRIPTION_ENTRY_POINTS_ON, undefined, webSource);
 
     return (
         <Sheet
@@ -53,9 +54,11 @@ export const PublishBlockedSheet: FC<PublishBlockedSheetProps> = ({
                     <Button variant="secondary" icon="pencilLine" width="fill" onPress={onKeepDraft}>
                         {m.keepDraft}
                     </Button>
-                    <Button variant="secondary" icon="globe" width="fill" onPress={onPublishPublic}>
-                        {m.publishPublic}
-                    </Button>
+                    {onPublishPublic === undefined ? null : (
+                        <Button variant="secondary" icon="globe" width="fill" onPress={onPublishPublic}>
+                            {m.publishPublic}
+                        </Button>
+                    )}
                 </div>
             }
         >

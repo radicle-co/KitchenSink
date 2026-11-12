@@ -13,7 +13,13 @@
  */
 import * as Sentry from '@sentry/nestjs';
 import { forwardRef, Inject, Injectable, Logger } from '@nestjs/common';
-import { isBoundBy, quantitiesEqual, type RecipeSnapshot, type VersionConflictSide } from '@kitchensink/recipe-core';
+import {
+    isBoundBy,
+    quantitiesEqual,
+    type RecipeSnapshot,
+    type RecipeSourceKind,
+    type VersionConflictSide,
+} from '@kitchensink/recipe-core';
 import { verificationKey } from '@kitchensink/recipe-core/resolution/verification-key';
 import {
     verifiedLineIdentityOfMessage,
@@ -42,6 +48,9 @@ import {
     provenanceNotPermitted,
     publishRequirementsUnmet,
     recipeNotFound,
+    sourceAndStatementTogether,
+    sourceLocked,
+    sourceNotUsable,
     versionConflict,
     privateFoodsOnPublicRecipe,
 } from './recipe.error.js';
@@ -54,6 +63,7 @@ import {
     type StoredBinding,
 } from './domain/bindingOriginCarryForward.js';
 import { evaluatePublication, type PublishPolicyInput } from './domain/publishPolicy.js';
+import { evaluateSourceCorrection, type StoredSource } from './domain/sourceCorrectionPolicy.js';
 import { evaluatePublicFoods, type PublicFoodsLine } from './domain/publicFoodsPolicy.js';
 import {
     SLOT_NOT_NEEDED,
@@ -63,7 +73,12 @@ import {
     slotRuleApplies,
     type PrivateSlotStanding,
 } from './domain/privateSlotPolicy.js';
-import { defaultCloneVisibility, evaluateVisibility, type VisibilityPolicyInput } from './domain/visibilityPolicy.js';
+import {
+    defaultCloneVisibility,
+    evaluatePublishedState,
+    evaluateVisibility,
+    type VisibilityPolicyInput,
+} from './domain/visibilityPolicy.js';
 import { isContained, type ContainmentSubject } from '../common/containmentPolicy.js';
 import { assertNotContained, testPrincipalContained } from '../common/containment.error.js';
 import { isRecipeViewableBy } from './domain/recipeVisibility.js';
@@ -446,18 +461,19 @@ function assertVisibilityAllowed(
  * which fields the policy is asked with.
  *
  * @param principal - The verified caller.
- * @param recipe - The recipe's provenance label.
+ * @param recipe - The recipe's provenance label and source kind.
  * @param requested - The visibility asked for.
  */
 function visibilityAskOf(
     principal: Principal,
-    recipe: { readonly sourceType: RecipeSourceType },
+    recipe: { readonly sourceType: RecipeSourceType; readonly sourceKind: RecipeSourceKind | null },
     requested: RecipeVisibility,
 ): Omit<VisibilityPolicyInput, 'hasAvailablePrivateSlot'> {
     return {
         principalKind: principal.principalKind,
         containment: principal.containment,
         sourceType: recipe.sourceType,
+        sourceKind: recipe.sourceKind,
         isPremium: isPremiumPrincipal(principal),
         requested,
     };
@@ -736,15 +752,27 @@ export class RecipesService {
         //
         // `scopes` ∪ `permissions` mirrors identity's `ScopesGuard` rule that a grant is satisfied by
         // EITHER list; both come from the token's SIGNED `public_metadata`.
+        //
+        // ADR-0089: the cook's `statement` is the OTHER way to say where a recipe came from, and the two never travel
+        // together. A body naming both is a 400 here (a refinement on the schema would stop the import schema picking from it),
+        // and the policy's input is a union, so "both" cannot reach it.
+        if (dto.source !== undefined && dto.statement !== undefined) {
+            throw sourceAndStatementTogether();
+        }
+
         // ⛔ The bulk import is the ONE caller that states its provenance (ADR-0023's exception, this route only): the
         // cook's per-recipe statement set it, and the stored statement and citation back the label. Everything below
         // (visibility, the publish floor, the planner, the version row) is the SAME path an ordinary create takes.
+        // ⛔ Its `provenance` carries the source KIND (`resolveStatementProvenance`, the one function the statement branch
+        // of `evaluateProvenance` uses too), so a bulk web import is a web copy and never reads as the curator's text.
+        const grantedScopes = [...principal.scopes, ...principal.permissions];
         const provenanceDecision =
             imported === undefined
-                ? evaluateProvenance({
-                      declared: dto.source,
-                      grantedScopes: [...principal.scopes, ...principal.permissions],
-                  })
+                ? evaluateProvenance(
+                      dto.statement !== undefined
+                          ? { statement: dto.statement, grantedScopes }
+                          : { declared: dto.source, grantedScopes },
+                  )
                 : ({
                       allowed: true,
                       provenance: imported.provenance,
@@ -752,16 +780,22 @@ export class RecipesService {
                   } as const);
 
         if (!provenanceDecision.allowed) {
-            throw provenanceNotPermitted(provenanceDecision.reason, {
-                requiredScope: provenanceDecision.requiredScope,
-                sourceType: dto.source?.sourceType,
-            });
+            throw provenanceDecision.denial === 'unusable'
+                ? sourceNotUsable(provenanceDecision.reason)
+                : provenanceNotPermitted(provenanceDecision.reason, {
+                      requiredScope: provenanceDecision.requiredScope,
+                      sourceType: dto.source?.sourceType,
+                  });
         }
 
         const provenance = provenanceDecision.provenance;
         const requested = dto.visibility ?? RecipeVisibility.PUBLIC;
         const isPremium = isPremiumPrincipal(principal);
-        const visibilityAsk = visibilityAskOf(principal, { sourceType: provenance.sourceType }, requested);
+        const visibilityAsk = visibilityAskOf(
+            principal,
+            { sourceType: provenance.sourceType, sourceKind: provenance.sourceKind },
+            requested,
+        );
         // ADR-0073: only a free cook's private PUBLISHED recipe takes a slot, and THAT decision is made inside the write's transaction,
         // under the per-user lock, below. Every other request has no slot to lack, so it is judged here, before the planner,
         // exactly as it always was - a pure refusal must not cost a call to food. (A slot refusal does: it is only known
@@ -786,6 +820,7 @@ export class RecipesService {
         assertPublishable({
             status,
             sourceType: provenance.sourceType,
+            sourceKind: provenance.sourceKind,
             cuisine: dto.cuisine ?? null,
             ingredientCount: dto.ingredients.length,
             stepCount: dto.steps.length,
@@ -855,6 +890,7 @@ export class RecipesService {
                     // unchanged); the two nullable text columns are written as the policy's `null`, which is what
                     // "no external source" means — never `''`, which would render as an empty credit line.
                     sourceType: provenance.sourceType,
+                    sourceKind: provenance.sourceKind,
                     sourceUrl: provenance.sourceUrl,
                     sourceAttribution: provenance.sourceAttribution,
                     ingredientNamesText: plan.namesText,
@@ -1251,9 +1287,35 @@ export class RecipesService {
         // let one empty a published recipe. The compare-and-swap on `expectedVersion` below makes judging against
         // `existing` safe: a write that lands in between is a 409, never a stale pass. Before the planner, so a pure
         // refusal costs no call to food.
+        //
+        // ADR-0089: the source is judged first, because it changes what the write leaves (a web copy is asked for a
+        // cuisine, and is private). The window is `first_published_at IS NULL`; it is read from the aggregate this write's
+        // compare-and-swap on `expectedVersion` then pins: every route to a first publish is a PATCH that advances the
+        // version, so a publish that lands in between makes this write a 409 rather than a stale pass.
+        const storedSource: StoredSource = {
+            sourceType: recipeSourceTypeSchema.parse(existing.recipe.sourceType),
+            sourceKind: existing.recipe.sourceKind,
+            firstPublishedAt: existing.recipe.firstPublishedAt,
+            clonedFromId: existing.recipe.clonedFromId,
+        };
+        const correction = evaluateSourceCorrection({ statement: dto.statement, stored: storedSource });
+
+        if (correction.kind === 'locked') {
+            throw sourceLocked();
+        }
+
+        if (correction.kind === 'unusable') {
+            throw sourceNotUsable('The source link is not a public web page address.');
+        }
+
+        const sourceAfter =
+            correction.kind === 'apply'
+                ? { sourceType: correction.provenance.sourceType, sourceKind: correction.provenance.sourceKind }
+                : { sourceType: storedSource.sourceType, sourceKind: storedSource.sourceKind };
+
         assertPublishable({
             status: dto.status ?? recipeStatusSchema.parse(existing.recipe.status),
-            sourceType: recipeSourceTypeSchema.parse(existing.recipe.sourceType),
+            ...sourceAfter,
             cuisine: dto.cuisine === undefined ? existing.recipe.cuisine : dto.cuisine,
             ingredientCount: dto.ingredients?.length ?? existing.ingredients.length,
             stepCount: dto.steps?.length ?? existing.steps.length,
@@ -1326,7 +1388,6 @@ export class RecipesService {
 
         // Whether this write could take a slot: only publishing a DRAFT can (a published recipe already holds or never held
         // one, and set-visibility counts its own moves). The precise verdict needs the row's visibility, read under the lock.
-        const sourceType = recipeSourceTypeSchema.parse(existing.recipe.sourceType);
         const isPremium = isPremiumPrincipal(principal);
         const existingStatus = recipeStatusSchema.parse(existing.recipe.status);
         const afterStatus = dto.status ?? existingStatus;
@@ -1361,15 +1422,37 @@ export class RecipesService {
                     return undefined;
                 }
 
-                if (current.visibility === RecipeVisibility.PRIVATE) {
-                    // Publishing a private draft is a move to private like any other, so it meets the SAME C-004 policy (the
-                    // only door a private `imported_public` recipe has is Premium plus a substantive edit - a slot never makes
-                    // one private, ADR-0073 section 6) with the slot fact counted under the lock where a slot can matter.
+                // A statement that makes a public draft private (ADR-0089) lands in the SAME write, so a draft published in it
+                // is a private recipe from the first instant and is judged as one.
+                const visibilityAfter =
+                    correction.kind === 'apply' && correction.makePrivate
+                        ? RecipeVisibility.PRIVATE
+                        : current.visibility;
+
+                // The state this write leaves, judged on the visibility read UNDER the lock (ADR-0089): a private-only recipe
+                // is never published and public, even if a race left its draft public.
+                const stateAfter = evaluatePublishedState({
+                    status: afterStatus,
+                    visibility: visibilityAfter,
+                    ...sourceAfter,
+                });
+
+                if (!stateAfter.allowed) {
+                    throw invalidVisibility(stateAfter.reason, {
+                        visibility: visibilityAfter,
+                        sourceType: sourceAfter.sourceType,
+                    });
+                }
+
+                if (visibilityAfter === RecipeVisibility.PRIVATE) {
+                    // Publishing a private draft is a move to private like any other, so it meets the SAME C-004 policy, with
+                    // the slot fact counted under the lock where a slot can matter (ADR-0073: a free cook's private recipe
+                    // uses a slot, and ADR-0077 section 6 means no Premium or substantive edit is needed).
                     const takesSlot = requiresPrivateSlotCheck({
-                        sourceType,
+                        sourceType: sourceAfter.sourceType,
                         isPremium,
                         before: { visibility: current.visibility, status: existingStatus },
-                        after: { visibility: current.visibility, status: afterStatus },
+                        after: { visibility: visibilityAfter, status: afterStatus },
                     });
 
                     if (takesSlot && counted === undefined) {
@@ -1379,7 +1462,7 @@ export class RecipesService {
                     }
 
                     assertVisibilityAllowed(
-                        visibilityAskOf(principal, { sourceType }, RecipeVisibility.PRIVATE),
+                        visibilityAskOf(principal, sourceAfter, RecipeVisibility.PRIVATE),
                         takesSlot && counted !== undefined ? counted : SLOT_NOT_NEEDED,
                     );
                 }
@@ -1412,6 +1495,13 @@ export class RecipesService {
                     // Publication status (W8-a.3) — passed straight through: absent leaves it unchanged, a value
                     // sets it (Publish / re-draft). The DAL keys off `!== undefined`.
                     status: dto.status,
+                    // The source correction (ADR-0089), all four columns together, and the private flip that goes with it.
+                    ...(correction.kind === 'apply'
+                        ? {
+                              provenance: correction.provenance,
+                              ...(correction.makePrivate ? { visibility: RecipeVisibility.PRIVATE } : {}),
+                          }
+                        : {}),
                     tags: dto.tags,
                     dietaryFlags: dto.dietaryFlags,
                     // Rebuild the search text from the lines' identities (never the request body) — only when the
@@ -1570,7 +1660,12 @@ export class RecipesService {
         // ADR-0073 section 12: a clone is always written as a DRAFT (below), and a draft holds no slot, so a clone is never
         // counted or refused for slots - whatever visibility it lands with. The slot is taken when the cook publishes it
         // (`update`).
-        const cloneVisibility = defaultCloneVisibility(sourceType, principal, source.recipe.visibility);
+        const cloneVisibility = defaultCloneVisibility(
+            sourceType,
+            source.recipe.sourceKind,
+            principal,
+            source.recipe.visibility,
+        );
 
         // ⛔ ONE TRANSACTION, exactly as `create` — the clone and its first version row commit together.
         const created = await this.dal.transaction(async (tx) => {
@@ -1594,6 +1689,8 @@ export class RecipesService {
                     tags: source.recipe.tags,
                     dietaryFlags: source.recipe.dietaryFlags,
                     sourceType,
+                    // The kind travels with the label and the address (ADR-0089): a clone of a web copy is a web copy.
+                    sourceKind: source.recipe.sourceKind,
                     sourceUrl: source.recipe.sourceUrl,
                     sourceAttribution: attribution,
                     clonedFromId: source.recipe.id,
@@ -1646,7 +1743,11 @@ export class RecipesService {
 
         const isPremium = isPremiumPrincipal(principal);
         const sourceType = existing.recipe.sourceType;
-        const visibilityAsk = visibilityAskOf(principal, { sourceType }, visibility);
+        const visibilityAsk = visibilityAskOf(
+            principal,
+            { sourceType, sourceKind: existing.recipe.sourceKind },
+            visibility,
+        );
         // The row's facts are only known for certain UNDER the lock (set-visibility does not bump the version, and another
         // request may publish a draft in between), so the lock is taken whenever the slot rule could apply to a move to
         // private, and the precise verdict is made from the facts read under it.

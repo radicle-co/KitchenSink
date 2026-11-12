@@ -238,6 +238,7 @@
                 </div>
                 <x-import
                     component-from-global-scope="Commise.Native.HomeTabBar"
+                    profile="{{profile}}"
                     chrome="{{chrome}}"
                     live-capabilities="{{none}}"
                     active-id="recipes"
@@ -251,7 +252,7 @@
         <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":834,"height":1194}}'>
             class Component extends DCLogic { renderVals(){ const noop=()=>{}; return {noop,no:false,none:[],nBottom:20,n0:0,
             back:{label:'Back to recipe',parent:'Lemon and thyme roast chicken',onPress:noop},
-            chrome:{destinations:{home:'Home',recipes:'Recipes',discover:'Discover','meal-plan':'Plan',grocery:'Shop'},profileButton:'Profile, {name}',profileButtonNoName:'Profile',tabNavLabel:'Tabs'},
+            profile:{status:'ready',name:'Sam Rivera'},chrome:{destinations:{home:'Home',recipes:'Recipes',discover:'Discover','meal-plan':'Plan',grocery:'Shop',you:'You'},profileButton:'Profile, {name}',profileButtonNoName:'Profile',tabNavLabel:'Tabs'},
             menu:[{id:'preview',label:'Preview',icon:'eye',onSelect:noop},{id:'restore',label:'Restore this version',icon:'rotateCcw',onSelect:noop},{id:'compare',label:'Compare with current',icon:'slidersHorizontal',onSelect:noop}]}; } }
         </script>
     </body>

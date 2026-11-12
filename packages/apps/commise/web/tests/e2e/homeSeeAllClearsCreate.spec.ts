@@ -96,7 +96,8 @@ test.describe('Home on a short window: the New recipe button never covers a focu
 
     // Designer ruling (`nativeBoards/designAnswers.md`, 438f7e542): below 400 px tall the button has its own row under the
     // page header, after the greeting and the date, 16 below the date, start-aligned, with no shadow. It is never in the
-    // H1 row, where the profile button sits (at 320 by 200 the old placement overlapped the greeting).
+    // H1 row (at 320 by 200 the old placement overlapped the greeting, when the profile button also sat there; the
+    // avatar left the title row on 2026-11-11, N3, so the greeting is all that is left to keep clear of).
     test('below 400 px tall the button has its own row under the date, 16 px below it, start-aligned, with no shadow', async ({
         page,
     }) => {
@@ -104,18 +105,16 @@ test.describe('Home on a short window: the New recipe button never covers a focu
         const create = page.getByRole('button', { name: 'New recipe' });
         const greeting = page.getByRole('heading', { level: 1 });
         const date = page.getByText(/^\w+day, \w+ \d{1,2}/u).first();
-        const profile = page.getByRole('link', { name: /^Profile/u }).first();
         await expect(create).toBeVisible();
-        const [createBox, greetingBox, dateBox, profileBox] = [
+        const [createBox, greetingBox, dateBox] = [
             await create.boundingBox(),
             await greeting.boundingBox(),
             await date.boundingBox(),
-            await profile.boundingBox(),
         ];
 
         await expect(create).toHaveCSS('box-shadow', 'none');
 
-        if (createBox === null || greetingBox === null || dateBox === null || profileBox === null) {
+        if (createBox === null || greetingBox === null || dateBox === null) {
             throw new Error('A header control has no box.');
         }
 
@@ -123,7 +122,6 @@ test.describe('Home on a short window: the New recipe button never covers a focu
         expect(createBox.y).toBeLessThanOrEqual(dateBox.y + dateBox.height + 17);
         expect(createBox.x).toBeLessThanOrEqual(greetingBox.x + 1);
         expect(apart(createBox, greetingBox)).toBe(true);
-        expect(apart(createBox, profileBox)).toBe(true);
     });
 
     test('just above 400 px tall the button floats, and a focused "See all" scrolls clear of it', async ({ page }) => {

@@ -25,12 +25,15 @@ vi.stubGlobal('__ENV', {});
 /** The k6 module, typed by what this test reads: it is plain JavaScript with no declarations. */
 interface K6Common {
     readonly makeRecipePayload: (label: string, ingredients: { flour: string; sugar: string }) => unknown;
+    readonly makeRecipePayloadWithStatement: (label: string, ingredients: { flour: string; sugar: string }) => unknown;
     readonly makeFoodNutritionRequest: () => unknown;
 }
 
 // A path held in a variable, so the compiler does not look for declarations of a k6-only JavaScript module.
 const k6CommonPath = '../../tests/load/lib/common.js';
-const { makeRecipePayload, makeFoodNutritionRequest } = (await import(k6CommonPath)) as K6Common;
+const { makeRecipePayload, makeRecipePayloadWithStatement, makeFoodNutritionRequest } = (await import(
+    k6CommonPath
+)) as K6Common;
 
 describe('the k6 create payload', () => {
     it('parses under the published create-recipe request schema', () => {
@@ -42,6 +45,21 @@ describe('the k6 create payload', () => {
         const parsed = createRecipeRequestSchema.safeParse(body);
 
         expect(parsed.error?.issues ?? []).toStrictEqual([]);
+    });
+
+    // ADR-0089: the statement variant, a private web copy. It must parse, stay private (a web copy cannot be public, and
+    // `k6WriteContainment` demands private load recipes), and carry a link the schema accepts as a source.
+    it('the statement variant parses under the same schema, is private, and states a web link', () => {
+        const body = makeRecipePayloadWithStatement('k6-contract', {
+            flour: '00000000-0000-4000-8000-000000000001',
+            sugar: '00000000-0000-4000-8000-000000000002',
+        }) as { visibility: string; statement: { kind: string } };
+
+        const parsed = createRecipeRequestSchema.safeParse(body);
+
+        expect(parsed.error?.issues ?? []).toStrictEqual([]);
+        expect(body.visibility).toBe('private');
+        expect(body.statement.kind).toBe('public_web');
     });
 });
 

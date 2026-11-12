@@ -123,20 +123,20 @@ afterEach(() => {
 
 /**
  * Slice 3 (`buildSpec.md` §3.1): Discover is a tab of its own, so the source switcher that was its way back to My
- * recipes is gone (the tab bar and the sidebar are the way), and the page hands in the large title's avatar.
+ * recipes is gone (the tab bar and the sidebar are the way). The title row carries NO avatar (owner ruling 2026-11-11, N3):
+ * the container no longer accepts one, and nothing in the page is a Profile control. Rewritten from the test that handed
+ * the title an avatar and asserted it was drawn.
  */
 describe('RecipeDiscoveryContainer — the large title', () => {
-    it('draws no source switcher, and the avatar the page hands in as the title’s action', () => {
+    it('draws no source switcher and no avatar in the title row', () => {
         const client = discoveryClient();
         vi.spyOn(client, 'searchRecipes').mockResolvedValue(makeSearchResponse([]));
 
-        renderWithSnackbar(
-            <RecipeDiscoveryContainer locale="en" avatar={<button type="button">Profile</button>} />,
-            client,
-        );
+        renderWithSnackbar(<RecipeDiscoveryContainer locale="en" />, client);
 
         expect(screen.queryByRole('navigation', { name: 'Recipe source' })).toBeNull();
-        expect(screen.getByRole('button', { name: 'Profile' })).toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: /profile/iu })).toBeNull();
+        expect(screen.queryByRole('link', { name: /profile/iu })).toBeNull();
     });
 });
 
@@ -317,8 +317,11 @@ describe('RecipeDiscoveryContainer — URL criteria', () => {
         const user = userEvent.setup();
         const replaceState = vi.spyOn(window.history, 'replaceState');
         const client = discoveryClient();
+        // The catalogue holds a recipe: over an EMPTY catalogue the frame draws no Filters (buildSpec §4.6).
         vi.spyOn(client, 'searchRecipes').mockResolvedValue(
-            makeSearchResponse([], { facets: makeSearchFacets({ dietaryFlags: [{ value: 'vegan', count: 2 }] }) }),
+            makeSearchResponse([makeSearchResult({ recipe: makeRecipe({ id: 'rec_1', title: 'Curated Dish' }) })], {
+                facets: makeSearchFacets({ dietaryFlags: [{ value: 'vegan', count: 2 }] }),
+            }),
         );
 
         renderWithSnackbar(<RecipeDiscoveryContainer locale="en" />, client);
@@ -455,8 +458,15 @@ describe('RecipeDiscoveryContainer — browse rails (U7)', () => {
         // follows what the viewer asked for NOW, so the sort appears as they type — before that search has answered.
         const user = userEvent.setup();
         const client = discoveryClient();
+        // The browse reads hold a recipe: an EMPTY catalogue draws its own state instead of the rails.
         vi.spyOn(client, 'searchRecipes').mockImplementation((params) =>
-            params?.query === undefined ? Promise.resolve(makeSearchResponse([])) : new Promise(() => {}),
+            params?.query === undefined
+                ? Promise.resolve(
+                      makeSearchResponse([
+                          makeSearchResult({ recipe: makeRecipe({ id: 'rec_1', title: 'Curated Dish' }) }),
+                      ]),
+                  )
+                : new Promise(() => {}),
         );
 
         renderWithSnackbar(<RecipeDiscoveryContainer locale="en" />, client);
@@ -473,8 +483,9 @@ describe('RecipeDiscoveryContainer — browse rails (U7)', () => {
         const user = userEvent.setup();
         const replaceState = vi.spyOn(window.history, 'replaceState');
         const client = discoveryClient();
+        // Cuisine facets come from recipes, so the catalogue holds one (an EMPTY one draws no rails and no shortcuts).
         vi.spyOn(client, 'searchRecipes').mockResolvedValue(
-            makeSearchResponse([], {
+            makeSearchResponse([makeSearchResult({ recipe: makeRecipe({ id: 'rec_1', title: 'Curated Dish' }) })], {
                 facets: makeSearchFacets({
                     cuisine: [
                         { value: 'Thai', count: 3 },
@@ -495,7 +506,12 @@ describe('RecipeDiscoveryContainer — browse rails (U7)', () => {
     it('a rail’s "see all" reveals the full list sorted by that rail', async () => {
         const user = userEvent.setup();
         const client = discoveryClient();
-        const searchSpy = vi.spyOn(client, 'searchRecipes').mockResolvedValue(makeSearchResponse([]));
+        // The catalogue holds a recipe: an EMPTY catalogue draws no rails, so there would be no "see all" to press.
+        const searchSpy = vi
+            .spyOn(client, 'searchRecipes')
+            .mockResolvedValue(
+                makeSearchResponse([makeSearchResult({ recipe: makeRecipe({ id: 'rec_1', title: 'Curated Dish' }) })]),
+            );
 
         renderWithSnackbar(<RecipeDiscoveryContainer locale="en" />, client);
 
@@ -565,22 +581,20 @@ describe('RecipeDiscoveryContainer — browse rails (U7)', () => {
         expect(screen.queryByRole('button', { name: 'Back to browse' })).not.toBeInTheDocument();
     });
 
-    it('reaches the BROWSE-EMPTY copy (not the no-match copy) after a rail’s "see all" finds nothing', async () => {
-        const user = userEvent.setup();
+    it('opens on the EMPTY-CATALOGUE copy (not the no-match copy, not three empty rails) when nothing is public', async () => {
+        // REWRITTEN for the empty catalogue (buildSpec §4.6): this used to reach `emptyTitle` only after a rail's
+        // "see all", while the browse default drew three rails that each said "Nothing here yet.". The browse default
+        // now says it at once, and an empty catalogue draws no rails, so there is no "see all" to press.
         const client = discoveryClient();
         vi.spyOn(client, 'searchRecipes').mockResolvedValue(makeSearchResponse([]));
 
         renderWithSnackbar(<RecipeDiscoveryContainer locale="en" />, client);
 
-        await user.click(await screen.findByRole('button', { name: 'See all Trending' }));
-
-        // This pins `discovery.emptyTitle`/`emptyBody` as LIVE web copy rather than an unreachable string.
-        // The container supplies `browseSlot` only while browsing, so leaving browse via "see all" is the
-        // one path with no query, no filter AND no browse slot — precisely the browse-empty branch. Without
-        // it, the only zero-result copy a web viewer could ever see would be the no-match wording, which
-        // wrongly implies a search they never made.
         expect(await screen.findByRole('heading', { name: 'No public recipes yet.' })).toBeInTheDocument();
         expect(screen.queryByText('No recipes match these filters')).not.toBeInTheDocument();
+        expect(screen.queryByRole('heading', { name: 'Trending' })).not.toBeInTheDocument();
+        expect(screen.queryByText('Nothing here yet.')).not.toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: /^Filters/u })).not.toBeInTheDocument();
     });
 
     it('offers a working retry when the load fails on the BROWSE default, not just in a result list', async () => {

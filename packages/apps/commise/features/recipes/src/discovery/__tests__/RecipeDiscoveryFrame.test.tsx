@@ -96,15 +96,15 @@ describe('RecipeDiscoveryFrame (web) — chrome', () => {
         expect(onSearchChange).toHaveBeenCalledWith('');
     });
 
-    it('is the page’s one H1 with the avatar the app supplies as its action, even over a failed body', () => {
+    // Rewritten 2026-11-11 (N3): the title row carries no avatar, so the frame takes no `headerAction` and draws none.
+    it('is the page’s one H1 with no avatar in its row, even over a failed body', () => {
         renderFrame({
-            headerAction: { kind: 'avatar', avatar: <button type="button">Profile</button> },
             children: <div role="alert">load failed</div>,
         });
 
         expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
         expect(screen.getByRole('heading', { level: 1 }).id).toBe('discover-title');
-        expect(screen.getByRole('button', { name: 'Profile' })).toBeTruthy();
+        expect(screen.queryByRole('button', { name: /^Profile/u })).toBeNull();
         expect(screen.getByRole('alert')).toBeTruthy();
     });
 

@@ -41,6 +41,7 @@ export const RecipeVisibilityField: FC<RecipeVisibilityFieldProps> = ({
     onPremiumRequired,
     onConfirmPublic,
     onFreeASlot,
+    webSource,
 }) => {
     const { visibility: v } = useMessages(editorMessages);
     // Idempotent over a host that already passes the held value: the field enforces the rule rather than trusting it.
@@ -51,6 +52,7 @@ export const RecipeVisibilityField: FC<RecipeVisibilityFieldProps> = ({
         facts,
         refusal: privateRefusal,
         messages: v,
+        ...(webSource === undefined ? {} : { webSource }),
     });
 
     const choose = (chosen: RecipeVisibility): void => {

@@ -157,7 +157,11 @@ export function useRecipeDetailController(input: RecipeDetailControllerInput): R
     // paid features still decide an imported public-web recipe. The slot count is a DISPLAY fact, so a Make private with
     // every slot used is still SENT (`whenFull`) and the server's `PRIVATE_SLOTS_FULL` says no (`useServerRefusedPrivate`).
     const knownPaidFeatures = knownPaidFeaturesOf(profile);
-    const recipePrivate = useRecipePrivate({ sourceType: recipe.sourceType, knownPaidFeatures });
+    const recipePrivate = useRecipePrivate({
+        sourceType: recipe.sourceType,
+        sourceKind: recipe.sourceKind ?? null,
+        knownPaidFeatures,
+    });
     const sendPrivate = (): void => setVisibility.mutate({ id, visibility: RecipeVisibility.PRIVATE });
     const privateGate = useGatedPrivate({
         facts: { rule: recipePrivate.rule, standing: recipePrivate.standing, state: paidFeatureStateOf(profile) },

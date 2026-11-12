@@ -35,14 +35,19 @@
  * authority — a stronger control than "the server fetched a URL the caller chose", which attributes content
  * the caller may have written.
  */
-import { RecipeSourceType } from '@kitchensink/recipe-core';
+import { RecipeSourceType, parseSourceLink, type RecipeSourceKind } from '@kitchensink/recipe-core';
 
-import { CURATOR_IMPORT_SCOPE, type RecipeSourceInput } from '../recipes.schema.js';
+import type { ImportStatement } from '../import.schema.js';
+import { CURATOR_IMPORT_SCOPE, type RecipeSourceInput, type RecipeStatementInput } from '../recipes.schema.js';
 
-/** The complete input to a provenance decision. */
-export interface ProvenancePolicyInput {
-    /** The provenance the caller declared, or `undefined` when the body carried none. */
-    readonly declared: RecipeSourceInput | undefined;
+/**
+ * The complete input to a provenance decision.
+ *
+ * ⛔ A UNION, so "both" is unrepresentable (ADR-0089). A caller either DECLARES a provenance (the curator's `source`, which
+ * the grant gates) or STATES one (the cook's pasted web link, `statement`, which no grant gates and which never reads the
+ * grant). A body carrying both is a `400` before this policy is asked, and the type refuses to build it anyway.
+ */
+export type ProvenancePolicyInput = {
     /**
      * Every grant the caller holds.
      *
@@ -51,7 +56,18 @@ export interface ProvenancePolicyInput {
      * never a grant.
      */
     readonly grantedScopes: readonly string[];
-}
+} & (
+    | {
+          /** The provenance the caller declared, or `undefined` when the body carried none. */
+          readonly declared: RecipeSourceInput | undefined;
+          readonly statement?: undefined;
+      }
+    | {
+          readonly declared?: undefined;
+          /** The cook's statement: a pasted link to the public web page the recipe was copied from. */
+          readonly statement: RecipeStatementInput;
+      }
+);
 
 /** The provenance the service will persist, fully resolved. `null` means "no such source", never `''`. */
 export interface ResolvedProvenance {
@@ -61,6 +77,11 @@ export interface ResolvedProvenance {
     readonly sourceUrl: string | null;
     /** The human-readable credit, or `null` for content with no external source. */
     readonly sourceAttribution: string | null;
+    /**
+     * What the cook said the source is, or `null`. ONLY a statement sets it: the curator's reading keeps `null`, which is
+     * what tells the curator's public-domain text (may be public) from a web copy (private only) under the same label.
+     */
+    readonly sourceKind: RecipeSourceKind | null;
 }
 
 /**
@@ -73,14 +94,76 @@ export interface ResolvedProvenance {
  */
 export type ProvenanceDecision =
     | { readonly allowed: true; readonly provenance: ResolvedProvenance; readonly reason: string }
-    | { readonly allowed: false; readonly reason: string; readonly requiredScope: string };
+    | {
+          /** The caller lacks the grant the declaration needs (a `403`). */
+          readonly allowed: false;
+          readonly denial: 'grant';
+          readonly reason: string;
+          readonly requiredScope: string;
+      }
+    | {
+          /** The statement's link is not a usable web source, which no grant could change (a `400`). */
+          readonly allowed: false;
+          readonly denial: 'unusable';
+          readonly reason: string;
+      };
 
 /** The provenance of a recipe whose author declared none — the shipped default, unchanged (004-FR-024). */
 const UNDECLARED: ResolvedProvenance = {
     sourceType: RecipeSourceType.USER_CREATED,
     sourceUrl: null,
     sourceAttribution: null,
+    sourceKind: null,
 };
+
+/**
+ * The ONE reading of a cook's statement as provenance (ADR-0072 section 9, ADR-0089). A recipe's own `statement` reads it
+ * through {@link evaluateProvenance}, and the bulk import reads it for each item, so the two cannot disagree.
+ *
+ * ⛔ Every resolution carries the source KIND, and the kind is the label's pair: a web copy is `imported_public` with
+ * `public_web`, a book `imported_physical` with `book`, a paid site `imported_paid` with `paid_site`. An `imported_public`
+ * with no kind reads as the curator's public-domain text, which may be public: that is the hazard ADR-0089 closes. These
+ * pairs are also what the `recipes_source_kind_pairs_source_type` CHECK accepts, so a write built from this cannot violate it.
+ *
+ * @param statement - The statement: the import's four forms, of which a recipe's own `statement` is the web member.
+ * @returns The provenance to store, or `undefined` for a web link that is not a usable source. Pure.
+ */
+export function resolveStatementProvenance(
+    statement: ImportStatement | RecipeStatementInput,
+): ResolvedProvenance | undefined {
+    switch (statement.kind) {
+        case 'authored':
+            return UNDECLARED;
+
+        case 'public_web': {
+            const parsed = parseSourceLink(statement.citation);
+
+            return parsed.ok
+                ? {
+                      sourceType: RecipeSourceType.IMPORTED_PUBLIC,
+                      sourceUrl: parsed.link.url,
+                      sourceAttribution: parsed.link.site,
+                      sourceKind: 'public_web',
+                  }
+                : undefined;
+        }
+
+        case 'book':
+            return {
+                sourceType: RecipeSourceType.IMPORTED_PHYSICAL,
+                sourceUrl: null,
+                sourceAttribution: statement.citation,
+                sourceKind: 'book',
+            };
+        case 'paid_site':
+            return {
+                sourceType: RecipeSourceType.IMPORTED_PAID,
+                sourceUrl: null,
+                sourceAttribution: statement.citation,
+                sourceKind: 'paid_site',
+            };
+    }
+}
 
 /**
  * Evaluate whether a caller may declare the provenance in its create body, and resolve what will be
@@ -94,7 +177,24 @@ const UNDECLARED: ResolvedProvenance = {
  * @returns An allow decision carrying the resolved provenance, or a denial naming the scope required.
  */
 export function evaluateProvenance(input: ProvenancePolicyInput): ProvenanceDecision {
-    const { declared, grantedScopes } = input;
+    const { declared, statement, grantedScopes } = input;
+
+    if (statement !== undefined) {
+        // ⛔ The statement branch NEVER reads `grantedScopes`: a cook states where a copy came from, and the label says
+        // exactly that (ADR-0072 section 9). It is a web copy whatever else the caller holds, so a curator who states a link
+        // gets a private web copy, not the curator's public-domain reading.
+        const provenance = resolveStatementProvenance(statement);
+
+        if (provenance === undefined) {
+            return { allowed: false, denial: 'unusable', reason: 'The source link is not a public web page address.' };
+        }
+
+        return {
+            allowed: true,
+            provenance,
+            reason: 'The cook stated that this recipe was copied from a public web page.',
+        };
+    }
 
     if (declared === undefined) {
         return { allowed: true, provenance: UNDECLARED, reason: 'No provenance declared; the author is the source.' };
@@ -113,6 +213,7 @@ export function evaluateProvenance(input: ProvenancePolicyInput): ProvenanceDeci
             if (!grantedScopes.includes(CURATOR_IMPORT_SCOPE)) {
                 return {
                     allowed: false,
+                    denial: 'grant',
                     reason: `Declaring an imported public-domain source requires the '${CURATOR_IMPORT_SCOPE}' grant.`,
                     requiredScope: CURATOR_IMPORT_SCOPE,
                 };
@@ -124,6 +225,8 @@ export function evaluateProvenance(input: ProvenancePolicyInput): ProvenanceDeci
                     sourceType: RecipeSourceType.IMPORTED_PUBLIC,
                     sourceUrl: declared.sourceUrl,
                     sourceAttribution: declared.sourceAttribution,
+                    // The curator's reading is the one `imported_public` with NO kind (ADR-0089).
+                    sourceKind: null,
                 },
                 reason: 'The caller holds the curator grant for public-domain imports.',
             };

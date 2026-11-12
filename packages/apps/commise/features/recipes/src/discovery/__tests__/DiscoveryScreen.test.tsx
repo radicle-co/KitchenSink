@@ -8,6 +8,7 @@
 import { QueryClient } from '@tanstack/react-query';
 import { renderWithRecipeClient } from '@commise/test-utils';
 import { SnackbarHost } from '@commise/ui/snackbar';
+import { makeRecipe } from '@kitchensink/recipe-core/testing';
 import type { RecipeSearchResponse } from '@kitchensink/recipe-service-client';
 import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-client/testing';
 import { cleanup, fireEvent, screen, waitFor, type RenderResult } from '@testing-library/react';
@@ -176,6 +177,50 @@ describe('DiscoveryScreen — the criteria port', () => {
 
         await waitFor(() => expect(search).toHaveBeenCalled());
         expect(search.mock.calls.at(-1)?.[0]).toMatchObject({ tags: ['vegan'] });
+    });
+});
+
+/**
+ * The empty catalogue (`docs/design/uiOverhaul/buildSpec.md` §4.6, the redesign board's "No public recipes at all"
+ * frame): no other cook has a public, published recipe. The screen says so once, in place of three rails that each said
+ * "Nothing here yet.", and offers no Filters over nothing to filter.
+ */
+describe('DiscoveryScreen — the empty catalogue', () => {
+    const ONE_RECIPE: RecipeSearchResponse = {
+        ...EMPTY_PAGE,
+        results: [{ recipe: makeRecipe({ id: 'rec_1', title: 'Curated', visibility: 'public', status: 'published' }) }],
+        total: 1,
+    };
+
+    it('says "No public recipes yet." in place of the rails, with no Filters', async () => {
+        vi.spyOn(client, 'searchRecipes').mockResolvedValue(EMPTY_PAGE);
+
+        renderScreen(storeOf(EMPTY_RECIPE_FILTERS, '', vi.fn()));
+
+        expect(await screen.findByRole('heading', { name: 'No public recipes yet.' })).toBeTruthy();
+        expect(screen.queryByRole('heading', { name: 'Trending' })).toBeNull();
+        expect(screen.queryByText('Nothing here yet.')).toBeNull();
+        expect(screen.queryByRole('button', { name: /^Filters/ })).toBeNull();
+    });
+
+    it('shows the rails and Filters once the catalogue holds a recipe', async () => {
+        vi.spyOn(client, 'searchRecipes').mockResolvedValue(ONE_RECIPE);
+
+        renderScreen(storeOf(EMPTY_RECIPE_FILTERS, '', vi.fn()));
+
+        expect(await screen.findByRole('heading', { name: 'Trending' })).toBeTruthy();
+        expect(screen.getByRole('button', { name: /^Filters/ })).toBeTruthy();
+        expect(screen.queryByRole('heading', { name: 'No public recipes yet.' })).toBeNull();
+    });
+
+    it('⛔ never claims the catalogue is empty when the browse search FAILED', async () => {
+        vi.spyOn(console, 'error').mockImplementation(() => undefined);
+        vi.spyOn(client, 'searchRecipes').mockRejectedValue(new Error('down'));
+
+        renderScreen(storeOf(EMPTY_RECIPE_FILTERS, '', vi.fn()));
+
+        expect(await screen.findByRole('button', { name: 'Try again' })).toBeTruthy();
+        expect(screen.queryByRole('heading', { name: 'No public recipes yet.' })).toBeNull();
     });
 });
 

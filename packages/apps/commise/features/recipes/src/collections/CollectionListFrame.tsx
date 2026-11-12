@@ -26,7 +26,6 @@ export const CollectionListFrame: FC<CollectionListFrameProps> = ({
     onCreate,
     segments,
     headingFocusSignal,
-    headerAction,
     createEntryYields = false,
     children,
 }) => {
@@ -35,14 +34,13 @@ export const CollectionListFrame: FC<CollectionListFrameProps> = ({
 
     return (
         <section aria-label={list.heading} className="mx-auto flex w-full max-w-page flex-col gap-4">
-            {/* The Recipes screen's large title with Collections selected (slice 3, `buildSpec.md` §5.1). Below 840 the
-                avatar is the action and "New collection" floats, right after the H1 in DOM order; from 840 the
-                header's action is the New collection button and the sidebar holds the avatar. */}
+            {/* The Recipes screen's large title with Collections selected (slice 3, `buildSpec.md` §5.1). Below 840
+                "New collection" floats, right after the H1 in DOM order; from 840 the header's action is the New
+                collection button. The title row carries no avatar (owner ruling 2026-11-11, N3). */}
             <LargeTitleHeader
                 headingId={RECIPES_TITLE_ID}
                 title={recipes.heading}
                 focusSignal={headingFocusSignal}
-                {...(headerAction === undefined ? {} : { action: headerAction })}
                 afterTitle={
                     <>
                         <div className="hidden nav:block nav:flex-none">

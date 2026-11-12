@@ -210,9 +210,10 @@ describe('the components no package exports are typed against their sources too'
     const tabBar = (render: string, renderNative: string): string =>
         `export default defineCard({ group: 'G', height: 100, platforms: 'both', uses: ['HomeTabBar'],
             render: ${render}, renderNative: ${renderNative} });`;
-    const chrome = `{ destinations: { home: 'Home', recipes: 'Recipes', discover: 'Discover', 'meal-plan': 'Plan', grocery: 'Shop' }, profileButton: 'Profile, {name}', profileButtonNoName: 'Profile', tabNavLabel: 'Tabs' }`;
-    const webBar = `<HomeTabBar chrome={${chrome}} locale="en" liveCapabilities={[]} activeId="recipes" />`;
-    const nativeBar = `<HomeTabBar chrome={${chrome}} liveCapabilities={[]} activeId="recipes" onPress={() => undefined} bottomInset={0} compact={false} leftInset={0} rightInset={0} />`;
+    const chrome = `{ destinations: { home: 'Home', recipes: 'Recipes', discover: 'Discover', 'meal-plan': 'Plan', grocery: 'Shop', you: 'You' }, profileButton: 'Profile, {name}', profileButtonNoName: 'Profile', tabNavLabel: 'Tabs' }`;
+    const profile = `{ status: 'ready', name: 'Ana Ruiz' } as const`;
+    const webBar = `<HomeTabBar chrome={${chrome}} locale="en" liveCapabilities={[]} activeId="recipes" profile={${profile}} />`;
+    const nativeBar = `<HomeTabBar chrome={${chrome}} liveCapabilities={[]} activeId="recipes" profile={${profile}} onPress={() => undefined} bottomInset={0} compact={false} leftInset={0} rightInset={0} />`;
 
     it('requires renderNative from a two-platform card that mounts a component whose native leaf differs', () => {
         const without = card(

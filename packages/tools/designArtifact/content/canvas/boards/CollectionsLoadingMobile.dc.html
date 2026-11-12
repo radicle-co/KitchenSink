@@ -53,7 +53,6 @@
                             component-from-global-scope="Commise.Native.LargeTitleHeader"
                             heading-id="recipes-title"
                             title="Recipes"
-                            action="{{v6}}"
                             segments="{{v7}}"
                         ></x-import>
                         <div aria-label="Loading collections…" style="padding-bottom: 20px">
@@ -108,6 +107,7 @@
                 </div>
                 <x-import
                     component-from-global-scope="Commise.Native.HomeTabBar"
+                    profile="{{profile}}"
                     chrome="{{chrome}}"
                     live-capabilities="{{none}}"
                     active-id="recipes"
@@ -127,13 +127,12 @@
               v3: 16,
               v4: 16,
               v5: 16,
-              v6: {kind:'avatar',avatar:h(C.Avatar,{status:'ready',initials:'SR',label:"Profile, Sam Rivera",onPress:noop})},
               v7: h(C.SegmentedControl,{form:'route',width:'adaptive',label:'Recipes',current:"collections",segments:[{id:'mine',label:'My recipes',href:"#recipes"},{id:'collections',label:'Collections',href:"#collections"}],onSelect:noop}),
               v8: noop,
               v9: noop,
               v10: 24,
               v11: 24,
-              v12: 24, v13:34, chrome:{destinations:{home:'Home',recipes:'Recipes',discover:'Discover','meal-plan':'Plan',grocery:'Shop'},profileButton:'Profile, {name}',profileButtonNoName:'Profile',tabNavLabel:'Tabs'}, none:[], no:false, zero:0
+              v12: 24, v13:34, profile:{status:'ready',name:'Sam Rivera'},chrome:{destinations:{home:'Home',recipes:'Recipes',discover:'Discover','meal-plan':'Plan',grocery:'Shop',you:'You'},profileButton:'Profile, {name}',profileButtonNoName:'Profile',tabNavLabel:'Tabs'}, none:[], no:false, zero:0
              }; } }
         </script>
     </body>

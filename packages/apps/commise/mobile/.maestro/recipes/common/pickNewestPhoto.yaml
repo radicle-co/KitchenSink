@@ -1,0 +1,30 @@
+appId: ${APP_ID}
+---
+# Reusable sub-flow: in the system photo picker, select the newest photo and confirm. The caller has put that photo in
+# the library with `addMedia` (`samplePhoto.jpg`), so it is the first tile. The picker is OS chrome, so this is the one
+# place its labels are named: Android's photo picker labels a tile "Photo taken on …" and confirms with "Add"; iOS
+# labels a tile "Photo, …" and confirms with its own button when more than one photo may be chosen.
+- runFlow:
+      when:
+          platform: Android
+      commands:
+          - tapOn:
+                text: 'Photo taken on.*'
+                index: 0
+          - runFlow:
+                when:
+                    visible: 'This app can only access the photos you select'
+                commands:
+                    - tapOn: '(Add|Done).*'
+- runFlow:
+      when:
+          platform: iOS
+      commands:
+          - tapOn:
+                text: 'Photo, .*'
+                index: 0
+          - runFlow:
+                when:
+                    visible: '(Add|Done)'
+                commands:
+                    - tapOn: '(Add|Done)'

@@ -6,10 +6,11 @@
  * `disc` look, 44 px) holding Set as cover, Move earlier, Move later, Replace and Remove (`photoMenu.ts`); a queue tile
  * holds Remove in the same menu, and a failed, retryable one keeps a visible Retry `Button`.
  *
- * Presentational: renders the recipe's confirmed photos MERGED with any in-flight queue items in a grid of 3 columns
- * (4 from 600 px of the grid's own container, buildSpec §7.7), each queue cell carrying its own status badge (Queued / Uploading… / Upload
- * failed, via role + text — never colour alone, WCAG 1.4.1) plus Retry (only where the queue reports the
- * failure as `retryable`) and a Remove menu,
+ * Presentational: renders the recipe's confirmed photos MERGED with any in-flight queue items in a grid of 3 columns (4
+ * from 600 px of the grid's own container, buildSpec §7.7). Each cell carries a short status line UNDER the tile, never
+ * over the photo (Cover / Removing… / Queued / Uploading… / Upload failed, via role + text, never colour alone, WCAG
+ * 1.4.1; designer ruling 2026-11-11), plus Retry under it (only where the queue reports the failure as `retryable`) and
+ * a ⋯ menu, the one thing drawn on the photo,
  * and renders the caller-supplied `addControl` (the web file input) below the grid — hidden once the recipe
  * is at the photo cap. The container owns image acquisition + the presign → PUT → confirm upload (via the
  * `useRecipePhotoUploadQueue` layer over the single-flight `useRecipePhotoUpload`).
@@ -18,11 +19,12 @@
  * class, so a recipe with many photos does not eagerly paint the whole grid of full-size originals at once
  * (mirrors the detail view's `PhotoCarousel`, the other web surface painting these same originals).
  *
- * REQ-014 (per-file "which photo failed and why"): the generic `queueStatusFailed` badge already names
- * WHICH photo (its cell, its `fileName`-scoped Retry/Remove labels); a failed item's own `errorMessage`
- * (client validation — REQ-011/REQ-012 — or an upload failure, both surfaced by the caller through the same
- * field) renders as a second, distinct line naming WHY, whenever the caller supplies one — BELOW the tile, on the page
- * background (E6), never over the image, where its contrast would depend on the photo.
+ * REQ-014 (per-file "which photo failed and why"): the generic `queueStatusFailed` status line names WHICH photo (its
+ * cell, its `fileName`-scoped Retry/Remove labels), and the cell's alert also names WHY for a screen reader. A failed
+ * item's own `errorMessage` (client validation, REQ-011/REQ-012, or an upload failure, both surfaced by the caller
+ * through the same field) is shown ONCE, full width, under the grid while any tile has failed (`failureSentences`,
+ * designer ruling 2026-11-11), on the page background (E6), never over the image, where its contrast would depend on
+ * the photo.
  *
  * With no photo and no queued file it shows the recipe's own generated cover (when `coverPreview` is supplied) and says
  * that cover stands in until a photo is added (A-010).
@@ -44,6 +46,7 @@ import { fillTemplate } from '../format/fillTemplate.js';
 import { photoMessages } from './messages.js';
 import { photoMenu } from './photoMenu.js';
 import {
+    failureSentences,
     isAtPhotoCap,
     isCoverPhoto,
     isQueueItemRemovable,
@@ -75,6 +78,7 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
     const pendingItems = visibleQueueItems(queueItems ?? []);
     const atCap = isAtPhotoCap(photos.length + pendingItems.length);
     const finished = uploadedCount(queueItems);
+    const failures = failureSentences(pendingItems);
 
     return (
         <section aria-label={m.heading} className="flex flex-col gap-3">
@@ -125,58 +129,57 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
                             const isCover = isCoverPhoto(photos, photo.id);
 
                             return (
-                                <li
-                                    key={photo.id}
-                                    className="relative overflow-hidden rounded-lg ring-1 ring-line-divider"
-                                >
-                                    <img
-                                        src={photo.url}
-                                        alt={fillTemplate(m.photoAlt, { index: index + 1 })}
-                                        loading="lazy"
-                                        decoding="async"
-                                        className="aspect-square w-full object-cover"
-                                    />
+                                <li key={photo.id} className="flex flex-col gap-1">
+                                    {/* The FRAME carries the photo and its ⋯ disc and nothing else (designer ruling
+                                    2026-11-11). Cover and Removing… are said in the slot under it. */}
+                                    <div className="relative overflow-hidden rounded-lg ring-1 ring-line-divider">
+                                        <img
+                                            src={photo.url}
+                                            alt={fillTemplate(m.photoAlt, { index: index + 1 })}
+                                            loading="lazy"
+                                            decoding="async"
+                                            className="aspect-square w-full object-cover"
+                                        />
+                                        {/* Owner ruling 2026-10-17: ONE ⋯ menu button per tile (a 44 px disc) holds
+                                            every action. The cover is stated by the button's NAME (SC 4.1.2), as the
+                                            radio it replaces stated it by `checked`. A removal in flight makes the
+                                            button unavailable: it stays focusable (SC 2.4.3) and opens nothing. */}
+                                        <div className="absolute right-1 top-1">
+                                            <ActionMenu
+                                                appearance="disc"
+                                                triggerLabel={fillTemplate(
+                                                    isCover ? m.menuTriggerCover : m.menuTrigger,
+                                                    {
+                                                        index: index + 1,
+                                                    },
+                                                )}
+                                                title={fillTemplate(m.menuTitle, { index: index + 1 })}
+                                                closeLabel={fillTemplate(m.menuClose, { index: index + 1 })}
+                                                unavailable={removing}
+                                                {...photoMenu({
+                                                    copy: m,
+                                                    photoId: photo.id,
+                                                    index,
+                                                    count: photos.length,
+                                                    reordering,
+                                                    onRemovePhoto,
+                                                    ...(onSetCover === undefined ? {} : { onSetCover }),
+                                                    ...(onMovePhoto === undefined ? {} : { onMovePhoto }),
+                                                    ...(onReplacePhoto === undefined ? {} : { onReplacePhoto }),
+                                                })}
+                                            />
+                                        </div>
+                                    </div>
                                     {/* U6: the cover status is text (never colour alone, WCAG 1.4.1); shown only on the
                                     index-0 photo the server resolves as `coverPhotoUrl`, and only where the surface
-                                    offers cover selection. It sits at the foot-left, clear of the menu button. */}
+                                    offers cover selection. */}
                                     {onSetCover !== undefined && isCover ? (
-                                        <span className="absolute bottom-2 left-2 rounded-full bg-action px-2 py-1 text-caption font-semibold text-on-action">
-                                            {m.coverBadge}
-                                        </span>
+                                        <p className="px-1 text-caption font-semibold text-ink">{m.coverBadge}</p>
                                     ) : null}
-                                    {/* Owner ruling 2026-10-17: ONE ⋯ menu button per tile (a 44 px disc) holds every
-                                    action. The cover is stated by the button's NAME (SC 4.1.2), as the radio it replaces
-                                    stated it by `checked`. A removal in flight makes the button unavailable: it stays
-                                    focusable (SC 2.4.3) and opens nothing. */}
-                                    <div className="absolute right-1 top-1">
-                                        <ActionMenu
-                                            appearance="disc"
-                                            triggerLabel={fillTemplate(isCover ? m.menuTriggerCover : m.menuTrigger, {
-                                                index: index + 1,
-                                            })}
-                                            title={fillTemplate(m.menuTitle, { index: index + 1 })}
-                                            closeLabel={fillTemplate(m.menuClose, { index: index + 1 })}
-                                            unavailable={removing}
-                                            {...photoMenu({
-                                                copy: m,
-                                                photoId: photo.id,
-                                                index,
-                                                count: photos.length,
-                                                reordering,
-                                                onRemovePhoto,
-                                                ...(onSetCover === undefined ? {} : { onSetCover }),
-                                                ...(onMovePhoto === undefined ? {} : { onMovePhoto }),
-                                                ...(onReplacePhoto === undefined ? {} : { onReplacePhoto }),
-                                            })}
-                                        />
-                                    </div>
                                     {removing ? (
-                                        <span
-                                            role="status"
-                                            className="absolute inset-x-0 bottom-2 mx-2 rounded-full bg-photo-chip px-2 py-1 text-center text-caption font-medium text-ink"
-                                        >
+                                        <p role="status" className="px-1 text-caption text-ink-muted">
                                             {m.removing}
-                                        </span>
+                                        </p>
                                     ) : null}
                                 </li>
                             );
@@ -190,7 +193,7 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
                                     it (E6), on the page background, so its contrast never depends on the photo
                                     under it. */}
                                     <div
-                                        className={`relative flex aspect-square flex-col items-center justify-center gap-2 overflow-hidden rounded-lg ${surfaceToneClass('muted')} ring-1 ring-line-divider`}
+                                        className={`relative aspect-square overflow-hidden rounded-lg ${surfaceToneClass('muted')} ring-1 ring-line-divider`}
                                     >
                                         {item.previewUri !== undefined ? (
                                             <img
@@ -201,17 +204,6 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
                                                 className="absolute inset-0 h-full w-full object-cover"
                                             />
                                         ) : null}
-                                        <span
-                                            role={item.status === 'failed' ? 'alert' : 'status'}
-                                            aria-label={statusWord}
-                                            className={`relative rounded-full px-2 py-1 text-caption font-medium ${
-                                                item.status === 'failed'
-                                                    ? 'bg-danger text-on-action'
-                                                    : 'bg-photo-chip text-ink'
-                                            }`}
-                                        >
-                                            {statusWord}
-                                        </span>
                                         {/* ⛔ A queued or waiting file is offered a Remove too, not only a failed one. A
                                     file that has not started uploading is the one a cook is most likely to want
                                     back — and a photo picked before a new recipe is saved waits in the queue until
@@ -238,30 +230,47 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
                                                 />
                                             </div>
                                         ) : null}
-                                        {/* Retry stays a VISIBLE button, not a menu item: it is the one recovery for the
-                                    tile's headline state, so it is one tap at the design system's `Button` size.
-                                    Offered ONLY where it can plausibly succeed: the queue re-validates on retry by
-                                    design, so a client-rejected file (too large / wrong type) would re-fail
-                                    identically — a dead affordance. `retryable` is the queue's own discriminator. */}
-                                        {item.status === 'failed' && item.retryable ? (
-                                            <div className="relative w-full px-2">
-                                                <Button
-                                                    variant="secondary"
-                                                    size="md"
-                                                    icon="refreshCw"
-                                                    width="fill"
-                                                    accessibilityLabel={fillTemplate(m.queueRetryLabel, {
-                                                        fileName: item.fileName,
-                                                    })}
-                                                    onPress={() => onRetryQueueItem?.(item.fileId)}
-                                                >
-                                                    {m.queueRetry}
-                                                </Button>
-                                            </div>
-                                        ) : null}
                                     </div>
-                                    {item.status === 'failed' && item.errorMessage !== undefined ? (
-                                        <p className="px-1 text-caption text-danger-text">{item.errorMessage}</p>
+                                    {/* The short status, in ONE slot UNDER the photo (designer ruling 2026-11-11):
+                                        nothing but the tile's ⋯ menu sits on the image, and the failure's reason is
+                                        said once under the grid. Text, never colour alone, says which state. */}
+                                    <div
+                                        role={item.status === 'failed' ? 'alert' : 'status'}
+                                        aria-label={
+                                            item.status === 'failed' && item.errorMessage !== undefined
+                                                ? `${statusWord}. ${item.errorMessage}`
+                                                : statusWord
+                                        }
+                                        className="px-1"
+                                    >
+                                        <p
+                                            className={`text-caption ${item.status === 'failed' ? 'text-danger-text' : 'text-ink-muted'}`}
+                                        >
+                                            {statusWord}
+                                        </p>
+                                    </div>
+                                    {/* Retry sits in the slot under the photo, after the failure it recovers (designer
+                                        ruling 2026-11-11). It stays a VISIBLE button, not a menu item: it is the one
+                                        recovery for the tile's headline state, so it is one tap at the design system's
+                                        `Button` size. Offered ONLY where it can plausibly succeed: the queue
+                                        re-validates on retry by design, so a client-rejected file (too large / wrong
+                                        type) would re-fail identically, a dead affordance. `retryable` is the queue's
+                                        own discriminator. */}
+                                    {item.status === 'failed' && item.retryable ? (
+                                        <div className="px-1">
+                                            <Button
+                                                variant="secondary"
+                                                size="md"
+                                                icon="refreshCw"
+                                                width="fill"
+                                                accessibilityLabel={fillTemplate(m.queueRetryLabel, {
+                                                    fileName: item.fileName,
+                                                })}
+                                                onPress={() => onRetryQueueItem?.(item.fileId)}
+                                            >
+                                                {m.queueRetry}
+                                            </Button>
+                                        </div>
                                     ) : null}
                                 </li>
                             );
@@ -269,6 +278,10 @@ export const RecipePhotoManager: FC<RecipePhotoManagerProps> = ({
                     </ul>
                 </div>
             )}
+
+            {/* A failure's reason, said ONCE, full width, under the grid while any tile has failed (designer ruling
+                2026-11-11). Each tile's alert still names its own reason for a screen reader (REQ-014). */}
+            {failures.length > 0 ? <p className="text-body-sm text-danger-text">{failures.join(' ')}</p> : null}
 
             {atCap ? (
                 <p className="text-body-sm text-ink-muted">{fillTemplate(m.maxReached, { max: MAX_RECIPE_PHOTOS })}</p>

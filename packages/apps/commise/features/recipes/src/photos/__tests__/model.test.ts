@@ -17,6 +17,7 @@ import {
     MAX_RECIPE_PHOTOS,
     photoGridColumns,
     photoIsAtRisk,
+    failureSentences,
     remainingPhotoSlots,
     uploadedCount,
 } from '../model.js';
@@ -211,5 +212,53 @@ describe('photoIsAtRisk', () => {
         ['ok', true, false],
     ] as const)('%s, retryable %s → %s', (status, retryable, expected) => {
         expect(photoIsAtRisk(makeQueueItem({ status, retryable }))).toBe(expected);
+    });
+});
+
+/**
+ * Designer ruling 2026-11-11: a failure's reason is said once, under the grid. `failureSentences` decides which reasons
+ * that line holds, for web and native alike.
+ */
+describe('failureSentences', () => {
+    const tooBig = 'That photo is larger than 5 MB.';
+    const network = 'We couldn’t upload that photo.';
+
+    it.each([
+        ['no items', [], []],
+        [
+            'two different reasons, in file order',
+            [
+                makeQueueItem({ fileId: 1, status: 'failed', errorMessage: network }),
+                makeQueueItem({ fileId: 2, status: 'failed', errorMessage: tooBig }),
+            ],
+            [network, tooBig],
+        ],
+        [
+            'a repeated reason, once, where it first appears',
+            [
+                makeQueueItem({ fileId: 1, status: 'failed', errorMessage: tooBig }),
+                makeQueueItem({ fileId: 2, status: 'failed', errorMessage: network }),
+                makeQueueItem({ fileId: 3, status: 'failed', errorMessage: tooBig }),
+            ],
+            [tooBig, network],
+        ],
+        [
+            'nothing for a failed item with no reason',
+            [
+                makeQueueItem({ fileId: 1, status: 'failed' }),
+                makeQueueItem({ fileId: 2, status: 'failed', errorMessage: network }),
+            ],
+            [network],
+        ],
+        [
+            'nothing for an item that has not failed, even with a stale reason',
+            [
+                makeQueueItem({ fileId: 1, status: 'uploading', errorMessage: tooBig }),
+                makeQueueItem({ fileId: 2, status: 'queued', errorMessage: network }),
+            ],
+            [],
+        ],
+    ] as const)('%s', (_case, items, expected) => {
+        expect(failureSentences(items)).toEqual(expected);
     });
 });

@@ -5,13 +5,14 @@ appId: ${APP_ID}
 # there from the first render, and a pick waits in the upload queue until the recipe has an id. Mobile counterpart of
 # the "recipe photos on a NEW recipe (U33)" block in the web Playwright spec `recipePhotos.spec.ts`.
 #
-# LIMITATION, the same one `photos.yaml` records: the system photo library and camera are OS chrome, which Maestro
-# cannot drive reliably, so no file is picked here. The pick, the "Waiting to upload" tile, the upload against the
-# minted id, the held Publish and the leave ask are covered by `RecipePhotoUploader.native.test.tsx`,
-# `RecipeEditorScreen.native.test.tsx`, `PreventLeave.native.test.tsx`, the features integration test
-# `editorPhotos.integration.test.tsx`, and the web Playwright spec, which drives a real file input. This flow covers what
-# a device can show without OS chrome: the section and its controls on a new recipe, and that × leaves at once when no
-# photo is at risk.
+# The upload itself is not driven here: a local run presigns photo URLs on `localstack:4566`, which no device resolves,
+# so a picked photo can never finish uploading on the local stack. The upload against the minted id and the held
+# Publish are covered by `RecipePhotoUploader.native.test.tsx`, `RecipeEditorScreen.native.test.tsx`, the features
+# integration test `editorPhotos.integration.test.tsx`, and the web Playwright spec. This flow covers what a device
+# shows before an upload: the section and its controls on a new recipe, × leaving at once when no photo is at risk, and
+# the leave ask that Back (Android) and the edge swipe (iOS) reach through the navigator while a photo waits for a title.
+- addMedia:
+      - common/samplePhoto.jpg
 - runFlow: ../auth/signin.yaml
 
 - assertVisible: 'My recipes'
@@ -41,3 +42,37 @@ appId: ${APP_ID}
 - tapOn: 'Close editor'
 - assertNotVisible: 'Leave without your photos\?'
 - assertVisible: 'My recipes'
+
+# A photo picked before the recipe has a title waits in the queue, so leaving would lose it. Back (Android) and the
+# edge swipe (iOS) reach the route guard, which asks first; Stay keeps the editor and the photo, and Leave goes.
+# The picker is OS chrome, but its newest photo is the one `addMedia` put there, so it can be tapped.
+- tapOn: 'New recipe'
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Add photos'
+          DIRECTION: DOWN
+          TIMEOUT: 60000
+- tapOn: 'Add photos'
+- tapOn: 'Choose from library'
+- runFlow: common/pickNewestPhoto.yaml
+- extendedWaitUntil:
+      visible: 'Waiting to upload'
+      timeout: 30000
+- runFlow: common/leaveByGesture.yaml
+- extendedWaitUntil:
+      visible: 'Leave without your photos\?'
+      timeout: 15000
+- tapOn: 'Stay'
+- assertNotVisible: 'Leave without your photos\?'
+- assertVisible: 'Waiting to upload'
+- assertVisible: 'Close editor'
+- runFlow: common/leaveByGesture.yaml
+- extendedWaitUntil:
+      visible: 'Leave without your photos\?'
+      timeout: 15000
+- tapOn: 'Leave without photos'
+- extendedWaitUntil:
+      visible: 'New recipe'
+      timeout: 15000
+- assertNotVisible: 'Close editor'

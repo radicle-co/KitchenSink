@@ -17,7 +17,6 @@ import { createMemoryOutboxStore, unreadableLedgerFor } from '@kitchensink/sync'
 
 import { makeRecipeFormValues } from '../../__fixtures__/index.js';
 import { seedLineKey } from '../../form/lineKey.js';
-import type { RecipeFormValues } from '../../form/values.js';
 import {
     DRAFT_FORMAT_VERSION,
     MAX_KEPT_DRAFTS,
@@ -49,21 +48,13 @@ function memento(over: Partial<DraftMemento> = {}): DraftMemento {
 
 describe('the persisted format', () => {
     /**
-     * ⛔ THE SCHEMA PARSES EXACTLY THE FORM'S VALUES, minus the photo picks. A field added to `RecipeFormValues` and
+     * ⛔ THE SCHEMA PARSES EXACTLY THE FORM'S VALUES, minus the live food visibility. A field added to `RecipeFormValues` and
      * not here fails `tsc`, so a draft can never silently drop it on reload.
      */
-    it('⛔ parses exactly the form values minus photos (compile-time identity)', () => {
+    it('⛔ parses exactly the form values minus the live food visibility (compile-time identity)', () => {
         const identical: Exact<ReturnType<typeof draftValuesSchema.parse>, DraftValues> = true;
 
         expect(identical).toBe(true);
-    });
-
-    it('⛔ keeps ids and form values only: the pending photo picks are not persisted', () => {
-        const values: RecipeFormValues = makeRecipeFormValues({
-            photos: [{ localId: 'p1', fileName: 'a.jpg', contentType: 'image/jpeg', fileSize: 10 }],
-        });
-
-        expect(toDraftValues(values)).not.toHaveProperty('photos');
     });
 
     it('⛔ namespaces the key by user and versions it', () => {

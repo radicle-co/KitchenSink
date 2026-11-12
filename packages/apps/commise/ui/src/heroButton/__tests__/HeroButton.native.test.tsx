@@ -33,6 +33,7 @@ vi.mock('expo-glass-effect', async () => {
     };
 });
 
+import { renderWithTamagui } from '../../testing/tamaguiTesting.native.js';
 import { HeroButton } from '../HeroButton.native.js';
 
 beforeEach(() => {
@@ -58,6 +59,18 @@ describe('HeroButton (native)', () => {
 
         expect(disc.width).toBe('44px');
         expect(disc.height).toBe('44px');
+    });
+
+    /**
+     * Designer ruling 2026-11-11: the disc is chrome over a photo (the ⋯ menu and the hero controls), so it keeps its 1x
+     * size at every system text size. A disc that grew with the text covered half a photo tile at the largest size.
+     */
+    it.each([1, 3.1])('keeps the disc at its 1x size at text scale %s', (scale) => {
+        renderWithTamagui(<HeroButton icon="ellipsis" label="More actions" onPress={vi.fn()} />, 'light', scale);
+        const button = screen.getByRole('button', { name: 'More actions' });
+
+        expect(getComputedStyle(button).width).toBe('44px');
+        expect(getComputedStyle(button).height).toBe('44px');
     });
 
     it('is hit across 48 dp on Android, around the same 44 disc (2026-10-17: every 44 is 48 dp there)', () => {

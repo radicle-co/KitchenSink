@@ -684,7 +684,7 @@ describe('Publish', () => {
         const { result, port, drafts, onExit } = mount();
 
         act(() => {
-            result.current.setValues({ ...toRecipeFormValues(recipe), photos: [] });
+            result.current.setValues(toRecipeFormValues(recipe));
         });
         act(() => {
             result.current.publish('');
@@ -1590,7 +1590,7 @@ describe('discard while a write is on the wire (owner ruling 2026-10-17)', () =>
 
 /** A complete recipe's values, so Publish passes the gate. */
 function complete(): ReturnType<typeof toRecipeFormValues> {
-    return { ...toRecipeFormValues(makeRecipeDetail({ id: 'rec_c', status: RecipeStatus.DRAFT })), photos: [] };
+    return toRecipeFormValues(makeRecipeDetail({ id: 'rec_c', status: RecipeStatus.DRAFT }));
 }
 
 /**

@@ -248,9 +248,6 @@ export const toRecipeFormValues = (detail: RecipeDetail): RecipeFormValues => ({
         instruction: step.instruction,
         ...(step.timerSeconds === undefined ? {} : { timerSeconds: step.timerSeconds }),
     })),
-    // EMPTY, not `detail.photos`: the field is always empty (see `RecipeFormValues.photos`), and a recipe's gallery is
-    // owned by `useRecipePhotos`. Seeding it would make the discard guard call an untouched edit form dirty.
-    photos: [],
     // LAST, like the draft schema's key (`recipeFormValuesEqual` reads key order): only a stored WEB source seeds the field.
     // The curator's public-domain text and a book's citation are not the cook's to edit here.
     ...(detail.sourceKind === 'public_web' && detail.sourceUrl !== undefined ? { sourceLink: detail.sourceUrl } : {}),

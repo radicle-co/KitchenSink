@@ -38,7 +38,7 @@ import { dialogAnimationType, dialogScrimPadding } from './dialogFrameLayout.js'
 import type { DialogFrameProps } from './props.js';
 
 /** The centred dialog frame. */
-export const DialogFrame: FC<DialogFrameProps> = ({ open, onRequestClose, title, role, children }) => {
+export const DialogFrame: FC<DialogFrameProps> = ({ open, onRequestClose, title, role, children, actions }) => {
     const insets = useSafeAreaInsets();
     const [shown, setShown] = useState(0);
     const titleRef = useScreenReaderFocusOnSignal<TamaguiTextElement>(shown);
@@ -76,6 +76,7 @@ export const DialogFrame: FC<DialogFrameProps> = ({ open, onRequestClose, title,
                         <DialogEngine
                             role={role}
                             onEngineClose={onRequestClose}
+                            {...(actions === undefined ? {} : { actions })}
                             heading={
                                 <Text ref={titleRef} role="heading" typeRole="sectionTitle">
                                     {title}

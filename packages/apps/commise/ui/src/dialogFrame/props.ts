@@ -17,6 +17,11 @@ export interface DialogFrameProps {
     readonly title: string;
     /** `alert` for a confirmation that interrupts; `dialog` otherwise. Only the role changes. */
     readonly role: 'alert' | 'dialog';
-    /** The body and the actions, in reading order. They scroll inside the card. */
+    /** The body, and the actions unless `actions` is given, in reading order. They scroll inside the card. */
     readonly children: ReactNode;
+    /**
+     * Actions pinned under the scrolling body, always in view: a dialog that asks a question keeps its answers on screen
+     * however tall its body grows (designer ruling 2026-11-11). Without it, the actions scroll with the body.
+     */
+    readonly actions?: ReactNode;
 }

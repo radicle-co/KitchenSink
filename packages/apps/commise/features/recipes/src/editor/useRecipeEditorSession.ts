@@ -251,7 +251,14 @@ export function useRecipeEditorSession(options: UseRecipeEditorSessionOptions): 
     // a hand-off (Publish, Save changes, Discard), so a second exit does nothing.
     const { subscribeToLeave } = navigation;
     const onLeave = useEffectEvent((): void => editor.checkpoint('editorExit'));
-    useEffect(() => subscribeToLeave?.(() => onLeave()), [subscribeToLeave]);
+    // A leave the route guard holds (a photo not uploaded yet) is not a leave yet: the cook may answer Stay. The unmount
+    // below runs the exit for a leave that goes ahead.
+    const onLeaveHeard = useEffectEvent((): void => {
+        if (!photos.atRisk) {
+            onLeave();
+        }
+    });
+    useEffect(() => subscribeToLeave?.(() => onLeaveHeard()), [subscribeToLeave]);
     // ⛔ The unmount is a leave (browser Back, a shell link, the session ending). It runs AT the cleanup, never deferred:
     // a session end clears the cook's stores from the provider's effect in the same commit, which runs after this
     // cleanup, so the clear is queued behind whatever this checkpoint writes. ⚠️ StrictMode's development replay runs

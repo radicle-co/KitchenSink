@@ -159,7 +159,15 @@ appId: ${APP_ID}
 # Audit 2026-10-19, A1.15: leg 4. Back pops the lamb's detail to the list: the detail's 'Edit recipe' goes and the list's
 # 'My recipes' comes back. 'Recipes' is the tab label and was always on screen.
 - assertNotVisible: 'Edit recipe'
-- assertVisible: 'My recipes'
+# The list comes back at the scroll it was left at. Leg 3 reached the lamb through `scrollIntoTapView`, whose last
+# swipe lifts a target clear of the tab bar, and that swipe scrolls the list's header (with 'My recipes' and
+# 'Collections') away. So scroll back UP to it: only the list draws 'My recipes', and leg 5 taps 'Collections' beside it.
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'My recipes'
+          DIRECTION: UP
+          TIMEOUT: 20000
 
 # ── LEG 5: the NEW-COLLECTION SHEET, dirty (slice 4 replaced the form screen with a sheet). The typed name lives only
 # in the sheet's own state; Back asks before discarding it, in the sheet's own words. ──

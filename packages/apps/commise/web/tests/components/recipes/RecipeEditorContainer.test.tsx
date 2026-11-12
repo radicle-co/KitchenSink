@@ -331,8 +331,7 @@ describe('RecipeEditorContainer (web)', () => {
     it('a new recipe published private, that the server holds public, is made private', async () => {
         profile.paidFeatures = 'granted';
         const ref = 'local:recipe:visibility';
-        // A draft keeps no photo picks (`DraftValues`).
-        const { photos: _photos, ...values } = {
+        const values = {
             ...defaultRecipeFormValues(),
             title: 'Private Stew',
             cuisine: 'Irish',

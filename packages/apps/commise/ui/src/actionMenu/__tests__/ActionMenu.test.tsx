@@ -400,7 +400,7 @@ describe('ActionMenu (web) — the overhaul contract', () => {
             const trigger = renderAppearance('disc');
             const classes = trigger.className.split(' ');
 
-            expect(classes).toEqual(expect.arrayContaining(['size-11', 'rounded-full', 'bg-photo-chip']));
+            expect(classes).toEqual(expect.arrayContaining(['size-[44px]', 'rounded-full', 'bg-photo-chip']));
             expect(trigger.getAttribute('aria-haspopup')).toBe('menu');
             expect(trigger.getAttribute('aria-expanded')).toBe('false');
         });

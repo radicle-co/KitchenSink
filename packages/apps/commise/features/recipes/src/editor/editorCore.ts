@@ -209,7 +209,6 @@ export function seedEditorCore(seed: EditorCoreSeed): SeededEditor {
             ? undefined
             : {
                   ...memento.values,
-                  photos: [],
                   ingredients: memento.values.ingredients.map((line) => {
                       const foodVisibility = liveVisibility.get(line.key);
 
@@ -225,7 +224,7 @@ export function seedEditorCore(seed: EditorCoreSeed): SeededEditor {
     const deviceChanges =
         memento !== undefined &&
         serverValues !== undefined &&
-        !recipeFormValuesEqual({ ...memento.values, photos: [] }, withoutLive(serverValues));
+        !recipeFormValuesEqual(memento.values, withoutLive(serverValues));
     const server: ServerFacts =
         recipe === undefined || serverValues === undefined
             ? { kind: 'unsaved', ref: memento?.recipeRef, baseVersion: memento?.baseVersion ?? null }

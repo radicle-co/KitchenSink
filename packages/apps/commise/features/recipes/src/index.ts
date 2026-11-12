@@ -205,7 +205,7 @@ export type {
     RecipeIngredientsFieldsProps,
 } from './form/props.js';
 export type { RecipeFormErrors } from './form/validate.js';
-export type { RecipeFormIngredient, RecipeFormPhoto, RecipeFormStep, RecipeFormValues } from './form/values.js';
+export type { RecipeFormIngredient, RecipeFormStep, RecipeFormValues } from './form/values.js';
 export { RecipeDeleteDialog } from './actions/RecipeDeleteDialog.js';
 export { RecipeMakePublicDialog } from './actions/RecipeMakePublicDialog.js';
 export { useMakePublicConfirm } from './actions/useMakePublicConfirm.js';

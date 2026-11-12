@@ -6,11 +6,11 @@
     "coverage": {
         "components": 93,
         "implementations": 151,
-        "props": 849,
+        "props": 851,
         "documentedComponents": 93,
         "implementationsWithModuleDoc": 151,
         "implementationsWithComponentDoc": 137,
-        "documentedProps": 799,
+        "documentedProps": 801,
         "classifiedComponents": 86,
         "componentsWithPatternTag": 93,
         "crossPlatformComponents": 58
@@ -3056,7 +3056,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/ui/src/confirmDialog/ConfirmDialog.native.tsx",
                     "dir": "packages/apps/commise/ui/src/confirmDialog",
-                    "moduleDoc": "@commise/ui/confirm-dialog — the native design-system {@link ConfirmDialog} (house pattern B6).\n\nThe React Native leaf of `ConfirmDialog`: the body and a Keep + confirm pair on the design system's centred\n`DialogFrame` (`docs/design/compactHeightLayout.md` §9), which owns the window, the scrim, the safe area, the keyboard,\nthe capped card that scrolls, and the title, named and first, as an interrupting `alert`. `onRequestClose` (the\nAndroid Back button) maps to `onKeep`, so there is one exit path, not two, as on web.\n\n- The screen-reader cursor opens on Keep, through the DS `Button`'s focus request, raised once per opening.\n- The confirm is the DS `Button` in its filled `confirm` tone, which brings the spinner and the busy guard.\n- The buttons stack full width with the destructive one on top until the dialog measures 400 pt or wider, then sit\n  side by side, Keep first (spec §6.5) — `DialogActions` reads the frame's own width from layout, not the window's.\n\nRenders NOTHING while `open` is false (the frame returns early), so each opening mounts a fresh body.",
+                    "moduleDoc": "@commise/ui/confirm-dialog — the native design-system {@link ConfirmDialog} (house pattern B6).\n\nThe React Native leaf of `ConfirmDialog`: the body and a Keep + confirm pair on the design system's centred\n`DialogFrame` (`docs/design/compactHeightLayout.md` §9), which owns the window, the scrim, the safe area, the keyboard,\nthe capped card whose body scrolls, and the title, named and first, as an interrupting `alert`. `onRequestClose` (the\nAndroid Back button) maps to `onKeep`, so there is one exit path, not two, as on web.\n\n- The screen-reader cursor opens on Keep, through the DS `Button`'s focus request, raised once per opening.\n- The confirm is the DS `Button` in its filled `confirm` tone, which brings the spinner and the busy guard.\n- The body scrolls and the two buttons stay pinned under it, in view at any text size (designer ruling 2026-11-11):\n  at iOS's largest sizes a body that scrolled WITH its buttons pushed them below the fold.\n- The copy is never drawn larger than the title: it grows with the system text size only to the title's ceiling\n  (`DISPLAY_FONT_SCALE_CAP`), through the scale every design-system Text reads (`TextScaleContext`).\n- The buttons stack full width with the destructive one on top until the dialog measures 400 pt or wider, then sit\n  side by side, Keep first (spec §6.5) — `DialogActions` reads the frame's own width from layout, not the window's.\n\nRenders NOTHING while `open` is false (the frame returns early), so each opening mounts a fresh body.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -3912,6 +3912,15 @@
                     "exportKind": "named",
                     "props": [
                         {
+                            "name": "actions",
+                            "type": "ReactNode",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Pinned under the scrolling content, always in view (`DialogFrameProps.actions`).",
+                            "declaredIn": "packages/apps/commise/ui/src/dialogFrame/DialogEngine.native.tsx"
+                        },
+                        {
                             "name": "heading",
                             "type": "ReactNode",
                             "typeDetail": null,
@@ -3991,12 +4000,21 @@
                     "exportKind": "named",
                     "props": [
                         {
+                            "name": "actions",
+                            "type": "ReactNode",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Actions pinned under the scrolling body, always in view: a dialog that asks a question keeps its answers on screen\nhowever tall its body grows (designer ruling 2026-11-11). Without it, the actions scroll with the body.",
+                            "declaredIn": "packages/apps/commise/ui/src/dialogFrame/props.ts"
+                        },
+                        {
                             "name": "children",
                             "type": "ReactNode",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "The body and the actions, in reading order. They scroll inside the card.",
+                            "description": "The body, and the actions unless `actions` is given, in reading order. They scroll inside the card.",
                             "declaredIn": "packages/apps/commise/ui/src/dialogFrame/props.ts"
                         },
                         {

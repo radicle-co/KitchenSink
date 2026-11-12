@@ -220,10 +220,11 @@ describe('RecipeDeleteDialog (native) — delete error (B17: no silent stop)', (
     });
 });
 
-// A landscape phone is about 360 dp tall, and with large text the body pushes the actions below the window, where a
-// card that does not scroll strands them (WCAG 2.2 SC 1.4.4).
+// A landscape phone is about 360 dp tall, and with large text the body outgrows the window. REWRITTEN (designer ruling
+// 2026-11-11, `ConfirmDialog`): the copy and the error scroll, so a short window still reaches them (WCAG 2.2 SC 1.4.4),
+// and both actions stay pinned in view under them instead of scrolling below the fold.
 describe('RecipeDeleteDialog (native) — a short window', () => {
-    it('keeps the copy, both actions and the error in a scroll region inside the alert', () => {
+    it('scrolls the copy and the error inside the alert, and keeps both actions pinned outside the scroll', () => {
         renderDialog({ error: true });
 
         // The frame is an `alert`, and the failure inside it is an `alert` too (it interrupts: the delete failed).
@@ -233,14 +234,14 @@ describe('RecipeDeleteDialog (native) — a short window', () => {
             .find((found) => found !== null);
 
         expect(region).toBeDefined();
-        expect(region?.contains(screen.getByRole('button', { name: 'Delete recipe' }))).toBe(true);
-        expect(region?.contains(screen.getByRole('button', { name: 'Keep recipe' }))).toBe(true);
         expect(region?.contains(screen.getByText(/couldn\u2019t delete/))).toBe(true);
+        expect(region?.contains(screen.getByRole('button', { name: 'Delete recipe' }))).toBe(false);
+        expect(region?.contains(screen.getByRole('button', { name: 'Keep recipe' }))).toBe(false);
     });
 
     // `docs/design/compactHeightLayout.md` §9: the card is the design system's `DialogFrame`, so it clears the keyboard
     // and the safe area, and the first tap reaches an action.
-    it('sits on the design system’s dialog frame: in the keyboard avoider, in a region whose first tap lands', () => {
+    it('sits on the design system’s dialog frame: its actions in the keyboard avoider, its copy in a region whose first tap lands', () => {
         renderDialog();
 
         for (const action of [
@@ -248,7 +249,15 @@ describe('RecipeDeleteDialog (native) — a short window', () => {
             screen.getByRole('button', { name: 'Keep recipe' }),
         ]) {
             expect(action.closest('[data-keyboard-avoider]')).not.toBeNull();
-            expect(action.closest('[data-scroll-region]')?.getAttribute('data-scroll-region')).toBe('handled');
         }
+
+        // The copy's region lets a first tap through with the keyboard up.
+        expect(
+            screen
+                .getAllByRole('alert')
+                .map((alert) => alert.querySelector('[data-scroll-region]'))
+                .find((found) => found !== null)
+                ?.getAttribute('data-scroll-region'),
+        ).toBe('handled');
     });
 });

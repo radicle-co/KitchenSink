@@ -266,6 +266,18 @@ export const visibleQueueItems = (items: readonly RecipePhotoQueueItem[]): reado
     items.filter((item) => item.status !== 'ok');
 
 /**
+ * The failure sentences the grid says once, full width, under the tiles (designer ruling 2026-11-11): each failed
+ * file's reason, each distinct reason once, in the order the files appear. Empty while no tile has failed.
+ */
+export const failureSentences = (items: readonly RecipePhotoQueueItem[]): readonly string[] => [
+    ...new Set(
+        items.flatMap((item) =>
+            item.status === 'failed' && item.errorMessage !== undefined ? [item.errorMessage] : [],
+        ),
+    ),
+];
+
+/**
  * How many more photos a recipe may take: the cap, less the photos it holds, less every queue item still holding
  * a grid cell (queued, uploading or failed — an `ok` item is already counted in `heldCount` once the refetch
  * lands, see {@link visibleQueueItems}).

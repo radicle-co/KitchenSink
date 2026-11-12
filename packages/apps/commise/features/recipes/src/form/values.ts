@@ -184,14 +184,6 @@ export interface RecipeFormValues {
     readonly ingredients: readonly RecipeFormIngredient[];
     readonly steps: readonly RecipeFormStep[];
     /**
-     * Always empty. Since 2026-11-10 nothing writes a pick here: a photo picked before the recipe exists waits in the
-     * editor's photo queue (`useEditorPhotos`), because its bytes cannot live in the device draft (ADR-0057). The field
-     * stays only because the v1 draft format (`editor.draft.v1`) carries it; removing it is a draft-format change with
-     * its own `LOCAL_SCHEMA_VERSION` bump. A saved recipe's photos are owned by `useRecipePhotos(recipeId)`, never here,
-     * and photos are not a validation input.
-     */
-    readonly photos: readonly RecipeFormPhoto[];
-    /**
      * The web page the cook says this recipe was copied from, as typed or pasted (ADR-0089). ABSENT means none: an emptied
      * field REMOVES the key (`setSourceLink`), so a draft without one compares equal to a recipe that has none.
      *
@@ -200,28 +192,6 @@ export interface RecipeFormValues {
      * still parses (`LOCAL_SCHEMA_VERSION` does not move), and `recipeFormValuesEqual` reads key order.
      */
     readonly sourceLink?: string;
-}
-
-/**
- * The v1 draft format's descriptor of a picked photo (U33, 2026-08-25). No code writes one since 2026-11-10, when picks
- * moved to the editor's photo queue (see {@link RecipeFormValues.photos}); the shape stays while the v1 format does.
- * It never carried the bytes: a `File` serialises to `{}`, which would break `recipeFormValuesEqual`.
- */
-export interface RecipeFormPhoto {
-    /**
-     * Stable identity for this pick, minted at pick time and unique within the draft — the key the
-     * container's blob side channel is keyed by, and the React list key. NOT a server id: a pending photo has
-     * no server identity yet, and conflating the two is how a pick that failed to upload gets mistaken for a
-     * row that exists.
-     */
-    readonly localId: string;
-    /** The chosen file's name, shown while the upload is pending and carried to the presign call. */
-    readonly fileName: string;
-    /** The chosen file's MIME type, as reported by the picker — judged by `validatePhotoFile`, never trusted
-     *  by the service (which re-detects it from magic bytes on confirm). */
-    readonly contentType: string;
-    /** The chosen file's size in bytes — judged against the upload cap before any network call is made. */
-    readonly fileSize: number;
 }
 
 /**
@@ -241,7 +211,6 @@ export const defaultRecipeFormValues = (): RecipeFormValues => ({
     visibility: 'public',
     ingredients: [],
     steps: [],
-    photos: [],
 });
 
 /**

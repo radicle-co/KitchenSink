@@ -32,10 +32,7 @@ function seeded(): DraftMemento {
     return {
         recipeRef: detail.id,
         baseVersion: detail.currentVersion,
-        values: toDraftValues({
-            ...values,
-            photos: [{ localId: 'p1', fileName: 'soup.jpg', contentType: 'image/jpeg', fileSize: 1024 }],
-        }),
+        values: toDraftValues(values),
         pendingRebinds: [],
         savedAt: '2026-10-08T12:00:00.000Z',
     };
@@ -60,8 +57,6 @@ describe('the editor draft in sessionStorage (integration)', () => {
 
         const stored = window.sessionStorage.getItem(draftStoreKeyFor(SUBJECT)) ?? '';
 
-        expect(stored).not.toContain('photos');
-        expect(stored).not.toContain('soup.jpg');
         expect(stored).not.toContain('nutrition');
         expect(stored).not.toContain('calories');
     });

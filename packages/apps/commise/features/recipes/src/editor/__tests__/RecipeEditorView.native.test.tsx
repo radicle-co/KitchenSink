@@ -13,7 +13,7 @@ import { AccessibilityInfo, Text, type LayoutChangeEvent } from 'react-native';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { makeEditorResult } from '../../__fixtures__/editorResult.js';
-import { makeFilledRecipeFormValues, withLineKeys } from '../../__fixtures__/index.js';
+import { makeFilledRecipeFormValues, makeQueueItem, withLineKeys } from '../../__fixtures__/index.js';
 import { titleFieldId } from '../../form/fieldIds.js';
 import { Input } from '@commise/ui/input';
 import { FoodResolutionStatus } from '@kitchensink/recipe-core';
@@ -23,6 +23,7 @@ import { SectionPresenceContext } from '../sectionPresence.js';
 import type { RecipeEditorViewProps } from '../frameProps.js';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { RecipeEditorView } from '../RecipeEditorView.native.js';
+import { RecipePhotoManager } from '../../photos/RecipePhotoManager.native.js';
 
 const { keyboard, win, reveal } = vi.hoisted(() => ({
     keyboard: { shown: false },
@@ -493,6 +494,57 @@ describe('the native editor', () => {
 
         expect(barInContent()).toBe(true);
         expect(screen.getAllByRole('group', { name: 'Recipe actions' })).toHaveLength(1);
+    });
+
+    /**
+     * Designer review 2026-11-11: at the largest text a failed photo's Retry sits below the fold, which is accepted only
+     * if scrolling brings it fully above the pinned bar. It does so by construction: the bar is the frame's own row
+     * UNDER the scroller, not a layer drawn over it, so the scroller's viewport ends where the bar begins and the content
+     * needs no bottom inset. This pins that construction with the real photo manager in the Photos section.
+     */
+    it('keeps a failed photo’s Retry in the scroller, and the pinned bar a row under it, not over it', () => {
+        render(
+            view(makeEditorResult(), {
+                sections: {
+                    details: <></>,
+                    ingredients: <></>,
+                    steps: <></>,
+                    photos: (
+                        <RecipePhotoManager
+                            photos={[]}
+                            onRemovePhoto={vi.fn()}
+                            onRetryQueueItem={vi.fn()}
+                            queueItems={[
+                                makeQueueItem({
+                                    fileId: 1,
+                                    fileName: 'a.png',
+                                    status: 'failed',
+                                    retryable: true,
+                                    previewUri: 'file:///a.png',
+                                }),
+                            ]}
+                        />
+                    ),
+                },
+            }),
+        );
+
+        const retry = screen.getByRole('button', { name: 'Retry upload of a.png' });
+        const bar = screen.getByRole('group', { name: 'Recipe actions' });
+        let content: HTMLElement | null = screen.getByRole('heading', { name: 'Details' });
+
+        while (content !== null && !content.contains(retry)) {
+            content = content.parentElement;
+        }
+
+        expect(content).not.toBeNull();
+        expect(content?.contains(bar)).toBe(false);
+        // Below the scroller in the frame's column, and not lifted over it.
+        expect((content?.compareDocumentPosition(bar) ?? 0) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+        for (let node: HTMLElement | null = bar; node !== null; node = node.parentElement) {
+            expect(getComputedStyle(node).position).not.toBe('absolute');
+        }
     });
 
     it('keeps the action bar pinned on a wide layout with the keyboard open: the rail sits beside the form there', () => {

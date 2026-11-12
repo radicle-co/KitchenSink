@@ -157,17 +157,26 @@ test.describe('recipe photo upload (CP-6/P3)', () => {
             // Two-up below 480 px of the grid's own width (the per-tile menu that would make three-up fit is not built).
             expect(perRow).toBe(regionBox.width >= 600 ? 4 : regionBox.width >= 480 ? 3 : 2);
 
-            // The message belongs to its tile and starts at or below the bottom of that tile's image.
+            // REWRITTEN (designer ruling 2026-11-11): the tile's status starts at or below the bottom of its image, and the
+            // reason is said ONCE, full width, below the whole grid, not in any tile.
             const image = tiles.first().getByRole('img');
-            const message = tiles.first().getByText('That file type isn’t supported. Use a JPEG, PNG, or WebP photo.');
+            const status = tiles.first().getByText('Upload failed');
+            const message = photosRegion.getByText('That file type isn’t supported. Use a JPEG, PNG, or WebP photo.');
+            await expect(message).toHaveCount(1);
+            await expect(
+                tiles.getByText('That file type isn’t supported. Use a JPEG, PNG, or WebP photo.'),
+            ).toHaveCount(0);
             const imageBox = await image.boundingBox();
+            const statusBox = await status.boundingBox();
             const messageBox = await message.boundingBox();
+            const lastTileBox = await tiles.last().boundingBox();
 
-            if (imageBox === null || messageBox === null) {
-                throw new Error('the failed tile has no image or message box');
+            if (imageBox === null || statusBox === null || messageBox === null || lastTileBox === null) {
+                throw new Error('the failed tile has no image, status or message box');
             }
 
-            expect(messageBox.y).toBeGreaterThanOrEqual(imageBox.y + imageBox.height - 1);
+            expect(statusBox.y).toBeGreaterThanOrEqual(imageBox.y + imageBox.height - 1);
+            expect(messageBox.y).toBeGreaterThanOrEqual(lastTileBox.y + lastTileBox.height - 1);
         }
     });
 
@@ -195,7 +204,7 @@ test.describe('recipe photo upload (CP-6/P3)', () => {
         });
 
         // REQ-014 — the rejection names WHICH file (its own failed cell + `fileName`-scoped controls) and WHY.
-        await expect(photosRegion.getByRole('alert', { name: 'Upload failed' })).toBeVisible();
+        await expect(photosRegion.getByRole('alert', { name: /^Upload failed/u })).toBeVisible();
         await expect(page.getByText('That photo is larger than 5 MB. Choose a smaller file.')).toBeVisible();
         await expect(photosRegion.getByRole('button', { name: 'Actions for huge.png' })).toBeVisible();
 
@@ -221,12 +230,12 @@ test.describe('recipe photo upload (CP-6/P3)', () => {
             buffer: Buffer.from(TINY_PNG_BASE64, 'base64'),
         });
 
-        await expect(photosRegion.getByRole('alert', { name: 'Upload failed' })).toBeVisible();
+        await expect(photosRegion.getByRole('alert', { name: /^Upload failed/u })).toBeVisible();
         await expect(page.getByText('That file type isn’t supported. Use a JPEG, PNG, or WebP photo.')).toBeVisible();
         // A queue tile's Remove lives in its ⋯ menu now (the tile's own Remove button moved into it), so open it.
         await photosRegion.getByRole('button', { name: 'Actions for clip.gif' }).click();
         await page.getByRole('menuitem', { name: 'Remove' }).click();
-        await expect(photosRegion.getByRole('alert', { name: 'Upload failed' })).toHaveCount(0);
+        await expect(photosRegion.getByRole('alert', { name: /^Upload failed/u })).toHaveCount(0);
 
         await expect(page.getByRole('status').filter({ hasText: 'Uploading photo' })).toHaveCount(0);
         await expect(photosRegion.getByRole('img', { name: /Recipe photo/ })).toHaveCount(0);
@@ -336,6 +345,21 @@ test.describe('recipe photo tile menu (2026-10-17)', () => {
 
         expect(box?.width).toBeGreaterThanOrEqual(44);
         expect(box?.height).toBeGreaterThanOrEqual(44);
+    });
+
+    /**
+     * Designer ruling 2026-11-11: the ⋯ disc is chrome, so it keeps its 1x size at every text size. At 200% browser text
+     * a rem-sized disc doubled and covered half a phone-width tile.
+     */
+    test('the menu button stays 44 px square at 200% text', async ({ page }) => {
+        await page.setViewportSize({ width: 390, height: 900 });
+        const photosRegion = await openEditorWithTwoPhotos(page);
+        await page.addStyleTag({ content: 'html { font-size: 200% !important; }' });
+
+        const box = await photosRegion.getByRole('button', { name: 'Actions for photo 2' }).boundingBox();
+
+        expect(box?.width).toBeCloseTo(44, 0);
+        expect(box?.height).toBeCloseTo(44, 0);
     });
 
     test('Move earlier puts the second photo first, making it the cover', async ({ page }) => {
@@ -477,7 +501,7 @@ test.describe('recipe photos on a NEW recipe (U33)', () => {
 
         await expect(page).toHaveURL(CREATED_URL);
         const createdId = new URL(page.url()).searchParams.get('draft') ?? '';
-        await expect(photosRegion.getByRole('alert', { name: 'Upload failed' })).toBeVisible();
+        await expect(photosRegion.getByRole('alert', { name: /^Upload failed/u })).toBeVisible();
         await expect(page.getByRole('button', { name: /Retry upload of handover\.png/ })).toBeVisible();
 
         await completeForPublish(page);

@@ -268,7 +268,7 @@ describe('RecipePhotoManager (web) — the tile’s ⋯ menu (2026-10-17)', () =
     it('makes the menu button a 44 px target (SC 2.5.8)', () => {
         renderManager(allWired());
 
-        expect(screen.getByRole('button', { name: 'Actions for photo 2' }).className).toContain('size-11');
+        expect(screen.getByRole('button', { name: 'Actions for photo 2' }).className).toContain('size-[44px]');
     });
 
     it('lists Set as cover, Move earlier, Move later, Replace, then Remove after a divider', async () => {
@@ -473,11 +473,107 @@ describe('RecipePhotoManager (web) — a queue tile’s actions (2026-10-17)', (
             ],
         });
 
-        expect(screen.getByRole('alert', { name: 'Upload failed' })).toBeTruthy();
+        // The status and the message share one slot (2026-11-11), so the alert is named by both.
+        expect(screen.getByRole('alert', { name: 'Upload failed. That photo is larger than 5 MB.' })).toBeTruthy();
         expect(screen.getByText('That photo is larger than 5 MB.')).toBeTruthy();
         expect(screen.queryByRole('button', { name: 'Retry upload of huge.png' })).toBeNull();
         await openMenu('Actions for huge.png');
         expect(screen.getAllByRole('menuitem').map((item) => item.textContent)).toEqual(['Remove']);
+    });
+});
+
+/**
+ * Designer ruling 2026-11-11 (option b), the same on web and native: nothing sits on the photo. The status was a centred
+ * pill over the image; it is now a line of text under the tile, in the same slot as a failure's message.
+ */
+describe('RecipePhotoManager (web) — the upload status sits under the tile (2026-11-11)', () => {
+    it.each([
+        ['queued', 'Queued'],
+        ['waiting', 'Waiting to upload'],
+        ['uploading', 'Uploading…'],
+        ['failed', 'Upload failed'],
+    ] as const)('writes the %s status under the photo, never on it', (status, word) => {
+        renderManager({
+            queueItems: [makeQueueItem({ fileId: 1, fileName: 'a.png', status, previewUri: 'blob:a.png' })],
+        });
+
+        const frame = screen.getByRole('img', { name: 'Photo a.png' }).parentElement as HTMLElement;
+        const line = screen.getByText(word);
+
+        expect(frame.contains(line)).toBe(false);
+        expect(within(screen.getByRole('listitem')).getByText(word)).toBe(line);
+        expect(frame.compareDocumentPosition(line) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+        // A line of text, not a pill: no fill, not placed over anything.
+        expect(line.className).not.toMatch(/\bbg-|\babsolute\b|rounded-full/u);
+    });
+
+    // REWRITTEN (designer ruling 2026-11-11, third answer): the slot shows only the short status. The reason moved to
+    // one line under the grid, and the slot's alert still names it for a screen reader (REQ-014).
+    it('shows only the status in the slot under the photo, and names the reason in its alert', () => {
+        renderManager({
+            queueItems: [
+                makeQueueItem({
+                    fileId: 7,
+                    fileName: 'burnt.png',
+                    status: 'failed',
+                    previewUri: 'blob:burnt.png',
+                    errorMessage: 'That photo is larger than 5 MB.',
+                }),
+            ],
+        });
+
+        const slot = screen.getByRole('alert', { name: 'Upload failed. That photo is larger than 5 MB.' });
+
+        expect(within(slot).getByText('Upload failed')).toBeTruthy();
+        expect(within(slot).queryByText('That photo is larger than 5 MB.')).toBeNull();
+        expect(screen.getByRole('img', { name: 'Photo burnt.png' }).parentElement?.contains(slot)).toBe(false);
+    });
+});
+
+/**
+ * Designer ruling 2026-11-11, second half: Retry joins the status in the slot under the tile. At 200% text the Retry pill
+ * over the photo spilled past the tile and covered the ⋯ disc. The frame now holds the photo and the tile's own ⋯ menu,
+ * and nothing else, in every state.
+ */
+describe('RecipePhotoManager (web) — nothing but the ⋯ menu is drawn over the photo (2026-11-11)', () => {
+    it.each([
+        ['queued', false],
+        ['waiting', false],
+        ['uploading', false],
+        ['failed', false],
+        ['failed', true],
+    ] as const)('a %s tile (retryable: %s) draws no text and no other control on the photo', (status, retryable) => {
+        renderManager({
+            queueItems: [makeQueueItem({ fileId: 1, fileName: 'a.png', status, retryable, previewUri: 'blob:a.png' })],
+        });
+
+        const frame = screen.getByRole('img', { name: 'Photo a.png' }).parentElement as HTMLElement;
+        const menu = within(frame).queryAllByRole('button', { name: 'Actions for a.png' });
+
+        expect(frame.textContent.trim()).toBe('');
+        expect(within(frame).queryAllByRole('button')).toEqual(menu);
+    });
+
+    it('puts Retry in the slot under the photo, after the failure it recovers', () => {
+        renderManager({
+            queueItems: [
+                makeQueueItem({
+                    fileId: 7,
+                    fileName: 'burnt.png',
+                    status: 'failed',
+                    retryable: true,
+                    previewUri: 'blob:burnt.png',
+                }),
+            ],
+        });
+
+        const frame = screen.getByRole('img', { name: 'Photo burnt.png' }).parentElement as HTMLElement;
+        const retry = screen.getByRole('button', { name: /Retry upload of burnt\.png/u });
+        const status = screen.getByRole('alert', { name: /^Upload failed/u });
+
+        expect(frame.contains(retry)).toBe(false);
+        expect(within(screen.getByRole('listitem')).getByRole('button', { name: /Retry upload/u })).toBe(retry);
+        expect(status.compareDocumentPosition(retry) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     });
 });
 
@@ -528,8 +624,9 @@ describe('RecipePhotoManager (web) — per-file queue grid (w3/e4)', () => {
             ],
         });
 
-        // Generic badge names WHICH photo failed (via its Retry/Remove labels); this text names WHY.
-        expect(screen.getByRole('alert', { name: 'Upload failed' })).toBeTruthy();
+        // Retry/Remove labels name WHICH photo failed; the message names WHY. REWRITTEN (2026-11-11): one slot holds
+        // both lines, so the alert is named by both.
+        expect(screen.getByRole('alert', { name: 'Upload failed. That photo is larger than 5 MB.' })).toBeTruthy();
         expect(screen.getByText('That photo is larger than 5 MB.')).toBeTruthy();
     });
 
@@ -556,11 +653,12 @@ describe('RecipePhotoManager (web) — per-file queue grid (w3/e4)', () => {
         const message = screen.getByText('That photo is larger than 5 MB.');
 
         expect(frame.contains(message)).toBe(false);
-        expect(within(screen.getByRole('listitem')).getByText('That photo is larger than 5 MB.')).toBe(message);
+        // REWRITTEN (designer ruling 2026-11-11): the reason is said once, under the whole grid, not in the tile, and
+        // "Upload failed" left the photo for the slot under it.
+        expect(screen.getByRole('listitem').contains(message)).toBe(false);
         expect(message.className).not.toContain('absolute');
         expect(message.className).toContain('text-danger-text');
-        // The frame keeps the Retry/Remove controls and the status badge; only the prose left it.
-        expect(within(frame).getByRole('alert', { name: 'Upload failed' })).toBeTruthy();
+        expect(frame.contains(screen.getByText('Upload failed'))).toBe(false);
     });
 
     it('renders no error line for a failed item with no errorMessage', () => {
@@ -594,5 +692,84 @@ describe('RecipePhotoManager (web) — per-file queue grid (w3/e4)', () => {
 
         expect(screen.queryByRole('button', { name: 'Add photo' })).toBeNull();
         expect(screen.getByText(`Maximum of ${MAX_RECIPE_PHOTOS} photos reached.`)).toBeTruthy();
+    });
+});
+
+/**
+ * Designer ruling 2026-11-11, third answer. The photo carries the ⋯ disc and nothing else, on every tile: Cover and
+ * Removing… on a saved photo join the queue statuses in the short slot under the tile. A failure's sentence leaves the
+ * slot and is said ONCE, full width, under the grid, while any tile has failed.
+ */
+describe('RecipePhotoManager (web) — the photo carries only its ⋯ disc (2026-11-11)', () => {
+    const wired = {
+        photos: threePhotos,
+        onSetCover: noop,
+        onMovePhoto: noop,
+        onReplacePhoto: noop,
+    } satisfies Partial<RecipePhotoManagerProps>;
+
+    const frameOf = (index: number): HTMLElement =>
+        screen.getByRole('img', { name: `Recipe photo ${String(index)}` }).parentElement as HTMLElement;
+
+    it('draws no text and no control but the ⋯ disc on a saved photo: the cover, a removal, an idle tile', () => {
+        renderManager({ ...wired, removingPhotoId: 'ph_2' });
+
+        for (const index of [1, 2, 3]) {
+            const frame = frameOf(index);
+            expect(frame.textContent.trim()).toBe('');
+            expect(within(frame).getAllByRole('button')).toHaveLength(1);
+        }
+    });
+
+    it.each([
+        ['Cover', 1, {}],
+        ['Removing…', 2, { removingPhotoId: 'ph_2' }],
+    ] as const)('writes "%s" in the slot under photo %s', (word, index, extra) => {
+        renderManager({ ...wired, ...extra });
+
+        const frame = frameOf(index);
+        const line = screen.getByText(word);
+        const tile = within(screen.getByRole('list')).getAllByRole('listitem')[index - 1];
+
+        expect(frame.contains(line)).toBe(false);
+        expect(tile.contains(line)).toBe(true);
+        expect(frame.compareDocumentPosition(line) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+        expect(line.className).not.toMatch(/\babsolute\b|\bbg-|rounded-full/u);
+    });
+
+    it('keeps the slot to the short status, and says a failure’s sentence once, full width, under the grid', () => {
+        renderManager({
+            queueItems: [
+                makeQueueItem({
+                    fileId: 1,
+                    fileName: 'a.png',
+                    status: 'failed',
+                    errorMessage: 'We couldn’t upload that photo.',
+                }),
+                makeQueueItem({
+                    fileId: 2,
+                    fileName: 'b.png',
+                    status: 'failed',
+                    errorMessage: 'We couldn’t upload that photo.',
+                }),
+            ],
+        });
+
+        const list = screen.getByRole('list');
+        const sentence = screen.getByText('We couldn’t upload that photo.');
+
+        expect(screen.getAllByText('We couldn’t upload that photo.')).toHaveLength(1);
+        expect(list.contains(sentence)).toBe(false);
+        expect(list.compareDocumentPosition(sentence) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+        // REQ-014: each tile's alert still names WHY for a screen reader, though the slot shows only the status.
+        expect(screen.getAllByRole('alert', { name: 'Upload failed. We couldn’t upload that photo.' })).toHaveLength(2);
+    });
+
+    it('drops the sentence once no tile has failed', () => {
+        renderManager({
+            queueItems: [makeQueueItem({ fileId: 1, fileName: 'a.png', status: 'uploading', errorMessage: 'Stale.' })],
+        });
+
+        expect(screen.queryByText('Stale.')).toBeNull();
     });
 });

@@ -12,15 +12,22 @@
  *  - another cook's recent import is untouched;
  *  - a backlog larger than one batch is drained within a tick (kills: a loop that stops after one batch);
  *  - an aged import another transaction holds is skipped, not waited for and not deleted (kills: removing SKIP LOCKED);
- *  - the oldest-age gauge reads the real oldest row (kills: reading the newest import, or an age that is not in seconds).
+ *  - the oldest-age gauge reads the real oldest row (kills: reading the newest import, or an age that is not in seconds);
+ *  - a delete that must wait on a lock the cook holds on a saved INGREDIENT (SKIP LOCKED covers only the import rows) gives
+ *    up after the purge's own lock timeout, keeps the import, and the tick still publishes the age (kills: no
+ *    `lock_timeout`, a session-wide setting instead of a transaction-local one, publishing the age after the delete).
  */
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import pg from 'pg';
 
+import type { EmfMetric } from '../../../src/common/metrics.js';
 import {
     IMPORT_PURGE_BATCH_SIZE,
+    IMPORT_PURGE_LOCK_TIMEOUT_MS,
+    OLDEST_IMPORT_AGE_METRIC_NAME,
     oldestImportAgeSeconds,
     purgeFinishedImports,
+    runImportPurge,
 } from '../../../src/import/importPurge.js';
 import { recipeWorkersDb } from '../roleDb.js';
 
@@ -155,28 +162,88 @@ describe('bulk import purge (LOCAL e2e)', () => {
     /**
      * Review finding 5 on #185-#188: the purge picked its rows by age and then deleted by id, so an import a cook held at
      * that moment was deleted under them. A row another transaction holds is now SKIPPED, not waited for and not deleted;
-     * the next tick, 15 minutes later, sees it again with whatever `updated_at` that transaction left. The purge's own
-     * connection carries a short `lock_timeout`, so a purge that WAITED for the lock fails this case instead of hanging.
+     * the next tick, 15 minutes later, sees it again with whatever `updated_at` that transaction left. A purge that WAITED
+     * for the lock would give up after its own lock timeout and delete neither, which this case would see.
      */
     it('⛔ skips an aged import another transaction holds, without waiting for it, and deletes the rest', async () => {
         const held = await importAged(USER, '40 days');
         const free = await importAged(USER, '41 days');
         const cook = await pool.connect();
-        const purger = new pg.Pool({ connectionString: roleDb.appUrl, options: '-c lock_timeout=2000' });
 
         try {
             await cook.query('BEGIN');
             await cook.query(`SELECT 1 FROM recipe_imports WHERE id = $1 FOR UPDATE`, [held.id]);
 
-            expect(await purgeFinishedImports(purger)).toBe(1);
+            expect(await purgeFinishedImports(pool)).toBe(1);
             expect(await treeOf(free.id)).toStrictEqual({ imports: 0, items: 0, lines: 0 });
             expect(await treeOf(held.id)).toStrictEqual({ imports: 1, items: 1, lines: 1 });
         } finally {
             await cook.query('ROLLBACK');
             cook.release();
-            await purger.end();
         }
     });
+
+    /**
+     * Review of #191: SKIP LOCKED covers the import rows only. Deleting an import's lines sets `ingredients.import_line_id`
+     * to NULL, and that update waits on a cook's lock on the ingredient row. With no lock timeout the purge waited until the
+     * host Lambda timed out, and the age, published after the delete, was never published. The purge now gives up after
+     * its own transaction-local lock timeout, keeps the import for the next tick, and publishes the age first.
+     *
+     * The test's own timeout is the red: a purge that waits for the cook hangs here until vitest gives up.
+     */
+    it(
+        '⛔ gives up on a lock a cook holds on a saved ingredient, keeps the import, and still publishes the age',
+        async () => {
+            await pool.query(
+                `INSERT INTO recipes (id, owner_id, title, description, prep_time_minutes, cook_time_minutes, total_time_minutes,
+                                      servings, visibility, source_type, status)
+                 VALUES ($1, $2, 'purge probe', '', 1, 1, 2, 1, 'public', 'user_created', 'draft')`,
+                [RECIPE, USER],
+            );
+            const old = await importAged(USER, '31 days', RECIPE);
+
+            await pool.query(
+                `INSERT INTO ingredients (recipe_id, food_lookup_id, quantity, unit, bound_by, import_line_id)
+                 VALUES ($1, $2, 1, 'cup', 'autoBest', $3)`,
+                [RECIPE, LOOKUP, old.lineId],
+            );
+
+            const cook = await pool.connect();
+            // One connection, so the SHOW below reads the very connection the purge used.
+            const purger = new pg.Pool({ connectionString: roleDb.appUrl, max: 1 });
+            const emitted: EmfMetric[] = [];
+
+            try {
+                await cook.query('BEGIN');
+                await cook.query(`SELECT 1 FROM ingredients WHERE recipe_id = $1 FOR UPDATE`, [RECIPE]);
+
+                const startedAt = Date.now();
+
+                await runImportPurge({ pool: purger, stage: 'e2e', emit: (metric) => emitted.push(metric) });
+
+                // Twice the timeout: Postgres fires the timer late under load (8.3 s seen once for 5 s on this harness).
+                expect(Date.now() - startedAt).toBeLessThan(IMPORT_PURGE_LOCK_TIMEOUT_MS * 2);
+                expect(await treeOf(old.id)).toStrictEqual({ imports: 1, items: 1, lines: 1 });
+                expect(emitted.find((metric) => metric.name === OLDEST_IMPORT_AGE_METRIC_NAME)?.value).toBeGreaterThan(
+                    31 * 86_400 - 60,
+                );
+            } finally {
+                await cook.query('ROLLBACK');
+                cook.release();
+            }
+
+            try {
+                // The setting was transaction-local: the pooled connection the purge used does not keep it.
+                const setting = await purger.query<{ lock_timeout: string }>(`SHOW lock_timeout`);
+
+                expect(setting.rows).toStrictEqual([{ lock_timeout: '0' }]);
+                expect(await purgeFinishedImports(purger)).toBe(1);
+            } finally {
+                await purger.end();
+            }
+        },
+        IMPORT_PURGE_LOCK_TIMEOUT_MS * 2 + 10_000,
+    );
 
     it('reads the age of the oldest import left, from the database’s own clock, and 0 when there is none', async () => {
         expect(await oldestImportAgeSeconds(pool)).toBe(0);

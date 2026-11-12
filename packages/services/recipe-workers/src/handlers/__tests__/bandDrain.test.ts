@@ -25,6 +25,7 @@ import {
     type BandDrainDeps,
 } from '../bandDrain.js';
 import type { ExpiryQueryable } from '../../parsing/parseJobExpiry.js';
+import { logger } from '../../common/logger.js';
 
 const SETTINGS = { ceilingMicros: 100_000_000, modelId: 'amazon.nova-micro-v1:0' };
 
@@ -368,5 +369,45 @@ describe('runDrainTick', () => {
 
         expect(failure).toBeInstanceOf(AggregateError);
         expect((failure as AggregateError).errors).toStrictEqual([drainFailure, sweepFailure]);
+    });
+
+    /**
+     * Review of #191: when both failed, only the AggregateError reached Sentry, and its stack is the aggregate's, not either
+     * cause's. Each failure is now logged as an error of its own before the aggregate is thrown, under ONE fixed message so
+     * Sentry groups them by that message (ADR-0062: fingerprints are built from names, never text).
+     */
+    it('⛔ logs each failure on its own, under one fixed message, before it throws the aggregate', async () => {
+        const errors = vi.spyOn(logger, 'error').mockImplementation(() => undefined);
+        const drainFailure = new Error('sqs unavailable');
+        const sweepFailure = new Error('purge failed');
+
+        try {
+            await runDrainTick(vi.fn().mockRejectedValue(drainFailure), vi.fn().mockRejectedValue(sweepFailure)).catch(
+                () => undefined,
+            );
+
+            expect(errors).toHaveBeenCalledTimes(2);
+
+            const [first, second] = errors.mock.calls;
+
+            expect(first?.[0]).toBe(second?.[0]);
+            expect(JSON.stringify(first?.[0])).not.toMatch(/sqs|purge/u);
+            expect(JSON.stringify(first?.slice(1))).toContain('sqs unavailable');
+            expect(JSON.stringify(second?.slice(1))).toContain('purge failed');
+        } finally {
+            errors.mockRestore();
+        }
+    });
+
+    it('logs nothing of its own for a single failure: the thrown error is the report, and a second would double it', async () => {
+        const errors = vi.spyOn(logger, 'error').mockImplementation(() => undefined);
+
+        try {
+            await runDrainTick(vi.fn().mockRejectedValue(new Error('sqs unavailable')), vi.fn()).catch(() => undefined);
+
+            expect(errors).not.toHaveBeenCalled();
+        } finally {
+            errors.mockRestore();
+        }
     });
 });

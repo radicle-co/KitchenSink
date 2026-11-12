@@ -243,13 +243,15 @@ The owner ruled that bulk import has an allowance of its own, separate from past
 - **The purge runs on the band drain's 15-minute tick** in recipe-workers (`purgeFinishedImports`), beside the
   parse-job sweep. It adds no Lambda, no schedule rule and no NAT consumer, so ADR-0004, ADR-0060 and ADR-0061 apply
   unchanged. Its clock is `recipe_imports.updated_at`, indexed for it (migration 0066). It deletes 3 imports per
-  statement, oldest first, and stops after 20 seconds of the Lambda's 60. A failure fails the tick, and it runs last, so
-  a failure costs the other sweeps nothing. The import row goes, and its items and snapshot lines go with it by
+  statement, oldest first, and stops after 20 seconds of the Lambda's 60. Each statement is its own transaction with a
+  5-second lock timeout. If a statement waits that long for a lock, for example a cook's lock on a saved ingredient, the
+  purge rolls it back and stops until the next tick. Any other failure fails the tick. Each sweep runs even if an earlier
+  one failed. The import row goes, and its items and snapshot lines go with it by
   cascade. Every saved recipe stays with its ingredients and `bound_by`, and the ingredient's `import_line_id` becomes
   NULL. The allowance ledger is not touched and nothing is refunded. The purge takes its rows `FOR UPDATE SKIP LOCKED`,
   so it skips an import that a cook's transaction holds and does not delete it under them. If the band drain fails,
-  the tick still runs the sweeps, and then it fails with the drain's error. Every tick publishes the purged count and the
-  age of the oldest import left, both with `Stage` (ADR-0062). If that age is a day past the 30-day bound,
+  the tick still runs the sweeps, and then it fails with the drain's error. Every tick publishes the age of the oldest
+  import, before the purge deletes anything, and then the purged count, both with `Stage` (ADR-0062). If that age is a day past the 30-day bound,
   `BulkImportPurgeBehindAlarm` fires.
 - **The import sets the provenance label from the statement:**
 

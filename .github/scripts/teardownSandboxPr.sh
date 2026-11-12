@@ -59,7 +59,6 @@ echo "Tearing down ephemeral resources for: $PR (region $REGION)"
 # the run (a stuck stack must not block the rest of the teardown); the status is reported at the end.
 teardown_failed=0
 
-belongs() { pr_scope_belongs "$PR" "$1"; }
 path_belongs() { pr_scope_path_belongs "$PR" "$1"; }
 # The TAG half of the match, and a DIFFERENT rule from the name half: a tag value comes from the closed set
 # the CDK apps emit (`pr-{N}-sandbox` now, `pr-{N}` before the scheme changed), so it is matched by equality
@@ -67,6 +66,8 @@ path_belongs() { pr_scope_path_belongs "$PR" "$1"; }
 # per-stack read and the account-wide sweep cannot come to disagree about what belongs to this PR.
 environment_tag_belongs() { pr_scope_environment_tag_belongs "$PR" "$1"; }
 ENVIRONMENT_TAG_VALUES="$(pr_scope_environment_tag_values "$PR")"
+# The stack names the CI role may delete, as a shell glob: `PER_PR_NAME_PATTERN` in teardownGrants.ts.
+PER_PR_STACK_GLOB='kitchensink-*-pr-*'
 
 # Every CloudFormation stack belonging to this PR, as `name<TAB>Environment-tag` lines.
 #
@@ -76,28 +77,42 @@ ENVIRONMENT_TAG_VALUES="$(pr_scope_environment_tag_values "$PR")"
 # all, so that coupling is gone and this discovery now serves section 2 alone.
 #
 # The status filter includes the FAILED/stuck resting states, so a per-PR stack that failed or hung at close
-# time is still found rather than leaked. Two independent matches, either sufficient: `belongs` catches a
-# stack NAMED for the PR (`pr-{N}` / `pr-{N}-…`); the suffix-named feature stacks
-# (`kitchensink-{service}-pr-{N}`) are caught by the App-level `Environment` tag and NOT by `belongs`,
-# which is a PREFIX rule — deliberately, because broadening it to match a suffix would put every
-# `kitchensink-*` name one typo away from a per-PR teardown.
+# time is still found rather than leaked.
 #
-# Takes the status set to look in (resting, or in-progress) and returns non-zero when the LIST call itself failed, so
-# a failed lookup is never read as "this PR owns nothing".
+# Only a stack named `$PER_PR_STACK_GLOB` is a candidate, and its `Environment` tag decides. That is IAM's own
+# rule: the CI role may DeleteStack only such a name carrying an `Environment=pr-*` tag (teardownGrants.ts).
+# ListStacks answers with every stack in the account, which hosts another application too, so describing every
+# name was refused by IAM and failed every PR close, and a stack NAMED `pr-{N}…` outside the glob would only
+# reach a delete IAM refuses.
+#
+# A stack that is gone by the time it is described (another PR's cleanup, or the midnight reclaim, deleted it
+# after this run listed it) is skipped. Any other failure returns non-zero, so a failed lookup is never read as
+# "this PR owns nothing", and the CLI's own error stays on stderr so the log says why.
 #
 # @sideEffect Calls the CloudFormation API.
 discover_pr_stacks() {
-    local stack envtag names
+    local stack envtag names err
     names=$(aws cloudformation list-stacks --region "$REGION" \
         --stack-status-filter "$@" \
-        --query 'StackSummaries[].StackName' --output text 2>/dev/null) || return 1
+        --query 'StackSummaries[].StackName' --output text) || return 1
+    err=$(mktemp)
     for stack in $names; do
-        envtag=$(aws cloudformation describe-stacks --region "$REGION" --stack-name "$stack" \
-            --query "Stacks[0].Tags[?Key=='Environment'].Value | [0]" --output text 2>/dev/null) || return 1
-        if belongs "$stack" || environment_tag_belongs "$envtag"; then
+        # shellcheck disable=SC2254 # the glob is the match
+        case "$stack" in $PER_PR_STACK_GLOB) ;; *) continue ;; esac
+        if ! envtag=$(aws cloudformation describe-stacks --region "$REGION" --stack-name "$stack" \
+            --query "Stacks[0].Tags[?Key=='Environment'].Value | [0]" --output text 2>"$err"); then
+            if grep -q "Stack with id $stack does not exist" "$err"; then
+                continue
+            fi
+            cat "$err" >&2
+            rm -f "$err"
+            return 1
+        fi
+        if environment_tag_belongs "$envtag"; then
             printf '%s\t%s\n' "$stack" "$envtag"
         fi
     done
+    rm -f "$err"
 }
 
 ## 0. The preview's PUBLIC ADDRESS — the Route 53 record `$PR.$PREVIEW_ZONE` and the Vercel
@@ -424,18 +439,9 @@ for lg in $log_groups; do
         aws logs delete-log-group --region "$REGION" --log-group-name "$lg" || true
     fi
 done
-if ! ecr_repos=$(aws ecr describe-repositories --region "$REGION" \
-    --query 'repositories[].repositoryName' --output text); then
-    echo "::error::aws ecr describe-repositories failed — $PR's ECR repositories were not swept"
-    ecr_repos=''
-    teardown_failed=1
-fi
-for repo in $ecr_repos; do
-    if belongs "$repo"; then
-        echo "[ecr/name] delete $repo (force)"
-        aws ecr delete-repository --region "$REGION" --repository-name "$repo" --force || true
-    fi
-done
+# No ECR name sweep: it matched `pr-{N}…` repositories, which nothing creates (previews push to the shared
+# `kitchensink-*` repositories) and which the CI role could neither list nor delete. A tagged per-PR repository is
+# still deleted by section 3.
 
 if [ "$teardown_failed" -ne 0 ]; then
     echo "::error::Cleanup for $PR did NOT fully succeed — see the errors above."

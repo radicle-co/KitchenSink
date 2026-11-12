@@ -83,11 +83,15 @@ describe('slotStandingOf - the server states the number, the client never does',
 
 describe('privateRuleForDraft - which rule a recipe is under', () => {
     it('REWRITTEN for ADR-0077 section 6: an imported public-web recipe uses a slot like any other, no Pro needed', () => {
-        expect(privateRuleForDraft(RecipeSourceType.IMPORTED_PUBLIC)).toBe('slots');
+        expect(privateRuleForDraft(RecipeSourceType.IMPORTED_PUBLIC, null)).toBe('slots');
+    });
+
+    it('ADR-0089: a copy of a web page (a pasted link) is private only, the same label as the curator text', () => {
+        expect(privateRuleForDraft(RecipeSourceType.IMPORTED_PUBLIC, 'public_web')).toBe('privateOnly');
     });
 
     it('a recipe the cook wrote uses a slot, and can go public', () => {
-        expect(privateRuleForDraft(RecipeSourceType.USER_CREATED)).toBe('slots');
+        expect(privateRuleForDraft(RecipeSourceType.USER_CREATED, null)).toBe('slots');
     });
 
     // A book or paid-site recipe uses a slot like any other (ADR-0073 section 7) but can NEVER go public (004 FR-014a), so
@@ -96,12 +100,12 @@ describe('privateRuleForDraft - which rule a recipe is under', () => {
     it.each([RecipeSourceType.IMPORTED_PHYSICAL, RecipeSourceType.IMPORTED_PAID])(
         '%s uses a slot but can never go public: its own rule',
         (sourceType) => {
-            expect(privateRuleForDraft(sourceType)).toBe('privateOnly');
+            expect(privateRuleForDraft(sourceType, null)).toBe('privateOnly');
         },
     );
 
     it('a recipe never saved is a user_created one: slots', () => {
-        expect(privateRuleForDraft(undefined)).toBe('slots');
+        expect(privateRuleForDraft(undefined, null)).toBe('slots');
     });
 });
 
@@ -193,7 +197,7 @@ describe('recipePrivateRefusalOf - a Private the server is KNOWN to refuse', () 
 
     it('ADR-0077 section 6: an imported public-web recipe (rule from recipe-core) takes the slots path', () => {
         const facts: RecipePrivateFacts = {
-            rule: privateRuleForDraft(RecipeSourceType.IMPORTED_PUBLIC),
+            rule: privateRuleForDraft(RecipeSourceType.IMPORTED_PUBLIC, null),
             standing: FULL,
             state: 'hidden',
         };

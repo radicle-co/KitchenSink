@@ -71,6 +71,7 @@ const render = (
                 rowEditor,
                 keep: 'tabSession',
                 autoBind: true,
+                onSource: vi.fn(),
             }),
         ),
     };

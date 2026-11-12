@@ -29,6 +29,7 @@ import type { RecipeAggregate } from '../dal/recipes.dal.js';
 import { fakeRecipesDal, FAKE_TX } from '../__fixtures__/recipesDal.fixture.js';
 import { makeRecipesService } from '../__fixtures__/recipesService.fixture.js';
 import type { CreateRecipeDto } from '../dto/createRecipe.dto.js';
+import { resolveStatementProvenance } from '../domain/provenancePolicy.js';
 import { isRecipeDomainError } from '../recipe.error.js';
 
 const OWNER = '01JBINDINGORIGIN00000OWNER';
@@ -277,12 +278,18 @@ describe('RecipesService.create — an ordinary create stamps the cook’s own c
 });
 
 describe('RecipesService.create — the import’s own save', () => {
+    // REWRITTEN for ADR-0089: the provenance is what the ONE statement reader resolves (`resolveStatementProvenance`), so a
+    // web statement carries the kind `public_web`. It used to be a hand-built `imported_public` with no kind, which reads as
+    // the curator's public-domain text and was saved PUBLIC here: exactly the hazard the kind closes.
+    const WEB_PROVENANCE = resolveStatementProvenance({ kind: 'public_web', citation: 'https://example.com/r' });
+    const BOOK_PROVENANCE = resolveStatementProvenance({ kind: 'book', citation: 'The Joy of Cooking, p. 12' });
+
+    if (WEB_PROVENANCE === undefined || BOOK_PROVENANCE === undefined) {
+        throw new Error('test setup: the statements must resolve');
+    }
+
     const imported = {
-        provenance: {
-            sourceType: RecipeSourceType.IMPORTED_PUBLIC,
-            sourceUrl: 'https://example.com/r',
-            sourceAttribution: null,
-        },
+        provenance: WEB_PROVENANCE,
         lineOrigins: [
             { kind: 'set', boundBy: 'exact', importLineId: LINK_FLOUR },
             { kind: 'set', boundBy: null, importLineId: LINK_WRITTEN },
@@ -292,14 +299,16 @@ describe('RecipesService.create — the import’s own save', () => {
     it('⛔ stores the provenance the STATEMENT set, without the curator grant, and states each line’s origin exactly', async () => {
         const { dal, service } = setup();
 
-        await service.create(PRINCIPAL, { ...CREATE_DTO, visibility: RecipeVisibility.PUBLIC }, undefined, imported);
+        // PRIVATE: a web copy is private only (ADR-0089), so the item's public request is refused (next case).
+        await service.create(PRINCIPAL, { ...CREATE_DTO, visibility: RecipeVisibility.PRIVATE }, undefined, imported);
 
         const { lines, row } = persistedOnCreate(dal);
 
         expect(row).toMatchObject({
             sourceType: 'imported_public',
+            sourceKind: 'public_web',
             sourceUrl: 'https://example.com/r',
-            sourceAttribution: null,
+            sourceAttribution: 'example.com',
             status: 'draft',
         });
         expect(lines).toStrictEqual([
@@ -312,7 +321,7 @@ describe('RecipesService.create — the import’s own save', () => {
         const { dal, service } = setup();
 
         await expect(
-            service.create(PRINCIPAL, CREATE_DTO, undefined, {
+            service.create(PRINCIPAL, { ...CREATE_DTO, visibility: RecipeVisibility.PRIVATE }, undefined, {
                 provenance: imported.provenance,
                 lineOrigins: [imported.lineOrigins[0]],
             }),
@@ -325,12 +334,18 @@ describe('RecipesService.create — the import’s own save', () => {
         const error = await service
             .create(PRINCIPAL, { ...CREATE_DTO, visibility: RecipeVisibility.PUBLIC }, undefined, {
                 ...imported,
-                provenance: {
-                    sourceType: RecipeSourceType.IMPORTED_PHYSICAL,
-                    sourceUrl: null,
-                    sourceAttribution: 'The Joy of Cooking, p. 12',
-                },
+                provenance: BOOK_PROVENANCE,
             })
+            .catch((thrown: unknown) => thrown);
+
+        expect(isRecipeDomainError(error) && error.code).toBe(RecipeErrorCode.INVALID_VISIBILITY);
+        expect(dal.create).not.toHaveBeenCalled();
+    });
+
+    it('judges a WEB statement the same way: a public save is refused, because the web copy is private only (ADR-0089)', async () => {
+        const { dal, service } = setup();
+        const error = await service
+            .create(PRINCIPAL, { ...CREATE_DTO, visibility: RecipeVisibility.PUBLIC }, undefined, imported)
             .catch((thrown: unknown) => thrown);
 
         expect(isRecipeDomainError(error) && error.code).toBe(RecipeErrorCode.INVALID_VISIBILITY);
@@ -356,7 +371,7 @@ describe('RecipesService.create — the import’s own save', () => {
             expect(saved.ingredients).toBe(stored.ingredients);
         });
 
-        await service.create(PRINCIPAL, { ...CREATE_DTO, visibility: RecipeVisibility.PUBLIC }, undefined, {
+        await service.create(PRINCIPAL, { ...CREATE_DTO, visibility: RecipeVisibility.PRIVATE }, undefined, {
             ...imported,
             afterWrite,
         });
@@ -369,7 +384,7 @@ describe('RecipesService.create — the import’s own save', () => {
         const { service } = setup();
         const boom = new Error('claim lost');
         const error = await service
-            .create(PRINCIPAL, { ...CREATE_DTO, visibility: RecipeVisibility.PUBLIC }, undefined, {
+            .create(PRINCIPAL, { ...CREATE_DTO, visibility: RecipeVisibility.PRIVATE }, undefined, {
                 ...imported,
                 afterWrite: () => Promise.reject(boom),
             })

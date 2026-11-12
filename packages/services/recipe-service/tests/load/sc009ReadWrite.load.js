@@ -27,6 +27,7 @@ import {
     authHeaders,
     jsonHeaders,
     makeRecipePayload,
+    makeRecipePayloadWithStatement,
     resolveSeedIngredients,
     rampStages,
     PEAK_VUS,
@@ -38,6 +39,7 @@ import {
 const listTrend = new Trend('recipe_list_duration', true);
 const getTrend = new Trend('recipe_get_duration', true);
 const createTrend = new Trend('recipe_create_duration', true);
+const createWithStatementTrend = new Trend('recipe_create_with_statement_duration', true);
 
 // Reads carry the bulk of the load; writes ramp to half the peak.
 const writePeak = Math.max(1, Math.ceil(PEAK_VUS / 2));
@@ -71,6 +73,7 @@ export const options = {
             'http_req_duration{operation:listRecipes}': [`p(95)<${SC009_P95_MS}`],
             'http_req_duration{operation:getRecipe}': [`p(95)<${SC009_P95_MS}`],
             'http_req_duration{operation:createRecipe}': [`p(95)<${SC009_P95_MS}`],
+            'http_req_duration{operation:createRecipeWithStatement}': [`p(95)<${SC009_P95_MS}`],
         }),
     },
 };
@@ -149,14 +152,32 @@ export function readPath(data) {
 }
 
 export function writePath(data) {
+    // Every fourth create states a pasted web link (ADR-0089): the same write with the statement parsed, the site derived
+    // and the source columns written. Its own operation tag keeps it out of the plain create's series.
+    const withStatement = __ITER % 4 === 3;
+    const label = `${__VU}-${__ITER}`;
     const res = http.post(
         `${BASE_URL}/api/v1/recipes`,
-        JSON.stringify(makeRecipePayload(`${__VU}-${__ITER}`, data.ingredients)),
+        JSON.stringify(
+            withStatement
+                ? makeRecipePayloadWithStatement(label, data.ingredients)
+                : makeRecipePayload(label, data.ingredients),
+        ),
         {
             headers: jsonHeaders(),
-            tags: { operation: 'createRecipe' },
+            tags: { operation: withStatement ? 'createRecipeWithStatement' : 'createRecipe' },
         },
     );
+
+    if (withStatement) {
+        if (check(res, { 'createRecipeWithStatement 201': (r) => r.status === 201 })) {
+            createWithStatementTrend.add(res.timings.duration);
+        }
+
+        sleep(PACE_SECONDS);
+
+        return;
+    }
 
     // ⛔ ONLY THE ACCEPTED RESPONSE ENTERS THE LATENCY SERIES. A refusal — a 429 from the per-user
     // limiter, a 4xx from validation — is answered in microseconds without touching the database, so

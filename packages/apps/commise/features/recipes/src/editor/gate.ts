@@ -11,6 +11,7 @@ import {
     cuisineFieldId,
     descriptionFieldId,
     ingredientAddFieldId,
+    sourceFieldId,
     stepFieldId,
     titleFieldId,
 } from '../form/fieldIds.js';
@@ -134,6 +135,11 @@ export function firstInvalidFieldOf(
         );
 
         return index === -1 ? undefined : stepFieldId(index);
+    }
+
+    // Photos & publish comes after Steps in page order.
+    if (errors.source !== undefined) {
+        return sourceFieldId;
     }
 
     return undefined;

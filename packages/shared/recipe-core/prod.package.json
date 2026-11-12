@@ -120,6 +120,7 @@
     },
     "dependencies": {
         "numeric-quantity": "^3.3.1",
+        "tldts": "^7.4.11",
         "zod": "^4.6.7"
     },
     "engines": {

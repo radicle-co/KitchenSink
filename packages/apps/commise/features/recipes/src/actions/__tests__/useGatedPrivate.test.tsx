@@ -41,7 +41,7 @@ function mount(facts: RecipePrivateFacts, saved: RecipeVisibility = RecipeVisibi
 
 describe('useGatedPrivate - an imported public-web recipe (REWRITTEN for ADR-0077 section 6)', () => {
     const importedPublic = (standing: RecipePrivateFacts['standing'], state: PaidFeatureState): RecipePrivateFacts => ({
-        rule: privateRuleForDraft(RecipeSourceType.IMPORTED_PUBLIC),
+        rule: privateRuleForDraft(RecipeSourceType.IMPORTED_PUBLIC, null),
         standing,
         state,
     });

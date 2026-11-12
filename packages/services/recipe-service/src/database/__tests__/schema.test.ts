@@ -126,6 +126,7 @@ describe('recipe-service schema — table contracts (T011–T014, T118, T119, T1
             rating_count: { type: 'integer', notNull: true },
             visibility: { type: 'text', notNull: true },
             source_type: { type: 'text', notNull: true },
+            source_kind: { type: 'text', notNull: false },
             source_url: { type: 'text', notNull: false },
             source_attribution: { type: 'text', notNull: false },
             cloned_from_id: { type: 'uuid', notNull: false },

@@ -36,8 +36,7 @@ import { bootRecipeApp, type BootedRecipeApp } from '../harness.js';
 import { createRecipeDrizzle, type RecipeDrizzle } from '../../../src/database/client.js';
 import { recipes, type RecipeRow } from '../../../src/database/schema/index.js';
 import { RecipesService } from '../../../src/recipes/recipes.service.js';
-import { CURATOR_IMPORT_SCOPE } from '../../../src/recipes/recipes.schema.js';
-import type { CreateRecipeDto } from '../../../src/recipes/dto/createRecipe.dto.js';
+import { CURATOR_IMPORT_SCOPE, createRecipeRequestSchema } from '../../../src/recipes/recipes.schema.js';
 import type { Principal } from '../../../src/auth/principal.js';
 import { recipeDb } from '../../support/roleDb.js';
 
@@ -119,13 +118,15 @@ describe('declared provenance on create (integration)', () => {
     it('writes the declared source to the COLUMNS when the caller holds the curator grant', async () => {
         const created = await service.create(
             principal({ scopes: [CURATOR_IMPORT_SCOPE] }),
-            body({
-                source: {
-                    sourceType: 'imported_public',
-                    sourceUrl: SOURCE_URL,
-                    sourceAttribution: SOURCE_ATTRIBUTION,
-                },
-            }) as unknown as CreateRecipeDto,
+            createRecipeRequestSchema.parse(
+                body({
+                    source: {
+                        sourceType: 'imported_public',
+                        sourceUrl: SOURCE_URL,
+                        sourceAttribution: SOURCE_ATTRIBUTION,
+                    },
+                }),
+            ),
             undefined,
         );
 
@@ -144,7 +145,7 @@ describe('declared provenance on create (integration)', () => {
     it('leaves the provenance columns at their defaults when no source is declared (004-FR-024)', async () => {
         const created = await service.create(
             principal({ scopes: [CURATOR_IMPORT_SCOPE] }),
-            body() as unknown as CreateRecipeDto,
+            createRecipeRequestSchema.parse(body()),
             undefined,
         );
 

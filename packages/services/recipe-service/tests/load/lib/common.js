@@ -464,6 +464,22 @@ export function makeRecipePayload(label, ingredients) {
 }
 
 /**
+ * The create body with the cook's `statement` (ADR-0089): a private web copy of a pasted link. Private like every load
+ * recipe, because a web copy cannot be public. The link is a documentation host, never a real recipe site: nothing here
+ * fetches it, and the service never does.
+ *
+ * @param label - Distinguishes this VU/iteration's recipe.
+ * @param ingredients - `{ flour, sugar }` catalog ids for the stage under test.
+ * @returns The request body.
+ */
+export function makeRecipePayloadWithStatement(label, ingredients) {
+    return {
+        ...makeRecipePayload(label, ingredients),
+        statement: { kind: 'public_web', citation: `https://example.com/k6-load/${label}` },
+    };
+}
+
+/**
  * A valid `POST /api/v1/ingredients/food-nutrition` body, at the published cap of 100 refs.
  * `contract/__tests__/k6Payload.test.ts` parses it against the authored schema and checks the cap and the repeats.
  *

@@ -271,6 +271,7 @@ recipes:recipes/pasteList
 recipes:recipes/pasteListSettle
 recipes:recipes/pasteMatchChoose
 recipes:recipes/pastePublishOpenChoices
+recipes:recipes/sourceFromPaste
 recipes:recipes/quantityRange
 recipes:recipes/preparationGroups
 recipes:recipes/ingredientGroups

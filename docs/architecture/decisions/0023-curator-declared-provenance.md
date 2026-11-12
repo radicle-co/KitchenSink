@@ -3,6 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-08-19
 - **Amended by:** [ADR-0082](0082-recipes-are-an-open-library-of-facts-cooks-words-and-gated-public-domain.md): §1: the curator grant carries a public-domain record, judged by the rolling gate in `016-FR-015k`, and public-domain text under the grant is open to the web when that record passes. No `sourceType` value is added. Every other decision here stands.
+- **Amended by:** [ADR-0089](0089-a-pasted-web-link-sets-the-source-and-a-web-copy-stays-private.md): §1a: `POST /api/v1/recipes` also takes the cook's `statement` (a pasted web link), and a `PATCH` takes it until the first publish. The statement never reads the grant and sets a source kind, so a web copy is private only. The curator's `source` and its grant are unchanged.
 - **Drivers**: Seeding the recipe tier with 100+ public-domain recipes from Project Gutenberg cookbooks,
   through the real `POST /api/v1/recipes` rather than a side door, ran straight into two walls:
     - `RecipesService.create` hardcoded `sourceType: RecipeSourceType.USER_CREATED`, so **the service could
@@ -126,8 +127,11 @@ public web page) or private (a book or a paid site). The import sets the label f
 - **This is an exception to §1, for that route only.** A cook with no curator grant sets `imported_public` there.
   What backs the label is the stored statement and citation, the per-item attestation 004-`FR-014a` and
   016-`FR-014` rely on.
-- **`POST /api/v1/recipes` is unchanged.** Its union still has two members, `imported_public` still needs the grant,
-  and `imported_paid` and `imported_physical` are still not declarable there.
+- **`POST /api/v1/recipes` keeps its `source` union unchanged.** The union still has two members, `imported_public`
+  still needs the grant there, and `imported_paid` and `imported_physical` are still not declarable there. The route
+  also takes the cook's `statement`, a pasted web link, from any cook (ADR-0089). It resolves to `imported_public` with
+  the source kind `public_web`, never reads the grant, and is private only. A `PATCH` takes it until the first publish.
+  `source` itself is still never accepted on a `PATCH`.
 - **The false-attribution hazard is still real.** §1 argued that a grant is a stronger control than a fetched URL. On
   the bulk route the control is weaker: the cook's own statement. The owner accepted that for bulk import. There the
   cook brings the file and states each source. Counsel confirms the statement's wording before launch

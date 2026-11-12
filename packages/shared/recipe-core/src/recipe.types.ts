@@ -116,6 +116,20 @@ export const recipeSourceTypeSchema = z.enum([
 ]);
 
 /**
+ * What the cook said a copied recipe's source is (ADR-0072 section 9, ADR-0089): a public web page, a book, or a paid site.
+ * It is stored beside the label (`sourceType`) because `imported_public` alone cannot tell a web copy (private only) from
+ * the curator's public-domain text (kind absent). The ONE statement of the vocabulary: the import tables and their CHECKs
+ * mirror it.
+ */
+export const RECIPE_SOURCE_KINDS = ['public_web', 'book', 'paid_site'] as const;
+
+/** One source kind. */
+export type RecipeSourceKind = (typeof RECIPE_SOURCE_KINDS)[number];
+
+/** Runtime validator for {@link RecipeSourceKind}. */
+export const recipeSourceKindSchema = z.enum(RECIPE_SOURCE_KINDS);
+
+/**
  * Allowed recipe difficulty values (CR-001 / FR-001b).
  */
 export const RecipeDifficulty = {
@@ -256,6 +270,11 @@ export interface Recipe {
      */
     firstPublishedAt?: IsoDateTimeString;
     sourceType: RecipeSourceType;
+    /**
+     * What the cook said the source is (ADR-0089), ABSENT for a recipe with no statement, the curator's public-domain
+     * text included. `public_web` makes the recipe private only ({@link privateRuleOf}).
+     */
+    sourceKind?: RecipeSourceKind;
     sourceUrl?: string;
     sourceAttribution?: string;
     clonedFromId?: string;
@@ -344,26 +363,34 @@ export interface Recipe {
  * provenance labels can go private and how; the server's visibility and slot policies, and the client's Private gate,
  * all read it.
  *
- * - `slots`: private within the cook's slots, and it can go public (a recipe the cook wrote, or an imported public-web
- *   recipe: owner ruling 2026-10-29, "Any cook, using a slot").
- * - `privateOnly`: private within the cook's slots, and it can NEVER go public (a book or paid-site recipe, 004 FR-014a).
+ * - `slots`: private within the cook's slots, and it can go public (a recipe the cook wrote, or the curator's public-domain
+ *   text).
+ * - `privateOnly`: private within the cook's slots, and it can NEVER go public (a book or paid-site recipe, 004 FR-014a,
+ *   or a copy of a web page the cook pasted a link for, ADR-0089).
  *
  * There is no Premium-only rule. A rule that was is the exhaustive switch the compiler now checks.
  */
 export type PrivateRule = 'slots' | 'privateOnly';
 
 /**
- * The rule a recipe's label puts its Private under. Exhaustive: a new {@link RecipeSourceType} is a compile error here.
+ * The rule a recipe's label and source kind put its Private under. Exhaustive: a new {@link RecipeSourceType} is a compile
+ * error here.
+ *
+ * `sourceKind` is REQUIRED (`null` when the recipe has none), so every caller states which source it judges: a web copy
+ * carries the same `imported_public` label as the curator's public-domain text, and only the kind tells them apart
+ * (ADR-0089; ADR-0077 section 3 and ADR-0082 section 3 keep a full copy of a web page private).
  *
  * @param sourceType - The recipe's provenance label.
- * @returns `privateOnly` for a book or paid-site recipe, else `slots`. Pure.
+ * @param sourceKind - What the cook said the source is, or `null` when the recipe has no statement.
+ * @returns `privateOnly` for a book or paid-site recipe or a web copy, else `slots`. Pure.
  */
-export function privateRuleOf(sourceType: RecipeSourceType): PrivateRule {
+export function privateRuleOf(sourceType: RecipeSourceType, sourceKind: RecipeSourceKind | null): PrivateRule {
     switch (sourceType) {
         case RecipeSourceType.IMPORTED_PHYSICAL:
         case RecipeSourceType.IMPORTED_PAID:
             return 'privateOnly';
         case RecipeSourceType.IMPORTED_PUBLIC:
+            return sourceKind === 'public_web' ? 'privateOnly' : 'slots';
         case RecipeSourceType.USER_CREATED:
             return 'slots';
     }
@@ -405,6 +432,7 @@ export const recipeSchema = z.object({
     // Absent until the first publish, kept after (ADR-0058 rule 1) — see the `Recipe` interface above.
     firstPublishedAt: isoDateTimeStringSchema.optional(),
     sourceType: recipeSourceTypeSchema,
+    sourceKind: recipeSourceKindSchema.optional(),
     sourceUrl: z.string().url().optional(),
     sourceAttribution: z.string().min(1).optional(),
     clonedFromId: idSchema.optional(),

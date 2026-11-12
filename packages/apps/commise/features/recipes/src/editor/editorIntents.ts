@@ -13,6 +13,7 @@ import { isLocalRef, type FailureClass, type Intent } from '@kitchensink/sync';
 import { effectiveVisibility, type PrivateRefusal } from '../actions/privateGate.js';
 import { refusalWhileDrafting } from '../actions/recipePrivateGate.js';
 import type { RecipeFormValues } from '../form/values.js';
+import { derivedVisibility } from '../form/sourceLink.js';
 import { toCreateRecipeInput, toUpdateRecipeInput } from '../form/wire.js';
 import type { RecipeLifecycle } from './checkpointPolicy.js';
 import { serverIdOf, type ServerFacts } from './editorCore.js';
@@ -69,7 +70,8 @@ export function recipeWriteIntent(input: RecipeWriteInput): Intent {
                     visibility: effectiveVisibility(
                         input.publish ? input.privateRefusal : refusalWhileDrafting(input.privateRefusal),
                         RecipeVisibility.PUBLIC,
-                        draft.visibility,
+                        // ⛔ DERIVED (ADR-0089): a draft with a web link goes out Private, or the server refuses the create.
+                        derivedVisibility(draft),
                     ),
                 },
             },
@@ -83,7 +85,10 @@ export function recipeWriteIntent(input: RecipeWriteInput): Intent {
         intentKind: 'update',
         localId: id,
         dependsOn: [],
-        payload: { id, input: { ...toUpdateRecipeInput(draft, status), expectedVersion: server.baseVersion } },
+        payload: {
+            id,
+            input: { ...toUpdateRecipeInput(draft, status, server.recipe), expectedVersion: server.baseVersion },
+        },
     };
 }
 

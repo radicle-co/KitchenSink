@@ -16,6 +16,7 @@ import type {
     RecipeDifficulty,
     RecipeDetailNutrition,
     RecipePhoto,
+    RecipeSourceKind,
     RecipeSourceType,
     RecipeStatus,
     RecipeVisibility,
@@ -81,6 +82,8 @@ export interface RecipeResponse {
      */
     status: RecipeStatus;
     sourceType: RecipeSourceType;
+    /** What the cook said the source is (ADR-0089). ABSENT: no statement. `public_web` makes the recipe private only. */
+    sourceKind?: RecipeSourceKind;
     sourceUrl?: string;
     sourceAttribution?: string;
     clonedFromId?: string;

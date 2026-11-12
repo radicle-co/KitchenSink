@@ -8,7 +8,7 @@
  * `VARCHAR(255) NOT NULL` — no FK, no user replication. `search_vector` is a plain (nullable) tsvector
  * maintained by a PostgreSQL trigger (see 0001 migration), NOT a generated column.
  */
-import { sql, type InferInsertModel, type InferSelectModel } from 'drizzle-orm';
+import { inArray, sql, type InferInsertModel, type InferSelectModel } from 'drizzle-orm';
 import {
     boolean,
     check,
@@ -24,9 +24,11 @@ import {
     varchar,
     type AnyPgColumn,
 } from 'drizzle-orm/pg-core';
+import { RECIPE_SOURCE_KINDS } from '@kitchensink/recipe-core';
 import type {
     RecipeDifficulty,
     RecipeMealType,
+    RecipeSourceKind,
     RecipeSourceType,
     RecipeStatus,
     RecipeVisibility,
@@ -135,6 +137,10 @@ export const recipes = pgTable(
         // change it after, for every writer, so a demotion cannot reopen in-place overwrites.
         firstPublishedAt: timestamp('first_published_at', { withTimezone: true }),
         sourceType: text('source_type').$type<RecipeSourceType>().notNull().default('user_created'),
+        // What the cook said the source is (ADR-0089, 0071 migration): `public_web`, `book` or `paid_site`. NULL: no
+        // statement, which includes the curator's public-domain text. The vocabulary is recipe-core's, as the import
+        // tables' is; `public_web` is only ever stored with `imported_public` and an address (CHECK below).
+        sourceKind: text('source_kind').$type<RecipeSourceKind>(),
         sourceUrl: text('source_url'),
         sourceAttribution: text('source_attribution'),
         clonedFromId: uuid('cloned_from_id').references((): AnyPgColumn => recipes.id),
@@ -213,6 +219,16 @@ export const recipes = pgTable(
         check(
             'recipes_source_type_check',
             sql`${table.sourceType} IN ('user_created', 'imported_public', 'imported_physical', 'imported_paid')`,
+        ),
+        // The vocabulary is recipe-core's, spelled once, as `recipeImports.ts` does for its own kind column.
+        check('recipes_source_kind_check', inArray(table.sourceKind, [...RECIPE_SOURCE_KINDS])),
+        // Every kind is paired with its label; a web copy also needs its address (0071).
+        check(
+            'recipes_source_kind_pairs_source_type',
+            sql`${table.sourceKind} IS NULL
+                OR (${table.sourceKind} = 'public_web' AND ${table.sourceType} = 'imported_public' AND ${table.sourceUrl} IS NOT NULL)
+                OR (${table.sourceKind} = 'book' AND ${table.sourceType} = 'imported_physical')
+                OR (${table.sourceKind} = 'paid_site' AND ${table.sourceType} = 'imported_paid')`,
         ),
         index('idx_recipes_search_vector').using('gin', table.searchVector),
         // T118: partial owner index — every read path filters `deleted_at IS NULL`, so the plain index is

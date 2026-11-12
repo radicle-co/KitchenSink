@@ -133,6 +133,7 @@ import { VisibilityNotHeldError } from '../editor/visibilityNotHeldError.js';
 import { createLaneStore, isSettingVisibility, type LaneStore, type OutstandingWrite } from '../editor/writeLane.js';
 import type { DraftAction } from '../form/draftAction.js';
 import { isStoredLine, persistedLineKeysOf, type IngredientLineKey } from '../form/lineKey.js';
+import { derivedVisibility, draftSourceOf } from '../form/sourceLink.js';
 import { meetsDraftFloor, validateRecipeForm } from '../form/validate.js';
 import { defaultRecipeFormValues, recipeFormValuesEqual, type RecipeFormValues } from '../form/values.js';
 import { toRecipeFormValues } from '../form/wire.js';
@@ -772,7 +773,7 @@ function writeVisibilityFirst(ctx: EditorContext, trigger: CheckpointTrigger): b
         return false;
     }
 
-    const followUp = visibilityFollowUp(draft.visibility, server.recipe, ctx.opts.privateRefusal);
+    const followUp = visibilityFollowUp(derivedVisibility(draft), server.recipe, ctx.opts.privateRefusal);
 
     if (followUp.kind !== 'send') {
         return false;
@@ -872,8 +873,11 @@ function checkGate(
     // ⛔ ADR-0073 section 12: a draft holds no slot, and PUBLISHING a private one takes it. Only the first Publish is asked:
     // a published recipe holds its slot already (a Save changes never takes another), and the visibility write that follows
     // one is judged by the server and by `visibilityFollowUp`.
+    // ⛔ The DERIVED visibility (ADR-0089): a draft with a web link is private only, whatever the cook chose.
     const needsSlot =
-        trigger === 'publish' && ctx.opts.privateRefusal === 'slots' && draft.visibility === RecipeVisibility.PRIVATE;
+        trigger === 'publish' &&
+        ctx.opts.privateRefusal === 'slots' &&
+        derivedVisibility(draft) === RecipeVisibility.PRIVATE;
 
     ctx.setGate((gate) => ({
         refused: refusedFieldsOf(found),
@@ -1368,7 +1372,8 @@ function finish(ctx: EditorContext, entryText: string, trigger: CheckpointTrigge
  * follow-up then finds the server already holding, and the Publish runs again through the gate. @sideEffect
  */
 function publishAsPublic(ctx: EditorContext): void {
-    if (ctx.publishBlocked === undefined) {
+    // ⛔ A recipe copied from a web page can only be private (ADR-0089), and its ask offers no such control: a stray call does nothing.
+    if (ctx.publishBlocked === undefined || draftSourceOf(ctx.core.get().draft).kind === 'link') {
         return;
     }
 

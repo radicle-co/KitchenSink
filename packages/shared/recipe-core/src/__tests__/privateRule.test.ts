@@ -25,9 +25,21 @@ describe('privateRuleOf', () => {
     it.each(Object.values(RecipeSourceType).map((sourceType) => [sourceType, EXPECTED[sourceType]] as const))(
         '%s is under the %s rule',
         (sourceType, rule) => {
-            expect(privateRuleOf(sourceType)).toBe(rule);
+            expect(privateRuleOf(sourceType, null)).toBe(rule);
         },
     );
+
+    // ADR-0089: a web copy (a pasted web link) is private only. Its label is the same `imported_public` the curator's
+    // public-domain text carries, so the KIND is what tells them apart: kind null keeps the row above.
+    it.each([
+        [RecipeSourceType.IMPORTED_PUBLIC, 'public_web', 'privateOnly'],
+        [RecipeSourceType.IMPORTED_PUBLIC, null, 'slots'],
+        [RecipeSourceType.USER_CREATED, null, 'slots'],
+        [RecipeSourceType.IMPORTED_PHYSICAL, 'book', 'privateOnly'],
+        [RecipeSourceType.IMPORTED_PAID, 'paid_site', 'privateOnly'],
+    ] as const)('%s with source kind %s is under the %s rule', (sourceType, sourceKind, rule) => {
+        expect(privateRuleOf(sourceType, sourceKind)).toBe(rule);
+    });
 });
 
 describe('no private rule is Premium-only (ADR-0077 section 6)', () => {

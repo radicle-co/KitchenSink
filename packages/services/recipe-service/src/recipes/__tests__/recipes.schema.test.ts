@@ -78,11 +78,13 @@ import {
     listRecipesQuerySchema,
     recipeIngredientInputSchema,
     recipeNutritionRequestSchema,
+    recipeStatementSchema,
     recipeStepInputSchema,
     setRecipeVisibilityRequestSchema,
     updateRecipeRequestSchema,
     MAX_NUTRITION_RECIPE_IDS,
 } from '../recipes.schema.js';
+import { importStatementSchema, importStatementViewSchema } from '../import.schema.js';
 import type {
     CreateRecipeRequest,
     RecipeIngredientInput,
@@ -747,6 +749,120 @@ describe('updateRecipeRequestSchema — provenance is a CREATE-time fact and sta
         expect(
             parsed.error?.issues.some((issue) => issue.code === 'unrecognized_keys' && issue.keys.includes('source')),
         ).toBe(true);
+    });
+});
+
+// ── The cook's statement: a pasted web link (ADR-0089) ─────────────────────────────────────────────
+
+describe('createRecipeRequestSchema — the optional `statement` (ADR-0089)', () => {
+    const WEB = { kind: 'public_web', citation: 'https://www.allrecipes.com/recipe/1/soup/' };
+
+    it('accepts a public_web statement with an http(s) address', () => {
+        expect(createAccepts({ statement: WEB })).toBe(true);
+        expect(createAccepts({ statement: { ...WEB, citation: 'http://example.com/a' } })).toBe(true);
+    });
+
+    // Code that derives the statement kinds from the union (`importStatementSchema.options`) must still read each member's
+    // `kind` after the refined public-web member replaced the loose one.
+    it('the import union still exposes every member’s `kind` literal, refined member included', () => {
+        expect(importStatementSchema.options.map((member) => member.shape.kind.value).sort()).toEqual([
+            'authored',
+            'book',
+            'paid_site',
+            'public_web',
+        ]);
+    });
+
+    // `KNOWN_STATEMENT_KINDS` is built from `importStatementSchema.options` and is not exported, so it is observed through what
+    // it decides: a statement of a KNOWN kind that is broken still FAILS the response read (a server bug is not swallowed),
+    // while a kind outside the four reads as `unrecognised`. After the refined-member swap that is exactly the four kinds.
+    it.each([
+        ['authored', { kind: 'authored', extra: 1 }],
+        ['public_web', { kind: 'public_web', citation: 'javascript:alert(1)' }],
+        ['book', { kind: 'book', citation: '' }],
+        ['paid_site', { kind: 'paid_site', citation: '' }],
+    ])('the response read treats %s as a KNOWN kind: a broken one fails, it is not "unrecognised"', (_kind, broken) => {
+        const parsed = importStatementViewSchema.safeParse(broken);
+
+        expect(parsed.success && (parsed.data as { kind: string }).kind === 'unrecognised').toBe(false);
+        expect(parsed.success).toBe(_kind === 'authored');
+    });
+
+    it('a kind outside the four reads as unrecognised', () => {
+        expect(importStatementViewSchema.parse({ kind: 'adapted' })).toEqual({ kind: 'unrecognised' });
+    });
+
+    it('is the SAME member the bulk import statement uses, not a second copy of the shape', () => {
+        expect(importStatementSchema.safeParse(WEB).success).toBe(true);
+        expect(recipeStatementSchema.safeParse(WEB).success).toBe(true);
+        // Composed REFINED: the import refuses what a recipe's own statement refuses (our domain, localhost, an IP).
+
+        for (const citation of ['https://commise.app/x', 'https://localhost/a', 'https://10.0.0.5/a']) {
+            expect(importStatementSchema.safeParse({ kind: 'public_web', citation }).success).toBe(false);
+        }
+
+        expect(recipeStatementSchema.safeParse({ kind: 'authored' }).success).toBe(false);
+        expect(recipeStatementSchema.safeParse({ kind: 'book', citation: 'A book' }).success).toBe(false);
+    });
+
+    it.each([
+        ['not an address', 'allrecipes'],
+        ['a non-http scheme', 'javascript:alert(1)'],
+        ['our own site', 'https://commise.app/recipes/1'],
+        ['our own subdomain', 'https://pr-1.sandbox.commise.app/'],
+        ['localhost', 'https://localhost/a'],
+        ['an IP address', 'https://10.0.0.5/a'],
+        ['an over-long address', `https://example.com/${'a'.repeat(2_000)}`],
+    ])('REFUSES a citation that is %s', (_name, citation) => {
+        expect(createAccepts({ statement: { ...WEB, citation } })).toBe(false);
+    });
+
+    // zod runs a refinement after `.max` has already failed, so the citation reader sees whatever length arrives. A 99k-character
+    // citation used to cost about 2 s per request on POST, PATCH and the import route.
+    it.each([
+        ['a 1 MB run of "!"', `https://example.com/a${'!'.repeat(1_000_000)}`],
+        ['99k characters of address', `https://example.com/${'a'.repeat(99_000)}`],
+    ])('refuses an oversize citation (%s) quickly', (_name, citation) => {
+        const started = performance.now();
+        const result = recipeStatementSchema.safeParse({ kind: 'public_web', citation });
+
+        expect(result.success).toBe(false);
+        expect(performance.now() - started).toBeLessThan(50);
+    });
+
+    it('REFUSES a missing citation and a stray key (the member is strict)', () => {
+        expect(createAccepts({ statement: { kind: 'public_web' } })).toBe(false);
+        expect(createAccepts({ statement: { ...WEB, sourceType: 'imported_public' } })).toBe(false);
+    });
+});
+
+describe('updateRecipeRequestSchema — `statement` is nullable, and `source` is still never accepted', () => {
+    const WEB = { kind: 'public_web', citation: 'https://www.allrecipes.com/recipe/1/soup/' };
+
+    it('declares statement and still does NOT declare source', () => {
+        expect(Object.keys(updateRecipeRequestSchema.shape)).toContain('statement');
+        expect(Object.keys(updateRecipeRequestSchema.shape)).not.toContain('source');
+    });
+
+    it('accepts a statement, an explicit null (clear it) and its absence: the three are different', () => {
+        expect(updateRecipeRequestSchema.parse({ expectedVersion: 1, statement: WEB })).toHaveProperty(
+            'statement',
+            WEB,
+        );
+        expect(updateRecipeRequestSchema.parse({ expectedVersion: 1, statement: null })).toHaveProperty(
+            'statement',
+            null,
+        );
+        expect(updateRecipeRequestSchema.parse({ expectedVersion: 1 })).not.toHaveProperty('statement');
+    });
+
+    it('applies the same citation rule as create', () => {
+        expect(
+            updateRecipeRequestSchema.safeParse({
+                expectedVersion: 1,
+                statement: { ...WEB, citation: 'https://commise.app/x' },
+            }).success,
+        ).toBe(false);
     });
 });
 

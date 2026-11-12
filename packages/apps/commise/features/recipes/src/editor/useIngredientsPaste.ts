@@ -27,6 +27,8 @@ import { useMatchCopy } from '../ingredientMatching/useMatchCopy.js';
 import type { OpenChoicesFacts } from './openChoicesCopy.js';
 import type { PasteHold } from './pasteHold.js';
 import { pasteMilestoneOf, pasteProgressOf, pasteRowsOf, waitsOnCook } from './pasteProgress.js';
+import type { SourceLinkExtraction } from '@kitchensink/recipe-core';
+
 import type { DraftKeep } from './saveStatus.js';
 import { useAppFocused } from '../hooks/useAppFocused.js';
 import { usePasteAnnouncement } from './usePasteAnnouncement.js';
@@ -57,6 +59,8 @@ export interface UseIngredientsPasteOptions {
     readonly keep: DraftKeep;
     /** Whether a checking line that reads confident binds by itself (not once the recipe is published). */
     readonly autoBind: boolean;
+    /** A link line the pasted text carried (ADR-0089): it sets the recipe's Source rather than becoming an ingredient. */
+    readonly onSource: (extraction: SourceLinkExtraction) => void;
 }
 
 /** What the publish action reads of the paste's lines that have no food yet. */
@@ -131,6 +135,7 @@ export function useIngredientsPaste(options: UseIngredientsPasteOptions): Ingred
     const sheet = usePasteListSheet(paste, {
         initiallyOpen: options.initiallyOpen,
         copy: { lineTooLong: m.pasteRefusalLineTooLong, tooManyLines: m.pasteRefusalTooManyLines },
+        onSource: options.onSource,
     });
     const presentation = usePasteMatchView({
         matching,

@@ -20,8 +20,9 @@
  * leaves and by the app container, so the two renders can never drift. No React, no platform APIs.
  */
 import { canonicalCuisine, quantityLowerBound, type RecipeDetail, type RecipeStatus } from '@kitchensink/recipe-core';
-import type { CreateRecipeRequest, UpdateRecipeRequest } from '@kitchensink/schema-recipe';
+import type { CreateRecipeRequest, RecipeStatementInput, UpdateRecipeRequest } from '@kitchensink/schema-recipe';
 import { type RecipeFormValues } from './values.js';
+import { sourceStatementOf } from './sourceLink.js';
 import { isStoredLine, seedLineKey } from './lineKey.js';
 import { computeTotalTime } from './totalTime.js';
 import { draftQuantity } from './quantity.js';
@@ -91,7 +92,26 @@ export const toCreateRecipeInput = (values: RecipeFormValues, status?: RecipeSta
     tags: [...values.tags],
     visibility: values.visibility,
     ...(status === undefined ? {} : { status }),
+    // ADR-0089: the link the cook pasted, when it parses. Never the raw text, and never the curator's `source`.
+    ...createStatementOf(values),
 });
+
+/** The create body's `statement`: the pasted link when it parses, else no key. Pure. */
+const createStatementOf = (values: RecipeFormValues): { readonly statement?: RecipeStatementInput } => {
+    const statement = sourceStatementOf(values, undefined);
+
+    return statement === undefined || statement === null ? {} : { statement };
+};
+
+/** An update body's `statement` key: a statement, a `null` clear, or none. Pure. */
+const updateStatementOf = (
+    values: RecipeFormValues,
+    recipe: Parameters<typeof sourceStatementOf>[1],
+): { readonly statement?: RecipeStatementInput | null } => {
+    const statement = sourceStatementOf(values, recipe);
+
+    return statement === undefined ? {} : { statement };
+};
 
 /**
  * Map form values to the service's published `UpdateRecipeRequest` body, minus the `expectedVersion`
@@ -117,18 +137,23 @@ export const toCreateRecipeInput = (values: RecipeFormValues, status?: RecipeSta
  *
  * @param values - The editor's form values.
  * @param status - The publication status to persist (`draft`/`published`); omit to leave it untouched.
+ * @param recipe - The recipe this updates, as the server holds it: what the Source is judged against.
  * @returns The `PATCH /api/v1/recipes/{id}` body, without `expectedVersion`.
  */
 export const toUpdateRecipeInput = (
     values: RecipeFormValues,
     status?: RecipeStatus,
+    recipe?: Parameters<typeof sourceStatementOf>[1],
 ): Omit<UpdateRecipeRequest, 'expectedVersion'> => {
     // Destructured out, not `delete`d: the key must be ABSENT from the returned object, and a spread of the
     // create projection would otherwise reintroduce it past the type system's excess-property check.
-    const { visibility: _visibility, ingredients, ...rest } = toCreateRecipeInput(values, status);
+    const { visibility: _visibility, statement: _created, ingredients, ...rest } = toCreateRecipeInput(values, status);
 
     return {
         ...rest,
+        // ⛔ A change of source, never the create's statement (ADR-0089): only before the first publish, `null` to remove one
+        // the server holds, and nothing at all when the caller does not say which recipe this updates.
+        ...(recipe === undefined ? {} : updateStatementOf(values, recipe)),
         // ⛔ A pasted line's source is CREATE-ONLY (ADR-0023's shape, blueprint A5): a PATCH that re-asserted it could
         // steer the cross-user memo, and the strict update contract refuses the keys outright, so every save after a
         // paste would 400. Destructured out for the same reason `visibility` is: a spread skips the excess check.
@@ -226,4 +251,7 @@ export const toRecipeFormValues = (detail: RecipeDetail): RecipeFormValues => ({
     // EMPTY, not `detail.photos`: the field is always empty (see `RecipeFormValues.photos`), and a recipe's gallery is
     // owned by `useRecipePhotos`. Seeding it would make the discard guard call an untouched edit form dirty.
     photos: [],
+    // LAST, like the draft schema's key (`recipeFormValuesEqual` reads key order): only a stored WEB source seeds the field.
+    // The curator's public-domain text and a book's citation are not the cook's to edit here.
+    ...(detail.sourceKind === 'public_web' && detail.sourceUrl !== undefined ? { sourceLink: detail.sourceUrl } : {}),
 });

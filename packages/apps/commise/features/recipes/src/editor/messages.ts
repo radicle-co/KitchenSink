@@ -173,6 +173,8 @@ export interface EditorMessages {
         readonly pasteTitle: string;
         readonly pasteLabel: string;
         readonly pasteHint: string;
+        /** The sentence after `pasteHint` while the Source can still be set: a link line becomes the Source (ADR-0089). */
+        readonly pasteLinkHint: string;
         /** The live line count under the text area. */
         readonly pasteCount: PluralText;
         readonly pasteAdd: PluralText;
@@ -242,6 +244,13 @@ export interface EditorMessages {
             readonly body: string;
             /** The same, said when the limit is not known: never a count the client does not have. */
             readonly bodyNoCount: string;
+            /**
+             * The body for a recipe copied from a web page (ADR-0089), which can only be private: there is no "publish as public"
+             * in it, and no way past the limit that removes the source. `{total}` is the limit.
+             */
+            readonly bodyWebSource: string;
+            /** The same, said when the limit is not known. */
+            readonly bodyWebSourceNoCount: string;
             /** `{premiumFeatures}` is the list of what Premium adds. */
             readonly upsell: string;
         };
@@ -261,6 +270,8 @@ export interface EditorMessages {
         readonly pasteTitle: string;
         readonly pasteLabel: string;
         readonly pasteHint: string;
+        /** The sentence after `pasteHint` while the Source can still be set: a link line becomes the Source (ADR-0089). */
+        readonly pasteLinkHint: string;
         readonly pasteAdd: PluralText;
         readonly pasteCancel: string;
         readonly empty: string;
@@ -272,6 +283,38 @@ export interface EditorMessages {
     };
 
     readonly photos: { readonly add: string; readonly cover: string; readonly empty: string };
+
+    /**
+     * The Source row in Photos & publish (ADR-0089): the web page a recipe was copied from. `{site}` is the registrable
+     * domain of the link. Words to avoid: copyright-free, legally yours, safe to publish, we checked this, verified, approved.
+     */
+    readonly source: {
+        readonly label: string;
+        readonly hint: string;
+        /** The status under a filled field. `{site}`. */
+        readonly rightsLabel: string;
+        /** After a link that came from a paste. */
+        readonly fromPaste: string;
+        /** The polite announcement after a paste sets the Source. `{site}`. */
+        readonly announceSet: string;
+        /** The action of the announcement's snackbar. */
+        readonly snackRemove: string;
+        readonly invalid: string;
+        readonly ownSite: string;
+        readonly ownSiteLeftOut: string;
+        /** `{site}` is the Source that was kept. */
+        readonly keptExisting: string;
+        readonly remove: string;
+        readonly locked: string;
+        /** The paste note when the source is locked and a pasted link was left out. */
+        readonly lockedLeftOut: string;
+        /** Under a paste field when the paste is only a link: Add stays off, and this says what to do. */
+        readonly linkOnly: string;
+        /** The locked site as a link, on the web. `{site}`. */
+        readonly openLinkWeb: string;
+        /** The locked site as a link, on a phone. `{site}`. */
+        readonly openLinkNative: string;
+    };
 
     readonly visibility: {
         readonly legend: string;
@@ -302,6 +345,8 @@ export interface EditorMessages {
          * card's accessible description. The same words the import statement gives for the same fact.
          */
         readonly publicRefused: string;
+        /** The same under the Public card of a recipe copied from a web page, whose author owns the writing (ADR-0089). */
+        readonly publicRefusedWebSource: string;
         /** A downgraded cook holds more private recipes than slots (`{count}`, `{total}` are the server's numbers). */
         readonly overLimit: string;
         /** The link under `overLimit`, where paid features are shown: opens the Premium sheet. */
@@ -464,6 +509,7 @@ export const editorMessages: LocalizedMessages<EditorMessages> = {
             pasteTitle: 'Paste a list',
             pasteLabel: 'Ingredient lines',
             pasteHint: 'One ingredient per line. You can add the steps next.',
+            pasteLinkHint: 'From a web page? Paste its link too.',
             pasteCount: { one: '{count} line', other: '{count} lines' },
             pasteAdd: { one: 'Add {count} ingredient', other: 'Add {count} ingredients' },
             pasteCancel: 'Cancel',
@@ -519,6 +565,10 @@ export const editorMessages: LocalizedMessages<EditorMessages> = {
                 body: 'All {total} of your private slots are in use, so this recipe can’t be private right now. You can publish it as public, or keep it as a draft. Nothing is lost either way.',
                 bodyNoCount:
                     'Your private slots are all in use, so this recipe can’t be private right now. You can publish it as public, or keep it as a draft. Nothing is lost either way.',
+                bodyWebSource:
+                    'All {total} of your private slots are in use. A recipe copied from a web page can only be private. Keep it as a draft for now, or free a slot. Nothing is lost.',
+                bodyWebSourceNoCount:
+                    'All of your private slots are in use. A recipe copied from a web page can only be private. Keep it as a draft for now, or free a slot. Nothing is lost.',
                 upsell: 'Pro gives you unlimited private recipes, plus {premiumFeatures}.',
             },
             publishPublic: 'Publish as public',
@@ -537,6 +587,7 @@ export const editorMessages: LocalizedMessages<EditorMessages> = {
             pasteTitle: 'Paste steps',
             pasteLabel: 'Steps',
             pasteHint: 'Put a blank line between steps, or number them.',
+            pasteLinkHint: 'From a web page? Paste its link too.',
             pasteAdd: { one: 'Add {count} step', other: 'Add {count} steps' },
             pasteCancel: 'Cancel',
             empty: 'No steps yet.',
@@ -553,6 +604,26 @@ export const editorMessages: LocalizedMessages<EditorMessages> = {
             empty: 'No photo? This cover is used instead. Add one any time.',
         },
 
+        source: {
+            label: 'Source',
+            hint: 'Copied this recipe from a web page? Paste its link.',
+            rightsLabel: 'Copied from a public web page · {site}',
+            fromPaste: 'Added from your paste. Remove it if this recipe isn’t from that page.',
+            announceSet: 'Source set to {site}. This recipe will be private.',
+            snackRemove: 'Remove',
+            invalid: 'That isn’t a web link. Paste the page address, like https://example.com/recipe.',
+            ownSite: 'That’s a Commise link. Paste the link of the page you copied from.',
+            ownSiteLeftOut: 'Left out a Commise link. It isn’t a source.',
+            keptExisting: 'Kept {site} as the source. The other link was left out.',
+            remove: 'Remove source',
+            locked: 'The source can’t be changed after publishing.',
+            lockedLeftOut: 'Left out the link. A published recipe’s source can’t be added or changed.',
+            linkOnly:
+                'That’s only a link. Paste the recipe’s text too. You can put the link in Source, under Photos & publish.',
+            openLinkWeb: '{site} (opens in a new tab)',
+            openLinkNative: '{site}, opens in your browser',
+        },
+
         visibility: {
             legend: 'Who can see it',
             public: 'Public',
@@ -566,6 +637,8 @@ export const editorMessages: LocalizedMessages<EditorMessages> = {
             slotsLoading: 'Checking your private slots…',
             slotsDraft: 'A private draft uses no slot. Publishing it uses one.',
             publicRefused: 'Not for this recipe. Its source is a book or a paid site, not a public web page.',
+            publicRefusedWebSource:
+                'Not for this recipe. It’s copied from a web page, and its author owns the writing.',
             overLimit:
                 'You have {count} private recipes and {total} private slots. They stay private. To make another recipe private, first bring your private recipes under {total}.',
             aboutPremium: 'About Pro',

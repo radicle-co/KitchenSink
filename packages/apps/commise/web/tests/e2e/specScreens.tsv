@@ -96,6 +96,7 @@ recipePhotos.spec.ts	/, /recipes, /recipes/[id], /recipes/[id]/edit, /recipes/ne
 recipeQuantityRange.spec.ts	/, /recipes, /recipes/[id], /recipes/[id]/edit, /recipes/new, /sign-in/[[...sign-in]]
 recipeRating.spec.ts	/, /recipes/[id], /sign-in/[[...sign-in]]
 recipeSourceAndScale.spec.ts	/, /recipes/[id], /sign-in/[[...sign-in]]
+recipeSourceFromPaste.spec.ts	/, /recipes/[id], /recipes/[id]/edit, /recipes/new, /sign-in/[[...sign-in]]
 recipeStepTimer.spec.ts	/, /recipes/[id], /recipes/[id]/edit, /recipes/new, /sign-in/[[...sign-in]]
 recipeUnsavedChangesGuard.spec.ts	/, /recipes/[id], /recipes/[id]/edit, /sign-in/[[...sign-in]]
 recipeViewSetting.spec.ts	*

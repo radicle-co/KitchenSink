@@ -207,7 +207,13 @@ function RecipeEditorSession({
     const knownPaidFeatures = knownPaidFeaturesOf(profile);
     // ADR-0073: which rule the recipe's Private is under, where the cook stands on private slots (the server's read), and
     // the refusal that is KNOWN - what the session must not send.
-    const recipePrivate = useRecipePrivate({ sourceType: seed.recipe?.sourceType, knownPaidFeatures });
+    // Only `standing` and `refusal` are read from this. The Private RULE the surface uses follows the DRAFT's source
+    // (`source.privateRule`, ADR-0089), not the stored kind passed here.
+    const recipePrivate = useRecipePrivate({
+        sourceType: seed.recipe?.sourceType,
+        sourceKind: seed.recipe?.sourceKind ?? null,
+        knownPaidFeatures,
+    });
     // The session's navigation port, on the route's hand-offs: leaving for the recipe goes back where it was opened.
     const navigation: EditorNavigation = {
         finished: onFinished,
@@ -239,7 +245,6 @@ function RecipeEditorSession({
                 leaveAsk="byNavigator"
                 paidFeatures={paidFeatures}
                 knownPaidFeatures={knownPaidFeatures}
-                privateRule={recipePrivate.rule}
                 slotStanding={recipePrivate.standing}
                 renderPhotos={(target) => <RecipePhotoUploader {...target} />}
                 {...(section === undefined ? {} : { initialSection: section })}

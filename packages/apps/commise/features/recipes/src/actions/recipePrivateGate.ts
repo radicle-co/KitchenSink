@@ -32,6 +32,7 @@ import {
     privateRuleOf as coreRuleOf,
     type PrivateRule,
     type RecipeDetail,
+    type RecipeSourceKind,
 } from '@kitchensink/recipe-core';
 import type { PrivateSlotUsage } from '@kitchensink/schema-recipe';
 
@@ -119,9 +120,14 @@ export type { PrivateRule };
  * server's policies read too; this only supplies the label of a recipe never saved, which is `user_created`.
  *
  * @param sourceType - The recipe's label; `undefined` for one never saved.
+ * @param sourceKind - What the source is (ADR-0089), `null` for none. Required, so a caller states which source it judges:
+ *   the stored one for a recipe on screen, the draft's own for the editor.
  */
-export function privateRuleForDraft(sourceType: RecipeSourceType | undefined): PrivateRule {
-    return coreRuleOf(sourceType ?? RecipeSourceType.USER_CREATED);
+export function privateRuleForDraft(
+    sourceType: RecipeSourceType | undefined,
+    sourceKind: RecipeSourceKind | null,
+): PrivateRule {
+    return coreRuleOf(sourceType ?? RecipeSourceType.USER_CREATED, sourceKind);
 }
 
 /**

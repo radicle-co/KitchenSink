@@ -19,6 +19,7 @@ import { evaluatePublication, requiresCuisine, type PublishPolicyInput } from '.
 const COMPLETE: PublishPolicyInput = {
     status: RecipeStatus.PUBLISHED,
     sourceType: RecipeSourceType.USER_CREATED,
+    sourceKind: null,
     cuisine: 'Thai',
     ingredientCount: 1,
     stepCount: 1,
@@ -77,10 +78,19 @@ describe('evaluatePublication — the cuisine exemption is the public-domain imp
     );
 
     it('requiresCuisine answers for every source type', () => {
-        expect(requiresCuisine(RecipeSourceType.USER_CREATED)).toBe(true);
-        expect(requiresCuisine(RecipeSourceType.IMPORTED_PHYSICAL)).toBe(true);
-        expect(requiresCuisine(RecipeSourceType.IMPORTED_PAID)).toBe(true);
-        expect(requiresCuisine(RecipeSourceType.IMPORTED_PUBLIC)).toBe(false);
+        expect(requiresCuisine(RecipeSourceType.USER_CREATED, null)).toBe(true);
+        expect(requiresCuisine(RecipeSourceType.IMPORTED_PHYSICAL, null)).toBe(true);
+        expect(requiresCuisine(RecipeSourceType.IMPORTED_PAID, null)).toBe(true);
+        expect(requiresCuisine(RecipeSourceType.IMPORTED_PUBLIC, null)).toBe(false);
+    });
+
+    // ADR-0089: only the CURATOR reading (imported_public with no source kind) is exempt. A web copy is a cook's own copy
+    // of a page, and is asked for a cuisine like any other recipe.
+    it('does NOT exempt a web copy, which carries the curator’s label with the public_web kind', () => {
+        expect(requiresCuisine(RecipeSourceType.IMPORTED_PUBLIC, 'public_web')).toBe(true);
+        expect(
+            missingOf({ sourceType: RecipeSourceType.IMPORTED_PUBLIC, sourceKind: 'public_web', cuisine: null }),
+        ).toEqual(['cuisine']);
     });
 });
 

@@ -8,7 +8,8 @@
  *
  * C-004 matrix (amended 2026-10-26 by ADR-0073, and by ADR-0077 section 6 for `imported_public`):
  * - requested `public`:  ALLOW for `user_created` + `imported_public`; DENY for `imported_physical` +
- *   `imported_paid` (both are private-only; `imported_paid` may NEVER be public).
+ *   `imported_paid` (both are private-only; `imported_paid` may NEVER be public), and for a web copy
+ *   (`imported_public` with the `public_web` source kind, ADR-0089), which is private-only too.
  * - requested `private`:
  *     - `user_created`     → ALLOW iff `isPremium` OR `hasAvailablePrivateSlot`
  *     - `imported_public`  → ALLOW iff `isPremium` OR `hasAvailablePrivateSlot` (owner ruling 2026-10-29: any cook, using a slot)
@@ -31,7 +32,13 @@
  * `evaluateContainment`, never re-derived here. `principalKind` and `containment` are REQUIRED inputs so every call
  * site had to decide what a test principal means to it.
  */
-import { RecipeSourceType, RecipeVisibility, privateRuleOf } from '@kitchensink/recipe-core';
+import {
+    RecipeSourceType,
+    RecipeStatus,
+    RecipeVisibility,
+    privateRuleOf,
+    type RecipeSourceKind,
+} from '@kitchensink/recipe-core';
 
 import { evaluateContainment, isContained, type ContainmentSubject } from '../../common/containmentPolicy.js';
 
@@ -39,6 +46,12 @@ import { evaluateContainment, isContained, type ContainmentSubject } from '../..
 export interface VisibilityPolicyInput extends ContainmentSubject {
     /** The recipe's provenance classification. */
     readonly sourceType: RecipeSourceType;
+    /**
+     * What the cook said the source is, or `null` (ADR-0089). REQUIRED, never defaulted: a web copy carries the same
+     * `imported_public` label as the curator's public-domain text, and only the kind says which this is, so a call site that
+     * forgot it would silently judge a web copy as public-domain text.
+     */
+    readonly sourceKind: RecipeSourceKind | null;
     /** Whether the acting principal currently holds the premium entitlement. */
     readonly isPremium: boolean;
     /** The visibility the caller is requesting the recipe transition to. */
@@ -81,11 +94,50 @@ function denyNoSlot(reason: string): VisibilityDecision {
     return { allowed: false, denial: 'privateSlots', reason };
 }
 
+/** Why a private-only recipe may not be public. The only `imported_public` that is private-only is a web copy (ADR-0089). */
+function privateOnlyReason(sourceType: RecipeSourceType): string {
+    switch (sourceType) {
+        case RecipeSourceType.IMPORTED_PAID:
+            return 'An imported paid recipe is private-only and may never be made public.';
+        case RecipeSourceType.IMPORTED_PUBLIC:
+            // A full copy of a web page is private (ADR-0077 section 3), and a card for it is not built: fail closed.
+            return 'A recipe copied from a web page is private-only and may not be made public.';
+        case RecipeSourceType.IMPORTED_PHYSICAL:
+        case RecipeSourceType.USER_CREATED:
+            return 'An imported physical-book recipe is private-only and may not be made public.';
+    }
+}
+
+/**
+ * The state a write LEAVES (ADR-0089): a private-only recipe is never PUBLISHED and PUBLIC, whichever path made it public.
+ * `evaluateVisibility` judges a requested move; this judges the result, so a public draft that reached its state by a race
+ * is still refused at publish. An owner-only public DRAFT is allowed, because no one else can read it. Pure.
+ *
+ * @param input - The status and visibility after the write, and the source.
+ * @returns A `policy` denial for a published, public, private-only recipe; else an allow.
+ */
+export function evaluatePublishedState(input: {
+    readonly status: RecipeStatus;
+    readonly visibility: RecipeVisibility;
+    readonly sourceType: RecipeSourceType;
+    readonly sourceKind: RecipeSourceKind | null;
+}): VisibilityDecision {
+    if (
+        input.status === RecipeStatus.PUBLISHED &&
+        input.visibility === RecipeVisibility.PUBLIC &&
+        privateRuleOf(input.sourceType, input.sourceKind) === 'privateOnly'
+    ) {
+        return deny(privateOnlyReason(input.sourceType));
+    }
+
+    return allow('The recipe is not left published and public while private-only.');
+}
+
 /**
  * Evaluate the C-004 visibility policy for a requested transition. Pure — inputs only.
  */
 export function evaluateVisibility(input: VisibilityPolicyInput): VisibilityDecision {
-    const { sourceType, isPremium, hasAvailablePrivateSlot, requested } = input;
+    const { sourceType, sourceKind, isPremium, hasAvailablePrivateSlot, requested } = input;
 
     if (requested === RecipeVisibility.PUBLIC) {
         const containment = evaluateContainment({
@@ -98,19 +150,15 @@ export function evaluateVisibility(input: VisibilityPolicyInput): VisibilityDeci
             return { allowed: false, denial: 'contained', reason: containment.reason };
         }
 
-        if (privateRuleOf(sourceType) !== 'privateOnly') {
+        if (privateRuleOf(sourceType, sourceKind) !== 'privateOnly') {
             return allow('User-created and imported-public recipes may be public.');
         }
 
-        return deny(
-            sourceType === RecipeSourceType.IMPORTED_PAID
-                ? 'An imported paid recipe is private-only and may never be made public.'
-                : 'An imported physical-book recipe is private-only and may not be made public.',
-        );
+        return deny(privateOnlyReason(sourceType));
     }
 
     // requested === RecipeVisibility.PRIVATE
-    switch (privateRuleOf(sourceType)) {
+    switch (privateRuleOf(sourceType, sourceKind)) {
         case 'slots':
             if (isPremium) {
                 return allow('Premium users may make their own recipes private.');
@@ -144,6 +192,7 @@ export function evaluateVisibility(input: VisibilityPolicyInput): VisibilityDeci
  */
 export function defaultCloneVisibility(
     sourceType: RecipeSourceType,
+    sourceKind: RecipeSourceKind | null,
     cloner: ContainmentSubject,
     sourceVisibility: RecipeVisibility,
 ): RecipeVisibility {
@@ -151,5 +200,5 @@ export function defaultCloneVisibility(
         return RecipeVisibility.PRIVATE;
     }
 
-    return privateRuleOf(sourceType) === 'privateOnly' ? RecipeVisibility.PRIVATE : RecipeVisibility.PUBLIC;
+    return privateRuleOf(sourceType, sourceKind) === 'privateOnly' ? RecipeVisibility.PRIVATE : RecipeVisibility.PUBLIC;
 }

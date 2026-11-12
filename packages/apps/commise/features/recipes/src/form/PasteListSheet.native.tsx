@@ -11,6 +11,7 @@ import { FieldLabel, TextArea } from '@commise/ui/input';
 import { LiveRegion } from '@commise/ui/live-region';
 import { nativeTokens } from '@commise/ui/native';
 import { Sheet } from '@commise/ui/sheet';
+import { Text as TamaguiText } from '@commise/ui/text';
 import { useTheme } from '@commise/ui/theme';
 import type { FC } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
@@ -22,8 +23,9 @@ import { recipeFormMessages } from './messages.js';
 import type { PasteListSheetProps } from './pasteListSheetProps.js';
 
 /** The Paste a list sheet. */
-export const PasteListSheet: FC<PasteListSheetProps> = ({ sheet, submitting, failed }) => {
-    const { ingredients: t } = useMessages(editorMessages);
+export const PasteListSheet: FC<PasteListSheetProps> = ({ sheet, submitting, failed, offersSource = false }) => {
+    const { ingredients: t, source } = useMessages(editorMessages);
+    const hint = offersSource ? `${t.pasteHint} ${t.pasteLinkHint}` : t.pasteHint;
     const m = useMessages(recipeFormMessages);
     const locale = useLocale();
     const { colors } = useTheme();
@@ -43,19 +45,24 @@ export const PasteListSheet: FC<PasteListSheetProps> = ({ sheet, submitting, fai
             }
         >
             <View style={styles.field}>
-                <FieldLabel forId={pasteListFieldId} label={t.pasteLabel} hint={t.pasteHint} />
+                <FieldLabel forId={pasteListFieldId} label={t.pasteLabel} hint={hint} />
                 <TextArea
                     id={pasteListFieldId}
                     value={sheet.text}
                     minRows={10}
                     label={t.pasteLabel}
-                    hint={t.pasteHint}
+                    hint={hint}
                     {...(refusals.length === 0 ? {} : { error: refusals.join(' ') })}
                     onChangeText={sheet.setText}
                 />
                 <Text style={[styles.count, { color: colors.inkMuted }]}>
                     {pluralOf(t.pasteCount, lineCount, locale)}
                 </Text>
+                {sheet.linkOnly ? (
+                    <TamaguiText typeRole="meta" color="$inkMuted">
+                        {source.linkOnly}
+                    </TamaguiText>
+                ) : null}
                 {refusals.map((refusal) => (
                     <Text key={refusal} style={[styles.message, { color: colors.dangerText }]}>
                         {refusal}

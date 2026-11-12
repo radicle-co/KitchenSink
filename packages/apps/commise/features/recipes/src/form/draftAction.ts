@@ -105,4 +105,6 @@ export type DraftAction =
     /** A group's ⋯ Remove group (keep its ingredients). */
     | { readonly kind: 'removeIngredientGroup'; readonly label: string }
     | { readonly kind: 'setDifficulty'; readonly value?: RecipeDifficulty }
-    | { readonly kind: 'setMealType'; readonly value?: RecipeMealType };
+    | { readonly kind: 'setMealType'; readonly value?: RecipeMealType }
+    /** Set the Source field's text, or empty it (`link` is `''`) by REMOVING the key (ADR-0089; the omit-the-key rule). */
+    | { readonly kind: 'setSourceLink'; readonly link: string };

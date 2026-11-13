@@ -213,6 +213,17 @@ function cuisineGapOf(facts: ImportSaveFacts): 'cuisine' | null {
         stepCount: facts.stepCount,
     });
 
+    if (decision.allowed) {
+        return null;
+    }
+
     // Every missing requirement is mapped, so a refused item throws whichever order the policy lists them in.
-    return decision.allowed ? null : decision.missing.map(gapOfRequirement)[0];
+    const [gap] = decision.missing.map(gapOfRequirement);
+
+    // A denial names at least one requirement (the policy's type says so); an empty one is a defect, never "no gap".
+    if (gap === undefined) {
+        throw new Error('the publish policy refused a recipe and named nothing it lacks');
+    }
+
+    return gap;
 }

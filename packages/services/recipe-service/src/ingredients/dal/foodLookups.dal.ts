@@ -369,6 +369,16 @@ export class FoodLookupsDal {
                 throw new Error(`food_lookups ${ids.lookupId} is not the declaration ${ids.failureId}`);
             }
 
+            // ⛔ The same ids must name the same words. The import derives them from one slot of one parse generation
+            // (`importDeclaredNameIdsOf`). The slot's name comes from that generation's snapshot line, or, for a line kept
+            // whole, from the recipe text. Neither changes within a generation: a snapshot is written once per generation, and
+            // later writes to it set only picks and markers; the recipe text changes only by a replace, which starts a new
+            // generation and so new ids. A record under these ids with another name is a defect in the derivation, and reusing
+            // it would bind the wrong words.
+            if (arm.failure.name !== failure.name || arm.failure.normalizedKey !== failure.normalizedKey) {
+                throw new Error(`unresolved_foods ${ids.failureId} holds another name than the declaration asks for`);
+            }
+
             return arm;
         });
     }

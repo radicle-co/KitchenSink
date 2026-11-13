@@ -357,6 +357,28 @@ describe('FoodLookupsDal (real Postgres)', () => {
             expect(rows).toEqual([{ failures: 1, bindings: 1 }]);
         });
 
+        // Review L4 on #220: the ids are derived from the line's place in one parse generation, and its name cannot change
+        // there, so a stored record under those ids with ANOTHER name is a defect (a derivation bug), never a name to reuse.
+        it('⛔ throws when the record under these ids holds another name, and changes nothing', async () => {
+            const name = `${SCOPE} declared name`;
+            const ids = {
+                failureId: 'eeeeeeee-0000-8000-8000-000000000007',
+                lookupId: 'eeeeeeee-0000-8000-8000-000000000008',
+            };
+
+            await dal.declareOnce(declaredFailure(name, name), ids);
+
+            await expect(dal.declareOnce(declaredFailure(`${name} renamed`, `${name} renamed`), ids)).rejects.toThrow(
+                /holds another name/u,
+            );
+
+            const { rows } = await pool.query<{ name: string }>(`SELECT name FROM unresolved_foods WHERE id = $1`, [
+                ids.failureId,
+            ]);
+
+            expect(rows).toEqual([{ name }]);
+        });
+
         it('declares a separate record under other ids, as a declaration always is', async () => {
             const name = `${SCOPE} declared twice`;
             const a = await dal.declareOnce(declaredFailure(name, name), {

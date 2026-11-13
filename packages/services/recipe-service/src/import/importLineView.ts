@@ -13,22 +13,21 @@
  *  3. **Flagged is derived from the SAVED line's verdict** (`saved_verification_key`), because the snapshot's own key judges the
  *     PROPOSED food and a line bound to its default or best match is judged under another. It goes through the one classifier
  *     `identityReadingOf` and the third mapping `importFlagOf`; nothing is stored.
- *  4. **Total.** An unreadable verdict table degrades to "no verdict yet" with a log line, never a failed poll.
+ *  4. **Total and bounded.** The facts come from `readMatchFacts`, the paste view's own read side: each read ends with the
+ *     request's deadline, and an unreadable one degrades to "no verdict yet" with a log line, never a failed poll.
  */
-import { periodKey } from '@kitchensink/recipe-core/spend/spend-arithmetic';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 
 import type { CallerToken } from '../auth/CallerToken.js';
 import type { ActingPrincipal } from '../auth/principal.js';
-import { isContained } from '../common/containmentPolicy.js';
 import { foodRefKey, foodRefOf, type FoodRef } from '../database/schema/foodLookupArm.js';
-import type { FoodRefAnswer } from '../ingredients/domain/foodRefAnswer.js';
 import { FoodLookupsDal } from '../ingredients/dal/foodLookups.dal.js';
 import { FoodRefsGateway } from '../ingredients/foodRefs.gateway.js';
-import type { LineVerdictRow, LineVerificationsDal } from '../recipes/dal/lineVerifications.dal.js';
+import type { LineVerificationsDal } from '../recipes/dal/lineVerifications.dal.js';
 import { identityReadingOf } from '../recipes/domain/lineVerification.js';
+import { isDefaultRung } from '../recipes/domain/matchProposal.js';
 import { reviewStandingOf } from '../recipes/domain/reviewStanding.js';
-import { isNamed, namedFood, projectMatch } from '../recipes/parseJobMatchView.js';
+import { foodsOfMatch, isNamed, namedFood, projectMatch, readMatchFacts } from '../recipes/parseJobMatchView.js';
 import type { ParseProposalMatch } from '../recipes/parseJobs.schema.js';
 import type { ImportFlag } from '../recipes/import.schema.js';
 import { RECIPE_LINE_VERIFICATIONS_DAL } from '../recipes/recipes.tokens.js';
@@ -49,12 +48,9 @@ export interface FlaggedRead {
     readonly flag: ImportFlag;
 }
 
-/** The candidate a snapshot line marks as the seeded default, if any. */
+/** The seeded default among a snapshot line's candidates, read from its rung (the fact the default is). Pure. */
 function defaultCandidateOf(line: ImportLine): FoodRef | undefined {
-    const candidates = matchOfSnapshotLine(line).candidates;
-    const stored = line.candidates as readonly { kind?: unknown; id?: unknown; isDefault?: unknown }[];
-    const index = stored.findIndex((candidate) => candidate.isDefault === true);
-    const found = index === -1 ? undefined : candidates[index];
+    const found = matchOfSnapshotLine(line).candidates.find((candidate) => isDefaultRung(candidate.rung));
 
     return found === undefined ? undefined : { kind: found.kind, id: found.id };
 }
@@ -93,27 +89,12 @@ export class ImportLineView {
         }
 
         const matches = lines.map((line) => ({ line, match: matchOfSnapshotLine(line) }));
-        const keys = matches.flatMap(({ match }) => (match.verificationKey === null ? [] : [match.verificationKey]));
-        const foods = matches.flatMap(({ match }) => [
-            ...(match.proposal === null ? [] : [match.proposal.food]),
-            ...match.candidates.map(({ kind, id }) => ({ kind, id })),
-        ]);
-        // ⛔ ONE period for the whole read, taken before any query, as `ParseJobMatchView.decorate` takes it.
-        const period = periodKey(new Date());
-        const [verdicts, exhausted, budgetSpent, answers] = await Promise.all([
-            this.readVerdicts(keys),
-            this.readExhausted(keys),
-            this.readBudgetSpent(keys, period),
-            this.namesFor(caller, foods, deadline),
-        ]);
-        const contained = isContained(acting);
+        const read = await this.readFacts(acting, caller, deadline, {
+            keys: matches.flatMap(({ match }) => (match.verificationKey === null ? [] : [match.verificationKey])),
+            foods: matches.flatMap(({ match }) => foodsOfMatch(match)),
+        });
 
-        return new Map(
-            matches.map(({ line, match }) => [
-                line.id,
-                projectMatch(match, { answers, verdicts, exhausted, budgetSpent, period, contained, toReport: [] }),
-            ]),
-        );
+        return new Map(matches.map(({ line, match }) => [line.id, projectMatch(match, { ...read, toReport: [] })]));
     }
 
     /**
@@ -142,17 +123,15 @@ export class ImportLineView {
 
             return bound === undefined ? [] : [{ row, bound, suggested: defaultCandidateOf(row.line) }];
         });
-        const keys = rows.flatMap(({ row }) => (row.savedVerificationKey === null ? [] : [row.savedVerificationKey]));
-        const foods = rows.flatMap(({ bound, suggested }) => [bound, ...(suggested === undefined ? [] : [suggested])]);
-        // ⛔ ONE period for the whole read, taken before any query, as `ParseJobMatchView.decorate` takes it.
-        const period = periodKey(new Date());
-        const [verdicts, exhausted, budgetSpent, answers] = await Promise.all([
-            this.readVerdicts(keys),
-            this.readExhausted(keys),
-            this.readBudgetSpent(keys, period),
-            this.namesFor(caller, foods, deadline),
-        ]);
-        const contained = isContained(acting);
+        const { verdicts, exhausted, budgetSpent, answers, contained } = await this.readFacts(
+            acting,
+            caller,
+            deadline,
+            {
+                keys: rows.flatMap(({ row }) => (row.savedVerificationKey === null ? [] : [row.savedVerificationKey])),
+                foods: rows.flatMap(({ bound, suggested }) => [bound, ...(suggested === undefined ? [] : [suggested])]),
+            },
+        );
 
         const viewOf = (ref: FoodRef): FoodRefView => {
             const answer = answers.get(foodRefKey(ref));
@@ -188,61 +167,16 @@ export class ImportLineView {
         );
     }
 
-    /** The gate's verdicts by key; an unreadable table is "no verdict yet". */
-    private async readVerdicts(keys: readonly string[]): Promise<ReadonlyMap<string, LineVerdictRow>> {
-        try {
-            return await this.verdicts.findBandsByKeys(keys);
-        } catch (error) {
-            this.logger.warn(
-                'import verdicts could not be read; lines read as awaiting review',
-                error instanceof Error ? error.stack : String(error),
-            );
-
-            return new Map();
-        }
-    }
-
-    /** The keys the gate gave up on; an unreadable table is none. */
-    private async readExhausted(keys: readonly string[]): Promise<ReadonlySet<string>> {
-        try {
-            return await this.verdicts.findExhaustedKeys(keys);
-        } catch (error) {
-            this.logger.warn(
-                'import verification attempts could not be read',
-                error instanceof Error ? error.stack : String(error),
-            );
-
-            return new Set();
-        }
-    }
-
-    /**
-     * The keys whose review the spend ceiling refused in `period` (ADR-0024 §3, ADR-0072 §10); an unreadable table is
-     * none, so a line reads as it did before the budget was spent.
-     */
-    private async readBudgetSpent(keys: readonly string[], period: string): Promise<ReadonlySet<string>> {
-        try {
-            return await this.verdicts.findBudgetSpentKeys(keys, period);
-        } catch (error) {
-            this.logger.warn(
-                'import budget-spent facts could not be read',
-                error instanceof Error ? error.stack : String(error),
-            );
-
-            return new Set();
-        }
-    }
-
-    /** Food's answer about every food named, in one batched read as the caller. */
-    private async namesFor(
+    /** The shared read side of a match (`readMatchFacts`): bounded by the deadline, each unreadable fact read as absent. */
+    private readFacts(
+        acting: ActingPrincipal,
         caller: CallerToken | undefined,
-        foods: readonly FoodRef[],
         deadline: AbortSignal | undefined,
-    ): Promise<ReadonlyMap<string, FoodRefAnswer>> {
-        return (
-            await (deadline === undefined
-                ? this.refs.resolve(caller, foods, 'read')
-                : this.refs.resolve(caller, foods, 'read', { signal: deadline }))
-        ).answers;
+        ask: { readonly keys: readonly string[]; readonly foods: readonly FoodRef[] },
+    ): ReturnType<typeof readMatchFacts> {
+        return readMatchFacts(
+            { verdicts: this.verdicts, refs: this.refs, logger: this.logger },
+            { acting, caller, deadline, subject: 'import', ...ask },
+        );
     }
 }

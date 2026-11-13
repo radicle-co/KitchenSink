@@ -219,6 +219,96 @@ function candidatesOf(match: ParseJobMatch, answerOf: (ref: FoodRef) => FoodRefA
     return [...named.filter((candidate) => candidate.isDefault), ...named.filter((candidate) => !candidate.isDefault)];
 }
 
+/**
+ * One store read that the view survives losing: bounded by the request's deadline, and on any failure the logged `failure`
+ * and `empty` (rule 4: an unreadable fact is the absence of the fact, never a failed poll).
+ *
+ * @sideEffect Runs `read`; logs a failure.
+ */
+async function readOrEmpty<T>(
+    logger: Pick<Logger, 'warn'>,
+    subject: string,
+    deadline: AbortSignal | undefined,
+    read: () => Promise<T>,
+    empty: T,
+    failure: string,
+): Promise<T> {
+    try {
+        return await within(deadline, read);
+    } catch (error) {
+        logger.warn(`${subject}: ${failure}`, error instanceof Error ? error.stack : String(error));
+
+        return empty;
+    }
+}
+
+/** Where a match's facts are read from, and where a read that degrades is logged. */
+export interface MatchFactsSources {
+    readonly verdicts: Pick<LineVerificationsDal, 'findBandsByKeys' | 'findExhaustedKeys' | 'findBudgetSpentKeys'>;
+    readonly refs: Pick<FoodRefsGateway, 'resolve'>;
+    readonly logger: Pick<Logger, 'warn'>;
+}
+
+/** What to read: the verdict keys and foods of the matches in view, for whom, and under which deadline. */
+export interface MatchFactsAsk {
+    readonly acting: ActingPrincipal;
+    readonly caller: CallerToken | undefined;
+    readonly keys: readonly string[];
+    readonly foods: readonly FoodRef[];
+    readonly deadline: AbortSignal | undefined;
+    /** What a degraded read's log line names (`parse-job <id>`, `import`). */
+    readonly subject: string;
+}
+
+/**
+ * Everything {@link projectMatch} reads, in ONE batch: the verdicts, the keys the gate gave up on, the keys the ceiling
+ * refused this period, food's names as the caller, and the caller's containment.
+ *
+ * The ONE read side of a match, shared by the paste view and the bulk import's line view, so the period rule, the deadline
+ * bound and the degrade-to-empty rule have one home. Each database read ends with the deadline; food's read takes it.
+ *
+ * @sideEffect Reads the verdict tables and food's refs as the caller.
+ */
+export async function readMatchFacts(
+    sources: MatchFactsSources,
+    ask: MatchFactsAsk,
+): Promise<Omit<MatchProjectionRead, 'toReport'>> {
+    // ⛔ ONE period for the whole read, taken before any query: every food in a view is judged against the same month.
+    const period = periodKey(new Date());
+    const orEmpty = <T>(read: () => Promise<T>, empty: T, failure: string): Promise<T> =>
+        readOrEmpty(sources.logger, ask.subject, ask.deadline, read, empty, failure);
+    const [verdicts, exhausted, budgetSpent, answers] = await Promise.all([
+        orEmpty(
+            () => sources.verdicts.findBandsByKeys(ask.keys),
+            new Map<string, LineVerdictRow>(),
+            'verdicts could not be read; proposals read as awaiting review',
+        ),
+        orEmpty(
+            () => sources.verdicts.findExhaustedKeys(ask.keys),
+            new Set<string>(),
+            'verification attempts could not be read',
+        ),
+        orEmpty(
+            () => sources.verdicts.findBudgetSpentKeys(ask.keys, period),
+            new Set<string>(),
+            'budget-spent facts could not be read',
+        ),
+        ask.deadline === undefined
+            ? sources.refs.resolve(ask.caller, ask.foods, 'read')
+            : sources.refs.resolve(ask.caller, ask.foods, 'read', { signal: ask.deadline }),
+    ]);
+
+    return { answers: answers.answers, verdicts, exhausted, budgetSpent, period, contained: isContained(ask.acting) };
+}
+
+/** The foods a match asks food about: its proposal and every candidate. Pure. */
+export function foodsOfMatch(match: ParseJobMatch): FoodRef[] {
+    return [
+        ...(match.proposal === null ? [] : [match.proposal.food]),
+        ...match.candidates.map(({ kind, id }) => ({ kind, id })),
+    ];
+}
+
 @Injectable()
 export class ParseJobMatchView {
     private readonly logger = new Logger(ParseJobMatchView.name);
@@ -262,26 +352,24 @@ export class ParseJobMatchView {
             return this.withMatches(view, () => null);
         }
 
-        const keys = [...current.values()].flatMap((match) =>
-            match.verificationKey === null ? [] : [match.verificationKey],
+        const read = await readMatchFacts(
+            { verdicts: this.verdicts, refs: this.refs, logger: this.logger },
+            {
+                acting,
+                caller,
+                keys: [...current.values()].flatMap((match) =>
+                    match.verificationKey === null ? [] : [match.verificationKey],
+                ),
+                foods: [...current.values()].flatMap(foodsOfMatch),
+                deadline,
+                subject: `parse-job ${view.id}`,
+            },
         );
-        // ⛔ ONE period for the whole read, taken before any query: every food in a view is judged against the same month.
-        const period = periodKey(new Date());
-        const [verdicts, exhausted, budgetSpent, answers] = await Promise.all([
-            this.readVerdicts(view.id, keys, deadline),
-            this.readExhausted(view.id, keys, deadline),
-            this.readBudgetSpent(view.id, keys, period, deadline),
-            this.namesFor(caller, [...current.values()], deadline),
-        ]);
-
-        const contained = isContained(acting);
         const toReport: CurationReport[] = [];
         const decorated = this.withMatches(view, (lineIndex, foodIndex) => {
             const match = current.get(slotKey({ lineIndex, foodIndex }));
 
-            return match === undefined
-                ? null
-                : projectMatch(match, { answers, verdicts, exhausted, budgetSpent, period, contained, toReport });
+            return match === undefined ? null : projectMatch(match, { ...read, toReport });
         });
 
         await this.reportOnce(view.id, toReport, deadline);
@@ -295,8 +383,9 @@ export class ParseJobMatchView {
         view: ParseJobResponse,
         deadline: AbortSignal | undefined,
     ): Promise<ReadonlyMap<string, ParseJobMatch>> {
-        const stored = await this.readOrEmpty(
-            view.id,
+        const stored = await readOrEmpty(
+            this.logger,
+            `parse-job ${view.id}`,
             deadline,
             () => this.matches.findForJob(ownerId, view.id),
             [],
@@ -330,93 +419,6 @@ export class ParseJobMatchView {
                 })
                 .map((match) => [slotKey(match), match] as const),
         );
-    }
-
-    /**
-     * One store read that the view survives losing: bounded by the request's deadline, and on any failure the logged
-     * `failure` and `empty` (rule 4: an unreadable fact is the absence of the fact, never a failed poll).
-     */
-    private async readOrEmpty<T>(
-        jobId: string,
-        deadline: AbortSignal | undefined,
-        read: () => Promise<T>,
-        empty: T,
-        failure: string,
-    ): Promise<T> {
-        try {
-            return await within(deadline, read);
-        } catch (error) {
-            this.logger.warn(`parse-job ${jobId}: ${failure}`, error instanceof Error ? error.stack : String(error));
-
-            return empty;
-        }
-    }
-
-    /** The gate's verdicts by key; an unreadable table is "no verdict yet". */
-    private readVerdicts(
-        jobId: string,
-        keys: readonly string[],
-        deadline: AbortSignal | undefined,
-    ): Promise<ReadonlyMap<string, LineVerdictRow>> {
-        return this.readOrEmpty(
-            jobId,
-            deadline,
-            () => this.verdicts.findBandsByKeys(keys),
-            new Map(),
-            'verdicts could not be read; proposals read as awaiting review',
-        );
-    }
-
-    /** The keys the gate gave up on; an unreadable table is none. */
-    private readExhausted(
-        jobId: string,
-        keys: readonly string[],
-        deadline: AbortSignal | undefined,
-    ): Promise<ReadonlySet<string>> {
-        return this.readOrEmpty(
-            jobId,
-            deadline,
-            () => this.verdicts.findExhaustedKeys(keys),
-            new Set(),
-            'verification attempts could not be read',
-        );
-    }
-
-    /**
-     * The keys whose review the spend ceiling refused in the CURRENT period (ADR-0024 §3); an unreadable table is none,
-     * so a poll never fails on it and a food reads as it did before the budget was spent.
-     */
-    private readBudgetSpent(
-        jobId: string,
-        keys: readonly string[],
-        period: string,
-        deadline: AbortSignal | undefined,
-    ): Promise<ReadonlySet<string>> {
-        return this.readOrEmpty(
-            jobId,
-            deadline,
-            () => this.verdicts.findBudgetSpentKeys(keys, period),
-            new Set(),
-            'budget-spent facts could not be read',
-        );
-    }
-
-    /** Food's answer about every proposed and candidate food, in one batched read as the caller. */
-    private async namesFor(
-        caller: CallerToken | undefined,
-        matches: readonly ParseJobMatch[],
-        deadline: AbortSignal | undefined,
-    ): Promise<ReadonlyMap<string, FoodRefAnswer>> {
-        const refs = matches.flatMap((match) => [
-            ...(match.proposal === null ? [] : [match.proposal.food]),
-            ...match.candidates.map(({ kind, id }) => ({ kind, id })),
-        ]);
-
-        return (
-            await (deadline === undefined
-                ? this.refs.resolve(caller, refs, 'read')
-                : this.refs.resolve(caller, refs, 'read', { signal: deadline }))
-        ).answers;
     }
 
     /**

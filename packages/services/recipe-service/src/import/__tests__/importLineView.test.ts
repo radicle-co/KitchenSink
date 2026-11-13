@@ -50,6 +50,8 @@ function build(
         readonly exhausted?: readonly string[];
         readonly budgetSpent?: readonly string[];
         readonly verdictsFail?: boolean;
+        /** The verdict read never settles, as a stalled database would. */
+        readonly verdictsHang?: boolean;
         readonly arms?: Record<
             string,
             { kind: 'root'; lookupId: string; foodId: string } | { kind: 'unresolved'; lookupId: string }
@@ -75,6 +77,10 @@ function build(
     const findBandsByKeys = vi.fn(async (keys: readonly string[]) => {
         if (options.verdictsFail === true) {
             throw new Error('verdict table down');
+        }
+
+        if (options.verdictsHang === true) {
+            await new Promise<never>(() => undefined);
         }
 
         return new Map(
@@ -173,6 +179,14 @@ describe('ImportLineView.matchesOf', () => {
         expect(matches.get('L1')).toMatchObject({ state: 'checking' });
     });
 
+    it('⛔ ends a stalled verdict read at the request’s deadline: "no verdict yet", as the paste view does', async () => {
+        const { view } = build({ verdictsHang: true });
+        const deadline = AbortSignal.timeout(20);
+        const matches = await view.matchesOf(ACTING, CALLER, [makeLine({ id: 'L1' })], deadline);
+
+        expect(matches.get('L1')).toMatchObject({ state: 'checking', reason: 'awaitingReview' });
+    });
+
     it('a contained test principal’s review is never sent, so it reads a choice and not “checking” forever', async () => {
         const contained = actingPrincipalOf(makePrincipal({ principalKind: 'test', containment: 'enforce' }));
         const matches = await build().view.matchesOf(contained, CALLER, [makeLine({ id: 'L1' })]);
@@ -214,6 +228,23 @@ describe('ImportLineView.flagsOf', () => {
     it('⛔ is flagged when the gate contradicts it, suggesting the DEFAULT candidate by name', async () => {
         const { view } = build({ arms, verdicts: { 'v1:saved': DISAGREE } });
         const flags = await view.flagsOf(ACTING, CALLER, [listed()]);
+
+        expect(flags.get('L1')?.flag).toEqual({
+            state: 'flagged',
+            suggestion: { kind: 'root', id: 'F-skim', name: 'Milk, skim' },
+        });
+    });
+
+    it('finds the default by its RUNG, the fact the stored flag was derived from, not by a stored flag', async () => {
+        const { view } = build({ arms, verdicts: { 'v1:saved': DISAGREE } });
+        const line = makeLine({
+            id: 'L1',
+            candidates: [
+                { kind: 'root', id: 'F-whole', rung: 'head' },
+                { kind: 'root', id: 'F-skim', rung: 'default' },
+            ],
+        });
+        const flags = await view.flagsOf(ACTING, CALLER, [listed({ line })]);
 
         expect(flags.get('L1')?.flag).toEqual({
             state: 'flagged',

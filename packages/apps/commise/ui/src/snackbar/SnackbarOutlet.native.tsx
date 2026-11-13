@@ -8,6 +8,8 @@
  * Only the outlet on top draws, and the host draws in its own place only while no outlet is registered, so the snackbar
  * is in one place at a time and is read out once.
  *
+ * It is an orchestration component: it owns the registration with the host and draws a styled region.
+ *
  * It sits `SNACKBAR_GAP` above the window's own bottom safe area, not above the page's bottom chrome: inside a window
  * the page's tab bar is not on screen.
  *

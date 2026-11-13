@@ -61,7 +61,7 @@ export interface RunContext {
     readonly repoRoot: string;
 }
 
-/** One per platform. The orchestrator calls these in this order. */
+/** One per platform. The orchestrator calls `prepareHost`, `startDevice`, `stopDevice` and `teardownHost` in this order. */
 export interface DeviceAdapter {
     readonly platform: LanePlatform;
     /** What one lane costs the host, measured. */
@@ -75,7 +75,10 @@ export interface DeviceAdapter {
     deviceFor(index: number): string;
     /** Boot, install, device settings. */
     startDevice(lane: LaneSpec): Promise<void>;
-    /** The platform's part of the lane's run-mode environment. */
+    /**
+     * The platform's part of the lane's run-mode environment. It may be asked at any time, including before the host is
+     * prepared, and must not throw; it gives its full answer only once the host is prepared.
+     */
     laneEnv(lane: LaneSpec): Readonly<Record<string, string>>;
     stopDevice(lane: LaneSpec): Promise<void>;
     teardownHost(): Promise<void>;

@@ -79,6 +79,7 @@ describe('offerSecondsOf', () => {
         expect(offerSecondsOf({ line: 'Wait 24 hours' })).toBe(86_400);
         expect(offerSecondsOf({ line: 'Wait 25 hours' })).toBeUndefined();
         expect(offerSecondsOf({ storedSeconds: 3, line: '' })).toBeUndefined();
+        expect(offerSecondsOf({ storedSeconds: 5.0004, line: '' })).toBeUndefined();
     });
 });
 

@@ -1,16 +1,17 @@
-import { MAX_TIMER_MS, MIN_TIMER_MS } from './timer.js';
-
 /**
- * What a step's text says about time, and the small pieces the copy layer turns into words.
+ * What a step's text says about time, and the parts a length splits into.
  *
  * The reader finds the ONE duration a step offers as a timer. It is a small domain extractor, not a library,
  * because a duration library adds up every unit in a string and cannot find exactly one span in prose or take the low
- * end of a range. It reads English only, like the step-line splitter (`STEP_LINE_ABBREVIATIONS`).
+ * end of a range. The in-repo `normalizeDurationToMinutes` (recipe import) sums every term of a whole field to rounded
+ * minutes, which is another job. It reads English only, like the step-line splitter (`STEP_LINE_ABBREVIATIONS`).
  *
  * shortcut: number words ("an hour", "half an hour", "two minutes") are not read and a step that only says them offers
  * no timer, upgrade when a real recipe needs them. A bare number after an hour unit reads as minutes ("1 h 30") only
  * at the end of the text or before punctuation, so "1 h 30 then flip" reads one hour.
  */
+
+import { isValidTimerMs } from './timer.js';
 
 /** What a line says: no duration, exactly one (in seconds), or several. */
 export type DurationReading =
@@ -56,11 +57,8 @@ function numberOf(token: string): number {
     return base + (glyph === undefined ? 0 : (FRACTIONS[glyph] ?? 0));
 }
 
-/** The seconds one amount token ("1½ hours", "20 to 25 min") stands for: the first number times its unit. */
-function secondsOfAmount(amount: string): number {
-    const [match] = [...amount.matchAll(AMOUNT)];
-    const [, quantity = '', unit = ''] = match ?? [];
-
+/** The seconds an amount ("1½ hours", "20 to 25 min") stands for: its first number times its unit. */
+function secondsOfAmount(quantity: string, unit: string): number {
     return numberOf(quantity) * (SECONDS_PER_UNIT[unit.toLowerCase().charAt(0)] ?? 0);
 }
 
@@ -85,10 +83,17 @@ export function readDuration(line: string): DurationReading {
     const [span = ''] = spans[0] ?? [];
     const bareMinutes = spans[0]?.groups?.['bare'];
     const total =
-        [...span.matchAll(AMOUNT)].reduce((sum, amount) => sum + secondsOfAmount(amount[0]), 0) +
+        [...span.matchAll(AMOUNT)].reduce((sum, amount) => sum + secondsOfAmount(amount[1] ?? '', amount[2] ?? ''), 0) +
         (bareMinutes === undefined ? 0 : Number.parseInt(bareMinutes, 10) * 60);
 
     return total > 0 ? { kind: 'one', seconds: Math.round(total) } : { kind: 'none' };
+}
+
+/** The one duration a line reads, in seconds, or `undefined` when it reads none or several. */
+function secondsOfLine(line: string): number | undefined {
+    const reading = readDuration(line);
+
+    return reading.kind === 'one' ? reading.seconds : undefined;
 }
 
 /** The input to {@link offerSecondsOf}. */
@@ -104,17 +109,15 @@ export interface OfferInput {
  *
  * @param input - The stored timer and the line.
  * @returns The stored timer when it is a valid length, else the line's one duration, else `undefined`. A length a
- *   timer cannot have (under 5 s or over 24 h) offers nothing. Pure.
+ *   timer cannot have (below the shortest or above the longest timer) offers nothing. Pure.
  */
 export function offerSecondsOf(input: OfferInput): number | undefined {
-    const reading = readDuration(input.line);
-    const seconds = input.storedSeconds ?? (reading.kind === 'one' ? reading.seconds : undefined);
-    const valid = seconds !== undefined && seconds * 1_000 >= MIN_TIMER_MS && seconds * 1_000 <= MAX_TIMER_MS;
+    const seconds = input.storedSeconds ?? secondsOfLine(input.line);
 
-    return valid ? seconds : undefined;
+    return seconds !== undefined && isValidTimerMs(seconds * 1_000) ? seconds : undefined;
 }
 
-/** A length as the parts the copy layer says aloud and shows. */
+/** A length split into hours, minutes and seconds. */
 export interface DurationParts {
     readonly hours: number;
     readonly minutes: number;
@@ -135,7 +138,7 @@ export function durationParts(totalSeconds: number): DurationParts {
     };
 }
 
-/** How long ago the alarm rang, in the parts the alarm's "rang ago" line says: just now, whole minutes, or hours and minutes. */
+/** How long ago a timer ended: just now, whole minutes, or hours and minutes. */
 export type ElapsedParts =
     | { readonly kind: 'justNow' }
     | { readonly kind: 'minutes'; readonly minutes: number }

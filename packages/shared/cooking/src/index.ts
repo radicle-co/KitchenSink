@@ -48,7 +48,7 @@ export {
 export type { LineKey, LineTicks } from './lineTicks.js';
 
 // ── The timer: one reducer over commands, and the reader of a step's duration ──
-export { MAX_TIMER_MS, MIN_TIMER_MS, NO_TIMER, reduceTimer, timeLeftMs } from './timer.js';
+export { MAX_TIMER_MS, MIN_TIMER_MS, NO_TIMER, isValidTimerMs, reduceTimer, timeLeftMs } from './timer.js';
 export type {
     ActiveTimer,
     HeldTimer,

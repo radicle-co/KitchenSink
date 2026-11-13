@@ -1,17 +1,17 @@
-import { InvalidTimerDurationError, TimerAlreadyActiveError } from './errors.js';
-
 /**
  * The cooking timer: ONE timer for the whole app, as a pure reducer over commands.
  *
  * Time is data, not a counter. A running timer is stored as the instant it ends and a paused one as the time left, so
  * the time left is always worked out from the clock the caller passes in. Nothing here reads a clock, counts a tick or
- * schedules anything: the shell sends `ring` when its timeout, the app coming to the front, or a second source says the
- * end may have come, and the reducer decides. That is what keeps "ended" at most once per run however many sources fire.
+ * schedules anything: `ring` may arrive from several sources (a timeout, the app coming to the front, a second source), so the
+ * reducer, not the caller, decides when the end has come. That is what keeps "ended" at most once per run however many sources fire.
  *
  * The reducer has no servings input, because cook time does not scale with yield (FR-034a).
  *
  * @pattern State + Command — a discriminated union of commands, an exhaustive switch, and a list of events out
  */
+
+import { InvalidTimerDurationError, TimerAlreadyActiveError } from './errors.js';
 
 /** The shortest timer, in ms. Inclusive. */
 export const MIN_TIMER_MS = 5_000;
@@ -21,14 +21,14 @@ export const MAX_TIMER_MS = 86_400_000;
 
 /** What every timer carries. */
 export interface TimerBase {
-    /** Stable for the timer's life. The shell mints it, and S5 can name a phone alert with it. */
+    /** Stable for the timer's life, so anything that names this timer outside the reducer can name it by id. */
     readonly id: string;
     /** Goes up on every restart from ringing, so `ended` for one run is told apart from the next. */
     readonly run: number;
     readonly recipeId: string;
     /** The 0-based step the timer was started from. */
     readonly stepIndex: number;
-    /** What the cook typed, or the label the shell derived from the line. `undefined` leaves the shell to say "Step n". */
+    /** What the cook typed, or the label derived from the line. `undefined` means the cook gave none and none could be derived. */
     readonly name: string | undefined;
     /** The length of the current run's countdown, so the row can say "of 1 h 30". */
     readonly durationMs: number;
@@ -86,7 +86,7 @@ export type TimerCommand =
     | { readonly kind: 'ring'; readonly nowMs: number }
     | { readonly kind: 'stop'; readonly id: string; readonly nowMs: number };
 
-/** Told once, on the edge into ringing, per `(id, run)`. The in-app alarm is one listener, S5's phone alert another. */
+/** Told once, on the edge into ringing, per `(id, run)`. The in-app alarm is one listener, another listener a phone alert. */
 export interface TimerEvent {
     readonly kind: 'ended';
     readonly id: string;
@@ -109,9 +109,19 @@ function baseOf(timer: ActiveTimer): TimerBase {
     return { id, run, recipeId, stepIndex, name, durationMs };
 }
 
+/**
+ * Whether a length is one a timer can have: a whole number of ms from the shortest to the longest timer.
+ *
+ * @param durationMs - A length in ms.
+ * @returns `true` when a timer can run for it. Pure.
+ */
+export function isValidTimerMs(durationMs: number): boolean {
+    return Number.isInteger(durationMs) && durationMs >= MIN_TIMER_MS && durationMs <= MAX_TIMER_MS;
+}
+
 /** Refuses a length a timer cannot have. A value from the sheet is validated there first, so this is a programming error. */
 function assertDuration(durationMs: number): void {
-    if (!Number.isInteger(durationMs) || durationMs < MIN_TIMER_MS || durationMs > MAX_TIMER_MS) {
+    if (!isValidTimerMs(durationMs)) {
         throw new InvalidTimerDurationError(durationMs);
     }
 }
@@ -202,7 +212,7 @@ function addTime(state: TimerState, command: Extract<TimerCommand, { kind: 'addT
  * @param state - The timer state now.
  * @param command - What happened, with the clock it happened at.
  * @returns The next state and the events it raised.
- * @throws {InvalidTimerDurationError} When a `start` or `addTime` length is outside 5 s to 24 h, or an added time
+ * @throws {InvalidTimerDurationError} When a `start` or `addTime` length is outside `MIN_TIMER_MS` to `MAX_TIMER_MS`, or an added time
  *   would take a running timer past 24 h.
  * @throws {TimerAlreadyActiveError} When `start` is sent while a timer exists.
  */

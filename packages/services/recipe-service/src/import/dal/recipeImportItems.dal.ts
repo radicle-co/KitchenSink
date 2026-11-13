@@ -507,7 +507,7 @@ export class RecipeImportItemsDal {
             await lockImportHeader(tx, importId);
 
             const held = await tx
-                .select({ ordinal: recipeImportItems.ordinal, stage: recipeImportItems.stage })
+                .select({ ...itemColumnsWithoutPayload() })
                 .from(recipeImportItems)
                 .where(
                     and(
@@ -519,33 +519,38 @@ export class RecipeImportItemsDal {
                     ),
                 )
                 .for('update');
-            const stages = new Map(held.map((row) => [row.ordinal, row.stage] as const));
+            const byOrdinal = new Map(held.map((row) => [row.ordinal, toItem({ ...row, payload: null })] as const));
 
             for (const entry of entries) {
-                const stage = stages.get(entry.ordinal);
+                const item = byOrdinal.get(entry.ordinal);
 
-                if (stage === undefined) {
+                if (item === undefined) {
                     return { kind: 'missing' as const, ordinal: entry.ordinal };
                 }
 
-                if (stage === 'saved') {
+                if (item.stage === 'saved') {
                     return { kind: 'saved' as const, ordinal: entry.ordinal };
                 }
             }
 
             for (const entry of entries) {
+                const patch = {
+                    ...statementPatch(entry.statement),
+                    ...(entry.visibility === undefined ? {} : { visibility: entry.visibility }),
+                    ...(entry.cuisine === undefined ? {} : { cuisine: entry.cuisine }),
+                    ...(entry.servings === undefined ? {} : { servings: entry.servings }),
+                    ...(entry.prepTimeMinutes === undefined ? {} : { prepTimeMinutes: entry.prepTimeMinutes }),
+                    ...(entry.cookTimeMinutes === undefined ? {} : { cookTimeMinutes: entry.cookTimeMinutes }),
+                };
+
+                // ⛔ A replay that changes nothing writes nothing: moving the revision would release a hold for no decision.
+                if (isNoopPatch(byOrdinal.get(entry.ordinal), patch)) {
+                    continue;
+                }
+
                 await tx
                     .update(recipeImportItems)
-                    .set({
-                        ...statementPatch(entry.statement),
-                        ...(entry.visibility === undefined ? {} : { visibility: entry.visibility }),
-                        ...(entry.cuisine === undefined ? {} : { cuisine: entry.cuisine }),
-                        ...(entry.servings === undefined ? {} : { servings: entry.servings }),
-                        ...(entry.prepTimeMinutes === undefined ? {} : { prepTimeMinutes: entry.prepTimeMinutes }),
-                        ...(entry.cookTimeMinutes === undefined ? {} : { cookTimeMinutes: entry.cookTimeMinutes }),
-                        ...BUMP_DECISION_REV,
-                        updatedAt: sql`now()`,
-                    })
+                    .set({ ...patch, ...BUMP_DECISION_REV, updatedAt: sql`now()` })
                     .where(and(eq(recipeImportItems.importId, importId), eq(recipeImportItems.ordinal, entry.ordinal)));
             }
 
@@ -790,7 +795,10 @@ function itemColumnsWithoutPayload() {
     };
 }
 
-/** Whether a statement/visibility patch changes nothing the item already holds (an idempotent replay writes no row). Pure. */
+/**
+ * Whether a patch of what an item is saved from changes nothing it already holds (an idempotent replay writes no row, so
+ * it moves no revision and releases no hold). Pure.
+ */
 function isNoopPatch(held: ImportItem | undefined, patch: Record<string, unknown>): boolean {
     if (held === undefined) {
         return false;
@@ -801,6 +809,10 @@ function isNoopPatch(held: ImportItem | undefined, patch: Record<string, unknown
         citation: held.citation,
         sourceKind: held.sourceKind,
         visibility: held.visibility,
+        cuisine: held.cuisine,
+        servings: held.servings,
+        prepTimeMinutes: held.prepTimeMinutes,
+        cookTimeMinutes: held.cookTimeMinutes,
     };
 
     return Object.entries(patch).every(([key, value]) => isDeepStrictEqual(current[key], value));

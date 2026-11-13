@@ -824,6 +824,40 @@ describe('the bulk-import DALs (LOCAL e2e, real Postgres)', () => {
                 });
             });
 
+            // Review item 4 on #220: moving the revision releases a hold, so a replay that changes nothing must not move it.
+            it('⛔ an IDENTICAL replay of the choices moves no revision, so a held item stays held', async () => {
+                const header = await newImport(1);
+
+                await matchedWithStatement(header.id, [0]);
+
+                const choices = {
+                    statement: { kind: 'book' as const, citation: 'A Book, p. 4' },
+                    visibility: 'private' as const,
+                    cuisine: 'Thai',
+                    servings: 4,
+                    prepTimeMinutes: 0,
+                    cookTimeMinutes: 25,
+                };
+
+                expect(await items.recordChoices(header.id, 0, choices)).toBe('ok');
+
+                const chosen = await items.findItem(header.id, 0);
+
+                expect(await items.holdItem(header.id, 0, chosen?.decisionRev ?? Number.NaN)).toBe(true);
+                expect(await items.recordChoices(header.id, 0, choices)).toBe('ok');
+                expect(await items.recordChoicesBatch(header.id, [{ ordinal: 0, ...choices }])).toEqual({ kind: 'ok' });
+
+                const replayed = await items.findItem(header.id, 0);
+
+                expect(replayed?.decisionRev).toBe(chosen?.decisionRev);
+                expect(replayed?.heldAtRev).toBe(replayed?.decisionRev);
+
+                // A choice that DOES change something still moves the revision, and with it releases the hold.
+                await items.recordChoices(header.id, 0, { servings: 5 });
+
+                expect((await items.findItem(header.id, 0))?.decisionRev).toBe((chosen?.decisionRev ?? Number.NaN) + 1);
+            });
+
             it('a choice that names only some of them leaves the others as they were', async () => {
                 const header = await newImport(1);
 

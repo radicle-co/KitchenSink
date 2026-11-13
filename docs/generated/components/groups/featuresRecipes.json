@@ -4,14 +4,14 @@
     "packageName": "@commise/features-recipes",
     "layer": "feature",
     "coverage": {
-        "components": 206,
-        "implementations": 350,
-        "props": 2411,
-        "documentedComponents": 206,
-        "implementationsWithModuleDoc": 350,
-        "implementationsWithComponentDoc": 239,
-        "documentedProps": 1839,
-        "classifiedComponents": 184,
+        "components": 207,
+        "implementations": 351,
+        "props": 2420,
+        "documentedComponents": 207,
+        "implementationsWithModuleDoc": 351,
+        "implementationsWithComponentDoc": 240,
+        "documentedProps": 1848,
+        "classifiedComponents": 185,
         "componentsWithPatternTag": 99,
         "crossPlatformComponents": 144
     },
@@ -8095,7 +8095,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/recipes/src/detail/RecipeDetailBody.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/detail",
-                    "moduleDoc": "@commise/features-recipes — web recipe-detail view (T066 building block; `docs/design/uiOverhaul/buildSpec.md`\n§6, the first slice of 008 FR-035).\n\nThe PURE render half of the recipe page, in reading order: the hero, the back link, the rating card, the cuisine eyebrow\nand the title, the status row, the source line and byline, the fact tiles, the actions, the Screen on row, the\ndescription and the tags; then the body — one column below a 720 px body, and from 720 two columns, ingredients (5/12,\nsticky with its own scroll) beside the steps (7/12), with the review surface under the steps. The collapsed Nutrition\nrow sits before the columns, full width.\n\nThere is no section switch (`nativeBoards/buildLists.md`): the page is one scroll. Left out until their features\nship (`designAnswers.md` section \"2026-11-02: card, Home header and Recipe detail build questions\", bullets\n\"8 comments\" row and \"Start cooking\"): the comments row and \"Start cooking\".\n\nEvery width rule is a CONTAINER query on the article (`@container/detail`), never a script measurement, so the\nserver render and the hydrated page are the same page. \"Screen on\" is a labelled row, and the toggle itself renders\nnothing where the browser cannot keep the screen awake.\n\nIts orchestration shell — `RecipeDetailView.tsx`, which binds the serving scale, the cook's marks, Screen on and\nthe description's disclosure — is a separate file because a file does ONE thing (CODING_STANDARDS §1).",
+                    "moduleDoc": "@commise/features-recipes — web recipe-detail view (T066 building block; `docs/design/uiOverhaul/buildSpec.md`\n§6, the first slice of 008 FR-035).\n\nThe PURE render half of the recipe page, in reading order: the hero, the back link, the rating card, the cuisine eyebrow\nand the title, the status row, the source line and byline, the fact tiles, the actions, the Screen on row, the\ndescription and the tags; then the body — one column below a 720 px body, and from 720 two columns, ingredients (5/12,\nsticky with its own scroll) beside the steps (7/12), with the review surface under the steps. The collapsed Nutrition\nrow sits before the columns, full width.\n\nThere is no section switch (`nativeBoards/buildLists.md`): the page is one scroll. Left out until its feature ships\n(`designAnswers.md` section \"2026-11-02: card, Home header and Recipe detail build questions\", bullet \"8 comments\"\nrow): the comments row. Start cooking is drawn, on its own row under the fact tiles, only when the recipe can be\ncooked and the app bound the cooking route.\n\nEvery width rule is a CONTAINER query on the article (`@container/detail`), never a script measurement, so the\nserver render and the hydrated page are the same page. \"Screen on\" is a labelled row, and the toggle itself renders\nnothing where the browser cannot keep the screen awake.\n\nIts orchestration shell — `RecipeDetailView.tsx`, which binds the serving scale, the cook's marks, Screen on and\nthe description's disclosure — is a separate file because a file does ONE thing (CODING_STANDARDS §1).",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -8118,6 +8118,15 @@
                             "required": false,
                             "defaultValue": null,
                             "description": "The back link above the meta line (web), e.g. \"‹ My recipes\". Absent draws none.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
+                        },
+                        {
+                            "name": "canStartCooking",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Whether the recipe can be cooked: the controller's `canStartCooking` (cooking-core's `isCookable`).\nWith {@link onStartCooking} bound, the view draws the Start cooking row. Absent reads as not cookable.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
                         },
                         {
@@ -8208,6 +8217,15 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "Report a newly chosen serving count back to the shell.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
+                        },
+                        {
+                            "name": "onStartCooking",
+                            "type": "(() => void)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Open cooking mode for this recipe: native navigates to the CookingMode task, web to the cook route. The view draws\nthe Start cooking row only when this is bound AND {@link canStartCooking} is true, so the label, the size and the\nplace are the shared view's, and an app owns only where the press goes.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
                         },
                         {
@@ -8349,7 +8367,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/recipes/src/detail/RecipeDetailBody.native.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/detail",
-                    "moduleDoc": "@commise/features-recipes — native recipe-detail view (T066 building block; `nativeBoards/buildLists.md`, the\n`RecipeDetailAndroid384` board).\n\nThe React Native leaf of the recipe page, in reading order: the hero; the rating card; the cuisine eyebrow and the\ntitle; the status row; the source line and byline; the fact tiles; the actions; the Screen on row; the description\nand the tags; then the ingredients (serves in the heading, tap-to-check rows), the steps (the current step), the\nnutrition, the review surface. From a 720 pt body the ingredients and the steps sit side by side.\n\nIt renders the page's ONE scroller. Every section is a direct child of the scroll content, one flat list. There is no\nsection switch: the page is one scroll, and \"Screen on\" is a labelled row in the page, drawn once.\n\nLeft out until their features ship (`designAnswers.md` section\n\"2026-11-02: card, Home header and Recipe detail build questions\", bullets \"8 comments\" row and \"Start cooking\"):\nthe comments row and \"Start cooking\".\n\nThis is the PURE render half. Its orchestration shell, `RecipeDetailView.native.tsx`, binds the session state and\nmeasures the layout, because a file does ONE thing (CODING_STANDARDS §1).",
+                    "moduleDoc": "@commise/features-recipes — native recipe-detail view (T066 building block; `nativeBoards/buildLists.md`, the\n`RecipeDetailAndroid384` board).\n\nThe React Native leaf of the recipe page, in reading order: the hero; the rating card; the cuisine eyebrow and the\ntitle; the status row; the source line and byline; the fact tiles; the actions; the Screen on row; the description\nand the tags; then the ingredients (serves in the heading, tap-to-check rows), the steps (the current step), the\nnutrition, the review surface. From a 720 pt body the ingredients and the steps sit side by side.\n\nIt renders the page's ONE scroller. Every section is a direct child of the scroll content, one flat list. There is no\nsection switch: the page is one scroll, and \"Screen on\" is a labelled row in the page, drawn once.\n\nLeft out until its feature ships (`designAnswers.md` section\n\"2026-11-02: card, Home header and Recipe detail build questions\", bullet \"8 comments\" row): the comments row. Start\ncooking is drawn, on its own row under the fact tiles, only when the recipe can be cooked and the app bound the cooking\nroute.\n\nThis is the PURE render half. Its orchestration shell, `RecipeDetailView.native.tsx`, binds the session state and\nmeasures the layout, because a file does ONE thing (CODING_STANDARDS §1).",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -8372,6 +8390,15 @@
                             "required": false,
                             "defaultValue": null,
                             "description": "The back link above the meta line (web), e.g. \"‹ My recipes\". Absent draws none.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
+                        },
+                        {
+                            "name": "canStartCooking",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Whether the recipe can be cooked: the controller's `canStartCooking` (cooking-core's `isCookable`).\nWith {@link onStartCooking} bound, the view draws the Start cooking row. Absent reads as not cookable.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
                         },
                         {
@@ -8498,6 +8525,15 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "Report a newly chosen serving count back to the shell.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
+                        },
+                        {
+                            "name": "onStartCooking",
+                            "type": "(() => void)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Open cooking mode for this recipe: native navigates to the CookingMode task, web to the cook route. The view draws\nthe Start cooking row only when this is bound AND {@link canStartCooking} is true, so the label, the size and the\nplace are the shared view's, and an app owns only where the press goes.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
                         },
                         {
@@ -9017,6 +9053,15 @@
                             "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
                         },
                         {
+                            "name": "canStartCooking",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Whether the recipe can be cooked: the controller's `canStartCooking` (cooking-core's `isCookable`).\nWith {@link onStartCooking} bound, the view draws the Start cooking row. Absent reads as not cookable.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
+                        },
+                        {
                             "name": "dataSourcesHref",
                             "type": "string",
                             "typeDetail": null,
@@ -9059,6 +9104,15 @@
                             "required": false,
                             "defaultValue": null,
                             "description": "Native: open the editor at a section (the owner's Edit links and empty-state actions).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
+                        },
+                        {
+                            "name": "onStartCooking",
+                            "type": "(() => void)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Open cooking mode for this recipe: native navigates to the CookingMode task, web to the cook route. The view draws\nthe Start cooking row only when this is bound AND {@link canStartCooking} is true, so the label, the size and the\nplace are the shared view's, and an app owns only where the press goes.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
                         },
                         {
@@ -9181,6 +9235,15 @@
                             "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
                         },
                         {
+                            "name": "canStartCooking",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Whether the recipe can be cooked: the controller's `canStartCooking` (cooking-core's `isCookable`).\nWith {@link onStartCooking} bound, the view draws the Start cooking row. Absent reads as not cookable.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
+                        },
+                        {
                             "name": "dataSourcesHref",
                             "type": "string",
                             "typeDetail": null,
@@ -9223,6 +9286,15 @@
                             "required": false,
                             "defaultValue": null,
                             "description": "Native: open the editor at a section (the owner's Edit links and empty-state actions).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
+                        },
+                        {
+                            "name": "onStartCooking",
+                            "type": "(() => void)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Open cooking mode for this recipe: native navigates to the CookingMode task, web to the cook route. The view draws\nthe Start cooking row only when this is bound AND {@link canStartCooking} is true, so the label, the size and the\nplace are the shared view's, and an app owns only where the press goes.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
                         },
                         {
@@ -9717,6 +9789,58 @@
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
                         "presentational": false,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "featuresRecipes/detail/StartCookingRow",
+            "name": "StartCookingRow",
+            "group": "featuresRecipes",
+            "packageName": "@commise/features-recipes",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/recipes/src/detail",
+            "kind": "presentational",
+            "patterns": [],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "StartCookingRow",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/detail/StartCookingRow.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/detail",
+                    "moduleDoc": "@commise/features-recipes — the Start cooking row: the page's ONE filled\naction, the house `lg` Button across the full width with the cooking pot glyph, on its own row under the fact tiles.\nThe body draws it only when the recipe can be cooked and the app bound the cooking route. One file serves both\nplatforms: `@commise/ui/button` resolves to each platform's Button, so a native twin would be this file again.\n\nPresentational: props → JSX.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes — the Start cooking row: the page's ONE filled"
+                        }
+                    ],
+                    "description": "The Start cooking row.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "onPress",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Open cooking mode. The label is the row's own (`detailActions.startCooking`).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/StartCookingRow.tsx"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
                         "orchestration": false
                     }
                 }

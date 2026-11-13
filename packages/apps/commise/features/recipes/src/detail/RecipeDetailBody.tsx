@@ -10,9 +10,10 @@
  * sticky with its own scroll) beside the steps (7/12), with the review surface under the steps. The collapsed Nutrition
  * row sits before the columns, full width.
  *
- * There is no section switch (`nativeBoards/buildLists.md`): the page is one scroll. Left out until their features
- * ship (`designAnswers.md` section "2026-11-02: card, Home header and Recipe detail build questions", bullets
- * "8 comments" row and "Start cooking"): the comments row and "Start cooking".
+ * There is no section switch (`nativeBoards/buildLists.md`): the page is one scroll. Left out until its feature ships
+ * (`designAnswers.md` section "2026-11-02: card, Home header and Recipe detail build questions", bullet "8 comments"
+ * row): the comments row. Start cooking is drawn, on its own row under the fact tiles, only when the recipe can be
+ * cooked and the app bound the cooking route.
  *
  * Every width rule is a CONTAINER query on the article (`@container/detail`), never a script measurement, so the
  * server render and the hydrated page are the same page. "Screen on" is a labelled row, and the toggle itself renders
@@ -63,6 +64,7 @@ import { PinnedIngredientsBar } from './PinnedIngredientsBar.js';
 import { RecipeHero } from './RecipeHero.js';
 import { RecipeSourceLine } from './RecipeSourceLine.js';
 import { ServingScaleControl } from './ServingScaleControl.js';
+import { StartCookingRow } from './StartCookingRow.js';
 import { StepRow } from './StepRow.js';
 
 /** A Next.js link target from a plain address. */
@@ -93,6 +95,8 @@ const TILE_GLYPH = { total: 'clock', prep: 'timer', difficulty: 'chartColumn' } 
 export const RecipeDetailBody: FC<RecipeDetailBodyWebProps> = ({
     recipe,
     headerActions,
+    canStartCooking,
+    onStartCooking,
     back,
     heroControls,
     rating,
@@ -215,6 +219,9 @@ export const RecipeDetailBody: FC<RecipeDetailBodyWebProps> = ({
                                 </div>
                             ))}
                         </dl>
+                    )}
+                    {canStartCooking === true && onStartCooking !== undefined && (
+                        <StartCookingRow onPress={onStartCooking} />
                     )}
                     {/* The action row: the host's text action (Edit recipe, Save a copy), then Screen on, a quiet action with the sun glyph
                         (which renders nothing where the browser cannot keep the screen awake). */}

@@ -244,8 +244,9 @@ The builder made three choices where the blueprint was silent. They are recorded
 The owner ruled that bulk import has an allowance of its own, separate from paste's.
 
 - **Paste: 200 a rolling day**, one unit per paste (004 FR-022 and plan §5).
-- **Bulk import: 1,000 recipes a rolling day on a paid plan (Pro, Pro with AI), 200 on Free**, one unit per recipe.
-  The lower Free limit is an owner ruling of 2026-10-27. The plan decides the limit at the first send of a line.
+- **Bulk import: 200 recipes a rolling day on Free, 1,000 on a paid plan**, one unit per recipe (owner ruling,
+  2026-11-11). Superusers and VIPs count as paid. The plan is read once, through `isPremiumPrincipal`. The plan
+  decides the limit at the first send of a line.
 - Both are counted in the one ledger this branch built, `import_allowance_events` (migration 0058), under the per-user
   advisory lock. Each channel sums only its own rows. The window is the trailing 24 hours that
   `importAllowancePolicy.ts` defines.
@@ -257,10 +258,8 @@ The owner ruled that bulk import has an allowance of its own, separate from past
   refusal with `resetsAt` for the rest. The import pauses. The next call after that time resumes it.
 - The ledger's channel names follow the route: `bulk`, not `migration`. Migration 0058 is not pushed, so it is
   edited in place rather than followed by a rename.
-- **Builder work: the allowance policy has one limit today.** `importAllowancePolicy.ts` sums every channel's rows
-  against a single limit of 200, and its comments and migration 0058's say a bulk file costs one unit. Both are
-  wrong under this ruling. The policy takes the channel and counts only that channel's rows against that channel's
-  limit.
+- `importAllowancePolicy.ts` counts each channel's rows against that channel's limit. On bulk, the limit is the
+  cook's plan's.
 
 ### 9. Each recipe carries its own source statement, and the statement sets its provenance
 

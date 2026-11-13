@@ -31,6 +31,7 @@ import {
 import type { Writer } from '../../database/unitOfWork.js';
 import { BOUND_BY_VALUES, type BoundBy } from '../../recipes/domain/bindingOriginCarryForward.js';
 import type { LineCursor } from '../domain/importPaging.js';
+import { BUMP_DECISION_REV } from './decisionRev.js';
 import { lockImportHeader } from './importLocks.js';
 import { touchImport } from './recipeImports.dal.js';
 
@@ -305,7 +306,7 @@ export class RecipeImportLinesDal {
             if (options.onlyUnsaved) {
                 await tx
                     .update(recipeImportItems)
-                    .set({ decisionRev: sql`${recipeImportItems.decisionRev} + 1`, saveFailures: 0 })
+                    .set(BUMP_DECISION_REV)
                     .where(and(eq(recipeImportItems.importId, importId), eq(recipeImportItems.ordinal, ordinal)));
             }
 

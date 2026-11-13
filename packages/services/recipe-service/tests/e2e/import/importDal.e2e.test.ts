@@ -24,6 +24,7 @@ import { RecipeImportLinesDal } from '../../../src/import/dal/recipeImportLines.
 import { RecipeImportsDal } from '../../../src/import/dal/recipeImports.dal.js';
 import { ImportAllowanceDal } from '../../../src/common/dal/importAllowance.dal.js';
 import { COOK_DEPENDENT_HOLD_REASONS, cookKeyOf, HOLD_REASONS, holdOf } from '../../../src/import/domain/importHold.js';
+import { DEFAULT_IMPORT_ADVANCE_LIMITS } from '../../../src/import/domain/importLimits.js';
 import { fileSaveFactsOf } from '../../../src/import/domain/importSaveGap.js';
 import { ensureFoodLookup } from '../../support/lineChain.js';
 import { recipeDb } from '../../support/roleDb.js';
@@ -1468,6 +1469,85 @@ describe('the bulk-import DALs (LOCAL e2e, real Postgres)', () => {
             await put(header.id, [0], { statement: { kind: 'authored' } });
             expect(await revOf(header.id)).toBe(4);
         });
+
+        // GATE on #220: three writes moved the revision, and the review mark forgot the reset. Each path is driven to four
+        // failures, the cook decides, and the next five failures are counted the way `ImportAdvanceService.failed` counts them:
+        // the cap holds the item as a create refusal, and nothing below it does.
+        it.each([
+            [
+                'a choice of the cook',
+                async (importId: string) => {
+                    await items.recordChoices(importId, 0, { cuisine: 'Thai' });
+                },
+            ],
+            [
+                'a pick',
+                async (importId: string) => {
+                    expect(
+                        await lines.recordPick(USER, importId, 0, 0, 0, 'jd-0', { kind: 'asWritten' }, BEFORE_SAVE),
+                    ).toBe('applied');
+                },
+            ],
+            [
+                'a review mark',
+                async (importId: string) => {
+                    await imports.moveCursor(USER, importId, {
+                        from: 0,
+                        to: 1,
+                        mark: { ordinal: 0, review: 'reviewed' },
+                    });
+                },
+            ],
+        ] as const)(
+            '⛔ %s starts the failure count again: four more failures do not hold it, the fifth does',
+            async (_name, decide) => {
+                const cap = DEFAULT_IMPORT_ADVANCE_LIMITS.saveFailureCap;
+                const free = { principalKind: 'real', containment: 'enforce', isPremium: false } as const;
+                const header = await newImport();
+                const before = await matchedItem(header.id);
+
+                /** One failed save at `rev`, decided as `ImportAdvanceService.failed` decides it. Answers whether it held. */
+                const failOnce = async (rev: number): Promise<boolean> => {
+                    const failures = await items.countSaveFailure(header.id, 0, rev);
+
+                    return (
+                        failures !== undefined &&
+                        failures >= cap &&
+                        (await items.holdItem(header.id, 0, rev, holdOf('createRefused', free)))
+                    );
+                };
+
+                for (let failure = 1; failure < cap; failure += 1) {
+                    expect(await failOnce(before.decisionRev)).toBe(false);
+                }
+
+                expect((await items.findItem(header.id, 0))?.saveFailures).toBe(cap - 1);
+
+                await decide(header.id);
+
+                const decided = await items.findItem(header.id, 0);
+
+                expect(decided).toMatchObject({
+                    saveFailures: 0,
+                    decisionRev: before.decisionRev + 1,
+                    heldAtRev: null,
+                });
+
+                const rev = before.decisionRev + 1;
+                const held: boolean[] = [];
+
+                for (let failure = 1; failure <= cap; failure += 1) {
+                    held.push(await failOnce(rev));
+                }
+
+                expect(held).toEqual([...Array.from({ length: cap - 1 }, () => false), true]);
+                expect(await items.findItem(header.id, 0)).toMatchObject({
+                    saveFailures: cap,
+                    heldAtRev: rev,
+                    heldReason: 'createRefused',
+                });
+            },
+        );
 
         it('does not move for a write that decides nothing: a cursor move with no mark, an identical replay', async () => {
             const header = await newImport();

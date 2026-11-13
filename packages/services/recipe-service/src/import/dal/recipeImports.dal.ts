@@ -27,6 +27,7 @@ import {
     type RecipeImportRow,
 } from '../../database/schema/recipeImports.js';
 import { MATCH_MODES, type ItemReview, type MatchMode } from '../domain/importBindingPolicy.js';
+import { BUMP_DECISION_REV } from './decisionRev.js';
 
 /** Public or private. */
 export type ImportVisibility = (typeof IMPORT_VISIBILITIES)[number];
@@ -283,7 +284,7 @@ export class RecipeImportsDal {
                     .update(recipeImportItems)
                     .set({
                         review: move.mark.review,
-                        decisionRev: sql`${recipeImportItems.decisionRev} + 1`,
+                        ...BUMP_DECISION_REV,
                         updatedAt: sql`now()`,
                     })
                     .where(

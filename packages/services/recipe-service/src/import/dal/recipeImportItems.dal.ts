@@ -46,6 +46,7 @@ import {
 import { importRefusalOf, type ImportRefusal } from '../domain/importRefusal.js';
 import type { ImportFileFacts } from '../domain/importSaveGap.js';
 import { columnsOfStatement } from '../domain/importStatement.js';
+import { BUMP_DECISION_REV } from './decisionRev.js';
 import { lockImportHeader } from './importLocks.js';
 import { ImportItemAlreadyClaimedError, ImportItemChangedError } from './recipeImportItems.errors.js';
 import { touchImport, type ImportVisibility } from './recipeImports.dal.js';
@@ -161,9 +162,6 @@ function choicesColumnsOf(entry: ChoicesPatch) {
 
 /** What a reopened item drops: it is `received` again, with no match and no parse job (`decideItemUpsert`'s `reopen`). */
 const REOPENED = { stage: 'received', matchedAt: null, parseJobId: null } as const;
-
-/** Moves the fence: written by every write of what an item is saved from (see `decision_rev` in migration 0059). */
-const BUMP_DECISION_REV = { decisionRev: sql`${recipeImportItems.decisionRev} + 1`, saveFailures: 0 } as const;
 
 /**
  * The ingredient-line count a payload holds, in SQL. The ONE statement of it: the item list counts with it. Takes the payload

@@ -236,10 +236,7 @@ export class FoodRefsGateway {
     ): Promise<FoodRefAnswer> {
         try {
             const client = this.clients.standard(caller);
-            const { entries } =
-                options.signal === undefined
-                    ? await client.resolveRefs([ref])
-                    : await client.resolveRefs([ref], { signal: options.signal });
+            const { entries } = await client.resolveRefs([ref], options);
             const entry = entries.find((candidate) => foodRefKey(candidate.ref) === foodRefKey(ref));
 
             if (entry === undefined) {

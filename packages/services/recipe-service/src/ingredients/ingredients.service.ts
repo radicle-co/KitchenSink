@@ -279,10 +279,7 @@ export class IngredientsService {
         callerUserId?: string,
         options: { readonly signal?: AbortSignal } = {},
     ): Promise<Ingredient> {
-        const answer =
-            options.signal === undefined
-                ? await this.refs.resolveForBind(caller, ref)
-                : await this.refs.resolveForBind(caller, ref, { signal: options.signal });
+        const answer = await this.refs.resolveForBind(caller, ref, options);
         const admission = admitResolvedRef(answer, callerUserId);
 
         if (!isAdmission(admission)) {

@@ -162,7 +162,8 @@ describe('addByFoodVariantId — binding a variant the cook picked (curated U9, 
 
         const ingredient = await h.service.addByFoodVariantId(CALLER, ' V-flat ', COOK);
 
-        expect(h.refs.resolveForBind).toHaveBeenCalledWith(CALLER, { kind: 'variant', id: 'V-flat' });
+        // A pick outside an import carries no deadline: its options reach food's bind check as they are, empty.
+        expect(h.refs.resolveForBind).toHaveBeenCalledWith(CALLER, { kind: 'variant', id: 'V-flat' }, {});
 
         // Review item 4 on #220: the caller's signal reaches food's bind check.
         const signal = new AbortController().signal;
@@ -216,7 +217,7 @@ describe('addByFoodId — a pick binds only after food’s authorship-checked an
 
         const ingredient = await h.service.addByFoodId(CALLER, ' food-1 ', COOK);
 
-        expect(h.refs.resolveForBind).toHaveBeenCalledWith(CALLER, { kind: 'root', id: 'food-1' });
+        expect(h.refs.resolveForBind).toHaveBeenCalledWith(CALLER, { kind: 'root', id: 'food-1' }, {});
         expect(h.lookups.findOrCreateBound).toHaveBeenCalledWith(
             expect.objectContaining({ food: { rootId: 'food-1' }, ownerId: null }),
         );

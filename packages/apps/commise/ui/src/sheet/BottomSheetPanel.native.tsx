@@ -46,6 +46,7 @@ import {
 } from './sheetPresentation.js';
 import { usePinnedFooter } from '../layout/usePinnedFooter.native.js';
 import { useKeyboardShown } from '../layout/useKeyboardShown.native.js';
+import { SheetScrollRegion } from './SheetScrollRegion.native.js';
 import { useSwipeToDismiss } from './useSwipeToDismiss.native.js';
 
 export interface BottomSheetPanelProps extends Pick<
@@ -174,15 +175,17 @@ export const BottomSheetPanel: FC<BottomSheetPanelProps> = ({
                         {toolbar.controls}
                     </View>
                 )}
-                <ScrollView
-                    ref={scroller}
-                    keyboardShouldPersistTaps="handled"
-                    onScrollEndDrag={(event) => onScrollSettled(event.nativeEvent.contentOffset.y)}
-                    onMomentumScrollEnd={(event) => onScrollSettled(event.nativeEvent.contentOffset.y)}
-                >
-                    <View style={[styles.scrollContent, footer === undefined ? endPadding : null]}>{children}</View>
-                    {pinning.unpinned ? footerView : null}
-                </ScrollView>
+                <SheetScrollRegion>
+                    <ScrollView
+                        ref={scroller}
+                        keyboardShouldPersistTaps="handled"
+                        onScrollEndDrag={(event) => onScrollSettled(event.nativeEvent.contentOffset.y)}
+                        onMomentumScrollEnd={(event) => onScrollSettled(event.nativeEvent.contentOffset.y)}
+                    >
+                        <View style={[styles.scrollContent, footer === undefined ? endPadding : null]}>{children}</View>
+                        {pinning.unpinned ? footerView : null}
+                    </ScrollView>
+                </SheetScrollRegion>
                 {pinning.unpinned ? null : footerView}
             </Animated.View>
         </ToneScope>

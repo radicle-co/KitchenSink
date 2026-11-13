@@ -195,6 +195,11 @@ SHEET_EDGE_PADDING_DP`, `paddingTop: spacing[2]` and `paddingBottom: SHEET_EDGE_
   actions.
 - **Measurement.** `usePinnedFooter()` is the native leaf in `ui/src/layout/usePinnedFooter.native.ts`. It gives
   three `onLayout` handlers and the decision. It uses no refs. `@pattern Adapter over React Native layout events`.
+- **The scroll region never collapses.** It sits in `SheetScrollRegion`, a frame at least one control tall
+  (`touchFloor()`). The keyboard shrinks the sheet one layout pass before the rule unpins the footer. Sideways, the
+  pinned title row and footer then take the whole sheet for one frame. At zero height, Android dropped focus from the
+  field being typed in (issue #192). Settled, a pinned footer leaves the region half the sheet or more, less the
+  toolbar. The rule does not count the toolbar, so a toolbar near half the sheet can settle on the floor.
 - **The slots are fixed.** Each slot is a conditional at a fixed position. ⛔ Never use one ternary that moves the
   `ScrollView`'s index. That remounts the scroll region and anything focused in it.
 - **Accepted consequence.** A flip remounts the footer. A screen-reader cursor on `Done` at that moment is lost.

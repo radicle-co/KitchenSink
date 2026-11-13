@@ -16,7 +16,8 @@ import { createElement, type ComponentProps, type JSX } from 'react';
 import { Text, type ScrollView as ScrollViewType } from 'react-native';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { render } from '../../testing/tamaguiTesting.native.js';
+import { touchFloor } from '../../layout/touchFloor.native.js';
+import { render, resolvedStyle } from '../../testing/tamaguiTesting.native.js';
 import type { SheetProps } from '../props.js';
 import { Sheet } from '../Sheet.native.js';
 
@@ -212,6 +213,27 @@ describe('Sheet (native) — the footer unpins past a limit', () => {
         act(() => rerender(sheet()));
 
         expect(scrollRegion().contains(screen.getByRole('button', { name: 'Done' }))).toBe(true);
+    });
+
+    // Issue #192. The keyboard shrinks the sheet a layout pass before this rule unpins the footer, so for one frame the
+    // pinned title row and footer can take the whole sheet. A scroll region laid out at zero height there cost the field
+    // being typed in its focus on an Android phone held sideways (measured: blur in that frame; with a floor, none).
+    // jsdom lays nothing out, so this pins the frame's STYLE: a floor of one control, and the bare `ScrollView`'s grow
+    // and shrink, so a `full` sheet's region still fills it and a `content` sheet's still fits. The layout itself is
+    // proved on a device by the Maestro landscape flow.
+    it('frames the scroll region with a one-control floor and the scroll view’s own grow and shrink', () => {
+        renderSheet();
+
+        // The frame the scroll region sits in: the element around the marked `ScrollView`.
+        const frame = scrollRegion().parentElement;
+
+        if (frame === null) {
+            throw new Error('the scroll region has no frame around it');
+        }
+
+        expect(resolvedStyle(frame, 'minHeight')).toBe(`${touchFloor()}px`);
+        expect(resolvedStyle(frame, 'flexGrow')).toBe('1');
+        expect(resolvedStyle(frame, 'flexShrink')).toBe('1');
     });
 
     it('still hides an unpinned footer while the toolbar is collapsed', () => {

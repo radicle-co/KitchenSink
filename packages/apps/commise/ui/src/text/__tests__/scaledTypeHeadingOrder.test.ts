@@ -6,9 +6,8 @@ import { scaledTypeSize } from '../scaledType.js';
 /**
  * The designer's invariant (qa-ios, 2026-11-03): at the largest text size the page title is never drawn smaller than any
  * other type role, so a heading can never outrank the title of its own screen. `figureInline` has no size of its own and
- * is not a sized role. 3.1 is iOS at AX XXXL, past every role's cap. `readingLarge` is exempt: it is reading
- * text, not a heading, it is never on a screen with `largeTitle`, and it is capped at 2x, so it draws at 56 against the
- * title's 42.
+ * is not a sized role. 3.1 is iOS at AX XXXL, past every role's cap. `readingLarge` is exempt under the rule in
+ * `typeRole`'s docblock (`typography.ts`): it is reading text, not a heading, and it draws at 56 against the title's 42.
  */
 describe('scaledTypeSize — heading order at the cap', () => {
     const IOS_CAP_SCALE = 3.1;

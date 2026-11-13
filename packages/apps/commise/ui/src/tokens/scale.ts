@@ -110,7 +110,7 @@ export const fontWeight = {
 /**
  * Line height in px for each allowed font size (owner ruling 2026-10-25: line heights are whole px on a 4 px grid).
  * A pixel value is the source of truth: native uses it as is, and web writes it as the unitless `calc(px / size)`.
- * 18 is 24 for a heading or figure; reading text sets itself at 28 (`typeRole.readingBody`).
+ * A reading role sets its own leading in `typeRole`, so the value here is the heading and figure leading.
  */
 export const lineHeightPx = {
     14: 20,

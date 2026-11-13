@@ -365,6 +365,25 @@ export class IngredientsService {
     }
 
     /**
+     * A declared name under ids the caller derived, declared ONCE: a retry with the same ids answers the same ingredient
+     * and writes nothing. The bulk import's save uses it, because it declares before a create that can fail (review item
+     * 4 on #220).
+     *
+     * @param name - The display name, already canonical.
+     * @param ids - The failure record's id and its binding's id.
+     * @returns The user-entered ingredient.
+     * @sideEffect Inserts a failure record and its binding, each only when its id is new.
+     */
+    public async createFreeformOnce(
+        name: CanonicalIngredientName,
+        ids: { readonly failureId: string; readonly lookupId: string },
+    ): Promise<Ingredient> {
+        const arm = await this.lookups.declareOnce(declaredFailure(name, keyOf(name)), ids);
+
+        return toIngredient(deriveIngredientLineIdentity(arm, new Map()));
+    }
+
+    /**
      * `GET /api/v1/ingredients/{id}/status` — the poll.
      *
      * - A bound binding answers with food's current name (404 when food no longer shows it to the caller).

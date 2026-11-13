@@ -74,6 +74,7 @@ import type { ImportItem, RecipeImportItemsDal } from './dal/recipeImportItems.d
 import { isImportItemAlreadyClaimedError, isImportItemChangedError } from './dal/recipeImportItems.errors.js';
 import type { ImportLine, RecipeImportLinesDal } from './dal/recipeImportLines.dal.js';
 import { bindingOf, type LineBinding } from './domain/importBindingPolicy.js';
+import { importDeclaredNameIdsOf, type DeclaredNameSlot } from './domain/importDeclaredName.js';
 import { importJobIdOf } from './domain/importJobId.js';
 import {
     IMPORT_ADVANCE_LIMITS,
@@ -295,7 +296,7 @@ export class ImportAdvanceService {
         @Inject(MatchProposalService) private readonly matcher: Pick<MatchProposalService, 'proposeForJobs'>,
         @Inject(ImportLineView) private readonly lineView: Pick<ImportLineView, 'matchesOf'>,
         @Inject(IngredientsService)
-        private readonly ingredients: Pick<IngredientsService, 'addByRef' | 'createFreeform'>,
+        private readonly ingredients: Pick<IngredientsService, 'addByRef' | 'createFreeformOnce'>,
         @Inject(RecipesService) private readonly recipes: Pick<RecipesService, 'create'>,
         @Inject(PRIVATE_SLOTS) private readonly slots: PrivateSlotsPort,
         @Inject(ImportViewBuilder) private readonly builder: Pick<ImportViewBuilder, 'build'>,
@@ -662,7 +663,7 @@ export class ImportAdvanceService {
             ...entry,
             binding: bindingOf({ mode: header.matchMode, itemReview: item.review, reviewClosed, line: entry.facts }),
         }));
-        const built = await this.buildLines(principal, caller, recipe, decided, deadline);
+        const built = await this.buildLines(principal, caller, item, recipe, decided, deadline);
 
         if (built === undefined) {
             return 'waiting';
@@ -749,6 +750,7 @@ export class ImportAdvanceService {
     private async buildLines(
         principal: Principal,
         caller: CallerToken | undefined,
+        item: ImportItem,
         recipe: ImportRecipe,
         decided: readonly DecidedLine[],
         deadline: AbortSignal,
@@ -777,7 +779,7 @@ export class ImportAdvanceService {
 
             if (foods.length === 0) {
                 // The line parsed to nothing (a heading, an unparseable line, one the cook kept): it is kept whole, as written.
-                built.push(await this.keptWhole(rawLine));
+                built.push(await this.keptWhole(item, lineIndex, rawLine));
                 continue;
             }
 
@@ -789,16 +791,37 @@ export class ImportAdvanceService {
                     throw new Error(`import line ${entry.line.id}: no admission was recorded for its food`);
                 }
 
-                built.push(await this.foodLine(rawLine, entry, admission));
+                built.push(await this.foodLine(item, rawLine, entry, admission));
             }
         }
 
         return { lines: built.map(({ line }) => line), origins: built.map(({ origin }) => origin) };
     }
 
+    /**
+     * The name a line kept as written is declared under, ONCE per place in the import: the create runs after it and can
+     * fail, and a retry must find this record rather than declare another (review item 4 on #220).
+     */
+    private async declare(
+        item: ImportItem,
+        slot: Pick<DeclaredNameSlot, 'lineIndex' | 'foodIndex'>,
+        name: CanonicalIngredientName,
+    ) {
+        const ids = importDeclaredNameIdsOf(
+            { importId: item.importId, ordinal: item.ordinal, generation: item.parseGeneration, ...slot },
+            sha256Hex,
+        );
+
+        return this.ingredients.createFreeformOnce(name, ids);
+    }
+
     /** A line that parsed to nothing, kept whole as written, with no origin and no link. */
-    private async keptWhole(rawLine: string): Promise<BuiltLine> {
-        const declared = await this.ingredients.createFreeform(freeformNameOf(undefined, rawLine));
+    private async keptWhole(item: ImportItem, lineIndex: number, rawLine: string): Promise<BuiltLine> {
+        const declared = await this.declare(
+            item,
+            { lineIndex, foodIndex: 'whole' },
+            freeformNameOf(undefined, rawLine),
+        );
 
         return {
             line: { ingredientId: declared.id, quantity: ABSENT_QUANTITY, sourceLine: rawLine },
@@ -808,6 +831,7 @@ export class ImportAdvanceService {
 
     /** One food of one line: bound when food admitted the chosen food, else kept as written under the phrase. */
     private async foodLine(
+        item: ImportItem,
         rawLine: string,
         { line, binding }: DecidedLine,
         admission: Exclude<Admission, { kind: 'unavailable' }>,
@@ -815,7 +839,13 @@ export class ImportAdvanceService {
         const ingredientId =
             admission.kind === 'bound'
                 ? admission.bindingId
-                : (await this.ingredients.createFreeform(freeformNameOf(line.name, rawLine))).id;
+                : (
+                      await this.declare(
+                          item,
+                          { lineIndex: line.lineIndex, foodIndex: line.foodIndex },
+                          freeformNameOf(line.name, rawLine),
+                      )
+                  ).id;
 
         return {
             line: {

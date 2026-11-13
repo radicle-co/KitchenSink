@@ -45,6 +45,7 @@ import type { ImportItem, PayOutcome } from '../dal/recipeImportItems.dal.js';
 import { ImportItemAlreadyClaimedError, ImportItemChangedError } from '../dal/recipeImportItems.errors.js';
 import type { ImportLine } from '../dal/recipeImportLines.dal.js';
 import { DEFAULT_IMPORT_ADVANCE_LIMITS, type ImportAdvanceLimits } from '../domain/importLimits.js';
+import { importDeclaredNameIdsOf } from '../domain/importDeclaredName.js';
 import { importJobIdOf } from '../domain/importJobId.js';
 import { ImportAdvanceService } from '../importAdvance.service.js';
 import type { ImportLineView } from '../importLineView.js';
@@ -378,13 +379,12 @@ function build(world: World = {}) {
                 ),
         ),
     };
-    let lookupCounter = 0;
     const ingredients = {
         addByRef: vi.fn<IngredientsService['addByRef']>(
             world.addByRef ?? (async (_caller, ref) => makeIngredient({ id: `LK-${ref.id}`, foodId: ref.id })),
         ),
-        createFreeform: vi.fn<IngredientsService['createFreeform']>(async (name) =>
-            makeIngredient({ id: `FREE-${String(++lookupCounter)}-${name}`, name, isUserEntered: true }),
+        createFreeformOnce: vi.fn<IngredientsService['createFreeformOnce']>(async (name, ids) =>
+            makeIngredient({ id: ids.lookupId, name, isUserEntered: true }),
         ),
     };
     const recipes = {
@@ -864,6 +864,24 @@ describe('ImportAdvanceService — saving what is ready', () => {
         expect(recipes.create).not.toHaveBeenCalled();
     });
 
+    // Review item 4 on #220: the names are declared before the create, outside its transaction. A create that fails after
+    // them (food down in the planner, a lost claim, no slot) must not leave a NEW set of names behind on every retry.
+    it('⛔ a retry after a create that failed declares no new name: the same ids, the same records', async () => {
+        const built = build(world());
+
+        built.recipes.create.mockRejectedValueOnce(new Error('the planner could not ask food'));
+
+        await built.service.advance(built.principal, CALLER, IMPORT_ID);
+        await built.service.advance(built.principal, CALLER, IMPORT_ID);
+
+        const declared = built.ingredients.createFreeformOnce.mock.calls.map(([, ids]) => ids.lookupId);
+
+        expect(built.recipes.create).toHaveBeenCalledTimes(2);
+        expect(declared).toHaveLength(4);
+        expect(new Set(declared).size).toBe(2);
+        expect(declared.slice(2)).toEqual(declared.slice(0, 2));
+    });
+
     it('⛔ binds every food under the call’s signal, the one the line reads take', async () => {
         const { answered, ingredients, lineView } = run(world());
 
@@ -884,13 +902,16 @@ describe('ImportAdvanceService — saving what is ready', () => {
 
         expect(ingredients.addByRef.mock.calls.map((call) => call[1].id)).toEqual(['F-whole', 'F-table']);
 
-        const ingredientIds = dto.ingredients.map((line) => line.ingredientId);
+        // Two bound lines, then two names declared under the ids of their place in the import (review item 4 on #220):
+        // the open food by its line and food, the heading kept whole by its line.
+        const slot = { importId: IMPORT_ID, ordinal: 0, generation: 0 };
 
-        // Two bound lines, then two declared names, each a NEW declaration (the fake mints `FREE-<n>-<name>`).
-        expect(ingredientIds.slice(0, 2)).toEqual(['LK-F-whole', 'LK-F-table']);
-        expect(ingredientIds).toHaveLength(4);
-        expect(ingredientIds[2]).toContain('FREE-');
-        expect(ingredientIds[3]).toContain('FREE-');
+        expect(dto.ingredients.map((line) => line.ingredientId)).toEqual([
+            'LK-F-whole',
+            'LK-F-table',
+            importDeclaredNameIdsOf({ ...slot, lineIndex: 1, foodIndex: 1 }, sha256Hex).lookupId,
+            importDeclaredNameIdsOf({ ...slot, lineIndex: 2, foodIndex: 'whole' }, sha256Hex).lookupId,
+        ]);
         expect(imported.lineOrigins).toEqual([
             { kind: 'set', boundBy: 'exact', importLineId: 'L-milk' },
             { kind: 'set', boundBy: 'default', importLineId: 'L-salt' },
@@ -928,7 +949,7 @@ describe('ImportAdvanceService — saving what is ready', () => {
 
         await answered;
 
-        expect(ingredients.createFreeform.mock.calls.map((call) => call[0])).toEqual(['pepper', 'FOR THE SAUCE']);
+        expect(ingredients.createFreeformOnce.mock.calls.map((call) => call[0])).toEqual(['pepper', 'FOR THE SAUCE']);
     });
 
     it('⛔ saves the row the editor saves: the shown words and the note, and a line kept as written under its saved NAME', async () => {
@@ -945,7 +966,7 @@ describe('ImportAdvanceService — saving what is ready', () => {
         expect(lines[0]).toMatchObject({ displayText: 'farm-fresh whole milk', note: '1 quart jar' });
         expect(lines[1]).not.toHaveProperty('displayText');
         expect(lines[1]).not.toHaveProperty('note');
-        expect(ingredients.createFreeform.mock.calls.map((call) => call[0])).toEqual([
+        expect(ingredients.createFreeformOnce.mock.calls.map((call) => call[0])).toEqual([
             'cracked pepper',
             'FOR THE SAUCE',
         ]);
@@ -1137,7 +1158,7 @@ describe('ImportAdvanceService — saving what is ready', () => {
 
             await expect(answered).resolves.toBe(VIEW);
             expect(recipes.create).not.toHaveBeenCalled();
-            expect(ingredients.createFreeform).not.toHaveBeenCalled();
+            expect(ingredients.createFreeformOnce).not.toHaveBeenCalled();
         });
 
         it('a food that cannot back a line is kept AS WRITTEN rather than failing the item', async () => {

@@ -135,7 +135,7 @@ async function compile() {
             { provide: MatchProposalService, useValue: { proposeForJobs: vi.fn() } },
             {
                 provide: IngredientsService,
-                useValue: { addByRef: vi.fn(), createFreeform: vi.fn(async () => ({ id: 'I-free' })) },
+                useValue: { addByRef: vi.fn(), createFreeformOnce: vi.fn(async () => ({ id: 'I-free' })) },
             },
             { provide: RecipesService, useValue: recipes },
             { provide: IngredientRebindService, useValue: { rebind: vi.fn() } },

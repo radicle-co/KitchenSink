@@ -331,6 +331,46 @@ describe('FoodLookupsDal (real Postgres)', () => {
             expect(second.lookupId).not.toBe(first.lookupId);
         });
 
+        // Review item 4 on #220: a bulk import declares its names before the create, so a create that fails must not leave
+        // a new record behind on every retry. The same ids declare the same record, once.
+        it('⛔ declares ONCE under the ids it is given: a second declaration answers the first record', async () => {
+            const name = `${SCOPE} declared once`;
+            const ids = {
+                failureId: 'eeeeeeee-0000-8000-8000-000000000001',
+                lookupId: 'eeeeeeee-0000-8000-8000-000000000002',
+            };
+            const first = await dal.declareOnce(declaredFailure(name, name), ids);
+            const second = await dal.declareOnce(declaredFailure(name, name), ids);
+            const { rows } = await pool.query<{ failures: number; bindings: number }>(
+                `SELECT (SELECT count(*)::int FROM unresolved_foods WHERE id = $1) AS failures,
+                        (SELECT count(*)::int FROM food_lookups WHERE unresolved_food_id = $1) AS bindings`,
+                [ids.failureId],
+            );
+
+            expect(first.lookupId).toBe(ids.lookupId);
+            expect(second).toStrictEqual(first);
+            expect(first.failure).toMatchObject({
+                unresolvedFoodId: ids.failureId,
+                name,
+                reasonCode: 'author_declared',
+            });
+            expect(rows).toEqual([{ failures: 1, bindings: 1 }]);
+        });
+
+        it('declares a separate record under other ids, as a declaration always is', async () => {
+            const name = `${SCOPE} declared twice`;
+            const a = await dal.declareOnce(declaredFailure(name, name), {
+                failureId: 'eeeeeeee-0000-8000-8000-000000000003',
+                lookupId: 'eeeeeeee-0000-8000-8000-000000000004',
+            });
+            const b = await dal.declareOnce(declaredFailure(name, name), {
+                failureId: 'eeeeeeee-0000-8000-8000-000000000005',
+                lookupId: 'eeeeeeee-0000-8000-8000-000000000006',
+            });
+
+            expect(b.lookupId).not.toBe(a.lookupId);
+        });
+
         it('reads back what it wrote through the one arm reader', async () => {
             const name = `${SCOPE} pending`;
             const arm = await dal.recordFailure(

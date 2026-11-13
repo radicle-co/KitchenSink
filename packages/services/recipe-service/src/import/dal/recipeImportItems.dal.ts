@@ -138,6 +138,21 @@ function statementPatch(statement: ImportStatement | undefined) {
     return { statementKind: columns.statementKind, citation: columns.citation, sourceKind: columns.sourceKind };
 }
 
+/**
+ * The item columns a cook's choices write: ONLY the ones the entry names, each replacing what the item holds. The ONE list of
+ * what a choice can change, used by the upload (statement and visibility) and the wizard (all of them). Pure.
+ */
+function choicesColumnsOf(entry: ChoicesPatch) {
+    return {
+        ...statementPatch(entry.statement),
+        ...(entry.visibility === undefined ? {} : { visibility: entry.visibility }),
+        ...(entry.cuisine === undefined ? {} : { cuisine: entry.cuisine }),
+        ...(entry.servings === undefined ? {} : { servings: entry.servings }),
+        ...(entry.prepTimeMinutes === undefined ? {} : { prepTimeMinutes: entry.prepTimeMinutes }),
+        ...(entry.cookTimeMinutes === undefined ? {} : { cookTimeMinutes: entry.cookTimeMinutes }),
+    };
+}
+
 /** Moves the fence: written by every write of what an item is saved from (see `decision_rev` in migration 0059). */
 const BUMP_DECISION_REV = { decisionRev: sql`${recipeImportItems.decisionRev} + 1` } as const;
 
@@ -208,10 +223,7 @@ export class RecipeImportItemsDal {
             }
 
             for (const { input, decision } of decisions) {
-                const patch = {
-                    ...statementPatch(input.statement),
-                    ...(input.visibility === undefined ? {} : { visibility: input.visibility }),
-                };
+                const patch = choicesColumnsOf(input);
 
                 if (decision.kind === 'insert') {
                     await tx.insert(recipeImportItems).values({
@@ -546,37 +558,22 @@ export class RecipeImportItemsDal {
                 .for('update');
             const byOrdinal = new Map(held.map((row) => [row.ordinal, toItem({ ...row, payload: null })] as const));
 
-            for (const entry of entries) {
-                const item = byOrdinal.get(entry.ordinal);
+            const unwritable = unwritableEntryOf(entries, byOrdinal);
 
-                if (item === undefined) {
-                    return { kind: 'missing' as const, ordinal: entry.ordinal };
-                }
-
-                if (item.stage === 'saved') {
-                    return { kind: 'saved' as const, ordinal: entry.ordinal };
-                }
+            if (unwritable !== undefined) {
+                return unwritable;
             }
 
-            for (const entry of entries) {
-                const patch = {
-                    ...statementPatch(entry.statement),
-                    ...(entry.visibility === undefined ? {} : { visibility: entry.visibility }),
-                    ...(entry.cuisine === undefined ? {} : { cuisine: entry.cuisine }),
-                    ...(entry.servings === undefined ? {} : { servings: entry.servings }),
-                    ...(entry.prepTimeMinutes === undefined ? {} : { prepTimeMinutes: entry.prepTimeMinutes }),
-                    ...(entry.cookTimeMinutes === undefined ? {} : { cookTimeMinutes: entry.cookTimeMinutes }),
-                };
+            // ⛔ A replay that changes nothing writes nothing: moving the revision would release a hold for no decision.
+            const changed = entries
+                .map((entry) => ({ ordinal: entry.ordinal, patch: choicesColumnsOf(entry) }))
+                .filter(({ ordinal, patch }) => !isNoopPatch(byOrdinal.get(ordinal), patch));
 
-                // ⛔ A replay that changes nothing writes nothing: moving the revision would release a hold for no decision.
-                if (isNoopPatch(byOrdinal.get(entry.ordinal), patch)) {
-                    continue;
-                }
-
+            for (const { ordinal, patch } of changed) {
                 await tx
                     .update(recipeImportItems)
                     .set({ ...patch, ...BUMP_DECISION_REV, updatedAt: sql`now()` })
-                    .where(and(eq(recipeImportItems.importId, importId), eq(recipeImportItems.ordinal, entry.ordinal)));
+                    .where(and(eq(recipeImportItems.importId, importId), eq(recipeImportItems.ordinal, ordinal)));
             }
 
             await touchImport(tx, importId);
@@ -826,21 +823,32 @@ function itemColumnsWithoutPayload() {
  * Whether a patch of what an item is saved from changes nothing it already holds (an idempotent replay writes no row, so
  * it moves no revision and releases no hold). Pure.
  */
-function isNoopPatch(held: ImportItem | undefined, patch: Record<string, unknown>): boolean {
+function isNoopPatch(held: ImportItem | undefined, columns: ReturnType<typeof choicesColumnsOf>): boolean {
     if (held === undefined) {
         return false;
     }
 
-    const current: Record<string, unknown> = {
-        statementKind: held.statementKind,
-        citation: held.citation,
-        sourceKind: held.sourceKind,
-        visibility: held.visibility,
-        cuisine: held.cuisine,
-        servings: held.servings,
-        prepTimeMinutes: held.prepTimeMinutes,
-        cookTimeMinutes: held.cookTimeMinutes,
-    };
+    // Compared over the keys the patch names, against the item's own columns: no second list of what a choice writes.
+    const current: Readonly<Record<string, unknown>> = held;
 
-    return Object.entries(patch).every(([key, value]) => isDeepStrictEqual(current[key], value));
+    return Object.entries(columns).every(([key, value]) => isDeepStrictEqual(current[key], value));
+}
+
+/**
+ * The first entry naming an item that is missing or already saved (an item is saved once: the edit belongs in the editor), or
+ * `undefined` when every entry can be written. Pure.
+ */
+function unwritableEntryOf(
+    entries: readonly { readonly ordinal: number }[],
+    byOrdinal: ReadonlyMap<number, ImportItem>,
+): { readonly kind: 'saved' | 'missing'; readonly ordinal: number } | undefined {
+    for (const { ordinal } of entries) {
+        const item = byOrdinal.get(ordinal);
+
+        if (item === undefined || item.stage === 'saved') {
+            return { kind: item === undefined ? 'missing' : 'saved', ordinal };
+        }
+    }
+
+    return undefined;
 }

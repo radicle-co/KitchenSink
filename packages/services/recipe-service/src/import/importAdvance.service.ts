@@ -84,6 +84,7 @@ import {
 } from './import.tokens.js';
 import { importItemIssueOf, type ItemIssue } from './domain/importItemIssue.js';
 import { itemIssueFactsOf } from './domain/importItemIssueFacts.js';
+import type { ImportRefusal } from './domain/importRefusal.js';
 import { IMPORT_DEFAULT_PAGE_SIZE, type ImportAdvanceLimits } from './domain/importLimits.js';
 import { fileSaveFactsOf, type SaveableFacts } from './domain/importSaveGap.js';
 import { isReadyToSave } from './domain/importSaveReadiness.js';
@@ -538,20 +539,12 @@ export class ImportAdvanceService {
         const requested: ImportVisibility = item.visibility ?? header.visibility;
         const statement = statementOfColumns(item);
         const cook = visibilityFactsOf(principal);
-        const read = importRecipeSchema.safeParse(item.payload);
+        const recipe = this.storedRecipeOf(header, item);
 
-        // A payload the contract admitted but this build cannot read can never be saved: hold it, and say so once. The hold
-        // takes it out of the queue, so no later advance looks at it (or logs it) again until the cook replaces the recipe.
-        if (!read.success) {
-            this.logger.error(
-                `import ${header.id} item ${String(item.ordinal)}: its stored recipe does not read; it is held`,
-                read.error.message,
-            );
-
+        if (recipe === undefined) {
             return this.hold(header, item, holdOf('unreadable', cook));
         }
 
-        const recipe = read.data;
         const { facts, reading } = itemIssueFactsOf({
             item,
             statement,
@@ -566,15 +559,7 @@ export class ImportAdvanceService {
             // A save candidate is matched, so the allowance (which only a received item reads) does not apply.
             allowanceSpent: false,
         });
-        const { refusal } = facts;
-
-        if (item.refusal === null && refusal !== null) {
-            // The upload refuses such a recipe and the refusal stays `received`, so a matched one is a defect. It is held by
-            // its refusal below, which takes it out of the queue: this is said once, at the hold.
-            this.logger.error(
-                `import ${header.id} item ${String(item.ordinal)}: a ${refusal} recipe reached the save; it is held`,
-            );
-        }
+        this.noteRefusalAtSave(header, item, facts.refusal);
 
         const issue = importItemIssueOf(facts);
 
@@ -686,6 +671,44 @@ export class ImportAdvanceService {
         }
 
         return 'saved';
+    }
+
+    // ── the save's two defect paths, each said ONCE: the hold that follows takes the item out of the queue ──────────────
+
+    /**
+     * The item's stored recipe, or `undefined` for a payload the contract admitted but this build cannot read. Such an item can
+     * never be saved: the caller holds it, so no later advance looks at it (or logs it) again until the cook replaces it.
+     *
+     * @sideEffect Logs the unreadable payload.
+     */
+    private storedRecipeOf(header: ImportHeader, item: ImportItem): ImportRecipe | undefined {
+        const read = importRecipeSchema.safeParse(item.payload);
+
+        if (!read.success) {
+            this.logger.error(
+                `import ${header.id} item ${String(item.ordinal)}: its stored recipe does not read; it is held`,
+                read.error.message,
+            );
+
+            return undefined;
+        }
+
+        return read.data;
+    }
+
+    /**
+     * Say that a refused recipe reached the save. The upload refuses such a recipe and a refusal stays `received`, so a
+     * matched one is a defect. Its refusal issue holds it right after, so this is said once.
+     *
+     * @param refusal - The refusal the save derived (`itemIssueFactsOf`).
+     * @sideEffect Logs when the save found a refusal the upload did not store.
+     */
+    private noteRefusalAtSave(header: ImportHeader, item: ImportItem, refusal: ImportRefusal | null): void {
+        if (item.refusal === null && refusal !== null) {
+            this.logger.error(
+                `import ${header.id} item ${String(item.ordinal)}: a ${refusal} recipe reached the save; it is held`,
+            );
+        }
     }
 
     /**

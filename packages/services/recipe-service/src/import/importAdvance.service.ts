@@ -649,6 +649,11 @@ export class ImportAdvanceService {
     /**
      * The recipe's lines, in file order, with the foods bound through the by-food admission AS THE COOK and the origin of each.
      *
+     * Two passes. Food is asked to admit every chosen food FIRST; its bindings converge (one per food), so asking again
+     * on a retry adds nothing. Only once food has answered for every line are the names declared, because a declared name
+     * is a new record each time and nothing reaps one that no line points at: a food outage, which repeats on every call
+     * until food is back, then leaves nothing behind.
+     *
      * @returns The lines and their origins, or `undefined` when food could not be asked to admit a food (the item waits).
      */
     private async buildLines(
@@ -659,6 +664,21 @@ export class ImportAdvanceService {
     ): Promise<
         { readonly lines: CreateRecipeDto['ingredients']; readonly origins: readonly LineOriginDirective[] } | undefined
     > {
+        const admissions = new Map<DecidedLine, Exclude<Admission, { kind: 'unavailable' }>>();
+
+        for (const entry of decided) {
+            const admission: Admission =
+                entry.binding.kind === 'bind'
+                    ? await this.admit(principal, caller, entry.match, entry.line, entry.binding.foodId)
+                    : { kind: 'asWritten' };
+
+            if (admission.kind === 'unavailable') {
+                return undefined;
+            }
+
+            admissions.set(entry, admission);
+        }
+
         const built: BuiltLine[] = [];
 
         for (const [lineIndex, rawLine] of recipe.ingredientLines.entries()) {
@@ -671,13 +691,7 @@ export class ImportAdvanceService {
             }
 
             for (const entry of foods) {
-                const food = await this.foodLine(principal, caller, rawLine, entry);
-
-                if (food === undefined) {
-                    return undefined;
-                }
-
-                built.push(food);
+                built.push(await this.foodLine(rawLine, entry, admissions.get(entry) ?? { kind: 'asWritten' }));
             }
         }
 
@@ -694,26 +708,12 @@ export class ImportAdvanceService {
         };
     }
 
-    /**
-     * One food of one line: bound when `bindingOf` chose a food that food will admit, else kept as written under the phrase.
-     *
-     * @returns The line, or `undefined` when food could not be asked (the item waits).
-     */
+    /** One food of one line: bound when food admitted the chosen food, else kept as written under the phrase. */
     private async foodLine(
-        principal: Principal,
-        caller: CallerToken | undefined,
         rawLine: string,
-        { line, match, binding }: DecidedLine,
-    ): Promise<BuiltLine | undefined> {
-        const admission: Admission =
-            binding.kind === 'bind'
-                ? await this.admit(principal, caller, match, line, binding.foodId)
-                : { kind: 'asWritten' };
-
-        if (admission.kind === 'unavailable') {
-            return undefined;
-        }
-
+        { line, binding }: DecidedLine,
+        admission: Exclude<Admission, { kind: 'unavailable' }>,
+    ): Promise<BuiltLine> {
         const ingredientId =
             admission.kind === 'bound'
                 ? admission.bindingId

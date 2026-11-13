@@ -1079,6 +1079,27 @@ describe('ImportAdvanceService — saving what is ready', () => {
             expect(recipes.create).not.toHaveBeenCalled();
         });
 
+        // A declared name is a new record every time (it never converges), and nothing reaps one no line points at. So
+        // nothing is declared until food has answered for every line: an outage repeated on every call leaks nothing.
+        it('⛔ declares no name while food cannot admit a food, even for a line kept as written BEFORE it', async () => {
+            const { answered, recipes, ingredients } = run(
+                world({
+                    // Milk (line 0) is an open choice, so it is kept as written; salt (line 1) binds and food is down.
+                    matches: { ...matches, 'L-milk': matches['L-pepper'] },
+                    addByRef: async () => {
+                        throw new HttpException(
+                            { code: 'SOURCE_UNAVAILABLE', message: 'down' },
+                            HttpStatus.BAD_GATEWAY,
+                        );
+                    },
+                }),
+            );
+
+            await expect(answered).resolves.toBe(VIEW);
+            expect(recipes.create).not.toHaveBeenCalled();
+            expect(ingredients.createFreeform).not.toHaveBeenCalled();
+        });
+
         it('a food that cannot back a line is kept AS WRITTEN rather than failing the item', async () => {
             const { answered, recipes } = run(
                 world({

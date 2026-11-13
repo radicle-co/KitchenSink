@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest';
 import * as cook from '../index.js';
 
 describe('@commise/features-recipes/cook', () => {
-    it('exports exactly the five runtime symbols cooking mode uses', () => {
+    it('exports exactly the runtime symbols cooking mode uses', () => {
         expect(Object.keys(cook).sort()).toEqual([
             'IngredientCheckRow',
             'ServingScaleControl',

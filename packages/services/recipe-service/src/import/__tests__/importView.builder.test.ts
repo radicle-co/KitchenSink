@@ -16,6 +16,9 @@
  */
 import { describe, expect, it, vi } from 'vitest';
 
+import type { Role } from '@kitchensink/clerk-verify';
+
+import type { ImportAllowanceDal } from '../../common/dal/importAllowance.dal.js';
 import { importViewSchema } from '../../recipes/import.schema.js';
 import { ImportViewBuilder } from '../importView.builder.js';
 import type { PrivateSlotsPort } from '../privateSlots.port.js';
@@ -41,6 +44,7 @@ function build(options: {
     const findPage = vi.fn(async (_importId: string, _after: number | undefined, _limit: number) => [
         ...(options.items ?? []),
     ]);
+    const stateOf = vi.fn<ImportAllowanceDal['stateOf']>(async () => options.allowance ?? ALLOWANCE);
     const builder = new ImportViewBuilder(
         {
             countsByStage: vi.fn(async () => COUNTS),
@@ -48,12 +52,12 @@ function build(options: {
             countUnsavedPrivate: vi.fn(async () => options.unsavedPrivate ?? 0),
         },
         { findPage },
-        { stateOf: vi.fn(async () => options.allowance ?? ALLOWANCE) },
+        { stateOf },
         FAKE_DATABASE,
         options.slots ?? UNLIMITED_PRIVATE_SLOTS,
     );
 
-    return { builder, findPage };
+    return { builder, findPage, stateOf };
 }
 
 const view = (
@@ -99,6 +103,25 @@ describe('ImportViewBuilder', () => {
             allowance: ALLOWANCE,
         });
     });
+
+    // Owner ruling 2026-11-11: bulk is 200 a day on Free and 1,000 on paid, and superusers and VIPs count as paid. The view
+    // reads the allowance under the caller's plan, through the ONE plan fact (`isPremiumPrincipal`).
+    it.each([
+        ['a free cook', [] as const, false],
+        ['a Premium cook', ['premium'] as const, true],
+        ['⛔ a superuser', ['superuser'] as const, true],
+        ['⛔ a VIP', ['vip'] as const, true],
+        ['an admin, who is not a paid plan', ['admin'] as const, false],
+    ] satisfies readonly (readonly [string, readonly Role[], boolean])[])(
+        'reads the allowance of %s under the plan it holds',
+        async (_name, roles, isPremium) => {
+            const { builder, stateOf } = build({});
+
+            await builder.build(makePrincipal({ roles: [...roles] }), makeHeader(), { limit: 100 });
+
+            expect(stateOf.mock.calls[0]?.[2]).toStrictEqual({ channel: 'bulk', isPremium });
+        },
+    );
 
     it('reads a cursor at the count as done (null) and a Save-and-leave header as closed', async () => {
         const answered = await view({}, makeHeader({ expectedTotal: 3, cursorOrdinal: 3, reviewClosedAt: new Date() }));

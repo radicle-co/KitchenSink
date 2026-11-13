@@ -207,6 +207,21 @@ describe('POST /api/v1/recipes — a statement makes a private web copy', () => 
         );
     });
 
+    it('stores a link whose own brackets close it whole, and drops only the sentence punctuation after it', async () => {
+        const page = 'https://en.wikipedia.org/wiki/Pie_(food)';
+        const response = await call('POST', '/api/v1/recipes', {
+            ...DRAFT_BODY,
+            visibility: 'private',
+            statement: { kind: 'public_web', citation: `${page}.` },
+        });
+
+        expect(response.status).toBe(201);
+        expect(create).toHaveBeenCalledWith(
+            expect.objectContaining({ sourceUrl: page, sourceAttribution: 'wikipedia.org' }),
+            expect.anything(),
+        );
+    });
+
     it('returns the kind, so a client can judge the source from the response', async () => {
         const response = await call('POST', '/api/v1/recipes', {
             ...DRAFT_BODY,

@@ -582,12 +582,45 @@ jobs:
                   path: packages/apps/commise/ui/dist
                   key: ${{ runner.os }}-ui-dist-${{ github.sha }}
 
+    # ── ADR-0091: THE CHANGE THE FAST TIERS RUN ON ──────────────────────────────────────────────────────
+    #
+    # One decision for every fast tier (unit and integration tests, lint, typecheck, format): the files this pull
+    # request changes since its merge base, or "everything" with the reason. Each job hands the decision to the
+    # selector (`npm run scope`), which turns files into packages through turbo's graph and widens to the whole tier
+    # for any path it cannot attribute. A push to main is not a pull request, so it always checks everything.
+    #
+    # It needs no other job and no node_modules (git and jq only), so it is ready before the install finishes.
+    select-checks:
+        name: Select the changed-only checks
+        timeout-minutes: 10
+        runs-on: ubuntu-latest
+        permissions:
+            contents: read # checkout only; the job writes nothing
+        outputs:
+            full: ${{ steps.decide.outputs.full }}
+            files: ${{ steps.decide.outputs.files }}
+            python: ${{ steps.decide.outputs.python }}
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                  # The whole history: the change is measured from the merge base with the base branch.
+                  fetch-depth: 0
+                  persist-credentials: false
+            - name: Decide what the fast tiers check
+              id: decide
+              env:
+                  BASE_REF: ${{ github.base_ref }}
+                  EVENT_NAME: ${{ github.event_name }}
+              run: bash .github/scripts/selectChecks.sh
+
     lint:
         name: Lint
         timeout-minutes: 20
         runs-on: ubuntu-latest
-        needs: [install]
+        needs: [install, select-checks]
         env:
+            CHECK_SCOPE_FULL: ${{ needs.select-checks.outputs.full }}
+            CHECK_SCOPE_FILES: ${{ needs.select-checks.outputs.files }}
             TURBO_RUN_SUMMARY: 'true' # turbo writes .turbo/runs/*.json; pruneTurboCache.sh reads it
         steps:
             - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -643,7 +676,7 @@ jobs:
                   restore-keys: |
                       ${{ runner.os }}-turbo-lint-${{ hashFiles('package-lock.json') }}-
                       ${{ runner.os }}-turbo-lint-
-            - run: npx turbo run lint
+            - run: npm run -s scope -- run lint
             # ⛔ DOCS GET NO COVERAGE FROM `turbo run format:check`, which runs per PACKAGE. Nothing owned the
             # repo root, `docs/` or `specs/`, so markdown there drifted unformatted — 84 files by the time
             # anyone looked, eight of them added by this very PR. Prose is reviewed in diffs, and a reflowed
@@ -656,9 +689,6 @@ jobs:
               run: npm run format:check:docs
             # ⛔ Drop the archives no run of this job used, so the entry saved after this job is the size of ONE run's
             # outputs and not every earlier commit's as well (`pruneTurboCache.sh`; `turboCachePrune.test.ts`).
-            - name: Prune the turbo cache to what this job used
-              if: ${{ !cancelled() }}
-              run: bash .github/scripts/pruneTurboCache.sh
             # Workflow files get NO coverage from `turbo run lint` — eslint does not read YAML. GitHub
             # validates them only at dispatch time, and an invalid one does not fail a check: it produces a
             # zero-job `startup_failure` attributed to the PUSH event, so the workflow that should have run
@@ -688,6 +718,9 @@ jobs:
                   # shellcheck/pyflakes are off: this gate is about workflow VALIDITY, and the runner has
                   # neither tool, which would otherwise be reported as errors on every embedded script.
                   /tmp/actionlint -shellcheck= -pyflakes= .github/workflows/*.yml
+            - name: Prune the turbo cache to what this job used
+              if: ${{ !cancelled() }}
+              run: bash .github/scripts/pruneTurboCache.sh
 
             # ⛔ No undeclared-dependency check runs in CI, deliberately (owner decision 2026-09-14). The `turbo
             # boundaries` ratchet and its baseline live in the staff-code-quality agent's user-level toolchain skill,
@@ -699,8 +732,10 @@ jobs:
         name: Format check
         timeout-minutes: 10
         runs-on: ubuntu-latest
-        needs: [install]
+        needs: [install, select-checks]
         env:
+            CHECK_SCOPE_FULL: ${{ needs.select-checks.outputs.full }}
+            CHECK_SCOPE_FILES: ${{ needs.select-checks.outputs.files }}
             TURBO_RUN_SUMMARY: 'true' # turbo writes .turbo/runs/*.json; pruneTurboCache.sh reads it
         steps:
             - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -756,7 +791,7 @@ jobs:
                   restore-keys: |
                       ${{ runner.os }}-turbo-format-${{ hashFiles('package-lock.json') }}-
                       ${{ runner.os }}-turbo-format-
-            - run: npx turbo run format:check
+            - run: npm run -s scope -- run format:check
             # ⛔ Drop the archives no run of this job used, so the entry saved after this job is the size of ONE run's
             # outputs and not every earlier commit's as well (`pruneTurboCache.sh`; `turboCachePrune.test.ts`).
             - name: Prune the turbo cache to what this job used
@@ -783,7 +818,12 @@ jobs:
         name: Lint, format and typecheck (Python)
         timeout-minutes: 10
         runs-on: ubuntu-latest
+        needs: [select-checks]
         steps:
+            # ADR-0091: no Python file, Python tool config or unattributable path changed, so nothing here can differ.
+            - name: Say why the Python checks do not run
+              if: needs.select-checks.outputs.python != 'true'
+              run: echo "::notice::No Python file or Python tool configuration changed, so ruff and mypy do not run."
             - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
                   persist-credentials: false
@@ -793,26 +833,33 @@ jobs:
             # The Lambda's Python, never the image's: `ubuntu-latest` moved to 26.04 (python3.14), which the engine
             # does not support (`workflowPythonVersion.test.ts` holds every Python job to this file).
             - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+              if: needs.select-checks.outputs.python == 'true'
               with:
                   python-version-file: packages/services/ingredient-parser/pythonVersion.txt
             - name: Install the pinned Python toolchain
+              if: needs.select-checks.outputs.python == 'true'
               run: python3 -m pip install --user --disable-pip-version-check --requirement requirementsDev.txt
             # ⛔ Three SEPARATE steps, not one `&&` chain. A chain stops at the first failure, so a lint
             # error would hide every type error behind it and the next push would surface them one at a
             # time. Each check reports its own verdict in its own annotation.
             - name: Lint (ruff)
+              if: needs.select-checks.outputs.python == 'true'
               run: npm run lint:python
             - name: Format check (ruff)
+              if: needs.select-checks.outputs.python == 'true'
               run: npm run format:check:python
             - name: Typecheck (mypy)
+              if: needs.select-checks.outputs.python == 'true'
               run: npm run typecheck:python
 
     typecheck:
         name: Typecheck
         timeout-minutes: 20
         runs-on: ubuntu-latest
-        needs: [install]
+        needs: [install, select-checks]
         env:
+            CHECK_SCOPE_FULL: ${{ needs.select-checks.outputs.full }}
+            CHECK_SCOPE_FILES: ${{ needs.select-checks.outputs.files }}
             TURBO_RUN_SUMMARY: 'true' # turbo writes .turbo/runs/*.json; pruneTurboCache.sh reads it
         steps:
             - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -868,7 +915,7 @@ jobs:
                   restore-keys: |
                       ${{ runner.os }}-turbo-typecheck-${{ hashFiles('package-lock.json') }}-
                       ${{ runner.os }}-turbo-typecheck-
-            - run: npx turbo run typecheck
+            - run: npm run -s scope -- run typecheck
             # ⛔ Drop the archives no run of this job used, so the entry saved after this job is the size of ONE run's
             # outputs and not every earlier commit's as well (`pruneTurboCache.sh`; `turboCachePrune.test.ts`).
             - name: Prune the turbo cache to what this job used
@@ -944,7 +991,7 @@ jobs:
         # `infra-shared` for the guards group, which installs infra-global's own packages (below) and so must not start
         # before this branch's `@radicle-co/infra-shared` prerelease is published. A matrix job has one `needs`, so the
         # frontend and services groups wait on it too: accepted, since `integration-infra` already waits on it.
-        needs: [install, infra-shared]
+        needs: [install, infra-shared, select-checks]
         permissions:
             contents: read
             packages: read # zizmor: ignore[use-trusted-publishing]
@@ -988,6 +1035,8 @@ jobs:
                           --filter=./packages/infra/bootstrap
                           --filter=!@kitchensink/repo-guards
         env:
+            CHECK_SCOPE_FULL: ${{ needs.select-checks.outputs.full }}
+            CHECK_SCOPE_FILES: ${{ needs.select-checks.outputs.files }}
             TURBO_RUN_SUMMARY: 'true' # turbo writes .turbo/runs/*.json; pruneTurboCache.sh reads it
         steps:
             - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -1110,7 +1159,7 @@ jobs:
                   TEST_CONCURRENCY: ${{ matrix.concurrency || 10 }}
               run: |
                   set -f
-                  npx turbo run test $TEST_FILTER --concurrency="$TEST_CONCURRENCY"
+                  npm run -s scope -- run test $TEST_FILTER --concurrency="$TEST_CONCURRENCY"
             # ⛔ Drop the archives no run of this job used, so the entry saved after this job is the size of ONE run's
             # outputs and not every earlier commit's as well (`pruneTurboCache.sh`; `turboCachePrune.test.ts`).
             - name: Prune the turbo cache to what this job used
@@ -1121,7 +1170,10 @@ jobs:
         name: Integration (identity — mocked)
         timeout-minutes: 25
         runs-on: ubuntu-latest
-        needs: [install]
+        needs: [install, select-checks]
+        env:
+            CHECK_SCOPE_FULL: ${{ needs.select-checks.outputs.full }}
+            CHECK_SCOPE_FILES: ${{ needs.select-checks.outputs.files }}
         steps:
             - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
@@ -1157,9 +1209,14 @@ jobs:
                   fi
                   echo "::warning::node_modules cache miss (entry evicted or never saved) — running npm ci"
                   npm ci
+            # ADR-0091: the packages this change selects for the integration tier, read by each step's `if:` below.
+            - name: Select the packages this change affects
+              id: scope
+              run: npm run -s scope -- list test:integration
             # Every dependency is mocked (`docs/CODING_STANDARDS.md` §7.1a). The real-database suites are LOCAL e2e,
             # which runs only on a developer's machine.
             - name: Run identity integration tests
+              if: ${{ contains(fromJSON(steps.scope.outputs.packages), '@kitchensink/identity-service') }}
               run: npm run test:integration --workspace=@kitchensink/identity-service
 
     # ⛔ THE DEPLOYED IDENTITY SERVICE — not a boot on the runner. Until 2026-09-04 this job compiled identity
@@ -1500,7 +1557,10 @@ jobs:
         name: Integration (food — mocked)
         timeout-minutes: 30
         runs-on: ubuntu-latest
-        needs: [install]
+        needs: [install, select-checks]
+        env:
+            CHECK_SCOPE_FULL: ${{ needs.select-checks.outputs.full }}
+            CHECK_SCOPE_FILES: ${{ needs.select-checks.outputs.files }}
         steps:
             - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
@@ -1536,9 +1596,14 @@ jobs:
                   fi
                   echo "::warning::node_modules cache miss (entry evicted or never saved) — running npm ci"
                   npm ci
+            # ADR-0091: the packages this change selects for the integration tier, read by each step's `if:` below.
+            - name: Select the packages this change affects
+              id: scope
+              run: npm run -s scope -- list test:integration
             # Every dependency is mocked (`docs/CODING_STANDARDS.md` §7.1a). `vitest.integration.config.ts` pins the
             # AWS environment to dummy credentials, so a client a suite forgot to mock cannot sign with a real key.
             - name: Run food integration tests
+              if: ${{ contains(fromJSON(steps.scope.outputs.packages), '@kitchensink/food-service') }}
               run: npm run test:integration --workspace=packages/services/food-service
 
     # The curated food seed's diff (curated catalog plan U5, KTD-11): when a pull request changes the seed, plan its
@@ -1612,7 +1677,10 @@ jobs:
         name: Integration (recipe — mocked)
         timeout-minutes: 30
         runs-on: ubuntu-latest
-        needs: [install]
+        needs: [install, select-checks]
+        env:
+            CHECK_SCOPE_FULL: ${{ needs.select-checks.outputs.full }}
+            CHECK_SCOPE_FILES: ${{ needs.select-checks.outputs.files }}
         # Feature 001 recipe-service. Postgres backs the relational data; LocalStack provides the AWS
         # services recipe-service uses (S3 photo/version archive, SQS archive queue) so the integration
         # suite can exercise them without real AWS. Mirrors `integration-food`.
@@ -1656,9 +1724,14 @@ jobs:
                   fi
                   echo "::warning::node_modules cache miss (entry evicted or never saved) — running npm ci"
                   npm ci
+            # ADR-0091: the packages this change selects for the integration tier, read by each step's `if:` below.
+            - name: Select the packages this change affects
+              id: scope
+              run: npm run -s scope -- list test:integration
             # Every dependency is mocked (`docs/CODING_STANDARDS.md` §7.1a): `tests/support/mockedRecipeApp.ts` forces
             # every address to a closed port, so a call a suite forgot to mock fails instead of reaching anything.
             - name: Run recipe integration tests
+              if: ${{ contains(fromJSON(steps.scope.outputs.packages), '@kitchensink/recipe-service') }}
               run: npm run test:integration --workspace=@kitchensink/recipe-service
 
     # The CDK synth of the recipe-workers app, the package's one mocked integration suite. Its LOCAL e2e suites run
@@ -1670,11 +1743,13 @@ jobs:
         # `infra-shared` + `packages: read` because this job installs the CDK app's own directory (see the
         # step below), and that install resolves `@radicle-co/infra-shared` from GitHub Packages — the same
         # pairing `integration-infra` carries for the same reason.
-        needs: [install, infra-shared]
+        needs: [install, infra-shared, select-checks]
         permissions:
             contents: read
             packages: read # the infra/ install reads `@radicle-co/infra-shared` from GitHub Packages
         env:
+            CHECK_SCOPE_FULL: ${{ needs.select-checks.outputs.full }}
+            CHECK_SCOPE_FILES: ${{ needs.select-checks.outputs.files }}
             TURBO_RUN_SUMMARY: 'true' # turbo writes .turbo/runs/*.json; pruneTurboCache.sh reads it
         steps:
             - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -1730,7 +1805,12 @@ jobs:
                   restore-keys: |
                       ${{ runner.os }}-turbo-integration-recipe-workers-${{ hashFiles('package-lock.json') }}-
                       ${{ runner.os }}-turbo-integration-recipe-workers-
+            # ADR-0091: the packages this change selects for the integration tier, read by each step's `if:` below.
+            - name: Select the packages this change affects
+              id: scope
+              run: npm run -s scope -- list test:integration
             - name: Build the recipe-workers lambda bundle (the synth spec needs it)
+              if: ${{ contains(fromJSON(steps.scope.outputs.packages), '@kitchensink/recipe-workers') }}
               run: npx turbo run build --filter=@kitchensink/recipe-workers
 
             # ⛔ `workersAppSynth.integration.test.ts` runs the CDK app with `infra/node_modules/.bin/tsx` by
@@ -1739,12 +1819,14 @@ jobs:
             # `spawnSync …/infra/node_modules/.bin/tsx ENOENT` — red tests that say nothing about the synth
             # they were written to check.
             - name: Install the recipe-workers infra package
+              if: ${{ contains(fromJSON(steps.scope.outputs.packages), '@kitchensink/recipe-workers') }}
               env:
                   NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
               working-directory: packages/services/recipe-workers/infra
               run: npm install --no-audit --no-fund
 
             - name: Run recipe-workers integration tests (the synth spec)
+              if: ${{ contains(fromJSON(steps.scope.outputs.packages), '@kitchensink/recipe-workers') }}
               run: npm run test:integration --workspace=@kitchensink/recipe-workers
             # ⛔ Drop the archives no run of this job used, so the entry saved after this job is the size of ONE run's
             # outputs and not every earlier commit's as well (`pruneTurboCache.sh`; `turboCachePrune.test.ts`).
@@ -1762,7 +1844,10 @@ jobs:
         runs-on: ubuntu-latest
         # build-ui: the web suite compiles `src/app/globals.css`, which `@import`s `@commise/ui/theme.css`
         # — and that export resolves to `dist/theme.css`. Without the built UI the compile step fails.
-        needs: [install, build-ui, infra-shared]
+        needs: [install, build-ui, infra-shared, select-checks]
+        env:
+            CHECK_SCOPE_FULL: ${{ needs.select-checks.outputs.full }}
+            CHECK_SCOPE_FILES: ${{ needs.select-checks.outputs.files }}
         # The ingredient-parser CDK package installs `@radicle-co/infra-shared` from GitHub Packages, which
         # authenticates even for a public read. The workflow default is `contents: read` alone.
         permissions:
@@ -1810,43 +1895,57 @@ jobs:
                   key: ${{ runner.os }}-ui-dist-${{ github.sha }}
             - name: Ensure @commise/ui is built (fallback if the per-SHA cache restore missed)
               run: '[ -n "$(ls -A packages/apps/commise/ui/dist 2>/dev/null)" ] || npm run build --workspace=@commise/ui'
+            # ADR-0091: the packages this change selects for the integration tier, read by each step's `if:` below.
+            - name: Select the packages this change affects
+              id: scope
+              run: npm run -s scope -- list test:integration
             - name: Run web integration tests
+              if: ${{ contains(fromJSON(steps.scope.outputs.packages), '@commise/web') }}
               run: npm run test:integration --workspace=@commise/web
             # Plan 012: the Expo CLI's own config loader and config plugins evaluate `app.config.ts` per Clerk instance
             # (`expo config --type introspect` — no device, nothing written), proving the iOS Google URL scheme and the
             # Sign in with Apple entitlement a Vitest import cannot see.
             - name: Run mobile integration tests
+              if: ${{ contains(fromJSON(steps.scope.outputs.packages), '@commise/mobile') }}
               run: npm run test:integration --workspace=@commise/mobile
             # Plan 002 V1: the recipe feature's own tier — the editor's draft pipeline and its nutrition read composed
             # from real modules (leaf, hooks, TanStack Query, the real client's zod parsing), with only `fetch` mocked.
             - name: Run features-recipes integration tests
+              if: ${{ contains(fromJSON(steps.scope.outputs.packages), '@commise/features-recipes') }}
               run: npm run test:integration --workspace=@commise/features-recipes
             # The offline write path composed from its real parts (SyncProvider, the outbox mutator and drainer, the
             # recipe sender, the real client's zod parsing), with only `fetch` mocked.
             - name: Run query integration tests
+              if: ${{ contains(fromJSON(steps.scope.outputs.packages), '@commise/query') }}
               run: npm run test:integration --workspace=@commise/query
             # The impacted-test selector over the REAL tree: the import graphs of both apps, the screen registries, and the
             # four acceptance cases. A registry row that leaves out a screen is a test that silently stops running.
             - name: Run e2e-plan integration tests
+              if: ${{ contains(fromJSON(steps.scope.outputs.packages), '@kitchensink/e2e-plan') }}
               run: npm run test:integration --workspace=@kitchensink/e2e-plan
             # The design-artifact build over the REAL sources: esbuild bundles both platforms' component surfaces, Tailwind
             # compiles their stylesheet, and the surface checks run on the actual cards and canvas boards. No browser,
             # no network. The Chromium render of every card and board is the LOCAL e2e tier, on a developer's machine.
             - name: Run design-artifact integration tests
+              if: ${{ contains(fromJSON(steps.scope.outputs.packages), '@kitchensink/design-artifact') }}
               run: npm run test:integration --workspace=@kitchensink/design-artifact
             - name: Run recipe-service-client integration tests
+              if: ${{ contains(fromJSON(steps.scope.outputs.packages), '@kitchensink/recipe-service-client') }}
               run: npm run test:integration --workspace=@kitchensink/recipe-service-client
             # Self-contained like the recipe one: a real in-process `node:http` server, no Docker. It covers the
             # drift-layer-3 skew probe as a genuinely separate unauthenticated `GET /health` on the wire
             # (CODING_STANDARDS §15.2.5) — behaviour a mocked `fetch` cannot prove. A non-unit tier is only real
             # if CI calls it by name (§7), which is why this step exists alongside the config and the script.
             - name: Run identity-webhooks integration tests
+              if: ${{ contains(fromJSON(steps.scope.outputs.packages), '@kitchensink/identity-webhooks') }}
               run: npm run test:integration --workspace=@kitchensink/identity-webhooks
             - name: Run food-service-client integration tests
+              if: ${{ contains(fromJSON(steps.scope.outputs.packages), '@kitchensink/food-service-client') }}
               run: npm run test:integration --workspace=@kitchensink/food-service-client
             # The remote search function (ADR-0055) over a loopback stand-in for USDA: the real handler, the real USDA
             # client, and what crosses the wire. No Docker, no network.
             - name: Run remote-search integration tests
+              if: ${{ contains(fromJSON(steps.scope.outputs.packages), '@kitchensink/remote-search-service') }}
               run: npm run test:integration --workspace=@kitchensink/remote-search-service
             # The deployed-run seeder. Self-contained like the two client tiers above: a real in-process
             # `node:http` server that validates every request with the SHIPPED `createRecipeRequestSchema`
@@ -1855,6 +1954,7 @@ jobs:
             # schema REJECTS it, so a mock would take the empty string happily and the defect would surface
             # as a `400` in the middle of a fifty-minute emulator job.
             - name: Run e2e-seed integration tests
+              if: ${{ contains(fromJSON(steps.scope.outputs.packages), '@kitchensink/e2e-seed') }}
               run: npm run test:integration --workspace=@kitchensink/e2e-seed
             # WHERE A LOG LINE GOES. No Docker and no network — what this tier crosses is the NEST FRAMEWORK:
             # it boots a real module through `NestFactory.create` and asserts that Nest's OWN output, and a
@@ -1864,21 +1964,25 @@ jobs:
             # observe. It is also the test that fails against the commit before this one, where identity's
             # adapter wrote nothing to stdout and deleted every line on any run with no DSN.
             - name: Run service-logging integration tests
+              if: ${{ contains(fromJSON(steps.scope.outputs.packages), '@kitchensink/service-logging') }}
               run: npm run test:integration --workspace=@kitchensink/service-logging
             # Pure text-normalization (MOD-019/020/021) — no Docker, no network. Its integration tier runs the
             # ASSEMBLED pipeline over a committed slice of real Project Gutenberg prose against a hand-checked
             # golden file, which is the only tier that can catch a stage regressing while every unit truth table
             # still passes. A non-unit tier is only real if CI calls it by name (§7).
             - name: Run recipe-import-core integration tests
+              if: ${{ contains(fromJSON(steps.scope.outputs.packages), '@kitchensink/recipe-import-core') }}
               run: npm run test:integration --workspace=@kitchensink/recipe-import-core
             # The seed manifest over a real temporary filesystem (curated plan U2): symlinks, special files and
             # file modes, which no in-memory stand-in reproduces. No Docker, no network, no database.
             - name: Run db-schema-guard integration tests
+              if: ${{ contains(fromJSON(steps.scope.outputs.packages), '@kitchensink/db-schema-guard') }}
               run: npm run test:integration --workspace=@kitchensink/db-schema-guard
             # Token verification over the REAL `@clerk/backend` verifier, with tokens signed by a throwaway local key
             # (plan 2026-10-14-009 D3): roles parsed from signed `public_metadata` only, and expanded into scopes once.
             # No Docker, no network, no Clerk instance.
             - name: Run clerk-verify integration tests
+              if: ${{ contains(fromJSON(steps.scope.outputs.packages), '@kitchensink/clerk-verify') }}
               run: npm run test:integration --workspace=@kitchensink/clerk-verify
             # The curated cookbook importer. Its integration tier drives the REAL `POST /api/v1/recipes` and the
             # REAL ingredient-resolution endpoints, and SKIPS (rather than fails) when `COOKBOOK_IMPORT_RECIPE_URL`
@@ -1919,6 +2023,7 @@ jobs:
                   fi
                   echo "CRF engine importable: ingredient-parser-nlp ${version}"
             - name: Run cookbook-import integration tests
+              if: ${{ contains(fromJSON(steps.scope.outputs.packages), '@kitchensink/cookbook-import') }}
               run: npm run test:integration --workspace=@kitchensink/cookbook-import
             # The CRF engine's own deployable (ADR-0025). Two tiers no unit test can stand in for: the
             # PACKAGING tier runs the real `pip install --platform manylinux2014_aarch64 --python-version 3.13`
@@ -1964,11 +2069,13 @@ jobs:
         # ⛔ `infra-shared` is a REQUIRED edge, not tidiness. This job installs `@radicle-co/infra-shared`
         # from the registry, and the range the manifests carry admits this branch's prereleases — so without
         # the edge it can start before the version it is meant to resolve has been published.
-        needs: [install, infra-shared]
+        needs: [install, infra-shared, select-checks]
         permissions:
             contents: read
             packages: read # zizmor: ignore[use-trusted-publishing]
         env:
+            CHECK_SCOPE_FULL: ${{ needs.select-checks.outputs.full }}
+            CHECK_SCOPE_FILES: ${{ needs.select-checks.outputs.files }}
             TURBO_RUN_SUMMARY: 'true' # turbo writes .turbo/runs/*.json; pruneTurboCache.sh reads it
         steps:
             - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -2054,9 +2161,14 @@ jobs:
                       npm install --prefix "${app}" --no-audit --no-fund
                       echo "::endgroup::"
                   done
+            # ADR-0091: the packages this change selects for the integration tier, read by each step's `if:` below.
+            - name: Select the packages this change affects
+              id: scope
+              run: npm run -s scope -- list test:integration
             # The repo-wide guards' integration tier: shell scripts and CLIs driven against stubs. It needs none of the
             # CDK packages above, and runs here because its suites are minutes, like infra's.
             - name: Run repo-guards integration tests
+              if: ${{ contains(fromJSON(steps.scope.outputs.packages), '@kitchensink/repo-guards') }}
               run: npm run test:integration --workspace=@kitchensink/repo-guards
             # Runs even when the guards step above fails, so one red does not hide the other.
             - name: Run infra integration tests
@@ -2211,7 +2323,7 @@ jobs:
             # which is what makes the download below restore in place.
             - name: Upload the web production build for the Playwright suite
               if: matrix.workspace == '@commise/web' && steps.secrets.outcome == 'success'
-              uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+              uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
               with:
                   name: web-next-build-${{ inputs.stage }}
                   path: |
@@ -2587,7 +2699,7 @@ jobs:
             # merged report must describe the whole run, so a PASSING shard's blob is required too.
             - name: Upload blob report (shard ${{ matrix.shard }})
               if: ${{ !cancelled() && steps.secrets.outcome == 'success' }}
-              uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+              uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
               with:
                   name: integration-web-blob-${{ inputs.stage }}-${{ matrix.shard }}
                   path: packages/apps/commise/web/blob-report
@@ -2599,7 +2711,7 @@ jobs:
             # competing partial uploads.
             - name: Upload visual + fidelity output (shard ${{ matrix.shard }})
               if: ${{ !cancelled() && steps.secrets.outcome == 'success' }}
-              uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+              uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
               with:
                   name: integration-web-visual-${{ inputs.stage }}-${{ matrix.shard }}
                   path: |
@@ -2611,7 +2723,7 @@ jobs:
             # by `e2e-web-report`; this is the trace payload the blob report does not carry.
             - name: Upload Playwright traces (shard ${{ matrix.shard }})
               if: failure() && steps.secrets.outcome == 'success'
-              uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+              uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
               with:
                   name: playwright-traces-${{ inputs.stage }}-${{ matrix.shard }}
                   path: packages/apps/commise/web/test-results
@@ -2774,7 +2886,7 @@ jobs:
                   PLAYWRIGHT_HTML_OUTPUT_DIR: packages/apps/commise/web/playwright-report
             - name: Upload merged Playwright report
               if: steps.merge.outputs.merged == 'true'
-              uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+              uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
               with:
                   name: playwright-report-${{ inputs.stage }}
                   path: packages/apps/commise/web/playwright-report
@@ -2804,7 +2916,7 @@ jobs:
             # failure diagnostic, and its whole purpose is to be read on a green run.
             - name: Upload mockup-fidelity report
               if: steps.merge.outputs.merged == 'true'
-              uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+              uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
               with:
                   name: mockup-fidelity-${{ inputs.stage }}
                   path: packages/apps/commise/web/mockup-fidelity
@@ -2975,6 +3087,7 @@ jobs:
                 infra-shared,
                 infra,
                 install,
+                select-checks,
                 resolve-sandbox,
                 build-ui,
                 lint,

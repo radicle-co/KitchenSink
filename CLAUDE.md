@@ -249,7 +249,7 @@ npm install
 # Build all packages (respects Turbo dependency order)
 npm run build
 
-# Run all tests
+# Run the tests this change affects (ADR-0091; FULL_SUITE=1 runs every test)
 npm run test
 
 # Run a single workspace's tests
@@ -258,13 +258,13 @@ npm run test --workspace=packages/services/identity
 # Run tests in watch mode (within a workspace)
 cd packages/services/identity && npx vitest
 
-# Lint all packages
+# Lint what this change affects
 npm run lint
 
-# Type check all packages
+# Type check what this change affects
 npm run typecheck
 
-# Format all files
+# Format what this change affects
 npm run format
 
 # Develop locally (persistent, all workspaces)

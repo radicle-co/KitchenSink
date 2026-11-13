@@ -2,8 +2,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 
-import { placeholderContrast } from '@commise/test-utils';
-
 import { withPlatformOs } from '../../testing/platformOs.native.js';
 import { render, resolvedColour } from '../../testing/tamaguiTesting.native.js';
 import { FieldLabel } from '../FieldLabel.native.js';
@@ -176,11 +174,8 @@ describe('Input + FieldLabel (native)', () => {
         expect(onSubmit).toHaveBeenCalledOnce();
     });
 
-    it('draws the PLACEHOLDER above the WCAG AA body-text floor on its paper field', () => {
-        render(<LabelledInput placeholder="you@example.com" />);
-
-        expect(placeholderContrast(screen.getByRole('textbox', { name: 'Email' }))).toBeGreaterThanOrEqual(4.5);
-    });
+    // The placeholder's contrast is measured in `@commise/test-utils` (`inputPlaceholderContrast.native.test.tsx`): the
+    // measure lives there, and this package cannot declare that one without a dependency cycle (ADR-0091).
 });
 
 describe('FieldLabel (native)', () => {

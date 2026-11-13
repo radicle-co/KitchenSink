@@ -44,6 +44,7 @@
         "zod": "^4.6.7"
     },
     "devDependencies": {
+        "@kitchensink/cdk-bootstrap": "*",
         "@kitchensink/eslint": "*",
         "@kitchensink/prettier": "*",
         "@kitchensink/repo-guards": "*",

@@ -645,6 +645,16 @@ selected by the script, at the most parallelism the machine allows, through npm 
 Selection is ADR-0086 (local) and ADR-0087 (CI). Maestro lanes are ADR-0088. `FULL_SUITE=1` runs everything, and the
 manual `deployedE2e.yml` always runs the whole suite. No workflow step starts a test runner by hand.
 
+⛔ **The fast tiers run only on what a change affects (owner request 2026-11-11, ADR-0091).** Unit and integration
+tests, lint, typecheck and format run through one selector, `npm run scope`. The root `npm run test`, `lint`,
+`typecheck`, `format`, `format:check` and `format:check:docs` already go through it. It selects the packages that
+hold a changed file and every package that depends on them. It adds the tasks turbo.json marks `cache: false`, and any
+task whose declared `$TURBO_ROOT$` input changed. A change it cannot attribute runs the whole tier: a root config, the
+lockfile, a workflow, a script or a docs asset. Locally it measures from the merge base with `origin/main`. On a pull
+request CI measures from the base branch, in one `select-checks` job. A push to main runs everything. `FULL_SUITE=1`
+runs everything anywhere. A test that reads a file outside its package declares it in turbo.json, or both the cache
+and the selector will miss it.
+
 ⛔ **OWNER RULING, 2026-09-20 — still in force where 2026-10-03 does not narrow it:**
 
 > "Integration tests should mock databases. E2E tests are the only ones that work against real databases."

@@ -59,6 +59,7 @@
     "devDependencies": {
         "@argos-ci/cli": "^6.9.1",
         "@commise/test-utils": "*",
+        "@kitchensink/cdk-bootstrap": "*",
         "@kitchensink/e2e-fixtures": "*",
         "@kitchensink/e2e-plan": "*",
         "@kitchensink/eslint": "*",

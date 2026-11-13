@@ -36,7 +36,7 @@ import { logger } from '../common/logger.js';
 import { isSpendGated } from '../common/verificationSpend.js';
 import { emitMetric, type EmfMetric } from '../common/metrics.js';
 import { expireParseJobs, oldestRunningParseJobAgeSeconds, type ExpiryQueryable } from '../parsing/parseJobExpiry.js';
-import { runImportPurge } from '../import/importPurge.js';
+import { runImportPurge, type ImportPurgePool } from '../import/importPurge.js';
 import { PARSE_METRIC_NAMESPACE } from '../parsing/crfInvoke.js';
 import {
     createSsmSettingsLoader,
@@ -392,21 +392,24 @@ export async function publishParseStallGauge(deps: {
  * Plan U9: the TTL sweep rides this tick (see `parseJobExpiry.ts` for why it is not its own Lambda). Pure SQL, no spend,
  * so it runs outside the drain's headroom budget. The gauge reads AFTER the sweep, deliberately: the sweep has just retired
  * every job past its TTL, so the gauge reads the backlog still owed an answer, not a pile about to be cleared. The purge
- * (ADR-0072 §9) runs LAST and is NOT swallowed: its data is user content past its retention bound, so a failure fails the
- * tick loudly, and at the end it costs the sweeps above nothing. It publishes its count and the oldest import's age
- * (`runImportPurge`).
+ * (ADR-0072 §9) is NOT swallowed: its data is user content past its retention bound, so a failure fails the tick loudly. It
+ * publishes the oldest import's age and its count (`runImportPurge`).
+ *
+ * Each sweep runs whether or not the one before it failed (review of #191): they share the tick, not its fate, so a TTL
+ * sweep that throws must not also keep user content past its retention bound.
  *
  * @param deps - The recipe pool, this deploy's stage, and the metric sink.
  * @sideEffect Updates and deletes parse-job rows, writes EMF lines, and deletes idle bulk imports.
  */
 export async function runMaintenanceSweeps(deps: {
-    readonly pool: ExpiryQueryable;
+    readonly pool: ImportPurgePool;
     readonly stage: string;
     readonly emit: (metric: EmfMetric) => void;
 }): Promise<void> {
-    await expireParseJobs(deps.pool);
-    await publishParseStallGauge(deps);
-    await runImportPurge(deps);
+    await runEveryStep(
+        [() => expireParseJobs(deps.pool), () => publishParseStallGauge(deps), () => runImportPurge(deps)],
+        'more than one maintenance sweep failed',
+    );
 }
 
 /**
@@ -419,12 +422,41 @@ export async function runMaintenanceSweeps(deps: {
  * @sideEffect Whatever `drain` and `sweeps` do.
  */
 export async function runDrainTick(drain: () => Promise<unknown>, sweeps: () => Promise<void>): Promise<void> {
-    // In order: the drain runs to its end before the sweeps start.
-    const drainFailures = await failuresOf(drain);
-    const failures = [...drainFailures, ...(await failuresOf(sweeps))];
+    await runEveryStep([drain, sweeps], 'the band drain and its maintenance sweeps both failed');
+}
+
+/**
+ * The message every failure of a several-failure tick is logged under. ⛔ Fixed text: Sentry groups an error log by its
+ * message, so the cause goes in the attributes, never in here (ADR-0062).
+ */
+const TICK_STEP_FAILED = 'a band drain tick step failed';
+
+/**
+ * Run the steps in order, each to its end, whether or not an earlier one failed, then fail with what failed: the one error
+ * itself, or an `AggregateError` of all of them. When there are several, each is first logged as an error of its own, so
+ * Sentry sees every cause with its own stack and not only the aggregate.
+ *
+ * @param steps - The steps, in order.
+ * @param aggregateMessage - The `AggregateError`'s message. ⛔ Fixed text, for the same reason as {@link TICK_STEP_FAILED}.
+ * @sideEffect Whatever the steps do, and an error log line per failure when more than one fails.
+ */
+async function runEveryStep(steps: readonly (() => Promise<unknown>)[], aggregateMessage: string): Promise<void> {
+    const failures: unknown[] = [];
+
+    for (const step of steps) {
+        failures.push(...(await failuresOf(step)));
+    }
 
     if (failures.length > 1) {
-        throw new AggregateError(failures, 'the band drain and its maintenance sweeps both failed');
+        for (const [index, failure] of failures.entries()) {
+            logger.error(TICK_STEP_FAILED, {
+                failure: index + 1,
+                of: failures.length,
+                error: failure instanceof Error ? (failure.stack ?? failure.message) : String(failure),
+            });
+        }
+
+        throw new AggregateError(failures, aggregateMessage);
     }
 
     if (failures.length === 1) {
@@ -433,8 +465,7 @@ export async function runDrainTick(drain: () => Promise<unknown>, sweeps: () => 
 }
 
 /**
- * Run one step of the tick and hand back its failure as a value, so {@link runDrainTick} can run the next step and still
- * fail the tick with it.
+ * Run one step and hand back its failure as a value, so {@link runEveryStep} can run the next step and still fail with it.
  *
  * @param step - The step.
  * @returns `[]` when it succeeded, or `[error]`.

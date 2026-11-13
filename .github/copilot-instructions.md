@@ -20,8 +20,8 @@ Run from the repo root via Turborepo:
 
 ```bash
 npm run build          # Build all packages
-npm run test           # Test all packages
-npm run lint           # Lint all packages
+npm run test           # Test what the change affects (FULL_SUITE=1: all)
+npm run lint           # Lint what the change affects (FULL_SUITE=1: all)
 
 # Scoped to a single package
 npm run build --workspace=packages/<name>

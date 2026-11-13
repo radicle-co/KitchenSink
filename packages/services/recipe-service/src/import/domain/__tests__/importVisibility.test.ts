@@ -11,7 +11,8 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { visibilityRefusedFor, type VisibilityFacts } from '../importVisibility.js';
+import { makePrincipal } from '../../__fixtures__/importFixtures.js';
+import { visibilityFactsOf, visibilityRefusedFor, type VisibilityFacts } from '../importVisibility.js';
 
 const FREE: VisibilityFacts = { principalKind: 'real', containment: 'enforce', isPremium: false };
 const PREMIUM: VisibilityFacts = { ...FREE, isPremium: true };
@@ -20,6 +21,17 @@ const PAID = { kind: 'paid_site', citation: 'site' } as const;
 const WEB = { kind: 'public_web', citation: 'https://example.com/r' } as const;
 const MINE = { kind: 'authored' } as const;
 const OWN_SITE = { kind: 'public_web', citation: 'https://commise.app/r/1' } as const;
+
+describe('visibilityFactsOf: the cook as the policy reads them', () => {
+    it('reads the containment and the plan off the principal', () => {
+        expect(visibilityFactsOf(makePrincipal())).toStrictEqual(FREE);
+        expect(visibilityFactsOf(makePrincipal({ roles: ['premium'] }))).toStrictEqual(PREMIUM);
+        expect(visibilityFactsOf(makePrincipal({ principalKind: 'test', containment: 'off' }))).toMatchObject({
+            principalKind: 'test',
+            containment: 'off',
+        });
+    });
+});
 
 describe('visibilityRefusedFor', () => {
     it.each([

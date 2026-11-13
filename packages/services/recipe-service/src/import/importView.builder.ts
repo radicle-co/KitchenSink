@@ -26,14 +26,13 @@ import { isPremiumPrincipal, type Principal } from '../auth/principal.js';
 import type { RecipeDrizzle } from '../database/client.js';
 import { DrizzleProvider } from '../database/database.module.js';
 import type { ImportView } from '../recipes/import.schema.js';
-import type { ImportHeader, ImportVisibility, RecipeImportsDal } from './dal/recipeImports.dal.js';
+import type { ImportHeader, RecipeImportsDal } from './dal/recipeImports.dal.js';
 import type { ListedImportItem, RecipeImportItemsDal } from './dal/recipeImportItems.dal.js';
 import { importItemIssueOf } from './domain/importItemIssue.js';
-import { importRefusalOf } from './domain/importRefusal.js';
-import { importSaveFactsOf, importSaveGapOf } from './domain/importSaveGap.js';
+import { itemIssueFactsOf } from './domain/importItemIssueFacts.js';
 import { statementOfColumns } from './domain/importStatement.js';
 import { importViewVersionOf } from './domain/importViewVersion.js';
-import { visibilityRefusedFor } from './domain/importVisibility.js';
+import { visibilityFactsOf } from './domain/importVisibility.js';
 import { PRIVATE_SLOTS, type PrivateSlotsPort } from './privateSlots.port.js';
 import { RECIPE_IMPORT_ITEMS_DAL, RECIPE_IMPORTS_DAL } from './import.tokens.js';
 
@@ -141,58 +140,25 @@ export class ImportViewBuilder {
         item: ListedImportItem,
         read: { readonly allowanceSpent: boolean; readonly outOfSlots: boolean },
     ): ViewItem {
-        const statement = statementOfColumns(item) ?? null;
-        const effective: ImportVisibility = item.visibility ?? header.visibility;
-        // The stored refusal, else the one the payload's counts state: a payload that slipped past the upload's refusal is
-        // named for what it lacks, and never reaches the save gap (which throws for it). A saved item's payload is gone.
-        const refusal =
-            item.refusal ??
-            (item.stage === 'saved'
-                ? null
-                : importRefusalOf({
-                      ingredientLineCount: item.saveFacts.ingredientLineCount,
-                      stepCount: item.saveFacts.stepCount,
-                  }));
-        // Only a matched, unrefused item has a save gap to judge: a refused one has no ingredient line or step, and a saved one
-        // has no payload left. (`importSaveGapOf` throws for either, which is a defect, not a hold.)
-        const reading =
-            statement === null || item.stage !== 'matched' || refusal !== null
-                ? undefined
-                : importSaveGapOf({
-                      statement,
-                      ...importSaveFactsOf(item, item.saveFacts.file),
-                      ingredientLineCount: item.saveFacts.ingredientLineCount,
-                      stepCount: item.saveFacts.stepCount,
-                  });
-        const issue = importItemIssueOf({
-            heldAtCurrentRevision: item.heldAtRev === item.decisionRev,
-            stage: item.stage,
-            hasStatement: statement !== null,
-            visibilityRefused:
-                statement !== null &&
-                visibilityRefusedFor(
-                    {
-                        principalKind: principal.principalKind,
-                        containment: principal.containment,
-                        isPremium: isPremiumPrincipal(principal),
-                    },
-                    statement,
-                    effective,
-                ),
-            private: effective === 'private',
-            outOfSlots: read.outOfSlots,
-            paid: item.allowanceSpentAt !== null,
-            allowanceSpent: read.allowanceSpent,
-            refusal,
-            saveGap: reading !== undefined && 'gap' in reading ? reading.gap : null,
-        });
+        const statement = statementOfColumns(item);
+        const issue = importItemIssueOf(
+            itemIssueFactsOf({
+                item,
+                statement,
+                requested: item.visibility ?? header.visibility,
+                cook: visibilityFactsOf(principal),
+                saveFacts: item.saveFacts,
+                outOfSlots: read.outOfSlots,
+                allowanceSpent: read.allowanceSpent,
+            }).facts,
+        );
 
         return {
             ordinal: item.ordinal,
             title: item.title,
             stage: item.stage,
             review: item.review,
-            statement,
+            statement: statement ?? null,
             visibility: item.visibility,
             recipeId: item.recipeId,
             issue: issue === null ? null : { reason: issue },

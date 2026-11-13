@@ -12,6 +12,7 @@
  */
 import { RecipeVisibility } from '@kitchensink/recipe-core';
 
+import { isPremiumPrincipal, type Principal } from '../../auth/principal.js';
 import type { ContainmentSubject } from '../../common/containmentPolicy.js';
 import { evaluateVisibility } from '../../recipes/domain/visibilityPolicy.js';
 import type { ImportVisibility } from '../dal/recipeImports.dal.js';
@@ -21,6 +22,19 @@ import type { KnownImportStatement } from './importStatement.js';
 /** What the policy needs to know about the cook. */
 export interface VisibilityFacts extends ContainmentSubject {
     readonly isPremium: boolean;
+}
+
+/**
+ * The cook as the policy reads them: their containment and their plan. Pure.
+ *
+ * @param principal - The verified caller.
+ */
+export function visibilityFactsOf(principal: Principal): VisibilityFacts {
+    return {
+        principalKind: principal.principalKind,
+        containment: principal.containment,
+        isPremium: isPremiumPrincipal(principal),
+    };
 }
 
 /**

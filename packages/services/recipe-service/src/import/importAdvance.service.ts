@@ -83,12 +83,12 @@ import {
     RECIPE_IMPORTS_DAL,
 } from './import.tokens.js';
 import { importItemIssueOf, type ItemIssue } from './domain/importItemIssue.js';
-import { importRefusalOf } from './domain/importRefusal.js';
+import { itemIssueFactsOf } from './domain/importItemIssueFacts.js';
 import { IMPORT_DEFAULT_PAGE_SIZE, type ImportAdvanceLimits } from './domain/importLimits.js';
-import { fileSaveFactsOf, importSaveFactsOf, importSaveGapOf, type SaveableFacts } from './domain/importSaveGap.js';
+import { fileSaveFactsOf, type SaveableFacts } from './domain/importSaveGap.js';
 import { isReadyToSave } from './domain/importSaveReadiness.js';
 import { statementOfColumns } from './domain/importStatement.js';
-import { visibilityRefusedFor } from './domain/importVisibility.js';
+import { visibilityFactsOf } from './domain/importVisibility.js';
 import { foodRefOfId, lineFactsOf, type SnapshotPick } from './domain/importLineFacts.js';
 import { savedVerdictKeysOf } from './domain/savedVerdictKeys.js';
 import { snapshotLinesOf } from './domain/snapshotLines.js';
@@ -541,12 +541,21 @@ export class ImportAdvanceService {
         }
 
         const recipe = read.data;
-        const counts = { ingredientLineCount: recipe.ingredientLines.length, stepCount: recipe.steps.length };
-        const refusal = item.refusal ?? importRefusalOf(counts);
-        const reading =
-            statement === undefined || refusal !== null
-                ? undefined
-                : importSaveGapOf({ statement, ...importSaveFactsOf(item, fileSaveFactsOf(item.payload)), ...counts });
+        const { facts, reading } = itemIssueFactsOf({
+            item,
+            statement,
+            requested,
+            cook: visibilityFactsOf(principal),
+            saveFacts: {
+                file: fileSaveFactsOf(item.payload),
+                ingredientLineCount: recipe.ingredientLines.length,
+                stepCount: recipe.steps.length,
+            },
+            outOfSlots: !privateAllowed,
+            // A save candidate is matched, so the allowance (which only a received item reads) does not apply.
+            allowanceSpent: false,
+        });
+        const { refusal } = facts;
 
         if (item.refusal === null && refusal !== null) {
             // The upload refuses such a recipe and the refusal stays `received`, so a matched one is a defect. It is held by
@@ -556,29 +565,7 @@ export class ImportAdvanceService {
             );
         }
 
-        const issue = importItemIssueOf({
-            stage: item.stage,
-            refusal,
-            heldAtCurrentRevision: item.heldAtRev === item.decisionRev,
-            // A save candidate is matched, so the allowance facts (which only a received item reads) do not apply.
-            paid: true,
-            allowanceSpent: false,
-            hasStatement: statement !== undefined,
-            visibilityRefused:
-                statement !== undefined &&
-                visibilityRefusedFor(
-                    {
-                        principalKind: principal.principalKind,
-                        containment: principal.containment,
-                        isPremium: isPremiumPrincipal(principal),
-                    },
-                    statement,
-                    requested,
-                ),
-            saveGap: reading !== undefined && 'gap' in reading ? reading.gap : null,
-            private: requested === 'private',
-            outOfSlots: !privateAllowed,
-        });
+        const issue = importItemIssueOf(facts);
 
         if (issue !== null) {
             return this.settle(header, item, SAVE_OUTCOME_OF_ISSUE[issue]);

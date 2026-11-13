@@ -1,4 +1,6 @@
 import {
+    MAX_TIMER_MS,
+    MIN_TIMER_MS,
     NO_TIMER,
     cookingStepsOf,
     offerSecondsOf,
@@ -124,8 +126,8 @@ describe('the duration reader over the golden cookbook steps', () => {
             const offered = offerSecondsOf({ line });
 
             if (offered !== undefined) {
-                expect(offered, line).toBeGreaterThanOrEqual(5);
-                expect(offered, line).toBeLessThanOrEqual(86_400);
+                expect(offered, line).toBeGreaterThanOrEqual(MIN_TIMER_MS / 1_000);
+                expect(offered, line).toBeLessThanOrEqual(MAX_TIMER_MS / 1_000);
             }
         }
     });

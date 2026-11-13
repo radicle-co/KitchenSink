@@ -45,6 +45,10 @@ function run(commands: readonly TimerCommand[], from: TimerState = NO_TIMER) {
 
 const started = (nowMs = 0) => run([{ ...START, nowMs }]).state;
 
+/** The started timer, paused a minute in, or rung at its end. */
+const pausedState = () => run([{ kind: 'pause', id: 't1', nowMs: MINUTE }], started()).state;
+const ringingState = () => run([{ kind: 'ring', nowMs: 90 * MINUTE }], started()).state;
+
 describe('start', () => {
     it('runs from the instant it was started, with a stable id and run 1', () => {
         const state = started(1_000);
@@ -88,8 +92,8 @@ describe('start', () => {
         (kind) => {
             const from = {
                 running: started(),
-                paused: run([{ kind: 'pause', id: 't1', nowMs: MINUTE }], started()).state,
-                ringing: run([{ kind: 'ring', nowMs: 90 * MINUTE }], started()).state,
+                paused: pausedState(),
+                ringing: ringingState(),
             }[kind];
 
             expect(from.timer?.kind).toBe(kind);
@@ -152,7 +156,7 @@ describe('ring', () => {
     });
 
     it('never moves a paused timer', () => {
-        const paused = run([{ kind: 'pause', id: 't1', nowMs: MINUTE }], started()).state;
+        const paused = pausedState();
 
         expect(reduceTimer(paused, { kind: 'ring', nowMs: 500 * MINUTE })).toEqual({ state: paused, events: [] });
     });
@@ -211,7 +215,7 @@ describe('cancel and restore (Undo)', () => {
     });
 
     it('cancel does not apply to a ringing timer: only stop ends it', () => {
-        const ringing = run([{ kind: 'ring', nowMs: 90 * MINUTE }], started()).state;
+        const ringing = ringingState();
 
         expect(reduceTimer(ringing, { kind: 'cancel', id: 't1', nowMs: 91 * MINUTE })).toEqual({
             state: ringing,
@@ -222,7 +226,7 @@ describe('cancel and restore (Undo)', () => {
 
 describe('addTime', () => {
     it('from ringing restarts the timer for the added time, as a new run, and it can ring again', () => {
-        const ringing = run([{ kind: 'ring', nowMs: 90 * MINUTE }], started()).state;
+        const ringing = ringingState();
         const added = reduceTimer(ringing, { kind: 'addTime', id: 't1', addMs: 5 * MINUTE, nowMs: 92 * MINUTE });
 
         expect(added.state.timer).toMatchObject({ kind: 'running', run: 2, endsAt: 97 * MINUTE });
@@ -251,7 +255,7 @@ describe('addTime', () => {
     });
 
     it('refuses 1 s added to a ringing timer, as it does from running', () => {
-        const ringing = run([{ kind: 'ring', nowMs: 90 * MINUTE }], started()).state;
+        const ringing = ringingState();
 
         expect(() => reduceTimer(ringing, { kind: 'addTime', id: 't1', addMs: SECOND, nowMs: 91 * MINUTE })).toThrow(
             expect.toSatisfy(isInvalidTimerDurationError),
@@ -259,7 +263,7 @@ describe('addTime', () => {
     });
 
     it('does not apply to a paused timer', () => {
-        const paused = run([{ kind: 'pause', id: 't1', nowMs: MINUTE }], started()).state;
+        const paused = pausedState();
 
         expect(reduceTimer(paused, { kind: 'addTime', id: 't1', addMs: 5 * MINUTE, nowMs: MINUTE })).toEqual({
             state: paused,
@@ -270,7 +274,7 @@ describe('addTime', () => {
 
 describe('stop', () => {
     it('removes a ringing timer, holds no Undo, and the offers can return', () => {
-        const ringing = run([{ kind: 'ring', nowMs: 90 * MINUTE }], started()).state;
+        const ringing = ringingState();
         const stopped = reduceTimer(ringing, { kind: 'stop', id: 't1', nowMs: 91 * MINUTE });
 
         expect(stopped.state).toEqual({ timer: undefined, undo: undefined });
@@ -286,7 +290,7 @@ describe('stop', () => {
 
 describe('a command for another timer, or one that does not apply, changes nothing and never throws', () => {
     it('resume naming another timer leaves a paused timer paused', () => {
-        const paused = run([{ kind: 'pause', id: 't1', nowMs: MINUTE }], started()).state;
+        const paused = pausedState();
 
         expect(reduceTimer(paused, { kind: 'resume', id: 'other', nowMs: 2 * MINUTE })).toEqual({
             state: paused,
@@ -295,7 +299,7 @@ describe('a command for another timer, or one that does not apply, changes nothi
     });
 
     it('stop naming another timer leaves a ringing timer ringing', () => {
-        const ringing = run([{ kind: 'ring', nowMs: 90 * MINUTE }], started()).state;
+        const ringing = ringingState();
 
         expect(reduceTimer(ringing, { kind: 'stop', id: 'other', nowMs: 91 * MINUTE })).toEqual({
             state: ringing,
@@ -328,7 +332,7 @@ describe('a command for another timer, or one that does not apply, changes nothi
     });
 
     it('a pause while paused, and a resume while running', () => {
-        const paused = run([{ kind: 'pause', id: 't1', nowMs: MINUTE }], started()).state;
+        const paused = pausedState();
 
         expect(reduceTimer(paused, { kind: 'pause', id: 't1', nowMs: 2 * MINUTE })).toEqual({
             state: paused,
@@ -370,16 +374,13 @@ describe('a clock that goes backwards', () => {
 });
 
 describe('the state survives a JSON round trip (a later release stores it)', () => {
-    it.each(['running', 'paused', 'ringing'] as const)('%s, and a held Undo beside no timer', (kind) => {
-        const state = {
-            running: started(),
-            paused: run([{ kind: 'pause', id: 't1', nowMs: MINUTE }], started()).state,
-            ringing: run([{ kind: 'ring', nowMs: 90 * MINUTE }], started()).state,
-        }[kind];
-        const held = run([{ kind: 'cancel', id: 't1', nowMs: MINUTE }], started()).state;
-
+    it.each([
+        ['running', started()],
+        ['paused', pausedState()],
+        ['ringing', ringingState()],
+        ['a held Undo beside no timer', run([{ kind: 'cancel', id: 't1', nowMs: MINUTE }], started()).state],
+    ])('%s', (_label, state) => {
         expect(JSON.parse(JSON.stringify(state))).toEqual(state);
-        expect(JSON.parse(JSON.stringify(held))).toEqual(held);
     });
 });
 
@@ -396,7 +397,7 @@ describe('time left', () => {
 
     it('is never below zero, and zero for a ringing timer or none', () => {
         expect(timeLeftMs(started().timer, 999 * MINUTE)).toBe(0);
-        expect(timeLeftMs(run([{ kind: 'ring', nowMs: 90 * MINUTE }], started()).state.timer, 0)).toBe(0);
+        expect(timeLeftMs(ringingState().timer, 0)).toBe(0);
         expect(timeLeftMs(undefined, 0)).toBe(0);
     });
 });

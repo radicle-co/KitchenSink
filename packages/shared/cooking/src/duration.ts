@@ -66,16 +66,12 @@ function numberOf(token: string): number {
     return (Number.isNaN(digits) ? 0 : digits) + (glyph === undefined ? 0 : (FRACTIONS[glyph] ?? 0));
 }
 
-/** Hours outrank minutes outrank seconds. */
-const HOUR_RANK = 2;
-
-function unitRank(unit: string): number {
-    return { h: HOUR_RANK, m: 1, s: 0 }[unit.toLowerCase().charAt(0)] ?? 0;
-}
+/** The seconds one unit stands for ('h', 'hours', 'Min' and so on), or 0 for one it does not know. */
+const unitSeconds = (unit: string): number => SECONDS_PER_UNIT[unit.toLowerCase().charAt(0)] ?? 0;
 
 /** The seconds an amount ("1½ hours", "20 to 25 min") stands for: its first number times its unit. */
 function secondsOfAmount(quantity: string, unit: string): number {
-    return numberOf(quantity) * (SECONDS_PER_UNIT[unit.toLowerCase().charAt(0)] ?? 0);
+    return numberOf(quantity) * unitSeconds(unit);
 }
 
 /**
@@ -99,7 +95,7 @@ export function readDuration(line: string): DurationReading {
     const [span = ''] = spans[0] ?? [];
     const amounts = [...span.matchAll(AMOUNT)].map((amount) => ({
         seconds: secondsOfAmount(amount[1] ?? '', amount[2] ?? ''),
-        rank: unitRank(amount[2] ?? ''),
+        rank: unitSeconds(amount[2] ?? ''),
     }));
 
     // One span reads as one duration only when its units strictly fall ("1 hour 5 minutes"), never "10 minutes, 5 minutes".
@@ -107,7 +103,7 @@ export function readDuration(line: string): DurationReading {
         return { kind: 'many' };
     }
 
-    const bareMinutes = amounts.at(-1)?.rank === HOUR_RANK ? spans[0]?.groups?.['bare'] : undefined;
+    const bareMinutes = amounts.at(-1)?.rank === SECONDS_PER_UNIT['h'] ? spans[0]?.groups?.['bare'] : undefined;
     const total =
         amounts.reduce((sum, amount) => sum + amount.seconds, 0) +
         (bareMinutes === undefined ? 0 : Number.parseInt(bareMinutes, 10) * 60);
@@ -122,9 +118,14 @@ function secondsOfLine(line: string): number | undefined {
     return reading.kind === 'one' ? reading.seconds : undefined;
 }
 
+/** The seconds when a timer can have that length, else `undefined`. */
+function validSeconds(seconds: number | undefined): number | undefined {
+    return seconds !== undefined && isValidTimerMs(seconds * 1_000) ? seconds : undefined;
+}
+
 /** The input to {@link offerSecondsOf}. */
 export interface OfferInput {
-    /** The step's own stored timer, in seconds. It wins over the text. */
+    /** The step's own stored timer, in seconds. It wins over the text when it is a length a timer can have. */
     readonly storedSeconds?: number | undefined;
     /** The line the cook is on. */
     readonly line: string;
@@ -134,19 +135,11 @@ export interface OfferInput {
  * The timer a step offers, in seconds, or nothing.
  *
  * @param input - The stored timer and the line.
- * @returns The stored timer when it is a valid length, else the line's one duration, else `undefined`. A length a
+ * @returns The stored timer when it is a valid length, else the line's one duration when that is valid, else `undefined`. A length a
  *   timer cannot have (below the shortest or above the longest timer) offers nothing. Pure.
  */
 export function offerSecondsOf(input: OfferInput): number | undefined {
-    const { storedSeconds } = input;
-
-    if (storedSeconds !== undefined && isValidTimerMs(storedSeconds * 1_000)) {
-        return storedSeconds;
-    }
-
-    const seconds = secondsOfLine(input.line);
-
-    return seconds !== undefined && isValidTimerMs(seconds * 1_000) ? seconds : undefined;
+    return validSeconds(input.storedSeconds) ?? validSeconds(secondsOfLine(input.line));
 }
 
 /** A length split into hours, minutes and seconds. */

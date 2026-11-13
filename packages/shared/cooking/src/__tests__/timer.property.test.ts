@@ -50,6 +50,8 @@ const stepsArb = fc.array(
 
 /** Commands as a caller sends them: every start gets a fresh id, and the rest name a timer started so far. */
 function commandFor(template: Template, startedSoFar: number, nowMs: number): TimerCommand {
+    const pickedId = (pick: number) => `t${pick % (startedSoFar + 1)}`;
+
     switch (template.kind) {
         case 'start':
             return {
@@ -65,9 +67,9 @@ function commandFor(template: Template, startedSoFar: number, nowMs: number): Ti
         case 'restore':
             return { kind: template.kind, nowMs };
         case 'addTime':
-            return { kind: 'addTime', id: `t${template.pick % (startedSoFar + 1)}`, addMs: template.addMs, nowMs };
+            return { kind: 'addTime', id: pickedId(template.pick), addMs: template.addMs, nowMs };
         default:
-            return { kind: template.kind, id: `t${template.pick % (startedSoFar + 1)}`, nowMs };
+            return { kind: template.kind, id: pickedId(template.pick), nowMs };
     }
 }
 

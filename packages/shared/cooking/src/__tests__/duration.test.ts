@@ -1,6 +1,6 @@
 /**
  * The duration reader and its two small helpers. The reader finds the timer a step line offers, so every row is a line
- * a cook could really read, with the exact seconds it must give. It reads English only, like the step-line splitter.
+ * a cook could really read, with the exact seconds it must give. It reads English only.
  */
 import { describe, expect, it } from 'vitest';
 
@@ -29,6 +29,17 @@ describe('readDuration', () => {
         ['A 10-minute rest', 600],
         ['Chill for 45 min.', 2_700],
         ['Chill for 45 MIN', 2_700],
+        ['Bake 1/2 hour', 1_800],
+        ['Bake 1/4 hour', 900],
+        ['Bake 1 1/2 hours', 5_400],
+        ['Bake 2 1/4 hours', 8_100],
+        ['Bake between 20 and 25 minutes', 1_200],
+        ['Bake 20‐25 minutes', 1_200],
+        ['Bake 20‑25 minutes', 1_200],
+        ['Bake 20‒25 minutes', 1_200],
+        ['Bake 20―25 minutes', 1_200],
+        ['Bake 20—25 minutes', 1_200],
+        ['Boil 10 minutes 30', 600],
     ])('%s gives one duration of %i s', (line, seconds) => {
         expect(readDuration(line)).toEqual({ kind: 'one', seconds });
     });
@@ -65,6 +76,13 @@ describe('offerSecondsOf', () => {
 
     it('a stored timer wins even when the line reads many', () => {
         expect(offerSecondsOf({ storedSeconds: 600, line: 'bake 10 minutes then rest 5 minutes' })).toBe(600);
+    });
+
+    it('falls to the line when the stored timer is not a length a timer can have', () => {
+        expect(offerSecondsOf({ storedSeconds: 3, line: 'Simmer 20 minutes' })).toBe(1_200);
+        expect(offerSecondsOf({ storedSeconds: 5.0004, line: 'Simmer 20 minutes' })).toBe(1_200);
+        expect(offerSecondsOf({ storedSeconds: 90_000, line: 'Simmer 20 minutes' })).toBe(1_200);
+        expect(offerSecondsOf({ storedSeconds: 3, line: 'Season to taste' })).toBeUndefined();
     });
 
     it('falls to the line when nothing is stored, and to nothing when the line is unclear', () => {

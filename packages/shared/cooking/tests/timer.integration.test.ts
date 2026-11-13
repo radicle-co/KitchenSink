@@ -2,6 +2,7 @@ import {
     NO_TIMER,
     cookingStepsOf,
     offerSecondsOf,
+    readDuration,
     reduceTimer,
     stepPlace,
     timeLeftMs,
@@ -9,6 +10,8 @@ import {
 } from '@kitchensink/cooking-core';
 import { recipeStepSchema } from '@kitchensink/recipe-core';
 import { describe, expect, it } from 'vitest';
+
+import { GOLDEN_CORPUS_STEPS, STEP_LINE_TRAPS, STEP_LINE_TRAPS_2 } from '../src/__fixtures__/stepLinesGolden.js';
 
 /**
  * The timer through the package's PUBLIC surface, over steps parsed by recipe-core's own schema and split by the
@@ -84,5 +87,53 @@ describe('the timer over real recipe steps', () => {
 
         expect(ended).toEqual(['t1:1']);
         expect(timeLeftMs(state.timer, 99_000_000)).toBe(0);
+    });
+});
+
+/**
+ * The real 1919 cookbook steps, split by the real splitter: the reader meets the text it will meet in a kitchen. A unit
+ * table proves the strings its author thought of. This proves what it does to the ones nobody did.
+ */
+describe('the duration reader over the golden cookbook steps', () => {
+    const texts = [
+        ...GOLDEN_CORPUS_STEPS.map((step) => step.text),
+        ...STEP_LINE_TRAPS.map((step) => step.text),
+        ...STEP_LINE_TRAPS_2.map((step) => step.text),
+    ];
+    const lines = cookingStepsOf(texts.map((instruction, index) => ({ stepNumber: index + 1, instruction }))).flatMap(
+        (step) => step.lines,
+    );
+
+    /** An independent, deliberately plain check that a line states some number of a time unit. */
+    const statesATime = (line: string) =>
+        /[\d½¼¾⅓⅔]\s*(?:-\s*)?(?:hours?|hrs?|h|minutes?|mins?|seconds?|secs?)(?![a-z])/iu.test(line);
+
+    it('has real lines to read, some of which state a time', () => {
+        expect(lines.length).toBeGreaterThan(50);
+        expect(lines.filter(statesATime).length).toBeGreaterThanOrEqual(4);
+    });
+
+    it('reads a time from no line that does not state one, and never reads a length a timer cannot be offered', () => {
+        for (const line of lines) {
+            const reading = readDuration(line);
+
+            if (reading.kind !== 'none') {
+                expect(statesATime(line), line).toBe(true);
+            }
+
+            const offered = offerSecondsOf({ line });
+
+            if (offered !== undefined) {
+                expect(offered, line).toBeGreaterThanOrEqual(5);
+                expect(offered, line).toBeLessThanOrEqual(86_400);
+            }
+        }
+    });
+
+    it('reads exactly one time from a good share of the lines that state one', () => {
+        const stating = lines.filter(statesATime);
+        const one = stating.filter((line) => readDuration(line).kind === 'one');
+
+        expect(one.length / stating.length).toBeGreaterThan(0.8);
     });
 });

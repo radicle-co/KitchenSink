@@ -230,7 +230,11 @@ export function reduceTimer(state: TimerState, command: TimerCommand): TimerResu
             }
 
             return quiet({
-                timer: { ...baseOf(timer), kind: 'paused', remainingMs: timer.endsAt - command.nowMs },
+                timer: {
+                    ...baseOf(timer),
+                    kind: 'paused',
+                    remainingMs: Math.min(timer.durationMs, timer.endsAt - command.nowMs),
+                },
                 undo: undefined,
             });
         }

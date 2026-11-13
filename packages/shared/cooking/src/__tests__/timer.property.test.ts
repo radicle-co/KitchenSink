@@ -1,146 +1,187 @@
 /**
- * The timer model over arbitrary command sequences. The clock moves in random steps, BACKWARDS as well as
- * forwards (a device clock change), and commands name ids from a small pool, so stale and misplaced commands are common.
- * After every command the model must keep four promises, whatever came before.
+ * The timer model over arbitrary command sequences. The clock moves in random steps, BACKWARDS as well as forwards and by
+ * more than a day (a device clock change), and commands name timers from the ones started so far, so stale and
+ * misplaced commands are common. A caller mints a fresh id for every start it sends, so the generator does too.
  */
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 
-import { MIN_TIMER_MS, NO_TIMER, reduceTimer, timeLeftMs, type TimerCommand, type TimerState } from '../timer.js';
+import { isInvalidTimerDurationError, isTimerAlreadyActiveError } from '../errors.js';
+import {
+    MAX_TIMER_MS,
+    MIN_TIMER_MS,
+    NO_TIMER,
+    reduceTimer,
+    timeLeftMs,
+    type TimerCommand,
+    type TimerEvent,
+    type TimerState,
+} from '../timer.js';
 
-const IDS = ['a', 'b'] as const;
+type Template =
+    | { readonly kind: 'start'; readonly durationMs: number }
+    | { readonly kind: 'pause' | 'resume' | 'cancel' | 'stop'; readonly pick: number }
+    | { readonly kind: 'addTime'; readonly pick: number; readonly addMs: number }
+    | { readonly kind: 'ring' | 'restore' };
 
-const idArb = fc.constantFrom(...IDS);
-const durationArb = fc.integer({ min: MIN_TIMER_MS, max: 3_600_000 });
+interface Step {
+    readonly template: Template;
+    readonly advanceMs: number;
+}
 
-type Step = { readonly command: Omit<TimerCommand, 'nowMs'>; readonly advanceMs: number };
-
-const commandArb: fc.Arbitrary<Omit<TimerCommand, 'nowMs'>> = fc.oneof(
-    fc.record({
-        kind: fc.constant('start' as const),
-        id: idArb,
-        recipeId: fc.constant('r'),
-        stepIndex: fc.constant(0),
-        name: fc.constant(undefined),
-        durationMs: durationArb,
-    }),
+const templateArb: fc.Arbitrary<Template> = fc.oneof(
+    fc.record({ kind: fc.constant('start' as const), durationMs: fc.integer({ min: MIN_TIMER_MS, max: 3_600_000 }) }),
     fc.record({
         kind: fc.constantFrom('pause' as const, 'resume' as const, 'cancel' as const, 'stop' as const),
-        id: idArb,
+        pick: fc.nat(),
     }),
     fc.record({
         kind: fc.constant('addTime' as const),
-        id: idArb,
+        pick: fc.nat(),
         addMs: fc.integer({ min: MIN_TIMER_MS, max: 600_000 }),
     }),
-    fc.constant({ kind: 'ring' as const }),
-    fc.constant({ kind: 'restore' as const }),
+    fc.record({ kind: fc.constantFrom('ring' as const, 'restore' as const) }),
 );
 
 const stepsArb = fc.array(
-    fc.record({ command: commandArb, advanceMs: fc.integer({ min: -120_000, max: 4_000_000 }) }),
+    fc.record({ template: templateArb, advanceMs: fc.integer({ min: -2 * MAX_TIMER_MS, max: 4_000_000 }) }),
     { maxLength: 40 },
 );
 
-/** Apply a step, treating a refused command (a typed error) as no change. */
-function apply(state: TimerState, step: Step, nowMs: number) {
-    try {
-        return reduceTimer(state, { ...step.command, nowMs } as TimerCommand);
-    } catch {
-        return { state, events: [] };
+/** Commands as a caller sends them: every start gets a fresh id, and the rest name a timer started so far. */
+function commandFor(template: Template, startedSoFar: number, nowMs: number): TimerCommand {
+    switch (template.kind) {
+        case 'start':
+            return {
+                kind: 'start',
+                id: `t${startedSoFar}`,
+                recipeId: 'r',
+                stepIndex: 0,
+                name: undefined,
+                durationMs: template.durationMs,
+                nowMs,
+            };
+        case 'ring':
+        case 'restore':
+            return { kind: template.kind, nowMs };
+        case 'addTime':
+            return { kind: 'addTime', id: `t${template.pick % (startedSoFar + 1)}`, addMs: template.addMs, nowMs };
+        default:
+            return { kind: template.kind, id: `t${template.pick % (startedSoFar + 1)}`, nowMs };
     }
 }
 
+interface Trace {
+    readonly before: TimerState;
+    readonly after: TimerState;
+    readonly events: readonly TimerEvent[];
+    readonly nowMs: number;
+}
+
+/** Run the steps, treating only the two typed refusals as "no change". Any other error fails the property. */
+function trace(steps: readonly Step[]): readonly Trace[] {
+    const out: Trace[] = [];
+    let state = NO_TIMER;
+    let nowMs = 1_000_000;
+    let startedSoFar = 0;
+
+    for (const step of steps) {
+        nowMs += step.advanceMs;
+        const command = commandFor(step.template, startedSoFar, nowMs);
+        let next = { state, events: [] as readonly TimerEvent[] };
+
+        try {
+            next = reduceTimer(state, command);
+
+            if (command.kind === 'start') {
+                startedSoFar += 1;
+            }
+        } catch (error) {
+            if (!isInvalidTimerDurationError(error) && !isTimerAlreadyActiveError(error)) {
+                throw error;
+            }
+        }
+
+        out.push({ before: state, after: next.state, events: next.events, nowMs });
+        state = next.state;
+    }
+
+    return out;
+}
+
 describe('the timer model over any command sequence', () => {
-    it('emits ended at most once per (id, run), and only on an edge into ringing', () => {
+    it('emits ended at most once per (id, run), only on an edge into ringing', () => {
         fc.assert(
             fc.property(stepsArb, (steps) => {
-                let state = NO_TIMER;
-                let nowMs = 1_000_000;
                 const seen = new Set<string>();
 
-                for (const step of steps) {
-                    nowMs += step.advanceMs;
-                    const before = state.timer?.kind;
-                    const { state: next, events } = apply(state, step, nowMs);
-
+                for (const { before, after, events } of trace(steps)) {
                     for (const event of events) {
                         const key = `${event.id}:${event.run}`;
 
                         expect(seen.has(key)).toBe(false);
                         seen.add(key);
-                        expect(next.timer?.kind).toBe('ringing');
-                        expect(before).not.toBe('ringing');
+                        expect(after.timer).toMatchObject({ kind: 'ringing', id: event.id, run: event.run });
+                        expect(before.timer?.kind).not.toBe('ringing');
                     }
-
-                    state = next;
                 }
             }),
+            { numRuns: 500 },
         );
     });
 
-    it('holds at most one timer, and never a held snapshot beside a live timer', () => {
+    it('never holds a snapshot for Undo beside a live timer', () => {
         fc.assert(
             fc.property(stepsArb, (steps) => {
-                let state = NO_TIMER;
-                let nowMs = 1_000_000;
-
-                for (const step of steps) {
-                    nowMs += step.advanceMs;
-                    state = apply(state, step, nowMs).state;
-
-                    if (state.timer !== undefined) {
-                        expect(state.undo).toBeUndefined();
+                for (const { after } of trace(steps)) {
+                    if (after.timer !== undefined) {
+                        expect(after.undo).toBeUndefined();
                     }
                 }
             }),
         );
     });
 
-    it('keeps the time left of a paused timer fixed, however the clock moves', () => {
+    it('keeps a paused timer at the same time left until something resumes, cancels or stops it', () => {
         fc.assert(
-            fc.property(
-                stepsArb,
-                fc.array(fc.integer({ min: -1e7, max: 1e9 }), { minLength: 1, maxLength: 6 }),
-                (steps, clocks) => {
-                    let state = NO_TIMER;
-                    let nowMs = 1_000_000;
+            fc.property(stepsArb, (steps) => {
+                let pausedLeft: { readonly id: string; readonly remainingMs: number } | undefined;
 
-                    for (const step of steps) {
-                        nowMs += step.advanceMs;
-                        state = apply(state, step, nowMs).state;
-                    }
+                for (const { after } of trace(steps)) {
+                    if (after.timer?.kind === 'paused') {
+                        const { id, remainingMs } = after.timer;
 
-                    if (state.timer?.kind === 'paused') {
-                        const left = timeLeftMs(state.timer, nowMs);
+                        expect(remainingMs).toBeLessThanOrEqual(after.timer.durationMs);
+                        expect(remainingMs).toBeGreaterThan(0);
 
-                        for (const clock of clocks) {
-                            expect(timeLeftMs(state.timer, clock)).toBe(left);
+                        if (pausedLeft?.id === id) {
+                            expect(remainingMs).toBe(pausedLeft.remainingMs);
                         }
+
+                        pausedLeft = { id, remainingMs };
+                    } else {
+                        pausedLeft = undefined;
                     }
-                },
-            ),
+                }
+            }),
         );
     });
 
-    it('reads time left as the end instant minus now, never below zero and never past the longest timer', () => {
+    it('measures a running timer against the clock: the time it loses is exactly the time that passed', () => {
         fc.assert(
-            fc.property(stepsArb, fc.integer({ min: -1e7, max: 1e9 }), (steps, probe) => {
-                let state = NO_TIMER;
-                let nowMs = 1_000_000;
+            fc.property(stepsArb, fc.integer({ min: -2 * MAX_TIMER_MS, max: 2 * MAX_TIMER_MS }), (steps, probe) => {
+                for (const { after } of trace(steps)) {
+                    const { timer } = after;
 
-                for (const step of steps) {
-                    nowMs += step.advanceMs;
-                    state = apply(state, step, nowMs).state;
-                }
+                    if (timer?.kind !== 'running') {
+                        continue;
+                    }
 
-                const { timer } = state;
-                const left = timeLeftMs(timer, probe);
+                    const first = Math.min(probe, timer.endsAt);
+                    const second = Math.min(probe + 1_000, timer.endsAt);
 
-                expect(left).toBeGreaterThanOrEqual(0);
-
-                if (timer?.kind === 'running') {
-                    expect(left).toBe(Math.max(0, timer.endsAt - probe));
+                    expect(timeLeftMs(timer, first) - timeLeftMs(timer, second)).toBe(second - first);
+                    expect(timeLeftMs(timer, timer.endsAt + 1)).toBe(0);
                 }
             }),
         );

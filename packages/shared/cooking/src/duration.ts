@@ -3,8 +3,7 @@
  *
  * The reader finds the ONE duration a step offers as a timer. It is a small domain extractor, not a library,
  * because a duration library adds up every unit in a string and cannot find exactly one span in prose or take the low
- * end of a range. The in-repo `normalizeDurationToMinutes` (recipe import) sums every term of a whole field to rounded
- * minutes, which is another job. It reads English only, like the step-line splitter (`STEP_LINE_ABBREVIATIONS`).
+ * end of a range. It reads English only.
  *
  * shortcut: number words ("an hour", "half an hour", "two minutes") are not read and a step that only says them offers
  * no timer, upgrade when a real recipe needs them. A bare number after an hour unit reads as minutes ("1 h 30") only
@@ -21,8 +20,11 @@ const FRACTIONS: Readonly<Record<string, number>> = { '½': 0.5, '¼': 0.25, '¾
 
 const SECONDS_PER_UNIT: Readonly<Record<string, number>> = { h: 3_600, m: 60, s: 1 };
 
-/** A number: digits with an optional decimal and an optional fraction glyph, or a fraction glyph alone. */
-const NUMBER = String.raw`(?:\d+(?:\.\d+)?\s?[½¼¾⅓⅔]?|[½¼¾⅓⅔])`;
+/** A number: a mixed number or fraction ("1 1/2", "1/2"), digits with an optional decimal and fraction glyph, or a glyph. */
+const NUMBER = String.raw`(?:\d+\s+\d+/\d+|\d+/\d+|\d+(?:\.\d+)?\s?[½¼¾⅓⅔]?|[½¼¾⅓⅔])`;
+
+/** Every dash a step line may use between two numbers. */
+const DASH = '[-‐‑‒–—―]';
 
 /** Units, English. A bare `m` or `s` is left out on purpose: "2 m of oil", "5 s" are not time. */
 const UNIT = String.raw`(?:hours?|hrs?|h|minutes?|mins?|seconds?|secs?)`;
@@ -34,7 +36,7 @@ const UNIT = String.raw`(?:hours?|hrs?|h|minutes?|mins?|seconds?|secs?)`;
 const amountSource = (capture: boolean): string => {
     const group = (inner: string): string => (capture ? `(${inner})` : `(?:${inner})`);
 
-    return `${group(NUMBER)}(?:\\s*(?:-|–|—|to|or)\\s*${NUMBER})?\\s*-?\\s*${group(UNIT)}(?![a-z])`;
+    return `${group(NUMBER)}(?:\\s*(?:${DASH}|to|or)\\s*${NUMBER}|\\s+and\\s+${NUMBER})?\\s*-?\\s*${group(UNIT)}(?![a-z])`;
 };
 
 /** What may sit between two amounts of one duration: only space, a comma or "and". */
@@ -48,13 +50,27 @@ const SPAN = new RegExp(`${amountSource(false)}(?:${JOINER}${amountSource(false)
 
 const AMOUNT = new RegExp(amountSource(true), 'giu');
 
-/** The value of a number token: digits, a decimal, a fraction glyph, or digits and a fraction glyph. */
+/** The value of a number token: a fraction, a mixed number, digits, a decimal, a fraction glyph, or digits and a glyph. */
 function numberOf(token: string): number {
-    const glyph = [...token].find((char) => char in FRACTIONS);
-    const whole = Number.parseFloat(token.replace(/[^\d.]/gu, ''));
-    const base = Number.isNaN(whole) ? 0 : whole;
+    const fraction = /^(?:(\d+)\s+)?(\d+)\/(\d+)$/u.exec(token.trim());
 
-    return base + (glyph === undefined ? 0 : (FRACTIONS[glyph] ?? 0));
+    if (fraction !== null) {
+        const [, whole = '0', numerator = '0', denominator = '1'] = fraction;
+
+        return Number(whole) + Number(numerator) / Number(denominator);
+    }
+
+    const glyph = [...token].find((char) => char in FRACTIONS);
+    const digits = Number.parseFloat(token.replace(/[^\d.]/gu, ''));
+
+    return (Number.isNaN(digits) ? 0 : digits) + (glyph === undefined ? 0 : (FRACTIONS[glyph] ?? 0));
+}
+
+/** Hours outrank minutes outrank seconds. */
+const HOUR_RANK = 2;
+
+function unitRank(unit: string): number {
+    return { h: HOUR_RANK, m: 1, s: 0 }[unit.toLowerCase().charAt(0)] ?? 0;
 }
 
 /** The seconds an amount ("1½ hours", "20 to 25 min") stands for: its first number times its unit. */
@@ -81,9 +97,19 @@ export function readDuration(line: string): DurationReading {
     }
 
     const [span = ''] = spans[0] ?? [];
-    const bareMinutes = spans[0]?.groups?.['bare'];
+    const amounts = [...span.matchAll(AMOUNT)].map((amount) => ({
+        seconds: secondsOfAmount(amount[1] ?? '', amount[2] ?? ''),
+        rank: unitRank(amount[2] ?? ''),
+    }));
+
+    // One span reads as one duration only when its units strictly fall ("1 hour 5 minutes"), never "10 minutes, 5 minutes".
+    if (amounts.some((amount, index) => index > 0 && amount.rank >= (amounts[index - 1]?.rank ?? 0))) {
+        return { kind: 'many' };
+    }
+
+    const bareMinutes = amounts.at(-1)?.rank === HOUR_RANK ? spans[0]?.groups?.['bare'] : undefined;
     const total =
-        [...span.matchAll(AMOUNT)].reduce((sum, amount) => sum + secondsOfAmount(amount[1] ?? '', amount[2] ?? ''), 0) +
+        amounts.reduce((sum, amount) => sum + amount.seconds, 0) +
         (bareMinutes === undefined ? 0 : Number.parseInt(bareMinutes, 10) * 60);
 
     return total > 0 ? { kind: 'one', seconds: Math.round(total) } : { kind: 'none' };
@@ -112,7 +138,13 @@ export interface OfferInput {
  *   timer cannot have (below the shortest or above the longest timer) offers nothing. Pure.
  */
 export function offerSecondsOf(input: OfferInput): number | undefined {
-    const seconds = input.storedSeconds ?? secondsOfLine(input.line);
+    const { storedSeconds } = input;
+
+    if (storedSeconds !== undefined && isValidTimerMs(storedSeconds * 1_000)) {
+        return storedSeconds;
+    }
+
+    const seconds = secondsOfLine(input.line);
 
     return seconds !== undefined && isValidTimerMs(seconds * 1_000) ? seconds : undefined;
 }

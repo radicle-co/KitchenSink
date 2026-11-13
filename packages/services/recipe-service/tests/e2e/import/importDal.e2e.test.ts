@@ -910,6 +910,78 @@ describe('the bulk-import DALs (LOCAL e2e, real Postgres)', () => {
                 expect(await items.countSaveFailure(header.id, 0, rev + 1)).toBe(1);
             });
 
+            // Re-review of #220, item 3: an item held as unreadable is the one matched item the cook may replace.
+            describe('⛔ replacing a matched item the save holds as unreadable', () => {
+                const free = { principalKind: 'real', containment: 'enforce', isPremium: false } as const;
+
+                async function heldMatched(reason: 'unreadable' | 'item') {
+                    const header = await newImport(1);
+
+                    await put(header.id, [0], { statement: { kind: 'authored' } });
+                    await pool.query(
+                        `UPDATE recipe_import_items SET stage = 'parsing', allowance_spent_at = now() WHERE import_id = $1`,
+                        [header.id],
+                    );
+                    expect(await items.snapshot(header.id, 0, [snapshotLine(0, 0, '2 cups flour', 'flour')])).toBe(
+                        true,
+                    );
+
+                    const read = await items.findItem(header.id, 0);
+
+                    expect(
+                        await items.holdItem(header.id, 0, read?.decisionRev ?? Number.NaN, holdOf(reason, free)),
+                    ).toBe(true);
+
+                    return { header, before: await items.findItem(header.id, 0) };
+                }
+
+                const linesOf = async (importId: string) =>
+                    (
+                        await pool.query<{ n: number }>(
+                            `SELECT count(*)::int AS n FROM recipe_import_lines WHERE import_id = $1`,
+                            [importId],
+                        )
+                    ).rows[0]?.n;
+
+                it('reopens it: back to received, a new parse generation, no snapshot, the unit still spent, held no more', async () => {
+                    const { header, before } = await heldMatched('unreadable');
+
+                    expect(
+                        await items.upsertItems(header.id, [{ ordinal: 0, recipe: recipe('Fixed', ['1 egg']) }]),
+                    ).toEqual({
+                        kind: 'ok',
+                    });
+
+                    const after = await items.findItem(header.id, 0);
+
+                    expect(after).toMatchObject({
+                        stage: 'received',
+                        matchedAt: null,
+                        parseJobId: null,
+                        title: 'Fixed',
+                        parseGeneration: (before?.parseGeneration ?? Number.NaN) + 1,
+                        decisionRev: (before?.decisionRev ?? Number.NaN) + 1,
+                    });
+                    expect(after?.allowanceSpentAt).not.toBeNull();
+                    expect(after?.heldAtRev).not.toBe(after?.decisionRev);
+                    expect(await linesOf(header.id)).toBe(0);
+                    expect((await items.findNeedingJob(header.id, 10)).map((item) => item.ordinal)).toEqual([0]);
+                });
+
+                it('⛔ still locks a matched item held for any other reason', async () => {
+                    const { header } = await heldMatched('item');
+
+                    expect(
+                        await items.upsertItems(header.id, [{ ordinal: 0, recipe: recipe('Fixed', ['1 egg']) }]),
+                    ).toEqual({
+                        kind: 'locked',
+                        ordinal: 0,
+                        stage: 'matched',
+                    });
+                    expect(await linesOf(header.id)).toBe(1);
+                });
+            });
+
             it('⛔ a hold is fenced on the revision the save read: a decision that landed in between is never hidden', async () => {
                 const header = await newImport(1);
 

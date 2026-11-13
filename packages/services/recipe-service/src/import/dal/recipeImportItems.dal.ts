@@ -36,7 +36,13 @@ import type { RecipeTx } from '../../database/unitOfWork.js';
 import type { ImportRecipe, ImportStatement } from '../../recipes/import.schema.js';
 import { ITEM_REVIEWS, type ItemReview } from '../domain/importBindingPolicy.js';
 import { decideItemUpsert } from '../domain/importItemUpsert.js';
-import { COOK_DEPENDENT_HOLD_REASONS, HOLD_REASONS, type HoldReason, type ImportHold } from '../domain/importHold.js';
+import {
+    COOK_DEPENDENT_HOLD_REASONS,
+    HOLD_REASONS,
+    isHeldUnreadable,
+    type HoldReason,
+    type ImportHold,
+} from '../domain/importHold.js';
 import { importRefusalOf, type ImportRefusal } from '../domain/importRefusal.js';
 import type { ImportFileFacts } from '../domain/importSaveGap.js';
 import { columnsOfStatement } from '../domain/importStatement.js';
@@ -153,6 +159,9 @@ function choicesColumnsOf(entry: ChoicesPatch) {
     };
 }
 
+/** What a reopened item drops: it is `received` again, with no match and no parse job (`decideItemUpsert`'s `reopen`). */
+const REOPENED = { stage: 'received', matchedAt: null, parseJobId: null } as const;
+
 /** Moves the fence: written by every write of what an item is saved from (see `decision_rev` in migration 0059). */
 const BUMP_DECISION_REV = { decisionRev: sql`${recipeImportItems.decisionRev} + 1`, saveFailures: 0 } as const;
 
@@ -206,7 +215,13 @@ export class RecipeImportItemsDal {
                     input,
                     decision: decideItemUpsert({
                         existing:
-                            existing === undefined ? undefined : { stage: existing.stage, payload: existing.payload },
+                            existing === undefined
+                                ? undefined
+                                : {
+                                      stage: existing.stage,
+                                      payload: existing.payload,
+                                      heldUnreadable: isHeldUnreadable(existing),
+                                  },
                         recipe: input.recipe,
                     }),
                 };
@@ -237,7 +252,19 @@ export class RecipeImportItemsDal {
                         }),
                         ...patch,
                     });
-                } else if (decision.kind === 'replace') {
+                } else if (decision.kind === 'replace' || decision.kind === 'reopen') {
+                    if (decision.kind === 'reopen') {
+                        // The snapshot was made from the recipe being replaced: it goes, and the new recipe is parsed again.
+                        await tx
+                            .delete(recipeImportLines)
+                            .where(
+                                and(
+                                    eq(recipeImportLines.importId, importId),
+                                    eq(recipeImportLines.ordinal, input.ordinal),
+                                ),
+                            );
+                    }
+
                     await tx
                         .update(recipeImportItems)
                         .set({
@@ -253,6 +280,8 @@ export class RecipeImportItemsDal {
                             // A new recipe needs a new parse job. The job id is derived from the generation, and a paid item
                             // can hold a job created just before a crash and never attached, made from the OLD text.
                             parseGeneration: sql`${recipeImportItems.parseGeneration} + 1`,
+                            // A reopened item starts again from `received`: no match, no job, and its paid unit stays spent.
+                            ...(decision.kind === 'reopen' ? REOPENED : {}),
                             updatedAt: sql`now()`,
                         })
                         .where(

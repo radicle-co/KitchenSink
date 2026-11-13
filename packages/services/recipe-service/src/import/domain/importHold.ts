@@ -81,6 +81,16 @@ export function holdApplies(item: HeldItem, cookKey: string): boolean {
 }
 
 /**
+ * Whether the save holds the item, at its current revision, because it cannot read its recipe: the one hold a new recipe
+ * from the cook may lift on a matched item (`decideItemUpsert`). Pure.
+ *
+ * @param item - The hold's columns.
+ */
+export function isHeldUnreadable(item: HeldItem): boolean {
+    return item.heldReason === 'unreadable' && item.heldAtRev === item.decisionRev;
+}
+
+/**
  * Whether the list names the hold `saveRefused`: it still applies, and its cause is one no other issue names (a create
  * refusal the pre-check did not predict, or a payload this build cannot read). Pure and total.
  *

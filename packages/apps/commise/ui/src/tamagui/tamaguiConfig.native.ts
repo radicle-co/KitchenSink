@@ -34,8 +34,12 @@ export const tamaguiConfig = createTamagui({
         // NATIVE-STYLE-ADAPTER: the hairline is a density-dependent React Native value with no Tamagui source of its own.
         borderWidth: { hairline: StyleSheet.hairlineWidth },
     }),
-    // One named spring, for the Sheet. The driver runs on a device; the test lanes alias it to `@commise/ui/testing/animations-shim`.
-    animations: createAnimations({ sheet: { type: 'spring', damping: 24, mass: 1, stiffness: 280 } }),
+    // The named springs: the check box's check (§1.9) and the Sheet. The driver runs on a device; the test lanes alias it
+    // to `@commise/ui/testing/animations-shim`.
+    animations: createAnimations({
+        check: { type: 'spring', damping: 28, stiffness: 600 },
+        sheet: { type: 'spring', damping: 24, mass: 1, stiffness: 280 },
+    }),
     themes: tamaguiThemes,
     fonts: {
         body: createFont(tamaguiFonts.body),

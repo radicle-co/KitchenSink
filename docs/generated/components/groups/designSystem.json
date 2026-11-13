@@ -6,11 +6,11 @@
     "coverage": {
         "components": 94,
         "implementations": 152,
-        "props": 969,
+        "props": 971,
         "documentedComponents": 94,
         "implementationsWithModuleDoc": 152,
         "implementationsWithComponentDoc": 138,
-        "documentedProps": 872,
+        "documentedProps": 874,
         "classifiedComponents": 87,
         "componentsWithPatternTag": 94,
         "crossPlatformComponents": 58
@@ -1218,10 +1218,9 @@
             "dir": "packages/apps/commise/ui/src/checkBoxGlyph",
             "kind": "presentational",
             "patterns": [
-                "Adapter over React Native's imperative `Animated` spring — the signature check motion, owned here so the\n    rows that draw it stay pure",
                 "Adapter over a CSS transition — the signature check motion, declared once for every whole-row checkbox",
-                "Glyph — a fixed 18 pt mark that owns its corner (`GLYPH_CORNER`), which no radius step fits",
-                "Glyph — a fixed 18 px mark that owns its corner (`GLYPH_CORNER`), which no radius step fits"
+                "Glyph — a mark sized by its row's text role that owns its corner (`GLYPH_CORNER`), which no radius step fits",
+                "Strategy — `checkMarkMotion` picks the check's entrance (the named spring, or none) from the OS preference"
             ],
             "platforms": [
                 "web",
@@ -1236,7 +1235,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/ui/src/checkBoxGlyph/CheckBoxGlyph.tsx",
                     "dir": "packages/apps/commise/ui/src/checkBoxGlyph",
-                    "moduleDoc": "@commise/ui/check-box-glyph — the web design-system {@link CheckBoxGlyph}.\n\nAn 18 px box with a 4 px corner (owner decisions C5/T1: a rounded square, never the 8 px radius that reads as a radio; the touch target is the ROW's, not the glyph's): a 1 px `lineControl` outline (thin: owner decision C6) when unchecked (a 3:1 graphic under SC 1.4.11), the `action` fill with an\n`onAction` check when checked. The check stays mounted and carries the signature motion (§1.9): 120 ms from scale 0.9\nwith an overshoot easing, which `motion-reduce:` turns off. Hidden from assistive technology — the row it sits in is\nthe checkbox.\n\nPresentational: props → JSX, with no data, no mutation and no effect of its own.",
+                    "moduleDoc": "@commise/ui/check-box-glyph — the web design-system {@link CheckBoxGlyph}.\n\nA box with a rounded corner (owner decisions C5/T1: a rounded square, never the 8 px radius that reads as a radio; the\ntouch target is the ROW's, not the glyph's): a 1 px `lineControl` outline (thin: owner decision C6) when unchecked (a\n3:1 graphic under SC 1.4.11), the `action` fill with an `onAction` check when checked. The check stays mounted and\ncarries the signature motion (§1.9): 120 ms from scale 0.9 with an overshoot easing, which `motion-reduce:` turns off.\nHidden from assistive technology — the row it sits in is the checkbox.\n\nThe box grows with its row's text: 18 px beside body sizes, 22 beside a 28 px role (`checkBoxSideOf`). Every size is\nin `rem`, so browser text size moves the box and the text together. It sits centred in a slot one line of its text\nrole tall, so in a row that aligns its items to the top the box stays beside the FIRST line when the text wraps.\n\nPresentational: props → JSX, with no data, no mutation and no effect of its own.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -1248,7 +1247,7 @@
                         },
                         {
                             "name": "pattern",
-                            "text": "Glyph — a fixed 18 px mark that owns its corner (`GLYPH_CORNER`), which no radius step fits"
+                            "text": "Glyph — a mark sized by its row's text role that owns its corner (`GLYPH_CORNER`), which no radius step fits"
                         }
                     ],
                     "description": "The web whole-row checkbox's box.",
@@ -1264,6 +1263,27 @@
                             "defaultValue": null,
                             "description": "Whether the row is checked: the box fills and the check springs in.",
                             "declaredIn": "packages/apps/commise/ui/src/checkBoxGlyph/props.ts"
+                        },
+                        {
+                            "name": "textRole",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"list\"",
+                                "\"body\"",
+                                "\"largeTitle\"",
+                                "\"barTitle\"",
+                                "\"sectionTitle\"",
+                                "\"cardTitle\"",
+                                "\"readingBody\"",
+                                "\"meta\"",
+                                "\"label\"",
+                                "\"caption\"",
+                                "\"figureStat\""
+                            ],
+                            "required": false,
+                            "defaultValue": "body",
+                            "description": "The type role of the row text the box sits beside. It sets the box's size and the line the box is centred on.\nDefaults to `body`.",
+                            "declaredIn": "packages/apps/commise/ui/src/checkBoxGlyph/props.ts"
                         }
                     ],
                     "usesRefApi": [],
@@ -1278,7 +1298,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/ui/src/checkBoxGlyph/CheckBoxGlyph.native.tsx",
                     "dir": "packages/apps/commise/ui/src/checkBoxGlyph",
-                    "moduleDoc": "@commise/ui/check-box-glyph — the native design-system {@link CheckBoxGlyph}.\n\nA 24 pt box: a 2 pt `lineControl` outline when unchecked, the `action` fill with an `onAction` check when checked.\nChecking springs the check in from scale 0.9 with the signature overshoot (§1.9: stiffness 600, damping 28); under\nreduced motion, or while the preference is still being read, it appears at once. Hidden from assistive technology —\nthe row it sits in is the checkbox. Colours come from the theme at render, so it repaints in the dark scheme.",
+                    "moduleDoc": "@commise/ui/check-box-glyph — the native design-system {@link CheckBoxGlyph}.\n\nA box with a rounded corner: a 1 pt `lineControl` outline when unchecked, the `action` fill with an `onAction` check\nwhen checked. Checking springs the check in from scale 0.9 with the signature overshoot, through the named `check`\nspring in the Tamagui config (§1.9: stiffness 600, damping 28); under reduced motion, or while the preference is still\nbeing read, it appears at once (`checkMarkMotion`). Hidden from assistive\ntechnology — the row it sits in is the checkbox. Colours are theme tokens, so it repaints in the dark scheme.\n\nThe box grows with its row's text: its 1x side (`checkBoxSideOf`: 18 beside body sizes, 22 beside a 28 pt role) times\nthe role's own growth under the system text scale (`grownScale`), so it never outgrows that text's cap. It sits\ncentred in a slot one scaled line of its role tall, so in a row that aligns its items to the top the box stays beside\nthe FIRST line when the text wraps.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -1286,11 +1306,11 @@
                         },
                         {
                             "name": "pattern",
-                            "text": "Adapter over React Native's imperative `Animated` spring — the signature check motion, owned here so the\n    rows that draw it stay pure"
+                            "text": "Strategy — `checkMarkMotion` picks the check's entrance (the named spring, or none) from the OS preference"
                         },
                         {
                             "name": "pattern",
-                            "text": "Glyph — a fixed 18 pt mark that owns its corner (`GLYPH_CORNER`), which no radius step fits"
+                            "text": "Glyph — a mark sized by its row's text role that owns its corner (`GLYPH_CORNER`), which no radius step fits"
                         }
                     ],
                     "description": "The native whole-row checkbox's box.",
@@ -1305,6 +1325,27 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "Whether the row is checked: the box fills and the check springs in.",
+                            "declaredIn": "packages/apps/commise/ui/src/checkBoxGlyph/props.ts"
+                        },
+                        {
+                            "name": "textRole",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"list\"",
+                                "\"body\"",
+                                "\"largeTitle\"",
+                                "\"barTitle\"",
+                                "\"sectionTitle\"",
+                                "\"cardTitle\"",
+                                "\"readingBody\"",
+                                "\"meta\"",
+                                "\"label\"",
+                                "\"caption\"",
+                                "\"figureStat\""
+                            ],
+                            "required": false,
+                            "defaultValue": "body",
+                            "description": "The type role of the row text the box sits beside. It sets the box's size and the line the box is centred on.\nDefaults to `body`.",
                             "declaredIn": "packages/apps/commise/ui/src/checkBoxGlyph/props.ts"
                         }
                     ],
@@ -3802,8 +3843,8 @@
                             "name": "sideBySideFrom",
                             "type": "enum",
                             "typeDetail": [
-                                "400",
                                 "600",
+                                "400",
                                 "440"
                             ],
                             "required": true,
@@ -3853,8 +3894,8 @@
                             "name": "sideBySideFrom",
                             "type": "enum",
                             "typeDetail": [
-                                "400",
                                 "600",
+                                "400",
                                 "440"
                             ],
                             "required": true,

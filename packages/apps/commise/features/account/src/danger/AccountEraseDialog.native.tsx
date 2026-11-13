@@ -101,7 +101,7 @@ export const AccountEraseDialog: FC<AccountEraseDialogProps> = ({
                             onPress={() => onToggleRecipe(recipe.id)}
                             style={styles.recipeRow}
                         >
-                            <CheckBoxGlyph checked={checked} />
+                            <CheckBoxGlyph checked={checked} textRole="meta" />
                             <Text style={[styles.recipeTitle, ink]}>{recipe.title}</Text>
                         </Pressable>
                     );

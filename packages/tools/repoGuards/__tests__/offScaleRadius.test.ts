@@ -136,6 +136,37 @@ describe('radius scale, every app', () => {
             expect(scan(glyph('const s = { borderRadius: CORNER };'))).toEqual(['borderRadius: CORNER']);
         });
 
+        // A glyph that grows with its text keeps its corner in proportion: the one admitted shape is a named ratio times
+        // the side, `side * GLYPH_CORNER_PER_SIDE`. Anything that adds arithmetic around it is layout, and is refused.
+        describe('a glyph corner that scales with its side', () => {
+            it.each([
+                ['the side times the named ratio', 'side * GLYPH_CORNER_PER_SIDE'],
+                ['the named ratio times the side', 'GLYPH_CORNER_PER_SIDE * side'],
+            ])('admits %s in a glyph module', (_shape, value) => {
+                expect(scan(glyph(`const s = { borderRadius: ${value} };`))).toEqual([]);
+            });
+
+            it.each([
+                ['a quotient of the side', 'side / 3'],
+                ['a bare-number ratio', 'side * 0.22'],
+                ['a longer chain', 'side * GLYPH_X * 2'],
+                ['the ratio worked out inline', '(side * GLYPH_X) / CHECK_BOX_MIN_SIDE'],
+                ['a ratio that is not a glyph constant', 'side * CORNER_RATIO'],
+                ['an offset on the admitted shape', 'side * GLYPH_CORNER_PER_SIDE + 1'],
+                // A fractional radius renders on both platforms, so there is no reason to round it.
+                ['a wrapped form (rounding is not needed)', 'Math.round(side * GLYPH_CORNER_PER_SIDE)'],
+                ['two glyph constants', 'GLYPH_A * GLYPH_B'],
+            ])('refuses %s in a glyph module', (_shape, value) => {
+                expect(scan(glyph(`const s = { borderRadius: ${value} };`))).toEqual([`borderRadius: ${value}`]);
+            });
+
+            it('refuses the admitted shape outside a glyph module', () => {
+                expect(scan(plain('const s = { borderRadius: side * GLYPH_CORNER_PER_SIDE };'))).toEqual([
+                    'borderRadius: side * GLYPH_CORNER_PER_SIDE',
+                ]);
+            });
+        });
+
         it('does not take the word in a comment or a later tag for the pattern', () => {
             expect(scan(`// @pattern Glyph\n${web}`)).toEqual(['borderRadius: GLYPH_CORNER']);
             expect(scan(`/** @pattern Adapter */\n/** @pattern Glyph */\n${web}`)).toEqual([
@@ -202,6 +233,45 @@ describe('Tamagui radius', () => {
         ],
     ] as const)('%s', (_shape, body, expected) => {
         expect(tamaguiRadiusFindings(head + body, 'fixture.tsx', none, keys)).toHaveLength(expected);
+    });
+
+    describe('a glyph corner that scales with its side', () => {
+        const glyphHead = `/**\n * @module x\n *\n * @pattern Glyph — a mark\n */\n${head}`;
+
+        it.each([
+            ['the side times the named ratio', 'side * GLYPH_CORNER_PER_SIDE'],
+            ['the named ratio times the side', 'GLYPH_CORNER_PER_SIDE * side'],
+        ])('admits %s on an element in a glyph module', (_shape, value) => {
+            expect(
+                tamaguiRadiusFindings(`${glyphHead}<View borderRadius={${value}} />`, 'fixture.tsx', none, keys),
+            ).toEqual([]);
+        });
+
+        it.each([
+            ['a quotient of the side', 'side / 3'],
+            ['a bare-number ratio', 'side * 0.22'],
+            ['a longer chain', 'side * GLYPH_X * 2'],
+            ['the ratio worked out inline', '(side * GLYPH_X) / CHECK_BOX_MIN_SIDE'],
+            ['a ratio that is not a glyph constant', 'side * CORNER_RATIO'],
+            ['an offset on the admitted shape', 'side * GLYPH_CORNER_PER_SIDE + 1'],
+            ['a wrapped form (rounding is not needed)', 'Math.round(side * GLYPH_CORNER_PER_SIDE)'],
+            ['two glyph constants', 'GLYPH_A * GLYPH_B'],
+        ])('refuses %s on an element in a glyph module', (_shape, value) => {
+            expect(
+                tamaguiRadiusFindings(`${glyphHead}<View borderRadius={${value}} />`, 'fixture.tsx', none, keys),
+            ).toHaveLength(1);
+        });
+
+        it('refuses the admitted shape outside a glyph module', () => {
+            expect(
+                tamaguiRadiusFindings(
+                    `${head}<View borderRadius={side * GLYPH_CORNER_PER_SIDE} />`,
+                    'fixture.tsx',
+                    none,
+                    keys,
+                ),
+            ).toHaveLength(1);
+        });
     });
 
     it('leaves a styled() radius token to this rule, so the generic reader does not call it off the scale', () => {

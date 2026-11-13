@@ -19,6 +19,7 @@
     },
     "dependencies": {
         "@commise/ui": "*",
+        "prettier": "^3.10.1",
         "react-docgen-typescript": "^2.4.0",
         "typescript": "^6.0.3"
     },
@@ -30,7 +31,6 @@
         "@types/node": "^24.13.3",
         "@types/react": "^19.0.0",
         "eslint": "^10.0.3",
-        "prettier": "^3.10.1",
         "react": "^19.0.0",
         "tamagui": "^3.1.9",
         "tsx": "^4.23.15",

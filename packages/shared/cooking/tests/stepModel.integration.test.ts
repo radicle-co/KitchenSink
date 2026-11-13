@@ -53,26 +53,33 @@ describe('step model — a recipe with a blank step and a multi-line step', () =
     });
 
     it('places every step from first to last, and nothing past the end', () => {
-        expect(stepPlace(0, steps.length)).toEqual({ position: 1, total: 3, previous: null, next: 2 });
-        expect(stepPlace(1, steps.length)).toEqual({ position: 2, total: 3, previous: 1, next: 3 });
-        expect(stepPlace(2, steps.length)).toEqual({ position: 3, total: 3, previous: 2, next: null });
-        expect(() => stepPlace(3, steps.length)).toThrow(expect.toSatisfy(isInvalidStepIndexError));
+        expect(stepPlace(0, steps)).toEqual({ position: 1, total: 3, previous: null, next: 2 });
+        expect(stepPlace(1, steps)).toEqual({ position: 2, total: 3, previous: 1, next: 3 });
+        expect(stepPlace(2, steps)).toEqual({ position: 3, total: 3, previous: 2, next: null });
+        expect(() => stepPlace(3, steps)).toThrow(expect.toSatisfy(isInvalidStepIndexError));
     });
 
     it('splits the multi-line step into its sentences, and places each line', () => {
-        const lines = steps[1]?.lines ?? [];
+        const step = steps[1];
 
-        expect(lines).toEqual(['Cream the butter and sugar.', 'Beat in the eggs one at a time.', 'Fold in the flour.']);
-        expect(lines.map((_, line) => linePlace(line, lines.length))).toEqual([
+        expect(step?.lines).toEqual([
+            'Cream the butter and sugar.',
+            'Beat in the eggs one at a time.',
+            'Fold in the flour.',
+        ]);
+        expect(step?.lines.map((_, line) => linePlace(line, step))).toEqual([
             { position: 1, total: 3 },
             { position: 2, total: 3 },
             { position: 3, total: 3 },
         ]);
-        expect(() => linePlace(lines.length, lines.length)).toThrow(expect.toSatisfy(isInvalidLineIndexError));
+        expect(() => step && linePlace(step.lines.length, step)).toThrow(expect.toSatisfy(isInvalidLineIndexError));
     });
 
-    it('shows no line count on a one-line step', () => {
-        expect(linePlace(0, steps[0]?.lines.length ?? 0)).toBeNull();
+    it('shows no line count on a one-line step, and still rejects a line it does not have', () => {
+        const step = steps[0];
+
+        expect(step && linePlace(0, step)).toBeNull();
+        expect(() => step && linePlace(1, step)).toThrow(expect.toSatisfy(isInvalidLineIndexError));
     });
 });
 

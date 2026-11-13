@@ -84,22 +84,22 @@ describe('stepWalk — every 1919 fixture recipe cooked from Start to Done and a
             cookLinkOutcome({ status: RecipeStatus.PUBLISHED, stepCount: total, isOwner: false, readable: true }),
         ).toBe('cook');
 
-        let session = createSession({ recipeId: RECIPE_ID, totalSteps: total, startedAt: '2026-11-13T10:00:00.000Z' });
+        let session = createSession({ recipeId: RECIPE_ID, steps, startedAt: '2026-11-13T10:00:00.000Z' });
         let ticks = createLineTicks();
 
         for (const [stepIndex, step] of steps.entries()) {
             expect(session.currentStepIndex).toBe(stepIndex);
             expect(stepPlace(stepIndex, total)).toMatchObject({ position: stepIndex + 1, total });
             expect(step.lines.join(' ')).toBe(golden[stepIndex]?.text);
-            expect(sessionStatus(session, total)).not.toBe('complete');
+            expect(sessionStatus(session, steps)).not.toBe('complete');
 
             ticks = tickEveryLine(ticks, stepIndex, steps);
-            session = advance(session, total);
+            session = advance(session, steps);
         }
 
-        expect(sessionStatus(session, total)).toBe('complete');
+        expect(sessionStatus(session, steps)).toBe('complete');
 
-        const again = createSession({ recipeId: RECIPE_ID, totalSteps: total, startedAt: '2026-11-13T11:00:00.000Z' });
+        const again = createSession({ recipeId: RECIPE_ID, steps, startedAt: '2026-11-13T11:00:00.000Z' });
         const fresh = createLineTicks();
 
         expect(again.currentStepIndex).toBe(0);
@@ -115,13 +115,13 @@ describe('stepWalk — Back keeps the ticks the cook left', () => {
         );
         let session = createSession({
             recipeId: RECIPE_ID,
-            totalSteps: steps.length,
+            steps,
             startedAt: '2026-11-13T10:00:00.000Z',
         });
 
-        session = advance(session, steps.length);
+        session = advance(session, steps);
         const ticks = tickLine(createLineTicks(), { stepIndex: 1, lineIndex: 0 }, steps);
-        session = goBack(advance(session, steps.length), steps.length);
+        session = goBack(advance(session, steps), steps);
 
         expect(session.currentStepIndex).toBe(1);
         expect(focusLineIndex(ticks, 1, steps)).toBe(1);
@@ -133,19 +133,19 @@ describe('stepWalk — a blank step is not a step for the cook', () => {
     it('[text, blank, text, text]: Next lands on recipe step 3 as Step 2 of 3, Back returns, Done counts 3', () => {
         const steps = cookingStepsOf(parsedSteps(['Mix the dough.', '   ', 'Knead it well.', 'Bake the loaf.']));
         const total = steps.length;
-        let session = createSession({ recipeId: RECIPE_ID, totalSteps: total, startedAt: '2026-11-13T10:00:00.000Z' });
+        let session = createSession({ recipeId: RECIPE_ID, steps, startedAt: '2026-11-13T10:00:00.000Z' });
 
         expect(total).toBe(3);
 
-        session = advance(session, total);
+        session = advance(session, steps);
         expect(steps[session.currentStepIndex]?.stepNumber).toBe(3);
         expect(stepPlace(session.currentStepIndex, total)).toMatchObject({ position: 2, total: 3 });
 
-        session = goBack(session, total);
+        session = goBack(session, steps);
         expect(steps[session.currentStepIndex]?.stepNumber).toBe(1);
 
-        session = advance(advance(advance(session, total), total), total);
-        expect(sessionStatus(session, total)).toBe('complete');
+        session = advance(advance(advance(session, steps), steps), steps);
+        expect(sessionStatus(session, steps)).toBe('complete');
     });
 
     it('a recipe whose steps are all blank is not cookable, and its cook link shows no steps', () => {

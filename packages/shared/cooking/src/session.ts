@@ -1,3 +1,4 @@
+import type { CookingStep } from './cookingSteps.js';
 import { InvalidStepIndexError, InvalidTotalStepsError } from './errors.js';
 import type { CookingSession } from './types.js';
 
@@ -7,8 +8,8 @@ import type { CookingSession } from './types.js';
  * @pattern State — a statechart whose position {@link sessionStatus} derives; every transition is a pure reducer
  *
  * Every transition takes a {@link CookingSession} and returns a **new** one, never mutating its input. The session
- * carries no `totalSteps` of its own: the step count belongs to the recipe, so callers pass the current count into
- * every transition. Each one rejects a `currentStepIndex` outside that count, as `stepPlace` and the line ticks do:
+ * carries no steps of its own: they belong to the recipe, so callers pass the parsed steps (`cookingStepsOf`) into
+ * every transition, and the step count is read from them, never passed in. Each one rejects a `currentStepIndex` outside that count, as `stepPlace` and the line ticks do:
  * nothing stores a session, so a bad index is a caller bug, and repairing it would record a step never cooked.
  *
  * Unchanged arrays are shared with the input session (structural sharing). Treat every session as immutable.
@@ -24,31 +25,32 @@ export type SessionStatus = 'idle' | 'cooking' | 'complete';
 /** Everything needed to open a cooking session for one recipe. */
 export interface CreateSessionInput {
     recipeId: string;
-    /** Number of steps the recipe currently has. Must be a positive integer. */
-    totalSteps: number;
+    /** The recipe's cooking steps (`cookingStepsOf`). Must not be empty. */
+    steps: readonly CookingStep[];
     /** ISO 8601 timestamp — never a `Date`, never epoch millis. */
     startedAt: string;
 }
 
 /**
- * Guards a step count before it is used to derive any boundary.
+ * The step count of a recipe that can be cooked.
  *
- * @param totalSteps - The recipe's current step count.
- * @throws {InvalidTotalStepsError} When `totalSteps` is not a positive integer.
+ * @param steps - The recipe's cooking steps.
+ * @returns How many steps there are, at least 1. Pure.
+ * @throws {InvalidTotalStepsError} When there are no steps.
  */
-function assertTotalSteps(totalSteps: number): void {
-    // `Number.isInteger` rejects NaN, Infinity and fractions in one predicate, so no non-integer can
-    // reach the arithmetic below and silently produce a fractional or NaN index.
-    if (!Number.isInteger(totalSteps) || totalSteps < 1) {
-        throw new InvalidTotalStepsError(totalSteps);
+function stepCountOf(steps: readonly CookingStep[]): number {
+    if (steps.length === 0) {
+        throw new InvalidTotalStepsError(0);
     }
+
+    return steps.length;
 }
 
 /**
  * Guards the session's step index against the recipe's current count.
  *
  * @param index - The session's `currentStepIndex`.
- * @param totalSteps - The recipe's current step count, already checked.
+ * @param totalSteps - The recipe's step count, already checked.
  * @throws {InvalidStepIndexError} When `index` is not an integer in `[0, totalSteps - 1]`.
  */
 function assertStepIndex(index: number, totalSteps: number): void {
@@ -74,7 +76,7 @@ function withStepRecorded(completedSteps: readonly number[], stepIndex: number):
  * Reports whether every step of the current recipe has been completed.
  *
  * @param completedSteps - The steps completed so far.
- * @param totalSteps - The recipe's current step count.
+ * @param steps - The recipe's cooking steps.
  * @returns `true` when each index in `[0, totalSteps - 1]` is present.
  */
 function isEveryStepCompleted(completedSteps: readonly number[], totalSteps: number): boolean {
@@ -89,12 +91,12 @@ function isEveryStepCompleted(completedSteps: readonly number[], totalSteps: num
 /**
  * Opens a cooking session at the recipe's first step.
  *
- * @param input - The recipe, its current step count, and the session's start time.
+ * @param input - The recipe, its steps, and the session's start time.
  * @returns A session at step 0 with no progress.
- * @throws {InvalidTotalStepsError} When `input.totalSteps` is not a positive integer.
+ * @throws {InvalidTotalStepsError} When the recipe has no steps.
  */
 export function createSession(input: CreateSessionInput): CookingSession {
-    assertTotalSteps(input.totalSteps);
+    stepCountOf(input.steps);
 
     return {
         recipeId: input.recipeId,
@@ -113,13 +115,14 @@ export function createSession(input: CreateSessionInput): CookingSession {
  * therefore idempotent rather than a growing list of duplicates.
  *
  * @param session - The current session.
- * @param totalSteps - The recipe's current step count.
+ * @param steps - The recipe's cooking steps.
  * @returns A new session at the next step.
- * @throws {InvalidTotalStepsError} When `totalSteps` is not a positive integer.
+ * @throws {InvalidTotalStepsError} When the recipe has no steps.
  * @throws {InvalidStepIndexError} When the session's step is not one of the recipe's.
  */
-export function advance(session: CookingSession, totalSteps: number): CookingSession {
-    assertTotalSteps(totalSteps);
+export function advance(session: CookingSession, steps: readonly CookingStep[]): CookingSession {
+    const totalSteps = stepCountOf(steps);
+
     assertStepIndex(session.currentStepIndex, totalSteps);
 
     return {
@@ -136,14 +139,13 @@ export function advance(session: CookingSession, totalSteps: number): CookingSes
  * losing their place", so going back reveals progress rather than undoing it.
  *
  * @param session - The current session.
- * @param totalSteps - The recipe's current step count.
+ * @param steps - The recipe's cooking steps.
  * @returns A new session one step earlier, or at step 0 when already there.
- * @throws {InvalidTotalStepsError} When `totalSteps` is not a positive integer.
+ * @throws {InvalidTotalStepsError} When the recipe has no steps.
  * @throws {InvalidStepIndexError} When the session's step is not one of the recipe's.
  */
-export function goBack(session: CookingSession, totalSteps: number): CookingSession {
-    assertTotalSteps(totalSteps);
-    assertStepIndex(session.currentStepIndex, totalSteps);
+export function goBack(session: CookingSession, steps: readonly CookingStep[]): CookingSession {
+    assertStepIndex(session.currentStepIndex, stepCountOf(steps));
 
     return {
         ...session,
@@ -155,13 +157,14 @@ export function goBack(session: CookingSession, totalSteps: number): CookingSess
  * Derives the session's statechart position.
  *
  * @param session - The session to classify.
- * @param totalSteps - The recipe's current step count.
+ * @param steps - The recipe's cooking steps.
  * @returns The current {@link SessionStatus}.
- * @throws {InvalidTotalStepsError} When `totalSteps` is not a positive integer.
+ * @throws {InvalidTotalStepsError} When the recipe has no steps.
  * @throws {InvalidStepIndexError} When the session's step is not one of the recipe's.
  */
-export function sessionStatus(session: CookingSession, totalSteps: number): SessionStatus {
-    assertTotalSteps(totalSteps);
+export function sessionStatus(session: CookingSession, steps: readonly CookingStep[]): SessionStatus {
+    const totalSteps = stepCountOf(steps);
+
     assertStepIndex(session.currentStepIndex, totalSteps);
 
     if (isEveryStepCompleted(session.completedSteps, totalSteps)) {

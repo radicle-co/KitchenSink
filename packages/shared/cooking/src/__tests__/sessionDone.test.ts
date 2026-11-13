@@ -1,6 +1,7 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 
+import { makeOneLineSteps } from '../__fixtures__/cookingSteps.js';
 import { advance, createSession, goBack, sessionStatus } from '../session.js';
 
 /**
@@ -14,50 +15,54 @@ const START = { recipeId: 'roast', startedAt: '2026-11-13T10:00:00.000Z' };
 
 describe('session — Done is reached only from the last step', () => {
     it('advancing through a 6-step recipe is complete only after Next on step 6', () => {
-        let session = createSession({ ...START, totalSteps: 6 });
+        const steps = makeOneLineSteps(6);
+        let session = createSession({ ...START, steps });
 
         for (let step = 0; step < 5; step++) {
-            expect(sessionStatus(session, 6)).not.toBe('complete');
-            session = advance(session, 6);
+            expect(sessionStatus(session, steps)).not.toBe('complete');
+            session = advance(session, steps);
         }
 
         expect(session.currentStepIndex).toBe(5);
-        expect(sessionStatus(session, 6)).toBe('cooking');
+        expect(sessionStatus(session, steps)).toBe('cooking');
 
-        session = advance(session, 6);
+        session = advance(session, steps);
 
-        expect(sessionStatus(session, 6)).toBe('complete');
+        expect(sessionStatus(session, steps)).toBe('complete');
     });
 
     it('a one-step recipe is complete after its single Next', () => {
-        const session = advance(createSession({ ...START, totalSteps: 1 }), 1);
+        const steps = makeOneLineSteps(1);
+        const session = advance(createSession({ ...START, steps }), steps);
 
-        expect(sessionStatus(session, 1)).toBe('complete');
+        expect(sessionStatus(session, steps)).toBe('complete');
     });
 
     it('Cook it again starts a fresh (idle) session at step 0', () => {
-        const again = createSession({ ...START, totalSteps: 6 });
+        const steps = makeOneLineSteps(6);
+        const again = createSession({ ...START, steps });
 
         expect(again.currentStepIndex).toBe(0);
         expect(again.completedSteps).toEqual([]);
-        expect(sessionStatus(again, 6)).toBe('idle');
+        expect(sessionStatus(again, steps)).toBe('idle');
     });
 
     it('no sequence of Next and Back reaches complete without Next on the last step', () => {
         fc.assert(
             fc.property(fc.integer({ min: 2, max: 8 }), fc.array(fc.boolean(), { maxLength: 30 }), (total, moves) => {
-                let session = createSession({ ...START, totalSteps: total });
+                const steps = makeOneLineSteps(total);
+                let session = createSession({ ...START, steps });
                 let lastRecorded = false;
 
                 for (const next of moves) {
                     if (next) {
                         lastRecorded ||= session.currentStepIndex === total - 1;
-                        session = advance(session, total);
+                        session = advance(session, steps);
                     } else {
-                        session = goBack(session, total);
+                        session = goBack(session, steps);
                     }
 
-                    if (sessionStatus(session, total) === 'complete') {
+                    if (sessionStatus(session, steps) === 'complete') {
                         expect(lastRecorded).toBe(true);
                     }
                 }

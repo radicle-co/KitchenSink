@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { isInvalidLineIndexError, isInvalidStepIndexError, isInvalidTotalStepsError } from '../errors.js';
+import { makeCookingSteps } from '../__fixtures__/cookingSteps.js';
 import type { CookingStep } from '../cookingSteps.js';
 import { linePlace, stepPlace } from '../place.js';
 
@@ -38,10 +39,8 @@ describe('stepPlace', () => {
     });
 });
 
-/** A cooking step with the given number of lines, as `cookingStepsOf` would build it. */
-function stepWith(lineCount: number): CookingStep {
-    return { stepNumber: 1, lines: Array.from({ length: lineCount }, (_, line) => `Line ${line + 1}.`) };
-}
+/** A cooking step with the given number of lines. */
+const stepWith = (lineCount: number): CookingStep => makeCookingSteps(lineCount)[0] as CookingStep;
 
 describe('linePlace', () => {
     it('a one-line step shows no line count', () => {

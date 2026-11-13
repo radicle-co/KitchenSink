@@ -12,7 +12,7 @@ import {
     untickLine,
 } from '../lineTicks.js';
 import type { LineTicks } from '../lineTicks.js';
-import type { CookingStep } from '../cookingSteps.js';
+import { makeCookingSteps } from '../__fixtures__/cookingSteps.js';
 
 /**
  * `lineTicks` — the cook's ticks on the LINES of each step, and the focus line derived from them.
@@ -30,16 +30,8 @@ import type { CookingStep } from '../cookingSteps.js';
  * Every state is deep-frozen, so an in-place mutation throws instead of passing silently.
  */
 
-/** Steps with the given line counts, as `cookingStepsOf` would build them. */
-function stepsWith(...lineCounts: readonly number[]): readonly CookingStep[] {
-    return lineCounts.map((count, index) => ({
-        stepNumber: index + 1,
-        lines: Array.from({ length: count }, (_, line) => `Line ${line + 1}.`),
-    }));
-}
-
 /** Three steps of three lines each. */
-const STEPS = stepsWith(3, 3, 3);
+const STEPS = makeCookingSteps(3, 3, 3);
 
 function frozen(ticks: LineTicks): LineTicks {
     Object.freeze(ticks.ticked);
@@ -107,7 +99,7 @@ describe('lineTicks — ticking moves the focus', () => {
     });
 
     it('a one-line step with its line ticked is all ticked', () => {
-        const steps = stepsWith(3, 3, 3, 3, 1);
+        const steps = makeCookingSteps(3, 3, 3, 3, 1);
         const ticks = tickLine(createLineTicks(), { stepIndex: 4, lineIndex: 0 }, steps);
 
         expect(focusLineIndex(ticks, 4, steps)).toBeNull();
@@ -169,8 +161,8 @@ describe('lineTicks — a step with no lines', () => {
     it('has no focus and is never all ticked, so it never shows Next coming', () => {
         const ticks = createLineTicks();
 
-        expect(focusLineIndex(ticks, 0, stepsWith(0))).toBeNull();
-        expect(allLinesTicked(ticks, 0, stepsWith(0))).toBe(false);
+        expect(focusLineIndex(ticks, 0, makeCookingSteps(0))).toBeNull();
+        expect(allLinesTicked(ticks, 0, makeCookingSteps(0))).toBe(false);
         expect(tickedLineCount(ticks, 0)).toBe(0);
     });
 });
@@ -208,7 +200,7 @@ describe('lineTicks — rejects a line that does not exist', () => {
     );
 
     it('focusLineIndex and allLinesTicked read the line count from the named step', () => {
-        const steps = stepsWith(1, 3);
+        const steps = makeCookingSteps(1, 3);
         const ticks = tickLine(createLineTicks(), { stepIndex: 0, lineIndex: 0 }, steps);
 
         expect(focusLineIndex(ticks, 0, steps)).toBeNull();
@@ -218,7 +210,7 @@ describe('lineTicks — rejects a line that does not exist', () => {
     });
 
     it('reads the line count from the named step, not from another step', () => {
-        const steps = stepsWith(1, 3);
+        const steps = makeCookingSteps(1, 3);
 
         expect(() => tickLine(createLineTicks(), { stepIndex: 0, lineIndex: 2 }, steps)).toThrow(
             expect.toSatisfy(isInvalidLineIndexError),
@@ -235,7 +227,7 @@ describe('lineTicks — rejects a line that does not exist', () => {
 /** The invariant over action sequences nobody writes by hand. */
 describe('lineTicks — properties', () => {
     const lineCount = 4;
-    const steps = stepsWith(lineCount, lineCount, lineCount);
+    const steps = makeCookingSteps(lineCount, lineCount, lineCount);
     const action = fc.record({
         tick: fc.boolean(),
         stepIndex: fc.integer({ min: 0, max: 2 }),

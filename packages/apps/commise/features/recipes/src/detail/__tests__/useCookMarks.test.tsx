@@ -130,4 +130,24 @@ describe('useCookMarks', () => {
 
         expect(() => renderHook(() => useCookMarks('rec_1'))).toThrow(/CookMarksProvider/u);
     });
+
+    it('clearIngredientTicks drops the ticks and keeps the step; restoreIngredientTicks puts them back beside new ticks', () => {
+        const { result } = renderHook(() => useCookMarks('rec_1'), {
+            wrapper: wrapperFor(memoryCookMarksBackend(), 'user_1'),
+        });
+
+        act(() => result.current.toggleLine('ing_butter'));
+        act(() => result.current.toggleLine('ing_lemon'));
+        act(() => result.current.toggleStep(3));
+        const cleared = [...result.current.checkedLines];
+
+        act(() => result.current.clearIngredientTicks());
+        expect(result.current.checkedLines.size).toBe(0);
+        expect(result.current.currentStep).toBe(3);
+
+        act(() => result.current.toggleLine('ing_salt'));
+        act(() => result.current.restoreIngredientTicks(cleared));
+        expect([...result.current.checkedLines].sort()).toEqual(['ing_butter', 'ing_lemon', 'ing_salt']);
+        expect(result.current.currentStep).toBe(3);
+    });
 });

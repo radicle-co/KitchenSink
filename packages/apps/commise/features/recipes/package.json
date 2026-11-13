@@ -10,6 +10,7 @@
         "./hooks": "./src/hooks/index.ts",
         "./widget": "./src/widget/index.ts",
         "./detail": "./src/detail/index.ts",
+        "./cook": "./src/cook/index.ts",
         "./editor": "./src/editor/index.ts",
         "./food-page": "./src/foodPage/index.ts",
         "./food-page/mobile": "./src/foodPage/mobileEntry.ts",

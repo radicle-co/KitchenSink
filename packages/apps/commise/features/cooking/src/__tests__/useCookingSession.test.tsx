@@ -82,6 +82,54 @@ describe('useCookingSession — walking the steps', () => {
     });
 });
 
+describe('useCookingSession — a command is valid only for the step it was drawn on', () => {
+    it('lands on the last step, not Done, when Next is tapped twice before the screen redraws', () => {
+        const { result } = mount();
+        act(() => result.current.next());
+        expect(result.current.place.position).toBe(2);
+
+        const { next } = result.current;
+        act(() => {
+            next();
+            next();
+        });
+
+        expect(result.current.place.position).toBe(3);
+        expect(result.current.status).toBe('cooking');
+    });
+
+    it('goes back one step, not two, when Back is tapped twice before the screen redraws', () => {
+        const { result } = mount();
+        act(() => result.current.next());
+        act(() => result.current.next());
+
+        const { back } = result.current;
+        act(() => {
+            back();
+            back();
+        });
+
+        expect(result.current.place.position).toBe(2);
+    });
+
+    it('ignores a tick queued before Next, and does not throw for a line the new step has not got', () => {
+        const { result } = mount();
+        const { next, tick, untick } = result.current;
+
+        act(() => {
+            next();
+            tick(1);
+            tick(0);
+            untick(0);
+        });
+
+        expect(result.current.place.position).toBe(2);
+        expect(result.current.tickedCount).toBe(0);
+        act(() => result.current.back());
+        expect(result.current.tickedCount).toBe(0);
+    });
+});
+
 describe('useCookingSession — ticking lines', () => {
     it('moves the focus to the next unticked line, and shows next coming when every line is ticked', () => {
         const { result } = mount();

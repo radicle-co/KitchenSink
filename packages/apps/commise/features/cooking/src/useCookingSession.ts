@@ -92,11 +92,12 @@ interface State {
     readonly ticks: LineTicks;
 }
 
+/** A command names the step it was drawn for, so a tap queued behind another cannot land on a step it never showed. */
 type Action =
-    | { readonly type: 'next' }
-    | { readonly type: 'back' }
-    | { readonly type: 'tick'; readonly lineIndex: number }
-    | { readonly type: 'untick'; readonly lineIndex: number }
+    | { readonly type: 'next'; readonly stepIndex: number }
+    | { readonly type: 'back'; readonly stepIndex: number }
+    | { readonly type: 'tick'; readonly stepIndex: number; readonly lineIndex: number }
+    | { readonly type: 'untick'; readonly stepIndex: number; readonly lineIndex: number }
     | { readonly type: 'again'; readonly startedAt: string };
 
 /**
@@ -123,14 +124,31 @@ function open(input: UseCookingSessionInput): State {
 }
 
 /**
- * Compose the two core reducers. It only routes a command to the reducer that owns it.
+ * Compose the two core reducers. It routes a command to the reducer that owns it, and answers the same state to a
+ * command drawn for a step the cook has already left.
  *
  * @param state - The current state.
  * @param action - The command.
  * @returns The next state. Pure.
  */
 function reduce(state: State, action: Action): State {
-    const stepIndex = state.session.currentStepIndex;
+    if (action.type === 'again') {
+        return {
+            ...state,
+            session: createSession({
+                recipeId: state.recipeId,
+                steps: state.steps,
+                startedAt: action.startedAt,
+            }),
+            ticks: createLineTicks(),
+        };
+    }
+
+    const { stepIndex } = action;
+
+    if (stepIndex !== state.session.currentStepIndex) {
+        return state;
+    }
 
     switch (action.type) {
         case 'next':
@@ -141,16 +159,6 @@ function reduce(state: State, action: Action): State {
             return { ...state, ticks: tickLine(state.ticks, { stepIndex, lineIndex: action.lineIndex }, state.steps) };
         case 'untick':
             return { ...state, ticks: untickLine(state.ticks, { stepIndex, lineIndex: action.lineIndex }) };
-        case 'again':
-            return {
-                ...state,
-                session: createSession({
-                    recipeId: state.recipeId,
-                    steps: state.steps,
-                    startedAt: action.startedAt,
-                }),
-                ticks: createLineTicks(),
-            };
     }
 }
 
@@ -177,6 +185,13 @@ export function useCookingSession(input: UseCookingSessionInput): UseCookingSess
         [ticks, stepIndex],
     );
 
+    const tick = useCallback((lineIndex: number) => dispatch({ type: 'tick', stepIndex, lineIndex }), [stepIndex]);
+    const untick = useCallback((lineIndex: number) => dispatch({ type: 'untick', stepIndex, lineIndex }), [stepIndex]);
+    const next = useCallback(() => dispatch({ type: 'next', stepIndex }), [stepIndex]);
+    const back = useCallback(() => dispatch({ type: 'back', stepIndex }), [stepIndex]);
+    const cookAgain = useCallback(() => dispatch({ type: 'again', startedAt: new Date().toISOString() }), []);
+    const keepAwakeAvailable = useKeepAwakeAvailable();
+
     // On while cooking; off on Done, and on leaving, which unmounts the screen and so this hook.
     useKeepAwake(status !== 'complete');
 
@@ -191,11 +206,11 @@ export function useCookingSession(input: UseCookingSessionInput): UseCookingSess
         tickedCount: tickedLineCount(ticks, stepIndex),
         everyLineTicked: allLinesTicked(ticks, stepIndex, steps),
         isTicked,
-        tick: useCallback((lineIndex) => dispatch({ type: 'tick', lineIndex }), []),
-        untick: useCallback((lineIndex) => dispatch({ type: 'untick', lineIndex }), []),
-        next: useCallback(() => dispatch({ type: 'next' }), []),
-        back: useCallback(() => dispatch({ type: 'back' }), []),
-        cookAgain: useCallback(() => dispatch({ type: 'again', startedAt: new Date().toISOString() }), []),
-        keepAwakeAvailable: useKeepAwakeAvailable(),
+        tick,
+        untick,
+        next,
+        back,
+        cookAgain,
+        keepAwakeAvailable,
     };
 }

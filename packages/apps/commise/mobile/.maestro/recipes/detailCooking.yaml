@@ -18,13 +18,24 @@ appId: ${APP_ID}
 
 # audit 2026-10-19, A1.15: 'Recipes' is the tab label, also on Home; 'My recipes' is drawn only on the Recipes root.
 - assertVisible: 'My recipes'
+# Not scrollIntoTapView: at the largest text the tile is taller than half the screen, and that helper's last swipe (it
+# lifts a target clear of the tab bar) pushes the tile's top under the sticky search field. The tile is one accessible
+# element, so `tapOn` taps its centre, which was then above the screen and the list stayed put. Centred, the whole tile
+# is on screen and its centre is on the card.
+- scrollUntilVisible:
+      element: '${E2E_RECIPE_LAMB}'
+      direction: DOWN
+      visibilityPercentage: 100
+      timeout: 20000
+      centerElement: true
+- tapOn: '${E2E_RECIPE_LAMB}'
+# DOWN: recipe detail opens at its top, and at the largest text the action row sits below the fold.
 - runFlow:
       file: common/scrollIntoTapView.yaml
       env:
-          TARGET: '${E2E_RECIPE_LAMB}'
+          TARGET: 'Screen on'
           DIRECTION: DOWN
           TIMEOUT: 20000
-- tapOn: '${E2E_RECIPE_LAMB}'
 
 # ── SCREEN ON ── a quiet action in the action row, off on each visit, with no caption under it.
 - assertNotVisible: 'Keeps the screen awake while you cook.'
@@ -103,14 +114,34 @@ appId: ${APP_ID}
       direction: DOWN
       timeout: 20000
       centerElement: true
+# At the largest text the two steps do not fit on one screen, so each numeral is brought into tap view before its tap
+# and its assert. At the default size both are already on screen, and the helper does not scroll.
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Mark step 1 as current'
+          DIRECTION: UP
+          TIMEOUT: 20000
 - tapOn: 'Mark step 1 as current'
 - assertVisible:
       text: 'Mark step 1 as current'
       selected: true
+# Centred again, for the reason above: the helper's lift swipe left step 2's numeral at the top edge of the screen.
+- scrollUntilVisible:
+      element: 'Mark step 2 as current'
+      direction: DOWN
+      timeout: 20000
+      centerElement: true
 - tapOn: 'Mark step 2 as current'
 - assertVisible:
       text: 'Mark step 2 as current'
       selected: true
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Mark step 1 as current'
+          DIRECTION: UP
+          TIMEOUT: 20000
 - assertVisible:
       text: 'Mark step 1 as current'
       selected: false

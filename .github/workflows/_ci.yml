@@ -1995,6 +1995,12 @@ jobs:
             - name: Run i18n integration tests
               if: ${{ contains(fromJSON(steps.scope.outputs.packages), '@commise/i18n') }}
               run: npm run test:integration --workspace=@commise/i18n
+            # The cooking session through `@commise/features-cooking`'s public surface: the real hook over the real
+            # `@kitchensink/cooking-core` reducers and the real resolved `@commise/i18n` copy, on the web and native lanes.
+            # Only the wake lock is stood in for. No Docker, no network.
+            - name: Run features-cooking integration tests
+              if: ${{ contains(fromJSON(steps.scope.outputs.packages), '@commise/features-cooking') }}
+              run: npm run test:integration --workspace=@commise/features-cooking
             # The curated cookbook importer. Its integration tier drives the REAL `POST /api/v1/recipes` and the
             # REAL ingredient-resolution endpoints, and SKIPS (rather than fails) when `COOKBOOK_IMPORT_RECIPE_URL`
             # is unset — mirroring how the recipe service's own DB-backed tiers guard on `DATABASE_URL`. The step

@@ -4,6 +4,8 @@
  *
  * - `show` COMMITS the snackbar it replaces: the replaced one moves to `settled`, and the host runs its `onTimeout`.
  * - `expire` commits the snackbar that is showing; `act` closes it without committing (Undo).
+ * - `dismiss` commits it early, for the screen that showed it. It names the snackbar by the input that screen gave, so
+ *   it does nothing once a newer snackbar has replaced that one.
  * - `pause` banks the time left and `resume` starts it running again, so a snackbar paused under the pointer for a
  *   minute still has its own seconds when the pointer leaves (SC 2.2.1).
  *
@@ -37,6 +39,7 @@ export type SnackbarQueueAction =
     | { readonly type: 'show'; readonly input: SnackbarInput; readonly now: number }
     | { readonly type: 'expire'; readonly id: number }
     | { readonly type: 'act'; readonly id: number }
+    | { readonly type: 'dismiss'; readonly input: SnackbarInput }
     | { readonly type: 'pause'; readonly id: number; readonly now: number }
     | { readonly type: 'resume'; readonly id: number; readonly now: number }
     | { readonly type: 'drained'; readonly ids: readonly number[] };
@@ -74,6 +77,10 @@ export function snackbarReducer(state: SnackbarState, action: SnackbarQueueActio
                 : state;
         case 'act':
             return isCurrent(state, action.id) ? { ...state, current: null } : state;
+        case 'dismiss':
+            return state.current !== null && state.current.input === action.input
+                ? { ...state, current: null, settled: [...state.settled, state.current] }
+                : state;
         case 'pause':
             if (!isCurrent(state, action.id) || state.current.runningSince === null) {
                 return state;

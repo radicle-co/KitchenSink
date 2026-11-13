@@ -77,6 +77,25 @@ describe('snackbarReducer', () => {
         expect(snackbarReducer(state, { type: 'resume', id, now: 4000 })).toBe(state);
     });
 
+    it('settles a dismissed snackbar, so its onTimeout still runs', () => {
+        const input = { message: 'Ticks cleared' };
+        const state = snackbarReducer(INITIAL_SNACKBAR_STATE, { type: 'show', input, now: 0 });
+        const dismissed = snackbarReducer(state, { type: 'dismiss', input });
+
+        expect(dismissed.current).toBeNull();
+        expect(dismissed.settled.map((entry) => entry.input)).toStrictEqual([input]);
+    });
+
+    it('ignores a dismiss for a snackbar that a newer one already replaced', () => {
+        const first = { message: 'Ticks cleared' };
+        const replaced = snackbarReducer(
+            snackbarReducer(INITIAL_SNACKBAR_STATE, { type: 'show', input: first, now: 0 }),
+            { type: 'show', input: { message: 'Removed Pasta' }, now: 10 },
+        );
+
+        expect(snackbarReducer(replaced, { type: 'dismiss', input: first })).toBe(replaced);
+    });
+
     it('lets the host forget the commits it has run', () => {
         const state = show(show(INITIAL_SNACKBAR_STATE, 'A', 0), 'B', 1);
         const [settled] = state.settled;

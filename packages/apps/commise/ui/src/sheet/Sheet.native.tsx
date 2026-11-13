@@ -177,6 +177,8 @@ export const Sheet: FC<SheetProps> = ({
     return (
         <OverlayHost
             visible={visible}
+            // A closing sheet hands the snackbar back at once, while its exit still plays.
+            presenting={windowOpen}
             transparent
             statusBarTranslucent
             navigationBarTranslucent

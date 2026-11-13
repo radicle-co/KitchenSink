@@ -7,14 +7,14 @@
  */
 import { useCallback, useEffect, useReducer } from 'react';
 
-import type { SnackbarAction, SnackbarInput } from './props.js';
+import type { SnackbarAction, SnackbarHandle, SnackbarInput } from './props.js';
 import { INITIAL_SNACKBAR_STATE, msUntilExpiry, snackbarReducer, type SnackbarEntry } from './snackbarQueue.js';
 
 /** What a host leaf drives the queue with. */
 export interface SnackbarQueue {
     /** The snackbar on screen, if any. */
     readonly current: SnackbarEntry | null;
-    readonly show: (input: SnackbarInput) => void;
+    readonly show: (input: SnackbarInput) => SnackbarHandle;
     /** Take the current snackbar's action: it closes without committing. */
     readonly act: (id: number, action: SnackbarAction) => void;
     readonly pause: (id: number) => void;
@@ -58,7 +58,11 @@ export function useSnackbarQueue(): SnackbarQueue {
     }, [current]);
 
     // Stable across renders (`dispatch` is), so a leaf can name them as effect dependencies.
-    const show = useCallback((input: SnackbarInput) => dispatch({ type: 'show', input, now: Date.now() }), []);
+    const show = useCallback((input: SnackbarInput): SnackbarHandle => {
+        dispatch({ type: 'show', input, now: Date.now() });
+
+        return { dismiss: () => dispatch({ type: 'dismiss', input }) };
+    }, []);
     const act = useCallback((id: number, action: SnackbarAction) => {
         dispatch({ type: 'act', id });
         action.onAction();

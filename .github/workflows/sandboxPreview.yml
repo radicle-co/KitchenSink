@@ -161,7 +161,7 @@ jobs:
               env:
                   NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
               working-directory: packages/services/food-service/infra
-              run: npm install --no-audit --no-fund
+              run: npm ci --no-audit --no-fund
 
             - name: Resolve this stage's food origin
               id: host

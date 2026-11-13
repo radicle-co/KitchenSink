@@ -28,6 +28,7 @@ import { join } from 'node:path';
 import { parse } from 'yaml';
 import { describe, expect, it } from 'vitest';
 
+import { actionInputValues, commandsOf, ownLockfileDirectories } from './cdkApps.js';
 import { repoRoot } from './serviceSources.js';
 
 interface Step {
@@ -36,7 +37,25 @@ interface Step {
     readonly if?: string;
     readonly run?: string;
     readonly with?: Record<string, unknown>;
+    readonly 'working-directory'?: string;
 }
+
+/** `npm ci`, `npm install` or `npm i`, as a whole command. */
+const NPM_INSTALL_COMMAND = /^npm\s+(?:ci|install|i)\b/u;
+
+/**
+ * Whether a step installs the ROOT workspace by hand. A command is exempt only when it installs a package that commits
+ * its own lockfile (`ownLockfileDirectories`), named by its path: its `--prefix`, the step's `working-directory`, a
+ * `cd`, or the composite action input every caller sets to such a package. Every other install is the root's.
+ *
+ * @param step - The step.
+ * @param inputs - The call-site values of the step's composite action, when it is one.
+ * @returns Whether any command in the step is a root install. Impure (reads git and the tree).
+ */
+const rootNpmCi = (step: Step, inputs?: ReadonlyMap<string, readonly string[]>): boolean =>
+    commandsOf(step, new Set(ownLockfileDirectories()), inputs).some(
+        ({ text, inDirectories }) => NPM_INSTALL_COMMAND.test(text) && !inDirectories,
+    );
 
 const read = (file: string): string => readFileSync(join(repoRoot, file), 'utf8');
 const ACTION = '.github/actions/installWorkspace/action.yml';
@@ -86,10 +105,42 @@ describe('the root workspace is restored, not reinstalled, on the deploy path', 
             jobs?: Record<string, { steps?: Step[] }>;
         };
         const steps = [...(doc.runs?.steps ?? []), ...Object.values(doc.jobs ?? {}).flatMap((job) => job.steps ?? [])];
-        const bare = steps.filter(({ run }) => /(^|\n)\s*npm ci\b/u.test(run ?? '')).map(({ name }) => name);
+        const inputs = actionInputValues().get(`./${file.replace(/\/action\.ya?ml$/u, '')}`);
+        const bare = steps.filter((step) => rootNpmCi(step, inputs)).map(({ name }) => name);
 
         expect(bare, 'these steps run npm ci directly').toEqual([]);
         expect(steps.some(({ uses }) => uses?.endsWith('installWorkspace'))).toBe(true);
+    });
+
+    // The exemption is a package with its own committed lockfile, named by its path. Neither a `working-directory` nor
+    // `--prefix` exempts anything by being there: each refusal row is a root install written in one of those shapes.
+    it.each<[string, Step]>([
+        ['a root npm install', { run: 'npm install --no-audit --no-fund' }],
+        ['npm ci under working-directory .', { 'working-directory': '.', run: 'npm ci' }],
+        ['npm ci under working-directory ./', { 'working-directory': './', run: 'npm ci' }],
+        ['npm ci --prefix .', { run: 'npm ci --prefix . --no-audit' }],
+        [
+            'a cd to the root, then npm ci',
+            { 'working-directory': 'packages/infra/global', run: 'cd "${GITHUB_WORKSPACE}"\nnpm ci' },
+        ],
+        ['npm ci under ${{ github.workspace }}', { 'working-directory': '${{ github.workspace }}', run: 'npm ci' }],
+        ['a root npm ci beside a CDK app install', { run: 'npm ci && npm ci --prefix packages/infra/global' }],
+        [
+            'a CDK-shaped path with no committed lockfile',
+            { run: 'npm ci --prefix packages/services/noLockfileYet/infra' },
+        ],
+        // A loop over a command substitution or an array resolves to no directory, so it exempts nothing (decision
+        // 0205). The X2 follow-up gives such a target its own "unknown" state and changes these rows on purpose.
+        ['a loop over $(...)', { run: 'for d in $(ls -d packages/*/infra); do npm ci --prefix "$d"; done' }],
+        ['a loop over an array', { run: 'for d in "${apps[@]}"; do npm ci --prefix "$d"; done' }],
+    ])('refuses %s as a root install', (_label, step) => {
+        expect(rootNpmCi(step)).toBe(true);
+    });
+
+    it('admits a CDK app installing its own committed lockfile', () => {
+        expect(rootNpmCi({ 'working-directory': 'packages/infra/global', run: 'npm ci --no-audit --no-fund' })).toBe(
+            false,
+        );
     });
 });
 
@@ -109,7 +160,7 @@ describe('resolve-sandbox, the head of the preview chain, restores instead of re
         const steps = job()?.steps ?? [];
 
         expect(steps.some(({ uses }) => uses?.endsWith('installWorkspace'))).toBe(true);
-        expect(steps.filter(({ run }) => /(^|\n)\s*npm ci\b/u.test(run ?? ''))).toEqual([]);
+        expect(steps.filter((step) => rootNpmCi(step))).toEqual([]);
     });
 
     it('needs no token: the root workspace install does not read GitHub Packages', () => {

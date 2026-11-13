@@ -16,12 +16,31 @@ const READY: ItemIssueFacts = {
     allowanceSpent: false,
     refusal: null,
     saveGap: null,
+    heldAtCurrentRevision: false,
 };
 const issue = (patch: Partial<ItemIssueFacts>) => importItemIssueOf({ ...READY, ...patch });
 
 describe('importItemIssueOf', () => {
     it('is none for an item that could save now', () => {
         expect(issue({})).toBeNull();
+    });
+
+    // Review item 7 on #220: an item the save held for a reason no rule above names (a create refusal the pre-check did not
+    // predict, or a payload the save cannot read) used to show no issue and stall silently.
+    it('⛔ names a held item no other rule explains as `saveRefused`, derived from the hold, never stored', () => {
+        expect(issue({ heldAtCurrentRevision: true })).toBe('saveRefused');
+        expect(issue({ heldAtCurrentRevision: true, private: true, outOfSlots: true })).toBe('saveRefused');
+    });
+
+    it('lets every named reason win over `saveRefused`, so the cook is told what to fix', () => {
+        expect(issue({ heldAtCurrentRevision: true, hasStatement: false })).toBe('needsStatement');
+        expect(issue({ heldAtCurrentRevision: true, visibilityRefused: true })).toBe('visibilityRefused');
+        expect(issue({ heldAtCurrentRevision: true, saveGap: 'servings' })).toBe('needsServings');
+        expect(issue({ heldAtCurrentRevision: true, refusal: 'noSteps' })).toBe('noSteps');
+    });
+
+    it('reads a hold only on a matched item: a saved one has no issue', () => {
+        expect(issue({ heldAtCurrentRevision: true, stage: 'saved' })).toBeNull();
     });
 
     it('is none for a saved item, whatever else is true of the import', () => {

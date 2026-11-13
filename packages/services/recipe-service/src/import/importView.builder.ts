@@ -29,6 +29,7 @@ import type { ImportView } from '../recipes/import.schema.js';
 import type { ImportHeader, ImportVisibility, RecipeImportsDal } from './dal/recipeImports.dal.js';
 import type { ListedImportItem, RecipeImportItemsDal } from './dal/recipeImportItems.dal.js';
 import { importItemIssueOf } from './domain/importItemIssue.js';
+import { importRefusalOf } from './domain/importRefusal.js';
 import { importSaveFactsOf, importSaveGapOf } from './domain/importSaveGap.js';
 import { statementOfColumns } from './domain/importStatement.js';
 import { importViewVersionOf } from './domain/importViewVersion.js';
@@ -142,7 +143,18 @@ export class ImportViewBuilder {
     ): ViewItem {
         const statement = statementOfColumns(item) ?? null;
         const effective: ImportVisibility = item.visibility ?? header.visibility;
+        // The stored refusal, else the one the payload's counts state: a payload that slipped past the upload's refusal is
+        // named for what it lacks, and never reaches the save gap (which throws for it). A saved item's payload is gone.
+        const refusal =
+            item.refusal ??
+            (item.stage === 'saved'
+                ? null
+                : importRefusalOf({
+                      ingredientLineCount: item.saveFacts.ingredientLineCount,
+                      stepCount: item.saveFacts.stepCount,
+                  }));
         const issue = importItemIssueOf({
+            heldAtCurrentRevision: item.heldAtRev === item.decisionRev,
             stage: item.stage,
             hasStatement: statement !== null,
             visibilityRefused:
@@ -160,11 +172,11 @@ export class ImportViewBuilder {
             outOfSlots: read.outOfSlots,
             paid: item.allowanceSpentAt !== null,
             allowanceSpent: read.allowanceSpent,
-            refusal: item.refusal,
-            // Only a matched, unrefused item can be held: a refused one has no ingredient line or step to judge, and a saved
-            // one has no payload left. (`importSaveGapOf` throws for either, which is a defect, not a hold.)
+            refusal,
+            // Only a matched, unrefused item has a save gap to judge: a refused one has no ingredient line or step, and a
+            // saved one has no payload left. (`importSaveGapOf` throws for either, which is a defect, not a hold.)
             saveGap:
-                statement === null || item.stage !== 'matched' || item.refusal !== null
+                statement === null || item.stage !== 'matched' || refusal !== null
                     ? null
                     : importSaveGapOf({
                           statement,

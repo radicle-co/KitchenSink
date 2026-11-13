@@ -209,7 +209,10 @@ export class RecipeImportItemsDal {
                         ordinal: input.ordinal,
                         title: input.recipe.title,
                         payload: input.recipe,
-                        refusal: importRefusalOf(input.recipe),
+                        refusal: importRefusalOf({
+                            ingredientLineCount: input.recipe.ingredientLines.length,
+                            stepCount: input.recipe.steps.length,
+                        }),
                         ...patch,
                     });
                 } else if (decision.kind === 'replace') {
@@ -219,7 +222,10 @@ export class RecipeImportItemsDal {
                             title: input.recipe.title,
                             payload: input.recipe,
                             // A fixed recipe clears the refusal; an emptied one sets it (the unit a paid item spent stays spent).
-                            refusal: importRefusalOf(input.recipe),
+                            refusal: importRefusalOf({
+                                ingredientLineCount: input.recipe.ingredientLines.length,
+                                stepCount: input.recipe.steps.length,
+                            }),
                             ...patch,
                             ...BUMP_DECISION_REV,
                             // A new recipe needs a new parse job. The job id is derived from the generation, and a paid item

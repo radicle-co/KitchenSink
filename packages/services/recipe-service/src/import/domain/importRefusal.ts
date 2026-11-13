@@ -21,16 +21,19 @@ const REFUSAL_OF = { ingredients: 'noIngredients', steps: 'noSteps' } as const s
 /**
  * Why the import refuses this recipe, or `null` when it does not. The first unmet requirement wins, in the publish order.
  *
- * @param recipe - The recipe as the file stated it.
+ * Read over COUNTS, so the upload (which holds the recipe), the save and the item list (which hold counts a payload states)
+ * all ask the one rule.
+ *
+ * @param counts - How many ingredient lines and steps the file states.
  * @returns The refusal, or `null`. Pure and total.
  */
-export function importRefusalOf(recipe: {
-    readonly ingredientLines: readonly unknown[];
-    readonly steps: readonly unknown[];
+export function importRefusalOf(counts: {
+    readonly ingredientLineCount: number;
+    readonly stepCount: number;
 }): ImportRefusal | null {
     const [first] = unmetContentRequirements({
-        ingredientCount: recipe.ingredientLines.length,
-        stepCount: recipe.steps.length,
+        ingredientCount: counts.ingredientLineCount,
+        stepCount: counts.stepCount,
     });
 
     return first === undefined ? null : REFUSAL_OF[first];

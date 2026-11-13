@@ -224,6 +224,35 @@ describe('ImportViewBuilder', () => {
             });
         });
 
+        it('⛔ names an item the save held for a reason no rule explains as `saveRefused` (review item 7 on #220)', async () => {
+            expect(await issueOf(matchedItem({}, { decisionRev: 4, heldAtRev: 4 }))).toEqual({ reason: 'saveRefused' });
+            // A decision since the hold moved the revision: the hold no longer stands, so neither does the issue.
+            expect(await issueOf(matchedItem({}, { decisionRev: 5, heldAtRev: 4 }))).toBeNull();
+        });
+
+        it('⛔ names a matched item whose file has no step or no line by that refusal, and never throws building the view', async () => {
+            const counted = (ingredientLineCount: number, stepCount: number) =>
+                makeListedItem({
+                    stage: 'matched',
+                    matchedAt: new Date(),
+                    statementKind: 'authored',
+                    saveFacts: {
+                        file: {
+                            cuisine: 'Thai',
+                            servings: 4,
+                            prepTimeMinutes: 10,
+                            cookTimeMinutes: 20,
+                            totalTimeMinutes: 30,
+                        },
+                        ingredientLineCount,
+                        stepCount,
+                    },
+                });
+
+            expect(await issueOf(counted(2, 0))).toEqual({ reason: 'noSteps' });
+            expect(await issueOf(counted(0, 1))).toEqual({ reason: 'noIngredients' });
+        });
+
         it('⛔ names a refused recipe by its stored refusal, even unpaid with the allowance spent', async () => {
             const refused = (refusal: 'noIngredients' | 'noSteps') =>
                 makeListedItem({ stage: 'received', refusal, allowanceSpentAt: null });

@@ -10,7 +10,10 @@
  * its statement, then its visibility must be allowed for the label the statement sets, then it must have what the save needs
  * (cuisine, servings, times; ADR-0072 §3 as amended 2026-11-11), then a private one may be paused for want of a slot
  * (ADR-0073). The statement comes first because the label, and with it the cuisine requirement, is derived from it. A save gap
- * comes before the slot pause because a recipe that cannot be saved uses no slot.
+ * comes before the slot pause because a recipe that cannot be saved uses no slot. Last of the reasons that hold an item, an
+ * item the save HELD for a reason none of these names (a create refusal the pre-check did not predict, or a payload the save
+ * cannot read) is `saveRefused`, read from the hold itself (`held_at_rev` equal to `decision_rev`), so it never stalls with no
+ * issue. It comes before the slot pause because a held item is out of the queue whether or not a slot frees.
  */
 import type { ImportStage } from '../../database/schema/recipeImports.js';
 import type { ImportRefusal } from './importRefusal.js';
@@ -30,6 +33,7 @@ export type ItemIssue =
     | 'needsStatement'
     | 'visibilityRefused'
     | (typeof SAVE_GAP_ISSUES)[ImportSaveGap]
+    | 'saveRefused'
     | 'outOfSlots';
 
 /** What the issue is derived from. */
@@ -51,6 +55,8 @@ export interface ItemIssueFacts {
     readonly allowanceSpent: boolean;
     /** The first thing the save still needs (`importSaveGapOf`), or `null`. */
     readonly saveGap: ImportSaveGap | null;
+    /** Whether the save holds the item at its current revision (`held_at_rev = decision_rev`). */
+    readonly heldAtCurrentRevision: boolean;
 }
 
 /**
@@ -87,6 +93,10 @@ export function importItemIssueOf(facts: ItemIssueFacts): ItemIssue | null {
 
     if (facts.saveGap !== null) {
         return SAVE_GAP_ISSUES[facts.saveGap];
+    }
+
+    if (facts.heldAtCurrentRevision) {
+        return 'saveRefused';
     }
 
     return facts.private && facts.outOfSlots ? 'outOfSlots' : null;

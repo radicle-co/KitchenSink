@@ -81,6 +81,7 @@ import {
     RECIPE_IMPORTS_DAL,
 } from './import.tokens.js';
 import { importItemIssueOf, type ItemIssue } from './domain/importItemIssue.js';
+import { importRefusalOf } from './domain/importRefusal.js';
 import { IMPORT_DEFAULT_PAGE_SIZE, type ImportAdvanceLimits } from './domain/importLimits.js';
 import {
     fileSaveFactsOf,
@@ -117,6 +118,8 @@ const SAVE_OUTCOME_OF_ISSUE = {
     waitingForAllowance: 'waiting',
     needsStatement: 'waiting',
     visibilityRefused: 'held',
+    // A hold no rule above names: the save holds it already, and the view reads it back from the hold.
+    saveRefused: 'held',
     needsCuisine: 'held',
     needsServings: 'held',
     needsTimes: 'held',
@@ -533,11 +536,36 @@ export class ImportAdvanceService {
     ): Promise<SaveOutcome> {
         const requested: ImportVisibility = item.visibility ?? header.visibility;
         const statement = statementOfColumns(item);
-        const recipe = importRecipeSchema.parse(item.payload);
+        const read = importRecipeSchema.safeParse(item.payload);
+
+        // A payload the contract admitted but this build cannot read can never be saved: hold it, and say so once. The hold
+        // takes it out of the queue, so no later advance looks at it (or logs it) again until the cook replaces the recipe.
+        if (!read.success) {
+            this.logger.error(
+                `import ${header.id} item ${String(item.ordinal)}: its stored recipe does not read; it is held`,
+                read.error.message,
+            );
+
+            return this.hold(header, item);
+        }
+
+        const recipe = read.data;
         const facts = importSaveFactsOf(item, fileSaveFactsOf(item.payload));
+        const counts = { ingredientLineCount: recipe.ingredientLines.length, stepCount: recipe.steps.length };
+        const refusal = item.refusal ?? importRefusalOf(counts);
+
+        if (item.refusal === null && refusal !== null) {
+            // The upload refuses such a recipe and the refusal stays `received`, so a matched one is a defect. It is held by
+            // its refusal below, which takes it out of the queue: this is said once, at the hold.
+            this.logger.error(
+                `import ${header.id} item ${String(item.ordinal)}: a ${refusal} recipe reached the save; it is held`,
+            );
+        }
+
         const issue = importItemIssueOf({
             stage: item.stage,
-            refusal: item.refusal,
+            refusal,
+            heldAtCurrentRevision: item.heldAtRev === item.decisionRev,
             // A save candidate is matched, so the allowance facts (which only a received item reads) do not apply.
             paid: true,
             allowanceSpent: false,
@@ -554,14 +582,9 @@ export class ImportAdvanceService {
                     requested,
                 ),
             saveGap:
-                statement === undefined
+                statement === undefined || refusal !== null
                     ? null
-                    : importSaveGapOf({
-                          statement,
-                          ...facts,
-                          ingredientLineCount: recipe.ingredientLines.length,
-                          stepCount: recipe.steps.length,
-                      }),
+                    : importSaveGapOf({ statement, ...facts, ...counts }),
             private: requested === 'private',
             outOfSlots: !privateAllowed,
         });

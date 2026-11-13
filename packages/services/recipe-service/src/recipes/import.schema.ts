@@ -571,7 +571,8 @@ export const importItemSummarySchema = z.object({
     /**
      * Why the item cannot be saved yet, as an opaque key the clients localize (`visibilityRefused`, `waitingForAllowance`,
      * `needsCuisine`, `needsServings` or `needsTimes`, `noIngredients` or `noSteps` (the import refuses the recipe: it is never
-     * paid for, parsed or saved), a pick the server rejected, a review that is stuck), or `null`. The stage enum is closed and parsed strictly, so a
+     * paid for, parsed or saved), `saveRefused` (the save held it for a reason none of the others names), a pick the
+     * server rejected, a review that is stuck), or `null`. The stage enum is closed and parsed strictly, so a
      * new stuck state arrives as a new key here and never as a new stage.
      */
     issue: z.object({ reason: z.string().min(1) }).nullable(),

@@ -15,7 +15,7 @@
  *  - **One item's trouble does not stop the others** (a food outage, a refused visibility, a missing statement).
  *  - **A call is bounded** by its deadline and its ceilings.
  */
-import { HttpException, HttpStatus } from '@nestjs/common';
+import { HttpException, HttpStatus, Logger } from '@nestjs/common';
 import { describe, expect, it, vi, type Mock } from 'vitest';
 
 import type { Role } from '@kitchensink/clerk-verify';
@@ -1347,17 +1347,33 @@ describe('ImportAdvanceService — saving what is ready', () => {
             },
         );
 
-        it('⛔ an EMPTY payload with no stored refusal is a defect: it is logged and left, never a hold', async () => {
-            const noSteps = run(world({ items: [matched(0, { payload: { ...recipe(payloadLines), steps: [] } })] }));
-            const noLines = run(world({ items: [matched(0, { payload: recipe([]) })], lines: { 0: [] } }));
+        // REWRITTEN (lead ruling on #220): an item no advance can ever save must not loop. It used to throw, be logged and be
+        // deferred, so it was looked at, and logged, on every advance for as long as the import lived.
+        it.each([
+            ['no step', { ...recipe(['2 cups whole milk']), steps: [] }],
+            ['no ingredient line', recipe([])],
+            ['a payload the save cannot read', { title: 'Soup' }],
+        ])(
+            '⛔ holds an item with %s and no stored refusal, and logs it ONCE across advances',
+            async (_name, payload) => {
+                const logged = vi.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+                const built = build(world({ items: [matched(0, { payload, decisionRev: 7 })], lines: { 0: [] } }));
+                const advance = () => built.service.advance(built.principal, CALLER, IMPORT_ID);
 
-            await Promise.all([noSteps.answered, noLines.answered]);
+                try {
+                    await advance();
+                    await advance();
+                    await advance();
 
-            expect(noSteps.recipes.create).not.toHaveBeenCalled();
-            expect(noSteps.store.holdItem).not.toHaveBeenCalled();
-            expect(noLines.recipes.create).not.toHaveBeenCalled();
-            expect(noLines.store.holdItem).not.toHaveBeenCalled();
-        });
+                    expect(built.recipes.create).not.toHaveBeenCalled();
+                    expect(built.store.holdItem).toHaveBeenCalledExactlyOnceWith(IMPORT_ID, 0, 7);
+                    expect(built.store.deferItem).not.toHaveBeenCalled();
+                    expect(logged).toHaveBeenCalledOnce();
+                } finally {
+                    logged.mockRestore();
+                }
+            },
+        );
 
         it('⛔ never re-queues a held item: the next calls do not look at it, until a decision of the cook releases it', async () => {
             const built = build(world({ items: [noCuisine()] }));

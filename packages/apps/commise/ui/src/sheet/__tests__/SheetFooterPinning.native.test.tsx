@@ -93,6 +93,24 @@ function appliedStyle(element: Element, property: string): string | undefined {
     return resolved;
 }
 
+/**
+ * A sheet with a toolbar and a footer, for the collapse cases. Called once per render: the keyboard double is a plain
+ * read, so an identical element would let React skip the render that reads it.
+ */
+const toolbarSheet = (): JSX.Element => (
+    <Sheet
+        open
+        onOpenChange={vi.fn()}
+        title="Filter recipes"
+        closeLabel="Close filters"
+        size="content"
+        toolbar={{ heading: <Text>Search 40 options</Text>, controls: <Text>Search</Text> }}
+        footer={<Text accessibilityRole="button">Done</Text>}
+    >
+        <Text>Dietary</Text>
+    </Sheet>
+);
+
 /** The sheet: the dialog nearest around its title header, which names it (`docs/design/nativeContainerNames.md` N1). */
 const dialog = (): HTMLElement =>
     screen.getByRole('heading', { name: 'Filter recipes' }).closest('[role="dialog"]') as HTMLElement;
@@ -121,6 +139,11 @@ function layOut(heights: { readonly sheet: number; readonly topBlock: number; re
         Object.defineProperty(node, 'offsetHeight', { value: height, configurable: true });
     }
 
+    reportLayout();
+}
+
+/** Fire the observer for every node it watches, then let react-native-web's deferred measurement run. */
+function reportLayout(): void {
     act(() => {
         observer.callback?.(
             [...observer.observed].map((target) => ({ target }) as unknown as ResizeObserverEntry),
@@ -187,31 +210,15 @@ describe('Sheet (native) — the footer unpins past a limit', () => {
     // ⛔ The footer's last height is KEPT while the collapse unmounts it: reset to 0, it would come back pinned and only
     // unpin a frame later, a visible jump under the cook's thumb.
     it('keeps the footer’s measured height through a collapse, so it comes back where it was', () => {
-        const toolbar = { heading: <Text>Search 40 options</Text>, controls: <Text>Search</Text> };
-        // A fresh element each render: the keyboard double is a plain read, so an identical element would let React
-        // skip the render that reads it.
-        const sheet = (): JSX.Element => (
-            <Sheet
-                open
-                onOpenChange={vi.fn()}
-                title="Filter recipes"
-                closeLabel="Close filters"
-                size="content"
-                toolbar={toolbar}
-                footer={<Text accessibilityRole="button">Done</Text>}
-            >
-                <Text>Dietary</Text>
-            </Sheet>
-        );
-        const { rerender } = render(sheet());
+        const { rerender } = render(toolbarSheet());
 
         layOut({ sheet: 300, topBlock: 64, footer: 92 });
         state.keyboardShown = true;
-        act(() => rerender(sheet()));
+        act(() => rerender(toolbarSheet()));
         expect(screen.queryByRole('button', { name: 'Done' })).toBeNull();
 
         state.keyboardShown = false;
-        act(() => rerender(sheet()));
+        act(() => rerender(toolbarSheet()));
 
         expect(scrollRegion().contains(screen.getByRole('button', { name: 'Done' }))).toBe(true);
     });
@@ -259,41 +266,17 @@ describe('Sheet (native) — the footer unpins past a limit', () => {
     // While the toolbar is collapsed its heading sits in the title row and the block measures shorter. That height is
     // not kept: judged by it, the footer would come back pinned and unpin a frame later, under the cook's thumb.
     it('keeps the top block’s height from before a collapse', () => {
-        const toolbar = { heading: <Text>Search 40 options</Text>, controls: <Text>Search</Text> };
-        // A fresh element each render: the keyboard double is a plain read, so an identical element would let React
-        // skip the render that reads it.
-        const sheet = (): JSX.Element => (
-            <Sheet
-                open
-                onOpenChange={vi.fn()}
-                title="Filter recipes"
-                closeLabel="Close filters"
-                size="content"
-                toolbar={toolbar}
-                footer={<Text accessibilityRole="button">Done</Text>}
-            >
-                <Text>Dietary</Text>
-            </Sheet>
-        );
-        const { rerender } = render(sheet());
+        const { rerender } = render(toolbarSheet());
 
         layOut({ sheet: 300, topBlock: 166, footer: 92 });
         state.keyboardShown = true;
-        act(() => rerender(sheet()));
+        act(() => rerender(toolbarSheet()));
 
         // Collapsed and measured at 40: 40 + 92 is under half of 300, so a kept 40 would pin the footer again.
         Object.defineProperty(topBlock(), 'offsetHeight', { value: 40, configurable: true });
-        act(() => {
-            observer.callback?.(
-                [...observer.observed].map((target) => ({ target }) as unknown as ResizeObserverEntry),
-                {} as ResizeObserver,
-            );
-        });
-        act(() => {
-            vi.runOnlyPendingTimers();
-        });
+        reportLayout();
         state.keyboardShown = false;
-        act(() => rerender(sheet()));
+        act(() => rerender(toolbarSheet()));
 
         expect(scrollRegion().contains(screen.getByRole('button', { name: 'Done' }))).toBe(true);
     });

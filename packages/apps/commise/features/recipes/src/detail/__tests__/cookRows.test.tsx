@@ -55,7 +55,8 @@ describe('IngredientCheckRow (web)', () => {
     // b2b1294bc moved the row text from the 20 px `list` role to the 24 px `body` role and left the box a fixed 1 px down,
     // 2 px above the line's centre. jsdom has no layout, so the rule is pinned: the box sits in a box as tall as the text
     // role's line, read from the token so a role change fails here rather than shifting the box. The pixel check is
-    // `recipeDetailLineAlignment.spec.ts`.
+    // `recipeDetailLineAlignment.spec.ts`. REWRITTEN: the glyph now owns that slot and sizes it in `rem` from the role
+    // the row passes, so the row's own wrapper is gone and the slot is the glyph's outer element.
     it('centres the check box in a box as tall as the first line of its text role', () => {
         render(
             <ul>
@@ -69,7 +70,8 @@ describe('IngredientCheckRow (web)', () => {
         const lineHeightPx = typeRole.body.lineHeight;
 
         expect(text?.classList.contains('text-body')).toBe(true);
-        expect(boxSlot?.classList.contains(`h-${String(lineHeightPx / 4)}`)).toBe(true);
+        expect(boxSlot).toBeInstanceOf(HTMLElement);
+        expect(boxSlot instanceof HTMLElement ? boxSlot.style.height : '').toBe(`${String(lineHeightPx / 16)}rem`);
         expect(boxSlot?.classList.contains('items-center')).toBe(true);
     });
 

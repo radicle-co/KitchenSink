@@ -34,8 +34,9 @@ function valOf(group: TokenGroup, key: string): unknown {
 }
 
 describe('the built Tamagui config', () => {
-    it('names exactly one animation, so the test lane shim cannot drift from the names it fakes', () => {
-        expect(Object.keys(tamaguiConfig.animations.animations)).toEqual(['sheet']);
+    // REWRITTEN: the check box's check gained its named spring (§1.9), beside the Sheet's. The shim fakes every name.
+    it('names exactly the check and sheet springs, so the test lane shim cannot drift from the names it fakes', () => {
+        expect(Object.keys(tamaguiConfig.animations.animations).sort()).toEqual(['check', 'sheet']);
     });
 
     it('lays out by React Native’s flex rules, not CSS’s', () => {

@@ -22,7 +22,7 @@ import { Text } from '@commise/ui/text';
 
 import { PREP_JOINER } from '../format/prepJoiner.js';
 import { recipeMessages } from '../messages.js';
-import { IngredientCheckBoxSlot, IngredientRowDivider } from './ingredientFrames.native.js';
+import { IngredientRowDivider } from './ingredientFrames.native.js';
 import type { IngredientCheckRowProps } from './cookRowProps.js';
 import { ingredientRowName, ingredientRowStatuses } from './detailFacts.js';
 import { isStandInName, lineAmountName, lineDisplayName, variantPartTexts } from './lineName.js';
@@ -69,9 +69,8 @@ export const IngredientCheckRow: FC<IngredientCheckRowProps> = ({
                     pressed ? { backgroundColor: wash } : null,
                 ]}
             >
-                <IngredientCheckBoxSlot>
-                    <CheckBoxGlyph checked={checked} />
-                </IngredientCheckBoxSlot>
+                {/* The glyph centres its box on the first line of the `body` text beside it, and grows with it. */}
+                <CheckBoxGlyph checked={checked} textRole="body" />
                 <View style={styles.text}>
                     {isStandInName(ingredient) ? (
                         <>

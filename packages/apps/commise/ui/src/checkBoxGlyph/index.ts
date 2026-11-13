@@ -3,4 +3,5 @@
  * checkbox, resolved to its web or native leaf at bundle time.
  */
 export { CheckBoxGlyph } from './CheckBoxGlyph.js';
-export type { CheckBoxGlyphProps } from './props.js';
+export { checkBoxSideOf } from './props.js';
+export type { CheckBoxGlyphProps, CheckBoxTextRole } from './props.js';

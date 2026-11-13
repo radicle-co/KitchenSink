@@ -5,6 +5,7 @@
  *
  * Every value is a token or a theme key, so a frame follows the scheme with no hook.
  */
+import { checkBoxSideOf } from '@commise/ui/check-box-glyph';
 import { nativeTokens } from '@commise/ui/native';
 import { Text } from '@commise/ui/text';
 import { styled, XStack, YStack } from 'tamagui';
@@ -52,14 +53,11 @@ export const IngredientGroupLabel = styled(Text, {
     paddingHorizontal: '$4',
 });
 
-/** The drawn check box's side, in points: `CheckBoxGlyph` fixes it at 18. */
-const CHECK_BOX_SIDE = 18;
-
 /**
- * Where a row's text starts: its gutter, the check box, and the gap after it. The hairline between rows starts here
- * (`IngredientCheckRow.native.tsx` pads and gaps with the same two steps).
+ * Where a row's text starts at 1x text: its gutter, the check box beside `body` text, and the gap after it. The hairline
+ * between rows starts here (`IngredientCheckRow.native.tsx` pads and gaps with the same two steps).
  */
-export const ROW_TEXT_INSET = nativeTokens.spacing[4] + CHECK_BOX_SIDE + nativeTokens.spacing[3];
+export const ROW_TEXT_INSET = nativeTokens.spacing[4] + checkBoxSideOf('body') + nativeTokens.spacing[3];
 
 /** The hairline between two rows, inset past the check box so it starts under the text. */
 export const IngredientRowDivider = styled(YStack, {
@@ -85,16 +83,6 @@ export const RemovedFoodNotice = styled(Text, {
     borderRadius: '$md',
     paddingHorizontal: '$3',
     paddingVertical: '$2',
-});
-
-/**
- * The slot the check box sits in: as tall as the `body` role's first line, with the box centred in it, so the box
- * follows the line when the role changes. It replaces a fixed 1 pt `marginTop`, which centred on the old 20 pt line.
- */
-export const IngredientCheckBoxSlot = styled(XStack, {
-    name: 'IngredientCheckBoxSlot',
-    height: nativeTokens.type.body.lineHeight,
-    alignItems: 'center',
 });
 
 /** The list's first row: "Servings" and the stepper at the end (board `.sheetServe`). */

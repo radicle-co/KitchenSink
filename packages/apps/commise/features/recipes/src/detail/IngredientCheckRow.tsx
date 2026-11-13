@@ -32,10 +32,11 @@ import { formatAmount, isLineFoodRemoved, lineTailOf } from './model.js';
 
 /**
  * A hairline above a row, inset to where its text starts (the 16 gutter, the 18 box, a 12 gap): drawn on the `li`, so it is
- * the row's own and never the list's. Written whole, for Tailwind.
+ * the row's own and never the list's. In `rem`, as the gutter, the gap and the box are, so it still meets the text under
+ * enlarged browser text. Written whole, for Tailwind.
  */
 const DIVIDED_ROW =
-    'relative before:absolute before:end-0 before:start-[46px] before:top-0 before:h-px before:bg-line-divider';
+    'relative before:absolute before:end-0 before:start-[2.875rem] before:top-0 before:h-px before:bg-line-divider';
 
 /** The web checkable ingredient row. */
 export const IngredientCheckRow: FC<IngredientCheckRowProps> = ({
@@ -71,10 +72,8 @@ export const IngredientCheckRow: FC<IngredientCheckRowProps> = ({
                 onClick={() => onToggle(ingredient.ingredientId)}
                 className={`flex min-h-11 w-full items-start gap-3 rounded-md px-4 py-2 text-start transition ${PRESS_FILL_CLASS.pointer} ${FOCUS_RING_CLASS.inset}`}
             >
-                {/* The 18 px box is centred in a box as tall as the text's 24 px first line (`body`), so it follows the line. */}
-                <span className="flex h-6 items-center">
-                    <CheckBoxGlyph checked={checked} />
-                </span>
+                {/* The glyph centres its box on the first line of the `body` text beside it, and grows with it. */}
+                <CheckBoxGlyph checked={checked} textRole="body" />
                 <span
                     data-line-text
                     className={`min-w-0 flex-1 break-words text-body transition-colors motion-reduce:transition-none ${checked ? 'text-ink-muted' : 'text-ink'}`}

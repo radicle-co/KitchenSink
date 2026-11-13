@@ -870,18 +870,15 @@ describe('ImportAdvanceService — saving what is ready', () => {
 
         const { dto, imported } = firstCreate(recipes);
 
-        expect(ingredients.addByRef.mock.calls.map((call) => (call[1] as { id: string }).id)).toEqual([
-            'F-whole',
-            'F-table',
-        ]);
-        expect(
-            (dto as { ingredients: { ingredientId: string }[] }).ingredients.map((line) => line.ingredientId),
-        ).toEqual([
-            'LK-F-whole',
-            'LK-F-table',
-            expect.stringContaining('FREE-') as unknown as string,
-            expect.stringContaining('FREE-') as unknown as string,
-        ]);
+        expect(ingredients.addByRef.mock.calls.map((call) => call[1].id)).toEqual(['F-whole', 'F-table']);
+
+        const ingredientIds = dto.ingredients.map((line) => line.ingredientId);
+
+        // Two bound lines, then two declared names, each a NEW declaration (the fake mints `FREE-<n>-<name>`).
+        expect(ingredientIds.slice(0, 2)).toEqual(['LK-F-whole', 'LK-F-table']);
+        expect(ingredientIds).toHaveLength(4);
+        expect(ingredientIds[2]).toContain('FREE-');
+        expect(ingredientIds[3]).toContain('FREE-');
         expect(imported.lineOrigins).toEqual([
             { kind: 'set', boundBy: 'exact', importLineId: 'L-milk' },
             { kind: 'set', boundBy: 'default', importLineId: 'L-salt' },
@@ -990,9 +987,10 @@ describe('ImportAdvanceService — saving what is ready', () => {
         // The fence: the claim carries the revision of the item AS THE SAVE READ IT (see `decisionRev`), not a fresh read.
         expect(store.claimSave).toHaveBeenCalledWith(FAKE_TRANSACTION, IMPORT_ID, 0, 'R-new', 7);
         expect(lines.setSavedKeys).toHaveBeenCalledOnce();
-        expect(lines.setSavedKeys.mock.calls[0]?.[1]).toEqual([
-            { id: 'L-milk', key: expect.stringMatching(/^v\d+:/u) as unknown as string },
-        ]);
+        const savedKeys = lines.setSavedKeys.mock.calls[0]?.[1];
+
+        expect(savedKeys?.map((entry) => entry.id)).toEqual(['L-milk']);
+        expect(savedKeys?.[0]?.key).toMatch(/^v\d+:/u);
         expect(store.claimSave.mock.invocationCallOrder[0]).toBeLessThan(
             lines.setSavedKeys.mock.invocationCallOrder[0] ?? Number.NaN,
         );

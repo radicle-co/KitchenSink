@@ -137,7 +137,8 @@ recipe it created, so a repeated `advance` sees the item as done.
 - **Each value is the cook's choice, else the file's, else absent.** An absent value holds the item, and a stated `0`
   never does: zero minutes is a fact. Times are complete only when prep and cook are both known, so a file that states
   only a total holds until the cook gives prep and cook. The total is the file's total when it states one. Otherwise it
-  is prep plus cook. The step shows these resolved values (`servings`, `prepTimeMinutes`, `cookTimeMinutes`,
+  is prep plus cook. A sum past the create route's ceiling (`INT4_CEILING`) is a times gap too, because the total
+  column could not hold it, and the choices schemas refuse prep and cook that sum past it. The step shows these resolved values (`servings`, `prepTimeMinutes`, `cookTimeMinutes`,
   `totalTimeMinutes`), so the wizard shows what the save will send.
 - **An item the save cannot save is held, never re-queued.** The save asks the item list's own rule
   (`importItemIssueOf`), in its order, before it reads the matches. A save gap and a refused visibility each hold the
@@ -154,9 +155,14 @@ recipe it created, so a repeated `advance` sees the item as done.
       that migration exists.
     - A recipe with no line or no step is refused at upload. One that reaches the save all the same is held for its
       refusal (`item`), and the defect is logged once. A payload this build cannot read is held as `unreadable`, and
-      logged once.
+      logged once. That is the one matched item the cook may replace: a different recipe reopens it, back to `received`
+      with its snapshot dropped and a new parse generation, and the unit it paid stays spent. Every other matched item
+      stays locked.
     - A refusal from the create path that the check did not predict is held as `createRefused`, and an unpublishable
       one is logged once as a defect.
+    - A save that fails for a cause no rule recognises is retried, and counted in `save_failures` (migration 0084). After
+      `IMPORT_SAVE_FAILURE_CAP` (5) failures in a row it is held as `createRefused`, and the hold is logged once. Every
+      write that moves `decision_rev` sets the count back to 0, so a decision of the cook starts it again.
     - The issue the list shows is derived at read time. A refusal comes first. Last of the holding reasons,
       `saveRefused` is read from the hold: it shows only for an `unreadable` or `createRefused` hold that still applies to
       the cook asking, so a hold whose cause is gone, or one the cook can see the cause of, never shows it.

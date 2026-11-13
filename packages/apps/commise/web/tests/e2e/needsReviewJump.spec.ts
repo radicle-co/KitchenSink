@@ -143,6 +143,31 @@ for (const frame of FRAMES) {
     });
 }
 
+/**
+ * Browser Back from an open row editor must never lose what the cook typed (UI Designer, #196): the page may close, but
+ * the edit survives as the device draft (ADR-0057) and is there when the cook opens the editor again.
+ */
+test.describe('browser Back from the open row editor', () => {
+    test.use({ viewport: { width: 1280, height: 900 } });
+
+    test('keeps the typed amount for the next visit to the editor', async ({ page }) => {
+        await openDetail(page);
+        await page.getByRole('link', { name: LINK_NAME }).click();
+        const editor = await openEditor(page, 0);
+        await editor.getByLabel('Amount', { exact: true }).fill('9');
+        await expect(editor.getByLabel('Amount', { exact: true })).toHaveValue('9');
+
+        await page.goBack();
+        await expect(page.getByRole('heading', { name: 'Jump Probe' })).toBeVisible();
+
+        // A fresh load of the editor, not Forward: the browser's page cache could hand back the old page with its memory,
+        // which would prove nothing about the draft.
+        await page.goto(route(`/recipes/${RECIPE_ID}/edit`));
+        await expect(page.getByRole('heading', { level: 1, name: 'Edit recipe' })).toBeVisible();
+        await expect(ingredientOpen(page, 'paprika')).toHaveAccessibleName(/^Edit 9 tsp paprika/u);
+    });
+});
+
 test.describe('the Needs review badge for a viewer who does not own the recipe', () => {
     test('shows the plain badge and no link to the editor', async ({ page }) => {
         await signInWithTicket(page);
@@ -278,11 +303,22 @@ async function reachViolations(
  * and above the bottom action bar. This is the scroll contract the editor owes an arrival at a line; It pins the scroll host's
  * rule: the row's top under the header, or, when the row and its editor do not fit, Done and Cancel above the bar.
  */
-for (const width of [1280, 1024, 768]) {
-    test.describe(`after the jump at ${width} px`, () => {
+for (const [width, textScale] of [
+    [1280, 1],
+    [1024, 1],
+    [768, 1],
+    [1280, 2],
+    [768, 2],
+] as const) {
+    test.describe(`after the jump at ${width} px, text at ${textScale * 100}%`, () => {
         test.use({ viewport: { width, height: 800 } });
 
         test('Done and Cancel sit between the sticky header and the bottom action bar', async ({ page }) => {
+            // A cook's larger text is in force from the first paint, as a browser text-size setting is: set before load,
+            // so the jump measures the page the cook sees.
+            await page.addInitScript((scale) => {
+                document.documentElement.style.fontSize = `${String(scale * 100)}%`;
+            }, textScale);
             await openDetail(page);
             await page.getByRole('link', { name: LINK_NAME }).click();
             const editor = await openEditor(page, 0);

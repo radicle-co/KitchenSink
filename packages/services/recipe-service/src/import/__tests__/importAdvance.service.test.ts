@@ -28,7 +28,12 @@ import {
     makeStoredProposal,
 } from '../../recipes/__fixtures__/parseJobMatches.fixture.js';
 import type { ParseProposalMatch } from '../../recipes/parseJobs.schema.js';
-import { foodNotAdmissible, privateSlotsFull, publishRequirementsUnmet } from '../../recipes/recipe.error.js';
+import {
+    foodNotAdmissible,
+    invalidVisibility,
+    privateSlotsFull,
+    publishRequirementsUnmet,
+} from '../../recipes/recipe.error.js';
 import type { RecipesService } from '../../recipes/recipes.service.js';
 import type { ImportItem, PayOutcome } from '../dal/recipeImportItems.dal.js';
 import { ImportItemAlreadyClaimedError, ImportItemChangedError } from '../dal/recipeImportItems.errors.js';
@@ -1014,11 +1019,31 @@ describe('ImportAdvanceService — saving what is ready', () => {
             expect(recipes.create).not.toHaveBeenCalled();
         });
 
-        it('⛔ an item whose visibility the policy refuses for its label: a book recipe asked to be public', async () => {
-            const { answered, recipes } = run(world({ items: [matched(0, { ...BOOK, visibility: 'public' })] }));
+        // REWRITTEN: a refused visibility is HELD, not deferred. Only the cook can change the visibility or the statement, and
+        // either change moves the revision, so looking at the item again would re-queue it on every call for nothing.
+        it('⛔ holds an item whose visibility the policy refuses for its label: a book recipe asked to be public', async () => {
+            const { answered, recipes, store } = run(
+                world({ items: [matched(0, { ...BOOK, visibility: 'public', decisionRev: 7 })] }),
+            );
 
             await answered;
             expect(recipes.create).not.toHaveBeenCalled();
+            expect(store.holdItem).toHaveBeenCalledWith(IMPORT_ID, 0, 7);
+            expect(store.deferItem).not.toHaveBeenCalled();
+        });
+
+        it('⛔ holds an item the create path refuses for its visibility, and does not fail the call', async () => {
+            const { answered, store } = run(
+                world({
+                    create: async () => {
+                        throw invalidVisibility('A book recipe is private only.');
+                    },
+                }),
+            );
+
+            await expect(answered).resolves.toBe(VIEW);
+            expect(store.holdItem).toHaveBeenCalledWith(IMPORT_ID, 0, 7);
+            expect(store.deferItem).not.toHaveBeenCalled();
         });
 
         it('⛔ an item with a line food could not name: it is decided later, never saved on a guess', async () => {
@@ -1263,6 +1288,30 @@ describe('ImportAdvanceService — saving what is ready', () => {
 
             expect(recipes.create).toHaveBeenCalledOnce();
             expect(firstCreate(recipes).dto.visibility).toBe(RecipeVisibility.PUBLIC);
+        });
+
+        // The save follows the item list's precedence (`importItemIssueOf`): a recipe that cannot be published uses no slot,
+        // so its gap is what the cook must fix, and it is held rather than paused and re-queued.
+        it('⛔ holds a PRIVATE item with no cuisine even when no slot is free: the publish gap comes before the slot', async () => {
+            const { answered, recipes, store } = run(
+                world({
+                    slots: none,
+                    items: [
+                        matched(0, {
+                            ...BOOK,
+                            visibility: 'private',
+                            payload: { ...recipe(payloadLines), cuisine: undefined },
+                            decisionRev: 7,
+                        }),
+                    ],
+                }),
+            );
+
+            await answered;
+
+            expect(recipes.create).not.toHaveBeenCalled();
+            expect(store.holdItem).toHaveBeenCalledWith(IMPORT_ID, 0, 7);
+            expect(store.deferItem).not.toHaveBeenCalled();
         });
 
         it('⛔ maps the save path’s PRIVATE_SLOTS_FULL denial to a pause: no more private saves this call', async () => {

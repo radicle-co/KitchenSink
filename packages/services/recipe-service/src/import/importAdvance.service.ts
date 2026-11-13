@@ -30,10 +30,11 @@
  *  - **A private save is not even tried when the cook has no slot** (ADR-0073); the authoritative check is the create path's, and
  *    its `PRIVATE_SLOTS_FULL` denial pauses the rest of the private saves in the call.
  *  - **An item that cannot save yet goes to the back of the line** (`deferItem`), so the items behind it are not starved.
- *  - **An item that lacks what Publish needs is HELD, not deferred** (ADR-0072 §3 as amended 2026-11-11). Only the cook can
- *    give a cuisine, so looking at it again would re-queue it forever. `holdItem` records the revision the save read, the
- *    candidates leave it out while that revision stands, and the cook's next decision moves the revision and releases it.
- *    Nothing fills the gap: no default cuisine, no AI pick, and no draft save.
+ *  - **An item only the cook can unblock is HELD, not deferred**: one that lacks what Publish needs (ADR-0072 §3 as amended
+ *    2026-11-11), and one whose visibility the policy refuses for its label. Looking at it again would re-queue it forever.
+ *    `holdItem` records the revision the save read, the candidates leave it out while that revision stands, and the cook's
+ *    next decision moves the revision and releases it. Nothing fills the gap: no default cuisine, no AI pick, no draft save.
+ *  - **The save and the item list agree on why an item waits**: both ask `importItemIssueOf`, in its precedence.
  */
 import { HttpException } from '@nestjs/common';
 import { Inject, Injectable, Logger } from '@nestjs/common';
@@ -76,6 +77,7 @@ import {
     RECIPE_IMPORT_LINES_DAL,
     RECIPE_IMPORTS_DAL,
 } from './import.tokens.js';
+import { importItemIssueOf, type ItemIssue } from './domain/importItemIssue.js';
 import { IMPORT_DEFAULT_PAGE_SIZE, type ImportAdvanceLimits } from './domain/importLimits.js';
 import { importCuisineOf, importPublishGapOf } from './domain/importPublishGap.js';
 import { isReadyToSave } from './domain/importSaveReadiness.js';
@@ -89,8 +91,81 @@ import { ImportViewBuilder } from './importView.builder.js';
 import { PRIVATE_SLOTS, isPrivateSlotsFull, type PrivateSlotsPort } from './privateSlots.port.js';
 import { ownedImport } from './importOwnership.js';
 
-/** What a save attempt came to. `held`: the item lacks what Publish needs and waits for the cook, out of the queue. */
+/** What a save attempt came to. `held`: only the cook can unblock it, so it waits out of the queue until they decide. */
 type SaveOutcome = 'saved' | 'waiting' | 'paused' | 'held';
+
+/**
+ * What the save does about each issue that stops an item. A `Record` over the issue union, so a new issue is a compile error
+ * here until someone decides it. Held: only the cook's decision (which moves the revision) can change it. Paused: a slot can
+ * free up without one.
+ */
+const SAVE_OUTCOME_OF_ISSUE = {
+    waitingForAllowance: 'waiting',
+    needsStatement: 'waiting',
+    visibilityRefused: 'held',
+    needsCuisine: 'held',
+    needsIngredients: 'held',
+    needsSteps: 'held',
+    outOfSlots: 'paused',
+} as const satisfies Record<ItemIssue, SaveOutcome>;
+
+/**
+ * What a create the save path refused comes to, or `undefined` for an error the save does not expect. Pure.
+ *
+ * `unpublishable` is kept apart because the import judged the recipe publishable first, so that refusal is a defect to log.
+ */
+function outcomeOfCreateRefusal(error: unknown): SaveOutcome | 'unpublishable' | undefined {
+    if (isImportItemAlreadyClaimedError(error)) {
+        // Another call saved it first; this one's recipe rolled back with the failed claim.
+        return 'saved';
+    }
+
+    if (isImportItemChangedError(error)) {
+        // The cook decided something while the recipe was being built: it rolled back, and the next call saves from it.
+        return 'waiting';
+    }
+
+    if (isRecipeDomainError(error) && error.code === RecipeErrorCode.INVALID_VISIBILITY) {
+        return 'held';
+    }
+
+    if (isRecipeDomainError(error) && error.code === RecipeErrorCode.PUBLISH_REQUIREMENTS_UNMET) {
+        return 'unpublishable';
+    }
+
+    return undefined;
+}
+
+/** The create body for an imported recipe, PUBLISHED with the visibility the cook chose. Pure. */
+function createDtoOf(
+    recipe: ImportRecipe,
+    cuisine: string | null,
+    requested: ImportVisibility,
+    ingredients: CreateRecipeDto['ingredients'],
+): CreateRecipeDto {
+    return {
+        title: recipe.title,
+        ...(recipe.description === undefined ? {} : { description: recipe.description }),
+        ...(cuisine === null ? {} : { cuisine }),
+        ...(recipe.difficulty === undefined ? {} : { difficulty: recipe.difficulty }),
+        ...(recipe.mealType === undefined ? {} : { mealType: recipe.mealType }),
+        status: 'published',
+        visibility: requested === 'public' ? RecipeVisibility.PUBLIC : RecipeVisibility.PRIVATE,
+        // The create route requires these and another app's export often states none. They are not what Publish needs,
+        // so the neutral values stand in (one serving, no time stated) and the cook edits them in the editor.
+        servings: recipe.servings ?? 1,
+        prepTimeMinutes: recipe.prepTimeMinutes ?? 0,
+        cookTimeMinutes: recipe.cookTimeMinutes ?? 0,
+        totalTimeMinutes: recipe.totalTimeMinutes ?? (recipe.prepTimeMinutes ?? 0) + (recipe.cookTimeMinutes ?? 0),
+        ...(recipe.tags === undefined ? {} : { tags: recipe.tags }),
+        ...(recipe.dietaryFlags === undefined ? {} : { dietaryFlags: recipe.dietaryFlags }),
+        ingredients,
+        steps: recipe.steps.map((step) => ({
+            instruction: step.instruction,
+            ...(step.timerSeconds === undefined ? {} : { timerSeconds: step.timerSeconds }),
+        })),
+    };
+}
 
 /** The lines of a stored payload, which is all the parse step needs from it. */
 const payloadLinesSchema = z.object({ ingredientLines: z.array(z.string()) });
@@ -382,24 +457,19 @@ export class ImportAdvanceService {
                 return;
             }
 
-            const requested: ImportVisibility = item.visibility ?? header.visibility;
             let outcome: SaveOutcome = 'waiting';
 
-            if (requested === 'private' && !privateAllowed) {
-                outcome = 'paused';
-            } else {
-                try {
-                    outcome = await this.saveOne(principal, caller, header, item, requested);
-                } catch (error) {
-                    if (isPrivateSlotsFull(error)) {
-                        outcome = 'paused';
-                        privateAllowed = false;
-                    } else {
-                        this.logger.error(
-                            `import ${header.id} item ${String(item.ordinal)}: saving it failed; it is retried`,
-                            errorStack(error),
-                        );
-                    }
+            try {
+                outcome = await this.saveOne(principal, caller, header, item, privateAllowed);
+            } catch (error) {
+                if (isPrivateSlotsFull(error)) {
+                    outcome = 'paused';
+                    privateAllowed = false;
+                } else {
+                    this.logger.error(
+                        `import ${header.id} item ${String(item.ordinal)}: saving it failed; it is retried`,
+                        errorStack(error),
+                    );
                 }
             }
 
@@ -414,54 +484,64 @@ export class ImportAdvanceService {
     /**
      * Save one matched item, PUBLISHED, if it is ready and allowed.
      *
-     * @returns `saved` (this call or a racing one); `waiting` (not ready, no statement, visibility refused, food could not be
-     *   asked); `paused` (no private slot); `held` (it lacks what Publish needs; held at the revision read).
+     * What stops it is judged by the item list's own Specification (`importItemIssueOf`), in its precedence, so the save and
+     * the view cannot disagree about why an item waits. That is decided before the match read, which asks food and the
+     * review gate.
+     *
+     * @returns `saved` (this call or a racing one); `waiting` (not ready, no statement, food could not be asked); `paused`
+     *   (no private slot); `held` (only the cook can fix it: a refused visibility or a publish gap; held at the revision read).
      */
     private async saveOne(
         principal: Principal,
         caller: CallerToken | undefined,
         header: ImportHeader,
         item: ImportItem,
-        requested: ImportVisibility,
+        privateAllowed: boolean,
     ): Promise<SaveOutcome> {
+        const requested: ImportVisibility = item.visibility ?? header.visibility;
         const statement = statementOfColumns(item);
+        const recipe = importRecipeSchema.parse(item.payload);
+        const cuisine = importCuisineOf(item.cuisine, recipe.cuisine);
+        const issue = importItemIssueOf({
+            stage: item.stage,
+            // A save candidate is matched, so the allowance facts (which only a received item reads) do not apply.
+            paid: true,
+            allowanceSpent: false,
+            hasStatement: statement !== undefined,
+            visibilityRefused:
+                statement !== undefined &&
+                visibilityRefusedFor(
+                    {
+                        principalKind: principal.principalKind,
+                        containment: principal.containment,
+                        isPremium: isPremiumPrincipal(principal),
+                    },
+                    statement,
+                    requested,
+                ),
+            publishGap:
+                statement === undefined
+                    ? null
+                    : importPublishGapOf({
+                          statement,
+                          cuisine,
+                          ingredientLineCount: recipe.ingredientLines.length,
+                          stepCount: recipe.steps.length,
+                      }),
+            private: requested === 'private',
+            outOfSlots: !privateAllowed,
+        });
 
-        if (
-            statement === undefined ||
-            visibilityRefusedFor(
-                {
-                    principalKind: principal.principalKind,
-                    containment: principal.containment,
-                    isPremium: isPremiumPrincipal(principal),
-                },
-                statement,
-                requested,
-            )
-        ) {
-            return 'waiting';
+        if (issue !== null) {
+            return this.settle(header, item, SAVE_OUTCOME_OF_ISSUE[issue]);
         }
 
-        // The ONE reading of a statement as provenance, the same one a recipe's own `statement` takes (ADR-0089): the label,
-        // the link, its site and the kind. A link that is not a usable source was refused just above; this keeps it explicit.
-        const provenance = resolveStatementProvenance(statement);
+        // The ONE reading of a statement as provenance, the same one a recipe's own `statement` takes (ADR-0089). A link that
+        // is not a usable source is a refused visibility just above, so `undefined` here only narrows the type.
+        const provenance = statement === undefined ? undefined : resolveStatementProvenance(statement);
 
         if (provenance === undefined) {
             return 'waiting';
-        }
-
-        const recipe = importRecipeSchema.parse(item.payload);
-        const cuisine = importCuisineOf(item.cuisine, recipe.cuisine);
-
-        // Before the match read, which asks food and the review gate: a recipe that cannot be published waits for the cook.
-        if (
-            importPublishGapOf({
-                statement,
-                cuisine,
-                ingredientLineCount: recipe.ingredientLines.length,
-                stepCount: recipe.steps.length,
-            }) !== null
-        ) {
-            return this.hold(header, item);
         }
 
         const snapshot = await this.lines.findForItem(header.id, item.ordinal);
@@ -509,28 +589,6 @@ export class ImportAdvanceService {
             return 'waiting';
         }
 
-        const dto: CreateRecipeDto = {
-            title: recipe.title,
-            ...(recipe.description === undefined ? {} : { description: recipe.description }),
-            ...(cuisine === null ? {} : { cuisine }),
-            ...(recipe.difficulty === undefined ? {} : { difficulty: recipe.difficulty }),
-            ...(recipe.mealType === undefined ? {} : { mealType: recipe.mealType }),
-            status: 'published',
-            visibility: requested === 'public' ? RecipeVisibility.PUBLIC : RecipeVisibility.PRIVATE,
-            // The create route requires these and another app's export often states none. They are not what Publish needs,
-            // so the neutral values stand in (one serving, no time stated) and the cook edits them in the editor.
-            servings: recipe.servings ?? 1,
-            prepTimeMinutes: recipe.prepTimeMinutes ?? 0,
-            cookTimeMinutes: recipe.cookTimeMinutes ?? 0,
-            totalTimeMinutes: recipe.totalTimeMinutes ?? (recipe.prepTimeMinutes ?? 0) + (recipe.cookTimeMinutes ?? 0),
-            ...(recipe.tags === undefined ? {} : { tags: recipe.tags }),
-            ...(recipe.dietaryFlags === undefined ? {} : { dietaryFlags: recipe.dietaryFlags }),
-            ingredients: built.lines,
-            steps: recipe.steps.map((step) => ({
-                instruction: step.instruction,
-                ...(step.timerSeconds === undefined ? {} : { timerSeconds: step.timerSeconds }),
-            })),
-        };
         const imported: ImportedCreate = {
             provenance,
             lineOrigins: built.origins,
@@ -549,23 +607,20 @@ export class ImportAdvanceService {
         };
 
         try {
-            await this.recipes.create(principal, dto, caller, imported);
+            await this.recipes.create(
+                principal,
+                createDtoOf(recipe, cuisine, requested, built.lines),
+                caller,
+                imported,
+            );
         } catch (error) {
-            if (isImportItemAlreadyClaimedError(error)) {
-                // Another call saved it first; this one's recipe rolled back with the failed claim.
-                return 'saved';
+            const refused = outcomeOfCreateRefusal(error);
+
+            if (refused === undefined) {
+                throw error;
             }
 
-            if (isImportItemChangedError(error)) {
-                // The cook decided something while the recipe was being built: it rolled back, and the next call saves from it.
-                return 'waiting';
-            }
-
-            if (isRecipeDomainError(error) && error.code === RecipeErrorCode.INVALID_VISIBILITY) {
-                return 'waiting';
-            }
-
-            if (isRecipeDomainError(error) && error.code === RecipeErrorCode.PUBLISH_REQUIREMENTS_UNMET) {
+            if (refused === 'unpublishable') {
                 // The check above asks the same policy over the same facts, so this is a defect: say so, and hold it all the
                 // same, because retrying a refusal nothing will change is the loop the hold exists to stop.
                 this.logger.error(
@@ -576,14 +631,23 @@ export class ImportAdvanceService {
                 return this.hold(header, item);
             }
 
-            throw error;
+            return this.settle(header, item, refused);
         }
 
         return 'saved';
     }
 
     /**
-     * Hold an item that lacks what Publish needs, at the revision the save read (a decision since then leaves it unheld).
+     * Apply an outcome: a `held` one writes the hold; any other is returned as it is.
+     *
+     * @sideEffect Writes the hold for `held`.
+     */
+    private async settle(header: ImportHeader, item: ImportItem, outcome: SaveOutcome): Promise<SaveOutcome> {
+        return outcome === 'held' ? this.hold(header, item) : outcome;
+    }
+
+    /**
+     * Hold an item only the cook can unblock, at the revision the save read (a decision since then leaves it unheld).
      *
      * @sideEffect Writes the hold.
      */

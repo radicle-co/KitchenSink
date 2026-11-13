@@ -404,9 +404,15 @@ describe('every zizmor suppression in the repo is declared', () => {
         // fixed, and a case that reads the tree would then assert nothing about commas at all.
         const counts = countIgnores([
             { key: 'fixture.yml', text: '          run: | # zizmor: ignore[adhoc-packages, github-env] — reason\n' },
+            { key: 'unspaced.yml', text: '          run: | # zizmor: ignore[adhoc-packages,github-env]\n' },
         ]);
 
-        expect(counts).toEqual({ 'fixture.yml:adhoc-packages': 1, 'fixture.yml:github-env': 1 });
+        expect(counts).toEqual({
+            'fixture.yml:adhoc-packages': 1,
+            'fixture.yml:github-env': 1,
+            'unspaced.yml:adhoc-packages': 1,
+            'unspaced.yml:github-env': 1,
+        });
         expect(declaredActionIgnores(ACTIONS_DIR)['actions/infra-package/action.yml:github-env']).toBe(4);
     });
 

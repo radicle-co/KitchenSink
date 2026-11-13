@@ -14,45 +14,43 @@
  *
  * 1. Every CDK app directory has a `package-lock.json` that git tracks. A file that exists only on one machine does not
  *    count.
- * 2. No workflow or composite action installs a CDK app directory with `npm install` (or `npm i`). `npm ci` installs
- *    exactly the lockfile and fails when the lockfile no longer matches the manifest; `npm install` rewrites it in
- *    silence.
+ * 2. No workflow or composite action installs a package outside the root workspace (a CDK app, or any package that
+ *    commits its own lockfile) with `npm install` (or `npm i`). `npm ci` installs exactly the lockfile and fails when
+ *    the lockfile no longer matches the manifest; `npm install` rewrites it in silence.
  *
- * Both sides are discovered. The apps come from `cdkApps()`, which reads them out of the tree by content, and an
- * install is recognised in each form the workflows use: a step `working-directory`, `--prefix` with a literal path or
- * with a loop variable over the app globs, and `cd` into the directory. A templated `working-directory` (a composite
- * action's `${{ inputs.directory }}`) counts as a CDK install, because the guard cannot see every caller's value and a
- * miss here is the silent direction.
+ * Both sides are discovered. The apps come from `cdkAppDirectories()`, which reads them out of the tree by content, and
+ * each command's target comes from `commandsOf()`, shared with `installWorkspaceRestoreFirst.test.ts`: a step
+ * `working-directory`, `--prefix` with a literal path or a loop variable over the app globs, a `cd`, and a composite
+ * action's `${{ inputs.directory }}` resolved through its callers.
  *
  * DESIGN PATTERN: Specification module over the parsed workflow and action files.
  */
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
-import { globSync } from 'glob';
 import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
 
-import { ACTIONS_DIR, cdkApps, WORKFLOWS_DIR, withoutComments } from './cdkApps.js';
+import {
+    ACTIONS_DIR,
+    actionInputValues,
+    cdkAppDirectories,
+    commandsOf,
+    ownLockfileDirectories,
+    WORKFLOWS_DIR,
+    type InstallStep,
+} from './cdkApps.js';
 import { repoRoot, trackedFiles } from './serviceSources.js';
 
-interface Step {
+interface Step extends InstallStep {
     readonly name?: string;
-    readonly run?: string;
-    readonly 'working-directory'?: string;
 }
 
 interface StepSite {
     readonly where: string;
     readonly step: Step;
-}
-
-/**
- * The directory that holds each CDK app's manifest: the parent of the entrypoint's `bin/`. Two entrypoints in one
- * package (`packages/infra/global` has `app.ts` and `account.ts`) are one directory. Impure.
- */
-function cdkAppDirectories(): readonly string[] {
-    return [...new Set(cdkApps().map((entrypoint) => path.posix.dirname(path.posix.dirname(entrypoint))))].toSorted();
+    /** The composite action's reference, for a step that belongs to one. */
+    readonly action?: string;
 }
 
 /** Every step a runner executes, from each workflow job and each composite action. Impure. */
@@ -69,48 +67,22 @@ function stepSites(): readonly StepSite[] {
         const fromJobs = Object.entries(doc?.jobs ?? {}).flatMap(([job, { steps }]) =>
             (steps ?? []).map((step) => ({ where: `${file} › ${job} › ${step.name ?? '(unnamed)'}`, step })),
         );
+        const action = `./${path.posix.dirname(file)}`;
         const fromAction = (doc?.runs?.steps ?? []).map((step) => ({
             where: `${file} › ${step.name ?? '(unnamed)'}`,
             step,
+            action,
         }));
 
         return [...fromJobs, ...fromAction];
     });
 }
 
-/** Whether a step's commands reach a CDK app directory, in any of the forms the workflows use. Impure (globs). */
-function targetsCdkApp(step: Step, apps: ReadonlySet<string>): boolean {
-    const directory = step['working-directory'];
+/** `npm install` or its alias `npm i`, as a whole command (not `npm ci`, not `npm run install`). */
+const NPM_INSTALL = /^npm\s+(?:install|i)\b/u;
 
-    if (directory !== undefined && (apps.has(directory) || directory.includes('${{'))) {
-        return true;
-    }
-
-    const run = withoutComments(step.run ?? '');
-
-    for (const [, prefix] of run.matchAll(/--prefix\s+"?([^"\s]+)"?/gu)) {
-        if (prefix !== undefined && apps.has(prefix)) {
-            return true;
-        }
-    }
-
-    for (const [, variable, globs] of run.matchAll(/\bfor\s+(\w+)\s+in\s+([^;\n]+?)\s*;\s*do\b/gu)) {
-        const prefixed = new RegExp(`--prefix\\s+"?\\$\\{?${variable ?? ''}\\}?"?`, 'u').test(run);
-        const expanded = (globs ?? '')
-            .split(/\s+/u)
-            .filter((pattern) => pattern !== '')
-            .flatMap((pattern) => globSync(pattern, { cwd: repoRoot }));
-
-        if (prefixed && expanded.some((match) => apps.has(match))) {
-            return true;
-        }
-    }
-
-    return [...run.matchAll(/\bcd\s+"?([^"\s;&]+)"?/gu)].some(([, target]) => apps.has(target ?? ''));
-}
-
-/** `npm install` or its alias `npm i`, as a command (not `npm ci`, not `npm run install`). */
-const NPM_INSTALL = /\bnpm\s+(?:install|i)\b/u;
+/** `npm ci`, `npm install` or `npm i`, as a whole command. */
+const ANY_INSTALL = /^npm\s+(?:ci|install|i)\b/u;
 
 describe('every CDK app installs from a committed lockfile', () => {
     const apps = cdkAppDirectories();
@@ -127,15 +99,19 @@ describe('every CDK app installs from a committed lockfile', () => {
     });
 
     it('installs every CDK app with npm ci, never npm install', () => {
-        const appSet = new Set(apps);
-        const sites = stepSites().filter(({ step }) => targetsCdkApp(step, appSet));
-        const offenders = sites.filter(({ step }) => NPM_INSTALL.test(withoutComments(step.run ?? '')));
+        // The CDK apps and every other package with its own lockfile: an action shared by both kinds of caller is then
+        // judged as installing them, rather than escaping because one caller is not a CDK app.
+        const packages = new Set([...apps, ...ownLockfileDirectories()]);
+        const inputs = actionInputValues();
+        const installs = stepSites().flatMap(({ where, step, action }) =>
+            commandsOf(step, packages, action === undefined ? undefined : inputs.get(action))
+                .filter(({ text, inDirectories }) => inDirectories && ANY_INSTALL.test(text))
+                .map(({ text }) => ({ where, text })),
+        );
+        const offenders = installs.filter(({ text }) => NPM_INSTALL.test(text)).map(({ where }) => where);
 
-        // Non-vacuity: the guard finds the CDK installs it judges, so a parser that sees nothing cannot pass.
-        expect(sites.length).toBeGreaterThan(0);
-        expect(
-            offenders.map(({ where }) => where),
-            'npm install rewrites a lockfile instead of failing on a mismatch; use npm ci',
-        ).toEqual([]);
+        // Non-vacuity: the guard finds the package installs it judges, so a parser that sees nothing cannot pass.
+        expect(installs.length).toBeGreaterThan(0);
+        expect(offenders, 'npm install rewrites a lockfile instead of failing on a mismatch; use npm ci').toEqual([]);
     });
 });

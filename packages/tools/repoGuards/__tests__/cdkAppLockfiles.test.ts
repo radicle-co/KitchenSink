@@ -117,9 +117,10 @@ const installingScripts = (scripts: Readonly<Record<string, string>> = {}): read
  * (`i`, `add`, `isntall` ...) and `update` need no list of their own, and an option before the verb
  * (`npm --prefix <app> install`) makes the first word an option and is refused too (decisions 0205 and 0206).
  *
- * `test`, `pack`, `publish` and `version` run only in `shared/infra`, the published library, which has no `version` or
- * `publish` hook and whose `prepack` runs only `npm run build`. `version` stamps the lockfile's root version field and
- * resolves nothing. ⚠️ If an installing lifecycle script is ever added there, these four admissions must be reconsidered.
+ * `test` runs in every CDK app (the `infra-package` action's `npm test --if-present`) and in `shared/infra`; `pack`,
+ * `publish` and `version` run in `shared/infra`, the published library, whose `prepack` runs only `npm run build`.
+ * `version` stamps the lockfile's root version field and resolves nothing. None of them installs unless a lifecycle
+ * script does, and the scripts check below refuses any installing script in a lockfile directory.
  */
 const LOCKFILE_SAFE_VERBS: ReadonlySet<string> = new Set([
     'ci',
@@ -201,9 +202,10 @@ describe('every CDK app installs from a committed lockfile', () => {
             ),
         );
 
-        // Non-vacuity: a reader that stops resolving the loops, the only installer of several apps, fails here.
+        // Non-vacuity: every CDK app is installed by some step. The infra-package action reaches all of them through its
+        // callers, so this does not hold the loop parsing; the loop rows below do.
         expect(apps.filter((app) => !installed.has(app))).toEqual([]);
-        expect(offenders, 'only ci, run, exec and ls may run where a lockfile is committed').toEqual([]);
+        expect(offenders, 'only LOCKFILE_SAFE_VERBS may run where a lockfile is committed').toEqual([]);
     });
 
     it('has no installing script in any package with its own lockfile', () => {

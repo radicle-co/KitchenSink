@@ -108,6 +108,19 @@ const CREATED_AT_ISO = sql<string>`to_char(${recipeImports.createdAt} AT TIME ZO
 
 const EMPTY_COUNTS: StageCounts = { total: 0, received: 0, parsing: 0, matched: 0, saved: 0 };
 
+/**
+ * Move an import's activity clock (`updated_at`), which the purge reads as its last activity. The ONE statement of it,
+ * for every DAL whose write counts as activity; each calls it in its own transaction.
+ *
+ * @sideEffect Writes `recipe_imports.updated_at`.
+ */
+export async function touchImport(writer: Pick<Writer, 'update'>, importId: string): Promise<void> {
+    await writer
+        .update(recipeImports)
+        .set({ updatedAt: sql`now()` })
+        .where(eq(recipeImports.id, importId));
+}
+
 export class RecipeImportsDal {
     public constructor(private readonly db: RecipeDrizzle) {}
 
@@ -215,10 +228,7 @@ export class RecipeImportsDal {
      * @sideEffect Writes `updated_at`.
      */
     public async touch(importId: string, writer: Pick<Writer, 'update'> = this.db): Promise<void> {
-        await writer
-            .update(recipeImports)
-            .set({ updatedAt: sql`now()` })
-            .where(eq(recipeImports.id, importId));
+        await touchImport(writer, importId);
     }
 
     /**

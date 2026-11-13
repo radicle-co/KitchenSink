@@ -32,6 +32,7 @@ import type { Writer } from '../../database/unitOfWork.js';
 import { BOUND_BY_VALUES, type BoundBy } from '../../recipes/domain/bindingOriginCarryForward.js';
 import type { LineCursor } from '../domain/importPaging.js';
 import { lockImportHeader } from './importLocks.js';
+import { touchImport } from './recipeImports.dal.js';
 
 /** One snapshot line, as the importer writes it. Numerics are the columns' own decimal text. */
 export interface NewImportLine {
@@ -308,10 +309,7 @@ export class RecipeImportLinesDal {
                     .where(and(eq(recipeImportItems.importId, importId), eq(recipeImportItems.ordinal, ordinal)));
             }
 
-            await tx
-                .update(recipeImports)
-                .set({ updatedAt: sql`now()` })
-                .where(eq(recipeImports.id, importId));
+            await touchImport(tx, importId);
 
             return 'applied' as const;
         });

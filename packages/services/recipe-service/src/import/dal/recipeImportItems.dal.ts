@@ -18,7 +18,7 @@
  *  5. **`saved_at` and `allowance_spent_at` are facts of their own**; nothing here infers either from `recipe_id` or
  *     `parse_job_id`.
  */
-import { and, asc, eq, gt, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm';
+import { and, asc, eq, gt, inArray, isNotNull, isNull, or, sql, type SQL, type SQLWrapper } from 'drizzle-orm';
 import { isDeepStrictEqual } from 'node:util';
 
 import { ImportAllowanceDal } from '../../common/dal/importAllowance.dal.js';
@@ -28,7 +28,6 @@ import {
     IMPORT_VISIBILITIES,
     recipeImportItems,
     recipeImportLines,
-    recipeImports,
     type ImportStage,
     type RecipeImportItemRow,
 } from '../../database/schema/recipeImports.js';
@@ -39,7 +38,7 @@ import { decideItemUpsert } from '../domain/importItemUpsert.js';
 import { columnsOfStatement } from '../domain/importStatement.js';
 import { lockImportHeader } from './importLocks.js';
 import { ImportItemAlreadyClaimedError, ImportItemChangedError } from './recipeImportItems.errors.js';
-import type { ImportVisibility } from './recipeImports.dal.js';
+import { touchImport, type ImportVisibility } from './recipeImports.dal.js';
 import type { NewImportLine } from './recipeImportLines.dal.js';
 
 /** One item as the DAL returns it, with its stage, review mark and visibility narrowed to the CHECK vocabularies. */
@@ -73,7 +72,7 @@ export interface ChoicesPatch {
 }
 
 /** What Publish needs, as the payload states it, read in SQL so the item list needs no document. */
-export interface ItemPublishFacts {
+interface ItemPublishFacts {
     readonly fileCuisine: string | null;
     readonly ingredientLineCount: number;
     readonly stepCount: number;
@@ -120,8 +119,15 @@ function statementPatch(statement: ImportStatement | undefined) {
 /** Moves the fence: written by every write of what an item is saved from (see `decision_rev` in migration 0059). */
 const BUMP_DECISION_REV = { decisionRev: sql`${recipeImportItems.decisionRev} + 1` } as const;
 
-/** The ingredient-line count a payload holds, in SQL: a recipe with none sends nothing for parsing. */
-const HAS_LINES = sql`jsonb_array_length(COALESCE(${recipeImportItems.payload} -> 'ingredientLines', '[]'::jsonb)) > 0`;
+/**
+ * The ingredient-line count a payload holds, in SQL. The ONE statement of it: the item list counts with it, and a recipe
+ * with none is never paid for or sent for parsing. Takes the payload column so a query that aliases the table can use it.
+ */
+const lineCountOf = (payload: SQLWrapper): SQL<number> =>
+    sql<number>`jsonb_array_length(COALESCE(${payload} -> 'ingredientLines', '[]'::jsonb))`;
+
+/** Whether an item's payload has an ingredient line. */
+const HAS_LINES = sql`${lineCountOf(recipeImportItems.payload)} > 0`;
 
 export class RecipeImportItemsDal {
     public constructor(
@@ -219,10 +225,7 @@ export class RecipeImportItemsDal {
                 }
             }
 
-            await tx
-                .update(recipeImports)
-                .set({ updatedAt: sql`now()` })
-                .where(eq(recipeImports.id, importId));
+            await touchImport(tx, importId);
 
             return { kind: 'ok' };
         });
@@ -249,10 +252,7 @@ export class RecipeImportItemsDal {
             .select({
                 ...itemColumnsWithoutPayload(),
                 fileCuisine: sql<string | null>`${recipeImportItems.payload} ->> 'cuisine'`,
-                ingredientLineCount:
-                    sql<number>`jsonb_array_length(COALESCE(${recipeImportItems.payload} -> 'ingredientLines', '[]'::jsonb))`.mapWith(
-                        Number,
-                    ),
+                ingredientLineCount: lineCountOf(recipeImportItems.payload).mapWith(Number),
                 stepCount:
                     sql<number>`jsonb_array_length(COALESCE(${recipeImportItems.payload} -> 'steps', '[]'::jsonb))`.mapWith(
                         Number,
@@ -500,10 +500,7 @@ export class RecipeImportItemsDal {
                     .where(and(eq(recipeImportItems.importId, importId), eq(recipeImportItems.ordinal, entry.ordinal)));
             }
 
-            await tx
-                .update(recipeImports)
-                .set({ updatedAt: sql`now()` })
-                .where(eq(recipeImports.id, importId));
+            await touchImport(tx, importId);
 
             return { kind: 'ok' as const };
         });
@@ -530,7 +527,7 @@ export class RecipeImportItemsDal {
                    AND h.user_id = ${userId}
                    AND i.stage = 'received'
                    AND i.allowance_spent_at IS NULL
-                   AND jsonb_array_length(COALESCE(i.payload -> 'ingredientLines', '[]'::jsonb)) > 0
+                   AND ${lineCountOf(sql`i.payload`)} > 0
                  ORDER BY i.ordinal
                  LIMIT ${request.limit}
                    FOR UPDATE OF i
@@ -555,10 +552,7 @@ export class RecipeImportItemsDal {
                 .update(recipeImportItems)
                 .set({ allowanceSpentAt: sql`now()`, updatedAt: sql`now()` })
                 .where(and(eq(recipeImportItems.importId, importId), inArray(recipeImportItems.ordinal, ordinals)));
-            await tx
-                .update(recipeImports)
-                .set({ updatedAt: sql`now()` })
-                .where(eq(recipeImports.id, importId));
+            await touchImport(tx, importId);
 
             return { kind: 'paid', ordinals };
         });
@@ -673,10 +667,7 @@ export class RecipeImportItemsDal {
                 );
             }
 
-            await tx
-                .update(recipeImports)
-                .set({ updatedAt: sql`now()` })
-                .where(eq(recipeImports.id, importId));
+            await touchImport(tx, importId);
 
             return true;
         });
@@ -731,10 +722,7 @@ export class RecipeImportItemsDal {
                 : new ImportItemAlreadyClaimedError(ordinal);
         }
 
-        await tx
-            .update(recipeImports)
-            .set({ updatedAt: sql`now()` })
-            .where(eq(recipeImports.id, importId));
+        await touchImport(tx, importId);
     }
 }
 

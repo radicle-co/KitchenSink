@@ -65,3 +65,41 @@ export class InvalidLineIndexError extends Error {
 export function isInvalidLineIndexError(error: unknown): error is InvalidLineIndexError {
     return error instanceof InvalidLineIndexError;
 }
+
+/** Raised when a timer length is not a whole number of ms between the shortest and the longest timer. */
+export class InvalidTimerDurationError extends Error {
+    public constructor(public readonly durationMs: number) {
+        super(`Invalid timer duration: ${durationMs} ms`);
+        this.name = 'InvalidTimerDurationError';
+        Object.setPrototypeOf(this, InvalidTimerDurationError.prototype);
+    }
+}
+
+/**
+ * Type guard for {@link InvalidTimerDurationError}.
+ *
+ * @param error - The thrown value.
+ * @returns `true` when `error` is an {@link InvalidTimerDurationError}.
+ */
+export function isInvalidTimerDurationError(error: unknown): error is InvalidTimerDurationError {
+    return error instanceof InvalidTimerDurationError;
+}
+
+/** Raised when a timer is started while another one exists: the app holds one timer at a time. */
+export class TimerAlreadyActiveError extends Error {
+    public constructor(public readonly activeId: string) {
+        super(`A timer is already active: ${activeId}`);
+        this.name = 'TimerAlreadyActiveError';
+        Object.setPrototypeOf(this, TimerAlreadyActiveError.prototype);
+    }
+}
+
+/**
+ * Type guard for {@link TimerAlreadyActiveError}.
+ *
+ * @param error - The thrown value.
+ * @returns `true` when `error` is a {@link TimerAlreadyActiveError}.
+ */
+export function isTimerAlreadyActiveError(error: unknown): error is TimerAlreadyActiveError {
+    return error instanceof TimerAlreadyActiveError;
+}

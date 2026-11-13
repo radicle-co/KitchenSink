@@ -18,7 +18,7 @@
         "contract:generate": "tsx contract/generate.ts"
     },
     "dependencies": {
-        "@aws-lambda-powertools/logger": "^2.33.1",
+        "@aws-lambda-powertools/logger": "^2.36.0",
         "@aws-sdk/client-secrets-manager": "^3.1163.0",
         "@kitchensink/observability-scrubbers": "*",
         "@kitchensink/schema-food": "*",

@@ -52,7 +52,7 @@ function frame(key: number, native: boolean, bar: ReactNode): ReactNode {
 
 export default defineCard({
     group: 'Editor',
-    height: 650,
+    height: 660,
     platforms: 'both',
     uses: ['EditorActionBar'],
     render: ({ EditorActionBar }) => (

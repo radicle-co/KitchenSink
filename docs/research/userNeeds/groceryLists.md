@@ -431,7 +431,7 @@ shown as `M`, but it cannot validate a problem by itself.
 - **Need:** Know the full cost of the shop before committing to it.
 - **Evidence:**
     - `M` 89% of US adults 50+ cited high delivery or service fees as a barrier. People earning under $35,000 were much more
-    likely to name mobility as a major obstacle (30% vs 7% over $75,000) (IFIC/AARP 2018, 1,004 adults)
+      likely to name mobility as a major obstacle (30% vs 7% over $75,000) (IFIC/AARP 2018, 1,004 adults)
     - `V` "every single item was more expensive on instacart, sometimes TWICE as much!" (Instacart, App Store 2★,
       2020-10-24, review 6568840892)
     - `V` "Fee, fee, fee, fee, fee, a lot of fee! … But the fee is $32 so it’s total $53" (Instacart, App Store 2★,

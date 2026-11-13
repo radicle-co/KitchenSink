@@ -22,11 +22,13 @@ vi.mock('react-native', async (importOriginal) => {
     };
 });
 
+import { touchFloor } from '@commise/ui/layout';
+
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { ImportModeChoice } from '../ImportModeChoice.native.js';
 import { importMessages } from '../messages.js';
 import type { ImportModeChoiceProps } from '../props.js';
-import { render } from '@commise/ui/testing/tamagui';
+import { render, scrollRegionFloorOf } from '@commise/ui/testing/tamagui';
 
 const m = importMessages.en.mode;
 
@@ -116,6 +118,20 @@ describe('ImportModeChoice (native)', () => {
         fireEvent.click(start());
 
         expect(onStart).toHaveBeenCalledTimes(1);
+    });
+
+    // Issue #192: Start's place is decided a layout pass after the frame shrinks; the scroll region keeps a floor
+    // through that pass instead of collapsing to zero height.
+    it('keeps its scroll region at least one control tall', () => {
+        renderChoice();
+
+        const scroller = scrollerOf(screen.getByText(m.intro));
+
+        if (scroller === null) {
+            throw new Error('the intro is not in a scroll region');
+        }
+
+        expect(scrollRegionFloorOf(scroller)).toBe(`${touchFloor()}px`);
     });
 
     it('shows the promise only at the wide container class', () => {

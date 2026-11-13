@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { DESIGN_SYSTEM_SCOPE_SOURCE } from '../../runtime/designSystemScopeScript.js';
 import { REACT18_BRIDGE_SOURCE } from '../../runtime/react18Bridge.js';
 import type { Surface } from '../../surface/discoverSurface.js';
 import type { BundleRequest, BundleResult, Bundler } from '../bundler.js';
@@ -51,15 +52,27 @@ describe('bundleComponents', () => {
         expect(bundler.requests[1]?.resolveDir).toMatch(/\/mobile$/u);
     });
 
-    it('assembles header, bridge, web, native, then the window.Commise assignment', async () => {
-        const { script: text } = await bundleComponents(surface, new FakeBundler(outputs));
+    /**
+     * The native components reach `window.Commise.Native` through the design-system scope, so every native mount (a
+     * card column or a board's `x-import`) renders inside the Tamagui provider. The scope is told the native
+     * COMPONENT names only: hooks and values are not wrapped.
+     */
+    it('assembles header, bridge, web, native, the design-system scope, then the scoped window.Commise', async () => {
+        const nativeSurface: Surface = {
+            ...surface,
+            native: [...surface.native, makeSurfaceEntry('useSheet', { file: '/ui/useSheet.native.ts', kind: 'hook' })],
+        };
+        const { script: text } = await bundleComponents(nativeSurface, new FakeBundler(outputs));
 
         const positions = [
             text.indexOf('/* @ds-bundle:'),
             text.indexOf(REACT18_BRIDGE_SOURCE.trim()),
             text.indexOf(outputs.web),
             text.indexOf(outputs.native),
-            text.indexOf('window.Commise = Object.assign({}, __CommiseWeb, { Native: __CommiseNative });'),
+            text.indexOf(DESIGN_SYSTEM_SCOPE_SOURCE.trim()),
+            text.indexOf(
+                'window.Commise = Object.assign({}, __CommiseWeb, { Native: window.__scopeDesignSystem(__CommiseNative, ["Button"]) });',
+            ),
         ];
 
         expect(positions.every((p) => p >= 0)).toBe(true);

@@ -61,7 +61,7 @@ const CAPTION = { margin: '0 0 4px', font: '12px Inter,sans-serif', color: 'var(
 
 export default defineCard({
     group: 'Recipes',
-    height: 1250,
+    height: 1260,
     platforms: 'both',
     uses: ['RecipeDiscoveryCard'],
     render: ({ RecipeDiscoveryCard }, { platform }) => {

@@ -30,7 +30,7 @@
         "contract:generate": "tsx contract/generate.ts"
     },
     "dependencies": {
-        "@aws-lambda-powertools/logger": "^2.33.1",
+        "@aws-lambda-powertools/logger": "^2.36.0",
         "@aws-sdk/client-cloudfront": "^3.935.0",
         "@aws-sdk/client-s3": "^3.723.0",
         "@aws-sdk/client-sns": "^3.1158.0",
@@ -61,7 +61,7 @@
         "zod": "^4.6.7"
     },
     "devDependencies": {
-        "@aws-sdk/client-secrets-manager": "^3.935.0",
+        "@aws-sdk/client-secrets-manager": "^3.1163.0",
         "@kitchensink/cdk-bootstrap": "*",
         "@kitchensink/contract-gen": "*",
         "@kitchensink/eslint": "*",
@@ -79,8 +79,8 @@
         "drizzle-kit": "^0.30.0",
         "esbuild": "^0.28.1",
         "eslint": "^10.0.3",
-        "prettier": "^3.0.0",
-        "tsx": "^4.23.12",
+        "prettier": "^3.10.1",
+        "tsx": "^4.23.15",
         "typescript": "^6.0.3",
         "vite-node": "^6.0.0",
         "vitest": "^4.1.12",

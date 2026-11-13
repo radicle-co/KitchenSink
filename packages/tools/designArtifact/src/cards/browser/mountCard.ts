@@ -2,6 +2,7 @@
  * @module cards/browser/mountCard — renders the card into its columns and reports when the page is ready. Runs on
  * the card page.
  */
+import { DESIGN_SYSTEM_SCOPE } from '../../runtime/designSystemScope.js';
 import type { CardRuntimeConfig } from '../cardRuntimeConfig.js';
 import type { CardColumns } from '../cardSpec.js';
 
@@ -38,10 +39,13 @@ export function mountCard(config: CardRuntimeConfig, win: Window): void {
         const element = requireElement(doc, id);
         const root = win.ReactDOM.createRoot(element);
         const render = platform === 'native' && card.renderNative ? card.renderNative : card.render;
+        const node = render.call(card, ui, { platform, stack });
+        // One design-system provider for the whole native column, so its components share one theme and portal root.
+        const scope: unknown = platform === 'native' ? win.Commise.Native[DESIGN_SYSTEM_SCOPE] : undefined;
 
         // Committed synchronously, so the readiness flag below means "painted", not "scheduled".
         win.ReactDOM.flushSync(() => {
-            root.render(render.call(card, ui, { platform, stack }));
+            root.render(scope === undefined ? node : win.React.createElement(scope, { children: node }));
         });
 
         return element;

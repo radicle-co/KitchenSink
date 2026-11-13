@@ -127,6 +127,23 @@ describe('EsbuildBundler', () => {
         expect(run(code)['answer']).toBe(42);
     });
 
+    it.each(['web', 'native'] as const)(
+        'runs on %s in a page with no `process`: an unknown env flag reads undefined, NODE_ENV production',
+        async (platform) => {
+            // Tamagui and expo-modules-core read flags like these at module scope; a free `process` throws at load.
+            const bundler = new EsbuildBundler(() => ({}));
+            const { script: code } = await bundler.bundle({
+                ...request(platform, dir),
+                entrySource:
+                    'export const flag = process.env.TAMAGUI_RUNTIME; export const mode = process.env.NODE_ENV;',
+            });
+            const exports = run(code);
+
+            expect(exports['flag']).toBeUndefined();
+            expect(exports['mode']).toBe('production');
+        },
+    );
+
     it('applies the injected alias map for the platform', async () => {
         const bundler = new EsbuildBundler(() => ({ 'react-native': join(dir, 'rn.ts') }));
         const { script: code } = await bundler.bundle({

@@ -9,7 +9,9 @@
  * keyboard up it is pinned under the scroll, just above the keyboard, unless it is taller than half the frame
  * (`isFooterUnpinned`, measured by `usePinnedFooter`; the screen has no pinned top row, so `pinnedTop` stays 0), when it
  * goes back into the flow so a large text size or a long error cannot squeeze the fields out. Moving the footer
- * remounts it; that happens only when the keyboard opens or closes, and then focus is in a text field.
+ * remounts it; that happens only when the keyboard opens or closes, and then focus is in a text field. That decision
+ * lags the keyboard by one layout pass, so the scroll sits in `PinnedFooterScrollRegion`, which keeps it one control
+ * tall through that pass: at zero height the focused field loses its focus on Android (issue #192).
  *
  * ⛔ Do not set `automaticallyAdjustKeyboardInsets` on the scroll: it measures against the keyboard while
  * `KeyboardAvoider` already pads for it, so the keyboard is counted twice.
@@ -30,7 +32,7 @@
  */
 import { FieldRevealContext, RevealSpacer, isRevealScroller, useFieldRevealHost } from '@commise/ui/field-reveal';
 import { KeyboardAvoider } from '@commise/ui/keyboard-avoider';
-import { usePinnedFooter, useKeyboardShown } from '@commise/ui/layout';
+import { PinnedFooterScrollRegion, usePinnedFooter, useKeyboardShown } from '@commise/ui/layout';
 import { nativeTokens } from '@commise/ui/native';
 import { ScrollHost, useScrollHost, type ScrollBind } from '@commise/ui/scroll-host';
 import type { FC, JSX, ReactElement, ReactNode } from 'react';
@@ -81,18 +83,20 @@ const AuthFrame: FC<AuthScreenFrameProps & { readonly bind: ScrollBind }> = ({ c
             <KeyboardAvoider style={styles.flex}>
                 <View style={styles.flex} onLayout={pinning.onFrameLayout}>
                     <FieldRevealContext.Provider value={reveal.revealer}>
-                        <ScrollView
-                            {...bind}
-                            contentContainerStyle={styles.container}
-                            keyboardShouldPersistTaps="handled"
-                            keyboardDismissMode="on-drag"
-                            onLayout={reveal.onViewportLayout}
-                        >
-                            {children}
-                            {pinned ? null : footerView}
-                            {trailing}
-                            {reveal.spacer === null ? null : <RevealSpacer {...reveal.spacer} />}
-                        </ScrollView>
+                        <PinnedFooterScrollRegion>
+                            <ScrollView
+                                {...bind}
+                                contentContainerStyle={styles.container}
+                                keyboardShouldPersistTaps="handled"
+                                keyboardDismissMode="on-drag"
+                                onLayout={reveal.onViewportLayout}
+                            >
+                                {children}
+                                {pinned ? null : footerView}
+                                {trailing}
+                                {reveal.spacer === null ? null : <RevealSpacer {...reveal.spacer} />}
+                            </ScrollView>
+                        </PinnedFooterScrollRegion>
                     </FieldRevealContext.Provider>
                     {pinned ? <View style={styles.pinnedSlot}>{footerView}</View> : null}
                 </View>

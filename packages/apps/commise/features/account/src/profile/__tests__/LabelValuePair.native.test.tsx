@@ -42,16 +42,21 @@ afterEach(cleanup);
 
 const px = (n: number): string => `${String(n)}px`;
 
-/** The `flex-shrink` an element's own class rules declare, or `undefined` when none does. */
-function declaredFlexShrink(element: Element): string | undefined {
+/** A property an element's own class rules declare, or `undefined` when none does. */
+function declared(element: Element, property: string): string | undefined {
     const classes = Array.from(element.classList).map((name) => `.${name}`);
 
     return Array.from(document.styleSheets)
         .flatMap((sheet) => Array.from(sheet.cssRules))
         .filter((rule): rule is CSSStyleRule => rule instanceof CSSStyleRule)
         .filter((rule) => classes.some((name) => rule.selectorText.split(/[\s,]+/u).includes(name)))
-        .map((rule) => rule.style.getPropertyValue('flex-shrink'))
+        .map((rule) => rule.style.getPropertyValue(property))
         .find((value) => value !== '');
+}
+
+/** The `flex-shrink` an element's own class rules declare, or `undefined` when none does. */
+function declaredFlexShrink(element: Element): string | undefined {
+    return declared(element, 'flex-shrink');
 }
 
 function renderPair(): { readonly pair: Element; readonly label: Element; readonly value: Element } {
@@ -97,6 +102,15 @@ describe('LabelValuePair (native) — beside, with room', () => {
 
         expect(declaredFlexShrink(label)).toBe('0');
         expect(declaredFlexShrink(value)).toBe('1');
+    });
+
+    // A flex item's default minimum width on the web is its longest unbroken word, and an email has no spaces, so without
+    // a zero minimum the value cannot shrink below the whole address and runs past the row (the design artifact measured
+    // 32 px). jsdom has no layout, so the declared minimum is the falsifiable part; the artifact's e2e measures the spill.
+    it('lets the value shrink below its longest word, so a long email wraps inside the row', () => {
+        const { value } = renderPair();
+
+        expect(declared(value, 'min-width')).toBe('0px');
     });
 });
 

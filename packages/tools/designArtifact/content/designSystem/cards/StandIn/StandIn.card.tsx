@@ -10,7 +10,7 @@ const slot = { flex: 1, minWidth: 0, display: 'flex' } as const;
 
 export default defineCard({
     group: 'Feedback',
-    height: 170,
+    height: 190,
     platforms: 'both',
     uses: ['StandIn'],
     render: ({ StandIn }) => (

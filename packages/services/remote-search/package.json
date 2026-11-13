@@ -18,8 +18,8 @@
         "contract:generate": "tsx contract/generate.ts"
     },
     "dependencies": {
-        "@aws-lambda-powertools/logger": "^2.33.1",
-        "@aws-sdk/client-secrets-manager": "^3.935.0",
+        "@aws-lambda-powertools/logger": "^2.36.0",
+        "@aws-sdk/client-secrets-manager": "^3.1163.0",
         "@kitchensink/observability-scrubbers": "*",
         "@kitchensink/schema-food": "*",
         "@kitchensink/usda-client": "*",
@@ -41,8 +41,8 @@
         "@types/node": "^24.13.3",
         "esbuild": "^0.28.1",
         "eslint": "^10.0.3",
-        "prettier": "^3.0.0",
-        "tsx": "^4.23.12",
+        "prettier": "^3.10.1",
+        "tsx": "^4.23.15",
         "typescript": "^6.0.3",
         "vitest": "^4.1.12",
         "yaml": "^2.8.1"

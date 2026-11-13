@@ -10,7 +10,7 @@ const noop = (): void => undefined;
 
 export default defineCard({
     group: 'Account',
-    height: 460,
+    height: 480,
     platforms: 'both',
     uses: ['ProfileRow'],
     render: ({ ProfileRow }, { platform }) => {

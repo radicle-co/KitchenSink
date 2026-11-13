@@ -35,10 +35,20 @@ describe('motionPropsOf', () => {
         expect(sheet).not.toHaveProperty('transition');
     });
 
+    // Rewritten 2026-11-12: the overlay keeps its `transition` in every mode, so an open overlay never gains or loses it
+    // (Tamagui's animation hooks follow that prop); with no opacity clause there is still nothing to fade.
     it.each([
         ['on', true],
         ['not read yet', undefined],
-    ] as const)('gives the overlay no fade when reduce motion is %s', (_state, answer) => {
-        expect(motionPropsOf(answer).overlay).toEqual({});
+    ] as const)('gives the overlay no fade, but keeps its transition, when reduce motion is %s', (_state, answer) => {
+        expect(motionPropsOf(answer).overlay).toEqual({ transition: 'sheet' });
+    });
+
+    it('keeps the same overlay prop keys apart from the fade in every mode', () => {
+        const keys = (answer: boolean | undefined): string[] =>
+            Object.keys(motionPropsOf(answer).overlay).filter((key) => key !== 'opacity');
+
+        expect(keys(true)).toEqual(keys(false));
+        expect(keys(undefined)).toEqual(keys(false));
     });
 });

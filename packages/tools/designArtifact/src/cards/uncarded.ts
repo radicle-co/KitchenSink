@@ -35,6 +35,8 @@ export const UNCARDED: Readonly<Record<string, string>> = {
     OverlayView:
         'Native-only root view of a window overlay that hears the screen-reader escape gesture. It styles nothing, so a preview would be an empty box.',
     Photo: "Native-only photo primitive (Tamagui over expo-image) with no web sibling: the web leaves draw their photos with an img. Its image is the content a caller passes, so a card would only preview a caller's picture.",
+    PinnedFooterScrollRegion:
+        'Native-only layout frame around the scroll region of a frame that pins a footer. It keeps the region at least one control tall during the layout pass after a keyboard opens (issue #192), and it draws nothing of its own, so a preview would be an empty box. The Sheet card and the sign-in boards cover the frames it sits in.',
     PinnedSearchOverlay:
         'Native-only half of the pinned search: the field drawn once above a list over a spacer the list holds. It needs a host scroll offset to move, so a static preview cannot show it.',
     PinnedSearchSpacer:

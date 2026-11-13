@@ -7,7 +7,8 @@
  *
  * At large text or on a short screen the bar would take the frame: past half of it the bar becomes the scroll region's
  * last item instead (`usePinnedFooter`, `docs/design/compactHeightLayout.md` §3.1), the house rule the Sheet and the
- * recipe wizard share.
+ * recipe wizard share. The scroll region sits in `PinnedFooterScrollRegion`, which keeps it one control tall through the
+ * layout pass that decision lags (§3.3).
  *
  * When a pick leaves nothing open, the host asks Next recipe to take focus (`nextFocus`), so focus is never dropped to
  * the top of the page (staff-ux 2026-10-25).
@@ -16,7 +17,7 @@
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { Button } from '@commise/ui/button';
-import { useContainerClass, usePinnedFooter } from '@commise/ui/layout';
+import { PinnedFooterScrollRegion, useContainerClass, usePinnedFooter } from '@commise/ui/layout';
 import { nativeTokens } from '@commise/ui/native';
 import { ProgressBar } from '@commise/ui/progress-bar';
 import { useTheme } from '@commise/ui/theme';
@@ -93,31 +94,33 @@ export const ImportWizardStep: FC<ImportWizardStepProps> = ({
 
     return (
         <View style={styles.frame} onLayout={pinning.onFrameLayout}>
-            <View style={styles.body}>
-                {wide && rail !== undefined ? <View style={styles.rail}>{rail}</View> : null}
-                <ScrollView
-                    style={styles.grow}
-                    contentContainerStyle={styles.content}
-                    keyboardShouldPersistTaps="handled"
-                >
-                    <View style={styles.saveLeave}>
-                        <Button variant="ghost" size="sm" onPress={onSaveAndLeave}>
-                            {w.saveLeave}
-                        </Button>
-                    </View>
-                    <Text accessibilityRole="header" style={[styles.title, { color: colors.ink }]}>
-                        {recipeTitle}
-                    </Text>
-                    <View style={styles.progress}>
-                        <Text style={[styles.meta, { color: colors.inkMuted }]}>
-                            {progressTextOf({ position, total, openLines, checkingLines }, w, locale)}
+            <PinnedFooterScrollRegion>
+                <View style={styles.body}>
+                    {wide && rail !== undefined ? <View style={styles.rail}>{rail}</View> : null}
+                    <ScrollView
+                        style={styles.grow}
+                        contentContainerStyle={styles.content}
+                        keyboardShouldPersistTaps="handled"
+                    >
+                        <View style={styles.saveLeave}>
+                            <Button variant="ghost" size="sm" onPress={onSaveAndLeave}>
+                                {w.saveLeave}
+                            </Button>
+                        </View>
+                        <Text accessibilityRole="header" style={[styles.title, { color: colors.ink }]}>
+                            {recipeTitle}
                         </Text>
-                        <ProgressBar label={w.progressLabel} value={position} max={total} />
-                    </View>
-                    {children}
-                    {pinning.unpinned ? bar : null}
-                </ScrollView>
-            </View>
+                        <View style={styles.progress}>
+                            <Text style={[styles.meta, { color: colors.inkMuted }]}>
+                                {progressTextOf({ position, total, openLines, checkingLines }, w, locale)}
+                            </Text>
+                            <ProgressBar label={w.progressLabel} value={position} max={total} />
+                        </View>
+                        {children}
+                        {pinning.unpinned ? bar : null}
+                    </ScrollView>
+                </View>
+            </PinnedFooterScrollRegion>
             {pinning.unpinned ? null : bar}
         </View>
     );

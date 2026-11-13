@@ -18,9 +18,15 @@ const INSTANT = { type: 'timing', duration: 0 } as const;
 /** The props to spread onto the Sheet and onto its overlay. */
 export interface MotionProps {
     readonly sheet: { readonly transition: typeof SPRING } | { readonly transitionConfig: typeof INSTANT };
-    /** A fade: Tamagui 3 writes it as an opacity clause, `value enter:start exit:end`. Instant: nothing to fade. */
+    /**
+     * The overlay carries `transition` in BOTH modes. Tamagui runs a component's animation hooks only while it has one,
+     * so an overlay that gained or lost it while open changed its hook count and React threw; remounting it instead
+     * replayed the fade on a sheet already open. What moves is the opacity clause (`value enter:start exit:end`, Tamagui
+     * 3's fade), and only a known `false` has it, so with motion off the opacity is a constant and nothing animates.
+     */
     readonly overlay:
-        { readonly transition: typeof SPRING; readonly opacity: '1 enter:0 exit:0' } | Record<never, never>;
+        | { readonly transition: typeof SPRING; readonly opacity: '1 enter:0 exit:0' }
+        | { readonly transition: typeof SPRING };
 }
 
 /**
@@ -35,5 +41,5 @@ export function motionPropsOf(reduceMotion: boolean | undefined): MotionProps {
               sheet: { transition: SPRING },
               overlay: { transition: SPRING, opacity: '1 enter:0 exit:0' },
           }
-        : { sheet: { transitionConfig: INSTANT }, overlay: {} };
+        : { sheet: { transitionConfig: INSTANT }, overlay: { transition: SPRING } };
 }

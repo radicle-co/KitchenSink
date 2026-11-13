@@ -21,6 +21,7 @@ describe('shimAliases', () => {
         const aliases = shimAliases('native');
 
         expect(Object.keys(aliases).sort()).toEqual([
+            '@tamagui/animations-react-native',
             'expo-linear-gradient',
             'react-native',
             'react-native-safe-area-context',
@@ -38,5 +39,16 @@ describe('shimAliases', () => {
         expect(shimAliases('native')['react-native']).toMatch(/reactNative\.ts$/);
         expect(shimAliases('native')['react-native-safe-area-context']).toMatch(/safeAreaContext\.tsx$/);
         expect(shimAliases('native')['expo-linear-gradient']).toMatch(/linearGradient\.tsx$/);
+    });
+
+    /**
+     * The device driver cannot run here: its browser entry throws, and its native entry is built for Tamagui's native
+     * core while this build loads the web core (mixing them changed hook order and broke every overlay). The native
+     * test lanes face the same build and use `@commise/ui`'s CSS stand-in, so the artifact uses it too.
+     */
+    it("points the Tamagui animation driver at the design system's CSS stand-in", () => {
+        expect(shimAliases('native')['@tamagui/animations-react-native']).toMatch(
+            /\/commise\/ui\/src\/testing\/animationsShim\.ts$/u,
+        );
     });
 });

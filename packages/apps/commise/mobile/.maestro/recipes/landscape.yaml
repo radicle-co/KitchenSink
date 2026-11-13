@@ -118,6 +118,25 @@ onFlowComplete:
 # The result row is drawn behind the pinned "Show {n} recipes" button too (frame [173,342][701,386] against the button's
 # [336..382]), and `common/scrollIntoTapView.yaml` leaves an on-screen target where it is, so the tap would land on the
 # button and close the sheet. The row is waited for, then brought to the middle of the sheet, as the field was above.
+# ⛔ Android keeps the keyboard up, and sideways it leaves the sheet's scroll region about one field tall: the field
+# fills it and the result row sits below it, under the keyboard (`docs/design/compactHeightLayout.md` §3.5; on the lane
+# emulator the region spans 22% to 36% of the height and the keyboard's suggestion strip starts at 36.5%, 2026-11-13).
+# Android drops what the keyboard covers, so the row is not visible until the region scrolls. The cook scrolls it
+# inside that band, and so does this step; a swipe from the screen's centre would start on a key. The loop also waits
+# for the search's answer: a row that lands later is reached by the next swipe.
+- runFlow:
+      when:
+          platform: Android
+      commands:
+          - repeat:
+                while:
+                    notVisible: 'Filter by ${E2E_PROBE_INGREDIENT}'
+                times: 20
+                commands:
+                    - swipe:
+                          start: '50%, 34%'
+                          end: '50%, 24%'
+                          duration: 500
 - extendedWaitUntil:
       visible: 'Filter by ${E2E_PROBE_INGREDIENT}'
       timeout: 40000
@@ -132,15 +151,16 @@ onFlowComplete:
 # where `scrollUntilVisible` swipes (the screen's centre): the swipe lands on a key and moves nothing, and the unpinned
 # footer's button stays below the sheet's visible part (run 38996739152). So swipe INSIDE the sheet's visible band, above
 # the keyboard's edge and below the pinned title row and the field the sheet lifts to the top, as
-# `common/scrollOpenList.yaml` does for the open list.
+# `common/scrollOpenList.yaml` does for the open list. The band is the one the result row was reached in above: a start
+# at 40% landed on the keyboard's suggestion strip on the lane emulator (2026-11-13).
 - repeat:
       while:
           notVisible: 'Show \d+ recipes?|Show recipes'
       times: 10
       commands:
           - swipe:
-                start: '50%, 40%'
-                end: '50%, 22%'
+                start: '50%, 34%'
+                end: '50%, 24%'
                 duration: 500
 - assertVisible: 'Show \d+ recipes?|Show recipes'
 - tapOn: 'Show \d+ recipes?|Show recipes'

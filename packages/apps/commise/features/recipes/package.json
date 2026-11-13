@@ -94,7 +94,7 @@
         "expo-image": "~57.0.1",
         "jsdom": "^30.0.1",
         "next": "^16.4.3",
-        "prettier": "^3.0.0",
+        "prettier": "^3.10.1",
         "react": "^19.2.0",
         "react-dom": "^19.0.0",
         "react-error-boundary": "^6.1.2",
@@ -102,7 +102,7 @@
         "react-native-safe-area-context": "~5.7.0",
         "react-native-web": "^0.21.2",
         "tamagui": "^3.1.9",
-        "tsx": "^4.23.12",
+        "tsx": "^4.23.15",
         "typescript": "^6.0.3",
         "vitest": "^4.1.12"
     },

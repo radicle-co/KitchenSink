@@ -45,6 +45,18 @@ describe('artifactCssEntry', () => {
         expect(entry).not.toContain('@keyframes');
     });
 
+    /**
+     * The native half renders through Tamagui's web core and react-native-web without Tamagui's web reset, so the
+     * browser's own defaults show through where a device draws nothing: a pressable drawn as a `<button>` centres the
+     * row text inside it, and a modal's focus trap draws a ring on the hidden backdrop it focuses. Only those two rules
+     * are restated, each scoped so the web half keeps Tailwind's base. Jsdom applies no browser defaults, so the board
+     * crops are the visual proof.
+     */
+    it('restates the two Tamagui reset rules the native half needs, scoped away from the web components', () => {
+        expect(entry).toContain(':where(button.is_View,button[class^=css-]){text-align:inherit}');
+        expect(entry).toContain(':where([aria-hidden=true][tabindex]):focus{outline:none}');
+    });
+
     it('rejects a root that would break out of the quoted path', () => {
         expect(() => artifactCssEntry(['/a"; @import "x'])).toThrow(/source root/);
     });

@@ -2,7 +2,9 @@
  * @module bundle/bundleComponents — assembles the one classic script the artifact ships.
  *
  * Order matters: the header comment first (the host reads it), then the React 18 bridge (defines `window.__react`
- * and `window.__jsx`), then the web and native bundles, then the single global the previews use.
+ * and `window.__jsx`), then the web and native bundles, then the design-system scope, then the single global the
+ * previews use. The native components reach that global through the scope, so each one renders inside the Tamagui
+ * provider wherever a card or board mounts it.
  *
  * @pattern Pipes and Filters — surface in, bundles out through the {@link Bundler} port, one escaped script out.
  */
@@ -10,6 +12,7 @@ import { join } from 'node:path';
 
 import { bundleHeader } from '../artifactFormat.js';
 import { COMMISE_ROOT } from '../config.js';
+import { DESIGN_SYSTEM_SCOPE_SOURCE } from '../runtime/designSystemScopeScript.js';
 import { REACT18_BRIDGE_SOURCE } from '../runtime/react18Bridge.js';
 import type { Surface } from '../surface/discoverSurface.js';
 import { entryModule } from '../surface/entryModule.js';
@@ -54,15 +57,18 @@ export async function bundleComponents(surface: Surface, bundler: Bundler): Prom
         platform: 'native',
         resolveDir: join(COMMISE_ROOT, 'mobile'),
     });
-    const components = surface.web.filter(({ kind }) => kind === 'component').map(({ name }) => name);
+    const componentNames = (entries: Surface['web']): string[] =>
+        entries.filter(({ kind }) => kind === 'component').map(({ name }) => name);
+    const scopedNative = `window.__scopeDesignSystem(${NATIVE_GLOBAL}, ${JSON.stringify(componentNames(surface.native))})`;
 
     const script = inlineScriptEscape(
         [
-            bundleHeader(components),
+            bundleHeader(componentNames(surface.web)),
             REACT18_BRIDGE_SOURCE,
             web.script,
             native.script,
-            `window.Commise = Object.assign({}, ${WEB_GLOBAL}, { Native: ${NATIVE_GLOBAL} });\n`,
+            DESIGN_SYSTEM_SCOPE_SOURCE,
+            `window.Commise = Object.assign({}, ${WEB_GLOBAL}, { Native: ${scopedNative} });\n`,
         ].join('\n'),
     );
 

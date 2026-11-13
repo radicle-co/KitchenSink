@@ -203,7 +203,9 @@ describe('the snackbar inside an open native window (integration: real host, rea
         render(
             <SnackbarHost>
                 <Window label="Ingredients">
-                    <Shower input={{ message: 'Ticks cleared', onTimeout }} onHandle={(next) => {
+                    <Shower
+                        input={{ message: 'Ticks cleared', onTimeout }}
+                        onHandle={(next) => {
                             handle = next;
                         }}
                     />
@@ -231,7 +233,9 @@ describe('the snackbar inside an open native window (integration: real host, rea
         render(
             <SnackbarHost>
                 <Window label="Ingredients">
-                    <Shower input={{ message: 'Ticks cleared' }} onHandle={(next) => {
+                    <Shower
+                        input={{ message: 'Ticks cleared' }}
+                        onHandle={(next) => {
                             first = next;
                         }}
                     />

@@ -48,7 +48,13 @@ function Shower(): JSX.Element {
 
 const tree = (open: boolean): JSX.Element => (
     <SnackbarHost>
-        <Sheet open={open} onOpenChange={() => undefined} title="Ingredients" closeLabel="Close ingredients" size="page">
+        <Sheet
+            open={open}
+            onOpenChange={() => undefined}
+            title="Ingredients"
+            closeLabel="Close ingredients"
+            size="page"
+        >
             <Shower />
         </Sheet>
     </SnackbarHost>

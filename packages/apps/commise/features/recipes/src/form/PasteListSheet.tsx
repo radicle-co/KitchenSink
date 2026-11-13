@@ -15,7 +15,7 @@ import { Sheet } from '@commise/ui/sheet';
 import type { FC } from 'react';
 
 import { editorMessages } from '../editor/messages.js';
-import { pluralOf } from '../format/plural.js';
+import { pluralOf } from '@commise/i18n';
 import type { PasteListSheetProps } from './pasteListSheetProps.js';
 import { pasteListFieldId } from './fieldIds.js';
 import { recipeFormMessages } from './messages.js';

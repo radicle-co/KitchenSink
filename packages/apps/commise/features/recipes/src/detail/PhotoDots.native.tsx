@@ -10,7 +10,7 @@ import type { RecipePhoto } from '@kitchensink/recipe-core';
 import type { FC } from 'react';
 import { styled, XStack, YStack } from 'tamagui';
 
-import { fillTemplate } from '../format/fillTemplate.js';
+import { fillTemplate } from '@commise/i18n';
 import { recipeMessages } from '../messages.js';
 
 const Row = styled(XStack, { name: 'PhotoDots', justifyContent: 'center', gap: '$2' });

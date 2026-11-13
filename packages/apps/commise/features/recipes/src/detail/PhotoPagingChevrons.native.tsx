@@ -10,7 +10,7 @@ import { HeroButton } from '@commise/ui/hero-button';
 import type { FC, ReactNode } from 'react';
 import { styled, YStack } from 'tamagui';
 
-import { fillTemplate } from '../format/fillTemplate.js';
+import { fillTemplate } from '@commise/i18n';
 import { recipeMessages } from '../messages.js';
 
 /** One chevron's slot: the strip's full height, the chevron centred on it, at one side. */

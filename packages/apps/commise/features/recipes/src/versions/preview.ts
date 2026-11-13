@@ -11,7 +11,7 @@ import { formatCalories } from '../card/model.js';
 import { variantPartTexts } from '../detail/lineName.js';
 import { formatIngredientLine } from '../detail/model.js';
 import { formatRecipeCount } from '../list/model.js';
-import { fillTemplate } from '../format/fillTemplate.js';
+import { fillTemplate } from '@commise/i18n';
 import { spokenAmountsLabel } from '../format/cookAmount.js';
 import type { AmountWordMessages, IngredientLineNameMessages } from '../messages.js';
 import { diffSnapshots, type SnapshotDiff } from './diff.js';

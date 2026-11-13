@@ -8,7 +8,7 @@ import type { HeaderBack } from '@commise/ui/large-title-header';
 import type { RecipeVersion } from '@kitchensink/recipe-core';
 import { isVersionConflictError, isVersionLineUnrestorableError } from '@kitchensink/recipe-service-client';
 
-import { fillTemplate } from '../format/fillTemplate.js';
+import { fillTemplate } from '@commise/i18n';
 import { diffSnapshots, type SnapshotFieldKey } from './diff.js';
 import type { RecipeConflictMessages, RecipeVersionListMessages, RecipeVersionPreviewMessages } from './messages.js';
 import { snapshotFieldLabel } from './diffLabels.js';

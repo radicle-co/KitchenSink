@@ -34,7 +34,7 @@ import type {
     RemoteFoodOption,
     RemotePart,
 } from '../hooks/foodSuggestions.model.js';
-import { fillTemplate } from '../format/fillTemplate.js';
+import { fillTemplate } from '@commise/i18n';
 import { foodNameWithPartsOf } from '../ingredientMatching/foodChoiceName.js';
 import type {
     IngredientDetailsMessages,

@@ -10,7 +10,7 @@ import type { Locale } from '@commise/i18n';
 
 import { formatQuantity } from '../detail/model.js';
 import { speakAmounts } from '../format/cookAmount.js';
-import { fillTemplate } from '../format/fillTemplate.js';
+import { fillTemplate } from '@commise/i18n';
 import type { AmountWordMessages } from '../messages.js';
 import { readLeadingMeasure } from './leadingMeasure.js';
 

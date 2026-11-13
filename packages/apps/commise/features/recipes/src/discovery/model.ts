@@ -17,7 +17,7 @@ import type { RecipeCardModel } from '../card/model.js';
 import type { SaveCopy, SaveCopyState } from '../hooks/useSaveCopy.js';
 import { filtersToSearchParams, hasActiveFilters, type RecipeFilterState } from '../filters/model.js';
 import { formatRecipeCount, type RecipeListRefreshControl } from '../list/model.js';
-import { fillTemplate } from '../format/fillTemplate.js';
+import { fillTemplate } from '@commise/i18n';
 import type { DiscoveryMessages } from './messages.js';
 import { noResultTitleOf, type NoResultKind } from './noResults.js';
 import type { RefreshNoticeControl } from '../refresh/model.js';

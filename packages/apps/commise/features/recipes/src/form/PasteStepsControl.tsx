@@ -16,7 +16,7 @@ import type { SourceLinkExtraction } from '@kitchensink/recipe-core';
 import type { FC } from 'react';
 
 import { editorMessages } from '../editor/messages.js';
-import { pluralOf } from '../format/plural.js';
+import { pluralOf } from '@commise/i18n';
 import { pasteStepsFieldId } from './fieldIds.js';
 import { recipeFormMessages } from './messages.js';
 import { usePasteSteps } from './usePasteSteps.js';

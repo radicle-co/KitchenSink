@@ -21,7 +21,7 @@ import { LargeTitleHeader } from '@commise/ui/large-title-header';
 import type { RecipeVersion } from '@kitchensink/recipe-core';
 import type { FC } from 'react';
 
-import { fillTemplate } from '../format/fillTemplate.js';
+import { fillTemplate } from '@commise/i18n';
 import {
     type RecipeVersionListWebProps,
     VERSION_TITLE_ID,

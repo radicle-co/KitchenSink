@@ -22,7 +22,7 @@
 import { normalizeUnit } from '@kitchensink/recipe-core';
 
 import type { AmountWordMessages } from '../messages.js';
-import { fillTemplate } from './fillTemplate.js';
+import { fillTemplate } from '@commise/i18n';
 
 /** The word key of each fraction. */
 type FractionWord = Exclude<keyof AmountWordMessages, 'mixed' | 'range'>;

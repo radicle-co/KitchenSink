@@ -24,7 +24,7 @@ import type { FC } from 'react';
 import { styled, YStack } from 'tamagui';
 
 import { editorMessages } from '../editor/messages.js';
-import { fillTemplate } from '../format/fillTemplate.js';
+import { fillTemplate } from '@commise/i18n';
 import { openExternalUrl } from '../detail/openExternalUrl.native.js';
 import { sourceErrorId, sourceNoteId } from './fieldErrorIds.js';
 import { sourceFieldId } from './fieldIds.js';

@@ -19,7 +19,7 @@ import type { FC } from 'react';
 import { StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
 import { editorMessages } from '../editor/messages.js';
-import { fillTemplate } from '../format/fillTemplate.js';
+import { fillTemplate } from '@commise/i18n';
 import { numeralDiscOf } from '../format/numeralDisc.js';
 import { stepsErrorId } from './fieldErrorIds.js';
 import { stepFieldId } from './fieldIds.js';

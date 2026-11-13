@@ -29,7 +29,7 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import type { AuthoredFoodDraft } from '../hooks/authoredFoodCreate.model.js';
 import { useLastDefined } from '../hooks/useLastDefined.js';
-import { fillTemplate } from '../format/fillTemplate.js';
+import { fillTemplate } from '@commise/i18n';
 import { recipeMessages } from '../messages.js';
 import {
     authoredFieldErrorText,

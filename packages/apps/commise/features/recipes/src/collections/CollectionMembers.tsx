@@ -23,7 +23,7 @@ import { CARD_LIST_CLASS, GRID_CELL_CLASS } from '../card/cardGridClass.js';
 import { LIST_VIEW_MODES, isListViewMode } from '../card/cardVariant.js';
 import type { RemovableMember } from '../hooks/useMemberRemoval.js';
 import { formatRecipeCount } from '../list/model.js';
-import { fillTemplate } from '../format/fillTemplate.js';
+import { fillTemplate } from '@commise/i18n';
 import { CollectionMemberRow } from './CollectionMemberRow.js';
 import { MEMBER_WINDOW_SIZE, type CollectionMembersProps } from './detailModel.js';
 import { collectionMessages } from './messages.js';

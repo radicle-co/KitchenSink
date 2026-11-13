@@ -11,8 +11,7 @@
  * @pattern Visitor — an exhaustive switch with no default branch over the notice union
  */
 import type { DraftKeep } from '../editor/saveStatus.js';
-import { fillTemplate } from '../format/fillTemplate.js';
-import { pluralOf } from '../format/plural.js';
+import { fillTemplate, pluralOf } from '@commise/i18n';
 import {
     isOpenLine,
     lineTextOf,

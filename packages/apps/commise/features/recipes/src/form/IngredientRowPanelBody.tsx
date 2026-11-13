@@ -14,7 +14,7 @@ import { Button } from '@commise/ui/button';
 import { VariantPartsLine } from '@commise/ui/variant-parts-line';
 import type { FC, ReactElement } from 'react';
 
-import { fillTemplate } from '../format/fillTemplate.js';
+import { fillTemplate } from '@commise/i18n';
 import type { IngredientRowView } from './ingredientRowView.js';
 import type { RecipeFormMessages } from './messages.js';
 import type { IngredientNutrition } from './nutritionLookup.js';

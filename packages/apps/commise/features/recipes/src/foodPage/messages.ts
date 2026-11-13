@@ -5,7 +5,7 @@
  */
 import type { LocalizedMessages } from '@commise/i18n';
 
-import type { PluralText } from '../format/plural.js';
+import type { PluralText } from '@commise/i18n';
 
 /** The copy of one publication state's status panel. */
 export interface FoodStatePanelCopy {

@@ -15,7 +15,7 @@ import { ConfirmDialog } from '@commise/ui/confirm-dialog';
 import type { FC } from 'react';
 
 import { formatRecipeCount } from '../list/model.js';
-import { fillTemplate } from '../format/fillTemplate.js';
+import { fillTemplate } from '@commise/i18n';
 import type { CollectionDeleteDialogProps } from './detailModel.js';
 import { collectionMessages } from './messages.js';
 

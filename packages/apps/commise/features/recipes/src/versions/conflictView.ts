@@ -17,7 +17,7 @@ import type { VariantPartsLineProps } from '@commise/ui/variant-parts-line';
 import type { VersionConflictSide } from '@kitchensink/recipe-core';
 import type { ReactNode } from 'react';
 import { formatRecipeCount } from '../list/model.js';
-import { fillTemplate } from '../format/fillTemplate.js';
+import { fillTemplate } from '@commise/i18n';
 import type { ConflictDiff } from './conflictDiff.js';
 import type { RecipeConflictMessages } from './messages.js';
 import { formatVersionTimestamp } from './timeFormat.js';

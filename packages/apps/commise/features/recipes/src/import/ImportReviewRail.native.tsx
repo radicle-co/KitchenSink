@@ -10,8 +10,7 @@ import { useTheme } from '@commise/ui/theme';
 import type { FC } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { pluralOf } from '../format/plural.js';
-import { fillTemplate } from '../format/fillTemplate.js';
+import { pluralOf, fillTemplate } from '@commise/i18n';
 import { importMessages } from './messages.js';
 import type { ImportReviewRailProps } from './props.js';
 

@@ -17,7 +17,7 @@
  */
 import type { LocalizedMessages } from '@commise/i18n';
 
-import type { PluralText } from '../format/plural.js';
+import type { PluralText } from '@commise/i18n';
 
 /** The copy of one matched ingredient line. */
 export interface MatchLineMessages {

@@ -28,7 +28,7 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { editorMessages } from '../editor/messages.js';
 import { formatDuration } from '../format/duration.js';
-import { fillTemplate } from '../format/fillTemplate.js';
+import { fillTemplate } from '@commise/i18n';
 import { recipeMessages } from '../messages.js';
 import { ChipInput } from './ChipInput.native.js';
 import { readLimit, singleLine } from './fieldText.js';

@@ -22,7 +22,7 @@ import type { FC } from 'react';
 import { recipeMessages } from '../messages.js';
 import { LIBRARY_SORTS, sortLabelOf } from './library.js';
 import { type RecipeListSortControl } from './model.js';
-import { fillTemplate } from '../format/fillTemplate.js';
+import { fillTemplate } from '@commise/i18n';
 
 const ITEM = `flex min-h-11 cursor-pointer items-center gap-2 rounded-md px-3 text-body text-ink outline-none ${PRESS_FILL_CLASS.highlighted}`;
 

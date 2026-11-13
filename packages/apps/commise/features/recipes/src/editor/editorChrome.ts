@@ -12,7 +12,7 @@
  */
 import type { UseRecipeEditorResult } from '../hooks/useRecipeEditor.js';
 import { defaultRecipeFormValues, recipeFormValuesEqual } from '../form/values.js';
-import { pluralOf } from '../format/plural.js';
+import { pluralOf } from '@commise/i18n';
 import type { EditorMessages } from './messages.js';
 import type { DraftKeep } from './saveStatus.js';
 import { saveStatusText, type SaveStatusLine } from './saveStatusText.js';

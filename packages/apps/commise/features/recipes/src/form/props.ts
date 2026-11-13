@@ -30,7 +30,7 @@ import {
     recipePrivateChoice,
     type RecipePrivateFacts,
 } from '../actions/recipePrivateGate.js';
-import { fillTemplate } from '../format/fillTemplate.js';
+import { fillTemplate } from '@commise/i18n';
 import type { EditorMessages } from '../editor/messages.js';
 import type { IngredientRowEditor } from '../hooks/useIngredientRowEditor.js';
 import type { MatchLineListProps } from '../ingredientMatching/matchLineListProps.js';

@@ -23,7 +23,7 @@ import { cappedFontScale } from '@commise/ui/font-scale-cap';
 import { GRID_GAP, columnsOfVariant } from '../card/cardGridLayout.js';
 import { LIST_VIEW_MODES, isListViewMode } from '../card/cardVariant.js';
 import { formatRecipeCount } from '../list/model.js';
-import { fillTemplate } from '../format/fillTemplate.js';
+import { fillTemplate } from '@commise/i18n';
 import { CollectionMemberRow } from './CollectionMemberRow.native.js';
 import { MEMBER_WINDOW_SIZE, type CollectionMembersProps } from './detailModel.js';
 import { collectionMessages } from './messages.js';

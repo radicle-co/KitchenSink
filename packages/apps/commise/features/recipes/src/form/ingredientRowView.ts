@@ -26,7 +26,7 @@ import { formatQuantity, lineSummary, lineTailOf } from '../detail/model.js';
 import type { LineCommitTarget } from '../hooks/lineCommit.js';
 import type { IngredientRowEditor } from '../hooks/useIngredientRowEditor.js';
 import { controlName } from '../format/cookAmount.js';
-import { fillTemplate } from '../format/fillTemplate.js';
+import { fillTemplate } from '@commise/i18n';
 import type { RecipeMessages } from '../messages.js';
 import {
     ingredientAmountNoteId,

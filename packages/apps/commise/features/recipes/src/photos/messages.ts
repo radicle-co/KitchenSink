@@ -8,7 +8,7 @@
  */
 import type { LocalizedMessages } from '@commise/i18n';
 
-import type { PluralText } from '../format/plural.js';
+import type { PluralText } from '@commise/i18n';
 
 /** Shared copy for the photo manager block, rendered by both the web and native leaves. */
 export interface PhotoMessages {

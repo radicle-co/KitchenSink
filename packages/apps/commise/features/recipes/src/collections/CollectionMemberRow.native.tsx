@@ -18,7 +18,7 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { RecipeCard } from '../card/RecipeCard.js';
 import { toRecipeCardModel } from '../card/model.js';
-import { fillTemplate } from '../format/fillTemplate.js';
+import { fillTemplate } from '@commise/i18n';
 import type { CollectionMemberRowProps } from './detailModel.js';
 import { collectionMessages } from './messages.js';
 

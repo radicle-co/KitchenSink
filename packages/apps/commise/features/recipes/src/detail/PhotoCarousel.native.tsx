@@ -41,7 +41,7 @@ import { useState, type FC } from 'react';
 import { Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { fillTemplate } from '../format/fillTemplate.js';
+import { fillTemplate } from '@commise/i18n';
 import { recipeMessages } from '../messages.js';
 import { pageAt } from './photoPaging.js';
 import { PhotoDots } from './PhotoDots.native.js';

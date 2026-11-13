@@ -21,7 +21,7 @@ import { FieldLabel, TextArea } from '@commise/ui/input';
 import type { FC, FocusEvent, KeyboardEvent } from 'react';
 
 import { editorMessages } from '../editor/messages.js';
-import { fillTemplate } from '../format/fillTemplate.js';
+import { fillTemplate } from '@commise/i18n';
 import { stepsErrorId } from './fieldErrorIds.js';
 import { stepFieldId } from './fieldIds.js';
 import { recipeFormMessages } from './messages.js';

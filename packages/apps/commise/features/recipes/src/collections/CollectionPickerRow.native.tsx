@@ -21,7 +21,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { toRecipeCardModel } from '../card/model.js';
 import { useRecipeCardView } from '../card/useRecipeCardView.js';
-import { fillTemplate } from '../format/fillTemplate.js';
+import { fillTemplate } from '@commise/i18n';
 import type { CollectionPickerRowProps } from './detailModel.js';
 import { collectionMessages } from './messages.js';
 

@@ -35,7 +35,7 @@ import { Image } from 'expo-image';
 import { useState, type FC } from 'react';
 import { StyleSheet, View } from 'react-native';
 
-import { fillTemplate } from '../format/fillTemplate.js';
+import { fillTemplate } from '@commise/i18n';
 import { photoMessages } from './messages.js';
 import { photoMenu } from './photoMenu.js';
 import {

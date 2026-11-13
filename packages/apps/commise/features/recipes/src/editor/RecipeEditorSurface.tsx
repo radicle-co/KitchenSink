@@ -47,7 +47,7 @@ import type { EditorSeed } from '../hooks/useRecipeEditor.js';
 import { useLastDefined } from '../hooks/useLastDefined.js';
 import type { PasteOrigin } from './useEditorSource.js';
 import type { PhotoFinishBar, RecipeEditorViewProps } from './frameProps.js';
-import { pluralOf } from '../format/plural.js';
+import { pluralOf } from '@commise/i18n';
 import type { UseRecipePhotoManagerResult } from '../hooks/useRecipePhotoManager.js';
 import { photoMessages } from '../photos/messages.js';
 import { refusedRowsOf } from '../foodPage/privateFoodsRefusal.js';

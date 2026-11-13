@@ -25,7 +25,7 @@ import { RecipeVisibility } from '@kitchensink/recipe-core';
 import type { FC, ReactNode } from 'react';
 
 import { formatRecipeCount } from '../list/model.js';
-import { fillTemplate } from '../format/fillTemplate.js';
+import { fillTemplate } from '@commise/i18n';
 import { CollectionMoreMenu } from './CollectionMoreMenu.js';
 import { collectionsBackOf, isCollectionCopy, type CollectionHeaderProps } from './detailModel.js';
 import { recipeMessages } from '../messages.js';

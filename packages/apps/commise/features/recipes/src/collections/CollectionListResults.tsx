@@ -26,7 +26,7 @@ import { useId, type FC } from 'react';
 
 import { formatRecipeCount } from '../list/model.js';
 import { recipeMessages } from '../messages.js';
-import { fillTemplate } from '../format/fillTemplate.js';
+import { fillTemplate } from '@commise/i18n';
 import { collectionMessages } from './messages.js';
 import { bylineMessages } from '../byline/messages.js';
 import { sourceOwnerBylineText } from './sourceOwnerByline.js';

@@ -23,7 +23,7 @@ import type { FC } from 'react';
 import { useWindowDimensions } from 'react-native';
 import { XStack, YStack } from 'tamagui';
 
-import { fillTemplate } from '../format/fillTemplate.js';
+import { fillTemplate } from '@commise/i18n';
 import { figureText } from './foodEditComparison.js';
 import { foodPageCopyOf, type FoodAction, type FoodPageCopy, type FoodShownState } from './foodPageCopy.js';
 import type { FoodPageViewProps } from './foodPageViewProps.js';

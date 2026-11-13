@@ -15,7 +15,7 @@ import { isModifiedClick } from '@commise/ui/route-link';
 import { PRESS_FILL_CLASS } from '@commise/ui/surface-tone';
 import type { FC, MouseEvent } from 'react';
 
-import { pluralOf } from '../format/plural.js';
+import { pluralOf } from '@commise/i18n';
 import { foodPageMessages } from './messages.js';
 import type { YourFoodsRowProps } from './yourFoodsViewProps.js';
 

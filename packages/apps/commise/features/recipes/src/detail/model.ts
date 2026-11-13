@@ -40,7 +40,7 @@ import {
 import type { RemoteFoodPick } from '../hooks/lineCommit.js';
 import { formatAmountNumber } from '../format/cookAmount.js';
 import { formatDuration } from '../format/duration.js';
-import { fillTemplate } from '../format/fillTemplate.js';
+import { fillTemplate } from '@commise/i18n';
 import type {
     IngredientLineNameMessages,
     IngredientRemoteSearchMessages,

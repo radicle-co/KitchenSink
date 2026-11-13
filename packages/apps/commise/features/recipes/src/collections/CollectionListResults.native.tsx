@@ -29,7 +29,7 @@ import { HostAnimatedScroll } from '../list/HostAnimatedScroll.native.js';
 import { formatRecipeCount } from '../list/model.js';
 import { RecipeListHeaderContext } from '../list/recipeListHeaderContext.js';
 import { recipeMessages } from '../messages.js';
-import { fillTemplate } from '../format/fillTemplate.js';
+import { fillTemplate } from '@commise/i18n';
 import { collectionMessages } from './messages.js';
 import { bylineMessages } from '../byline/messages.js';
 import { sourceOwnerBylineText } from './sourceOwnerByline.js';

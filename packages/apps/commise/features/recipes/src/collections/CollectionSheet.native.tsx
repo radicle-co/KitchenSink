@@ -21,7 +21,7 @@ import { useTheme } from '@commise/ui/theme';
 import { useId, useState, type FC } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { fillTemplate } from '../format/fillTemplate.js';
+import { fillTemplate } from '@commise/i18n';
 import { COLLECTION_NAME_MAX_LENGTH, showsNameCounter } from './limits.js';
 import { collectionMessages } from './messages.js';
 import type { CollectionSheetProps } from './sheetModel.js';

@@ -29,7 +29,7 @@ import { useState } from 'react';
 import { collectionMessages } from '../collections/messages.js';
 import { privateChoice, privateNeedsPremium } from '../actions/privateGate.js';
 import { canUndoVisibilityChange } from '../collections/visibilityUndo.js';
-import { fillTemplate } from '../format/fillTemplate.js';
+import { fillTemplate } from '@commise/i18n';
 
 /** What one change asks for: where the collection is going and where it was. */
 interface VisibilityChange {

@@ -34,7 +34,7 @@ import { useMemo, useState } from 'react';
 import { makePublicConsequence, offersPrivate, type MakePublicConsequence } from '../actions/privateGate.js';
 import { useMakePublicConfirm, type MakePublicConfirm } from '../actions/useMakePublicConfirm.js';
 import { cardVariantOf, type CardVariant, type ListViewMode } from '../card/cardVariant.js';
-import { fillTemplate } from '../format/fillTemplate.js';
+import { fillTemplate } from '@commise/i18n';
 import { useCollectionPull, type CollectionPull } from '../hooks/useCollectionPull.js';
 import { useCollectionVisibility, type CollectionVisibilityControl } from '../hooks/useCollectionVisibility.js';
 import { useLeaveWhenClosed } from '../hooks/useLeaveWhenClosed.js';

@@ -22,7 +22,7 @@ import { recipeServiceKeys, useRecipeServiceClient } from '@kitchensink/recipe-s
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 
-import { fillTemplate } from '../format/fillTemplate.js';
+import { fillTemplate } from '@commise/i18n';
 import { collectionMessages } from '../collections/messages.js';
 
 /** The recipe being removed. */

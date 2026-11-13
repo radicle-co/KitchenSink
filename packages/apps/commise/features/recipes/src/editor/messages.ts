@@ -10,7 +10,7 @@
  */
 import type { LocalizedMessages } from '@commise/i18n';
 
-import type { PluralText } from '../format/plural.js';
+import type { PluralText } from '@commise/i18n';
 import type { EditorSectionId } from './sections.js';
 import type { AttentionReason, InProgressReason } from './sectionStatus.js';
 

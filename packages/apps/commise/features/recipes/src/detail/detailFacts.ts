@@ -11,7 +11,7 @@ import { RecipeStatus, RecipeVisibility, type RecipeDetail, type RecipeIngredien
 import { formatCalories } from '../card/model.js';
 import { controlName } from '../format/cookAmount.js';
 import { formatDuration } from '../format/duration.js';
-import { fillTemplate } from '../format/fillTemplate.js';
+import { fillTemplate } from '@commise/i18n';
 import type {
     IngredientLineNameMessages,
     RecipeCardMessages,

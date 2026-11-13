@@ -23,7 +23,7 @@ import { OfflineReadSlot } from '@commise/ui/offline-notice';
 import { StateNotice } from '@commise/ui/state-notice';
 import type { FC } from 'react';
 
-import { fillTemplate } from '../format/fillTemplate.js';
+import { fillTemplate } from '@commise/i18n';
 import { importMessages } from './messages.js';
 import type { ImportWizardNoticeProps } from './props.js';
 

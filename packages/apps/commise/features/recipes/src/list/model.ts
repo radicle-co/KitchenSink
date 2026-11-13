@@ -15,7 +15,7 @@ import type { RecipeListSortBy } from '@kitchensink/recipe-service-client';
 
 import type { CardVariant, ListViewMode } from '../card/cardVariant.js';
 import { toRecipeCardModel, type RecipeCardModel } from '../card/model.js';
-import { fillTemplate } from '../format/fillTemplate.js';
+import { fillTemplate } from '@commise/i18n';
 import { sentenceCase } from '../format/sentenceCase.js';
 import type { RecipeListMessages } from '../messages.js';
 import type { RenderRecipeNutrition } from '../nutrition/model.js';

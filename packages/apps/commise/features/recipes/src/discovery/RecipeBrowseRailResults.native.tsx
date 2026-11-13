@@ -15,7 +15,7 @@ import { useContext, type FC } from 'react';
 import { StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 
 import { toRecipeCardModel } from '../card/model.js';
-import { fillTemplate } from '../format/fillTemplate.js';
+import { fillTemplate } from '@commise/i18n';
 import { discoveryMessages } from './messages.js';
 import { RecipeDiscoveryCard } from './RecipeDiscoveryCard.native.js';
 import type { RecipeBrowseRailResultsProps } from './model.js';

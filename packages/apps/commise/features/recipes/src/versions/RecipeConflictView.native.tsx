@@ -31,7 +31,7 @@ import { Pressable, StyleSheet, Text, View, type TextStyle } from 'react-native'
 import { conflictSideParts } from './conflictDiff.js';
 import { recipeVersionMessages } from './messages.js';
 import { spokenAmountsLabel } from '../format/cookAmount.js';
-import { fillTemplate } from '../format/fillTemplate.js';
+import { fillTemplate } from '@commise/i18n';
 import { recipeMessages, type AmountWordMessages } from '../messages.js';
 import {
     type ConflictOptionCardProps,

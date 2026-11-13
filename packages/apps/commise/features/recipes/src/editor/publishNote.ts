@@ -16,7 +16,7 @@
  */
 import { validateRecipeForm } from '../form/validate.js';
 import type { RecipeFormValues } from '../form/values.js';
-import { pluralOf } from '../format/plural.js';
+import { pluralOf } from '@commise/i18n';
 import { privateFoodRowIndexes } from '../form/privateFoodLines.js';
 import type { EditorMessages } from './messages.js';
 import { EDITOR_SECTIONS, firstSectionWithErrors, type EditorSectionId } from './sections.js';

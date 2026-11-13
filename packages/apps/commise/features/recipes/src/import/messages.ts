@@ -19,7 +19,7 @@
  */
 import type { LocalizedMessages } from '@commise/i18n';
 
-import type { PluralText } from '../format/plural.js';
+import type { PluralText } from '@commise/i18n';
 
 /** Copy for the bulk import's matching surfaces. */
 export interface ImportMessages {

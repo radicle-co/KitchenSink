@@ -21,7 +21,7 @@ import type { View } from 'react-native';
 import { styled, XStack, YStack } from 'tamagui';
 
 import { recipeMessages } from '../messages.js';
-import { fillTemplate } from '../format/fillTemplate.js';
+import { fillTemplate } from '@commise/i18n';
 import { DetailCard } from './detailFrames.native.js';
 import type { RecipeDetailBodyNativeProps } from './model.js';
 import { nutritionSectionFacts } from './detailFacts.js';

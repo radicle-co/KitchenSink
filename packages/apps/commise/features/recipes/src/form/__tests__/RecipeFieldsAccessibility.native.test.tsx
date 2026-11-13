@@ -14,7 +14,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { TextInput as TextInputAdapter } from '@commise/ui/text-input';
 
 import { editorMessages } from '../../editor/messages.js';
-import { fillTemplate } from '../../format/fillTemplate.js';
+import { fillTemplate } from '@commise/i18n';
 import { descriptionFieldId, stepFieldId, titleFieldId } from '../fieldIds.js';
 import { RecipeBasicsFields } from '../RecipeBasicsFields.native.js';
 import { RecipeInstructionsFields } from '../RecipeInstructionsFields.native.js';

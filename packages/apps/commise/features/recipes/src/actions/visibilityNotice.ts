@@ -19,7 +19,7 @@
  *
  * @pattern Specification — a pure predicate-and-pick over facts the page already holds
  */
-import { fillTemplate } from '../format/fillTemplate.js';
+import { fillTemplate } from '@commise/i18n';
 import type { RecipeVisibilityToggleMessages } from './messages.js';
 import type { PrivateRefusal } from './privateGate.js';
 

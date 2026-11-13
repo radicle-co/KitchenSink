@@ -31,7 +31,7 @@ import type { RecipePhoto } from '@kitchensink/recipe-core';
 import * as Dialog from '@radix-ui/react-dialog';
 import { useState, type FC, type UIEvent } from 'react';
 
-import { fillTemplate } from '../format/fillTemplate.js';
+import { fillTemplate } from '@commise/i18n';
 import { recipeMessages } from '../messages.js';
 import { pageAt } from './photoPaging.js';
 import { FOCUS_RING_CLASS } from '@commise/ui/focus-ring';

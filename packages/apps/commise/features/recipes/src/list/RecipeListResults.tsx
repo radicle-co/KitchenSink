@@ -23,7 +23,7 @@ import { RecipeCard } from '../card/RecipeCard.js';
 import { recipeMessages } from '../messages.js';
 import { LibrarySortMenu } from './LibrarySortMenu.js';
 import { formatRecipeCount, type RecipeListResultsProps } from './model.js';
-import { fillTemplate } from '../format/fillTemplate.js';
+import { fillTemplate } from '@commise/i18n';
 
 /** The first run: the two ways to start, stacked below a 600 container and side by side above. */
 const FirstRun: FC<Pick<RecipeListResultsProps, 'onCreateRecipe' | 'onPasteIngredients'>> = ({

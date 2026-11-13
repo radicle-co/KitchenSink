@@ -19,7 +19,7 @@ import { SOURCE_LINK_INPUT_MAX_LENGTH } from '@kitchensink/recipe-core';
 import type { FC } from 'react';
 
 import { editorMessages } from '../editor/messages.js';
-import { fillTemplate } from '../format/fillTemplate.js';
+import { fillTemplate } from '@commise/i18n';
 import { sourceErrorId, sourceNoteId } from './fieldErrorIds.js';
 import { describedByOf, sourceFieldId } from './fieldIds.js';
 import type { RecipeSourceFieldProps } from './sourceFieldProps.js';

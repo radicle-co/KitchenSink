@@ -16,7 +16,7 @@ import { FOCUS_RING_CLASS } from '@commise/ui/focus-ring';
 import { Sheet } from '@commise/ui/sheet';
 import { useId, type FC } from 'react';
 
-import { fillTemplate } from '../format/fillTemplate.js';
+import { fillTemplate } from '@commise/i18n';
 import type { AuthoredFoodDraft } from '../hooks/authoredFoodCreate.model.js';
 import { authoredFieldErrorText, authoredMacroFields } from '../form/authoredFoodSheet.model.js';
 import { recipeMessages } from '../messages.js';

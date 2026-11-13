@@ -28,7 +28,7 @@ import type { FC, ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { formatRecipeCount } from '../list/model.js';
-import { fillTemplate } from '../format/fillTemplate.js';
+import { fillTemplate } from '@commise/i18n';
 import { isCollectionCopy, type CollectionHeaderProps } from './detailModel.js';
 import { collectionMessages } from './messages.js';
 import { bylineMessages } from '../byline/messages.js';

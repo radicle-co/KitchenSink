@@ -36,7 +36,7 @@ import {
     type RecipeListReading,
     type RecipeListResultsProps,
 } from './model.js';
-import { fillTemplate } from '../format/fillTemplate.js';
+import { fillTemplate } from '@commise/i18n';
 import { HostAnimatedScroll } from './HostAnimatedScroll.native.js';
 import { RecipeListHeaderContext } from './recipeListHeaderContext.js';
 import { ListEdge } from './RecipeListLayout.native.js';

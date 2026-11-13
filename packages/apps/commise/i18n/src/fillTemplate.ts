@@ -1,6 +1,6 @@
 /**
- * @module @commise/features-recipes/format — the `{token}` filler every localized message goes through. Its own module,
- * so a model that fills a message depends on this alone rather than on the recipe-list model.
+ * @module @commise/i18n — the `{token}` filler every localized message goes through. Its own module, so a model that
+ * fills a message depends on this alone. It lived in `@commise/features-recipes` until a second feature needed it.
  */
 
 /**

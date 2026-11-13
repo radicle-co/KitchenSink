@@ -44,7 +44,7 @@ import type { ChangeEvent, FC } from 'react';
 import { conflictSideParts } from './conflictDiff.js';
 import { recipeVersionMessages } from './messages.js';
 import { AmountText } from '../format/AmountText.js';
-import { fillTemplate } from '../format/fillTemplate.js';
+import { fillTemplate } from '@commise/i18n';
 import {
     type ConflictOptionCardProps,
     type DiscardAndCloseProps,

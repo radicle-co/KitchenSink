@@ -5,7 +5,7 @@
  */
 import type { Locale } from '@commise/i18n';
 
-import { fillTemplate } from '../format/fillTemplate.js';
+import { fillTemplate } from '@commise/i18n';
 import type { RecipeDetailMessages } from '../messages.js';
 
 /** What the bar and its list say. */

@@ -25,7 +25,7 @@ import { Surface } from '@commise/ui/surface-tone';
 import type { FC } from 'react';
 import { ScrollView, StyleSheet, Text, View, type ViewStyle } from 'react-native';
 
-import { fillTemplate } from '../format/fillTemplate.js';
+import { fillTemplate } from '@commise/i18n';
 import { importMessages } from './messages.js';
 import type { ImportWizardStepProps } from './props.js';
 import { backTargetOf, progressTextOf } from './wizardCopy.js';

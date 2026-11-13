@@ -16,7 +16,7 @@ import { SortOptionRow } from '../common/SortOptionRow.native.js';
 import { recipeMessages } from '../messages.js';
 import { LIBRARY_SORTS, sortLabelOf } from './library.js';
 import { type RecipeListSortControl } from './model.js';
-import { fillTemplate } from '../format/fillTemplate.js';
+import { fillTemplate } from '@commise/i18n';
 
 /**
  * The sort control.

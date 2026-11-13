@@ -53,7 +53,7 @@ import { formatDurationMinutes } from '../list/model.js';
 import { recipeMessages } from '../messages.js';
 import { recipeVersionMessages } from './messages.js';
 import { AmountText } from '../format/AmountText.js';
-import { fillTemplate } from '../format/fillTemplate.js';
+import { fillTemplate } from '@commise/i18n';
 import { previewRestoreErrorMessage, unrestorablePositionsFor } from './history.js';
 import {
     type VersionPreviewModalProps,

@@ -37,7 +37,7 @@ import { useTheme } from '@commise/ui/theme';
 import type { FC } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { fillTemplate } from '../format/fillTemplate.js';
+import { fillTemplate } from '@commise/i18n';
 import { collectionMessages } from './messages.js';
 import { bylineMessages } from '../byline/messages.js';
 import { sourceOwnerBylineText } from './sourceOwnerByline.js';

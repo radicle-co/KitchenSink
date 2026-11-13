@@ -17,7 +17,7 @@ import type { FC } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { editorMessages } from '../editor/messages.js';
-import { pluralOf } from '../format/plural.js';
+import { pluralOf } from '@commise/i18n';
 import { pasteListFieldId } from './fieldIds.js';
 import { recipeFormMessages } from './messages.js';
 import type { PasteListSheetProps } from './pasteListSheetProps.js';

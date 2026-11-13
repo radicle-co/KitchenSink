@@ -17,7 +17,7 @@ import { Button } from '@commise/ui/button';
 import { Icon } from '@commise/ui/icon';
 import type { FC } from 'react';
 
-import { fillTemplate } from '../format/fillTemplate.js';
+import { fillTemplate } from '@commise/i18n';
 import { recipeFormMessages } from './messages.js';
 import { pasteRowViewOf } from './pasteStatusCopy.js';
 import type { PastedReadingRowProps } from './pastedReadingRowProps.js';

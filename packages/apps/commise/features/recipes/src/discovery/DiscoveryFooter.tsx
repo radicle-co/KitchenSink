@@ -20,7 +20,7 @@ import { PRESS_FILL_CLASS } from '@commise/ui/surface-tone';
 import type { FC } from 'react';
 
 import { recipeActionMessages } from '../actions/messages.js';
-import { fillTemplate } from '../format/fillTemplate.js';
+import { fillTemplate } from '@commise/i18n';
 import { bylineInitial, bylineOf } from '../byline/bylineOf.js';
 import { bylineText } from '../byline/bylineText.js';
 import { bylineMessages } from '../byline/messages.js';

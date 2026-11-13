@@ -32,7 +32,7 @@ import { useState } from 'react';
 
 import { refusedLinesOf } from '../editor/refusedLinesOf.js';
 import type { PrivateFoodsRefusalSheetProps } from '../editor/privateFoodsRefusalSheetProps.js';
-import { fillTemplate } from '../format/fillTemplate.js';
+import { fillTemplate } from '@commise/i18n';
 import { recipeMessages } from '../messages.js';
 import { compareWithCurrent, type VersionCompareViewProps } from './compare.js';
 import { classifyRestoreError, type RecipeVersionListProps } from './history.js';

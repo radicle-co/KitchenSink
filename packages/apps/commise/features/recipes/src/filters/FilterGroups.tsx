@@ -30,7 +30,7 @@ import { PRESS_FILL_CLASS } from '@commise/ui/surface-tone';
 import { useEffect, useId, useState, type FC, type ReactElement, type ReactNode } from 'react';
 
 import { useIngredientPressLanding } from '../hooks/useIngredientPressLanding.js';
-import { fillTemplate } from '../format/fillTemplate.js';
+import { fillTemplate } from '@commise/i18n';
 import { sentenceCase } from '../format/sentenceCase.js';
 import { recipeMessages } from '../messages.js';
 import { FACET_CHIP_LIMIT, visibleChipsOf, type FacetGroupView } from './filterBarView.js';

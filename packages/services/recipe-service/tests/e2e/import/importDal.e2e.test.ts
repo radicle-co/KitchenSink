@@ -23,7 +23,7 @@ import { RecipeImportItemsDal } from '../../../src/import/dal/recipeImportItems.
 import { RecipeImportLinesDal } from '../../../src/import/dal/recipeImportLines.dal.js';
 import { RecipeImportsDal } from '../../../src/import/dal/recipeImports.dal.js';
 import { ImportAllowanceDal } from '../../../src/common/dal/importAllowance.dal.js';
-import { cookKeyOf, holdOf } from '../../../src/import/domain/importHold.js';
+import { COOK_DEPENDENT_HOLD_REASONS, cookKeyOf, HOLD_REASONS, holdOf } from '../../../src/import/domain/importHold.js';
 import { fileSaveFactsOf } from '../../../src/import/domain/importSaveGap.js';
 import { ensureFoodLookup } from '../../support/lineChain.js';
 import { recipeDb } from '../../support/roleDb.js';
@@ -866,6 +866,29 @@ describe('the bulk-import DALs (LOCAL e2e, real Postgres)', () => {
                 expect(await candidates(header.id, PRO_KEY)).toEqual([0]);
                 expect(await candidates(header.id, FREE_KEY)).toEqual([1]);
             });
+
+            // GATE on #220: the SQL and `holdApplies` read ONE list of the reasons the cook's facts decide. Each reason is held
+            // under the free cook and asked about by a Pro one: a candidate again exactly when the list names it.
+            it.each(HOLD_REASONS)(
+                '⛔ a %s hold under one cook is a candidate for another exactly when the reason is cook-dependent',
+                async (reason) => {
+                    const header = await newImport(1);
+
+                    await matchedWithStatement(header.id, [0]);
+
+                    const read = await items.findItem(header.id, 0);
+                    const free = { principalKind: 'real', containment: 'enforce', isPremium: false } as const;
+
+                    expect(
+                        await items.holdItem(header.id, 0, read?.decisionRev ?? Number.NaN, holdOf(reason, free)),
+                    ).toBe(true);
+
+                    expect(await candidates(header.id, FREE_KEY)).toEqual([]);
+                    expect(await candidates(header.id, PRO_KEY)).toEqual(
+                        COOK_DEPENDENT_HOLD_REASONS.includes(reason) ? [0] : [],
+                    );
+                },
+            );
 
             it('⛔ a hold is fenced on the revision the save read: a decision that landed in between is never hidden', async () => {
                 const header = await newImport(1);

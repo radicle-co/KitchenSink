@@ -9,7 +9,9 @@
  * those holds record the facts they were judged under, and they no longer apply to a cook whose facts differ. A released
  * item that is still refused is held again under the new facts: one look per change, never a loop.
  *
- * ⛔ The candidate query states the same rule in SQL (`findSaveCandidates`); the LOCAL e2e holds the two together.
+ * ⛔ The candidate query states the same rule in SQL (`findSaveCandidates`). Both sides read ONE list,
+ * {@link COOK_DEPENDENT_HOLD_REASONS}, and the LOCAL e2e asks every reason of both. The 0082 CHECK spells the same sets in
+ * SQL, so a new reason needs a new migration too, and that e2e fails until it has one.
  */
 import type { VisibilityFacts } from './importVisibility.js';
 
@@ -20,7 +22,7 @@ export const HOLD_REASONS = ['item', 'unreadable', 'visibility', 'createRefused'
 export type HoldReason = (typeof HOLD_REASONS)[number];
 
 /** The reasons whose cause the cook's facts decide: the hold records them, and a cook with other facts is not held. */
-export const COOK_DEPENDENT_HOLD_REASONS = ['visibility', 'createRefused'] as const satisfies readonly HoldReason[];
+export const COOK_DEPENDENT_HOLD_REASONS: readonly HoldReason[] = ['visibility', 'createRefused'];
 
 /** The reasons the list names `saveRefused`: the save held the item for a cause no other issue names. */
 const SAVE_REFUSED_REASONS: readonly HoldReason[] = ['unreadable', 'createRefused'];
@@ -41,8 +43,7 @@ export interface HeldItem {
     readonly heldCookKey: string | null;
 }
 
-const isCookDependent = (reason: HoldReason): boolean =>
-    (COOK_DEPENDENT_HOLD_REASONS as readonly HoldReason[]).includes(reason);
+const isCookDependent = (reason: HoldReason): boolean => COOK_DEPENDENT_HOLD_REASONS.includes(reason);
 
 /**
  * The cook facts the label and the create read, as one opaque key: equal facts give an equal key. Pure.
@@ -50,7 +51,7 @@ const isCookDependent = (reason: HoldReason): boolean =>
  * @param facts - The cook's principal kind, containment and plan.
  */
 export function cookKeyOf(facts: VisibilityFacts): string {
-    return [facts.principalKind, facts.containment ?? 'none', facts.isPremium ? 'paid' : 'free'].join('/');
+    return [facts.principalKind, facts.containment, facts.isPremium ? 'paid' : 'free'].join('/');
 }
 
 /**

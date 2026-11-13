@@ -18,7 +18,7 @@
  *  5. **`saved_at` and `allowance_spent_at` are facts of their own**; nothing here infers either from `recipe_id` or
  *     `parse_job_id`.
  */
-import { and, asc, eq, gt, inArray, isNotNull, isNull, sql, type SQL, type SQLWrapper } from 'drizzle-orm';
+import { and, asc, eq, gt, inArray, isNotNull, isNull, notInArray, sql, type SQL, type SQLWrapper } from 'drizzle-orm';
 import { isDeepStrictEqual } from 'node:util';
 
 import { ImportAllowanceDal } from '../../common/dal/importAllowance.dal.js';
@@ -36,7 +36,7 @@ import type { RecipeTx } from '../../database/unitOfWork.js';
 import type { ImportRecipe, ImportStatement } from '../../recipes/import.schema.js';
 import { ITEM_REVIEWS, type ItemReview } from '../domain/importBindingPolicy.js';
 import { decideItemUpsert } from '../domain/importItemUpsert.js';
-import { HOLD_REASONS, type HoldReason, type ImportHold } from '../domain/importHold.js';
+import { COOK_DEPENDENT_HOLD_REASONS, HOLD_REASONS, type HoldReason, type ImportHold } from '../domain/importHold.js';
 import { importRefusalOf, type ImportRefusal } from '../domain/importRefusal.js';
 import type { ImportFileFacts } from '../domain/importSaveGap.js';
 import { columnsOfStatement } from '../domain/importStatement.js';
@@ -454,13 +454,13 @@ export class RecipeImportItemsDal {
                         eq(recipeImportItems.importId, importId),
                         eq(recipeImportItems.stage, 'matched'),
                         isNotNull(recipeImportItems.statementKind),
-                        // ⛔ The SQL twin of `holdApplies` (importHold.ts): a hold is out of the queue only while it is at the
-                        // current revision AND, for a cause the cook's facts decide, judged under THIS cook's facts. A hold
-                        // with no reason predates 0082 and is read as a cause in the item.
+                        // ⛔ `holdApplies` (importHold.ts) in SQL, reading the SAME list of cook-dependent reasons: a hold is out
+                        // of the queue only while it is at the current revision AND, for a cause the cook's facts decide,
+                        // judged under THIS cook's facts. A hold with no reason predates 0082 and is read as a cause in the item.
                         sql`NOT (
                             ${recipeImportItems.heldAtRev} IS NOT DISTINCT FROM ${recipeImportItems.decisionRev}
                             AND (
-                                COALESCE(${recipeImportItems.heldReason}, 'item') NOT IN ('visibility', 'createRefused')
+                                ${notInArray(sql`COALESCE(${recipeImportItems.heldReason}, 'item')`, [...COOK_DEPENDENT_HOLD_REASONS])}
                                 OR ${recipeImportItems.heldCookKey} = ${cookKey}
                             )
                         )`,

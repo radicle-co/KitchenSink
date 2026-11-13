@@ -175,7 +175,9 @@ describe('ImportViewBuilder', () => {
             expect(answered.items[0]?.issue).toBeNull();
         });
 
-        it('names a recipe with no step, and lifts the cuisine for a public-domain web import as Publish does', async () => {
+        // REWRITTEN for ADR-0089: a web statement makes a web copy, which needs a cuisine. The old test lifted the cuisine
+        // issue for it, as if it were the curator's public-domain text.
+        it('names a recipe with no step, and asks a web import for a cuisine as Publish does', async () => {
             const noSteps = await view({
                 items: [
                     makeListedItem({
@@ -186,7 +188,7 @@ describe('ImportViewBuilder', () => {
                     }),
                 ],
             });
-            const publicDomain = await view({
+            const webCopy = await view({
                 items: [
                     makeListedItem({
                         stage: 'matched',
@@ -194,13 +196,15 @@ describe('ImportViewBuilder', () => {
                         statementKind: 'source',
                         sourceKind: 'public_web',
                         citation: 'https://example.org/r',
+                        // Private: a web copy asked to be public is refused first, which hides the cuisine issue.
+                        visibility: 'private',
                         publishFacts: { fileCuisine: null, ingredientLineCount: 2, stepCount: 1 },
                     }),
                 ],
             });
 
             expect(noSteps.items[0]?.issue).toEqual({ reason: 'needsSteps' });
-            expect(publicDomain.items[0]?.issue).toBeNull();
+            expect(webCopy.items[0]?.issue).toEqual({ reason: 'needsCuisine' });
         });
 
         it('names a matched item with no statement', async () => {

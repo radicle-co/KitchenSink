@@ -19,6 +19,7 @@ const BOOK = { kind: 'book', citation: 'Joy, p. 12' } as const;
 const PAID = { kind: 'paid_site', citation: 'site' } as const;
 const WEB = { kind: 'public_web', citation: 'https://example.com/r' } as const;
 const MINE = { kind: 'authored' } as const;
+const OWN_SITE = { kind: 'public_web', citation: 'https://commise.app/r/1' } as const;
 
 describe('visibilityRefusedFor', () => {
     it.each([
@@ -26,7 +27,11 @@ describe('visibilityRefusedFor', () => {
         ['a paid-site recipe can never be public', PREMIUM, PAID, 'public', true],
         ['a book recipe may be private on any plan', FREE, BOOK, 'private', false],
         ['a paid-site recipe may be private on any plan', FREE, PAID, 'private', false],
-        ['a public web recipe may be public', FREE, WEB, 'public', false],
+        // ⛔ ADR-0089: a web copy is private only. Judged as `imported_public` with NO kind it would read as the curator's
+        // public-domain text, which may be public.
+        ['⛔ a public web recipe can never be public (a web copy, ADR-0089)', FREE, WEB, 'public', true],
+        ['…not even for a Premium cook', PREMIUM, WEB, 'public', true],
+        ['⛔ a web statement whose link is not a usable source is refused either way', FREE, OWN_SITE, 'private', true],
         [
             '⛔ a public web recipe may be private for a free cook, with no edit (ADR-0077 §6)',
             FREE,

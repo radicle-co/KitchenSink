@@ -780,13 +780,54 @@ describe('ImportAdvanceService — saving what is ready', () => {
             totalTimeMinutes: 0,
             steps: [{ instruction: 'Mix.', timerSeconds: 30 }],
         });
+        // The provenance is what the ONE statement reader resolves (`resolveStatementProvenance`, ADR-0089): with its kind.
         expect(imported).toMatchObject({
             provenance: {
                 sourceType: RecipeSourceType.IMPORTED_PHYSICAL,
                 sourceUrl: null,
                 sourceAttribution: 'Joy, p. 12',
+                sourceKind: 'book',
             },
         });
+    });
+
+    it('⛔ saves a web statement as a web copy: the label, the link, its site and the public_web kind', async () => {
+        const web = matched(0, {
+            payload: recipe(payloadLines),
+            statementKind: 'source',
+            sourceKind: 'public_web',
+            citation: 'https://www.allrecipes.com/r/1/',
+            visibility: 'private',
+        });
+        const { answered, recipes } = run(world({ items: [web] }));
+
+        await answered;
+
+        const [, , , imported] = recipes.create.mock.calls[0] ?? [];
+
+        expect(imported).toMatchObject({
+            provenance: {
+                sourceType: RecipeSourceType.IMPORTED_PUBLIC,
+                sourceUrl: 'https://www.allrecipes.com/r/1/',
+                sourceAttribution: 'allrecipes.com',
+                sourceKind: 'public_web',
+            },
+        });
+    });
+
+    it('does not save an item whose stored link is not a usable source: it waits for the cook, and nothing is written', async () => {
+        const ownSite = matched(0, {
+            payload: recipe(payloadLines),
+            statementKind: 'source',
+            sourceKind: 'public_web',
+            citation: 'https://commise.app/r/1',
+            visibility: 'private',
+        });
+        const { answered, recipes } = run(world({ items: [ownSite] }));
+
+        await answered;
+
+        expect(recipes.create).not.toHaveBeenCalled();
     });
 
     it('⛔ binds the confident line as `exact`, the default as `default` (keepAsWritten), the open food and the heading as written', async () => {
@@ -1163,7 +1204,9 @@ describe('ImportAdvanceService — saving what is ready', () => {
             expect(built.store.items.get(0)?.stage).toBe('saved');
         });
 
-        it('saves a public-domain web import with no cuisine, which Publish does not ask of it', async () => {
+        // REWRITTEN for ADR-0089: a cook's web statement makes a WEB COPY, which Publish asks for a cuisine like any other
+        // recipe. The old test read it as the curator's public-domain text and saved it with no cuisine.
+        it('⛔ holds a web import with no cuisine: a web copy needs one to publish', async () => {
             const { answered, recipes, store } = run(
                 world({
                     items: [
@@ -1172,7 +1215,7 @@ describe('ImportAdvanceService — saving what is ready', () => {
                             statementKind: 'source',
                             sourceKind: 'public_web',
                             citation: 'https://example.org/r',
-                            visibility: 'public',
+                            visibility: 'private',
                         }),
                     ],
                 }),
@@ -1180,9 +1223,8 @@ describe('ImportAdvanceService — saving what is ready', () => {
 
             await answered;
 
-            expect(store.holdItem).not.toHaveBeenCalled();
-            expect(recipes.create).toHaveBeenCalledOnce();
-            expect(recipes.create.mock.calls[0]?.[1]).not.toHaveProperty('cuisine');
+            expect(recipes.create).not.toHaveBeenCalled();
+            expect(store.holdItem).toHaveBeenCalledOnce();
         });
 
         it('⛔ holds an item the create path refuses as unpublishable too, and does not fail the call', async () => {

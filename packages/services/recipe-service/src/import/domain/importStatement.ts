@@ -1,25 +1,14 @@
 /**
- * The per-recipe statement of a bulk import, and the provenance it sets (ADR-0072 §9).
+ * The per-recipe statement of a bulk import, as its columns store it (ADR-0072 §9).
  *
- * DESIGN PATTERN: **Specification / Policy module**, pure and total. It is the sibling of `provenancePolicy.ts`, and the one
- * place that turns a statement into a recipe's label: ADR-0023 lets only a curator declare `imported_public` on
- * `POST /api/v1/recipes`, and this route is its named exception — the cook's own statement sets the label, and the stored
- * statement and citation are what back it. `imported_physical` and `imported_paid` are set the same way and stay
- * undeclarable anywhere else.
- *
- * | Statement                    | `sourceType`        | Stored source fields                       |
- * | ---------------------------- | ------------------- | ------------------------------------------ |
- * | I wrote this                 | `user_created`      | none                                       |
- * | From a public web page + URL | `imported_public`   | `sourceUrl` = the address                  |
- * | From a book + citation       | `imported_physical` | `sourceAttribution` = the citation         |
- * | From a paid site + citation  | `imported_paid`     | `sourceAttribution` = the citation         |
+ * DESIGN PATTERN: **Data Mapper** between a statement and the three columns that store it, pure and total. The provenance a
+ * statement SETS is not read here: `resolveStatementProvenance` (`recipes/domain/provenancePolicy.ts`) is the one reading of
+ * a statement, for a recipe's own `statement` and for the import alike (ADR-0089), so the two cannot disagree about a label
+ * or its kind.
  *
  * The statement is stored as `statement_kind` (`authored` | `source`), a citation and a source kind, and the label is
  * DERIVED when the item is saved, never stored beside it: there is one statement of the fact.
  */
-import { RecipeSourceType } from '@kitchensink/recipe-core';
-
-import type { ResolvedProvenance } from '../../recipes/domain/provenancePolicy.js';
 import type { ImportStatement, ImportStatementView } from '../../recipes/import.schema.js';
 import {
     IMPORT_SOURCE_KINDS,
@@ -99,35 +88,4 @@ export function statementOfColumns(columns: StoredStatementColumns): KnownImport
     }
 
     throw new Error(`an import item holds an unknown statement kind: ${statementKind}`);
-}
-
-/**
- * The provenance a statement sets.
- *
- * @param statement - The cook's statement.
- * @returns The recipe's `sourceType` and its source fields. Pure and total.
- */
-export function provenanceOfStatement(statement: KnownImportStatement): ResolvedProvenance {
-    switch (statement.kind) {
-        case 'authored':
-            return { sourceType: RecipeSourceType.USER_CREATED, sourceUrl: null, sourceAttribution: null };
-        case 'public_web':
-            return {
-                sourceType: RecipeSourceType.IMPORTED_PUBLIC,
-                sourceUrl: statement.citation,
-                sourceAttribution: null,
-            };
-        case 'book':
-            return {
-                sourceType: RecipeSourceType.IMPORTED_PHYSICAL,
-                sourceUrl: null,
-                sourceAttribution: statement.citation,
-            };
-        case 'paid_site':
-            return {
-                sourceType: RecipeSourceType.IMPORTED_PAID,
-                sourceUrl: null,
-                sourceAttribution: statement.citation,
-            };
-    }
 }

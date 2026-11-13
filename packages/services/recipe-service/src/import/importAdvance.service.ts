@@ -50,6 +50,7 @@ import { MAX_INGREDIENT_NAME_LENGTH } from '../ingredients/ingredients.schema.js
 import type { ParseJobMatchesPort } from '../recipes/domain/parseJobMatch.js';
 import { quantityFromColumns } from '../recipes/dal/quantityColumns.js';
 import type { LineOriginDirective } from '../recipes/domain/bindingOriginCarryForward.js';
+import { resolveStatementProvenance } from '../recipes/domain/provenancePolicy.js';
 import { foodRefOf } from '../database/schema/foodLookupArm.js';
 import type { CreateRecipeDto } from '../recipes/dto/createRecipe.dto.js';
 import type { ImportRecipe, ImportView } from '../recipes/import.schema.js';
@@ -78,7 +79,7 @@ import {
 import { IMPORT_DEFAULT_PAGE_SIZE, type ImportAdvanceLimits } from './domain/importLimits.js';
 import { importCuisineOf, importPublishGapOf } from './domain/importPublishGap.js';
 import { isReadyToSave } from './domain/importSaveReadiness.js';
-import { provenanceOfStatement, statementOfColumns } from './domain/importStatement.js';
+import { statementOfColumns } from './domain/importStatement.js';
 import { visibilityRefusedFor } from './domain/importVisibility.js';
 import { foodRefOfId, lineFactsOf, type SnapshotPick } from './domain/importLineFacts.js';
 import { savedVerdictKeysOf } from './domain/savedVerdictKeys.js';
@@ -440,6 +441,14 @@ export class ImportAdvanceService {
             return 'waiting';
         }
 
+        // The ONE reading of a statement as provenance, the same one a recipe's own `statement` takes (ADR-0089): the label,
+        // the link, its site and the kind. A link that is not a usable source was refused just above; this keeps it explicit.
+        const provenance = resolveStatementProvenance(statement);
+
+        if (provenance === undefined) {
+            return 'waiting';
+        }
+
         const recipe = importRecipeSchema.parse(item.payload);
         const cuisine = importCuisineOf(item.cuisine, recipe.cuisine);
 
@@ -523,7 +532,7 @@ export class ImportAdvanceService {
             })),
         };
         const imported: ImportedCreate = {
-            provenance: provenanceOfStatement(statement),
+            provenance,
             lineOrigins: built.origins,
             afterWrite: async (tx, saved) => {
                 // ⛔ In the recipe's OWN transaction: the claim and the recipe commit or vanish together.

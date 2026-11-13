@@ -65,8 +65,19 @@ describe('importPublishGapOf: the first thing Publish still needs, or null', () 
         expect(gap({ ingredientLineCount: 0, stepCount: 0 })).toBe('ingredients');
     });
 
-    it('⛔ reads the provenance the STATEMENT sets: a public-domain web import needs no cuisine, as on every route', () => {
-        expect(gap({ cuisine: null, statement: { kind: 'public_web', citation: 'https://example.org/r' } })).toBeNull();
+    // REWRITTEN for ADR-0089: a cook's web statement makes a WEB COPY (`imported_public` with the `public_web` kind), which is
+    // asked for a cuisine like the cook's other recipes. Only the curator's public-domain text (no kind) is exempt, and the
+    // import never sets that. The old row read the statement as the curator's text, which is the hazard ADR-0089 closes.
+    it('⛔ reads the provenance the STATEMENT sets: a web statement is a web copy, and needs a cuisine', () => {
+        expect(gap({ cuisine: null, statement: { kind: 'public_web', citation: 'https://example.org/r' } })).toBe(
+            'cuisine',
+        );
+    });
+
+    it('judges no gap for a web statement whose link is not a usable source: the save refuses it on the label instead', () => {
+        expect(
+            gap({ cuisine: null, statement: { kind: 'public_web', citation: 'https://commise.app/r/1' } }),
+        ).toBeNull();
     });
 
     it('asks a book or paid-site import for a cuisine like any other recipe', () => {

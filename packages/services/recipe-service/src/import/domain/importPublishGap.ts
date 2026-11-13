@@ -7,14 +7,15 @@
  *
  * DESIGN PATTERN: **Adapter** onto the ONE publish policy (`evaluatePublication`), never a second copy of its rule. This
  * module only gathers the import's facts into that policy's input, with the provenance the cook's statement sets, so a
- * public-domain web import is exempt from the cuisine exactly as it is on every other route. The step, the save and the
+ * web statement is a web copy that needs a cuisine, exactly as it is on every other route (ADR-0089). The step, the save and the
  * item list all read the cuisine through {@link importCuisineOf}, so the cuisine the wizard shows is the one the save sends.
  */
 import { RecipeStatus, recipeCuisineSchema, type PublishRequirement } from '@kitchensink/recipe-core';
 import { z } from 'zod';
 
 import { evaluatePublication } from '../../recipes/domain/publishPolicy.js';
-import { provenanceOfStatement, type KnownImportStatement } from './importStatement.js';
+import { resolveStatementProvenance } from '../../recipes/domain/provenancePolicy.js';
+import type { KnownImportStatement } from './importStatement.js';
 
 /** The facts the publish requirements are judged on, as the import knows them before the save. */
 export interface ImportPublishFacts {
@@ -56,9 +57,18 @@ export function importCuisineOf(chosen: string | null, fromFile: string | null |
  * One key, not the list: the item list shows one issue per recipe, and the cook fixes one thing at a time.
  */
 export function importPublishGapOf(facts: ImportPublishFacts): PublishRequirement | null {
+    const provenance = resolveStatementProvenance(facts.statement);
+
+    // A web statement whose link is not a usable source sets no label, so there is nothing to judge here: the visibility
+    // seam refuses that item, and the save never writes it.
+    if (provenance === undefined) {
+        return null;
+    }
+
     const decision = evaluatePublication({
         status: RecipeStatus.PUBLISHED,
-        sourceType: provenanceOfStatement(facts.statement).sourceType,
+        sourceType: provenance.sourceType,
+        sourceKind: provenance.sourceKind,
         cuisine: facts.cuisine,
         ingredientCount: facts.ingredientLineCount,
         stepCount: facts.stepCount,

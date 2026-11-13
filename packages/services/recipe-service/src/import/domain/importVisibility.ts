@@ -15,7 +15,8 @@ import { RecipeVisibility } from '@kitchensink/recipe-core';
 import type { ContainmentSubject } from '../../common/containmentPolicy.js';
 import { evaluateVisibility } from '../../recipes/domain/visibilityPolicy.js';
 import type { ImportVisibility } from '../dal/recipeImports.dal.js';
-import { provenanceOfStatement, type KnownImportStatement } from './importStatement.js';
+import { resolveStatementProvenance } from '../../recipes/domain/provenancePolicy.js';
+import type { KnownImportStatement } from './importStatement.js';
 
 /** What the policy needs to know about the cook. */
 export interface VisibilityFacts extends ContainmentSubject {
@@ -28,17 +29,25 @@ export interface VisibilityFacts extends ContainmentSubject {
  * @param facts - The cook: plan and containment.
  * @param statement - What the cook said about the recipe.
  * @param requested - The visibility the item would be saved with.
- * @returns `true` when the policy refuses it. Pure and total.
+ * @returns `true` when the policy refuses it, or when the statement's link is not a usable source. Pure and total.
  */
 export function visibilityRefusedFor(
     facts: VisibilityFacts,
     statement: KnownImportStatement,
     requested: ImportVisibility,
 ): boolean {
+    const provenance = resolveStatementProvenance(statement);
+
+    // A web statement whose link is not a usable source sets no label at all: refused either way, so it is never saved.
+    if (provenance === undefined) {
+        return true;
+    }
+
     const decision = evaluateVisibility({
         principalKind: facts.principalKind,
         containment: facts.containment,
-        sourceType: provenanceOfStatement(statement).sourceType,
+        sourceType: provenance.sourceType,
+        sourceKind: provenance.sourceKind,
         isPremium: facts.isPremium,
         hasAvailablePrivateSlot: true,
         requested: requested === 'public' ? RecipeVisibility.PUBLIC : RecipeVisibility.PRIVATE,

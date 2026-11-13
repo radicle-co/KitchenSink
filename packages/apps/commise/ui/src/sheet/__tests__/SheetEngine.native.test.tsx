@@ -261,7 +261,8 @@ describe('the props the sheet hands Tamagui’s Sheet', () => {
 
         expect(engine().transition).toBeUndefined();
         expect(engine().transitionConfig).toEqual({ type: 'timing', duration: 0 });
-        expect(state.overlay?.['transition']).toBeUndefined();
+        // The overlay keeps its transition in every mode (`motionPropsOf`); with a constant opacity nothing fades.
+        expect(state.overlay?.['opacity']).toBe(1);
         expect(state.overlay?.['enterStyle']).toBeUndefined();
     });
 });

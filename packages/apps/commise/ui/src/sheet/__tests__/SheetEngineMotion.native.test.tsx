@@ -34,4 +34,21 @@ describe('SheetEngine across a change of the reduce-motion answer', () => {
 
         expect(screen.getByText('Dietary')).toBeTruthy();
     });
+
+    /**
+     * The answer often resolves while the first sheet after a cold start is open. A remounted overlay would mount again
+     * with its fade-in clause, so the scrim of an open sheet would drop to transparent and fade back in.
+     */
+    it('keeps the same scrim element on screen when the answer arrives as off after the sheet opened', () => {
+        const { container, rerender } = render(engineWith(undefined));
+        const before = Array.from(container.querySelectorAll('*'));
+
+        rerender(engineWith(false));
+
+        const after = Array.from(container.querySelectorAll('*'));
+
+        expect(before.length).toBeGreaterThan(0);
+        // Every element that was on screen is still the same node: nothing remounted.
+        expect(before.every((node) => after.includes(node))).toBe(true);
+    });
 });

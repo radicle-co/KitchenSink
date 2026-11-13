@@ -57,8 +57,7 @@ export const SheetEngine: FC<SheetEngineProps> = ({ open, onTransition, reduceMo
             snapPoints={FULL_HEIGHT}
             {...motion.sheet}
         >
-            {/* Keyed by the motion mode: the overlay gains or loses its transition with it (see `MotionProps.mode`). */}
-            <Sheet.Overlay key={motion.mode} backgroundColor="$scrim" opacity={1} {...motion.overlay} />
+            <Sheet.Overlay backgroundColor="$scrim" opacity={1} {...motion.overlay} />
             <Sheet.Container justifyContent="flex-end">{children}</Sheet.Container>
         </Sheet>
     );

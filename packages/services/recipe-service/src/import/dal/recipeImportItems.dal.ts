@@ -36,6 +36,7 @@ import type { RecipeTx } from '../../database/unitOfWork.js';
 import type { ImportRecipe, ImportStatement } from '../../recipes/import.schema.js';
 import { ITEM_REVIEWS, type ItemReview } from '../domain/importBindingPolicy.js';
 import { decideItemUpsert } from '../domain/importItemUpsert.js';
+import { HOLD_REASONS, type HoldReason, type ImportHold } from '../domain/importHold.js';
 import { importRefusalOf, type ImportRefusal } from '../domain/importRefusal.js';
 import type { ImportFileFacts } from '../domain/importSaveGap.js';
 import { columnsOfStatement } from '../domain/importStatement.js';
@@ -45,12 +46,14 @@ import { touchImport, type ImportVisibility } from './recipeImports.dal.js';
 import type { NewImportLine } from './recipeImportLines.dal.js';
 
 /** One item as the DAL returns it, with its stage, review mark and visibility narrowed to the CHECK vocabularies. */
-export type ImportItem = Omit<RecipeImportItemRow, 'stage' | 'review' | 'visibility' | 'refusal'> & {
+export type ImportItem = Omit<RecipeImportItemRow, 'stage' | 'review' | 'visibility' | 'refusal' | 'heldReason'> & {
     readonly stage: ImportStage;
     readonly review: ItemReview;
     readonly visibility: ImportVisibility | null;
     /** Why the import refuses the recipe, or `null` (set when the item is written). */
     readonly refusal: ImportRefusal | null;
+    /** Why the save held the item, or `null` (never held, or held before reasons were recorded). */
+    readonly heldReason: HoldReason | null;
 };
 
 /** One item of a request. */
@@ -107,14 +110,21 @@ function toItem(row: RecipeImportItemRow): ImportItem {
     const review = ITEM_REVIEWS.find((value) => value === row.review);
     const visibility = row.visibility === null ? null : IMPORT_VISIBILITIES.find((value) => value === row.visibility);
     const refusal = row.refusal === null ? null : IMPORT_REFUSALS.find((value) => value === row.refusal);
+    const heldReason = row.heldReason === null ? null : HOLD_REASONS.find((value) => value === row.heldReason);
 
-    if (stage === undefined || review === undefined || visibility === undefined || refusal === undefined) {
+    if (
+        stage === undefined ||
+        review === undefined ||
+        visibility === undefined ||
+        refusal === undefined ||
+        heldReason === undefined
+    ) {
         throw new Error(
             `recipe_import_items ${row.importId}/${String(row.ordinal)} holds a value this build does not know`,
         );
     }
 
-    return { ...row, stage, review, visibility, refusal };
+    return { ...row, stage, review, visibility, refusal, heldReason };
 }
 
 /** The columns a request's statement, when it has one, writes. Pure. */
@@ -409,9 +419,12 @@ export class RecipeImportItemsDal {
      * The matched items worth trying to save: those the cook has said where the recipe came from (an item cannot be saved
      * without), LEAST RECENTLY LOOKED AT first. Payloads included (the save builds the recipe from it).
      *
-     * ⛔ An item HELD at its current revision is left out ({@link holdItem}): it lacks what Publish needs, and only a decision
-     * of the cook can change that, so looking at it again would re-queue it forever. `IS DISTINCT FROM`, not `<>`: an item
-     * never held has a NULL hold, and `NULL <> rev` would leave it out too.
+     * ⛔ An item whose hold still APPLIES to this cook is left out ({@link holdItem}, `holdApplies`): looking at it again would
+     * re-queue it forever for nothing. A hold applies at the current revision, and for a cause the cook's facts decide (the
+     * label, a create refusal) only under the facts it was judged under, so an upgrade or a containment change brings the
+     * item back with no decision (review M1 on #220). `IS NOT DISTINCT FROM`: an item never held has a NULL hold.
+     *
+     * @param cookKey - The asking cook's facts (`cookKeyOf`).
      *
      * ⛔ Ordered by `updated_at`, with {@link deferItem} to send a looked-at-but-not-saved item to the back, so an item that
      * cannot be saved yet (its review is open, a food is down, its visibility is refused) does not hold the same place at the
@@ -419,7 +432,7 @@ export class RecipeImportItemsDal {
      *
      * @sideEffect Reads.
      */
-    public async findSaveCandidates(importId: string, limit: number): Promise<ImportItem[]> {
+    public async findSaveCandidates(importId: string, limit: number, cookKey: string): Promise<ImportItem[]> {
         return (
             await this.db
                 .select()
@@ -429,7 +442,16 @@ export class RecipeImportItemsDal {
                         eq(recipeImportItems.importId, importId),
                         eq(recipeImportItems.stage, 'matched'),
                         isNotNull(recipeImportItems.statementKind),
-                        sql`${recipeImportItems.heldAtRev} IS DISTINCT FROM ${recipeImportItems.decisionRev}`,
+                        // ⛔ The SQL twin of `holdApplies` (importHold.ts): a hold is out of the queue only while it is at the
+                        // current revision AND, for a cause the cook's facts decide, judged under THIS cook's facts. A hold
+                        // with no reason predates 0082 and is read as a cause in the item.
+                        sql`NOT (
+                            ${recipeImportItems.heldAtRev} IS NOT DISTINCT FROM ${recipeImportItems.decisionRev}
+                            AND (
+                                COALESCE(${recipeImportItems.heldReason}, 'item') NOT IN ('visibility', 'createRefused')
+                                OR ${recipeImportItems.heldCookKey} = ${cookKey}
+                            )
+                        )`,
                     ),
                 )
                 .orderBy(asc(recipeImportItems.updatedAt), asc(recipeImportItems.ordinal))
@@ -451,20 +473,23 @@ export class RecipeImportItemsDal {
     }
 
     /**
-     * Hold an item the save found short of what Publish needs, until the cook decides something about it.
+     * Hold an item the save cannot save, with why, until something that could change the outcome changes.
      *
      * Fenced on the revision the save READ: a decision that landed while the save was looking moved the revision, so the hold
-     * is not written and that decision is looked at on the next call. No later write clears the hold; the next decision moves
-     * `decision_rev` past it. Touches neither `updated_at` nor the import's activity clock (a hold is not the cook's activity).
+     * is not written and that decision is looked at on the next call. No later write clears the hold: the next decision moves
+     * `decision_rev` past it, and for a cause the cook's facts decide, a cook with other facts is not held by it
+     * ({@link findSaveCandidates}). Touches neither `updated_at` nor the import's activity clock (a hold is not the cook's
+     * activity).
      *
      * @param decisionRev - The item's `decision_rev` as the save read it.
+     * @param hold - Why, and for a cause the cook's facts decide, the facts it was judged under (`holdOf`).
      * @returns Whether the item is now held (`false`: it changed in between).
-     * @sideEffect Writes `held_at_rev`.
+     * @sideEffect Writes `held_at_rev`, `held_reason` and `held_cook_key`.
      */
-    public async holdItem(importId: string, ordinal: number, decisionRev: number): Promise<boolean> {
+    public async holdItem(importId: string, ordinal: number, decisionRev: number, hold: ImportHold): Promise<boolean> {
         const held = await this.db
             .update(recipeImportItems)
-            .set({ heldAtRev: decisionRev })
+            .set({ heldAtRev: decisionRev, heldReason: hold.reason, heldCookKey: hold.cookKey })
             .where(
                 and(
                     eq(recipeImportItems.importId, importId),
@@ -786,6 +811,8 @@ function itemColumnsWithoutPayload() {
         visibility: rest.visibility,
         cuisine: rest.cuisine,
         heldAtRev: rest.heldAtRev,
+        heldReason: rest.heldReason,
+        heldCookKey: rest.heldCookKey,
         servings: rest.servings,
         prepTimeMinutes: rest.prepTimeMinutes,
         cookTimeMinutes: rest.cookTimeMinutes,

@@ -88,7 +88,8 @@ import { IMPORT_DEFAULT_PAGE_SIZE, type ImportAdvanceLimits } from './domain/imp
 import { fileSaveFactsOf, type SaveableFacts } from './domain/importSaveGap.js';
 import { isReadyToSave } from './domain/importSaveReadiness.js';
 import { statementOfColumns } from './domain/importStatement.js';
-import { visibilityFactsOf } from './domain/importVisibility.js';
+import { visibilityFactsOf, type VisibilityFacts } from './domain/importVisibility.js';
+import { cookKeyOf, holdOf, type HoldReason, type ImportHold } from './domain/importHold.js';
 import { foodRefOfId, lineFactsOf, type SnapshotPick } from './domain/importLineFacts.js';
 import { savedVerdictKeysOf } from './domain/savedVerdictKeys.js';
 import { snapshotLinesOf } from './domain/snapshotLines.js';
@@ -106,33 +107,36 @@ interface CallDeadline {
 /** What a save attempt came to. `held`: only the cook can unblock it, so it waits out of the queue until they decide. */
 type SaveOutcome = 'saved' | 'waiting' | 'paused' | 'held';
 
+/** What the save does about an issue: wait, pause, or hold the item for this reason (`importHold.ts`). */
+type IssueOutcome = 'waiting' | 'paused' | HoldReason;
+
 /**
  * What the save does about each issue that stops an item. A `Record` over the issue union, so a new issue is a compile error
- * here until someone decides it. Held: only the cook's decision (which moves the revision) can change it. Paused: a slot can
- * free up without one.
+ * here until someone decides it. A hold names WHY (review M1 on #220): `item` for a cause only the cook's decision changes,
+ * `visibility` for the label, which the cook's facts decide too. Paused: a slot can free up without a decision.
  */
 const SAVE_OUTCOME_OF_ISSUE = {
     waitingForAllowance: 'waiting',
     needsStatement: 'waiting',
-    visibilityRefused: 'held',
-    // A hold no rule above names: the save holds it already, and the view reads it back from the hold.
-    saveRefused: 'held',
-    needsCuisine: 'held',
-    needsServings: 'held',
-    needsTimes: 'held',
+    visibilityRefused: 'visibility',
+    // A create refusal the save held already, and the view reads it back from the hold; it still applies to this cook.
+    saveRefused: 'createRefused',
+    needsCuisine: 'item',
+    needsServings: 'item',
+    needsTimes: 'item',
     // A refused recipe never leaves `received` (a CHECK), so it is never a save candidate. Should one reach the save all the
     // same, nothing the save can do changes it, so it is held rather than looked at again on every advance.
-    noIngredients: 'held',
-    noSteps: 'held',
+    noIngredients: 'item',
+    noSteps: 'item',
     outOfSlots: 'paused',
-} as const satisfies Record<ItemIssue, SaveOutcome>;
+} as const satisfies Record<ItemIssue, IssueOutcome>;
 
 /**
  * What a create the save path refused comes to, or `undefined` for an error the save does not expect. Pure.
  *
  * `unpublishable` is kept apart because the import judged the recipe publishable first, so that refusal is a defect to log.
  */
-function outcomeOfCreateRefusal(error: unknown): SaveOutcome | 'unpublishable' | undefined {
+function outcomeOfCreateRefusal(error: unknown): 'saved' | 'waiting' | 'createRefused' | 'unpublishable' | undefined {
     if (isImportItemAlreadyClaimedError(error)) {
         // Another call saved it first; this one's recipe rolled back with the failed claim.
         return 'saved';
@@ -143,8 +147,10 @@ function outcomeOfCreateRefusal(error: unknown): SaveOutcome | 'unpublishable' |
         return 'waiting';
     }
 
+    // Judged under the cook's facts (a free cook with no slot left is refused; on Pro the same create is not): the hold
+    // records them, so a change of plan or containment brings the item back.
     if (isRecipeDomainError(error) && error.code === RecipeErrorCode.INVALID_VISIBILITY) {
-        return 'held';
+        return 'createRefused';
     }
 
     if (isRecipeDomainError(error) && error.code === RecipeErrorCode.PUBLISH_REQUIREMENTS_UNMET) {
@@ -465,7 +471,11 @@ export class ImportAdvanceService {
         header: ImportHeader,
         deadline: CallDeadline,
     ): Promise<void> {
-        const candidates = await this.items.findSaveCandidates(header.id, this.limits.saveExamine);
+        const candidates = await this.items.findSaveCandidates(
+            header.id,
+            this.limits.saveExamine,
+            cookKeyOf(visibilityFactsOf(principal)),
+        );
 
         if (candidates.length === 0) {
             return;
@@ -527,6 +537,7 @@ export class ImportAdvanceService {
     ): Promise<SaveOutcome> {
         const requested: ImportVisibility = item.visibility ?? header.visibility;
         const statement = statementOfColumns(item);
+        const cook = visibilityFactsOf(principal);
         const read = importRecipeSchema.safeParse(item.payload);
 
         // A payload the contract admitted but this build cannot read can never be saved: hold it, and say so once. The hold
@@ -537,7 +548,7 @@ export class ImportAdvanceService {
                 read.error.message,
             );
 
-            return this.hold(header, item);
+            return this.hold(header, item, holdOf('unreadable', cook));
         }
 
         const recipe = read.data;
@@ -545,7 +556,7 @@ export class ImportAdvanceService {
             item,
             statement,
             requested,
-            cook: visibilityFactsOf(principal),
+            cook,
             saveFacts: {
                 file: fileSaveFactsOf(item.payload),
                 ingredientLineCount: recipe.ingredientLines.length,
@@ -568,7 +579,7 @@ export class ImportAdvanceService {
         const issue = importItemIssueOf(facts);
 
         if (issue !== null) {
-            return this.settle(header, item, SAVE_OUTCOME_OF_ISSUE[issue]);
+            return this.settle(header, item, cook, SAVE_OUTCOME_OF_ISSUE[issue]);
         }
 
         // The ONE reading of a statement as provenance, the same one a recipe's own `statement` takes (ADR-0089).
@@ -668,31 +679,39 @@ export class ImportAdvanceService {
                     errorStack(error),
                 );
 
-                return this.hold(header, item);
+                return this.hold(header, item, holdOf('createRefused', cook));
             }
 
-            return this.settle(header, item, refused);
+            return this.settle(header, item, cook, refused);
         }
 
         return 'saved';
     }
 
     /**
-     * Apply an outcome: a `held` one writes the hold; any other is returned as it is.
+     * Apply an outcome: a hold reason writes that hold, judged under this cook; any other is returned as it is.
      *
-     * @sideEffect Writes the hold for `held`.
+     * @sideEffect Writes the hold for a hold reason.
      */
-    private async settle(header: ImportHeader, item: ImportItem, outcome: SaveOutcome): Promise<SaveOutcome> {
-        return outcome === 'held' ? this.hold(header, item) : outcome;
+    private async settle(
+        header: ImportHeader,
+        item: ImportItem,
+        cook: VisibilityFacts,
+        outcome: IssueOutcome | 'saved',
+    ): Promise<SaveOutcome> {
+        return outcome === 'saved' || outcome === 'waiting' || outcome === 'paused'
+            ? outcome
+            : this.hold(header, item, holdOf(outcome, cook));
     }
 
     /**
-     * Hold an item only the cook can unblock, at the revision the save read (a decision since then leaves it unheld).
+     * Hold an item at the revision the save read (a decision since then leaves it unheld), with why: a cause the cook's facts
+     * decide records them, so other facts bring it back (`importHold.ts`).
      *
      * @sideEffect Writes the hold.
      */
-    private async hold(header: ImportHeader, item: ImportItem): Promise<SaveOutcome> {
-        await this.items.holdItem(header.id, item.ordinal, item.decisionRev);
+    private async hold(header: ImportHeader, item: ImportItem, hold: ImportHold): Promise<SaveOutcome> {
+        await this.items.holdItem(header.id, item.ordinal, item.decisionRev, hold);
 
         return 'held';
     }

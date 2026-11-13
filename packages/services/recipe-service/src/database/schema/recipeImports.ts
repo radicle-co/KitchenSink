@@ -136,6 +136,10 @@ export const recipeImportItems = pgTable(
         cookTimeMinutes: integer('cook_time_minutes'),
         /** Why the import refuses the recipe, set when the item is written; a refused item never leaves `received` (0078). */
         refusal: text('refusal'),
+        /** Why the save held the item at `held_at_rev`; NULL for a hold written before 0082, read as a cause in the item. */
+        heldReason: text('held_reason'),
+        /** The cook facts a hold whose cause they decide was judged under (`cookKeyOf`), so other facts release it (0082). */
+        heldCookKey: text('held_cook_key'),
         createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
         updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
     },
@@ -161,6 +165,18 @@ export const recipeImportItems = pgTable(
         check(
             'recipe_import_items_refusal_only_received',
             sql`${table.refusal} IS NULL OR ${table.stage} = 'received'`,
+        ),
+        check(
+            'recipe_import_items_held_reason_check',
+            // A CASE, because a CHECK passes on NULL (0082 says why).
+            sql`CASE
+                WHEN ${table.heldReason} IS NULL THEN ${table.heldCookKey} IS NULL
+                WHEN ${table.heldReason} IN ('item', 'unreadable')
+                    THEN ${table.heldAtRev} IS NOT NULL AND ${table.heldCookKey} IS NULL
+                WHEN ${table.heldReason} IN ('visibility', 'createRefused')
+                    THEN ${table.heldAtRev} IS NOT NULL AND ${table.heldCookKey} IS NOT NULL
+                ELSE false
+            END`,
         ),
         check('recipe_import_items_cuisine_check', sql`${table.cuisine} IS NULL OR btrim(${table.cuisine}) <> ''`),
         check('recipe_import_items_title_check', sql`btrim(${table.title}) <> ''`),

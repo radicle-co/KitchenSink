@@ -6,6 +6,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { makeItem } from '../../__fixtures__/importFixtures.js';
+import { cookKeyOf } from '../importHold.js';
 import { itemIssueFactsOf, type ItemIssueInput } from '../importItemIssueFacts.js';
 
 const FREE_COOK = { principalKind: 'real', containment: 'enforce', isPremium: false } as const;
@@ -113,14 +114,19 @@ describe('itemIssueFactsOf: the facts one item’s issue is derived from', () =>
         expect(facts).toMatchObject({ paid: false, outOfSlots: true, allowanceSpent: true, private: true });
     });
 
-    it('reads the hold at the current revision from the item', () => {
-        expect(
-            itemIssueFactsOf(input({ item: makeItem({ stage: 'matched', heldAtRev: 3, decisionRev: 3 }) })).facts
-                .heldAtCurrentRevision,
-        ).toBe(true);
-        expect(
-            itemIssueFactsOf(input({ item: makeItem({ stage: 'matched', heldAtRev: 2, decisionRev: 3 }) })).facts
-                .heldAtCurrentRevision,
-        ).toBe(false);
+    // Review M1 on #220: `saveRefused` reads WHY the item was held, and for this cook, never the bare revision.
+    it('⛔ reads a saveRefused hold only for a create refusal or unreadable payload that applies to this cook', () => {
+        const held = (patch: Partial<ItemIssueInput['item']>) =>
+            itemIssueFactsOf(input({ item: makeItem({ stage: 'matched', heldAtRev: 3, decisionRev: 3, ...patch }) }))
+                .facts.saveRefusedHold;
+        const free = cookKeyOf(FREE_COOK);
+        const pro = cookKeyOf({ ...FREE_COOK, isPremium: true });
+
+        expect(held({ heldReason: 'createRefused', heldCookKey: free })).toBe(true);
+        expect(held({ heldReason: 'unreadable' })).toBe(true);
+        expect(held({ heldReason: 'createRefused', heldCookKey: pro })).toBe(false);
+        expect(held({ heldReason: 'visibility', heldCookKey: free })).toBe(false);
+        expect(held({ heldReason: 'item' })).toBe(false);
+        expect(held({ heldReason: 'unreadable', decisionRev: 4 })).toBe(false);
     });
 });

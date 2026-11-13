@@ -306,6 +306,9 @@ describe('recipe-service schema — table contracts (T011–T014, T118, T119, T1
             cook_time_minutes: { type: 'integer', notNull: false },
             // Why the import refuses the recipe, set when the item is written (0078). Never leaves `received`.
             refusal: { type: 'text', notNull: false },
+            // Why the save held the item, and the cook facts a cook-dependent hold was judged under (0082).
+            held_reason: { type: 'text', notNull: false },
+            held_cook_key: { type: 'text', notNull: false },
             created_at: { type: 'timestampwithtimezone', notNull: true },
             updated_at: { type: 'timestampwithtimezone', notNull: true },
         });

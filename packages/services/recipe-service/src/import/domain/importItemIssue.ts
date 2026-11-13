@@ -12,8 +12,9 @@
  * (ADR-0073). The statement comes first because the label, and with it the cuisine requirement, is derived from it. A save gap
  * comes before the slot pause because a recipe that cannot be saved uses no slot. Last of the reasons that hold an item, an
  * item the save HELD for a reason none of these names (a create refusal the pre-check did not predict, or a payload the save
- * cannot read) is `saveRefused`, read from the hold itself (`held_at_rev` equal to `decision_rev`), so it never stalls with no
- * issue. It comes before the slot pause because a held item is out of the queue whether or not a slot frees.
+ * cannot read) is `saveRefused`, read from the hold's recorded REASON while it still applies to this cook (`importHold.ts`),
+ * so it never stalls with no issue and never names a hold whose cause is gone. It comes before the slot pause because a held
+ * item is out of the queue whether or not a slot frees.
  */
 import type { ImportStage } from '../../database/schema/recipeImports.js';
 import type { ImportRefusal } from './importRefusal.js';
@@ -55,8 +56,8 @@ export interface ItemIssueFacts {
     readonly allowanceSpent: boolean;
     /** The first thing the save still needs (`importSaveGapOf`), or `null`. */
     readonly saveGap: ImportSaveGap | null;
-    /** Whether the save holds the item at its current revision (`held_at_rev = decision_rev`). */
-    readonly heldAtCurrentRevision: boolean;
+    /** Whether the save holds the item for a create refusal or an unreadable payload, still applying (`isSaveRefusedHold`). */
+    readonly saveRefusedHold: boolean;
 }
 
 /**
@@ -95,7 +96,7 @@ export function importItemIssueOf(facts: ItemIssueFacts): ItemIssue | null {
         return SAVE_GAP_ISSUES[facts.saveGap];
     }
 
-    if (facts.heldAtCurrentRevision) {
+    if (facts.saveRefusedHold) {
         return 'saveRefused';
     }
 

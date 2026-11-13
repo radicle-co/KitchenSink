@@ -298,7 +298,7 @@ describe('the import services under the real injector', () => {
 
             await advancer.advance(COOK, CALLER, IMPORT_ID);
 
-            expect(items.holdItem).toHaveBeenCalledWith(IMPORT_ID, 0, 4);
+            expect(items.holdItem).toHaveBeenCalledWith(IMPORT_ID, 0, 4, { reason: 'item', cookKey: null });
             expect(recipes.create).not.toHaveBeenCalled();
             expect(items.deferItem).not.toHaveBeenCalled();
         });
@@ -356,7 +356,7 @@ describe('the import services under the real injector', () => {
                 items.findSaveCandidates.mockResolvedValue([savable(gap)]);
                 await advancer.advance(COOK, CALLER, IMPORT_ID);
 
-                expect(items.holdItem).toHaveBeenCalledWith(IMPORT_ID, 0, 4);
+                expect(items.holdItem).toHaveBeenCalledWith(IMPORT_ID, 0, 4, { reason: 'item', cookKey: null });
             }
 
             expect(recipes.create).not.toHaveBeenCalled();

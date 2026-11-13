@@ -8,6 +8,7 @@
  */
 import type { ImportItem } from '../dal/recipeImportItems.dal.js';
 import type { ImportVisibility } from '../dal/recipeImports.dal.js';
+import { cookKeyOf, isSaveRefusedHold } from './importHold.js';
 import type { ItemIssueFacts } from './importItemIssue.js';
 import { importRefusalOf } from './importRefusal.js';
 import { importSaveFactsOf, importSaveGapOf, type ImportFileFacts, type ImportSaveReading } from './importSaveGap.js';
@@ -23,6 +24,8 @@ export interface ItemIssueInput {
         | 'allowanceSpentAt'
         | 'heldAtRev'
         | 'decisionRev'
+        | 'heldReason'
+        | 'heldCookKey'
         | 'cuisine'
         | 'servings'
         | 'prepTimeMinutes'
@@ -77,7 +80,7 @@ export function itemIssueFactsOf(input: ItemIssueInput): {
             paid: item.allowanceSpentAt !== null,
             allowanceSpent: input.allowanceSpent,
             saveGap: reading !== undefined && 'gap' in reading ? reading.gap : null,
-            heldAtCurrentRevision: item.heldAtRev === item.decisionRev,
+            saveRefusedHold: isSaveRefusedHold(item, cookKeyOf(input.cook)),
         },
         reading,
     };

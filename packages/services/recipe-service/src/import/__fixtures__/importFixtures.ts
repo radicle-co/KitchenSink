@@ -84,6 +84,8 @@ export function makeItem(overrides: Partial<ImportItem> = {}): ImportItem {
         visibility: null,
         cuisine: null,
         heldAtRev: null,
+        heldReason: null,
+        heldCookKey: null,
         servings: null,
         prepTimeMinutes: null,
         cookTimeMinutes: null,

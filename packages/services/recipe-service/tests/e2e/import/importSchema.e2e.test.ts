@@ -42,7 +42,7 @@ const UNIQUE_VIOLATION = '23505';
 
 type Columns = Record<string, unknown>;
 
-describe('the bulk-import tables (LOCAL e2e; migrations 0059, 0060, 0066, 0074 to 0081)', () => {
+describe('the bulk-import tables (LOCAL e2e; migrations 0059, 0060, 0066, 0074 to 0083)', () => {
     let pool: pg.Pool;
 
     beforeAll(async () => {
@@ -192,6 +192,8 @@ describe('the bulk-import tables (LOCAL e2e; migrations 0059, 0060, 0066, 0074 t
                 'cuisine',
                 'decision_rev',
                 'held_at_rev',
+                'held_cook_key',
+                'held_reason',
                 'import_id',
                 'matched_at',
                 'ordinal',
@@ -549,6 +551,75 @@ describe('the bulk-import tables (LOCAL e2e; migrations 0059, 0060, 0066, 0074 t
                     insert('recipe_import_items', receivedItem(importId, 0, extra as Columns)),
                     CHECK_VIOLATION,
                 );
+            });
+        });
+
+        describe('why an item is held, and for which cook (0082, 0083; review M1 on #220)', () => {
+            // 0082 adds the CHECK NOT VALID, for the lock reason above; 0083 validates it.
+            it('recipe_import_items.recipe_import_items_held_reason_check is present and VALIDATED (0082, 0083)', async () => {
+                const { rows } = await pool.query<{ convalidated: boolean }>(
+                    `SELECT convalidated FROM pg_constraint
+                      WHERE conrelid = 'recipe_import_items'::regclass AND conname = 'recipe_import_items_held_reason_check'`,
+                );
+
+                expect(rows).toEqual([{ convalidated: true }]);
+            });
+
+            it('keeps a hold of each reason, with the cook facts on the two those facts decide', async () => {
+                const importId = await newImport();
+                const rows = await Promise.all([
+                    insert('recipe_import_items', receivedItem(importId, 0, { held_at_rev: 0, held_reason: 'item' })),
+                    insert(
+                        'recipe_import_items',
+                        receivedItem(importId, 1, { held_at_rev: 0, held_reason: 'unreadable' }),
+                    ),
+                    insert(
+                        'recipe_import_items',
+                        receivedItem(importId, 2, {
+                            held_at_rev: 0,
+                            held_reason: 'visibility',
+                            held_cook_key: 'real/enforce/free',
+                        }),
+                    ),
+                    insert(
+                        'recipe_import_items',
+                        receivedItem(importId, 3, {
+                            held_at_rev: 0,
+                            held_reason: 'createRefused',
+                            held_cook_key: 'real/enforce/free',
+                        }),
+                    ),
+                ]);
+
+                expect(rows.map((row) => [row['held_reason'], row['held_cook_key']])).toEqual([
+                    ['item', null],
+                    ['unreadable', null],
+                    ['visibility', 'real/enforce/free'],
+                    ['createRefused', 'real/enforce/free'],
+                ]);
+            });
+
+            it('⛔ admits a hold with NO reason: the release running during the deploy writes held_at_rev alone', async () => {
+                const importId = await newImport();
+                const row = await insert('recipe_import_items', receivedItem(importId, 0, { held_at_rev: 0 }));
+
+                expect([row['held_at_rev'], row['held_reason'], row['held_cook_key']]).toEqual([0, null, null]);
+            });
+
+            it.each([
+                ['a reason this build does not know', { held_at_rev: 0, held_reason: 'stuck' }],
+                ['a reason with no hold', { held_reason: 'item' }],
+                ['a label hold with no cook facts', { held_at_rev: 0, held_reason: 'visibility' }],
+                ['a create refusal with no cook facts', { held_at_rev: 0, held_reason: 'createRefused' }],
+                [
+                    'cook facts on a hold they do not decide',
+                    { held_at_rev: 0, held_reason: 'item', held_cook_key: 'k' },
+                ],
+                ['cook facts with no reason', { held_at_rev: 0, held_cook_key: 'k' }],
+            ])('refuses %s', async (_name, extra) => {
+                const importId = await newImport();
+
+                await refused(insert('recipe_import_items', receivedItem(importId, 0, extra)), CHECK_VIOLATION);
             });
         });
 

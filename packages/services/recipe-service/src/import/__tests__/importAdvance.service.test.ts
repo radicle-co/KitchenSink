@@ -46,7 +46,9 @@ import { ImportItemAlreadyClaimedError, ImportItemChangedError } from '../dal/re
 import type { ImportLine } from '../dal/recipeImportLines.dal.js';
 import { DEFAULT_IMPORT_ADVANCE_LIMITS, type ImportAdvanceLimits } from '../domain/importLimits.js';
 import { importDeclaredNameIdsOf } from '../domain/importDeclaredName.js';
+import { cookKeyOf, holdApplies, type ImportHold } from '../domain/importHold.js';
 import { importJobIdOf } from '../domain/importJobId.js';
+import { visibilityFactsOf } from '../domain/importVisibility.js';
 import { ImportAdvanceService } from '../importAdvance.service.js';
 import type { ImportLineView } from '../importLineView.js';
 import type { PrivateSlotsPort } from '../privateSlots.port.js';
@@ -70,6 +72,10 @@ import {
 
 const CALLER = CallerToken.fromAuthorizationHeader('Bearer cook-token');
 const COOK = makePrincipal();
+/** The cook facts COOK's holds are judged under. */
+const COOK_KEY = cookKeyOf(visibilityFactsOf(COOK));
+/** A hold for a cause inside the item: only the cook's decision releases it. */
+const ITEM_HOLD = { reason: 'item', cookKey: null } as const;
 const VIEW = makeImportView({ id: IMPORT_ID });
 
 /** The first call to `create`, typed, or a failure when there was none. */
@@ -178,11 +184,11 @@ function itemStore(initial: readonly ImportItem[]) {
                 .slice(0, limit)
                 .map((item) => ({ ...item, payload: null })),
         ),
-        findSaveCandidates: vi.fn(async (_importId: string, limit: number) =>
+        // The candidate rule through the ONE predicate the view reads too; the SQL twin is held to it by the LOCAL e2e.
+        findSaveCandidates: vi.fn(async (_importId: string, limit: number, cookKey: string) =>
             [...items.values()]
                 .filter(
-                    (item) =>
-                        item.stage === 'matched' && item.statementKind !== null && item.heldAtRev !== item.decisionRev,
+                    (item) => item.stage === 'matched' && item.statementKind !== null && !holdApplies(item, cookKey),
                 )
                 .sort((a, b) => a.updatedAt.getTime() - b.updatedAt.getTime() || a.ordinal - b.ordinal)
                 .slice(0, limit),
@@ -190,12 +196,12 @@ function itemStore(initial: readonly ImportItem[]) {
         deferItem: vi.fn(async (_importId: string, ordinal: number) => {
             set(ordinal, { updatedAt: new Date(Date.now() + 1) });
         }),
-        holdItem: vi.fn(async (_importId: string, ordinal: number, decisionRev: number) => {
+        holdItem: vi.fn(async (_importId: string, ordinal: number, decisionRev: number, hold: ImportHold) => {
             if (items.get(ordinal)?.decisionRev !== decisionRev) {
                 return false;
             }
 
-            set(ordinal, { heldAtRev: decisionRev });
+            set(ordinal, { heldAtRev: decisionRev, heldReason: hold.reason, heldCookKey: hold.cookKey });
 
             return true;
         }),
@@ -1086,7 +1092,7 @@ describe('ImportAdvanceService — saving what is ready', () => {
 
             await answered;
             expect(recipes.create).not.toHaveBeenCalled();
-            expect(store.holdItem).toHaveBeenCalledWith(IMPORT_ID, 0, 7);
+            expect(store.holdItem).toHaveBeenCalledWith(IMPORT_ID, 0, 7, { reason: 'visibility', cookKey: COOK_KEY });
             expect(store.deferItem).not.toHaveBeenCalled();
         });
 
@@ -1100,7 +1106,10 @@ describe('ImportAdvanceService — saving what is ready', () => {
             );
 
             await expect(answered).resolves.toBe(VIEW);
-            expect(store.holdItem).toHaveBeenCalledWith(IMPORT_ID, 0, 7);
+            expect(store.holdItem).toHaveBeenCalledWith(IMPORT_ID, 0, 7, {
+                reason: 'createRefused',
+                cookKey: COOK_KEY,
+            });
             expect(store.deferItem).not.toHaveBeenCalled();
         });
 
@@ -1281,7 +1290,7 @@ describe('ImportAdvanceService — saving what is ready', () => {
             expect(recipes.create).not.toHaveBeenCalled();
             // Held before the costly part: the match read asks food and the review gate.
             expect(lineView.matchesOf).not.toHaveBeenCalled();
-            expect(store.holdItem).toHaveBeenCalledWith(IMPORT_ID, 0, 7);
+            expect(store.holdItem).toHaveBeenCalledWith(IMPORT_ID, 0, 7, ITEM_HOLD);
             expect(store.deferItem).not.toHaveBeenCalled();
         });
 
@@ -1295,7 +1304,7 @@ describe('ImportAdvanceService — saving what is ready', () => {
             await answered;
 
             expect(recipes.create).not.toHaveBeenCalled();
-            expect(store.holdItem).toHaveBeenCalledWith(IMPORT_ID, 0, 7);
+            expect(store.holdItem).toHaveBeenCalledWith(IMPORT_ID, 0, 7, ITEM_HOLD);
         });
 
         it.each([
@@ -1313,7 +1322,7 @@ describe('ImportAdvanceService — saving what is ready', () => {
             await answered;
 
             expect(recipes.create).not.toHaveBeenCalled();
-            expect(store.holdItem).toHaveBeenCalledWith(IMPORT_ID, 0, 7);
+            expect(store.holdItem).toHaveBeenCalledWith(IMPORT_ID, 0, 7, ITEM_HOLD);
         });
 
         it('saves a 0 the file states as the value it is: a recipe with no prep time is not held', async () => {
@@ -1375,7 +1384,7 @@ describe('ImportAdvanceService — saving what is ready', () => {
                 await answered;
 
                 expect(recipes.create).not.toHaveBeenCalled();
-                expect(store.holdItem).toHaveBeenCalledWith(IMPORT_ID, 0, 7);
+                expect(store.holdItem).toHaveBeenCalledWith(IMPORT_ID, 0, 7, ITEM_HOLD);
                 expect(store.deferItem).not.toHaveBeenCalled();
             },
         );
@@ -1383,12 +1392,12 @@ describe('ImportAdvanceService — saving what is ready', () => {
         // REWRITTEN (lead ruling on #220): an item no advance can ever save must not loop. It used to throw, be logged and be
         // deferred, so it was looked at, and logged, on every advance for as long as the import lived.
         it.each([
-            ['no step', { ...recipe(['2 cups whole milk']), steps: [] }],
-            ['no ingredient line', recipe([])],
-            ['a payload the save cannot read', { title: 'Soup' }],
+            ['no step', { ...recipe(['2 cups whole milk']), steps: [] }, ITEM_HOLD],
+            ['no ingredient line', recipe([]), ITEM_HOLD],
+            ['a payload the save cannot read', { title: 'Soup' }, { reason: 'unreadable', cookKey: null }],
         ])(
             '⛔ holds an item with %s and no stored refusal, and logs it ONCE across advances',
-            async (_name, payload) => {
+            async (_name, payload, hold) => {
                 const logged = vi.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
                 const built = build(world({ items: [matched(0, { payload, decisionRev: 7 })], lines: { 0: [] } }));
                 const advance = () => built.service.advance(built.principal, CALLER, IMPORT_ID);
@@ -1399,7 +1408,7 @@ describe('ImportAdvanceService — saving what is ready', () => {
                     await advance();
 
                     expect(built.recipes.create).not.toHaveBeenCalled();
-                    expect(built.store.holdItem).toHaveBeenCalledExactlyOnceWith(IMPORT_ID, 0, 7);
+                    expect(built.store.holdItem).toHaveBeenCalledExactlyOnceWith(IMPORT_ID, 0, 7, hold);
                     expect(built.store.deferItem).not.toHaveBeenCalled();
                     expect(logged).toHaveBeenCalledOnce();
                 } finally {
@@ -1407,6 +1416,53 @@ describe('ImportAdvanceService — saving what is ready', () => {
                 }
             },
         );
+
+        // Review M1 on #220: a hold whose cause the cook's facts decide is judged again when those facts change, with no
+        // decision at all. Before, it stayed out of the queue for good and the list named it `saveRefused`.
+        it('⛔ saves an item held for its label under the Free plan once the cook is on Pro: the hold no longer applies', async () => {
+            const built = build(
+                world({
+                    items: [
+                        matched(0, { decisionRev: 7, heldAtRev: 7, heldReason: 'visibility', heldCookKey: COOK_KEY }),
+                    ],
+                }),
+            );
+
+            await built.service.advance(COOK, CALLER, IMPORT_ID);
+            expect(built.recipes.create).not.toHaveBeenCalled();
+
+            await built.service.advance(makePrincipal({ roles: ['premium'] }), CALLER, IMPORT_ID);
+            expect(built.recipes.create).toHaveBeenCalledOnce();
+            expect(built.store.items.get(0)?.stage).toBe('saved');
+        });
+
+        it('⛔ looks at a create refused under Free once more under Pro, and holds it again there: one look per change', async () => {
+            const built = build(
+                world({
+                    create: async () => {
+                        throw invalidVisibility('All of your private slots are in use.');
+                    },
+                }),
+            );
+            const pro = makePrincipal({ roles: ['premium'] });
+            const proKey = cookKeyOf(visibilityFactsOf(pro));
+
+            await built.service.advance(COOK, CALLER, IMPORT_ID);
+            await built.service.advance(COOK, CALLER, IMPORT_ID);
+            expect(built.recipes.create).toHaveBeenCalledOnce();
+            expect(built.store.holdItem).toHaveBeenLastCalledWith(IMPORT_ID, 0, 7, {
+                reason: 'createRefused',
+                cookKey: COOK_KEY,
+            });
+
+            await built.service.advance(pro, CALLER, IMPORT_ID);
+            await built.service.advance(pro, CALLER, IMPORT_ID);
+            expect(built.recipes.create).toHaveBeenCalledTimes(2);
+            expect(built.store.holdItem).toHaveBeenLastCalledWith(IMPORT_ID, 0, 7, {
+                reason: 'createRefused',
+                cookKey: proKey,
+            });
+        });
 
         it('⛔ never re-queues a held item: the next calls do not look at it, until a decision of the cook releases it', async () => {
             const built = build(world({ items: [noCuisine()] }));
@@ -1464,7 +1520,10 @@ describe('ImportAdvanceService — saving what is ready', () => {
             );
 
             await expect(answered).resolves.toBe(VIEW);
-            expect(store.holdItem).toHaveBeenCalledWith(IMPORT_ID, 0, 7);
+            expect(store.holdItem).toHaveBeenCalledWith(IMPORT_ID, 0, 7, {
+                reason: 'createRefused',
+                cookKey: COOK_KEY,
+            });
             expect(store.deferItem).not.toHaveBeenCalled();
         });
     });
@@ -1512,7 +1571,7 @@ describe('ImportAdvanceService — saving what is ready', () => {
             await answered;
 
             expect(recipes.create).not.toHaveBeenCalled();
-            expect(store.holdItem).toHaveBeenCalledWith(IMPORT_ID, 0, 7);
+            expect(store.holdItem).toHaveBeenCalledWith(IMPORT_ID, 0, 7, ITEM_HOLD);
             expect(store.deferItem).not.toHaveBeenCalled();
         });
 

@@ -20,6 +20,8 @@ import type { Role } from '@kitchensink/clerk-verify';
 
 import type { ImportAllowanceDal } from '../../common/dal/importAllowance.dal.js';
 import { importViewSchema } from '../../recipes/import.schema.js';
+import { cookKeyOf } from '../domain/importHold.js';
+import { visibilityFactsOf } from '../domain/importVisibility.js';
 import { ImportViewBuilder } from '../importView.builder.js';
 import type { PrivateSlotsPort } from '../privateSlots.port.js';
 import {
@@ -247,10 +249,38 @@ describe('ImportViewBuilder', () => {
             });
         });
 
+        // REWRITTEN for review M1 on #220: `saveRefused` is read from WHY the save held the item, not from the bare revision,
+        // which named every hold `saveRefused` (a label hold too) and kept naming it after the cause had gone.
         it('⛔ names an item the save held for a reason no rule explains as `saveRefused` (review item 7 on #220)', async () => {
-            expect(await issueOf(matchedItem({}, { decisionRev: 4, heldAtRev: 4 }))).toEqual({ reason: 'saveRefused' });
+            const free = cookKeyOf(visibilityFactsOf(makePrincipal()));
+            const held = { decisionRev: 4, heldAtRev: 4 };
+
+            expect(await issueOf(matchedItem({}, { ...held, heldReason: 'createRefused', heldCookKey: free }))).toEqual(
+                {
+                    reason: 'saveRefused',
+                },
+            );
+            expect(await issueOf(matchedItem({}, { ...held, heldReason: 'unreadable' }))).toEqual({
+                reason: 'saveRefused',
+            });
             // A decision since the hold moved the revision: the hold no longer stands, so neither does the issue.
-            expect(await issueOf(matchedItem({}, { decisionRev: 5, heldAtRev: 4 }))).toBeNull();
+            expect(
+                await issueOf(matchedItem({}, { decisionRev: 5, heldAtRev: 4, heldReason: 'unreadable' })),
+            ).toBeNull();
+        });
+
+        it('⛔ never names `saveRefused` for a hold whose cause is gone: an upgrade after a hold, or a cause the cook can see', async () => {
+            const free = cookKeyOf(visibilityFactsOf(makePrincipal()));
+            const held = { decisionRev: 4, heldAtRev: 4 };
+            const asPro = async (item: ListedImportItem) =>
+                (await view({ items: [item] }, makeHeader(), { limit: 100 }, makePrincipal({ roles: ['premium'] })))
+                    .items[0]?.issue;
+
+            expect(
+                await asPro(matchedItem({}, { ...held, heldReason: 'createRefused', heldCookKey: free })),
+            ).toBeNull();
+            expect(await asPro(matchedItem({}, { ...held, heldReason: 'visibility', heldCookKey: free }))).toBeNull();
+            expect(await issueOf(matchedItem({}, { ...held, heldReason: 'item' }))).toBeNull();
         });
 
         it('⛔ names a matched item whose file has no step or no line by that refusal, and never throws building the view', async () => {

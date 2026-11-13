@@ -23,6 +23,7 @@ import { RecipeImportItemsDal } from '../../../src/import/dal/recipeImportItems.
 import { RecipeImportLinesDal } from '../../../src/import/dal/recipeImportLines.dal.js';
 import { RecipeImportsDal } from '../../../src/import/dal/recipeImports.dal.js';
 import { ImportAllowanceDal } from '../../../src/common/dal/importAllowance.dal.js';
+import { cookKeyOf, holdOf } from '../../../src/import/domain/importHold.js';
 import { ensureFoodLookup } from '../../support/lineChain.js';
 import { recipeDb } from '../../support/roleDb.js';
 
@@ -33,6 +34,12 @@ const OTHER = '01JIMPORTDALE2E000000002';
 const RECIPE_ID = '77777777-7777-4777-8777-000000000a01';
 const LOOKUP = '77777777-7777-4777-8777-000000000a03';
 const FOOD_ID = '01JIMPORTDALE2E0000000FOOD';
+
+/** The cook facts of a free cook and of a Pro one, as the save queue reads them (`cookKeyOf`). */
+const FREE_KEY = cookKeyOf({ principalKind: 'real', containment: 'enforce', isPremium: false });
+const PRO_KEY = cookKeyOf({ principalKind: 'real', containment: 'enforce', isPremium: true });
+/** A hold for a cause inside the item: only a decision releases it. */
+const ITEM_HOLD = { reason: 'item', cookKey: null } as const;
 
 /** A pick recorded AFTER the rebind of a saved draft: the item is already saved, so there is nothing to fence. */
 const AFTER_REBIND = { onlyUnsaved: false } as const;
@@ -735,12 +742,18 @@ describe('the bulk-import DALs (LOCAL e2e, real Postgres)', () => {
                 [header.id],
             );
 
-            expect((await items.findSaveCandidates(header.id, 10)).map((item) => item.ordinal)).toEqual([0, 1, 3]);
+            expect((await items.findSaveCandidates(header.id, 10, FREE_KEY)).map((item) => item.ordinal)).toEqual([
+                0, 1, 3,
+            ]);
 
             await items.deferItem(header.id, 0);
 
-            expect((await items.findSaveCandidates(header.id, 10)).map((item) => item.ordinal)).toEqual([1, 3, 0]);
-            expect((await items.findSaveCandidates(header.id, 2)).map((item) => item.ordinal)).toEqual([1, 3]);
+            expect((await items.findSaveCandidates(header.id, 10, FREE_KEY)).map((item) => item.ordinal)).toEqual([
+                1, 3, 0,
+            ]);
+            expect((await items.findSaveCandidates(header.id, 2, FREE_KEY)).map((item) => item.ordinal)).toEqual([
+                1, 3,
+            ]);
         });
 
         describe('⛔ a held item is not looked at again until the cook decides something (ADR-0072 §3 as amended 2026-11-11)', () => {
@@ -752,8 +765,8 @@ describe('the bulk-import DALs (LOCAL e2e, real Postgres)', () => {
                 );
             }
 
-            const candidates = async (importId: string) =>
-                (await items.findSaveCandidates(importId, 10)).map((item) => item.ordinal).sort();
+            const candidates = async (importId: string, cookKey = FREE_KEY) =>
+                (await items.findSaveCandidates(importId, 10, cookKey)).map((item) => item.ordinal).sort();
 
             it('never held, held at this revision, held at an older one: only the second is left out', async () => {
                 const header = await newImport(3);
@@ -763,12 +776,52 @@ describe('the bulk-import DALs (LOCAL e2e, real Postgres)', () => {
                 const held = await items.findItem(header.id, 1);
                 const older = await items.findItem(header.id, 2);
 
-                expect(await items.holdItem(header.id, 1, held?.decisionRev ?? Number.NaN)).toBe(true);
-                expect(await items.holdItem(header.id, 2, older?.decisionRev ?? Number.NaN)).toBe(true);
+                expect(await items.holdItem(header.id, 1, held?.decisionRev ?? Number.NaN, ITEM_HOLD)).toBe(true);
+                expect(await items.holdItem(header.id, 2, older?.decisionRev ?? Number.NaN, ITEM_HOLD)).toBe(true);
                 // A decision after the hold: the item is looked at again, because what it is saved from changed.
                 expect(await items.recordChoices(header.id, 2, { cuisine: 'Thai' })).toBe('ok');
 
                 expect(await candidates(header.id)).toEqual([0, 2]);
+            });
+
+            // Review M1 on #220: the SQL twin of `holdApplies`. A hold whose cause the cook's facts decide leaves the queue
+            // only for the cook it was judged under, and a hold of any other reason, or one written before reasons, for all.
+            it('⛔ releases a label or create-refusal hold for a cook with other facts, and keeps every other hold', async () => {
+                const header = await newImport(5);
+
+                await matchedWithStatement(header.id, [0, 1, 2, 3, 4]);
+
+                const holdAt = async (ordinal: number, hold: Parameters<typeof items.holdItem>[3]) => {
+                    const read = await items.findItem(header.id, ordinal);
+
+                    expect(await items.holdItem(header.id, ordinal, read?.decisionRev ?? Number.NaN, hold)).toBe(true);
+                };
+
+                const free = { principalKind: 'real', containment: 'enforce', isPremium: false } as const;
+
+                await holdAt(0, holdOf('visibility', free));
+                await holdAt(1, holdOf('createRefused', free));
+                await holdAt(2, holdOf('item', free));
+                await holdAt(3, holdOf('unreadable', free));
+                // A hold written by the release before 0082, which sets `held_at_rev` alone.
+                await pool.query(
+                    `UPDATE recipe_import_items SET held_at_rev = decision_rev WHERE import_id = $1 AND ordinal = 4`,
+                    [header.id],
+                );
+
+                expect(await candidates(header.id, FREE_KEY)).toEqual([]);
+                expect(await candidates(header.id, PRO_KEY)).toEqual([0, 1]);
+                expect(await items.findItem(header.id, 1)).toMatchObject({
+                    heldReason: 'createRefused',
+                    heldCookKey: FREE_KEY,
+                });
+                expect(await items.findItem(header.id, 4)).toMatchObject({ heldReason: null, heldCookKey: null });
+
+                // Held again under Pro, the item leaves the queue for Pro and comes back for the free cook.
+                await holdAt(1, holdOf('createRefused', { ...free, isPremium: true }));
+
+                expect(await candidates(header.id, PRO_KEY)).toEqual([0]);
+                expect(await candidates(header.id, FREE_KEY)).toEqual([1]);
             });
 
             it('⛔ a hold is fenced on the revision the save read: a decision that landed in between is never hidden', async () => {
@@ -780,7 +833,7 @@ describe('the bulk-import DALs (LOCAL e2e, real Postgres)', () => {
 
                 await items.recordChoices(header.id, 0, { cuisine: 'Thai' });
 
-                expect(await items.holdItem(header.id, 0, read?.decisionRev ?? Number.NaN)).toBe(false);
+                expect(await items.holdItem(header.id, 0, read?.decisionRev ?? Number.NaN, ITEM_HOLD)).toBe(false);
                 expect((await items.findItem(header.id, 0))?.heldAtRev).toBeNull();
                 expect(await candidates(header.id)).toEqual([0]);
             });
@@ -843,7 +896,7 @@ describe('the bulk-import DALs (LOCAL e2e, real Postgres)', () => {
 
                 const chosen = await items.findItem(header.id, 0);
 
-                expect(await items.holdItem(header.id, 0, chosen?.decisionRev ?? Number.NaN)).toBe(true);
+                expect(await items.holdItem(header.id, 0, chosen?.decisionRev ?? Number.NaN, ITEM_HOLD)).toBe(true);
                 expect(await items.recordChoices(header.id, 0, choices)).toBe('ok');
                 expect(await items.recordChoicesBatch(header.id, [{ ordinal: 0, ...choices }])).toEqual({ kind: 'ok' });
 

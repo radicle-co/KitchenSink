@@ -15,5 +15,3 @@ export {
     type RecipeDetailNav,
     type RecipeDetailProfile,
 } from './useRecipeDetailController.js';
-// Who the viewer is: one rule for the detail page and the cook route on both platforms.
-export { claimedViewerIdOf, viewerIdOf, viewerKnown } from './useRecipeDetailController.model.js';

@@ -47,11 +47,11 @@ A user selects a recipe and enters "Cooking Mode," which presents a step-by-step
 **Cooking Mode**
 
 - **FR-032**: System MUST provide a Cooking Mode that displays recipe instructions one step at a time in large, readable formatting.
-- **FR-032a** _(re-added 2026-11-13; first written on PR 92's branch)_: Within Cooking Mode the cook MUST be able to open and dismiss the ingredient list without leaving the current step, and check off each ingredient. A check is the same check the cook sees on the recipe page: one record per recipe. It MUST survive step navigation, and it MUST last at least as long as the cooking session it was made in, including leaving and resuming it. How long a session lasts is set by FR-039 and FR-040. A check MUST NOT change the stored recipe.
+- **FR-032a** _(re-added 2026-11-13)_: Within Cooking Mode the cook MUST be able to open and dismiss the ingredient list without leaving the current step, and check off each ingredient. A check is the same check the cook sees on the recipe page: one record per recipe. It MUST survive step navigation, and it MUST last at least as long as the cooking session it was made in, including leaving and resuming it. How long a session lasts is set by FR-039 and FR-040. A check MUST NOT change the stored recipe.
 - **FR-033**: System MUST allow users to navigate forward and backward through recipe steps in Cooking Mode.
 - **FR-033a** _(added 2026-11-13)_: A step whose text is empty or only whitespace is not a step for the cook. Cooking Mode skips it, and the place, the progress and the finish count only steps with text. A recipe with no step that has text cannot be cooked: it offers no Start cooking.
 - **FR-034**: System MUST provide integrated countdown timers for recipe steps that include time durations.
-- **FR-034a** _(re-added 2026-11-13; first written on PR 92's branch; worded for the owner's ruling of 2026-11-13 that steps show no amounts)_: Within Cooking Mode the cook MUST be able to change the servings, and the amounts in the ingredient list MUST be recalculated for the new servings. Scaling MUST NOT change any timer or time in a step, and MUST NOT change the stored recipe. A step shows the recipe's own wording and numbers, and no amount from the ingredient list. While the servings differ from the recipe's own, Cooking Mode MUST tell the cook that the steps give amounts for the recipe's servings, and point them to the ingredient list.
+- **FR-034a** _(re-added 2026-11-13; worded for the owner's ruling of 2026-11-13 that steps show no amounts)_: Within Cooking Mode the cook MUST be able to change the servings, and the amounts in the ingredient list MUST be recalculated for the new servings. Scaling MUST NOT change any timer or time in a step, and MUST NOT change the stored recipe. A step shows the recipe's own wording and numbers, and no amount from the ingredient list. While the servings differ from the recipe's own, Cooking Mode MUST tell the cook that the steps give amounts for the recipe's servings, and point them to the ingredient list.
     - _Note (2026-11-13):_ the owner accepted inline amounts in steps on 2026-10-23 (P1) and on 2026-11-13 ruled that this delivery ships without them, because matching ingredient names in step text showed wrong amounts (a test of that matching). Adding them later needs a stored step-to-ingredient link; nothing built here blocks it.
 - **FR-035**: System MUST keep the device screen active while Cooking Mode is engaged.
 
@@ -99,7 +99,8 @@ A cooking session is the open state of one cook: the recipe, the current step an
 - **FR-040**: A session nobody touches ends by itself after 24 hours.
 - **FR-041**: A timer that ends while the app is closed MUST alert the cook with a phone notification, always. The
   cook can turn timer alerts off in settings.
-    - _Amended 2026-10-29 (owner ruling, row T17):_ the alert is a **local alert scheduled on the phone** (a notification, or a system alarm such as iOS AlarmKit). The phone schedules it when
+    - _Amended 2026-10-29 (owner ruling, row T17):_ the alert is a **local alert scheduled on the phone**
+      (a notification, or a system alarm such as iOS AlarmKit). The phone schedules it when
       the timer starts. There is no server push, and it does not go through the notification service
       ([014](../014-notification-service/spec.md)). This is the one allowed exception to mobile push being out of
       scope there. The earlier wording, that 008 publishes the timer event and 014 delivers it, no longer applies.

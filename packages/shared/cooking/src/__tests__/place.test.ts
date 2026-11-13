@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { isInvalidLineIndexError, isInvalidStepIndexError, isInvalidTotalStepsError } from '../errors.js';
-import { makeCookingSteps } from '../__fixtures__/cookingSteps.js';
+import { makeCookingSteps, makeOneLineSteps } from '../__fixtures__/cookingSteps.js';
 import type { CookingStep } from '../cookingSteps.js';
 import { linePlace, stepPlace } from '../place.js';
 
@@ -13,30 +13,42 @@ import { linePlace, stepPlace } from '../place.js';
  * for "Finish" on the last step. Each boundary is asserted from both sides so an off-by-one fails.
  */
 
+const SIX = makeOneLineSteps(6);
+
 describe('stepPlace', () => {
     it('gives the first step of six, with no previous step', () => {
-        expect(stepPlace(0, 6)).toEqual({ position: 1, total: 6, previous: null, next: 2 });
+        expect(stepPlace(0, SIX)).toEqual({ position: 1, total: 6, previous: null, next: 2 });
     });
 
     it('gives a middle step with both neighbours', () => {
-        expect(stepPlace(2, 6)).toEqual({ position: 3, total: 6, previous: 2, next: 4 });
+        expect(stepPlace(2, SIX)).toEqual({ position: 3, total: 6, previous: 2, next: 4 });
     });
 
     it('gives the last step, with no next step', () => {
-        expect(stepPlace(5, 6)).toEqual({ position: 6, total: 6, previous: 5, next: null });
+        expect(stepPlace(5, SIX)).toEqual({ position: 6, total: 6, previous: 5, next: null });
     });
 
     it('gives a one-step recipe neither neighbour', () => {
-        expect(stepPlace(0, 1)).toEqual({ position: 1, total: 1, previous: null, next: null });
+        expect(stepPlace(0, makeOneLineSteps(1))).toEqual({ position: 1, total: 1, previous: null, next: null });
     });
 
-    it.each([0, -1, 1.5, Number.NaN])('rejects a total of %s', (total) => {
-        expect(() => stepPlace(0, total)).toThrow(expect.toSatisfy(isInvalidTotalStepsError));
+    it('rejects a recipe with no steps, reporting a count of 0', () => {
+        expect(() => stepPlace(0, [])).toThrow(
+            expect.toSatisfy((error) => isInvalidTotalStepsError(error) && error.totalSteps === 0),
+        );
     });
 
-    it.each([-1, 6, 2.5, Number.NaN])('rejects step index %s of six', (index) => {
-        expect(() => stepPlace(index, 6)).toThrow(expect.toSatisfy(isInvalidStepIndexError));
-    });
+    it.each([6, 9, -1, 2.5, Number.NaN, Number.POSITIVE_INFINITY])(
+        'rejects step index %s of six, naming the index and the count',
+        (index) => {
+            expect(() => stepPlace(index, SIX)).toThrow(
+                expect.toSatisfy(
+                    (error) =>
+                        isInvalidStepIndexError(error) && Object.is(error.index, index) && error.totalSteps === 6,
+                ),
+            );
+        },
+    );
 });
 
 /** A cooking step with the given number of lines. */

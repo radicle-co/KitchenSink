@@ -23,14 +23,16 @@ export interface LinePlace {
  * The 1-based place of a step. The domain is 0-based; this is the one place that adds one.
  *
  * @param stepIndex - The 0-based step index.
- * @param totalSteps - The recipe's step count.
+ * @param steps - The recipe's cooking steps (`cookingStepsOf`); the count is read from them, never passed in.
  * @returns The displayed place, with the neighbours Back and Next lead to.
- * @throws {InvalidTotalStepsError} When `totalSteps` is not a positive integer.
+ * @throws {InvalidTotalStepsError} When the recipe has no steps.
  * @throws {InvalidStepIndexError} When `stepIndex` is not an index of the recipe.
  */
-export function stepPlace(stepIndex: number, totalSteps: number): StepPlace {
-    if (!Number.isInteger(totalSteps) || totalSteps < 1) {
-        throw new InvalidTotalStepsError(totalSteps);
+export function stepPlace(stepIndex: number, steps: readonly CookingStep[]): StepPlace {
+    const totalSteps = steps.length;
+
+    if (totalSteps === 0) {
+        throw new InvalidTotalStepsError(0);
     }
 
     if (!Number.isInteger(stepIndex) || stepIndex < 0 || stepIndex >= totalSteps) {

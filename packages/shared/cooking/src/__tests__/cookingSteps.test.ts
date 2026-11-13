@@ -31,7 +31,7 @@ describe('cookingStepsOf', () => {
         const steps = cookingStepsOf([step(1, 'Mix.'), step(2, '   '), step(3, 'Bake.'), step(4, 'Serve.')]);
 
         expect(steps.map((s) => s.stepNumber)).toEqual([1, 3, 4]);
-        expect(stepPlace(1, steps.length)).toMatchObject({ position: 2, total: 3 });
+        expect(stepPlace(1, steps)).toMatchObject({ position: 2, total: 3 });
     });
 
     it('a recipe whose steps are all blank has no steps for the cook', () => {

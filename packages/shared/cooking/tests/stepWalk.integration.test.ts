@@ -89,7 +89,7 @@ describe('stepWalk — every 1919 fixture recipe cooked from Start to Done and a
 
         for (const [stepIndex, step] of steps.entries()) {
             expect(session.currentStepIndex).toBe(stepIndex);
-            expect(stepPlace(stepIndex, total)).toMatchObject({ position: stepIndex + 1, total });
+            expect(stepPlace(stepIndex, steps)).toMatchObject({ position: stepIndex + 1, total });
             expect(step.lines.join(' ')).toBe(golden[stepIndex]?.text);
             expect(sessionStatus(session, steps)).not.toBe('complete');
 
@@ -139,7 +139,7 @@ describe('stepWalk — a blank step is not a step for the cook', () => {
 
         session = advance(session, steps);
         expect(steps[session.currentStepIndex]?.stepNumber).toBe(3);
-        expect(stepPlace(session.currentStepIndex, total)).toMatchObject({ position: 2, total: 3 });
+        expect(stepPlace(session.currentStepIndex, steps)).toMatchObject({ position: 2, total: 3 });
 
         session = goBack(session, steps);
         expect(steps[session.currentStepIndex]?.stepNumber).toBe(1);

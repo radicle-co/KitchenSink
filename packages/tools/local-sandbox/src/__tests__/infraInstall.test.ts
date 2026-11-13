@@ -1,5 +1,5 @@
 /**
- * Unit tests for `infraInstall` — which CDK app directories still need their own `npm install`.
+ * Unit tests for `infraInstall` — which CDK app directories still need their own install, and how to install one.
  *
  * ## The defect
  *
@@ -8,12 +8,13 @@
  * hard-linked copy of the root `node_modules`, brings in nothing under `infra/` folders — has no `aws-cdk-lib`
  * for those apps. `local:up` then synthesised into "Cannot find module 'aws-cdk-lib'" and refused, and the
  * last full run worked around it by symlinking the packages from the main checkout. The fix is to install
- * what is missing, the way CI does (`npm install --prefix <dir>`), rather than to hope the setup was done.
+ * what is missing, the way CI does (`npm ci --prefix <dir>`, from the app's committed lockfile), rather than to hope the
+ * setup was done.
  */
 import { describe, expect, it } from 'vitest';
 
 import type { CdkApp } from '../discoverApps.js';
-import { appsMissingCdkLib, cdkLibResolvesFrom, installFailureHint } from '../infraInstall.js';
+import { appsMissingCdkLib, cdkInstallArgs, cdkLibResolvesFrom, installFailureHint } from '../infraInstall.js';
 
 const app = (packageDir: string): CdkApp => ({
     packageName: `@kitchensink/${packageDir}`,
@@ -93,5 +94,19 @@ describe('installFailureHint', () => {
 
     it('says nothing for a failure that is not an authentication one', () => {
         expect(installFailureHint('npm error code ENOTFOUND')).toBeUndefined();
+    });
+});
+
+// `npm install` re-resolves the manifest's ranges and rewrites the lockfile, so a local synth could run against a
+// different `aws-cdk-lib` from CI's. `npm ci` installs exactly the committed lockfile and fails on a mismatch.
+describe('cdkInstallArgs', () => {
+    it('installs the app from its lockfile with npm ci, by prefix', () => {
+        expect(cdkInstallArgs('/repo/packages/infra/global')).toEqual([
+            'ci',
+            '--prefix',
+            '/repo/packages/infra/global',
+            '--no-audit',
+            '--no-fund',
+        ]);
     });
 });

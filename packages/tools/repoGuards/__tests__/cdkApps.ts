@@ -30,6 +30,9 @@
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 
+import { globSync } from 'glob';
+import { parse as parseYaml } from 'yaml';
+
 import { repoRoot, trackedFiles } from './serviceSources.js';
 
 /** Where the workflows live, relative to {@link repoRoot}. */
@@ -446,4 +449,179 @@ export function deployedApps(): readonly Deployment[] {
 
         return [...direct, ...indirect];
     });
+}
+
+/**
+ * The directory that holds each CDK app's manifest: the parent of the entrypoint's `bin/`. Two entrypoints in one
+ * package (`packages/infra/global` has `app.ts` and `account.ts`) are one directory.
+ *
+ * @returns Repo-relative directories, sorted. Impure.
+ * @sideEffect Shells out to git and reads the working tree.
+ */
+export function cdkAppDirectories(): readonly string[] {
+    return [...new Set(cdkApps().map((entrypoint) => path.posix.dirname(path.posix.dirname(entrypoint))))].toSorted();
+}
+
+/**
+ * Every directory below the repository root that git tracks a `package-lock.json` in: the packages that install from
+ * their own lockfile rather than the root workspace's. Keyed on the path and the tracked file, so a directory that
+ * merely looks like a CDK app, or a lockfile that exists on one machine only, is not in it.
+ *
+ * @returns Repo-relative directories, sorted. Impure.
+ * @sideEffect Shells out to git.
+ */
+export function ownLockfileDirectories(): readonly string[] {
+    return trackedFiles('.')
+        .filter((file) => file.endsWith('/package-lock.json') && !file.includes('/node_modules/'))
+        .map((file) => path.posix.dirname(file))
+        .toSorted();
+}
+
+/** The fields of a workflow or action step that decide where its commands run. */
+export interface InstallStep {
+    readonly run?: string;
+    readonly 'working-directory'?: string;
+}
+
+/** One shell command of a step, and whether it runs in (or `--prefix`es) one of the directories asked about. */
+export interface StepCommand {
+    readonly text: string;
+    readonly inDirectories: boolean;
+    /** The package directories the command runs in, as far as the step states them; empty when it does not. */
+    readonly targets: readonly string[];
+}
+
+/**
+ * Every value each composite action input receives at a call site, keyed by the action's `./.github/actions/<name>`
+ * reference and then by input name.
+ *
+ * @returns The call-site values. Impure.
+ * @sideEffect Reads every workflow.
+ */
+export function actionInputValues(): ReadonlyMap<string, ReadonlyMap<string, readonly string[]>> {
+    const values = new Map<string, Map<string, string[]>>();
+
+    for (const file of trackedFiles(WORKFLOWS_DIR).filter((name) => /\.ya?ml$/u.test(name))) {
+        const doc = parseYaml(readFileSync(path.join(repoRoot, file), 'utf8')) as {
+            jobs?: Record<string, { steps?: { uses?: string; with?: Record<string, unknown> }[] }>;
+        } | null;
+
+        for (const { uses, with: inputs } of Object.values(doc?.jobs ?? {}).flatMap((job) => job.steps ?? [])) {
+            if (uses === undefined || !uses.startsWith(`./${ACTIONS_DIR}/`)) {
+                continue;
+            }
+
+            const byInput = values.get(uses) ?? new Map<string, string[]>();
+
+            for (const [name, value] of Object.entries(inputs ?? {})) {
+                byInput.set(name, [...(byInput.get(name) ?? []), String(value)]);
+            }
+
+            values.set(uses, byInput);
+        }
+    }
+
+    return values;
+}
+
+/** One `for <variable> in <list>` header of a shell script. */
+export interface LoopHeader {
+    readonly variable: string;
+    /** The words after `in`, as written, without the blanks around them. */
+    readonly list: string;
+}
+
+/**
+ * Every `for <variable> in <list>` header in a script, ended by `;` or a new line before `do`.
+ *
+ * @param run - The script.
+ * @returns The headers, in order. Pure.
+ */
+export function loopHeaders(run: string): readonly LoopHeader[] {
+    // Every part is disjoint from its neighbours (a word is never a blank), so a header with no terminator fails in
+    // linear time: CodeQL js/polynomial-redos flagged the earlier `\s+([^;\n]+?)\s*;`, where blanks fit three parts.
+    return [...run.matchAll(/\bfor[ \t]+(\w+)[ \t]+in((?:[ \t]+[^;\s]+)+)[ \t]*[;\n]\s*do\b/gu)].map(
+        ([, variable, list]) => ({ variable: variable ?? '', list: (list ?? '').trim() }),
+    );
+}
+
+/**
+ * Split a step into its shell commands, and say for each whether it runs in one of `directories`.
+ *
+ * A command is in a directory when it names it with `--prefix` (a literal path, or a `for` loop variable whose globs
+ * reach only directories in the set), or when it has no `--prefix` and runs where the step does: its
+ * `working-directory`, or a directory an earlier `cd` in the same step moved to. A `working-directory` written as
+ * `${{ inputs.<name> }}` is resolved through `inputs`, and counts only when every call site passes a directory in the
+ * set. Any other expression (`${{ github.workspace }}`) and any other path (`.`, `./`, a workspace member) is outside.
+ * The presence of `--prefix` alone exempts nothing: `--prefix .` is the root.
+ *
+ * @param step - The step.
+ * @param directories - The directories asked about.
+ * @param inputs - The call-site values of the step's action, for a templated `working-directory`.
+ * @returns The step's commands, in order. Impure (expands globs).
+ * @sideEffect Reads the working tree to expand loop globs.
+ */
+export function commandsOf(
+    step: InstallStep,
+    directories: ReadonlySet<string>,
+    inputs: ReadonlyMap<string, readonly string[]> = new Map(),
+): readonly StepCommand[] {
+    const run = withoutComments(step.run ?? '');
+    const loops = new Map<string, readonly string[]>();
+
+    for (const { variable, list } of loopHeaders(run)) {
+        loops.set(
+            variable,
+            list
+                .split(/\s+/u)
+                .map((pattern) => pattern.replace(/^"(.*)"$/u, '$1'))
+                .filter((pattern) => pattern !== '')
+                .flatMap((pattern) => globSync(pattern, { cwd: repoRoot })),
+        );
+    }
+
+    // A loop variable reaches the package directories its globs match; a literal path is normalised (`./a/` is `a`).
+    const resolve = (target: string): readonly string[] => {
+        const variable = /^\$\{?(\w+)\}?$/u.exec(target)?.[1];
+
+        return variable === undefined
+            ? [path.posix.normalize(target).replace(/^\.\//u, '').replace(/\/$/u, '')]
+            : (loops.get(variable) ?? []).filter((match) => existsSync(path.join(repoRoot, match, 'package.json')));
+    };
+
+    const inSet = (target: string): boolean => {
+        const reached = resolve(target);
+
+        return reached.length > 0 && reached.every((match) => directories.has(match));
+    };
+
+    const declared = step['working-directory'];
+    const input = declared === undefined ? undefined : /^\$\{\{\s*inputs\.([\w-]+)\s*\}\}$/u.exec(declared)?.[1];
+    const passed = input === undefined ? [] : (inputs.get(input) ?? []);
+    let here = false;
+    let hereTargets: readonly string[] = [];
+
+    if (declared !== undefined) {
+        here = input === undefined ? inSet(declared) : passed.length > 0 && passed.every((value) => inSet(value));
+        hereTargets = input === undefined ? resolve(declared) : passed.flatMap(resolve);
+    }
+
+    return run
+        .split(/\n|&&|\|\||;|\|/u)
+        .map((part) => part.trim().replace(/^(?:do|then|else)\s+/u, ''))
+        .filter((part) => part !== '')
+        .map((text) => {
+            const cd = /^cd\s+"?([^"\s]+)"?$/u.exec(text)?.[1];
+
+            if (cd !== undefined) {
+                here = inSet(cd);
+                hereTargets = resolve(cd);
+            }
+
+            const prefix = /--prefix\s+"?([^"\s]+)"?/u.exec(text)?.[1];
+
+            return prefix === undefined
+                ? { text, inDirectories: here, targets: hereTargets }
+                : { text, inDirectories: inSet(prefix), targets: resolve(prefix) };
+        });
 }

@@ -31,6 +31,8 @@ A user selects a recipe and enters "Cooking Mode," which presents a step-by-step
 3. **Given** a step includes a time duration (e.g., "bake for 25 minutes"), **When** the user starts the timer, **Then** a countdown is displayed and an alert sounds when complete.
 4. **Given** a user is in Cooking Mode, **When** they want to go back to review a previous step, **Then** they can navigate backward without losing their place.
 5. **Given** a user is cooking, **When** the device screen would normally turn off, **Then** Cooking Mode keeps the screen active.
+6. **Given** a cook is on any step, **When** they open the ingredient list and check off an ingredient, **Then** it reads as checked, it is still checked after moving to another step and back, and it is checked on the recipe page (FR-032a).
+7. **Given** a recipe for 4 with "3 tbsp butter" and a "1 h 30" roast, **When** the cook sets the servings to 8, **Then** the ingredient list shows "6 tbsp butter", the roast timer offer is still 1 h 30, the step tells the cook that its amounts are for 4 servings and points to the ingredient list, and the stored recipe still says 4 servings (FR-034a).
 
 ---
 
@@ -45,8 +47,12 @@ A user selects a recipe and enters "Cooking Mode," which presents a step-by-step
 **Cooking Mode**
 
 - **FR-032**: System MUST provide a Cooking Mode that displays recipe instructions one step at a time in large, readable formatting.
+- **FR-032a** _(re-added 2026-11-13)_: Within Cooking Mode the cook MUST be able to open and dismiss the ingredient list without leaving the current step, and check off each ingredient. A check is the same check the cook sees on the recipe page: one record per recipe, for that cook on that device, not shared across devices. It MUST survive step navigation, and leaving and resuming the cooking session. It ends when that cooking session ends (finish, ending the session, or the end set by FR-040), when the cook clears it, or when the cook signs out on that device. A check MUST NOT change the stored recipe.
 - **FR-033**: System MUST allow users to navigate forward and backward through recipe steps in Cooking Mode.
+- **FR-033a** _(added 2026-11-13)_: A step whose text is empty or only whitespace (as `String.prototype.trim` defines whitespace) is not a step for the cook. Cooking Mode skips it, and the place, the progress and the finish count only steps with text. A recipe with no step that has text cannot be cooked: it offers no Start cooking, and opening its cook link shows a notice that the recipe has no steps, with Edit recipe for its owner.
 - **FR-034**: System MUST provide integrated countdown timers for recipe steps that include time durations.
+- **FR-034a** _(re-added 2026-11-13; worded for the owner's ruling of 2026-11-13 that steps show no amounts)_: Within Cooking Mode the cook MUST be able to change the servings, with the same choices as the recipe page's Servings control, and the ingredient list MUST show each amount exactly as the recipe page's ingredient list shows it for the same servings. A line with no amount ("salt to taste") stays as written. A recipe with no servings value cannot be scaled, and offers no servings control. Scaling MUST NOT change any timer or time in a step, and MUST NOT change the stored recipe. A step shows the recipe's own wording and numbers, and no amount from the ingredient list. While the servings differ from the recipe's own, Cooking Mode MUST tell the cook that the steps give amounts for the recipe's servings, with a control that opens the ingredient list.
+    - _Note (2026-11-13):_ the owner accepted inline amounts in steps on 2026-10-23 (P1) and on 2026-11-13 ruled that this delivery ships without them, because matching ingredient names in step text showed wrong amounts (a test of that matching). Adding them later needs a stored step-to-ingredient link; nothing built here blocks it.
 - **FR-035**: System MUST keep the device screen active while Cooking Mode is engaged.
 
 **Store rating prompt** _(added 2026-10-28, from the retention brainstorm the owner adopted that day)_
@@ -86,14 +92,15 @@ A cooking session is the open state of one cook: the recipe, the current step an
 
 - **FR-037**: A cook MAY have one open cooking session per recipe, and several at once (a roast and a side). Home
   shows a card for each open session.
-- **FR-038**: While a cooking session is open, the recipe page says "Resume cooking" in place of "Start cooking". The
+- **FR-038**: While a cooking session is open, the recipe page says "Continue cooking" in place of "Start cooking". The
   button returns to the current step and its running timer.
 - **FR-039**: Resume asks "Carry on from earlier?" first when the session has been idle for 4 hours or more. A session
   idle for less reopens straight at the current step.
 - **FR-040**: A session nobody touches ends by itself after 24 hours.
 - **FR-041**: A timer that ends while the app is closed MUST alert the cook with a phone notification, always. The
   cook can turn timer alerts off in settings.
-    - _Amended 2026-10-29 (owner ruling, row T17):_ the alert is a **local notification**. The phone schedules it when
+    - _Amended 2026-10-29 (owner ruling, row T17):_ the alert is a **local alert scheduled on the phone**
+      (a notification, or a system alarm such as iOS AlarmKit). The phone schedules it when
       the timer starts. There is no server push, and it does not go through the notification service
       ([014](../014-notification-service/spec.md)). This is the one allowed exception to mobile push being out of
       scope there. The earlier wording, that 008 publishes the timer event and 014 delivers it, no longer applies.

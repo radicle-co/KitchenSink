@@ -57,7 +57,7 @@
         "esbuild": "^0.28.1",
         "eslint": "^10.0.3",
         "p-limit": "^7.1.1",
-        "prettier": "^3.0.0",
+        "prettier": "^3.9.10",
         "pure-rand": "^8.4.2",
         "tsx": "^4.23.15",
         "typescript": "^6.0.3",

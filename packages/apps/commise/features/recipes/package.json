@@ -94,7 +94,7 @@
         "expo-image": "~57.0.1",
         "jsdom": "^30.0.1",
         "next": "^16.4.3",
-        "prettier": "^3.0.0",
+        "prettier": "^3.9.10",
         "react": "^19.2.0",
         "react-dom": "^19.0.0",
         "react-error-boundary": "^6.1.2",

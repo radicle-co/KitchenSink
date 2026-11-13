@@ -129,6 +129,26 @@ function whenUnitsLeave(
 }
 
 /**
+ * The events that count on `channel` at `now`, oldest first, and the room they leave. The ONE counting rule: the decision
+ * and the view both read it, so they cannot disagree.
+ *
+ * @returns The counted events and `room` (the limit minus the units spent; negative when over it). Pure.
+ */
+function countedOn(
+    channel: ImportAllowanceChannel,
+    windowEvents: readonly AllowanceEvent[],
+    now: Date,
+): { readonly counted: readonly AllowanceEvent[]; readonly room: number } {
+    const windowStart = importAllowanceWindowStart(channel, now).getTime();
+    const counted = windowEvents
+        .filter((event) => event.channel === channel && event.createdAt.getTime() > windowStart)
+        .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+    const spent = counted.reduce((sum, event) => sum + event.units, 0);
+
+    return { counted, room: IMPORT_ALLOWANCE_RULES[channel].limit - spent };
+}
+
+/**
  * Decide how much of a request fits the channel's allowance, and when more room opens.
  *
  * `resetsAt` is derived from the events, never from `now`: it is the moment ONE more unit becomes available, because
@@ -144,13 +164,8 @@ export function evaluateImportAllowance(input: ImportAllowanceInput): ImportAllo
         throw new RangeError(`requestedUnits must be a positive integer, got ${String(input.requestedUnits)}`);
     }
 
-    const windowStart = importAllowanceWindowStart(input.channel, input.now).getTime();
-    const counted = input.windowEvents
-        .filter((event) => event.channel === input.channel && event.createdAt.getTime() > windowStart)
-        .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
-    const spent = counted.reduce((sum, event) => sum + event.units, 0);
+    const { counted, room } = countedOn(input.channel, input.windowEvents, input.now);
     const { windowMs } = IMPORT_ALLOWANCE_RULES[input.channel];
-    const room = IMPORT_ALLOWANCE_RULES[input.channel].limit - spent;
 
     if (room >= input.requestedUnits) {
         return { kind: 'admit', units: input.requestedUnits };
@@ -173,7 +188,10 @@ export interface ImportAllowanceState {
     readonly limit: number;
     /** Units spent inside the window on this channel. */
     readonly used: number;
-    /** An ISO instant: when the oldest counted unit leaves the window and room opens, or `null` when nothing is spent. */
+    /**
+     * An ISO instant: when one more unit of room opens (the moment a refusal would name when the limit is reached), or
+     * `null` when nothing is spent.
+     */
     readonly resetsAt: string | null;
 }
 
@@ -192,18 +210,13 @@ export function describeImportAllowance(input: {
     readonly windowEvents: readonly AllowanceEvent[];
     readonly now: Date;
 }): ImportAllowanceState {
-    const windowStart = importAllowanceWindowStart(input.channel, input.now).getTime();
-    const counted = input.windowEvents
-        .filter((event) => event.channel === input.channel && event.createdAt.getTime() > windowStart)
-        .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
-    const [oldest] = counted;
+    const { counted, room } = countedOn(input.channel, input.windowEvents, input.now);
+    const { limit, windowMs } = IMPORT_ALLOWANCE_RULES[input.channel];
 
     return {
-        limit: IMPORT_ALLOWANCE_RULES[input.channel].limit,
-        used: counted.reduce((sum, event) => sum + event.units, 0),
-        resetsAt:
-            oldest === undefined
-                ? null
-                : new Date(oldest.createdAt.getTime() + IMPORT_ALLOWANCE_RULES[input.channel].windowMs).toISOString(),
+        limit,
+        used: limit - room,
+        // Over the limit, one unit of room needs `1 - room` units to leave, exactly as the refusal counts it.
+        resetsAt: counted.length === 0 ? null : whenUnitsLeave(counted, Math.max(1, 1 - room), windowMs).toISOString(),
     };
 }

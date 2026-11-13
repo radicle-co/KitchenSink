@@ -286,4 +286,17 @@ describe('describeImportAllowance — the state the import view shows (ADR-0072 
         expect(result.used).toBe(result.limit);
         expect(result.resetsAt).not.toBeNull();
     });
+
+    // Over the limit, ONE unit of room needs more than the oldest event to leave. The view must name the same moment the
+    // next advance's refusal names, or the cook is told to come back before the import will move.
+    it('⛔ over the limit, names the same moment the refusal does, not the oldest event', () => {
+        // 1,005 spent: six units must leave, and the oldest event holds only one of them.
+        const events = [eventAged(5 * HOUR, 1, 'bulk'), eventAged(3 * HOUR, 1004, 'bulk')];
+        const refusal = evaluateImportAllowance({ channel: 'bulk', windowEvents: events, requestedUnits: 1, now: NOW });
+
+        expect(refusal.kind).toBe('refuse');
+        expect(describeAt('bulk', events).resetsAt).toBe(
+            refusal.kind === 'refuse' ? refusal.resetsAt.toISOString() : 'not refused',
+        );
+    });
 });

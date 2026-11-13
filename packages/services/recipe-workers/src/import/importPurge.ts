@@ -26,19 +26,27 @@
  * ## Shape of the work
  *
  * Batches, because a first run after a long outage could delete a great many imports with their lines in one statement and
- * hold row locks for all of it. Each batch is its own statement and transaction; a tick stops at a short batch or at
+ * hold row locks for all of it. Each batch is its own transaction; a tick stops at a short batch or at
  * {@link IMPORT_PURGE_MAX_BATCHES_PER_TICK}, and what remains waits for the next tick (the oldest first, by the index on
  * `updated_at`). The rows are taken `FOR UPDATE SKIP LOCKED`: an import another transaction holds (the cook's write) is
  * skipped, not waited for and not deleted under it, and under READ COMMITTED a row whose `updated_at` moved before the lock
- * is re-checked against the age bound before it is taken. The next tick sees a skipped import again. A failure is NOT swallowed: the data is user content past its retention bound, so the tick must fail
- * loudly (the handler runs this LAST, so a failure costs the other sweeps nothing).
+ * is re-checked against the age bound before it is taken. The next tick sees a skipped import again.
+ *
+ * SKIP LOCKED covers the import rows only. The cascade also sets `ingredients.import_line_id` to NULL, and that update WAITS
+ * on a cook's lock on the ingredient row. So each batch sets a transaction-local `lock_timeout`
+ * ({@link IMPORT_PURGE_LOCK_TIMEOUT_MS}): a batch that waits that long is rolled back, the tick stops there and keeps what
+ * earlier batches deleted, and the next tick tries again. That is a quiet stop, not a failure, because a cook's edit is
+ * normal; a lock that never clears shows as the oldest import's age, which the alarm watches. Any other failure is NOT
+ * swallowed: the data is user content past its retention bound, so the tick must fail loudly.
  *
  * ## What an operator sees
  *
  * {@link runImportPurge} publishes two metrics with `Stage` (ADR-0062) on every tick: how many imports it deleted, zero
- * included, and the age of the oldest import still held. The age is published even when the purge fails, because a purge
- * that has stopped, or fallen behind, shows as an age past the bound; `BulkImportPurgeBehindAlarm` watches it.
+ * included, and the age of the oldest import still held. The age is read and published FIRST, before any delete, so a purge
+ * that fails, hangs or has fallen behind still shows as an age past the bound; `BulkImportPurgeBehindAlarm` watches it.
  */
+import pg from 'pg';
+
 import type { EmfMetric } from '../common/metrics.js';
 import { logger } from '../common/logger.js';
 import type { ExpiryQueryable } from '../parsing/parseJobExpiry.js';
@@ -66,6 +74,25 @@ export const IMPORT_METRIC_NAMESPACE = 'Commise/RecipeImport';
 export const IMPORTS_PURGED_METRIC_NAME = 'BulkImportsPurged';
 export const OLDEST_IMPORT_AGE_METRIC_NAME = 'OldestBulkImportAgeSeconds';
 
+/**
+ * How long one batch waits for a row lock before it gives up (transaction-local, so the pooled connection keeps nothing).
+ * Well under the time budget below, so the worst tick is the budget plus one wait, inside the host's 60 seconds.
+ */
+export const IMPORT_PURGE_LOCK_TIMEOUT_MS = 5_000;
+
+/**
+ * How long one batch's statement may run in all (transaction-local). `lock_timeout` bounds each lock wait, not the
+ * statement, so several short waits could still add up past the host's minute.
+ */
+export const IMPORT_PURGE_STATEMENT_TIMEOUT_MS = 15_000;
+
+/**
+ * The SQLSTATEs that mean "this batch could not finish now, the rest waits for the next tick": `lock_not_available`
+ * (waited past `lock_timeout`), `query_canceled` (ran past `statement_timeout`) and `deadlock_detected`. Each rolls the
+ * batch back and leaves a healthy connection; anything else is a failure.
+ */
+const QUIET_STOP_SQLSTATES: ReadonlySet<string> = new Set(['55P03', '57014', '40P01']);
+
 /** The most batches one tick runs, a hard stop beside the time budget. */
 export const IMPORT_PURGE_MAX_BATCHES_PER_TICK = 100;
 
@@ -76,6 +103,14 @@ export const IMPORT_PURGE_MAX_BATCHES_PER_TICK = 100;
 export const IMPORT_PURGE_TIME_BUDGET_MS = 20_000;
 
 /**
+ * The purge's database surface: queries on the pool (the age read), and a client of its own for the batches, because a
+ * transaction-local setting needs every statement of its transaction on one connection. `pg.Pool` satisfies it.
+ */
+export interface ImportPurgePool extends ExpiryQueryable {
+    connect(): Promise<ExpiryQueryable & { release(destroy?: Error | boolean): void }>;
+}
+
+/**
  * Delete the working data of every import whose last activity (`updated_at`) is older than {@link IMPORT_PURGE_AFTER_DAYS}.
  *
  * @param pool - The recipe database pool.
@@ -83,12 +118,69 @@ export const IMPORT_PURGE_TIME_BUDGET_MS = 20_000;
  * @returns How many imports were deleted this tick.
  * @sideEffect Deletes `recipe_imports` rows; the items and snapshot lines cascade; ingredient links are set to NULL.
  */
-export async function purgeFinishedImports(pool: ExpiryQueryable, clock: () => number = Date.now): Promise<number> {
+export async function purgeFinishedImports(pool: ImportPurgePool, clock: () => number = Date.now): Promise<number> {
     const startedAt = clock();
+    const client = await pool.connect();
     let deleted = 0;
+    let failure: Error | undefined;
 
-    for (let batch = 0; batch < IMPORT_PURGE_MAX_BATCHES_PER_TICK; batch += 1) {
-        const result = await pool.query(
+    try {
+        for (let batch = 0; batch < IMPORT_PURGE_MAX_BATCHES_PER_TICK; batch += 1) {
+            const outcome = await purgeOneBatch(client);
+
+            if (outcome.kind === 'stopped') {
+                logger.warn(
+                    'bulk import purge stopped on a database timeout or deadlock; the rest waits for the next tick',
+                    {
+                        deleted,
+                        sqlstate: outcome.sqlstate,
+                    },
+                );
+
+                return deleted;
+            }
+
+            deleted += outcome.count;
+
+            if (outcome.count < IMPORT_PURGE_BATCH_SIZE || clock() - startedAt >= IMPORT_PURGE_TIME_BUDGET_MS) {
+                return deleted;
+            }
+        }
+
+        return deleted;
+    } catch (error) {
+        // A connection whose transaction failed is destroyed, not handed back to the pool in an unknown state.
+        failure = error instanceof Error ? error : new Error(String(error));
+
+        throw error;
+    } finally {
+        client.release(failure);
+    }
+}
+
+/** What one batch did: deleted some imports, or stopped quietly on the named SQLSTATE. */
+type BatchOutcome =
+    { readonly kind: 'deleted'; readonly count: number } | { readonly kind: 'stopped'; readonly sqlstate: string };
+
+/**
+ * One batch in its own transaction, with transaction-local lock and statement timeouts.
+ *
+ * @param client - A connection the caller holds for the whole purge.
+ * @returns How many imports it deleted, or, after rolling the batch back, the SQLSTATE of a quiet stop (lock timeout,
+ *   statement timeout or deadlock).
+ * @sideEffect Deletes `recipe_imports` rows (see {@link purgeFinishedImports}).
+ */
+async function purgeOneBatch(client: ExpiryQueryable): Promise<BatchOutcome> {
+    await client.query('BEGIN', []);
+
+    try {
+        // `set_config(..., true)` is `SET LOCAL` with a bound parameter: it ends with this transaction.
+        await client.query(`SELECT set_config('lock_timeout', $1, true), set_config('statement_timeout', $2, true)`, [
+            `${IMPORT_PURGE_LOCK_TIMEOUT_MS}ms`,
+            `${IMPORT_PURGE_STATEMENT_TIMEOUT_MS}ms`,
+        ]);
+
+        const result = await client.query(
             `WITH gone AS (
                  DELETE FROM recipe_imports
                   WHERE id IN (
@@ -103,16 +195,30 @@ export async function purgeFinishedImports(pool: ExpiryQueryable, clock: () => n
              SELECT count(*)::int AS n FROM gone`,
             [String(IMPORT_PURGE_AFTER_DAYS), IMPORT_PURGE_BATCH_SIZE],
         );
-        const count = Number((result.rows[0] as { n: number | string } | undefined)?.n ?? 0);
 
-        deleted += count;
+        await client.query('COMMIT', []);
 
-        if (count < IMPORT_PURGE_BATCH_SIZE || clock() - startedAt >= IMPORT_PURGE_TIME_BUDGET_MS) {
-            return deleted;
+        return { kind: 'deleted', count: Number((result.rows[0] as { n: number | string } | undefined)?.n ?? 0) };
+    } catch (error) {
+        try {
+            await client.query('ROLLBACK', []);
+        } catch (rollbackFailure) {
+            // errors[0] is the batch's own failure, so a rollback on a broken connection never hides it.
+            throw new AggregateError(
+                [error, rollbackFailure],
+                'bulk import purge batch failed, and so did its rollback',
+                {
+                    cause: rollbackFailure,
+                },
+            );
         }
-    }
 
-    return deleted;
+        if (error instanceof pg.DatabaseError && error.code !== undefined && QUIET_STOP_SQLSTATES.has(error.code)) {
+            return { kind: 'stopped', sqlstate: error.code };
+        }
+
+        throw error;
+    }
 }
 
 /**
@@ -133,31 +239,27 @@ export async function oldestImportAgeSeconds(pool: ExpiryQueryable): Promise<num
 }
 
 /**
- * Run the purge and publish what it did: the count it deleted (only when it succeeded) and then the age of the oldest import
- * left (always). A failed purge still fails the tick, after the age is published; a failed age read is logged and swallowed,
- * because observation must never fail a purge that worked.
+ * Publish the age of the oldest import, THEN run the purge and publish the count it deleted (only when it succeeded). The
+ * age goes first so nothing the delete does (fail, wait, run to the host's timeout) can keep it unpublished. A failed purge
+ * still fails the tick; a failed age read is logged and swallowed, because observation must never stop the purge.
  *
  * @param deps - The recipe pool, this deploy's stage, and the metric sink.
  * @sideEffect Deletes aged imports (see {@link purgeFinishedImports}), reads `recipe_imports`, and writes EMF lines.
  */
 export async function runImportPurge(deps: {
-    readonly pool: ExpiryQueryable;
+    readonly pool: ImportPurgePool;
     readonly stage: string;
     readonly emit: (metric: EmfMetric) => void;
 }): Promise<void> {
-    try {
-        const purged = await purgeFinishedImports(deps.pool);
+    await publishOldestImportAge(deps);
 
-        deps.emit({
-            namespace: IMPORT_METRIC_NAMESPACE,
-            name: IMPORTS_PURGED_METRIC_NAME,
-            unit: 'Count',
-            stage: deps.stage,
-            value: purged,
-        });
-    } finally {
-        await publishOldestImportAge(deps);
-    }
+    deps.emit({
+        namespace: IMPORT_METRIC_NAMESPACE,
+        name: IMPORTS_PURGED_METRIC_NAME,
+        unit: 'Count',
+        stage: deps.stage,
+        value: await purgeFinishedImports(deps.pool),
+    });
 }
 
 /**

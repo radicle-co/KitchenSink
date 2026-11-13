@@ -2172,7 +2172,8 @@ export class RecipeWorkersStack extends Stack {
             //
             // ACTION WHEN IT FIRES: read the band drain's errors in Sentry (a purge failure fails the tick), then the oldest
             // `recipe_imports` rows by `updated_at`. A row that stays past the bound while the purge succeeds is one a
-            // transaction keeps locked (the purge skips locked rows).
+            // transaction keeps locked (the purge skips a locked import, and gives up on a locked ingredient after its lock
+            // timeout, with a warning in the log).
             const importPurgeBehindAlarm = new cloudwatch.Alarm(this, 'BulkImportPurgeBehindAlarm', {
                 alarmName: `kitchensink-recipe-import-purge-behind-${props.stage}`,
                 alarmDescription:

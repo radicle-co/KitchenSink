@@ -13,7 +13,10 @@
  *  3. **Flagged is derived from the SAVED line's verdict** (`saved_verification_key`), because the snapshot's own key judges the
  *     PROPOSED food and a line bound to its default or best match is judged under another. It goes through the one classifier
  *     `identityReadingOf` and the third mapping `importFlagOf`; nothing is stored.
- *  4. **Total and bounded.** The facts come from `readMatchFacts`, the paste view's own read side: each read ends with the
+ *  4. **A curated contradiction is counted once** (`reportCurationOnce`, the paste view's own claim-then-emit), so a
+ *     contradiction seen only through an import still reaches curation review. The saved line's FLAG reads another key
+ *     and never a curated proposal, so `flagsOf` reports nothing.
+ *  5. **Total and bounded.** The facts come from `readMatchFacts`, the paste view's own read side: each read ends with the
  *     request's deadline, and an unreadable one degrades to "no verdict yet" with a log line, never a failed poll.
  */
 import { Inject, Injectable, Logger } from '@nestjs/common';
@@ -28,17 +31,22 @@ import { identityReadingOf } from '../recipes/domain/lineVerification.js';
 import { isDefaultRung } from '../recipes/domain/matchProposal.js';
 import { reviewStandingOf } from '../recipes/domain/reviewStanding.js';
 import {
+    CURATION_DISAGREEMENT_SINK,
     foodsOfMatch,
     isNamed,
     namedFood,
     projectMatch,
     readMatchFacts,
     readOrEmpty,
+    reportCurationOnce,
+    type CurationDisagreement,
+    type CurationReport,
 } from '../recipes/parseJobMatchView.js';
 import type { ParseProposalMatch } from '../recipes/parseJobs.schema.js';
 import type { ImportFlag } from '../recipes/import.schema.js';
 import { RECIPE_LINE_VERIFICATIONS_DAL } from '../recipes/recipes.tokens.js';
-import type { ImportLine, ListedLine } from './dal/recipeImportLines.dal.js';
+import type { ImportLine, ListedLine, RecipeImportLinesDal } from './dal/recipeImportLines.dal.js';
+import { RECIPE_IMPORT_LINES_DAL } from './import.tokens.js';
 import { importFlagOf } from './domain/importFlagPolicy.js';
 import { matchOfSnapshotLine } from './domain/snapshotMatch.js';
 
@@ -74,6 +82,9 @@ export class ImportLineView {
         >,
         @Inject(FoodRefsGateway) private readonly refs: Pick<FoodRefsGateway, 'resolve'>,
         @Inject(FoodLookupsDal) private readonly lookups: Pick<FoodLookupsDal, 'findByIds'>,
+        @Inject(RECIPE_IMPORT_LINES_DAL) private readonly lines: Pick<RecipeImportLinesDal, 'claimCurationReport'>,
+        @Inject(CURATION_DISAGREEMENT_SINK)
+        private readonly reportCurationDisagreement: (report: CurationDisagreement) => void,
     ) {}
 
     /**
@@ -101,7 +112,31 @@ export class ImportLineView {
             foods: matches.flatMap(({ match }) => foodsOfMatch(match)),
         });
 
-        return new Map(matches.map(({ line, match }) => [line.id, projectMatch(match, { ...read, toReport: [] })]));
+        // ⛔ One pipeline: a curated proposal the gate contradicted is counted for curation review here as on the paste,
+        // once per line and verdict (review item 5 on #220). The condition is `projectMatch`'s own, never a second rule.
+        const reports: (CurationReport & { readonly lineId: string })[] = [];
+        const projected = new Map(
+            matches.map(({ line, match }) => {
+                const toReport: CurationReport[] = [];
+                const view = projectMatch(match, { ...read, toReport });
+
+                reports.push(...toReport.map((report) => ({ ...report, lineId: line.id })));
+
+                return [line.id, view] as const;
+            }),
+        );
+
+        await reportCurationOnce(
+            reports,
+            {
+                claim: (report) => this.lines.claimCurationReport(report.lineId, report.verificationKey),
+                emit: this.reportCurationDisagreement,
+                logger: this.logger,
+            },
+            { subject: `import ${lines[0]?.importId ?? 'unknown'}`, deadline },
+        );
+
+        return projected;
     }
 
     /**

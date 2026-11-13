@@ -316,6 +316,33 @@ export class RecipeImportLinesDal {
     }
 
     /**
+     * Claim the one curation count of a line whose CURATED proposal the review gate contradicted (review item 5 on #220):
+     * a conditional write of the line's marker, so only the first read that sees the contradiction counts it. The verdict
+     * key is in the predicate, as the paste's is (`claimCurationReport` on the match store).
+     *
+     * @param lineId - The snapshot line.
+     * @param verificationKey - The key the contradicting verdict is stored under.
+     * @returns Whether this call won the claim. Zero rows IS the answer "already counted, or not a curated line".
+     * @sideEffect One conditional update of the line.
+     */
+    public async claimCurationReport(lineId: string, verificationKey: string): Promise<boolean> {
+        const won = await this.db
+            .update(recipeImportLines)
+            .set({ curationReportedAt: sql`now()` })
+            .where(
+                and(
+                    eq(recipeImportLines.id, lineId),
+                    eq(recipeImportLines.verificationKey, verificationKey),
+                    eq(recipeImportLines.matchedBy, 'curated'),
+                    isNull(recipeImportLines.curationReportedAt),
+                ),
+            )
+            .returning({ id: recipeImportLines.id });
+
+        return won.length > 0;
+    }
+
+    /**
      * Store the keys the saved lines' verdicts live under. Called in the save's own transaction.
      *
      * @param writer - The transaction.

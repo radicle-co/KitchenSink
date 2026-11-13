@@ -48,9 +48,12 @@ import { RECIPE_LINE_VERIFICATIONS_DAL } from './recipes.tokens.js';
 /** DI token for where a curated-but-contradicted proposal is reported (provided by `RecipesModule`). */
 export const CURATION_DISAGREEMENT_SINK = 'CURATION_DISAGREEMENT_SINK';
 
-/** What a curated-but-contradicted report carries: ids only, never the cook's text. */
+/**
+ * What a curated-but-contradicted report carries: ids only, never the cook's text. `subject` names where it was seen
+ * (`parse-job <id>` for a paste, `import <id>` for a bulk import), because one pipeline counts both.
+ */
 export interface CurationDisagreement {
-    readonly jobId: string;
+    readonly subject: string;
     readonly foodId: string;
 }
 
@@ -243,6 +246,65 @@ export async function readOrEmpty<T>(
     }
 }
 
+/**
+ * Count each curated contradiction ONCE per row and verdict: only a report whose store claim this read won is emitted.
+ * Neither the claim nor the report may fail the read. The ONE claim-then-emit, shared by the paste view and the bulk
+ * import's line view (review item 5 on #220), each with its own store's claim.
+ *
+ * ⛔ A claim that wins after the request stopped waiting still owns the one count: it is emitted then, or it is lost for
+ * good (the marker is taken and no later read will win it).
+ *
+ * @param reports - The contradictions this read saw.
+ * @param sinks - The claim (`true` when this read won the count), the report, and where a failed claim is logged.
+ * @param ask - Where the reports were seen, and the request's deadline.
+ * @sideEffect Conditional writes of the store's marker; one report per won claim.
+ */
+export async function reportCurationOnce<R extends { readonly foodId: string }>(
+    reports: readonly R[],
+    sinks: {
+        readonly claim: (report: R) => Promise<boolean>;
+        readonly emit: (report: CurationDisagreement) => void;
+        readonly logger: Pick<Logger, 'warn'>;
+    },
+    ask: { readonly subject: string; readonly deadline: AbortSignal | undefined },
+): Promise<void> {
+    const emit = (report: R): void => {
+        sinks.emit({ subject: ask.subject, foodId: report.foodId });
+        sinks.logger.warn('A curated mapping was contradicted by the review gate.', {
+            subject: ask.subject,
+            foodId: report.foodId,
+        });
+    };
+
+    for (const report of reports) {
+        try {
+            const won = await within(
+                ask.deadline,
+                () => sinks.claim(report),
+                (lateWon) => {
+                    if (lateWon) {
+                        emit(report);
+                    }
+                },
+            );
+
+            if (won) {
+                emit(report);
+            }
+        } catch (error) {
+            if (isDeadlineExceededError(error)) {
+                continue;
+            }
+
+            // Observability must not become an availability dependency.
+            sinks.logger.warn(
+                `${ask.subject}: a curated contradiction could not be counted`,
+                error instanceof Error ? error.stack : String(error),
+            );
+        }
+    }
+}
+
 /** Where a match's facts are read from, and where a read that degrades is logged. */
 export interface MatchFactsSources {
     readonly verdicts: Pick<LineVerificationsDal, 'findBandsByKeys' | 'findExhaustedKeys' | 'findBudgetSpentKeys'>;
@@ -423,8 +485,7 @@ export class ParseJobMatchView {
     }
 
     /**
-     * Count each curated contradiction ONCE per row and verdict (item 18): only a report whose store claim this read won
-     * is emitted. Neither the claim nor the report may fail the read.
+     * Count each curated contradiction ONCE per row and verdict (item 18), through the shared claim-then-emit.
      *
      * @sideEffect Conditional writes of the store's marker; one EMF line per won claim.
      */
@@ -433,48 +494,20 @@ export class ParseJobMatchView {
         reports: readonly CurationReport[],
         deadline: AbortSignal | undefined,
     ): Promise<void> {
-        const emit = (report: CurationReport): void => {
-            this.reportCurationDisagreement({ jobId, foodId: report.foodId });
-            this.logger.warn('A curated mapping was contradicted by the review gate on a paste line.', {
-                jobId,
-                foodId: report.foodId,
-            });
-        };
-
-        for (const report of reports) {
-            try {
-                const won = await within(
-                    deadline,
-                    () =>
-                        this.matches.claimCurationReport(jobId, {
-                            lineIndex: report.match.lineIndex,
-                            foodIndex: report.match.foodIndex,
-                            verificationKey: report.verificationKey,
-                        }),
-                    // ⛔ A claim that wins after the request stopped waiting still owns the one count: emit it then, or
-                    // it is lost for good (the marker is taken and no later read will win it).
-                    (lateWon) => {
-                        if (lateWon) {
-                            emit(report);
-                        }
-                    },
-                );
-
-                if (won) {
-                    emit(report);
-                }
-            } catch (error) {
-                if (isDeadlineExceededError(error)) {
-                    continue;
-                }
-
-                // Observability must not become an availability dependency.
-                this.logger.warn(
-                    `parse-job ${jobId}: a curated contradiction could not be counted`,
-                    error instanceof Error ? error.stack : String(error),
-                );
-            }
-        }
+        await reportCurationOnce(
+            reports,
+            {
+                claim: (report) =>
+                    this.matches.claimCurationReport(jobId, {
+                        lineIndex: report.match.lineIndex,
+                        foodIndex: report.match.foodIndex,
+                        verificationKey: report.verificationKey,
+                    }),
+                emit: this.reportCurationDisagreement,
+                logger: this.logger,
+            },
+            { subject: `parse-job ${jobId}`, deadline },
+        );
     }
 
     /** The view with `match` set on every proposed food by `matchFor`. Pure. */

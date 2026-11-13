@@ -61,6 +61,7 @@ import { IngredientRebindService } from '../../../src/recipes/ingredientRebind.s
 import { MatchProposalService, PARSE_JOB_MATCHES_DAL } from '../../../src/recipes/matchProposal.service.js';
 import { ParseJobsService } from '../../../src/recipes/parseJobs.service.js';
 import { RecipesService } from '../../../src/recipes/recipes.service.js';
+import { CURATION_DISAGREEMENT_SINK } from '../../../src/recipes/parseJobMatchView.js';
 import { RECIPE_LINE_VERIFICATIONS_DAL } from '../../../src/recipes/recipes.tokens.js';
 
 /** A deadline that never fires: every read on the import side takes one (ADR-0072 §2). */
@@ -106,7 +107,9 @@ const lines = {
     listToCheck: vi.fn(),
     countToCheck: vi.fn(),
     setSavedKeys: vi.fn(),
+    claimCurationReport: vi.fn(),
 };
+const curationSink = vi.fn();
 const allowance = { stateOf: vi.fn(), admit: vi.fn() };
 const recipes = { create: vi.fn() };
 const verdicts = { findBandsByKeys: vi.fn(), findExhaustedKeys: vi.fn(), findBudgetSpentKeys: vi.fn() };
@@ -128,6 +131,7 @@ async function compile() {
             { provide: PRIVATE_SLOTS, useValue: UNLIMITED_PRIVATE_SLOTS },
             { provide: IMPORT_ADVANCE_LIMITS, useValue: DEFAULT_IMPORT_ADVANCE_LIMITS },
             { provide: RECIPE_LINE_VERIFICATIONS_DAL, useValue: verdicts },
+            { provide: CURATION_DISAGREEMENT_SINK, useValue: curationSink },
             { provide: FoodRefsGateway, useValue: refs },
             { provide: FoodLookupsDal, useValue: { findByIds: vi.fn(async () => new Map()) } },
             { provide: ParseJobsService, useValue: { createPrepaid: vi.fn(), retry: vi.fn() } },
@@ -243,6 +247,28 @@ describe('the import services under the real injector', () => {
             note: '9 inch',
             match: { proposed: { kind: 'root', id: 'F-whole', name: 'Whole milk' } },
         });
+    });
+
+    // Review item 5 on #220: one pipeline counts a curated contradiction seen through an import, through the real view.
+    it('⛔ the wizard counts a curated contradiction once, through the lines store’s claim and the curation sink', async () => {
+        lines.findForItem.mockResolvedValue([makeLine({ id: 'L0', matchedBy: 'curated', rung: null, margin: null })]);
+        lines.claimCurationReport.mockResolvedValueOnce(true).mockResolvedValue(false);
+        verdicts.findBandsByKeys.mockResolvedValue(
+            new Map([
+                [
+                    'v1:proposal',
+                    { band: 'contradicted', certainty: 'high', identityVerdict: 'disagree', aspects: ['identity'] },
+                ],
+            ]),
+        );
+        curationSink.mockReset();
+        const { steps } = await compile();
+
+        await steps.step(COOK, CALLER, IMPORT_ID, 0, DEADLINE);
+        await steps.step(COOK, CALLER, IMPORT_ID, 0, DEADLINE);
+
+        expect(lines.claimCurationReport).toHaveBeenCalledWith('L0', 'v1:proposal');
+        expect(curationSink).toHaveBeenCalledExactlyOnceWith({ subject: `import ${IMPORT_ID}`, foodId: 'F-whole' });
     });
 
     it('⛔ a review the ceiling refused this month reaches the wizard as a choice with when it comes back, never "checking"', async () => {

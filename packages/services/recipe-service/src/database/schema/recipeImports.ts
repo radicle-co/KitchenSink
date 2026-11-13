@@ -258,9 +258,15 @@ export const recipeImportLines = pgTable(
         pickedFoodVariantId: text('picked_food_variant_id'),
         pickedAsWritten: boolean('picked_as_written').notNull().default(false),
         pickedAgainstDigest: text('picked_against_digest'),
+        /** When the contradiction of this line's CURATED proposal was counted for curation review, once (0080). */
+        curationReportedAt: timestamp('curation_reported_at', { withTimezone: true }),
         createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     },
     (table) => [
+        check(
+            'recipe_import_lines_curation_reported_check',
+            sql`${table.curationReportedAt} IS NULL OR (${table.matchedBy} = 'curated' AND ${table.verificationKey} IS NOT NULL)`,
+        ),
         foreignKey({
             columns: [table.importId, table.ordinal],
             foreignColumns: [recipeImportItems.importId, recipeImportItems.ordinal],

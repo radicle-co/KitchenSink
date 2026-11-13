@@ -23,6 +23,8 @@ import { canonicalIngredientName } from '../../ingredients/domain/ingredientName
 import type { LineVerdictRow } from '../../recipes/dal/lineVerifications.dal.js';
 import { CallerToken } from '../../auth/CallerToken.js';
 import { makeLine, makePrincipal } from '../__fixtures__/importFixtures.js';
+import type { RecipeImportLinesDal } from '../dal/recipeImportLines.dal.js';
+import type { CurationDisagreement } from '../../recipes/parseJobMatchView.js';
 import { ImportLineView } from '../importLineView.js';
 import type { ListedLine } from '../dal/recipeImportLines.dal.js';
 import { actingPrincipalOf } from '../../auth/principal.js';
@@ -60,6 +62,8 @@ function build(
         readonly armsFail?: boolean;
         /** The binding read never settles, as a stalled database would. */
         readonly armsHang?: boolean;
+        /** What the curation claim answers: whether this read won the one count. */
+        readonly claim?: RecipeImportLinesDal['claimCurationReport'];
     } = {},
 ) {
     const answers = options.answers ?? {
@@ -117,15 +121,28 @@ function build(
             }),
         );
     });
+    const claimCurationReport = vi.fn<RecipeImportLinesDal['claimCurationReport']>(options.claim ?? (async () => true));
+    const metric = vi.fn<(report: CurationDisagreement) => void>();
     const view = new ImportLineView(
         { findBandsByKeys, findExhaustedKeys, findBudgetSpentKeys },
         { resolve },
         {
             findByIds,
         },
+        { claimCurationReport },
+        metric,
     );
 
-    return { view, resolve, findBandsByKeys, findExhaustedKeys, findBudgetSpentKeys, findByIds };
+    return {
+        view,
+        resolve,
+        findBandsByKeys,
+        findExhaustedKeys,
+        findBudgetSpentKeys,
+        findByIds,
+        claimCurationReport,
+        metric,
+    };
 }
 
 describe('ImportLineView.matchesOf', () => {
@@ -147,6 +164,77 @@ describe('ImportLineView.matchesOf', () => {
         const matches = await view.matchesOf(ACTING, CALLER, [makeLine({ id: 'L1' })], DEADLINE);
 
         expect(matches.get('L1')).toMatchObject({ state: 'needsChoice', reason: 'reviewContradicted', proposed: null });
+    });
+
+    // Review item 5 on #220, under the one-pipeline ruling: a curated mapping the review gate contradicts is counted for
+    // curation review whether the cook sees it in a paste or an import, and ONCE per line and verdict, through the claim.
+    describe('a curated contradiction is counted once', () => {
+        const curated = makeLine({ id: 'L1', matchedBy: 'curated', rung: null, margin: null });
+
+        it('⛔ claims the line under its verdict key and counts it, once, however often the view is read', async () => {
+            let won = false;
+            const { view, claimCurationReport, metric } = build({
+                verdicts: { 'v1:proposal': DISAGREE },
+                claim: async () => {
+                    const first = !won;
+
+                    won = true;
+
+                    return first;
+                },
+            });
+
+            await view.matchesOf(ACTING, CALLER, [curated], DEADLINE);
+            await view.matchesOf(ACTING, CALLER, [curated], DEADLINE);
+            await view.matchesOf(ACTING, CALLER, [curated], DEADLINE);
+
+            expect(claimCurationReport).toHaveBeenCalledWith('L1', 'v1:proposal');
+            expect(metric).toHaveBeenCalledOnce();
+            expect(metric).toHaveBeenCalledWith({ subject: `import ${curated.importId}`, foodId: 'F-whole' });
+        });
+
+        it('counts nothing for a contradicted proposal that was not curated, nor for an agreed curated one', async () => {
+            const lexical = build({ verdicts: { 'v1:proposal': DISAGREE } });
+            const agreed = build({ verdicts: { 'v1:proposal': AGREE } });
+
+            await lexical.view.matchesOf(ACTING, CALLER, [makeLine({ id: 'L1' })], DEADLINE);
+            await agreed.view.matchesOf(ACTING, CALLER, [curated], DEADLINE);
+
+            expect(lexical.claimCurationReport).not.toHaveBeenCalled();
+            expect(agreed.claimCurationReport).not.toHaveBeenCalled();
+        });
+
+        it('⛔ never fails the read when the claim fails: observability is not an availability dependency', async () => {
+            const { view, metric } = build({
+                verdicts: { 'v1:proposal': DISAGREE },
+                claim: async () => {
+                    throw new Error('lines table down');
+                },
+            });
+
+            await expect(view.matchesOf(ACTING, CALLER, [curated], DEADLINE)).resolves.toBeInstanceOf(Map);
+            expect(metric).not.toHaveBeenCalled();
+        });
+
+        it('⛔ a claim that wins after the deadline still counts once, as the paste view does', async () => {
+            let settle: (won: boolean) => void = () => undefined;
+            const late = new Promise<boolean>((resolve) => {
+                settle = resolve;
+            });
+            const deadline = new AbortController();
+            const { view, claimCurationReport, metric } = build({
+                verdicts: { 'v1:proposal': DISAGREE },
+                claim: () => late,
+            });
+            const reading = view.matchesOf(ACTING, CALLER, [curated], deadline.signal);
+
+            await vi.waitFor(() => expect(claimCurationReport).toHaveBeenCalledOnce());
+            deadline.abort();
+            await reading;
+            settle(true);
+
+            await vi.waitFor(() => expect(metric).toHaveBeenCalledOnce());
+        });
     });
 
     it('a verified exact-name proposal is confident', async () => {

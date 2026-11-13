@@ -42,7 +42,7 @@ const UNIQUE_VIOLATION = '23505';
 
 type Columns = Record<string, unknown>;
 
-describe('the bulk-import tables (LOCAL e2e; migrations 0059, 0060, 0066, 0074 to 0079)', () => {
+describe('the bulk-import tables (LOCAL e2e; migrations 0059, 0060, 0066, 0074 to 0081)', () => {
     let pool: pg.Pool;
 
     beforeAll(async () => {
@@ -218,6 +218,7 @@ describe('the bulk-import tables (LOCAL e2e; migrations 0059, 0060, 0066, 0074 t
             expect(await columnsOf('recipe_import_lines')).toEqual([
                 'candidates',
                 'created_at',
+                'curation_reported_at',
                 'display_text',
                 'food_id',
                 'food_index',
@@ -861,6 +862,38 @@ describe('the bulk-import tables (LOCAL e2e; migrations 0059, 0060, 0066, 0074 t
 
             return importId;
         }
+
+        // Review item 5 on #220: a curated contradiction seen through an import is counted once per line and verdict, and
+        // the marker of that count is a fact of a CURATED line with a verdict key, as the paste's is (0057).
+        describe('the curation-report marker (0080, 0081)', () => {
+            it('keeps the marker on a curated line that owes a review', async () => {
+                const importId = await withItem();
+                const row = await insert(
+                    'recipe_import_lines',
+                    line(importId, 0, proposed({ matched_by: 'curated', curation_reported_at: new Date() })),
+                );
+
+                expect(row['curation_reported_at']).toBeInstanceOf(Date);
+            });
+
+            it.each([
+                ['a line that was not curated', proposed({ curation_reported_at: new Date() })],
+                ['a line that found nothing', { curation_reported_at: new Date() }],
+            ])('⛔ refuses the marker on %s', async (_name, extra) => {
+                const importId = await withItem();
+
+                await refused(insert('recipe_import_lines', line(importId, 0, extra as Columns)), CHECK_VIOLATION);
+            });
+
+            it('recipe_import_lines.recipe_import_lines_curation_reported_check is present and VALIDATED (0080, 0081)', async () => {
+                const { rows } = await pool.query<{ convalidated: boolean }>(
+                    `SELECT convalidated FROM pg_constraint
+                      WHERE conrelid = 'recipe_import_lines'::regclass AND conname = 'recipe_import_lines_curation_reported_check'`,
+                );
+
+                expect(rows).toEqual([{ convalidated: true }]);
+            });
+        });
 
         it('admits a line that proposed a food, a variant, and a line that found nothing', async () => {
             const importId = await withItem();

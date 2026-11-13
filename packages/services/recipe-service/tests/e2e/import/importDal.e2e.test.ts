@@ -1467,6 +1467,31 @@ describe('the bulk-import DALs (LOCAL e2e, real Postgres)', () => {
             return { header, ids };
         }
 
+        // Review item 5 on #220: a curated contradiction seen through an import is counted ONCE per line and verdict.
+        it('⛔ claims a curated line’s report once per verdict key, and never a line that was not curated', async () => {
+            const header = await newImport(1);
+
+            await put(header.id, [0]);
+
+            const insertLine = async (lineIndex: number, matchedBy: string) =>
+                (
+                    await pool.query<{ id: string }>(
+                        `INSERT INTO recipe_import_lines (import_id, ordinal, line_index, food_index, source_line, line_digest,
+                                                          judgement_digest, phrase, name, unit, matched_by, food_id, review,
+                                                          verification_key)
+                         VALUES ($1, 0, $2, 0, 'line', 'ld', 'jd', 'p', 'p', '', $3, 'f0', 'owed', 'vk-1') RETURNING id`,
+                        [header.id, lineIndex, matchedBy],
+                    )
+                ).rows[0]?.id ?? '';
+            const curated = await insertLine(0, 'curated');
+            const lexical = await insertLine(1, 'lexical');
+
+            expect(await lines.claimCurationReport(curated, 'vk-other')).toBe(false);
+            expect(await lines.claimCurationReport(curated, 'vk-1')).toBe(true);
+            expect(await lines.claimCurationReport(curated, 'vk-1')).toBe(false);
+            expect(await lines.claimCurationReport(lexical, 'vk-1')).toBe(false);
+        });
+
         it('records a pick only against the digest the cook saw, and says so when it is stale', async () => {
             const { header } = await savedItemWithLines(USER, [{ lineIndex: 0, boundBy: null, candidates: 2 }]);
 

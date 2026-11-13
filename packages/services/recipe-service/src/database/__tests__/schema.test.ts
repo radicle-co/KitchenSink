@@ -349,6 +349,8 @@ describe('recipe-service schema — table contracts (T011–T014, T118, T119, T1
             picked_food_variant_id: { type: 'text', notNull: false },
             picked_as_written: { type: 'boolean', notNull: true },
             picked_against_digest: { type: 'text', notNull: false },
+            // When a curated contradiction on this line was counted for curation review, once (0080).
+            curation_reported_at: { type: 'timestampwithtimezone', notNull: false },
             created_at: { type: 'timestampwithtimezone', notNull: true },
         });
     });

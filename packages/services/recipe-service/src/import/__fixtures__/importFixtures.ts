@@ -142,6 +142,7 @@ export function makeLine(overrides: Partial<ImportLine> = {}): ImportLine {
         pickedFoodVariantId: null,
         pickedAsWritten: false,
         pickedAgainstDigest: null,
+        curationReportedAt: null,
         createdAt: new Date('2026-10-26T12:00:00.000Z'),
         ...overrides,
     };

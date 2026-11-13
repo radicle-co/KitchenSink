@@ -312,7 +312,7 @@ Parse the JSON output for:
 Append a coverage summary section to the end of `acceptance-plan.md`:
 
 ```markdown
----
+***
 
 ## Coverage Summary
 

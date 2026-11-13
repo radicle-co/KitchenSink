@@ -21,7 +21,7 @@
         "@types/node": "^24.13.3",
         "eslint": "^10.0.3",
         "jose": "^6.2.3",
-        "prettier": "^3.0.0",
+        "prettier": "^3.10.1",
         "typescript": "^6.0.3",
         "vitest": "^4.1.12",
         "zod": "^4.6.7"

@@ -96,7 +96,7 @@
         "drizzle-kit": "^0.30.0",
         "esbuild": "^0.28.1",
         "eslint": "^10.0.3",
-        "prettier": "^3.0.0",
+        "prettier": "^3.10.1",
         "tsx": "^4.23.15",
         "typescript": "^6.0.3",
         "undici": "^8.12.2",

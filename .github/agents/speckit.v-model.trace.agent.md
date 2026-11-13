@@ -261,7 +261,7 @@ If either matrix is very large (>50 rows), display the first 20 rows in the resp
 Include baseline metadata at the bottom of the matrix:
 
 ```markdown
----
+***
 
 ## Baseline Information
 

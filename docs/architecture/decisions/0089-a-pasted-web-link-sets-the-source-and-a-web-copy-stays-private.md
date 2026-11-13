@@ -61,6 +61,13 @@ the kind. The kind is the label half of a source. A bulk import also has a citat
 column for it yet. The bulk import's slice 5 owes it, and this column leaves room for it. The account export carries
 the kind. The detail and list responses carry `sourceKind`, and leave it out for `null`.
 
+The vocabulary is closed on the way in and open on the way out. Requests and the database accept only the known kinds.
+A client reads any other kind in a response as `unrecognised` (`recipeSourceKindViewSchema`). The bulk import's
+statement view follows the same rule. Every rule that reads a kind treats `unrecognised` as the most closed kind: private
+only, and not correctable. The server never sends `unrecognised`, so it can never become a real kind. Only clients built
+after this rule read a new kind safely. When the oldest supported app reads a new kind (such as "adapted" or "family"),
+the server can start to send it.
+
 ### 5. A web copy is private only
 
 `privateRuleOf(sourceType, sourceKind)` gives `privateOnly` for `imported_public` with kind `public_web`, as for a book

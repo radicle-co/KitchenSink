@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+    RECIPE_SOURCE_KINDS,
     RecipeSourceType,
     RecipeVisibility,
     UNRECOGNISED_SOURCE_KIND,
@@ -56,6 +57,11 @@ describe('privateRuleOf', () => {
 });
 
 describe('recipeSourceKindViewSchema: the wire read of a source kind', () => {
+    // Installed clients read `unrecognised` as "a kind I do not know", so it can never be a real kind.
+    it('never names a real kind unrecognised', () => {
+        expect(RECIPE_SOURCE_KINDS).not.toContain(UNRECOGNISED_SOURCE_KIND);
+    });
+
     it.each(['public_web', 'book', 'paid_site'] as const)('reads the known kind %s as itself', (kind) => {
         expect(recipeSourceKindViewSchema.parse(kind)).toBe(kind);
     });

@@ -230,6 +230,7 @@ describe("the repository's clients and apps", () => {
     it('DISCOVERS every client and app package, so the assertions below are not vacuous', () => {
         expect(consumers.map((consumer) => consumer.dir).sort()).toStrictEqual([
             'packages/apps/commise/features/account',
+            'packages/apps/commise/features/cooking',
             'packages/apps/commise/features/core',
             'packages/apps/commise/features/recipes',
             'packages/apps/commise/i18n',

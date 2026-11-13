@@ -1,0 +1,57 @@
+{
+    "name": "@commise/features-cooking",
+    "version": "0.0.0",
+    "private": true,
+    "type": "module",
+    "main": "./src/index.ts",
+    "types": "./src/index.ts",
+    "exports": {
+        ".": "./src/index.ts"
+    },
+    "scripts": {
+        "build": "tsc -p tsconfig.build.json",
+        "test": "vitest run && vitest run --config vitest.native.config.ts",
+        "lint": "eslint .",
+        "typecheck": "tsc --noEmit",
+        "format": "prettier --write .",
+        "format:check": "prettier --check ."
+    },
+    "dependencies": {
+        "@commise/i18n": "*",
+        "@commise/ui": "*",
+        "@kitchensink/cooking-core": "*"
+    },
+    "peerDependencies": {
+        "react": "^19.2.0",
+        "react-native": ">=0.81.0",
+        "tamagui": "^3.1.9"
+    },
+    "peerDependenciesMeta": {
+        "tamagui": {
+            "optional": true
+        }
+    },
+    "devDependencies": {
+        "@commise/test-utils": "^0.0.0",
+        "@kitchensink/eslint": "*",
+        "@kitchensink/recipe-core": "*",
+        "@kitchensink/prettier": "*",
+        "@kitchensink/typescript": "*",
+        "@kitchensink/vitest": "*",
+        "@testing-library/react": "^16.3.0",
+        "@types/react": "^19.0.0",
+        "eslint": "^10.0.3",
+        "jsdom": "^30.0.1",
+        "prettier": "^3.10.1",
+        "react": "^19.2.0",
+        "react-dom": "^19.0.0",
+        "react-native": "0.86.0",
+        "react-native-web": "^0.21.2",
+        "tamagui": "^3.1.9",
+        "typescript": "^6.0.3",
+        "vitest": "^4.1.12"
+    },
+    "engines": {
+        "node": "24.x"
+    }
+}

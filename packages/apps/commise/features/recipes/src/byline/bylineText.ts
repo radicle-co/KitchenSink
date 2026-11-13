@@ -7,7 +7,7 @@
  *
  * Pure.
  */
-import { fillTemplate } from '../format/fillTemplate.js';
+import { fillTemplate } from '@commise/i18n';
 import type { Byline } from './bylineOf.js';
 import type { BylineMessages } from './messages.js';
 

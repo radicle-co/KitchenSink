@@ -24,7 +24,7 @@ import { SearchField } from '@commise/ui/search-field';
 import { Sheet } from '@commise/ui/sheet';
 import { useId, type FC } from 'react';
 
-import { fillTemplate } from '../format/fillTemplate.js';
+import { fillTemplate } from '@commise/i18n';
 import type { CollectionRecipePickerProps } from './detailModel.js';
 import { collectionMessages } from './messages.js';
 import { doneLabelOf } from './pickerModel.js';

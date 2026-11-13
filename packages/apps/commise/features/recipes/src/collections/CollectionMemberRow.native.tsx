@@ -8,6 +8,7 @@
  *
  * @pattern Adapter over the shared `RecipeCard`, filling its note, trailing and footer slots
  */
+import { fillTemplate } from '@commise/i18n';
 import { useMessages } from '@commise/i18n/react';
 import { ActionMenu } from '@commise/ui/action-menu';
 import { nativeTokens } from '@commise/ui/native';
@@ -18,7 +19,6 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { RecipeCard } from '../card/RecipeCard.js';
 import { toRecipeCardModel } from '../card/model.js';
-import { fillTemplate } from '../format/fillTemplate.js';
 import type { CollectionMemberRowProps } from './detailModel.js';
 import { collectionMessages } from './messages.js';
 

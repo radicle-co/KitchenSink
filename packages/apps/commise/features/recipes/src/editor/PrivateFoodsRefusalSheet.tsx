@@ -19,8 +19,7 @@ import { Button } from '@commise/ui/button';
 import { Sheet } from '@commise/ui/sheet';
 import type { FC } from 'react';
 
-import { fillTemplate } from '../format/fillTemplate.js';
-import { pluralOf } from '../format/plural.js';
+import { fillTemplate, pluralOf } from '@commise/i18n';
 import { AmountRun } from '../form/AmountRun.js';
 import { refusalPlanOf } from '../foodPage/privateFoodsRefusal.js';
 import { editorMessages } from './messages.js';

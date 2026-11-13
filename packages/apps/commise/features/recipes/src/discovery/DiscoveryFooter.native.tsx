@@ -6,6 +6,7 @@
  * A press while saving or saved does nothing; the button stays focusable (`aria-disabled`). A failure unfills the glyph
  * and an inline alert says so. Colour is read from the theme at render (D15).
  */
+import { fillTemplate } from '@commise/i18n';
 import { useMessages } from '@commise/i18n/react';
 import { initialsPxOf } from '@commise/ui/avatar-initials';
 import { Icon } from '@commise/ui/icon';
@@ -17,7 +18,6 @@ import type { FC } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { recipeActionMessages } from '../actions/messages.js';
-import { fillTemplate } from '../format/fillTemplate.js';
 import { bylineInitial, bylineOf } from '../byline/bylineOf.js';
 import { bylineText } from '../byline/bylineText.js';
 import { bylineMessages } from '../byline/messages.js';

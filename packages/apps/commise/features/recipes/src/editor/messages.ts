@@ -8,9 +8,9 @@
  * reasons and the announcements. A count is a `{ one, other }` pair with `{count}`, chosen through `Intl.PluralRules`
  * (`pluralOf`, `format/plural.ts`), the way every count in this package is.
  */
-import type { LocalizedMessages } from '@commise/i18n';
 
-import type { PluralText } from '../format/plural.js';
+import { type LocalizedMessages, type PluralText } from '@commise/i18n';
+
 import type { EditorSectionId } from './sections.js';
 import type { AttentionReason, InProgressReason } from './sectionStatus.js';
 

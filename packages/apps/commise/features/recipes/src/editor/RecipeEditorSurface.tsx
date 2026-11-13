@@ -21,6 +21,7 @@
  * @pattern Composition — the editor's leaves arranged over one session; the app supplies the one leaf that differs
  */
 import type { PaidFeatureState } from '@commise/features-account';
+import { pluralOf } from '@commise/i18n';
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { Button } from '@commise/ui/button';
 import { ConfirmDialog } from '@commise/ui/confirm-dialog';
@@ -47,7 +48,6 @@ import type { EditorSeed } from '../hooks/useRecipeEditor.js';
 import { useLastDefined } from '../hooks/useLastDefined.js';
 import type { PasteOrigin } from './useEditorSource.js';
 import type { PhotoFinishBar, RecipeEditorViewProps } from './frameProps.js';
-import { pluralOf } from '../format/plural.js';
 import type { UseRecipePhotoManagerResult } from '../hooks/useRecipePhotoManager.js';
 import { photoMessages } from '../photos/messages.js';
 import { refusedRowsOf } from '../foodPage/privateFoodsRefusal.js';

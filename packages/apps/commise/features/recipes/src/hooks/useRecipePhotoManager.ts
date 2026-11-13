@@ -33,7 +33,7 @@ import {
 } from '@kitchensink/recipe-service-client/hooks';
 import { useState } from 'react';
 
-import { fillTemplate } from '../format/fillTemplate.js';
+import { fillTemplate } from '@commise/i18n';
 import { photoMessages } from '../photos/messages.js';
 import {
     coverFirstPhotoIds,

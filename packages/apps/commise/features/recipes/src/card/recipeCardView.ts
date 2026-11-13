@@ -16,11 +16,10 @@
  *
  * @pattern Presentation Model — the card's view, derived from its model and its copy
  */
-import type { Locale } from '@commise/i18n';
+import { type Locale, fillTemplate } from '@commise/i18n';
 import { RecipeDifficulty, RecipeStatus, RecipeVisibility } from '@kitchensink/recipe-core';
 
 import { formatDuration } from '../format/duration.js';
-import { fillTemplate } from '../format/fillTemplate.js';
 import type { RecipeMessages } from '../messages.js';
 import { formatAverageRating, formatRatingCount, formatRelativeTime, type RecipeCardModel } from './model.js';
 

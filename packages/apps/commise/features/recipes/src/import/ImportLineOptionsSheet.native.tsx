@@ -11,7 +11,7 @@ import { Sheet } from '@commise/ui/sheet';
 import type { FC } from 'react';
 import { StyleSheet, View } from 'react-native';
 
-import { fillTemplate } from '../format/fillTemplate.js';
+import { fillTemplate } from '@commise/i18n';
 import { lineTextOf } from '../ingredientMatching/matchLine.js';
 import { FoodChoiceList } from '../ingredientMatching/FoodChoiceList.native.js';
 import { MatchFailureLine } from '../ingredientMatching/MatchFailureLine.native.js';

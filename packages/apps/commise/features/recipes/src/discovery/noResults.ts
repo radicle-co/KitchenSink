@@ -7,8 +7,9 @@
  *
  * @pattern Specification — each rule is a pure predicate or projection over what the search returned
  */
+import { fillTemplate } from '@commise/i18n';
+
 import { hasActiveFilters, type RecipeFilterState } from '../filters/model.js';
-import { fillTemplate } from '../format/fillTemplate.js';
 import type { DiscoveryMessages } from './messages.js';
 
 /** What a no-result state was caused by. */

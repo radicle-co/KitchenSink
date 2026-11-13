@@ -11,7 +11,7 @@
  *
  * @pattern Policy — a pure projection of two status snapshots and the paste's count into at most one message
  */
-import { pluralOf } from '../format/plural.js';
+import { pluralOf } from '@commise/i18n';
 import type { EditorMessages } from './messages.js';
 import { newlyComplete, type SectionStatuses } from './sectionStatus.js';
 

@@ -24,6 +24,7 @@
  * @pattern Port — {@link CollectionDetailNav}, the navigation the session asks the app to perform
  */
 import type { PaidFeatureState } from '@commise/features-account';
+import { fillTemplate } from '@commise/i18n';
 import { useMessages } from '@commise/i18n/react';
 import type { ContainerClass } from '@commise/ui/container-class';
 import { RecipeVisibility } from '@kitchensink/recipe-core';
@@ -34,7 +35,6 @@ import { useMemo, useState } from 'react';
 import { makePublicConsequence, offersPrivate, type MakePublicConsequence } from '../actions/privateGate.js';
 import { useMakePublicConfirm, type MakePublicConfirm } from '../actions/useMakePublicConfirm.js';
 import { cardVariantOf, type CardVariant, type ListViewMode } from '../card/cardVariant.js';
-import { fillTemplate } from '../format/fillTemplate.js';
 import { useCollectionPull, type CollectionPull } from '../hooks/useCollectionPull.js';
 import { useCollectionVisibility, type CollectionVisibilityControl } from '../hooks/useCollectionVisibility.js';
 import { useLeaveWhenClosed } from '../hooks/useLeaveWhenClosed.js';

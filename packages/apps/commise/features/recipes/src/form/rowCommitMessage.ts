@@ -10,12 +10,12 @@
  *
  * @pattern Visitor — the binding's state picks the sentence
  */
+import { fillTemplate } from '@commise/i18n';
 import { FoodResolutionStatus } from '@kitchensink/recipe-core';
 
 import type { DetailsDialogEntry } from '../details/detailsDialogMachine.js';
 import type { IngredientPick, LineCommitTarget } from '../hooks/lineCommit.js';
 import type { SettledRowCommit } from '../hooks/useIngredientRowEditor.js';
-import { fillTemplate } from '../format/fillTemplate.js';
 import type { IngredientDetailsMessages, IngredientRemoteSearchMessages } from '../messages.js';
 import type { LineBinding } from './lineBinding.js';
 import type { RecipeFormMessages } from './messages.js';

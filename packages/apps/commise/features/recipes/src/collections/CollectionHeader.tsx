@@ -15,6 +15,7 @@
  *
  * @pattern Composite — the title, meta, description and actions of one collection
  */
+import { fillTemplate } from '@commise/i18n';
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { Button } from '@commise/ui/button';
 import { Icon } from '@commise/ui/icon';
@@ -25,7 +26,6 @@ import { RecipeVisibility } from '@kitchensink/recipe-core';
 import type { FC, ReactNode } from 'react';
 
 import { formatRecipeCount } from '../list/model.js';
-import { fillTemplate } from '../format/fillTemplate.js';
 import { CollectionMoreMenu } from './CollectionMoreMenu.js';
 import { collectionsBackOf, isCollectionCopy, type CollectionHeaderProps } from './detailModel.js';
 import { recipeMessages } from '../messages.js';

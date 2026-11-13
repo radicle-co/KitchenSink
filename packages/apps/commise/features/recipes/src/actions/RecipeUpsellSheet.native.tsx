@@ -17,7 +17,7 @@ import { useTheme } from '@commise/ui/theme';
 import type { FC } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { fillTemplate } from '../format/fillTemplate.js';
+import { fillTemplate } from '@commise/i18n';
 import { recipeActionMessages } from './messages.js';
 import type { RecipeUpsellSheetProps } from './model.js';
 

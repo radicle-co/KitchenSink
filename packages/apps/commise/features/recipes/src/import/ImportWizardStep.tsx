@@ -24,7 +24,7 @@ import { Button } from '@commise/ui/button';
 import { ProgressBar } from '@commise/ui/progress-bar';
 import type { FC } from 'react';
 
-import { fillTemplate } from '../format/fillTemplate.js';
+import { fillTemplate } from '@commise/i18n';
 import { importMessages } from './messages.js';
 import type { ImportWizardStepProps } from './props.js';
 import { backTargetOf, progressTextOf } from './wizardCopy.js';

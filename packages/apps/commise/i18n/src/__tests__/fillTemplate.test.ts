@@ -1,4 +1,4 @@
-/** Unit tests for `format/fillTemplate.ts`: the `{token}` filler every localized message goes through. */
+/** Unit tests for `fillTemplate.ts` in `@commise/i18n`: the `{token}` filler every localized message goes through. */
 import { describe, expect, it } from 'vitest';
 
 import { fillTemplate } from '../fillTemplate.js';

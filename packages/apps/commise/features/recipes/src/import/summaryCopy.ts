@@ -3,8 +3,7 @@
  * `ImportSummary` leaves so they cannot drift. A row whose count is zero is left out, never drawn as "0 could not be
  * read".
  */
-import { pluralOf } from '../format/plural.js';
-import { fillTemplate } from '../format/fillTemplate.js';
+import { pluralOf, fillTemplate } from '@commise/i18n';
 import type { ImportMessages } from './messages.js';
 import type { ImportSummaryProps } from './props.js';
 

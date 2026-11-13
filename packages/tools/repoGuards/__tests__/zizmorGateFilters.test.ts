@@ -294,29 +294,8 @@ const DECLARED_IGNORES: Readonly<Record<string, number>> = {
     'sandbox-deploy.yml:use-trusted-publishing': 1,
     'ci-full.yml:use-trusted-publishing': 1,
 
-    // ⚠️ DEFERRED, NOT "not applicable" — the only entry here that names real work. `adhoc-packages` objects
-    // to `npm install` in CI, and it is RIGHT to: install resolves ranges at deploy time, so two runs of the
-    // same commit can deploy against different dependency trees. `npm ci` is the correct call and it needs a
-    // committed lockfile in each CDK package, which cannot exist until `@radicle-co/infra-shared` has been
-    // published and each package installed against it. Until then these four steps install the CDK toolchain
-    // the deploy jobs cannot run without.
-    //
-    // ⛔ The fix is `npm ci` plus committed lockfiles, NOT deleting these suppressions.
-    'prod-deploy.yml:adhoc-packages': 1,
-    'sandbox-identity-deploy.yml:adhoc-packages': 1,
-    // `integration-infra`'s "Install the CDK packages": `nagRulesAtZero` synthesizes EVERY app, so the job
-    // installs every CDK package with `prod-deploy.yml`'s own loop. Same deferral, same fix.
-    // ⚠️ zizmor 1.29 flags only the `--prefix "${var}"` LOOP form — a plain `npm install` in a
-    // `working-directory:` is not reported — which is why the single-directory installs elsewhere carry none.
-    '_ci.yml:adhoc-packages': 1,
-    // The composite action's food-origin step installs the food CDK package — the same deferral again, for
-    // the same reason, on a shared step rather than a job.
-    'actions/infra-package/action.yml:adhoc-packages': 1,
-    // ⚠️ `sandboxPreview.yml` is GONE from this list, and that is the fix landing rather than a
-    // suppression being deleted: it no longer installs a CDK toolchain at all. The deploys moved to
-    // `deployInfra.yml`, whose composite action installs per `infra/` directory, and what remains here is
-    // a root `npm ci` — the correct call this entry was deferring to.
-    'sandbox-router-deploy.yml:adhoc-packages': 1,
+    // `adhoc-packages` has no entry: every CDK app installs with `npm ci` from its committed lockfile
+    // (`cdkAppLockfiles.test.ts`), which is the call the audit asks for, so nothing is left to suppress.
     // ⚠️ JUSTIFIED, and made safe rather than merely declared. The composite action exports its platform
     // inputs, food origin and image tag under names the CALLER chooses; a step output cannot be re-exported
     // under a dynamic name, so `$GITHUB_ENV` is the only mechanism. What the audit protects against — a
@@ -421,8 +400,13 @@ describe('every zizmor suppression in the repo is declared', () => {
         // `ignore[adhoc-packages,github-env]` suppresses both, so both must be counted. The first version of
         // this analyzer tested the whole bracket against the kebab-case audit-id pattern, which a comma fails
         // — so a two-audit suppression was silently counted as NOTHING, the one outcome a ratchet exists to
-        // prevent.
-        expect(declaredActionIgnores(ACTIONS_DIR)['actions/infra-package/action.yml:adhoc-packages']).toBe(1);
+        // prevent. REWRITTEN to a fixture: the tree's last comma list went when its `adhoc-packages` half was
+        // fixed, and a case that reads the tree would then assert nothing about commas at all.
+        const counts = countIgnores([
+            { key: 'fixture.yml', text: '          run: | # zizmor: ignore[adhoc-packages, github-env] — reason\n' },
+        ]);
+
+        expect(counts).toEqual({ 'fixture.yml:adhoc-packages': 1, 'fixture.yml:github-env': 1 });
         expect(declaredActionIgnores(ACTIONS_DIR)['actions/infra-package/action.yml:github-env']).toBe(4);
     });
 

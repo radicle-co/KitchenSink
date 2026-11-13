@@ -247,7 +247,9 @@ runs:
           working-directory: ${{ inputs.directory }}
           env:
               NODE_AUTH_TOKEN: ${{ inputs.node-auth-token }}
-          run: npm install --no-audit --no-fund
+          # `npm ci`: every directory this action installs commits its lockfile, and `npm ci` fails on one that no
+          # longer matches its manifest instead of rewriting it.
+          run: npm ci --no-audit --no-fund
 
         - name: Typecheck
           shell: bash
@@ -404,14 +406,14 @@ runs:
               TARGETS: ${{ inputs.food-origin-env }}
               STAGE: ${{ inputs.stage }}
               NODE_AUTH_TOKEN: ${{ inputs.node-auth-token }}
-          run: | # zizmor: ignore[adhoc-packages,github-env] — food CDK install; env via safeEnv.sh
+          run: | # zizmor: ignore[github-env] — env via safeEnv.sh
               set -euo pipefail
               npx turbo run build --filter='@kitchensink/food-service^...'
               # ⛔ The helper imports `FoodServiceStack`, whose `aws-cdk-lib` and `@radicle-co/infra-shared`
               # resolve only from the FOOD app's own `infra/` install — and this step runs in the RECIPE jobs,
               # which installed only their own directory. `recipe-schema` died here with `Cannot find package
               # 'aws-cdk-lib'` on its first CI run. Asserted by `infraInstallBeforeUse.test.ts`.
-              npm install --prefix packages/services/food-service/infra --no-audit --no-fund
+              npm ci --prefix packages/services/food-service/infra --no-audit --no-fund
               url=$(npx tsx packages/services/food-service/infra/bin/printFoodHost.ts "${STAGE}" "${DOMAIN_NAME}")
               for var in ${TARGETS}; do
                   bash .github/scripts/safeEnv.sh "${var}" "${url}"

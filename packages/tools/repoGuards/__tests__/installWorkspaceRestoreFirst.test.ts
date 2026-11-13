@@ -36,7 +36,15 @@ interface Step {
     readonly if?: string;
     readonly run?: string;
     readonly with?: Record<string, unknown>;
+    readonly 'working-directory'?: string;
 }
+
+/**
+ * A step that installs the ROOT workspace with `npm ci`. A CDK app's own `npm ci` (in its `working-directory`, or with
+ * `--prefix`) installs that app's committed lockfile and is not the root install this suite routes through the action.
+ */
+const rootNpmCi = (step: Step): boolean =>
+    step['working-directory'] === undefined && /(^|\n)\s*npm ci\b(?![^\n]*--prefix)/u.test(step.run ?? '');
 
 const read = (file: string): string => readFileSync(join(repoRoot, file), 'utf8');
 const ACTION = '.github/actions/installWorkspace/action.yml';
@@ -86,7 +94,7 @@ describe('the root workspace is restored, not reinstalled, on the deploy path', 
             jobs?: Record<string, { steps?: Step[] }>;
         };
         const steps = [...(doc.runs?.steps ?? []), ...Object.values(doc.jobs ?? {}).flatMap((job) => job.steps ?? [])];
-        const bare = steps.filter(({ run }) => /(^|\n)\s*npm ci\b/u.test(run ?? '')).map(({ name }) => name);
+        const bare = steps.filter(rootNpmCi).map(({ name }) => name);
 
         expect(bare, 'these steps run npm ci directly').toEqual([]);
         expect(steps.some(({ uses }) => uses?.endsWith('installWorkspace'))).toBe(true);
@@ -109,7 +117,7 @@ describe('resolve-sandbox, the head of the preview chain, restores instead of re
         const steps = job()?.steps ?? [];
 
         expect(steps.some(({ uses }) => uses?.endsWith('installWorkspace'))).toBe(true);
-        expect(steps.filter(({ run }) => /(^|\n)\s*npm ci\b/u.test(run ?? ''))).toEqual([]);
+        expect(steps.filter(rootNpmCi)).toEqual([]);
     });
 
     it('needs no token: the root workspace install does not read GitHub Packages', () => {

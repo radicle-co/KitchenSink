@@ -406,15 +406,18 @@ jobs:
             # not be deploying, and a per-leg gate would leave those resolving nothing.
             #
             # `@radicle-co/infra-shared` comes from GitHub Packages, which authenticates even for a public read.
+            # `npm ci`, from the lockfile each package commits: one commit always synthesizes and deploys against
+            # the same tree. `npm install` re-resolved the manifests' ranges on every run, so a new `aws-cdk-lib`
+            # release changed what an unchanged commit built (see the comment in `.gitignore`).
             - name: Install the CDK packages
               env:
                   NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-              run: | # zizmor: ignore[adhoc-packages]
+              run: |
                   set -euo pipefail
                   for app in packages/infra/global packages/apps/*/*/infra packages/services/*/infra; do
                       [ -f "${app}/package.json" ] || continue
                       echo "::group::${app}"
-                      npm install --prefix "${app}" --no-audit --no-fund
+                      npm ci --prefix "${app}" --no-audit --no-fund
                       echo "::endgroup::"
                   done
             - name: Build global infra

@@ -39,7 +39,7 @@
         "culori": "^4.0.2",
         "eslint": "^10.0.3",
         "jsdom": "^30.0.1",
-        "prettier": "^3.9.10",
+        "prettier": "^3.10.1",
         "react": "^19.0.0",
         "react-dom": "^19.0.0",
         "react-native-web": "^0.21.2",

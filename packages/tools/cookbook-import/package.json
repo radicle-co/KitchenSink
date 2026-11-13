@@ -37,7 +37,7 @@
         "@types/node": "^24.13.3",
         "csv-parse": "^7.0.3",
         "eslint": "^10.0.3",
-        "prettier": "^3.9.10",
+        "prettier": "^3.10.1",
         "tsx": "^4.23.15",
         "typescript": "^6.0.3",
         "vitest": "^4.1.12"

@@ -82,7 +82,7 @@
         "esbuild": "^0.28.1",
         "eslint": "^10.0.3",
         "jsdom": "^30.0.1",
-        "prettier": "^3.9.10",
+        "prettier": "^3.10.1",
         "tsx": "^4.23.15",
         "typescript": "^6.0.3",
         "ulidx": "^2.4.1",

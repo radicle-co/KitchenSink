@@ -12,4 +12,4 @@
  * @returns The template with known placeholders filled.
  */
 export const fillTemplate = (template: string, tokens: Readonly<Record<string, string | number>>): string =>
-    template.replace(/\{(\w+)\}/g, (match, key: string) => (key in tokens ? String(tokens[key]) : match));
+    template.replace(/\{(\w+)\}/g, (match, key: string) => (Object.hasOwn(tokens, key) ? String(tokens[key]) : match));

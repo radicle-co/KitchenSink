@@ -2,8 +2,12 @@
  * @module Icon.card — the design-system card of the Icon: every glyph the product uses, named, at 24 px in the ink
  * tone, on both platforms.
  */
+import type { IconName } from '@commise/ui/icon-names';
+
 import { defineCard } from '../../../../src/cards/defineCard.js';
 
+// A copy of `ICON_NAMES`, because a card may import product code only as a type (`compileCard.ts`). The
+// `satisfies` refuses a name the Registry does not have, and `complete` refuses a Registry name left off the card.
 const names = [
     'house',
     'bookOpen',
@@ -57,7 +61,13 @@ const names = [
     'list',
     'layoutGrid',
     'cookingPot',
-] as const;
+    'listChecks',
+] as const satisfies readonly IconName[];
+
+type MissingFromCard = Exclude<IconName, (typeof names)[number]>;
+// A type, not a value: the card bundle carries nothing for it. Exported so it is not dead code.
+type NoneMissing<T extends never> = T;
+export type CardIsComplete = NoneMissing<MissingFromCard>;
 
 export default defineCard({
     group: 'Media',

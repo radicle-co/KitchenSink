@@ -109,6 +109,13 @@ describe('the glyph Registry', () => {
         expect(webGlyphName('cookingPot')).not.toBe(webGlyphName('flame'));
     });
 
+    // `list` already means the library's list view, so the Ingredients glyph is its own meaning with its own drawing.
+    it('draws listChecks as the Lucide list-checks on web and on native, and not as list', () => {
+        expect(webGlyphName('listChecks')).toBe('list-checks');
+        expect(nativeGlyphNames().get('listChecks')).toBe('list-checks');
+        expect(webGlyphName('listChecks')).not.toBe(webGlyphName('list'));
+    });
+
     it('mirrors in right-to-left exactly the glyphs that point left or right', () => {
         // The rule, not a restatement of the set: a chevron points a direction that reverses with the reading order.
         // The clock, the timer and every other glyph keep their drawing (spec §2.2).

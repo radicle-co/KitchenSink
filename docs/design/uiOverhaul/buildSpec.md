@@ -288,6 +288,7 @@ and `sm` hit areas, chips, row ⋯, the hero discs, the Stepper and the tab item
 | delete                               | `trash-2`         | add photo                        | `image-plus`     |
 | paste steps                          | `list-plus`       | add a timer                      | `timer`          |
 | pull updates                         | `refresh-cw`      | Start cooking / Continue cooking | `cooking-pot`    |
+| Ingredients (cooking mode)           | `list-checks`     |                                  |                  |
 
 ### 1.8 Imagery: `RecipeCover` and photos
 

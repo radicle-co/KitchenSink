@@ -289,7 +289,7 @@ describe('web tokens — generated theme.css artifact', () => {
               --text-reading-body--line-height: calc(28 / 18);
               --text-reading-body--font-weight: 400;
               --text-reading-large: 1.75rem;
-              --text-reading-large--line-height: calc(32 / 28);
+              --text-reading-large--line-height: calc(36 / 28);
               --text-reading-large--font-weight: 400;
               --text-meta: 0.875rem;
               --text-meta--line-height: calc(20 / 14);

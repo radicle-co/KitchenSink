@@ -43,9 +43,9 @@ describe('step index policy — one rule for every function that walks the steps
 
     const THREE = makeOneLineSteps(3);
 
-    it.each(STEP_WALK.flatMap(([name, call]) => [-1, 1.5, Number.NaN, 3].map((index) => [name, call, index] as const)))(
-        '%s rejects step index %#, naming the index and the count',
-        (_name, call, index) => {
+    it.each(STEP_WALK.flatMap(([name, call]) => [-1, 1.5, Number.NaN, 3].map((index) => ({ name, call, index }))))(
+        '$name rejects step index $index, naming the index and the count',
+        ({ call, index }) => {
             expect(() => call(THREE, index)).toThrow(
                 expect.toSatisfy(
                     (error) =>

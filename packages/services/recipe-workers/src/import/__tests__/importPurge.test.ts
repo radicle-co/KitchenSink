@@ -192,7 +192,7 @@ describe('purgeFinishedImports', () => {
         expect(IMPORT_PURGE_LOCK_TIMEOUT_MS).toBeLessThanOrEqual(IMPORT_PURGE_TIME_BUDGET_MS / 4);
     });
 
-    it('keeps the statement timeout above the lock timeout and well under the time budget', () => {
+    it('keeps the statement timeout above the lock timeout and within the time budget', () => {
         expect(IMPORT_PURGE_STATEMENT_TIMEOUT_MS).toBeGreaterThan(IMPORT_PURGE_LOCK_TIMEOUT_MS);
         expect(IMPORT_PURGE_STATEMENT_TIMEOUT_MS).toBeLessThanOrEqual(IMPORT_PURGE_TIME_BUDGET_MS);
     });
@@ -211,7 +211,7 @@ describe('purgeFinishedImports', () => {
 
             expect(await purgeFinishedImports(pool)).toBe(IMPORT_PURGE_BATCH_SIZE);
             expect(order.slice(4)).toStrictEqual(['BEGIN', 'SELECT', 'delete', 'ROLLBACK']);
-            // A lock timeout leaves a healthy connection: it goes back to the pool, not destroyed.
+            // The rollback succeeded, so each of these quiet stops leaves a healthy connection: it goes back to the pool.
             expect(release).toHaveBeenCalledTimes(1);
             expect(release).toHaveBeenCalledWith(undefined);
         },

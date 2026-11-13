@@ -128,23 +128,21 @@ export async function purgeFinishedImports(pool: ImportPurgePool, clock: () => n
         for (let batch = 0; batch < IMPORT_PURGE_MAX_BATCHES_PER_TICK; batch += 1) {
             const outcome = await purgeOneBatch(client);
 
-            if (typeof outcome === 'string') {
+            if (outcome.kind === 'stopped') {
                 logger.warn(
                     'bulk import purge stopped on a database timeout or deadlock; the rest waits for the next tick',
                     {
                         deleted,
-                        sqlstate: outcome,
+                        sqlstate: outcome.sqlstate,
                     },
                 );
 
                 return deleted;
             }
 
-            const count = outcome;
+            deleted += outcome.count;
 
-            deleted += count;
-
-            if (count < IMPORT_PURGE_BATCH_SIZE || clock() - startedAt >= IMPORT_PURGE_TIME_BUDGET_MS) {
+            if (outcome.count < IMPORT_PURGE_BATCH_SIZE || clock() - startedAt >= IMPORT_PURGE_TIME_BUDGET_MS) {
                 return deleted;
             }
         }
@@ -160,15 +158,19 @@ export async function purgeFinishedImports(pool: ImportPurgePool, clock: () => n
     }
 }
 
+/** What one batch did: deleted some imports, or stopped quietly on the named SQLSTATE. */
+type BatchOutcome =
+    { readonly kind: 'deleted'; readonly count: number } | { readonly kind: 'stopped'; readonly sqlstate: string };
+
 /**
  * One batch in its own transaction, with transaction-local lock and statement timeouts.
  *
  * @param client - A connection the caller holds for the whole purge.
- * @returns How many imports it deleted, or the SQLSTATE (a string) of a quiet stop (lock timeout, statement timeout or
- *   deadlock) after rolling the batch back.
+ * @returns How many imports it deleted, or, after rolling the batch back, the SQLSTATE of a quiet stop (lock timeout,
+ *   statement timeout or deadlock).
  * @sideEffect Deletes `recipe_imports` rows (see {@link purgeFinishedImports}).
  */
-async function purgeOneBatch(client: ExpiryQueryable): Promise<number | string> {
+async function purgeOneBatch(client: ExpiryQueryable): Promise<BatchOutcome> {
     await client.query('BEGIN', []);
 
     try {
@@ -196,7 +198,7 @@ async function purgeOneBatch(client: ExpiryQueryable): Promise<number | string> 
 
         await client.query('COMMIT', []);
 
-        return Number((result.rows[0] as { n: number | string } | undefined)?.n ?? 0);
+        return { kind: 'deleted', count: Number((result.rows[0] as { n: number | string } | undefined)?.n ?? 0) };
     } catch (error) {
         try {
             await client.query('ROLLBACK', []);
@@ -212,7 +214,7 @@ async function purgeOneBatch(client: ExpiryQueryable): Promise<number | string> 
         }
 
         if (error instanceof pg.DatabaseError && error.code !== undefined && QUIET_STOP_SQLSTATES.has(error.code)) {
-            return error.code;
+            return { kind: 'stopped', sqlstate: error.code };
         }
 
         throw error;

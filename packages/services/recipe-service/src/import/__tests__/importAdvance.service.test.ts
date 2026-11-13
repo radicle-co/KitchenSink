@@ -1536,6 +1536,30 @@ describe('ImportAdvanceService — saving what is ready', () => {
                     logged.mockRestore();
                 }
             });
+
+            // GATE on #220, minor: the count is a database write inside the save's catch. If it fails too, the advance must
+            // not fail with it: the item waits, uncounted, and the next advance tries again.
+            it('⛔ waits, and logs it, when counting the failure fails too: the advance still answers', async () => {
+                const logged = vi.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+                const built = failing();
+
+                built.store.countSaveFailure.mockRejectedValueOnce(new Error('the count lost its connection'));
+
+                try {
+                    await expect(built.service.advance(built.principal, CALLER, IMPORT_ID)).resolves.toBeDefined();
+
+                    expect(built.store.countSaveFailure).toHaveBeenCalledOnce();
+                    expect(built.store.holdItem).not.toHaveBeenCalled();
+                    expect(built.store.deferItem).toHaveBeenCalledExactlyOnceWith(IMPORT_ID, 0);
+                    expect(
+                        logged.mock.calls.filter(([message]) =>
+                            String(message).includes('counting the failure failed'),
+                        ),
+                    ).toHaveLength(1);
+                } finally {
+                    logged.mockRestore();
+                }
+            });
         });
 
         it('⛔ never re-queues a held item: the next calls do not look at it, until a decision of the cook releases it', async () => {

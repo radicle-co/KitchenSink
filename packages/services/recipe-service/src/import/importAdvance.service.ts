@@ -682,12 +682,23 @@ export class ImportAdvanceService {
     /**
      * After a save that failed for a cause no rule recognises (the caller logged it): retried, until `saveFailureCap`
      * failures in a row at this revision hold it as a create refusal (`saveRefused`), so every failure has an end state. The
-     * hold is said ONCE.
+     * hold is said ONCE. A count that fails too leaves the item waiting, uncounted, so the advance still answers.
      *
-     * @sideEffect Counts the failure; at the cap, writes the hold and logs it.
+     * @sideEffect Counts the failure; at the cap, writes the hold and logs it; logs a count that failed.
      */
     private async failed(principal: Principal, header: ImportHeader, item: ImportItem): Promise<SaveOutcome> {
-        const failures = await this.items.countSaveFailure(header.id, item.ordinal, item.decisionRev);
+        let failures: number | undefined;
+
+        try {
+            failures = await this.items.countSaveFailure(header.id, item.ordinal, item.decisionRev);
+        } catch (error) {
+            this.logger.error(
+                `import ${header.id} item ${String(item.ordinal)}: counting the failure failed; it waits`,
+                errorStack(error),
+            );
+
+            return 'waiting';
+        }
 
         if (failures === undefined || failures < this.limits.saveFailureCap) {
             return 'waiting';

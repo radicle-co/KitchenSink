@@ -7,8 +7,9 @@
  * tier and size select (`buttonSurfaceClass`, `docs/design/uiOverhaul/buildSpec.md` §1.10). Consumes the shared
  * {@link ButtonProps} contract; the native leaf (`Button.native.tsx`) mirrors it.
  *
- * The glyph is drawn at the 20 px inline size in `currentColor`, so it always takes its label's colour, inside an
- * `aria-hidden` slot: the visible label (`children`) owns the accessible name. A ghost or quiet button may have no
+ * The glyph is drawn at the 20 px inline size in `currentColor`, inside an `aria-hidden` slot: the visible label
+ * (`children`) owns the accessible name. The slot takes the label's colour unless `buttonGlyphClass` parts the two
+ * (quiet, or a secondary under the `action` glyph tone). A ghost or quiet button may have no
  * glyph; then the slot exists only while busy, to hold the spinner.
  *
  * Two behaviours are shared with the native leaf but expressed in the web idiom:
@@ -34,7 +35,7 @@ import { Icon } from '../icon/Icon.js';
 import { PressScale } from '../pressScale/index.js';
 import { Spinner } from '../spinner/Spinner.js';
 import { busyControlProps } from './busyControlProps.js';
-import { surfaceOf, type ButtonProps } from './props.js';
+import { glyphToneOf, surfaceOf, type ButtonProps } from './props.js';
 import { buttonGlyphClass, buttonSurfaceClass } from './surfaceClass.js';
 
 /** The Commise design-system button — the meaning's glyph + label, one surface per tier and size. */
@@ -67,7 +68,7 @@ export const Button: FC<ButtonProps> = (props) => {
         busy || icon !== undefined ? (
             <span
                 aria-hidden="true"
-                className={`inline-flex shrink-0 items-center ${buttonGlyphClass(variant)}`.trimEnd()}
+                className={`inline-flex shrink-0 items-center ${buttonGlyphClass(variant, glyphToneOf(props))}`.trimEnd()}
             >
                 {busy || icon === undefined ? <Spinner className="animate-spin" /> : <Icon name={icon} size={20} />}
             </span>

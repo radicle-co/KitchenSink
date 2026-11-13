@@ -345,6 +345,64 @@ describe('Button (native)', () => {
         );
     });
 
+    // The secondary action glyph (`glyphTone="action"`): an actionText glyph and spinner beside an ink label on the
+    // unchanged secondary surface. The default stays the label's colour, so no existing caller changes.
+    it('draws a secondary action glyph in actionText while the label stays ink, light and dark', () => {
+        for (const [name, theme] of [
+            ['light', role],
+            ['dark', roleDark],
+        ] as const) {
+            scheme.current = name;
+            const { container, unmount } = render(
+                <Button variant="secondary" icon="chevronRight" glyphTone="action" iconPlacement="end">
+                    Next step
+                </Button>,
+            );
+
+            expect(glyphIn(container)?.dataset['iconColor'], name).toBe(theme.actionText);
+            expect(resolvedColour(screen.getByText('Next step'), 'color'), name).toBe(rgb(theme.ink));
+            unmount();
+        }
+    });
+
+    it('keeps a secondary glyph in its label colour when glyphTone is absent or label', () => {
+        for (const glyphTone of [undefined, 'label'] as const) {
+            const { container, unmount } = render(
+                <Button variant="secondary" icon="chevronLeft" glyphTone={glyphTone}>
+                    Back
+                </Button>,
+            );
+
+            expect(glyphIn(container)?.dataset['iconColor'], String(glyphTone)).toBe(role.ink);
+            unmount();
+        }
+    });
+
+    it('draws the busy spinner of a secondary action glyph in actionText', () => {
+        render(
+            <Button variant="secondary" icon="chevronRight" glyphTone="action" busy>
+                Next step
+            </Button>,
+        );
+
+        expect(screen.getByRole('progressbar', { hidden: true }).outerHTML).toContain(
+            `stroke: ${rgb(role.actionText)}`,
+        );
+    });
+
+    it('shows no action cue on a disabled or refused secondary: the glyph takes the label colour', () => {
+        for (const state of [{ disabled: true }, { refused: true }]) {
+            const { container, unmount } = render(
+                <Button variant="secondary" icon="chevronRight" glyphTone="action" {...state}>
+                    Next step
+                </Button>,
+            );
+
+            expect(glyphIn(container)?.dataset['iconColor'], JSON.stringify(state)).toBe(role.ink);
+            unmount();
+        }
+    });
+
     it('gives quiet a 44 pt target on iOS and 48 dp on Android', () => {
         for (const [os, floor] of [
             ['ios', 44],

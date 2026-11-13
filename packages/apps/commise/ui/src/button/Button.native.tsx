@@ -5,7 +5,8 @@
  * Registry glyph for its meaning beside its label, on the surface its tier and size select. The accessible button is
  * the {@link PressScale} `Pressable` this leaf composes — one accessibility element (`accessibilityRole="button"` + a
  * label-derived name) that also gives the pill its motion-safe press-scale, which is the native pressed state (§1.9).
- * The glyph sits in a hidden slot and is drawn in the label's colour, so the label alone is the name.
+ * The glyph sits in a hidden slot, so the label alone is the name; it is drawn in the label's colour except where the
+ * glyph role table or the `action` glyph tone parts the two.
  *
  * - **Sizes** (§1.6): 52, 44 and 36 visual points, each rounded to HALF its height (E2 I2: a wrapped label stays
  *   inside the curve). On Android every 44 is 48 dp: `md` grows to 48, and `sm`'s hit area does. `sm` is hit at 44
@@ -41,7 +42,7 @@ import { useTheme } from '../theme/useTheme.native.js';
 import { PressScale } from '../pressScale/index.js';
 import { moveScreenReaderFocus } from '../screenReaderFocus/moveScreenReaderFocus.native.js';
 import { dimmedOpacity } from '../tokens/scale.js';
-import { BUTTON_VISUAL_HEIGHT, surfaceOf, type ButtonProps, type ButtonSize } from './props.js';
+import { BUTTON_VISUAL_HEIGHT, glyphToneOf, surfaceOf, type ButtonProps, type ButtonSize } from './props.js';
 import { BUTTON_PILL_LAYOUT, buttonSurfacePaint, type ButtonSurface } from './surfacePaint.native.js';
 import { ButtonLabel } from './ButtonLabel.native.js';
 
@@ -50,8 +51,8 @@ const visualHeightOf = (size: ButtonSize): number => (size === 'md' ? touchFloor
 
 /**
  * Each surface's GLYPH and spinner role: its label's colour, except `quiet`, an `ink` label with an `actionText` glyph
- * (`componentFixes.md` §1), the web leaf's `buttonGlyphClass`. The Button suite holds this table and `ButtonLabel`'s
- * to that rule.
+ * (`componentFixes.md` §1), the web leaf's `buttonGlyphClass`. A secondary under the `action` glyph tone takes
+ * `actionText` instead ({@link glyphRoleOf}). The Button suite holds this table and `ButtonLabel`'s to that rule.
  */
 const GLYPH: Readonly<Record<ButtonSurface, Role>> = {
     primary: 'onAction',
@@ -61,6 +62,13 @@ const GLYPH: Readonly<Record<ButtonSurface, Role>> = {
     destructiveInline: 'dangerText',
     destructiveConfirm: 'onAction',
 };
+
+/**
+ * The glyph and spinner role of a button: `actionText` under the `action` glyph tone, else its surface's. The native
+ * adapter of the glyph colour: `glyphToneOf` decides when the tone is `action`, the same policy the web leaf reads. Pure.
+ */
+const glyphRoleOf = (surface: ButtonSurface, props: ButtonProps): Role =>
+    glyphToneOf(props) === 'action' ? 'actionText' : GLYPH[surface];
 
 /** Resolve the accessible name: an explicit override, else the string label, else undefined. */
 const resolveAccessibilityLabel = (
@@ -95,7 +103,7 @@ export const Button: FC<ButtonProps> = (props) => {
                 ? 'destructiveConfirm'
                 : 'destructiveInline'
             : variant;
-    const glyphRole = GLYPH[surface];
+    const glyphRole = glyphRoleOf(surface, props);
     const theme = useTheme();
     const node = useRef<View>(null);
     useFocusRequest(focusRequested, () => moveScreenReaderFocus(node.current), onFocusRequestHandled);

@@ -6,7 +6,7 @@
  */
 import { describe, expect, expectTypeOf, it } from 'vitest';
 
-import type { ButtonProps } from '../props.js';
+import { glyphToneOf, type ButtonProps } from '../props.js';
 
 describe('ButtonProps', () => {
     it('has no `over` prop on any tier', () => {
@@ -28,5 +28,44 @@ describe('ButtonProps', () => {
         expectTypeOf<Bare<'destructive'>>().not.toExtend<ButtonProps>();
         expectTypeOf<{ readonly children: string }>().not.toExtend<ButtonProps>();
         expect(true).toBe(true);
+    });
+
+    // The action glyph is a SECONDARY option: a filled tier's glyph sits on its fill, and ghost is already actionText.
+    it('offers glyphTone on secondary alone', () => {
+        type Toned<V extends string> = {
+            readonly variant: V;
+            readonly icon: 'chevronRight';
+            readonly glyphTone: 'action';
+            readonly children: string;
+        };
+
+        expectTypeOf<Toned<'secondary'>>().toExtend<ButtonProps>();
+        expectTypeOf<Toned<'primary'>>().not.toExtend<ButtonProps>();
+        expectTypeOf<Toned<'ghost'>>().not.toExtend<ButtonProps>();
+        expectTypeOf<Toned<'quiet'>>().not.toExtend<ButtonProps>();
+        expectTypeOf<Toned<'destructive'>>().not.toExtend<ButtonProps>();
+        expect(true).toBe(true);
+    });
+});
+
+describe('glyphToneOf', () => {
+    it('defaults to label, so every existing button keeps its glyph colour', () => {
+        expect(glyphToneOf({ variant: 'secondary', icon: 'chevronLeft', children: 'Back' })).toBe('label');
+        expect(glyphToneOf({ icon: 'plus', children: 'Add' })).toBe('label');
+    });
+
+    it('answers action for a secondary that asks for it, including while busy', () => {
+        const toned = { variant: 'secondary', icon: 'chevronRight', glyphTone: 'action', children: 'Next' } as const;
+
+        expect(glyphToneOf(toned)).toBe('action');
+        // Busy wins over disabled and refused, as everywhere on the button: the spinner keeps the tone.
+        expect(glyphToneOf({ ...toned, busy: true, disabled: true, refused: true })).toBe('action');
+    });
+
+    it('drops the action cue on a disabled or refused button that is not busy', () => {
+        const toned = { variant: 'secondary', icon: 'chevronRight', glyphTone: 'action', children: 'Next' } as const;
+
+        expect(glyphToneOf({ ...toned, disabled: true })).toBe('label');
+        expect(glyphToneOf({ ...toned, refused: true })).toBe('label');
     });
 });

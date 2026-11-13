@@ -17,7 +17,7 @@ import type { RecipeVersion } from '@kitchensink/recipe-core';
 import { useId, type FC } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { fillTemplate } from '../format/fillTemplate.js';
+import { fillTemplate } from '@commise/i18n';
 import {
     type RecipeVersionListProps,
     changeSummaryForVersion,

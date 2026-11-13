@@ -38,7 +38,7 @@ import { scaleRecipeForServings } from '@kitchensink/recipe-core/scaling';
 import Link from 'next/link';
 import { useId, type ComponentProps, type FC } from 'react';
 
-import { fillTemplate } from '../format/fillTemplate.js';
+import { fillTemplate } from '@commise/i18n';
 import { recipeMessages } from '../messages.js';
 import { bylineMessages } from '../byline/messages.js';
 import { AmbiguityReview } from './AmbiguityReview.js';

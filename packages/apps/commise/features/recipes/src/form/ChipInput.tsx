@@ -15,7 +15,7 @@ import { FieldLabel, Input, fieldHintId } from '@commise/ui/input';
 import type { FC } from 'react';
 import { useState } from 'react';
 
-import { fillTemplate } from '../format/fillTemplate.js';
+import { fillTemplate } from '@commise/i18n';
 import { addChips, removeChipAt, splitAtCommas } from './props.js';
 
 /** Props for {@link ChipInput}. */

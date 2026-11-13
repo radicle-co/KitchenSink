@@ -21,7 +21,7 @@ import type { ReactNode, Ref } from 'react';
 import type { View } from 'react-native';
 
 /** The accessibility roles a native `PressScale` may expose on its `Pressable` (native-only). */
-export type PressScaleRole = 'button' | 'link' | 'switch' | 'none';
+export type PressScaleRole = 'button' | 'link' | 'switch' | 'checkbox' | 'none';
 
 /**
  * How the control sizes across its parent (R9, `docs/design/rowEditorOpenDecisions.md`). `auto` leaves it to the
@@ -60,9 +60,9 @@ export interface PressScaleProps {
     /** Accessibility role for the native `Pressable`. Defaults to `button`. Native-only. */
     readonly accessibilityRole?: PressScaleRole;
     /**
-     * The on/off state of a `switch`. Stated only with `accessibilityRole="switch"`; leave it undefined for any other
-     * role, because an absent state is a different statement from `false`. Native-only (the web child carries its own
-     * `aria-checked`).
+     * The on/off state of a `switch` or a `checkbox`. Stated only with one of those roles; leave it undefined for any
+     * other role, because an absent state is a different statement from `false`. Native-only (the web child carries its
+     * own `aria-checked`).
      */
     readonly checked?: boolean;
     /**

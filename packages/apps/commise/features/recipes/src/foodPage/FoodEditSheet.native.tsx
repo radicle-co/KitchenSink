@@ -15,7 +15,7 @@ import { Text as DesignText } from '@commise/ui/text';
 import { useId, type FC } from 'react';
 import { YStack } from 'tamagui';
 
-import { fillTemplate } from '../format/fillTemplate.js';
+import { fillTemplate } from '@commise/i18n';
 import type { AuthoredFoodDraft } from '../hooks/authoredFoodCreate.model.js';
 import { authoredFieldErrorText, authoredMacroFields } from '../form/authoredFoodSheet.model.js';
 import { recipeMessages } from '../messages.js';

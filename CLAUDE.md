@@ -303,13 +303,16 @@ npm run infra:synth --workspace=packages/services/identity-webhooks
 npm run infra:deploy --workspace=packages/services/identity
 ```
 
-### Design System and screens canvas (claude.ai artifacts)
+### Design System and screen canvases (claude.ai artifacts)
 
-"Regenerate the design system and screens" means: follow the "Regenerate the artifacts" section of
-`packages/tools/designArtifact/README.md` end to end, without asking. Build, publish the Design System, rebuild the
-canvas against the new system version, publish the canvas, then check both. That section names the two artifact links
-and the exact Artifact tool inputs. Only the Artifact tool can publish, so a person runs the build and asks Claude to
-publish.
+Every screen design and the Design System are claude.ai artifacts. `docs/design/canvases/registry.json` lists every
+link, and `docs/design/canvases/README.md` holds the rules for editing them while other agents do too. Load the
+`designCanvases` skill before any work on a screen design, board, mockup or canvas, or a comment on one. ⛔ The screen
+canvases are edited live: never rebuild or republish one from a build, which deletes the edits made on it since.
+
+"Regenerate the design system" means: follow the "Regenerate the artifacts" section of
+`packages/tools/designArtifact/README.md` end to end, without asking. It publishes the Design System only. Only the
+Artifact tool can publish, so a person runs the build and asks Claude to publish.
 
 ## Architecture
 

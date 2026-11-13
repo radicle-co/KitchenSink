@@ -2,9 +2,9 @@
  * @module @commise/features-recipes/form — the ONE formatting of a nutrition panel's figures, shared by the web and
  * native panel bodies so the two cannot show a figure differently. Pure.
  */
-import type { Locale } from '@commise/i18n';
 
-import { fillTemplate } from '../format/fillTemplate.js';
+import { type Locale, fillTemplate } from '@commise/i18n';
+
 import type { RecipeFormMessages } from './messages.js';
 import type { LineFigures } from './nutrition.js';
 

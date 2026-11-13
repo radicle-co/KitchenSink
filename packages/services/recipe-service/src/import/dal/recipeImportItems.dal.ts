@@ -86,7 +86,7 @@ export interface ChoicesPatch {
 }
 
 /** What the save needs, as the payload states it, read in SQL so the item list needs no document. */
-export interface ItemSaveFacts {
+interface ItemSaveFacts {
     readonly file: ImportFileFacts;
     readonly ingredientLineCount: number;
     readonly stepCount: number;

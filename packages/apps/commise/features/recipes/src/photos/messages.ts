@@ -1,3 +1,4 @@
+import { type LocalizedMessages, type PluralText } from '@commise/i18n';
 /**
  * @module @commise/features-recipes/photos/messages — user-facing copy for the recipe photo manager
  * (T067, wireframe step 4; w3/e4 per-file queue grid status/retry/remove copy).
@@ -6,9 +7,6 @@
  * `.tsx` and native `.native.tsx` leaves via `useMessages`, so the platforms cannot drift on copy. The `en`
  * set is required; adding a locale is just another key.
  */
-import type { LocalizedMessages } from '@commise/i18n';
-
-import type { PluralText } from '../format/plural.js';
 
 /** Shared copy for the photo manager block, rendered by both the web and native leaves. */
 export interface PhotoMessages {

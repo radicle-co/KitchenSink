@@ -185,9 +185,10 @@ shared/infra/dist/
 # defaults — so the same commit could deploy different CloudFormation on different days. Infrastructure is
 # the last place to accept that.
 #
-# ⚠️ They are absent until `@radicle-co/infra-shared` has a published version to resolve, because a lockfile
-# cannot be generated against a package that does not exist yet. Generating and committing them is the first
-# task after the first publish.
+# Each app commits its `package-lock.json`, and every workflow installs it with `npm ci`, which fails when the
+# lockfile no longer matches the manifest. `packages/tools/repoGuards/__tests__/cdkAppLockfiles.test.ts` fails
+# for an app without one, and for any step that installs an app with `npm install`. A dependency moves only when
+# a commit regenerates the lockfile on purpose.
 packages/*/*/infra/node_modules/
 packages/*/*/*/infra/node_modules/
 

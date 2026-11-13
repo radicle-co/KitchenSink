@@ -12,6 +12,7 @@
  *
  * Presentational: it holds no state and sends nothing; the card lifts it above its link (`RecipeCard`'s `footer` slot).
  */
+import { fillTemplate } from '@commise/i18n';
 import { initialsPxOf } from '@commise/ui/avatar-initials';
 import { useMessages } from '@commise/i18n/react';
 import { Icon } from '@commise/ui/icon';
@@ -20,7 +21,6 @@ import { PRESS_FILL_CLASS } from '@commise/ui/surface-tone';
 import type { FC } from 'react';
 
 import { recipeActionMessages } from '../actions/messages.js';
-import { fillTemplate } from '../format/fillTemplate.js';
 import { bylineInitial, bylineOf } from '../byline/bylineOf.js';
 import { bylineText } from '../byline/bylineText.js';
 import { bylineMessages } from '../byline/messages.js';

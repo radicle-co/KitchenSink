@@ -24,6 +24,7 @@ import ChevronsLeftGlyph from 'lucide-react-native/icons/chevrons-left';
 import ClipboardPasteGlyph from 'lucide-react-native/icons/clipboard-paste';
 import ClockGlyph from 'lucide-react-native/icons/clock';
 import CompassGlyph from 'lucide-react-native/icons/compass';
+import CookingPotGlyph from 'lucide-react-native/icons/cooking-pot';
 import CopyPlusGlyph from 'lucide-react-native/icons/copy-plus';
 import EllipsisGlyph from 'lucide-react-native/icons/ellipsis';
 import EyeGlyph from 'lucide-react-native/icons/eye';
@@ -33,6 +34,7 @@ import HouseGlyph from 'lucide-react-native/icons/house';
 import ImageGlyph from 'lucide-react-native/icons/image';
 import ImagePlusGlyph from 'lucide-react-native/icons/image-plus';
 import InfoGlyph from 'lucide-react-native/icons/info';
+import ListChecksGlyph from 'lucide-react-native/icons/list-checks';
 import ListPlusGlyph from 'lucide-react-native/icons/list-plus';
 import LockGlyph from 'lucide-react-native/icons/lock';
 import LogInGlyph from 'lucide-react-native/icons/log-in';
@@ -122,4 +124,6 @@ export const GLYPHS: Readonly<Record<IconName, NativeGlyph>> = {
     menu: MenuGlyph,
     list: ListGlyph,
     layoutGrid: LayoutGridGlyph,
+    cookingPot: CookingPotGlyph,
+    listChecks: ListChecksGlyph,
 };

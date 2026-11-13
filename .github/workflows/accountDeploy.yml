@@ -99,13 +99,12 @@ jobs:
                   NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
               run: npm ci --no-audit --no-fund
 
-            # `npm install`, as every CDK job installs (`infra-package`): this package has no lockfile until
-            # `@radicle-co/infra-shared` publishes (see `.gitignore`), and `npm ci` refuses to run without one.
+            # `npm ci` from the package's committed lockfile, as every CDK job installs (see `.gitignore`).
             - name: Install the CDK app's own dependencies
               working-directory: packages/infra/global
               env:
                   NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-              run: npm install --no-audit --no-fund
+              run: npm ci --no-audit --no-fund
 
             - name: Sign in to AWS
               uses: ./.github/actions/awsAuth

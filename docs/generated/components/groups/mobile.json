@@ -6,11 +6,11 @@
     "coverage": {
         "components": 55,
         "implementations": 55,
-        "props": 154,
+        "props": 155,
         "documentedComponents": 54,
         "implementationsWithModuleDoc": 53,
         "implementationsWithComponentDoc": 41,
-        "documentedProps": 145,
+        "documentedProps": 146,
         "classifiedComponents": 40,
         "componentsWithPatternTag": 26,
         "crossPlatformComponents": 0
@@ -3762,6 +3762,15 @@
                             "required": false,
                             "defaultValue": null,
                             "description": "Invoked with the recipe id and the line when the owner opens the editor on one ingredient that needs review.",
+                            "declaredIn": "packages/apps/commise/mobile/src/screens/RecipeDetailScreen.tsx"
+                        },
+                        {
+                            "name": "onStartCooking",
+                            "type": "((recipeId: string) => void)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Invoked with the recipe id when the cook starts cooking it; Start cooking is offered only when this is bound.",
                             "declaredIn": "packages/apps/commise/mobile/src/screens/RecipeDetailScreen.tsx"
                         },
                         {

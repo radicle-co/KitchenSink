@@ -18,7 +18,7 @@ import { surfaceToneClass, PRESS_FILL_CLASS } from '@commise/ui/surface-tone';
 import * as Dialog from '@radix-ui/react-dialog';
 import type { FC } from 'react';
 
-import { fillTemplate } from '../format/fillTemplate.js';
+import { fillTemplate } from '@commise/i18n';
 import { compareRowsOf, type VersionCompareViewProps } from './compare.js';
 import { recipeVersionMessages } from './messages.js';
 

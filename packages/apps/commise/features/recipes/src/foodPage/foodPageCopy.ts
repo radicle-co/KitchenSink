@@ -9,7 +9,7 @@
 import type { BadgeStatus } from '@commise/ui/status-badge';
 import type { PublicationStateValue } from '@kitchensink/schema-food';
 
-import { fillTemplate } from '../format/fillTemplate.js';
+import { fillTemplate } from '@commise/i18n';
 import { foodEditComparison, type ComparedRow } from './foodEditComparison.js';
 import type { FoodPageState } from './foodPageState.js';
 import type { FoodPageMessages } from './messages.js';

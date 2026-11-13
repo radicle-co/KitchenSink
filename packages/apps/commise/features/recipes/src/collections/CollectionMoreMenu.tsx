@@ -16,7 +16,7 @@ import { useMessages } from '@commise/i18n/react';
 import { ActionMenu } from '@commise/ui/action-menu';
 import type { FC } from 'react';
 
-import { fillTemplate } from '../format/fillTemplate.js';
+import { fillTemplate } from '@commise/i18n';
 import { collectionMenuItems, type CollectionMoreMenuProps } from './detailModel.js';
 import { collectionMessages } from './messages.js';
 

@@ -6,12 +6,13 @@
  * `useCollectionVisibility`, `useMemberToggle`, `useCollectionPull`) run the requests; the containers and screens connect
  * the two.
  */
+import { fillTemplate } from '@commise/i18n';
+
 import type { MakePublicConsequence } from '../actions/privateGate.js';
 import type { CardVariant, ListViewMode } from '../card/cardVariant.js';
 import type { RemovableMember } from '../hooks/useMemberRemoval.js';
 import type { ActionMenuItem } from '@commise/ui/action-menu';
 import type { HeaderBack } from '@commise/ui/large-title-header';
-import { fillTemplate } from '../format/fillTemplate.js';
 import { RecipeVisibility, type Recipe } from '@kitchensink/recipe-core';
 
 import type { RefreshNoticeControl } from '../refresh/model.js';

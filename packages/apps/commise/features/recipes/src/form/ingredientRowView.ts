@@ -18,7 +18,7 @@
  *
  * @pattern Presentation Model — the row's state and commands, derived from the line and the field group's controllers
  */
-import type { Locale } from '@commise/i18n';
+import { type Locale, fillTemplate } from '@commise/i18n';
 import type { ActionMenuItem } from '@commise/ui/action-menu';
 
 import { isStandInName, lineAmountName } from '../detail/lineName.js';
@@ -26,7 +26,6 @@ import { formatQuantity, isLineNeedsReview, lineSummary, lineTailOf } from '../d
 import type { LineCommitTarget } from '../hooks/lineCommit.js';
 import type { IngredientRowEditor } from '../hooks/useIngredientRowEditor.js';
 import { controlName } from '../format/cookAmount.js';
-import { fillTemplate } from '../format/fillTemplate.js';
 import type { RecipeMessages } from '../messages.js';
 import {
     ingredientAmountNoteId,

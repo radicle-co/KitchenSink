@@ -8,6 +8,7 @@
  *
  * Presentational: props → JSX.
  */
+import { fillTemplate } from '@commise/i18n';
 import { useMessages } from '@commise/i18n/react';
 import { Icon } from '@commise/ui/icon';
 import { touchFloor } from '@commise/ui/layout';
@@ -16,7 +17,6 @@ import { StatusBadge } from '@commise/ui/status-badge';
 import type { FC } from 'react';
 import { XStack, YStack } from 'tamagui';
 
-import { fillTemplate } from '../format/fillTemplate.js';
 import { recipeMessages } from '../messages.js';
 
 /** Props for {@link ReviewLineButton}. */

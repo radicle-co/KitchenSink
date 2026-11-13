@@ -98,7 +98,6 @@ export {
 export type { LibraryFacet, LibraryState } from './list/libraryTypes.js';
 export { viewModeOf } from './list/viewModePreference.js';
 export { useMainContainerClass } from './layout/useMainContainerClass.js';
-export { fillTemplate } from './format/fillTemplate.js';
 export {
     QUICK_TIME_FACET,
     QUICK_TIME_THRESHOLD_MINUTES,

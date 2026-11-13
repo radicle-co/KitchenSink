@@ -10,6 +10,7 @@
  * Presentational: props → JSX. The one effect it owns is the screen-reader cursor: the Data sources sheet returns it to
  * the link that opened it (§S16).
  */
+import { fillTemplate } from '@commise/i18n';
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { Icon } from '@commise/ui/icon';
 import { PressScale } from '@commise/ui/press-scale';
@@ -21,7 +22,6 @@ import type { View } from 'react-native';
 import { styled, XStack, YStack } from 'tamagui';
 
 import { recipeMessages } from '../messages.js';
-import { fillTemplate } from '../format/fillTemplate.js';
 import { DetailCard } from './detailFrames.native.js';
 import type { RecipeDetailBodyNativeProps } from './model.js';
 import { nutritionSectionFacts } from './detailFacts.js';

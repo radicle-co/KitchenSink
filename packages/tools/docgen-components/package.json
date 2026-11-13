@@ -3,7 +3,7 @@
     "version": "0.0.0",
     "private": true,
     "type": "module",
-    "description": "Derives docs/generated/components + docs/generated/design from the React sources and the @commise/ui tokens. Generated output is committed and guarded by regenerate-and-diff.",
+    "description": "Derives docs/generated/components + docs/generated/design, and the token tables in docs/design/uiOverhaul/buildSpec.md, from the React sources and the @commise/ui tokens. Generated output is committed and guarded by regenerate-and-diff.",
     "main": "./src/index.ts",
     "types": "./src/index.ts",
     "exports": {
@@ -19,6 +19,7 @@
     },
     "dependencies": {
         "@commise/ui": "*",
+        "prettier": "^3.10.1",
         "react-docgen-typescript": "^2.4.0",
         "typescript": "^6.0.3"
     },
@@ -30,7 +31,6 @@
         "@types/node": "^24.13.3",
         "@types/react": "^19.0.0",
         "eslint": "^10.0.3",
-        "prettier": "^3.10.1",
         "react": "^19.0.0",
         "tamagui": "^3.1.9",
         "tsx": "^4.23.15",

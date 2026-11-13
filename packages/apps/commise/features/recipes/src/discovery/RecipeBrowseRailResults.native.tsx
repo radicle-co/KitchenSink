@@ -6,6 +6,7 @@
  * The strip is a `region` named "{rail} recipes", drawn by the design-system `HorizontalScroller`: it keeps the platform's
  * scroll indicator and hints at the cards beyond with a chevron while it rests at its start.
  */
+import { fillTemplate } from '@commise/i18n';
 import { useMessages } from '@commise/i18n/react';
 import { contentWidthOf } from '@commise/ui/container-class';
 import { HorizontalScroller } from '@commise/ui/horizontal-scroller';
@@ -15,7 +16,6 @@ import { useContext, type FC } from 'react';
 import { StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 
 import { toRecipeCardModel } from '../card/model.js';
-import { fillTemplate } from '../format/fillTemplate.js';
 import { discoveryMessages } from './messages.js';
 import { RecipeDiscoveryCard } from './RecipeDiscoveryCard.native.js';
 import type { RecipeBrowseRailResultsProps } from './model.js';

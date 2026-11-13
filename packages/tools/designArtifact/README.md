@@ -1,30 +1,25 @@
 # @kitchensink/design-artifact
 
-This package builds two claude.ai artifacts from the Commise sources:
+This package builds two things from the Commise sources:
 
-- the **Design System**: tokens, fonts, one bundle of the real components, and a card per component.
-- the **screens canvas**: the app's screens as artboards that mount those components.
+- the **Design System**: tokens, fonts, one bundle of the real components, and a card per component. It is published as a claude.ai artifact.
+- a **board canvas**: some of the app's screens as artboards that mount those components. The LOCAL e2e renders it to check the bundle. It is not published.
 
 Nothing in it is hand-copied from the product. The bundle compiles the real web leaves (`window.Commise`) and the real React Native leaves through react-native-web (`window.Commise.Native`). The tokens come from `@commise/ui`'s own exports.
 
-Motion on the native side is not the device's. The native leaves run on Tamagui's web core here, so Tamagui's device animation driver cannot load, and the bundle uses the CSS stand-in the native test lanes use (`@commise/ui/testing/animations-shim`). Each native component is also wrapped so it renders inside `DesignSystemProvider`, the way the app's root mounts it (`src/runtime/designSystemScope.ts`).
+Motion on the native side is not the device's. The native leaves run on Tamagui's web core here. Tamagui's device animation driver cannot load there, so the bundle uses the CSS stand-in the native test lanes use (`@commise/ui/testing/animations-shim`). Each native component is also wrapped so it renders inside `DesignSystemProvider`, the way the app's root mounts it (`src/runtime/designSystemScope.ts`).
 
-## The two artifacts
+## The Design System artifact
 
-| Artifact       | Link                                              | Built into                  |
-| -------------- | ------------------------------------------------- | --------------------------- |
-| Design System  | https://claude.ai/artifact/DN1aFbTBJKfW7bbgDdnzye | `dist/designSystem/project` |
-| Screens canvas | https://claude.ai/artifact/NgDDxhpxbSgQ48NZbsAWdv | `dist/canvas/project`       |
+The Design System's link is in `docs/design/canvases/registry.json` (id `designSystem`), with every screen canvas. It is private to the owner.
 
-Both are private to the owner. The canvas records one exact version of the Design System, so the system is always published first.
-
-The screens canvas is titled "Commise Screens (legacy)" and records the current app. The redesign of every screen is a third artifact, https://claude.ai/artifact/CYjvswLZdB7CbZ4Av84Fig. This package does not build it. `docs/design/uiRefreshWorkshop5/redesignCanvas/assembleRedesign.py` assembles it from `dist/canvas/project`.
+⛔ Do not publish `dist/canvas/project` to any artifact. The screen canvases are edited live, and their source is the live canvas, not this build (`docs/design/canvases/README.md`). The board canvas this package builds once went to the link that now holds "Commise Screens: Home". If you publish it there, the stale-file step below deletes that canvas's boards and the owner's work on them.
 
 ## Regenerate the artifacts
 
-"Regenerate the design system and screens" means: build both artifacts from the current sources, publish the Design System, then rebuild the canvas against that new version and publish it.
+"Regenerate the design system" means: build from the current sources and publish the Design System. The screen canvases are not regenerated. They are edited live (`docs/design/canvases/README.md`).
 
-Only the claude.ai Artifact tool can publish. A person runs steps 1 to 3 and then asks Claude Code to "regenerate the design system and screens". An AI agent does every step.
+Only the claude.ai Artifact tool can publish. A person runs steps 1 to 3 and then asks Claude Code to "regenerate the design system". An AI agent does every step.
 
 ### Before you start
 
@@ -62,38 +57,26 @@ Only the claude.ai Artifact tool can publish. A person runs steps 1 to 3 and the
     npm run artifact:build --workspace=@kitchensink/design-artifact
     ```
 
-    The build prints "78 component cards" and "27 boards" (or the current counts) and writes `dist/designSystem/project` and `dist/canvas/project`. If a card or a board names a component that the sources do not export, the build fails and writes nothing.
+    The build prints the card and board counts and writes `dist/designSystem/project` and `dist/canvas/project`. If a card or a board names a component that the sources do not export, the build fails and writes nothing.
 
-4. Publish the Design System (AI only, see [Publishing with the Artifact tool](#publishing-with-the-artifact-tool)). The publish result reports a version id, for example `Version 9, version id 1792210447-a7b4`. Keep the version id.
+4. Publish the Design System (AI only, see [Publishing with the Artifact tool](#publishing-with-the-artifact-tool)). Do not publish `dist/canvas/project`.
 
-5. Rebuild with the link to that version. Set both variables, or the build stops:
-
-    ```bash
-    DESIGN_SYSTEM_ARTIFACT_URL=https://claude.ai/artifact/DN1aFbTBJKfW7bbgDdnzye DESIGN_SYSTEM_ARTIFACT_VERSION=<version id from step 4> npm run artifact:build --workspace=@kitchensink/design-artifact
-    ```
-
-    `dist/canvas/project/canvas.json` now names that version under `designSystems`. Do not publish the Design System again from this build. Only the canvas records the link, so the system published in step 4 stays current.
-
-6. Publish the canvas (AI only).
-
-7. Make sure that both publishes worked (see [Check the result](#check-the-result)).
+5. Make sure that the publish worked (see [Check the result](#check-the-result)).
 
 ### Publishing with the Artifact tool
 
-Each artifact was created from a claude.ai Artifact type. The type owns `index.html`, `SKILL.md` and everything under `artifact-type/`. Never send those files. You publish only the files under `project/`.
+The Design System was created from a claude.ai Artifact type. The type owns `index.html`, `SKILL.md` and everything under `artifact-type/`. Never send those files. You publish only the files under `project/`.
 
-Do these steps for each artifact, the Design System first:
-
-1. Read the artifact first: `Artifact` with `action: "read"`, the artifact's `url`, and `path: "project/README.md"`. A publish to an artifact that the conversation has not read is refused.
+1. Read the artifact first: `Artifact` with `action: "read"`, the Design System's `url`, and `path: "project/README.md"`. A publish to an artifact that the conversation has not read is refused.
 2. List its published files: `action: "list"`, `scope: "files"`, and the `url`. Compare the `project/` paths with the files in the dist folder. A path that is live but absent from the build is stale. Remove it with a `null` entry in the `files` map form, for example `{"project/components/Old/preview.html": null}`.
 3. Publish with these inputs:
 
-    | Input       | Design System                                                       | Canvas                                             |
-    | ----------- | ------------------------------------------------------------------- | -------------------------------------------------- |
-    | `url`       | the Design System link                                              | the canvas link                                    |
-    | `root`      | `<repo>/packages/tools/designArtifact/dist/designSystem`            | `<repo>/packages/tools/designArtifact/dist/canvas` |
-    | `file_path` | `<root>/project/design-system.json`                                 | `<root>/project/canvas.json`                       |
-    | `files`     | every other file under `<root>/project`, as `{"path": "project/…"}` | the same                                           |
+    | Input       | Value                                                               |
+    | ----------- | ------------------------------------------------------------------- |
+    | `url`       | the Design System link from `docs/design/canvases/registry.json`    |
+    | `root`      | `<repo>/packages/tools/designArtifact/dist/designSystem`            |
+    | `file_path` | `<root>/project/design-system.json`                                 |
+    | `files`     | every other file under `<root>/project`, as `{"path": "project/…"}` |
 
     Generate the `files` list from the folder, for example `find project -type f | sort` run in `<root>`, so that no file is missed.
 
@@ -102,9 +85,8 @@ Do these steps for each artifact, the Design System first:
 
 ### Check the result
 
-1. List the files of each artifact again. Every file in the dist folder is listed, and no stale `project/` path remains.
+1. List the Design System's files again. Every file in the dist folder is listed, and no stale `project/` path remains.
 2. Read `project/README.md` from the Design System. Its last line names the commit you built from, with no "plus uncommitted changes".
-3. Read `project/canvas.json` from the canvas. The `version` under `designSystems` equals the Design System version id from step 4.
 
 ## Add a board
 

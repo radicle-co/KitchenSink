@@ -34,6 +34,7 @@
 // ⛔ NO `px-*` HERE. This renders inside `AppShell`'s `<main>`, which already supplies `px-4 md:px-6`, so a
 // second `px-4` doubled the gutter to 32px a side — at 320 that leaves 256px of content. The section keeps
 // `mx-auto max-w-3xl` because centering is its own job; the gutter is the shell's.
+import { fillTemplate } from '@commise/i18n';
 import { Button, busyControlProps } from '@commise/ui/button';
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { VariantPartsLine } from '@commise/ui/variant-parts-line';
@@ -44,7 +45,6 @@ import type { ChangeEvent, FC } from 'react';
 import { conflictSideParts } from './conflictDiff.js';
 import { recipeVersionMessages } from './messages.js';
 import { AmountText } from '../format/AmountText.js';
-import { fillTemplate } from '../format/fillTemplate.js';
 import {
     type ConflictOptionCardProps,
     type DiscardAndCloseProps,

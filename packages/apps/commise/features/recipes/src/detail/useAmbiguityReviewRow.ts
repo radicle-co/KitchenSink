@@ -13,6 +13,7 @@
  * @pattern Headless hook — the row's search, list, sentences and pick, which each leaf draws
  */
 import { offlineNoticeMessages } from '@commise/features-core/offline';
+import { fillTemplate } from '@commise/i18n';
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { meetsSearchMinimum } from '@kitchensink/recipe-core/resolution/search-minimum';
 import { useState } from 'react';
@@ -24,7 +25,6 @@ import { entrySearchViewOf } from '../hooks/foodSuggestions.model.js';
 import { useIngredientSuggestionSource } from '../hooks/ingredientSuggestionSource.js';
 import type { AmbiguityPickController, ReviewPickFailure } from '../hooks/useAmbiguityPick.js';
 import { useSourceNaming } from '../hooks/useSourceNaming.js';
-import { fillTemplate } from '../format/fillTemplate.js';
 import { recipeMessages } from '../messages.js';
 import {
     lineSummary,

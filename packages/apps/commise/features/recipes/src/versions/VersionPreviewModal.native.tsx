@@ -29,6 +29,7 @@
  * @pattern Composition over the shared `FullScreenSheet` Decorator, which owns the modal window and its safe-area
  *     padding, rendering the same controlled contract as the web leaf.
  */
+import { fillTemplate } from '@commise/i18n';
 import { useMessages } from '@commise/i18n/react';
 import { nativeTokens } from '@commise/ui/native';
 import { VariantPartsLine } from '@commise/ui/variant-parts-line';
@@ -43,7 +44,6 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { formatDurationMinutes } from '../list/model.js';
 import { recipeMessages } from '../messages.js';
 import { recipeVersionMessages } from './messages.js';
-import { fillTemplate } from '../format/fillTemplate.js';
 import { previewRestoreErrorMessage, unrestorablePositionsFor } from './history.js';
 import {
     type VersionPreviewModalProps,

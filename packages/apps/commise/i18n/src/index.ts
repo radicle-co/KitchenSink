@@ -10,3 +10,6 @@ export { matchLocale, localesFromAcceptLanguage } from './matcher.js';
 export { resolveMessages } from './dictionary.js';
 export type { LocalizedMessages } from './dictionary.js';
 export { PSEUDO_EXPANSION, pseudoExpand, pseudoString } from './pseudo.js';
+export { fillTemplate } from './fillTemplate.js';
+export { pluralOf } from './plural.js';
+export type { PluralText } from './plural.js';

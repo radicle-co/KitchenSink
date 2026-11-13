@@ -8,7 +8,7 @@
  *
  * Pure and platform-agnostic.
  */
-import { fillTemplate } from '../format/fillTemplate.js';
+import { fillTemplate } from '@commise/i18n';
 
 /** The food being named. */
 export interface NamedFoodChoice {

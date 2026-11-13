@@ -6,7 +6,8 @@
  *
  * The viewer is the session claim's `external_id`, else the profile's `user.id` (owner ruling 2026-10-16).
  */
-import { RecipeSourceType, RecipeVisibility, type RecipeDetail } from '@kitchensink/recipe-core';
+import { isCookable } from '@kitchensink/cooking-core';
+import { RecipeSourceType, RecipeStatus, RecipeVisibility, type RecipeDetail } from '@kitchensink/recipe-core';
 import { PrivateFoodsOnPublicRecipeError, PrivateSlotsFullError } from '@kitchensink/recipe-service-client';
 import { RecipeServiceProvider } from '@kitchensink/recipe-service-client/hooks';
 import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-client/testing';
@@ -623,5 +624,50 @@ describe('useRecipeDetailController — Make public refused for a private food (
         const { result } = mount({ sessionClaims: { external_id: OWNER }, profile: settledProfile(OWNER) });
 
         expect(result.current.dialogs.privateFoods).toBeUndefined();
+    });
+});
+
+describe('useRecipeDetailController — Start cooking', () => {
+    /** A recipe's steps: `count` plain steps, numbered from 1. */
+    const stepsOf = (count: number): RecipeDetail['steps'] =>
+        Array.from({ length: count }, (_, index) => ({ stepNumber: index + 1, instruction: `Do step ${index + 1}.` }));
+
+    it.each([
+        ['a published recipe with steps', RecipeStatus.PUBLISHED, 6, true],
+        ['a published recipe with no steps', RecipeStatus.PUBLISHED, 0, false],
+        ['a draft with steps', RecipeStatus.DRAFT, 6, false],
+        ['a draft with no steps', RecipeStatus.DRAFT, 0, false],
+    ])('%s -> offered: %s', (_label, status, count, expected) => {
+        const { result } = mount({ recipe: { status, steps: stepsOf(count) } });
+
+        expect(result.current.canStartCooking).toBe(expected);
+    });
+
+    // A step with no text is not a step for the cook (FR-033a).
+    it.each([
+        ['every step blank', ['', '   ', '\n'], false],
+        ['a blank step among real ones', ['Heat the oil.', '', 'Fry.'], true],
+        ['a blank step first, then a real one', ['', 'Heat the oil.'], true],
+    ])('%s', (_label, instructions, expected) => {
+        const steps = instructions.map((instruction, index) => ({ stepNumber: index + 1, instruction }));
+        const { result } = mount({ recipe: { status: RecipeStatus.PUBLISHED, steps } });
+
+        expect(result.current.canStartCooking).toBe(expected);
+    });
+
+    it('offers it to another cook for a public recipe, exactly as to its owner (the rule has no viewer)', () => {
+        const owner = mount({ sessionClaims: { external_id: OWNER }, recipe: { steps: stepsOf(3) } });
+        const other = mount({ sessionClaims: { external_id: 'usr_other' }, recipe: { steps: stepsOf(3) } });
+
+        expect(owner.result.current.canStartCooking).toBe(true);
+        expect(other.result.current.canStartCooking).toBe(true);
+    });
+
+    it('reads the same rule the core exports, so a change to it moves the gate', () => {
+        // One authority: the gate is `isCookable` over the recipe's own status and step count.
+        const recipe = { status: RecipeStatus.PUBLISHED, steps: stepsOf(2) };
+        const { result } = mount({ recipe });
+
+        expect(result.current.canStartCooking).toBe(isCookable({ status: recipe.status, stepCount: 2 }));
     });
 });

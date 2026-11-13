@@ -7,7 +7,7 @@
  */
 import type { ReactNode, RefCallback } from 'react';
 
-import type { Locale } from '@commise/i18n';
+import { type Locale, fillTemplate } from '@commise/i18n';
 import { spokenVariantParts } from '@commise/ui/variant-parts-line';
 import { FoodResolutionStatus } from '@kitchensink/recipe-core';
 import { servingsRange } from '@kitchensink/recipe-core/scaling';
@@ -41,7 +41,6 @@ import {
 import type { RemoteFoodPick } from '../hooks/lineCommit.js';
 import { formatAmountNumber } from '../format/cookAmount.js';
 import { formatDuration } from '../format/duration.js';
-import { fillTemplate } from '../format/fillTemplate.js';
 import type {
     IngredientLineNameMessages,
     IngredientRemoteSearchMessages,
@@ -920,6 +919,17 @@ export interface RecipeDetailViewProps {
      * menu closing.
      */
     readonly headerActions?: ReactNode;
+    /**
+     * Whether the recipe can be cooked: the controller's `canStartCooking` (cooking-core's `isCookable`).
+     * With {@link onStartCooking} bound, the view draws the Start cooking row. Absent reads as not cookable.
+     */
+    readonly canStartCooking?: boolean;
+    /**
+     * Open cooking mode for this recipe: native navigates to the CookingMode task, web to the cook route. The view draws
+     * the Start cooking row only when this is bound AND {@link canStartCooking} is true, so the label, the size and the
+     * place are the shared view's, and an app owns only where the press goes.
+     */
+    readonly onStartCooking?: () => void;
     /** The back link above the meta line (web), e.g. "‹ My recipes". Absent draws none. */
     readonly back?: ReactNode;
     /**

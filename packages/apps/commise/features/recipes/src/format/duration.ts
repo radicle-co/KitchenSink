@@ -8,7 +8,7 @@
  */
 import { splitDuration } from '@commise/ui/duration';
 
-import { fillTemplate } from './fillTemplate.js';
+import { fillTemplate } from '@commise/i18n';
 import type { RecipeDurationMessages } from '../messages.js';
 
 /**

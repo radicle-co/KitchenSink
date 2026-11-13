@@ -5,13 +5,12 @@
  * Pure and platform-agnostic: shared unchanged by the web (`*.tsx`) and native (`*.native.tsx`) leaves, so
  * the two renders can never drift. No React, no platform APIs.
  */
-import type { Locale } from '@commise/i18n';
+import { type Locale, fillTemplate } from '@commise/i18n';
 import type { RecipeIngredient, RecipeSnapshot, RecipeVersion } from '@kitchensink/recipe-core';
 import { formatCalories } from '../card/model.js';
 import { variantPartTexts } from '../detail/lineName.js';
 import { formatIngredientLine } from '../detail/model.js';
 import { formatRecipeCount } from '../list/model.js';
-import { fillTemplate } from '../format/fillTemplate.js';
 import { spokenAmountsLabel } from '../format/cookAmount.js';
 import type { AmountWordMessages, IngredientLineNameMessages } from '../messages.js';
 import { diffSnapshots, type SnapshotDiff } from './diff.js';

@@ -90,6 +90,7 @@ export const TYPE_ROLE_DOC: Readonly<Record<TypeRole, TypeRoleDoc>> = {
     cardTitle: { group: 'Headings', usage: 'Card title.' },
     body: { group: 'Text', usage: 'Default text.' },
     readingBody: { group: 'Text', usage: 'Long-form recipe method text.' },
+    readingLarge: { group: 'Text', usage: "The cooking focus line: one instruction, read at arm's length." },
     meta: { group: 'Text', usage: 'Metadata line.' },
     list: { group: 'Text', usage: 'A line in a list, such as an ingredient.' },
     label: { group: 'Text', usage: 'Control label.' },

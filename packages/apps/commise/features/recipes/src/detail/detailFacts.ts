@@ -6,13 +6,12 @@
  * checkable row is named. Every function here is pure.
  */
 import type { ReactNode } from 'react';
-import type { Locale } from '@commise/i18n';
+import { type Locale, fillTemplate } from '@commise/i18n';
 import { RecipeStatus, RecipeVisibility, type RecipeDetail, type RecipeIngredientView } from '@kitchensink/recipe-core';
 
 import { formatCalories } from '../card/model.js';
 import { controlName } from '../format/cookAmount.js';
 import { formatDuration } from '../format/duration.js';
-import { fillTemplate } from '../format/fillTemplate.js';
 import type {
     IngredientLineNameMessages,
     RecipeCardMessages,

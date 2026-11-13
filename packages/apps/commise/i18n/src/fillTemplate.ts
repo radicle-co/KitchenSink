@@ -1,6 +1,6 @@
 /**
- * @module @commise/features-recipes/format — the `{token}` filler every localized message goes through. Its own module,
- * so a model that fills a message depends on this alone rather than on the recipe-list model.
+ * @module @commise/i18n — the `{token}` filler every localized message goes through. Its own module, so a model that
+ * fills a message depends on this alone.
  */
 
 /**
@@ -12,4 +12,4 @@
  * @returns The template with known placeholders filled.
  */
 export const fillTemplate = (template: string, tokens: Readonly<Record<string, string | number>>): string =>
-    template.replace(/\{(\w+)\}/g, (match, key: string) => (key in tokens ? String(tokens[key]) : match));
+    template.replace(/\{(\w+)\}/g, (match, key: string) => (Object.hasOwn(tokens, key) ? String(tokens[key]) : match));

@@ -27,6 +27,7 @@ const CEILING: Readonly<Record<Exclude<TypeRole, 'figureInline'>, number>> = {
     cardTitle: FONT_SCALE_CAP,
     body: FONT_SCALE_CAP,
     readingBody: FONT_SCALE_CAP,
+    readingLarge: FONT_SCALE_CAP,
     meta: FONT_SCALE_CAP,
     list: FONT_SCALE_CAP,
     label: FONT_SCALE_CAP,

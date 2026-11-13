@@ -12,7 +12,7 @@ import { pathToFileURL } from 'node:url';
 import { globSync } from 'glob';
 
 import { LOCAL_DB } from '../src/composePlan.js';
-import { appsMissingCdkLib, installFailureHint } from '../src/infraInstall.js';
+import { appsMissingCdkLib, cdkInstallArgs, installFailureHint } from '../src/infraInstall.js';
 import type { CdkApp, PackageManifest } from '../src/discoverApps.js';
 import { pruneStepFor } from '../src/localImages.js';
 import { CONSUMER_PLAN_RELATIVE } from '../src/queueConsumers.js';
@@ -53,11 +53,11 @@ export function readManifests(): readonly PackageManifest[] {
 }
 
 /**
- * Install `aws-cdk-lib` for every CDK app that cannot resolve it, the way CI does.
+ * Install `aws-cdk-lib` for every CDK app that cannot resolve it, from the app's committed lockfile, the way CI does.
  *
  * @param apps - The apps about to be synthesised.
  * @returns The package directories installed and the ones whose install failed (with npm's stderr tail).
- * @sideEffect Runs `npm install --prefix <dir>` (network) for each app that needs it, and writes its `node_modules`.
+ * @sideEffect Runs `npm ci --prefix <dir>` (network) for each app that needs it, and writes its `node_modules`.
  */
 export function installMissingCdkDependencies(apps: readonly CdkApp[]): {
     readonly installed: readonly string[];
@@ -67,13 +67,7 @@ export function installMissingCdkDependencies(apps: readonly CdkApp[]): {
     const failed: { packageDir: string; stderr: string }[] = [];
 
     for (const app of appsMissingCdkLib(apps, REPO_ROOT, existsSync)) {
-        // `--prefix`, not a cwd change: the directory is not a workspace, and a cwd inside the repo would make
-        // npm walk up and install the ROOT workspaces instead.
-        const result = spawnSync(
-            'npm',
-            ['install', '--prefix', path.join(REPO_ROOT, app.packageDir), '--no-audit', '--no-fund'],
-            { encoding: 'utf8' },
-        );
+        const result = spawnSync('npm', cdkInstallArgs(path.join(REPO_ROOT, app.packageDir)), { encoding: 'utf8' });
 
         if (result.status === 0) {
             installed.push(app.packageDir);

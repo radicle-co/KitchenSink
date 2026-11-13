@@ -10,9 +10,9 @@
  * @pattern Presentation Model — the paste flow's summary, notice and pane derived once for both platform leaves
  * @pattern Visitor — an exhaustive switch with no default branch over the notice union
  */
+import { fillTemplate, pluralOf } from '@commise/i18n';
+
 import type { DraftKeep } from '../editor/saveStatus.js';
-import { fillTemplate } from '../format/fillTemplate.js';
-import { pluralOf } from '../format/plural.js';
 import {
     isOpenLine,
     lineTextOf,

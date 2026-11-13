@@ -16,7 +16,7 @@ import { Icon } from '@commise/ui/icon';
 import { FOCUS_RING_CLASS } from '@commise/ui/focus-ring';
 import type { FC } from 'react';
 
-import { fillTemplate } from '../format/fillTemplate.js';
+import { fillTemplate } from '@commise/i18n';
 import { recipeMessages } from '../messages.js';
 import type { StepRowProps } from './cookRowProps.js';
 import { stepTimerLabel } from './model.js';

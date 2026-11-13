@@ -11,6 +11,7 @@
  *
  * Presentational: props → JSX.
  */
+import { fillTemplate } from '@commise/i18n';
 import { useMessages } from '@commise/i18n/react';
 import { FOCUS_RING_CLASS } from '@commise/ui/focus-ring';
 import { Icon } from '@commise/ui/icon';
@@ -18,7 +19,6 @@ import { StatusBadge } from '@commise/ui/status-badge';
 import Link from 'next/link';
 import type { ComponentProps, FC } from 'react';
 
-import { fillTemplate } from '../format/fillTemplate.js';
 import { recipeMessages } from '../messages.js';
 
 /** Props for {@link ReviewLineLink}. */

@@ -17,7 +17,7 @@ import { touchFloor } from '@commise/ui/layout';
 import type { FC } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { fillTemplate } from '../format/fillTemplate.js';
+import { fillTemplate } from '@commise/i18n';
 import { discoveryMessages } from './messages.js';
 import type { RecipeRecentSearchesControl } from './model.js';
 

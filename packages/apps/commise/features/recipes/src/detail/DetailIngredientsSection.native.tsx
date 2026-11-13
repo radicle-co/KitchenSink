@@ -18,7 +18,7 @@ import type { FC } from 'react';
 import { View } from 'react-native';
 import { Text as DsText } from '@commise/ui/text';
 
-import { fillTemplate } from '../format/fillTemplate.js';
+import { fillTemplate } from '@commise/i18n';
 import { recipeMessages } from '../messages.js';
 import { DetailEmptySection } from './DetailEmptySection.native.js';
 import { DetailSection } from './detailFrames.native.js';

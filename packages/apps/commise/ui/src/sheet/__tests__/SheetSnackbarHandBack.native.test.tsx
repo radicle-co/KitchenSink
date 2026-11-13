@@ -67,8 +67,10 @@ function snackbarInSheet(): boolean {
         .filter((candidate) => candidate.textContent?.includes('Ticks cleared') === true);
 
     expect(others).toStrictEqual([]);
+    // A snackbar that vanished is a failure in both directions, not "not in the sheet".
+    expect(region).toBeDefined();
 
-    return region?.closest('[aria-modal="true"]') !== null && region !== undefined;
+    return region?.closest('[aria-modal="true"]') !== null;
 }
 
 describe('Sheet (native) and the snackbar', () => {

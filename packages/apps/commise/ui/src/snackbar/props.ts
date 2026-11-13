@@ -28,7 +28,7 @@ export interface SnackbarInput {
     readonly message: string;
     /** The one action, if any. */
     readonly action?: SnackbarAction;
-    /** Run once when the snackbar commits: it timed out, or a newer one replaced it. */
+    /** Run once when the snackbar commits: it timed out, a newer one replaced it, or its handle's `dismiss()` ran. */
     readonly onTimeout?: () => void;
     /** How long it stays, in ms, while not paused. Defaults to {@link DEFAULT_SNACKBAR_MS}. */
     readonly durationMs?: number;

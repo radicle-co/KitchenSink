@@ -1,0 +1,25 @@
+{
+    "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+    "_comment": "Mutation testing (Stryker) proves the unit suite catches bugs (docs/engineering/ENGINEERING_EXCELLENCE.md). It runs the unit config only and does not gate CI: it runs before a change to these modules merges. A surviving mutant is a bug the tests cannot see.",
+    "testRunner": "vitest",
+    "vitest": {
+        "configFile": "vitest.config.ts"
+    },
+    "mutate": [
+        "src/**/*.ts",
+        "!src/index.ts",
+        "!src/errors.ts",
+        "!src/types.ts",
+        "!src/**/*.test.ts",
+        "!src/**/__tests__/**",
+        "!src/**/__fixtures__/**"
+    ],
+    "reporters": ["clear-text", "progress", "json"],
+    "jsonReporter": {
+        "fileName": "reports/mutation/mutation.json"
+    },
+    "coverageAnalysis": "perTest",
+    "concurrency": 4,
+    "timeoutMS": 30000,
+    "tempDirName": ".stryker-tmp"
+}

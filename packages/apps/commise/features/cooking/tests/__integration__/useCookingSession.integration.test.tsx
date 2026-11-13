@@ -82,6 +82,22 @@ describe('useCookingSession — walking the steps', () => {
     });
 });
 
+describe('useCookingSession — Back after Done', () => {
+    it('steps back to the previous step, and the session stays complete because every step was finished', () => {
+        const { result } = mount();
+        act(() => result.current.next());
+        act(() => result.current.next());
+        act(() => result.current.next());
+        expect(result.current.status).toBe('complete');
+        expect(result.current.place.position).toBe(3);
+
+        act(() => result.current.back());
+
+        expect(result.current.place.position).toBe(2);
+        expect(result.current.status).toBe('complete');
+    });
+});
+
 describe('useCookingSession — a command is valid only for the step it was drawn on', () => {
     it('lands on the last step, not Done, when Next is tapped twice before the screen redraws', () => {
         const { result } = mount();

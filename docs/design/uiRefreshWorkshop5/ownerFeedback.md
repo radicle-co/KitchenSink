@@ -1,6 +1,6 @@
 # Owner feedback register
 
-The owner's comments on the screens canvas (https://claude.ai/artifact/NgDDxhpxbSgQ48NZbsAWdv), 23 threads, all
+The owner's comments on the screens canvas (registry id `homeCombined` in `docs/design/canvases/registry.json`), 23 threads, all
 from 2026-10-17. The owner ruled on 2026-10-23 that every one of them still stands. They bind every design round.
 
 Each entry gives the decision, the general rule a designer must take from it, and the user needs behind it (IDs from

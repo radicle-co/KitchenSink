@@ -7,26 +7,38 @@ them, and it holds the rules for editing them without losing another agent's wor
 copy links into other documents. Link to this folder instead. `designCanvasRegistry.test.ts` in `packages/tools/repoGuards`
 checks its shape.
 
+## What each kind means
+
+| Kind           | Meaning                                                             |
+| -------------- | ------------------------------------------------------------------- |
+| `designSystem` | The Design System: tokens, fonts and a card per component.          |
+| `page`         | The screens of one page of the app, such as Home or Recipe detail.  |
+| `feature`      | The screens of one feature, such as Meal planning or Grocery lists. |
+| `unused`       | A canvas that holds nothing.                                        |
+
 ## What each status means
 
-| Status    | Meaning                                                                                                         |
-| --------- | --------------------------------------------------------------------------------------------------------------- |
-| `current` | The canvas to read and edit. Every page and every feature has one web canvas and one mobile canvas.             |
-| `archive` | An older canvas that holds web and mobile together. Do not make new changes there. Read it for history only.    |
-| `unused`  | A canvas that holds nothing. Do not use it.                                                                     |
+| Status    | Meaning                                                                                                      |
+| --------- | ------------------------------------------------------------------------------------------------------------ |
+| `current` | The canvas to read and edit. Every page and every feature has one web canvas and one mobile canvas.          |
+| `archive` | An older canvas that holds web and mobile together. Do not make new changes there. Read it for history only. |
+| `unused`  | A canvas that holds nothing. Do not use it.                                                                  |
 
 The owner can still leave a comment on an archive canvas. Answer it in that thread. Make the change on the `current`
 web and mobile canvases for the same subject, and say so in the reply.
 
 ## What each source means
 
-| Source | Where the truth lives                         | How to change it                                                                                     |
-| ------ | --------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| `repo` | The repository. Only the Design System.       | Change `@commise/ui` or `packages/tools/designArtifact`, then follow "Regenerate the artifacts" in that package's README. Never edit the artifact directly: the next regeneration overwrites it. |
-| `live` | The published canvas itself. All screens.     | Read the live canvas, edit it, and publish it back to the same link (the steps below).               |
+| Source | Where the truth lives                     | How to change it                                                                                                                                                                                 |
+| ------ | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `repo` | The repository. Only the Design System.   | Change `@commise/ui` or `packages/tools/designArtifact`, then follow "Regenerate the artifacts" in that package's README. Never edit the artifact directly: the next regeneration overwrites it. |
+| `live` | The published canvas itself. All screens. | Read the live canvas, edit it, and publish it back to the same link (the steps below).                                                                                                           |
+| `none` | Nothing. Only an `unused` canvas.         | Do not change it.                                                                                                                                                                                |
 
 The screen canvases have no build that can recreate them. The first build scripts are on the unmerged branch
-`docs/offline-start-adr`. Owner comments and agent edits were made on the live canvases after that. Running those scripts over a live canvas deletes those edits. Use them only to create a new canvas.
+`docs/offline-start-adr`, and `docs/design/uiRefreshWorkshop5/redesignCanvas/assembleRedesign.py` is on main. Owner
+comments and agent edits were made on the live canvases after those scripts last ran. Running one over a live canvas
+deletes those edits. Use them only to create a new canvas.
 
 ## How to edit a screen canvas
 

@@ -13,140 +13,99 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
+import { z } from 'zod';
 
 const CANVAS_DIR = join(__dirname, '..', '..', '..', '..', 'docs', 'design', 'canvases');
 
-const STATUSES = ['current', 'archive', 'unused'] as const;
-const SOURCES = ['repo', 'live', 'none'] as const;
-const KINDS = ['designSystem', 'page', 'feature', 'unused'] as const;
-const PLATFORMS = ['web', 'mobile', 'combined'] as const;
+const canvasSchema = z.object({
+    id: z.string().min(1),
+    title: z.string().min(1),
+    url: z.string().min(1),
+    kind: z.enum(['designSystem', 'page', 'feature', 'unused']),
+    status: z.enum(['current', 'archive', 'unused']),
+    source: z.enum(['repo', 'live', 'none']),
+    platform: z.enum(['web', 'mobile', 'combined']).optional(),
+    subject: z.string().min(1).optional(),
+    note: z.string().optional(),
+});
+
+const registrySchema = z.object({ canvases: z.array(canvasSchema) });
+
+type CanvasEntry = z.infer<typeof canvasSchema>;
 
 /** A claude.ai artifact link with its 22-character id. */
 const ARTIFACT_URL = /^https:\/\/claude\.ai\/artifact\/[A-Za-z0-9]{22}$/;
 
-interface CanvasEntry {
-    readonly id: string;
-    readonly title: string;
-    readonly url: string;
-    readonly kind: (typeof KINDS)[number];
-    readonly status: (typeof STATUSES)[number];
-    readonly source: (typeof SOURCES)[number];
-    readonly platform?: (typeof PLATFORMS)[number];
-    readonly subject?: string;
+const isScreen = (entry: CanvasEntry): boolean => entry.kind === 'page' || entry.kind === 'feature';
+
+function duplicates(values: readonly string[], what: string): readonly string[] {
+    const repeated = values.filter((value, index) => values.indexOf(value) !== index);
+
+    return repeated.length > 0 ? [`duplicate ${what}: ${repeated.join(', ')}`] : [];
 }
 
-const isOneOf = <T extends string>(values: readonly T[], value: unknown): value is T =>
-    typeof value === 'string' && (values as readonly string[]).includes(value);
-
-/** Parses the registry file, throwing on any entry that does not fit the shape the README documents. */
-function parseRegistry(text: string): readonly CanvasEntry[] {
-    const parsed: unknown = JSON.parse(text);
-
-    if (typeof parsed !== 'object' || parsed === null || !('canvases' in parsed) || !Array.isArray(parsed.canvases)) {
-        throw new Error('registry.json must be an object with a "canvases" array');
-    }
-
-    return parsed.canvases.map((raw: unknown, index): CanvasEntry => {
-        if (typeof raw !== 'object' || raw === null) {
-            throw new Error(`entry ${index} is not an object`);
-        }
-        const entry = raw as Record<string, unknown>;
-
-        for (const field of ['id', 'title', 'url'] as const) {
-            if (typeof entry[field] !== 'string' || entry[field] === '') {
-                throw new Error(`entry ${index} has no ${field}`);
-            }
-        }
-        if (!isOneOf(KINDS, entry['kind'])) {
-            throw new Error(`entry ${index} has an unknown kind`);
-        }
-        if (!isOneOf(STATUSES, entry['status'])) {
-            throw new Error(`entry ${index} has an unknown status`);
-        }
-        if (!isOneOf(SOURCES, entry['source'])) {
-            throw new Error(`entry ${index} has an unknown source`);
-        }
-        if (entry['platform'] !== undefined && !isOneOf(PLATFORMS, entry['platform'])) {
-            throw new Error(`entry ${index} has an unknown platform`);
-        }
-
-        return {
-            id: entry['id'] as string,
-            title: entry['title'] as string,
-            url: entry['url'] as string,
-            kind: entry['kind'],
-            status: entry['status'],
-            source: entry['source'],
-            platform: entry['platform'] as CanvasEntry['platform'],
-            subject: typeof entry['subject'] === 'string' ? entry['subject'] : undefined,
-        };
-    });
-}
-
-/** Every rule the README states about the registry, as a list of broken-rule messages (empty when it holds). */
-function registryProblems(entries: readonly CanvasEntry[]): readonly string[] {
+function entryProblems(entry: CanvasEntry): readonly string[] {
     const problems: string[] = [];
-    const seen = (values: readonly string[], what: string): void => {
-        const duplicates = values.filter((value, index) => values.indexOf(value) !== index);
 
-        if (duplicates.length > 0) {
-            problems.push(`duplicate ${what}: ${duplicates.join(', ')}`);
-        }
-    };
-
-    seen(
-        entries.map((entry) => entry.id),
-        'id',
-    );
-    seen(
-        entries.map((entry) => entry.url),
-        'url',
-    );
-
-    for (const entry of entries) {
-        if (!ARTIFACT_URL.test(entry.url)) {
-            problems.push(`${entry.id}: not a claude.ai artifact link: ${entry.url}`);
-        }
-        if ((entry.kind === 'page' || entry.kind === 'feature') && (entry.subject === undefined || !entry.platform)) {
-            problems.push(`${entry.id}: a screen canvas needs a subject and a platform`);
-        }
-        if (entry.status === 'current' && entry.platform === 'combined') {
-            problems.push(`${entry.id}: a combined canvas cannot be current`);
-        }
+    if (!ARTIFACT_URL.test(entry.url)) {
+        problems.push(`${entry.id}: not a claude.ai artifact link: ${entry.url}`);
     }
 
-    const designSystems = entries.filter((entry) => entry.kind === 'designSystem');
-
-    if (designSystems.length !== 1 || designSystems[0]?.source !== 'repo' || designSystems[0].status !== 'current') {
-        problems.push('there must be exactly one current Design System, with source "repo"');
+    if (isScreen(entry) && (entry.subject === undefined || entry.platform === undefined)) {
+        problems.push(`${entry.id}: a screen canvas needs a subject and a platform`);
     }
 
-    const currentScreens = entries.filter(
-        (entry) => entry.status === 'current' && (entry.kind === 'page' || entry.kind === 'feature'),
-    );
-    const subjects = [...new Set(currentScreens.map((entry) => entry.subject ?? ''))];
-
-    for (const subject of subjects) {
-        for (const platform of ['web', 'mobile'] as const) {
-            const count = currentScreens.filter(
-                (entry) => entry.subject === subject && entry.platform === platform,
-            ).length;
-
-            if (count !== 1) {
-                problems.push(`"${subject}" has ${count} current ${platform} canvases; it needs exactly one`);
-            }
-        }
+    if (entry.status === 'current' && entry.platform === 'combined') {
+        problems.push(`${entry.id}: a combined canvas cannot be current`);
     }
-    for (const entry of currentScreens) {
-        if (entry.source !== 'live') {
-            problems.push(`${entry.id}: a current screen canvas has source "live"`);
-        }
+
+    if (entry.status === 'current' && isScreen(entry) && entry.source !== 'live') {
+        problems.push(`${entry.id}: a current screen canvas has source "live"`);
     }
 
     return problems;
 }
 
-const registry = (): readonly CanvasEntry[] => parseRegistry(readFileSync(join(CANVAS_DIR, 'registry.json'), 'utf8'));
+function designSystemProblems(entries: readonly CanvasEntry[]): readonly string[] {
+    const systems = entries.filter((entry) => entry.kind === 'designSystem');
+    const valid =
+        systems.length === 1 && systems.every((entry) => entry.source === 'repo' && entry.status === 'current');
+
+    return valid ? [] : ['there must be exactly one current Design System, with source "repo"'];
+}
+
+function pairingProblems(entries: readonly CanvasEntry[]): readonly string[] {
+    const current = entries.filter((entry) => entry.status === 'current' && isScreen(entry));
+    const subjects = [...new Set(current.map((entry) => entry.subject))];
+
+    return subjects.flatMap((subject) =>
+        (['web', 'mobile'] as const).flatMap((platform) => {
+            const count = current.filter((entry) => entry.subject === subject && entry.platform === platform).length;
+
+            return count === 1 ? [] : [`"${String(subject)}" has ${String(count)} current ${platform} canvases`];
+        }),
+    );
+}
+
+/** Every rule the README states about the registry, as broken-rule messages (empty when every rule holds). */
+function registryProblems(entries: readonly CanvasEntry[]): readonly string[] {
+    return [
+        ...duplicates(
+            entries.map((entry) => entry.id),
+            'id',
+        ),
+        ...duplicates(
+            entries.map((entry) => entry.url),
+            'url',
+        ),
+        ...entries.flatMap(entryProblems),
+        ...designSystemProblems(entries),
+        ...pairingProblems(entries),
+    ];
+}
+
+const registry = (): readonly CanvasEntry[] =>
+    registrySchema.parse(JSON.parse(readFileSync(join(CANVAS_DIR, 'registry.json'), 'utf8'))).canvases;
 
 const screen = (overrides: Partial<CanvasEntry>): CanvasEntry => ({
     id: 'homeWeb',
@@ -159,6 +118,9 @@ const screen = (overrides: Partial<CanvasEntry>): CanvasEntry => ({
     subject: 'Home',
     ...overrides,
 });
+
+const MOBILE_URL = 'https://claude.ai/artifact/RrYBCYnYTZe6p6i5uwvZQK';
+const OTHER_URL = 'https://claude.ai/artifact/NgDDxhpxbSgQ48NZbsAWdv';
 
 const designSystem: CanvasEntry = {
     id: 'designSystem',
@@ -183,23 +145,21 @@ describe('the design canvas registry', () => {
 });
 
 describe('registryProblems', () => {
-    const mobile = screen({ id: 'homeMobile', platform: 'mobile', url: 'https://claude.ai/artifact/RrYBCYnYTZe6p6i5uwvZQK' });
+    const mobile = screen({ id: 'homeMobile', platform: 'mobile', url: MOBILE_URL });
 
     it('accepts one Design System and a web and mobile pair', () => {
         expect(registryProblems([designSystem, screen({}), mobile])).toEqual([]);
     });
 
     it('reports a current subject with no mobile canvas', () => {
-        expect(registryProblems([designSystem, screen({})])).toEqual([
-            '"Home" has 0 current mobile canvases; it needs exactly one',
-        ]);
+        expect(registryProblems([designSystem, screen({})])).toEqual(['"Home" has 0 current mobile canvases']);
     });
 
     it('reports two current web canvases for one subject', () => {
-        const second = screen({ id: 'homeWeb2', url: 'https://claude.ai/artifact/NgDDxhpxbSgQ48NZbsAWdv' });
+        const second = screen({ id: 'homeWeb2', url: OTHER_URL });
 
         expect(registryProblems([designSystem, screen({}), second, mobile])).toEqual([
-            '"Home" has 2 current web canvases; it needs exactly one',
+            '"Home" has 2 current web canvases',
         ]);
     });
 
@@ -219,17 +179,35 @@ describe('registryProblems', () => {
         ]);
     });
 
-    it('reports a missing or live-sourced Design System', () => {
-        expect(registryProblems([screen({}), mobile])).toEqual([
-            'there must be exactly one current Design System, with source "repo"',
-        ]);
-        expect(registryProblems([{ ...designSystem, source: 'live' }, screen({}), mobile])).toEqual([
-            'there must be exactly one current Design System, with source "repo"',
+    it('reports a duplicated id', () => {
+        const copy = screen({ platform: 'mobile', url: MOBILE_URL });
+
+        expect(registryProblems([designSystem, screen({}), copy])).toEqual(['duplicate id: homeWeb']);
+    });
+
+    it('reports a screen canvas with no subject', () => {
+        const { subject: _subject, ...withoutSubject } = screen({ status: 'archive', platform: 'combined' });
+
+        expect(
+            registryProblems([designSystem, screen({}), mobile, { ...withoutSubject, id: 'x', url: OTHER_URL }]),
+        ).toEqual(['x: a screen canvas needs a subject and a platform']);
+    });
+
+    it('reports a current screen canvas built from the repo', () => {
+        expect(registryProblems([designSystem, screen({ source: 'repo' }), mobile])).toEqual([
+            'homeWeb: a current screen canvas has source "live"',
         ]);
     });
 
+    it('reports a missing or live-sourced Design System', () => {
+        const expected = ['there must be exactly one current Design System, with source "repo"'];
+
+        expect(registryProblems([screen({}), mobile])).toEqual(expected);
+        expect(registryProblems([{ ...designSystem, source: 'live' }, screen({}), mobile])).toEqual(expected);
+    });
+
     it('reports a combined canvas marked current', () => {
-        const combined = screen({ id: 'homeCombined', platform: 'combined', url: 'https://claude.ai/artifact/NgDDxhpxbSgQ48NZbsAWdv' });
+        const combined = screen({ id: 'homeCombined', platform: 'combined', url: OTHER_URL });
 
         expect(registryProblems([designSystem, screen({}), mobile, combined])).toContain(
             'homeCombined: a combined canvas cannot be current',
@@ -237,8 +215,6 @@ describe('registryProblems', () => {
     });
 
     it('rejects an entry with an unknown status', () => {
-        expect(() => parseRegistry(JSON.stringify({ canvases: [{ ...designSystem, status: 'draft' }] }))).toThrow(
-            'entry 0 has an unknown status',
-        );
+        expect(() => registrySchema.parse({ canvases: [{ ...designSystem, status: 'draft' }] })).toThrow();
     });
 });

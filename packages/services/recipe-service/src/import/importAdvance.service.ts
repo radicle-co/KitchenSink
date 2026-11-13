@@ -36,13 +36,13 @@
  *    next decision moves the revision and releases it. Nothing fills the gap: no default cuisine, no AI pick, no draft save.
  *  - **The save and the item list agree on why an item waits**: both ask `importItemIssueOf`, in its precedence.
  */
-import { HttpException } from '@nestjs/common';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { z } from 'zod';
 import { RecipeErrorCode, RecipeVisibility, ABSENT_QUANTITY } from '@kitchensink/recipe-core';
 
 import type { CallerToken } from '../auth/CallerToken.js';
 import { actingPrincipalOf, isPremiumPrincipal, type Principal } from '../auth/principal.js';
+import { apiErrorCodeOf } from '../common/apiError.js';
 import { sha256Hex } from '../common/sha256.js';
 import type { FoodRef } from '../database/schema/foodLookupArm.js';
 import { IngredientsService } from '../ingredients/ingredients.service.js';
@@ -169,17 +169,6 @@ function createDtoOf(
 
 /** The lines of a stored payload, which is all the parse step needs from it. */
 const payloadLinesSchema = z.object({ ingredientLines: z.array(z.string()) });
-
-/** The code a thrown `HttpException` carries in its body, if any. Pure. */
-function httpCodeOf(error: unknown): string | undefined {
-    if (!(error instanceof HttpException)) {
-        return undefined;
-    }
-
-    const body = error.getResponse();
-
-    return typeof body === 'object' && 'code' in body ? String(body.code) : undefined;
-}
 
 /** The cook's stored pick on a snapshot line, in the shape the line facts read. Pure. */
 function pickOfLine(line: ImportLine): SnapshotPick | undefined {
@@ -770,7 +759,7 @@ export class ImportAdvanceService {
                 return { kind: 'asWritten' };
             }
 
-            if (httpCodeOf(error) === 'SOURCE_UNAVAILABLE') {
+            if (apiErrorCodeOf(error) === 'SOURCE_UNAVAILABLE') {
                 return { kind: 'unavailable' };
             }
 

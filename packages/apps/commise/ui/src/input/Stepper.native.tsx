@@ -102,7 +102,7 @@ export const Stepper: FC<StepperProps> = ({
 const styles = StyleSheet.create({
     stack: { gap: nativeTokens.spacing[1] },
     label: nativeTokens.type.label,
-    row: { flexDirection: 'row', alignItems: 'center', gap: nativeTokens.spacing[3] },
+    row: { flexDirection: 'row', alignItems: 'center', gap: nativeTokens.spacing[2] },
     step: {
         alignItems: 'center',
         justifyContent: 'center',
@@ -113,7 +113,7 @@ const styles = StyleSheet.create({
         ...nativeTokens.type.body,
         fontFamily: nativeTokens.fontFace.body.semibold,
         fontVariant: ['tabular-nums', 'lining-nums'],
-        minWidth: 32,
+        minWidth: 24,
         textAlign: 'center',
     },
 });

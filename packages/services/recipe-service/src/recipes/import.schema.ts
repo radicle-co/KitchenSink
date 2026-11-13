@@ -456,6 +456,8 @@ const SAYS_NOTHING = 'send a statement, a visibility, a cuisine, servings, a tim
  * Whether the prep and cook minutes a body gives fit together in the total the save sends (their sum, when the file states
  * no total): an int4 column with the create route's ceiling, `INT4_CEILING`. A body that gives one of them only is judged by
  * the save, which holds the item under "Needs times" when the sum with the file's half would not fit.
+ *
+ * `importSaveGapOf` is the authority for the total's ceiling; this is the wire guard that refuses a body it can judge alone.
  */
 const timesFitTheTotal = (body: { prepTimeMinutes?: number; cookTimeMinutes?: number }): boolean =>
     body.prepTimeMinutes === undefined ||

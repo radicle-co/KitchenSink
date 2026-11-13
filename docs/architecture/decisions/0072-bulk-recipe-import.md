@@ -148,6 +148,10 @@ recipe it created, so a repeated `advance` sees the item as done.
       principal kind, the containment and the plan). The save candidates leave such an item out only for a cook with the
       same facts. So an upgrade or a containment change brings it back with no decision, and if it is still refused it
       is held again under the new facts.
+    - Which reasons record a cook key is one constant in code, `COOK_DEPENDENT_HOLD_REASONS`, and the save candidates
+      read it. The 0082 CHECK states the same sets in SQL, because a migration cannot import code. So a new
+      cook-dependent reason needs a new migration as well, and the LOCAL e2e that loops over every reason fails until
+      that migration exists.
     - A recipe with no line or no step is refused at upload. One that reaches the save all the same is held for its
       refusal (`item`), and the defect is logged once. A payload this build cannot read is held as `unreadable`, and
       logged once.

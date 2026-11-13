@@ -42,7 +42,7 @@ const UNIQUE_VIOLATION = '23505';
 
 type Columns = Record<string, unknown>;
 
-describe('the bulk-import tables (LOCAL e2e; migrations 0059, 0060, 0066, 0074 to 0083)', () => {
+describe('the bulk-import tables (LOCAL e2e; migrations 0059, 0060, 0066, 0074 to 0085)', () => {
     let pool: pg.Pool;
 
     beforeAll(async () => {
@@ -204,6 +204,7 @@ describe('the bulk-import tables (LOCAL e2e; migrations 0059, 0060, 0066, 0074 t
                 'recipe_id',
                 'refusal',
                 'review',
+                'save_failures',
                 'saved_at',
                 'servings',
                 'source_kind',
@@ -620,6 +621,28 @@ describe('the bulk-import tables (LOCAL e2e; migrations 0059, 0060, 0066, 0074 t
                 const importId = await newImport();
 
                 await refused(insert('recipe_import_items', receivedItem(importId, 0, extra)), CHECK_VIOLATION);
+            });
+        });
+
+        describe('the count of unrecognised save failures (0084, 0085; re-review of #220)', () => {
+            it('recipe_import_items.recipe_import_items_save_failures_check is present and VALIDATED (0084, 0085)', async () => {
+                const { rows } = await pool.query<{ convalidated: boolean }>(
+                    `SELECT convalidated FROM pg_constraint
+                      WHERE conrelid = 'recipe_import_items'::regclass AND conname = 'recipe_import_items_save_failures_check'`,
+                );
+
+                expect(rows).toEqual([{ convalidated: true }]);
+            });
+
+            it('starts at 0 for an item the running release inserts without it, and refuses a negative count', async () => {
+                const importId = await newImport();
+                const row = await insert('recipe_import_items', receivedItem(importId, 0));
+
+                expect(row['save_failures']).toBe(0);
+                await refused(
+                    insert('recipe_import_items', receivedItem(importId, 1, { save_failures: -1 })),
+                    CHECK_VIOLATION,
+                );
             });
         });
 

@@ -205,9 +205,21 @@ function itemStore(initial: readonly ImportItem[]) {
 
             return true;
         }),
-        /** What `recordChoices` does to the fence: the cook's decision moves the revision past any hold. */
+        /** Count one failed save at the revision it read; a decision since then counts nothing. */
+        countSaveFailure: vi.fn(async (_importId: string, ordinal: number, decisionRev: number) => {
+            const held = items.get(ordinal);
+
+            if (held?.decisionRev !== decisionRev) {
+                return undefined;
+            }
+
+            set(ordinal, { saveFailures: held.saveFailures + 1 });
+
+            return held.saveFailures + 1;
+        }),
+        /** What `recordChoices` does to the fence: the cook's decision moves the revision past any hold, and starts the count. */
         decide: (ordinal: number, patch: Partial<ImportItem>) => {
-            set(ordinal, { ...patch, decisionRev: (items.get(ordinal)?.decisionRev ?? 0) + 1 });
+            set(ordinal, { ...patch, decisionRev: (items.get(ordinal)?.decisionRev ?? 0) + 1, saveFailures: 0 });
         },
         attachJob: vi.fn(async (_importId: string, ordinal: number, generation: number, jobId: string) => {
             const held = items.get(ordinal);
@@ -1463,6 +1475,66 @@ describe('ImportAdvanceService — saving what is ready', () => {
             expect(built.store.holdItem).toHaveBeenLastCalledWith(IMPORT_ID, 0, 7, {
                 reason: 'createRefused',
                 cookKey: proKey,
+            });
+        });
+
+        // Re-review of #220, item 2: a failure no rule recognises (a database error, a declared name that no longer matches)
+        // was retried on every advance for ever. It now has an end state: held as a create refusal after a few in a row.
+        describe('⛔ a save that keeps failing for no known reason', () => {
+            const CAP = DEFAULT_IMPORT_ADVANCE_LIMITS.saveFailureCap;
+            const failing = () =>
+                build(
+                    world({
+                        create: async () => {
+                            throw new Error('connection reset by peer');
+                        },
+                    }),
+                );
+            const holdsAfterCap = (logged: { mock: { calls: unknown[][] } }) =>
+                logged.mock.calls.filter(([message]) => String(message).includes('in a row')).length;
+
+            it('is held as createRefused after the cap of failures in a row, looked at no more, and the hold logged ONCE', async () => {
+                const logged = vi.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+                const built = failing();
+
+                try {
+                    for (let call = 0; call < CAP + 2; call += 1) {
+                        await built.service.advance(built.principal, CALLER, IMPORT_ID);
+                    }
+
+                    expect(built.recipes.create).toHaveBeenCalledTimes(CAP);
+                    expect(built.store.holdItem).toHaveBeenCalledExactlyOnceWith(IMPORT_ID, 0, 7, {
+                        reason: 'createRefused',
+                        cookKey: COOK_KEY,
+                    });
+                    expect(built.store.deferItem).toHaveBeenCalledTimes(CAP - 1);
+                    expect(holdsAfterCap(logged)).toBe(1);
+                } finally {
+                    logged.mockRestore();
+                }
+            });
+
+            it('starts the count again after a decision of the cook, so failures across decisions never add up', async () => {
+                const logged = vi.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+                const built = failing();
+
+                try {
+                    for (let call = 0; call < CAP - 1; call += 1) {
+                        await built.service.advance(built.principal, CALLER, IMPORT_ID);
+                    }
+
+                    built.store.decide(0, { cuisine: 'Thai' });
+
+                    for (let call = 0; call < CAP - 1; call += 1) {
+                        await built.service.advance(built.principal, CALLER, IMPORT_ID);
+                    }
+
+                    expect(built.recipes.create).toHaveBeenCalledTimes(2 * (CAP - 1));
+                    expect(built.store.holdItem).not.toHaveBeenCalled();
+                    expect(holdsAfterCap(logged)).toBe(0);
+                } finally {
+                    logged.mockRestore();
+                }
             });
         });
 

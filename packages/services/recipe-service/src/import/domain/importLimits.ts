@@ -35,6 +35,15 @@ export const IMPORT_FLAGGED_MAX_SCANS = 5;
 const IMPORT_CHECKING_WAIT_MS = 20_000;
 
 /**
+ * How many saves of one item may fail IN A ROW, for a cause no rule recognises, before the item is held as a create refusal
+ * (re-review of #220). Five: an `advance` is driven by the client a few seconds apart, so five failures span several calls
+ * and outlast a blip (a dropped connection, a failover, a lock timeout), while a cause that will not go away by itself (a
+ * declared name that no longer matches, a defect) stops being retried and logged on every call. The count is per decision of
+ * the cook: any decision starts it again, and the cook sees the hold as `saveRefused`.
+ */
+const IMPORT_SAVE_FAILURE_CAP = 5;
+
+/**
  * The bounds of ONE `advance` call (ADR-0072 §2: "the batch size is a constant; the builder sizes it so one call fits the
  * request budget"). The counts are CEILINGS: the deadline is the real bound, because a bound-line save costs one by-food
  * admission as the cook per line and that time varies with food.
@@ -58,6 +67,8 @@ export interface ImportAdvanceLimits {
     readonly saveMinMs: number;
     /** `keepAsWritten`'s wait for a checking line. */
     readonly checkingWaitMs: number;
+    /** How many unrecognised save failures in a row hold an item (`IMPORT_SAVE_FAILURE_CAP`). */
+    readonly saveFailureCap: number;
     /** Milliseconds since the epoch; injected so the budget is tested without wall time. */
     readonly now: () => number;
 }
@@ -71,5 +82,6 @@ export const DEFAULT_IMPORT_ADVANCE_LIMITS: ImportAdvanceLimits = {
     deadlineMs: 8_000,
     saveMinMs: 1_500,
     checkingWaitMs: IMPORT_CHECKING_WAIT_MS,
+    saveFailureCap: IMPORT_SAVE_FAILURE_CAP,
     now: () => Date.now(),
 };

@@ -890,6 +890,26 @@ describe('the bulk-import DALs (LOCAL e2e, real Postgres)', () => {
                 },
             );
 
+            // Re-review of #220, item 2: the count that ends an endless retry is per decision of the cook.
+            it('⛔ counts failed saves at the revision the save read, and every decision of the cook starts the count again', async () => {
+                const header = await newImport(1);
+
+                await matchedWithStatement(header.id, [0]);
+
+                const read = await items.findItem(header.id, 0);
+                const rev = read?.decisionRev ?? Number.NaN;
+
+                expect(await items.countSaveFailure(header.id, 0, rev)).toBe(1);
+                expect(await items.countSaveFailure(header.id, 0, rev)).toBe(2);
+
+                // A choice of the cook moves the revision: the stale count counts nothing, and the item's count is 0 again.
+                await items.recordChoices(header.id, 0, { cuisine: 'Thai' });
+
+                expect(await items.countSaveFailure(header.id, 0, rev)).toBeUndefined();
+                expect(await items.findItem(header.id, 0)).toMatchObject({ saveFailures: 0, decisionRev: rev + 1 });
+                expect(await items.countSaveFailure(header.id, 0, rev + 1)).toBe(1);
+            });
+
             it('⛔ a hold is fenced on the revision the save read: a decision that landed in between is never hidden', async () => {
                 const header = await newImport(1);
 

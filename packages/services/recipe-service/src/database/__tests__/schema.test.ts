@@ -309,6 +309,8 @@ describe('recipe-service schema — table contracts (T011–T014, T118, T119, T1
             // Why the save held the item, and the cook facts a cook-dependent hold was judged under (0082).
             held_reason: { type: 'text', notNull: false },
             held_cook_key: { type: 'text', notNull: false },
+            // Unrecognised save failures in a row at this revision (0084).
+            save_failures: { type: 'integer', notNull: true },
             created_at: { type: 'timestampwithtimezone', notNull: true },
             updated_at: { type: 'timestampwithtimezone', notNull: true },
         });

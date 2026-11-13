@@ -305,7 +305,7 @@ export class RecipeImportLinesDal {
             if (options.onlyUnsaved) {
                 await tx
                     .update(recipeImportItems)
-                    .set({ decisionRev: sql`${recipeImportItems.decisionRev} + 1` })
+                    .set({ decisionRev: sql`${recipeImportItems.decisionRev} + 1`, saveFailures: 0 })
                     .where(and(eq(recipeImportItems.importId, importId), eq(recipeImportItems.ordinal, ordinal)));
             }
 

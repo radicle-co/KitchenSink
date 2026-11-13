@@ -154,7 +154,7 @@ function choicesColumnsOf(entry: ChoicesPatch) {
 }
 
 /** Moves the fence: written by every write of what an item is saved from (see `decision_rev` in migration 0059). */
-const BUMP_DECISION_REV = { decisionRev: sql`${recipeImportItems.decisionRev} + 1` } as const;
+const BUMP_DECISION_REV = { decisionRev: sql`${recipeImportItems.decisionRev} + 1`, saveFailures: 0 } as const;
 
 /**
  * The ingredient-line count a payload holds, in SQL. The ONE statement of it: the item list counts with it. Takes the payload
@@ -469,6 +469,30 @@ export class RecipeImportItemsDal {
                 .orderBy(asc(recipeImportItems.updatedAt), asc(recipeImportItems.ordinal))
                 .limit(limit)
         ).map(toItem);
+    }
+
+    /**
+     * Count one save of an item that failed for a cause no rule recognises, at the revision the save READ. A decision that
+     * landed since then reset the count (every write that moves `decision_rev` does), so this one counts nothing.
+     *
+     * @param decisionRev - The item's `decision_rev` as the save read it.
+     * @returns The failures in a row at that revision, this one included; `undefined` when the revision moved.
+     * @sideEffect Writes `save_failures`.
+     */
+    public async countSaveFailure(importId: string, ordinal: number, decisionRev: number): Promise<number | undefined> {
+        const [counted] = await this.db
+            .update(recipeImportItems)
+            .set({ saveFailures: sql`${recipeImportItems.saveFailures} + 1` })
+            .where(
+                and(
+                    eq(recipeImportItems.importId, importId),
+                    eq(recipeImportItems.ordinal, ordinal),
+                    eq(recipeImportItems.decisionRev, decisionRev),
+                ),
+            )
+            .returning({ saveFailures: recipeImportItems.saveFailures });
+
+        return counted?.saveFailures;
     }
 
     /**
@@ -810,6 +834,7 @@ function itemColumnsWithoutPayload() {
         heldAtRev: rest.heldAtRev,
         heldReason: rest.heldReason,
         heldCookKey: rest.heldCookKey,
+        saveFailures: rest.saveFailures,
         servings: rest.servings,
         prepTimeMinutes: rest.prepTimeMinutes,
         cookTimeMinutes: rest.cookTimeMinutes,

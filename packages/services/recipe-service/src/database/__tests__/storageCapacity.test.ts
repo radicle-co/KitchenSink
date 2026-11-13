@@ -380,6 +380,11 @@ const accounts: readonly ColumnAccount[] = [
     },
     {
         table: 'recipe_import_items',
+        column: 'save_failures',
+        why: 'Server-incremented by one failed save, and the save holds the item at IMPORT_SAVE_FAILURE_CAP failures in a row (migration 0084); no wire field sets it.',
+    },
+    {
+        table: 'recipe_import_items',
         column: 'servings',
         fields: [
             { field: 'RecordImportChoicesRequest.servings', schema: recordImportChoicesRequestSchema.shape.servings },

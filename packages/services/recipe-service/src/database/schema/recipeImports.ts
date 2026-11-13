@@ -140,6 +140,8 @@ export const recipeImportItems = pgTable(
         heldReason: text('held_reason'),
         /** The cook facts a hold whose cause they decide was judged under (`cookKeyOf`), so other facts release it (0082). */
         heldCookKey: text('held_cook_key'),
+        /** Unrecognised save failures in a row at this revision; the cap holds the item, a decision resets it (0084). */
+        saveFailures: integer('save_failures').notNull().default(0),
         createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
         updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
     },
@@ -178,6 +180,7 @@ export const recipeImportItems = pgTable(
                 ELSE false
             END`,
         ),
+        check('recipe_import_items_save_failures_check', sql`${table.saveFailures} >= 0`),
         check('recipe_import_items_cuisine_check', sql`${table.cuisine} IS NULL OR btrim(${table.cuisine}) <> ''`),
         check('recipe_import_items_title_check', sql`btrim(${table.title}) <> ''`),
         check('recipe_import_items_stage_check', inArray(table.stage, [...IMPORT_STAGES])),

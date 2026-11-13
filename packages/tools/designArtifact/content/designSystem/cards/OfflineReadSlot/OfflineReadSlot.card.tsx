@@ -5,7 +5,7 @@ import { defineCard } from '../../../../src/cards/defineCard.js';
 
 export default defineCard({
     group: 'Feedback',
-    height: 250,
+    height: 280,
     platforms: 'both',
     uses: ['OfflineReadSlot'],
     render: ({ OfflineReadSlot }) => (

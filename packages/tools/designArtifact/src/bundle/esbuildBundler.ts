@@ -37,7 +37,8 @@ const NATIVE_EXTENSIONS = ['.web.tsx', '.web.ts', '.web.js', '.tsx', '.ts', '.js
  * The esbuild options for one request.
  *
  * `process.env.*` and `__DEV__` are replaced at build time instead of defining `window.process` at run time, so
- * no code path can observe a fake `process`. `global` and `EXPO_OS` are defined on native only: React Native
+ * no code path can observe a fake `process`. `process.env` itself becomes an empty object, so a flag that is not
+ * defined reads `undefined` instead of throwing on the page, which has no `process`. `global` and `EXPO_OS` are defined on native only: React Native
  * packages assume `global`, browsers do not have it, and a web build must not claim to be an iOS app.
  *
  * @param request - The bundle to build.
@@ -67,6 +68,8 @@ export function esbuildOptionsFor(request: BundleRequest, aliasesFor: AliasSourc
         alias: { ...aliasesFor(request.platform) },
         define: {
             'process.env.NODE_ENV': '"production"',
+            // Every other env read (Tamagui, expo-modules-core) finds nothing. The longer keys above still win.
+            'process.env': '{}',
             __DEV__: 'false',
             ...(native ? { global: 'window', 'process.env.EXPO_OS': '"ios"' } : {}),
         },

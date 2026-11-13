@@ -82,9 +82,11 @@ describe('canvasLayout', () => {
         expect(real.boards['HomeMobile.dc.html']).toMatchObject({ x: 1360, y: 0, w: 390, h: 1388 });
         expect(real.boards['Discover.dc.html']?.y).toBe(3639);
         expect(real.boards['RecipeVersionsEmptyMobile.dc.html']?.x).toBe(3190);
-        expect(real.boards['LegalSources.dc.html']?.y).toBe(87272);
+        // The lower rows sit where the registry heights put them; these moved when the heights were re-baselined to
+        // the measured boards on 2026-11-12.
+        expect(real.boards['LegalSources.dc.html']?.y).toBe(87745);
         expect(real.notes['row0']?.y).toBe(-260);
-        expect(real.notes['row34']).toMatchObject({ y: 87012, text: 'Data sources' });
+        expect(real.notes['row34']).toMatchObject({ y: 87485, text: 'Data sources' });
         expect(Object.keys(real.notes)).toHaveLength(36);
     });
 

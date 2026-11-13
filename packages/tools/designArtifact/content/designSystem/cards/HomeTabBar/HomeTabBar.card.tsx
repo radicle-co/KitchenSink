@@ -10,6 +10,12 @@ import { defineCard } from '../../../../src/cards/defineCard.js';
 const PROFILE = { status: 'ready', name: 'Ana Ruiz' } as const;
 
 const noop = (): void => undefined;
+
+/** The width the compact bar is drawn at: an iPhone in landscape, less its side insets. */
+const LANDSCAPE_WIDTH = 760;
+
+/** The width the regular bar is drawn at: the card's usual native column. */
+const PHONE_WIDTH = 358;
 const chrome = {
     destinations: {
         home: 'Home',
@@ -49,7 +55,7 @@ function screen(bar: ReactNode): ReactNode {
 
 export default defineCard({
     group: 'App chrome',
-    height: 400,
+    height: 590,
     platforms: 'both',
     uses: ['HomeTabBar', 'ScrollHost'],
     // The two bars are different components (the web bar is a router-driven `nav` of links, the mobile bar takes
@@ -72,20 +78,25 @@ export default defineCard({
     ),
     renderNative: ({ HomeTabBar }) => (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            <style>{'nav[data-tab-bar]{display:flex!important}'}</style>
-            {screen(
-                <HomeTabBar
-                    chrome={chrome}
-                    liveCapabilities={[]}
-                    activeId="recipes"
-                    profile={PROFILE}
-                    onPress={noop}
-                    bottomInset={34}
-                    compact={false}
-                    leftInset={0}
-                    rightInset={0}
-                />,
-            )}
+            {/* The compact bar is an iPhone in landscape, about 800 pt wide; in the phone-width column it would be
+                squeezed to a width no device gives it. So this card's native column takes the landscape width, which
+                wraps it onto its own row under the web column, and the regular bar keeps the phone width. */}
+            <style>{`nav[data-tab-bar]{display:flex!important}.native{width:${String(LANDSCAPE_WIDTH)}px}`}</style>
+            <div style={{ width: PHONE_WIDTH }}>
+                {screen(
+                    <HomeTabBar
+                        chrome={chrome}
+                        liveCapabilities={[]}
+                        activeId="recipes"
+                        profile={PROFILE}
+                        onPress={noop}
+                        bottomInset={34}
+                        compact={false}
+                        leftInset={0}
+                        rightInset={0}
+                    />,
+                )}
+            </div>
             {screen(
                 <HomeTabBar
                     chrome={chrome}

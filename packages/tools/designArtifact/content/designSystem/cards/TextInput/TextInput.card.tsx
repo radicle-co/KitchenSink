@@ -60,7 +60,7 @@ function Fields({ FieldLabel, TextInput }: CardUi<'FieldLabel' | 'TextInput'>) {
 
 export default defineCard({
     group: 'Forms',
-    height: 470,
+    height: 480,
     platforms: 'native',
     reason: 'it is the one React Native TextInput the apps render, fixing Android’s full-screen editor off; the web uses Input and TextArea.',
     uses: ['TextInput', 'FieldLabel'],

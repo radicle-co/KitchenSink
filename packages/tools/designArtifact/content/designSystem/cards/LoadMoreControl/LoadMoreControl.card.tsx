@@ -25,7 +25,7 @@ function boxed(control: ReactNode): ReactNode {
 
 export default defineCard({
     group: 'Actions',
-    height: 340,
+    height: 350,
     platforms: 'both',
     uses: ['LoadMoreControl'],
     render: ({ LoadMoreControl }) => (

@@ -18,7 +18,7 @@ function copy(title: string): ReactNode {
 
 export default defineCard({
     group: 'Layout',
-    height: 320,
+    height: 360,
     platforms: 'both',
     uses: ['GradientSurface'],
     render: ({ GradientSurface }, { platform }) => {

@@ -57,7 +57,7 @@ function Field({ id, label, init, native, ui, minRows, maxRows, placeholder, mes
 
 export default defineCard({
     group: 'Forms',
-    height: 490,
+    height: 500,
     platforms: 'both',
     uses: ['FieldLabel', 'TextArea'],
     render: (ui, { platform }) => {

@@ -1984,8 +1984,9 @@ jobs:
             - name: Run clerk-verify integration tests
               if: ${{ contains(fromJSON(steps.scope.outputs.packages), '@kitchensink/clerk-verify') }}
               run: npm run test:integration --workspace=@kitchensink/clerk-verify
-            # The cooking step model through cooking-core's public surface: recipe-core's schema, the step splitter, the
-            # entry rule and the place functions, with nothing mocked. No Docker, no network.
+            # cooking-core through its public surface, with nothing mocked: recipe-core's schema, the step splitter,
+            # the entry rule and the place functions, and real recipes walked from Start to Done through the session
+            # reducer and the line ticks. No Docker, no network.
             - name: Run cooking-core integration tests
               if: ${{ contains(fromJSON(steps.scope.outputs.packages), '@kitchensink/cooking-core') }}
               run: npm run test:integration --workspace=@kitchensink/cooking-core

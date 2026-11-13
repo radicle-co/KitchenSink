@@ -309,6 +309,64 @@ describe('PressScale (native) — as a switch', () => {
 });
 
 /**
+ * A CHECKBOX that presses like a button (the cooking line row ticks through one). The role and the state must
+ * reach both channels, because react-native-web forwards only `aria-*` to the DOM, so a DOM-only assertion cannot see
+ * `accessibilityState`: each case reads the recorded `Pressable` props AND the page. Unset states nothing on either.
+ */
+describe('PressScale (native) — as a checkbox', () => {
+    /** The `checked` the recorded `Pressable` was given in its `accessibilityState`, or undefined when it states none. */
+    function recordedChecked(): unknown {
+        const state: unknown = recorded.props?.['accessibilityState'];
+
+        return typeof state === 'object' && state !== null && 'checked' in state ? state.checked : undefined;
+    }
+
+    it.each([true, false])('exposes role checkbox with checked=%s on both channels', (checked) => {
+        render(
+            <PressScale
+                onPress={vi.fn()}
+                accessibilityRole="checkbox"
+                checked={checked}
+                accessibilityLabel="Whisk the eggs"
+            >
+                <Text>Whisk the eggs</Text>
+            </PressScale>,
+        );
+
+        const box = screen.getByRole('checkbox', { name: 'Whisk the eggs' });
+
+        expect(recordedChecked()).toBe(checked);
+        expect(box.getAttribute('aria-checked')).toBe(String(checked));
+    });
+
+    it('states no checked value on either channel when it is not given', () => {
+        render(
+            <PressScale onPress={vi.fn()} accessibilityRole="checkbox" accessibilityLabel="Whisk the eggs">
+                <Text>Whisk the eggs</Text>
+            </PressScale>,
+        );
+
+        const box = screen.getByRole('checkbox', { name: 'Whisk the eggs' });
+
+        expect(recordedChecked()).toBeUndefined();
+        expect(box.hasAttribute('aria-checked')).toBe(false);
+    });
+
+    it('fires onPress once as a checkbox', () => {
+        const onPress = vi.fn();
+
+        render(
+            <PressScale onPress={onPress} accessibilityRole="checkbox" checked={false} accessibilityLabel="Whisk">
+                <Text>Whisk</Text>
+            </PressScale>,
+        );
+
+        fireEvent.click(screen.getByRole('checkbox', { name: 'Whisk' }));
+        expect(onPress).toHaveBeenCalledOnce();
+    });
+});
+
+/**
  * `width` (R9, `docs/design/rowEditorOpenDecisions.md`). `auto` adds nothing, so the parent decides for every card and
  * the FAB; `fill` stretches the frame across a parent that would otherwise centre it, and the Pressable fills the frame.
  */

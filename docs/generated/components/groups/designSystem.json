@@ -11364,6 +11364,7 @@
                                 "\"button\"",
                                 "\"link\"",
                                 "\"none\"",
+                                "\"checkbox\"",
                                 "\"switch\""
                             ],
                             "required": false,
@@ -11386,7 +11387,7 @@
                             "typeDetail": null,
                             "required": false,
                             "defaultValue": null,
-                            "description": "The on/off state of a `switch`. Stated only with `accessibilityRole=\"switch\"`; leave it undefined for any other\nrole, because an absent state is a different statement from `false`. Native-only (the web child carries its own\n`aria-checked`).",
+                            "description": "The on/off state of a `switch` or a `checkbox`. Stated only with one of those roles; leave it undefined for any\nother role, because an absent state is a different statement from `false`. Native-only (the web child carries its\nown `aria-checked`).",
                             "declaredIn": "packages/apps/commise/ui/src/pressScale/props.ts"
                         },
                         {
@@ -11504,6 +11505,7 @@
                                 "\"button\"",
                                 "\"link\"",
                                 "\"none\"",
+                                "\"checkbox\"",
                                 "\"switch\""
                             ],
                             "required": false,
@@ -11526,7 +11528,7 @@
                             "typeDetail": null,
                             "required": false,
                             "defaultValue": null,
-                            "description": "The on/off state of a `switch`. Stated only with `accessibilityRole=\"switch\"`; leave it undefined for any other\nrole, because an absent state is a different statement from `false`. Native-only (the web child carries its own\n`aria-checked`).",
+                            "description": "The on/off state of a `switch` or a `checkbox`. Stated only with one of those roles; leave it undefined for any\nother role, because an absent state is a different statement from `false`. Native-only (the web child carries its\nown `aria-checked`).",
                             "declaredIn": "packages/apps/commise/ui/src/pressScale/props.ts"
                         },
                         {

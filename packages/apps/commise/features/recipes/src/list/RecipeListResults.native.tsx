@@ -9,6 +9,7 @@
  * While the frame is collapsed (a short screen with the keyboard open) the chips step aside so the field
  * and the first results stay in view. Pure `props → JSX`: the host reads, narrows and decides.
  */
+import { fillTemplate } from '@commise/i18n';
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { Button } from '@commise/ui/button';
 import { Chip, ChipRow } from '@commise/ui/chip';
@@ -36,7 +37,6 @@ import {
     type RecipeListReading,
     type RecipeListResultsProps,
 } from './model.js';
-import { fillTemplate } from '@commise/i18n';
 import { HostAnimatedScroll } from './HostAnimatedScroll.native.js';
 import { RecipeListHeaderContext } from './recipeListHeaderContext.js';
 import { ListEdge } from './RecipeListLayout.native.js';

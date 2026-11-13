@@ -1,3 +1,4 @@
+import { type LocalizedMessages, type PluralText } from '@commise/i18n';
 /**
  * @module @commise/features-recipes/import/messages — user-facing copy for bulk import's ingredient matching: the mode
  * choice, the review wizard, its states, Save and leave, the end summary and the lines to check
@@ -17,9 +18,6 @@
  * ⚠️ Every accessible name that differs from its control's visible words STARTS with those words (WCAG 2.5.3, label in
  * name), and names its line, because a list shows several controls with the same words at once.
  */
-import type { LocalizedMessages } from '@commise/i18n';
-
-import type { PluralText } from '@commise/i18n';
 
 /** Copy for the bulk import's matching surfaces. */
 export interface ImportMessages {

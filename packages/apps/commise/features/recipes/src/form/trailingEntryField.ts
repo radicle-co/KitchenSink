@@ -13,12 +13,12 @@
  *
  * @pattern Presentation Model — the trailing row's entry wired to the combobox's props
  */
+import { fillTemplate } from '@commise/i18n';
 import type { ComboboxProps } from '@commise/ui/combobox';
 
 import type { EditorMessages } from '../editor/messages.js';
 import type { LineCommitTarget } from '../hooks/lineCommit.js';
 import type { IngredientEntry } from '../hooks/useIngredientEntry.js';
-import { fillTemplate } from '@commise/i18n';
 import { entryComboboxOf, type EntryComboboxCopy } from './entryCombobox.js';
 import { ingredientAddFieldId } from './fieldIds.js';
 import type { RecipeFormMessages } from './messages.js';

@@ -15,13 +15,13 @@
  *
  * @pattern Headless hook — the groups' state and views, which each leaf draws
  */
+import { fillTemplate } from '@commise/i18n';
 import type { ActionMenuItem } from '@commise/ui/action-menu';
 import { useState } from 'react';
 
 import type { EditorMessages } from '../editor/messages.js';
 import type { IngredientEntry } from '../hooks/useIngredientEntry.js';
 import type { DraftAction } from './draftAction.js';
-import { fillTemplate } from '@commise/i18n';
 import { groupNameFieldId } from './fieldIds.js';
 import { groupLabelOf, ingredientGroupLabels } from './ingredientGroups.js';
 import type { IngredientLineKey } from './lineKey.js';

@@ -19,10 +19,10 @@
  *
  * Pure and platform-agnostic: it uses `Intl.NumberFormat` only, which both platforms carry.
  */
+import { fillTemplate } from '@commise/i18n';
 import { normalizeUnit } from '@kitchensink/recipe-core';
 
 import type { AmountWordMessages } from '../messages.js';
-import { fillTemplate } from '@commise/i18n';
 
 /** The word key of each fraction. */
 type FractionWord = Exclude<keyof AmountWordMessages, 'mixed' | 'range'>;

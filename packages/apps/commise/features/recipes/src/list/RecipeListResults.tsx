@@ -9,6 +9,7 @@
  * cards in the variant the host decided — then "Load more" past 500 recipes. The floating create button is the FRAME's
  * (outside the read boundary, so it also shows offline). Pure `props → JSX`: the host reads, narrows and decides.
  */
+import { fillTemplate } from '@commise/i18n';
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { Button } from '@commise/ui/button';
 import { Chip, ChipRow } from '@commise/ui/chip';
@@ -23,7 +24,6 @@ import { RecipeCard } from '../card/RecipeCard.js';
 import { recipeMessages } from '../messages.js';
 import { LibrarySortMenu } from './LibrarySortMenu.js';
 import { formatRecipeCount, type RecipeListResultsProps } from './model.js';
-import { fillTemplate } from '@commise/i18n';
 
 /** The first run: the two ways to start, stacked below a 600 container and side by side above. */
 const FirstRun: FC<Pick<RecipeListResultsProps, 'onCreateRecipe' | 'onPasteIngredients'>> = ({

@@ -15,6 +15,7 @@
  * leaving focus (`onFieldBlur`, the editor's checkpoint) and keeps Enter out of the title; both events bubble, so the
  * design-system fields need no props for them. The native leaf is `./RecipeBasicsFields.native.tsx`.
  */
+import { fillTemplate } from '@commise/i18n';
 import { useMessages } from '@commise/i18n/react';
 import { ChipRow } from '@commise/ui/chip';
 import { Combobox } from '@commise/ui/combobox';
@@ -25,7 +26,6 @@ import type { FC, FocusEvent, KeyboardEvent, ReactNode } from 'react';
 
 import { editorMessages } from '../editor/messages.js';
 import { formatDuration } from '../format/duration.js';
-import { fillTemplate } from '@commise/i18n';
 import { recipeMessages } from '../messages.js';
 import { ChipInput } from './ChipInput.js';
 import { readLimit, singleLine } from './fieldText.js';

@@ -20,6 +20,7 @@
  * @pattern Presentation Model — the entry's state mapped to the combobox's props, with a key decoder for the choice
  * @pattern Visitor — exhaustive switches over the search view and the remote parts
  */
+import { fillTemplate } from '@commise/i18n';
 import type { ComboboxGroup, ComboboxOption, ComboboxStatus } from '@commise/ui/combobox';
 import type { IngredientNameProposal } from '@kitchensink/schema-recipe';
 
@@ -34,7 +35,6 @@ import type {
     RemoteFoodOption,
     RemotePart,
 } from '../hooks/foodSuggestions.model.js';
-import { fillTemplate } from '@commise/i18n';
 import { foodNameWithPartsOf } from '../ingredientMatching/foodChoiceName.js';
 import type {
     IngredientDetailsMessages,

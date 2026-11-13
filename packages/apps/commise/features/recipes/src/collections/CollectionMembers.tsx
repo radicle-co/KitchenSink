@@ -14,6 +14,7 @@
  *
  * Presentational: it fetches nothing and sends nothing; the host decides the view and runs the removals.
  */
+import { fillTemplate } from '@commise/i18n';
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { Button } from '@commise/ui/button';
 import { SegmentedControl } from '@commise/ui/segmented-control';
@@ -23,7 +24,6 @@ import { CARD_LIST_CLASS, GRID_CELL_CLASS } from '../card/cardGridClass.js';
 import { LIST_VIEW_MODES, isListViewMode } from '../card/cardVariant.js';
 import type { RemovableMember } from '../hooks/useMemberRemoval.js';
 import { formatRecipeCount } from '../list/model.js';
-import { fillTemplate } from '@commise/i18n';
 import { CollectionMemberRow } from './CollectionMemberRow.js';
 import { MEMBER_WINDOW_SIZE, type CollectionMembersProps } from './detailModel.js';
 import { collectionMessages } from './messages.js';

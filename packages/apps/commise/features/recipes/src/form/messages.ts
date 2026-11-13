@@ -5,10 +5,8 @@
  * platforms cannot drift on copy. The `en` set is required; adding a locale is just
  * another key. Templates carry `{token}` placeholders filled with `fillTemplate`.
  */
-import type { LocalizedMessages } from '@commise/i18n';
+import { type LocalizedMessages, type PluralText } from '@commise/i18n';
 import type { RecipeMealType } from '@kitchensink/recipe-core';
-
-import type { PluralText } from '@commise/i18n';
 
 /** Shared copy for the recipe create/edit form, rendered by both the web and native form leaves. */
 export interface RecipeFormMessages {

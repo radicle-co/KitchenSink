@@ -3,8 +3,9 @@
  * `{food} is matched. Its nutrition now counts.` for a match, `{food}: {status}` for any other outcome. Shared by both
  * leaves so the two cannot announce differently. Pure.
  */
-import { lineDisplayName } from '../detail/lineName.js';
 import { fillTemplate } from '@commise/i18n';
+
+import { lineDisplayName } from '../detail/lineName.js';
 import type { IngredientLineNameMessages } from '../messages.js';
 import type { LookupRetry } from './ingredientStatus.js';
 import type { RecipeFormMessages } from './messages.js';

@@ -24,12 +24,11 @@
  * keeping the wire's discriminant lets the resolved union be the wire union EXACTLY, with the pending member
  * added on top and removable again by `Exclude`.
  */
-import type { Locale } from '@commise/i18n';
+import { type Locale, fillTemplate } from '@commise/i18n';
 import type { RecipeNutritionResponse, RecipeNutritionState } from '@kitchensink/schema-recipe';
 import type { ReactNode } from 'react';
 
 import { formatCalories } from '../card/model.js';
-import { fillTemplate } from '@commise/i18n';
 import type { RecipeNutritionMessages } from './messages.js';
 
 /**

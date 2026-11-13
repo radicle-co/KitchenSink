@@ -6,11 +6,11 @@
  *
  * Pure and platform-agnostic: both leaves draw it.
  */
-import type { Locale } from '@commise/i18n';
+
+import { type Locale, fillTemplate } from '@commise/i18n';
 
 import { formatQuantity } from '../detail/model.js';
 import { speakAmounts } from '../format/cookAmount.js';
-import { fillTemplate } from '@commise/i18n';
 import type { AmountWordMessages } from '../messages.js';
 import { readLeadingMeasure } from './leadingMeasure.js';
 

@@ -7,10 +7,10 @@
  *
  * @pattern Presentation Model — the total's state and words, derived from the draft and the editor's one nutrition read
  */
-import type { Locale } from '@commise/i18n';
+
+import { type Locale, fillTemplate } from '@commise/i18n';
 
 import { rangeDerivedNotice } from '../detail/model.js';
-import { fillTemplate } from '@commise/i18n';
 import type { RecipeFormMessages } from './messages.js';
 import { nutritionCountOf, recipeNutritionTotal } from './nutrition.js';
 import type { IngredientNutrition } from './nutritionLookup.js';

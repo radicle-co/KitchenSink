@@ -12,12 +12,11 @@
  * Pure and platform-agnostic: shared unchanged by the web (`*.tsx`) and native (`*.native.tsx`) leaves, so
  * the two renders can never drift. No React at run time (the parts' contracts are types), no platform APIs.
  */
-import type { Locale } from '@commise/i18n';
+import { type Locale, fillTemplate } from '@commise/i18n';
 import type { VariantPartsLineProps } from '@commise/ui/variant-parts-line';
 import type { VersionConflictSide } from '@kitchensink/recipe-core';
 import type { ReactNode } from 'react';
 import { formatRecipeCount } from '../list/model.js';
-import { fillTemplate } from '@commise/i18n';
 import type { ConflictDiff } from './conflictDiff.js';
 import type { RecipeConflictMessages } from './messages.js';
 import { formatVersionTimestamp } from './timeFormat.js';

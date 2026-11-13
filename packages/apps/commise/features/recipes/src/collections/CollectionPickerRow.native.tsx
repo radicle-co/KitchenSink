@@ -10,6 +10,7 @@
  *
  * Presentational: it sends nothing; the host runs the toggle.
  */
+import { fillTemplate } from '@commise/i18n';
 import { useMessages } from '@commise/i18n/react';
 import { Icon } from '@commise/ui/icon';
 import { nativeTokens } from '@commise/ui/native';
@@ -21,7 +22,6 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { toRecipeCardModel } from '../card/model.js';
 import { useRecipeCardView } from '../card/useRecipeCardView.js';
-import { fillTemplate } from '@commise/i18n';
 import type { CollectionPickerRowProps } from './detailModel.js';
 import { collectionMessages } from './messages.js';
 

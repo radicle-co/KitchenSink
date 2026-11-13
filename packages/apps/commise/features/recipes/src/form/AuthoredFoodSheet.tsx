@@ -16,6 +16,7 @@
  *
  * @pattern Adapter over the design-system `Sheet` — the form's states mapped to the sheet's slots
  */
+import { fillTemplate } from '@commise/i18n';
 import { useMessages } from '@commise/i18n/react';
 import {
     Button,
@@ -31,7 +32,6 @@ import { useId, type FC, type JSX } from 'react';
 
 import type { AuthoredFoodDraft } from '../hooks/authoredFoodCreate.model.js';
 import { useLastDefined } from '../hooks/useLastDefined.js';
-import { fillTemplate } from '@commise/i18n';
 import { recipeMessages } from '../messages.js';
 import {
     authoredFieldErrorText,

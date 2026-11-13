@@ -7,6 +7,7 @@
  * auto-measures — no `estimatedItemSize`), pull-to-refresh is wired through the recycler, and the styles derive from
  * the shared design scale (`nativeTokens`).
  */
+import { fillTemplate } from '@commise/i18n';
 import { useFabReservedBottom } from '@commise/ui/create-fab';
 import { LoadMoreControl } from '@commise/ui/load-more';
 import { useLocale, useMessages } from '@commise/i18n/react';
@@ -29,7 +30,6 @@ import { HostAnimatedScroll } from '../list/HostAnimatedScroll.native.js';
 import { formatRecipeCount } from '../list/model.js';
 import { RecipeListHeaderContext } from '../list/recipeListHeaderContext.js';
 import { recipeMessages } from '../messages.js';
-import { fillTemplate } from '@commise/i18n';
 import { collectionMessages } from './messages.js';
 import { bylineMessages } from '../byline/messages.js';
 import { sourceOwnerBylineText } from './sourceOwnerByline.js';

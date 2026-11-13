@@ -3,9 +3,9 @@
  * `docs/plans/2026-11-08-pinnedIngredientsBar.md`). One pure derivation for both platforms, so the web bar and the native
  * bar say the same thing and name their one button the same way.
  */
-import type { Locale } from '@commise/i18n';
 
-import { fillTemplate } from '@commise/i18n';
+import { type Locale, fillTemplate } from '@commise/i18n';
+
 import type { RecipeDetailMessages } from '../messages.js';
 
 /** What the bar and its list say. */

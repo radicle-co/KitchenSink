@@ -14,6 +14,7 @@
  * @pattern Policy — `privateChoice` and `canUndoVisibilityChange` decide the change, the sheet and the Undo
  */
 import type { PaidFeatureState } from '@commise/features-account';
+import { fillTemplate } from '@commise/i18n';
 import { useMessages } from '@commise/i18n/react';
 import { useSnackbar } from '@commise/ui/snackbar';
 import { RecipeVisibility } from '@kitchensink/recipe-core';
@@ -29,7 +30,6 @@ import { useState } from 'react';
 import { collectionMessages } from '../collections/messages.js';
 import { privateChoice, privateNeedsPremium } from '../actions/privateGate.js';
 import { canUndoVisibilityChange } from '../collections/visibilityUndo.js';
-import { fillTemplate } from '@commise/i18n';
 
 /** What one change asks for: where the collection is going and where it was. */
 interface VisibilityChange {

@@ -8,6 +8,7 @@
  *
  * Presentational: props in, markup out. The native leaf is `./PasteListSheet.native.tsx`.
  */
+import { pluralOf } from '@commise/i18n';
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { Button } from '@commise/ui/button';
 import { FieldLabel, TextArea, fieldHintId } from '@commise/ui/input';
@@ -15,7 +16,6 @@ import { Sheet } from '@commise/ui/sheet';
 import type { FC } from 'react';
 
 import { editorMessages } from '../editor/messages.js';
-import { pluralOf } from '@commise/i18n';
 import type { PasteListSheetProps } from './pasteListSheetProps.js';
 import { pasteListFieldId } from './fieldIds.js';
 import { recipeFormMessages } from './messages.js';

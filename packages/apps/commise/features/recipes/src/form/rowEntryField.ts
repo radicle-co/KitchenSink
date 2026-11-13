@@ -11,11 +11,11 @@
  *
  * @pattern Presentation Model — one row's entry wired to the combobox's props
  */
+import { fillTemplate } from '@commise/i18n';
 import type { ComboboxProps } from '@commise/ui/combobox';
 
 import type { LineCommitTarget } from '../hooks/lineCommit.js';
 import type { IngredientEntry } from '../hooks/useIngredientEntry.js';
-import { fillTemplate } from '@commise/i18n';
 import { entryComboboxOf, type EntryComboboxCopy, type EntryOption } from './entryCombobox.js';
 import { ingredientNameFieldId } from './fieldIds.js';
 import type { RecipeFormMessages } from './messages.js';

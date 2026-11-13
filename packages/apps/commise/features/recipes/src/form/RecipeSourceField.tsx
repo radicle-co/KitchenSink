@@ -12,6 +12,7 @@
  *
  * @pattern Visitor — an exhaustive switch over the discriminated union `SourceRowModel`
  */
+import { fillTemplate } from '@commise/i18n';
 import { useMessages } from '@commise/i18n/react';
 import { Button } from '@commise/ui/button';
 import { FieldLabel, Input, fieldHintId } from '@commise/ui/input';
@@ -19,7 +20,6 @@ import { SOURCE_LINK_INPUT_MAX_LENGTH } from '@kitchensink/recipe-core';
 import type { FC } from 'react';
 
 import { editorMessages } from '../editor/messages.js';
-import { fillTemplate } from '@commise/i18n';
 import { sourceErrorId, sourceNoteId } from './fieldErrorIds.js';
 import { describedByOf, sourceFieldId } from './fieldIds.js';
 import type { RecipeSourceFieldProps } from './sourceFieldProps.js';

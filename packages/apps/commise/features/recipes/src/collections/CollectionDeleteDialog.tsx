@@ -10,12 +10,12 @@
  *
  * @pattern Adapter over the design-system `ConfirmDialog`
  */
+import { fillTemplate } from '@commise/i18n';
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { ConfirmDialog } from '@commise/ui/confirm-dialog';
 import type { FC } from 'react';
 
 import { formatRecipeCount } from '../list/model.js';
-import { fillTemplate } from '@commise/i18n';
 import type { CollectionDeleteDialogProps } from './detailModel.js';
 import { collectionMessages } from './messages.js';
 

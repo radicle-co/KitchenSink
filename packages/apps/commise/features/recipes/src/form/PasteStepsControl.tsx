@@ -8,6 +8,7 @@
  *
  * `'use client'`: the sheet's state (`usePasteSteps`). The native leaf is `./PasteStepsControl.native.tsx`.
  */
+import { pluralOf } from '@commise/i18n';
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { Button } from '@commise/ui/button';
 import { FieldLabel, TextArea, fieldHintId } from '@commise/ui/input';
@@ -16,7 +17,6 @@ import type { SourceLinkExtraction } from '@kitchensink/recipe-core';
 import type { FC } from 'react';
 
 import { editorMessages } from '../editor/messages.js';
-import { pluralOf } from '@commise/i18n';
 import { pasteStepsFieldId } from './fieldIds.js';
 import { recipeFormMessages } from './messages.js';
 import { usePasteSteps } from './usePasteSteps.js';

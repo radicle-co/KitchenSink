@@ -13,6 +13,7 @@
  *   focus events. The editor's other checkpoints still save the draft.
  * - Colours come from the theme at render, so both colour schemes paint (owner D15).
  */
+import { fillTemplate } from '@commise/i18n';
 import { useMessages } from '@commise/i18n/react';
 import { ChipRow } from '@commise/ui/chip';
 import { Combobox } from '@commise/ui/combobox';
@@ -28,7 +29,6 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { editorMessages } from '../editor/messages.js';
 import { formatDuration } from '../format/duration.js';
-import { fillTemplate } from '@commise/i18n';
 import { recipeMessages } from '../messages.js';
 import { ChipInput } from './ChipInput.native.js';
 import { readLimit, singleLine } from './fieldText.js';

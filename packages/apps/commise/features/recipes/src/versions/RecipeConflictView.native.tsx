@@ -20,6 +20,7 @@
  * inside a `lineDivider` edge (`darkTheme.md` §4); the stale-base warning is the design system's caution surface
  * (`StandIn`: an `attention` edge on the `attentionTint` fill under `ink`).
  */
+import { fillTemplate } from '@commise/i18n';
 import { useLocale, useMessages } from '@commise/i18n/react';
 import type { FC } from 'react';
 import { Button } from '@commise/ui/button';
@@ -31,7 +32,6 @@ import { Pressable, StyleSheet, Text, View, type TextStyle } from 'react-native'
 import { conflictSideParts } from './conflictDiff.js';
 import { recipeVersionMessages } from './messages.js';
 import { spokenAmountsLabel } from '../format/cookAmount.js';
-import { fillTemplate } from '@commise/i18n';
 import { recipeMessages, type AmountWordMessages } from '../messages.js';
 import {
     type ConflictOptionCardProps,

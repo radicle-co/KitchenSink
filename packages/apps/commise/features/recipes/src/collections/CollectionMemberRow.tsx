@@ -13,6 +13,7 @@
  *
  * @pattern Adapter over the shared `RecipeCard`, filling its note, trailing and footer slots
  */
+import { fillTemplate } from '@commise/i18n';
 import { useMessages } from '@commise/i18n/react';
 import { ActionMenu } from '@commise/ui/action-menu';
 import { RecipeCollectionAddedVia } from '@kitchensink/recipe-core';
@@ -20,7 +21,6 @@ import type { FC } from 'react';
 
 import { RecipeCard } from '../card/RecipeCard.js';
 import { toRecipeCardModel } from '../card/model.js';
-import { fillTemplate } from '@commise/i18n';
 import type { CollectionMemberRowProps } from './detailModel.js';
 import { collectionMessages } from './messages.js';
 

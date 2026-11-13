@@ -1,3 +1,4 @@
+import { type LocalizedMessages, type PluralText } from '@commise/i18n';
 /**
  * @module @commise/features-recipes/ingredientMatching/messages — the words ONE matched ingredient line says, wherever a
  * cook chooses its food: after Paste a list in the editor, in a bulk import's review wizard, and for a flagged line
@@ -15,9 +16,6 @@
  * ⚠️ A middle dot that joins two parts of one line is preceded by a no-break space (U+00A0), so the dot never starts a
  * wrapped line: the rule `@commise/ui`'s `PART_SEPARATOR` holds for a variant's parts.
  */
-import type { LocalizedMessages } from '@commise/i18n';
-
-import type { PluralText } from '@commise/i18n';
 
 /** The copy of one matched ingredient line. */
 export interface MatchLineMessages {

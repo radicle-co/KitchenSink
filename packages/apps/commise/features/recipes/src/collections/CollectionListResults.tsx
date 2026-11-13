@@ -12,6 +12,7 @@
  * list reads, and no member photos are embedded), so the card is the collection's tint and monogram with its name,
  * visibility and copy credit. A recipe-service contract change is owed for the rest.
  */
+import { fillTemplate } from '@commise/i18n';
 import { LoadMoreControl } from '@commise/ui/load-more';
 import { RefreshNotice } from '@commise/ui/refresh-notice';
 import { useLocale, useMessages } from '@commise/i18n/react';
@@ -26,7 +27,6 @@ import { useId, type FC } from 'react';
 
 import { formatRecipeCount } from '../list/model.js';
 import { recipeMessages } from '../messages.js';
-import { fillTemplate } from '@commise/i18n';
 import { collectionMessages } from './messages.js';
 import { bylineMessages } from '../byline/messages.js';
 import { sourceOwnerBylineText } from './sourceOwnerByline.js';

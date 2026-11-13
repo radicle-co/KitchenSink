@@ -16,6 +16,7 @@
  *
  * @pattern Composite — the title, meta, description and actions of one collection
  */
+import { fillTemplate } from '@commise/i18n';
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { Button } from '@commise/ui/button';
 import { Icon } from '@commise/ui/icon';
@@ -28,7 +29,6 @@ import type { FC, ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { formatRecipeCount } from '../list/model.js';
-import { fillTemplate } from '@commise/i18n';
 import { isCollectionCopy, type CollectionHeaderProps } from './detailModel.js';
 import { collectionMessages } from './messages.js';
 import { bylineMessages } from '../byline/messages.js';

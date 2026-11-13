@@ -28,7 +28,7 @@ import { useState, type FC } from 'react';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { makeIngredientNutrition, makeLookupRetry } from '../../src/__fixtures__/index.js';
-import { createPasteHold } from '../../src/editor/pasteHold.js';
+import { createHold } from '../../src/editor/hold.js';
 import { useIngredientsPaste } from '../../src/editor/useIngredientsPaste.js';
 import { PublishOpenChoicesSheet } from '../../src/editor/PublishOpenChoicesSheet.js';
 import type { DraftAction } from '../../src/form/draftAction.js';
@@ -205,7 +205,7 @@ const Host: FC<{ readonly onValues: (values: RecipeFormValues) => void; readonly
     seed,
 }) => {
     const [values, setValues] = useState(() => seed ?? { ...defaultRecipeFormValues(), title: 'Pasted Bread' });
-    const [hold] = useState(createPasteHold);
+    const [hold] = useState(createHold);
     const [asking, setAsking] = useState(false);
     const dispatch = (action: DraftAction): void =>
         setValues((current) => {

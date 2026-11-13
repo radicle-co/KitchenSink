@@ -27,6 +27,7 @@ import {
     useRecipePrivate,
     type DraftStore,
     type EditorNavigation,
+    type EditorArrival,
     type EditorSectionId,
     type EditorFinish,
     type LineAddress,
@@ -84,6 +85,11 @@ export interface RecipeEditorScreenProps {
     readonly onOpenFood?: (foodId: string) => void;
 }
 
+/** What the screen hands every editor below its read boundary: the hand-offs, and the arrival, parsed and held once. */
+type EditorScreenProps = Omit<RecipeEditorScreenProps, 'section' | 'line'> & {
+    readonly arrival: EditorArrival | undefined;
+};
+
 /** What the route's leave guard is told. */
 export interface LeaveGuard {
     /** A photo is not uploaded yet: hold every leave. */
@@ -103,9 +109,14 @@ function useCookDrafts(): CookDrafts | undefined {
  * @param props - The recipe (absent for a new one), a deep link's section, and the hand-offs.
  * @returns The editor, or the read boundary around it.
  */
-export function RecipeEditorScreen(props: RecipeEditorScreenProps): JSX.Element {
+export function RecipeEditorScreen({ section, line, ...rest }: RecipeEditorScreenProps): JSX.Element {
     useScreenTrace('RecipeEditorScreen');
-    const { recipeId } = props;
+    const { recipeId } = rest;
+    // A route param can arrive unparsed from restored navigation state: it is parsed here, once, at the edge. And it is held
+    // from the FIRST render, outside the read boundary, like `opening`: the route lets go of the param after its first
+    // commit, and a stored recipe's editor mounts only after its reads resolve, so a read there would see it gone.
+    const [arrival] = useState(() => arrivalOf(section, line));
+    const props: EditorScreenProps = { ...rest, arrival };
     const loadCopy = useMessages(recipeLoadMessages);
     const { detail } = useMessages(recipeMessages);
     const { detailActions } = useMessages(recipeActionMessages);
@@ -138,7 +149,7 @@ export function RecipeEditorScreen(props: RecipeEditorScreenProps): JSX.Element 
 }
 
 /** A new recipe: blank. */
-function NewRecipeEditor(props: RecipeEditorScreenProps): JSX.Element | null {
+function NewRecipeEditor(props: EditorScreenProps): JSX.Element | null {
     const cook = useCookDrafts();
 
     if (cook === undefined) {
@@ -152,7 +163,7 @@ function NewRecipeEditor(props: RecipeEditorScreenProps): JSX.Element | null {
 
 /** An existing recipe, once read, with its device draft. */
 function StoredRecipeEditor(
-    props: RecipeEditorScreenProps & { readonly recipeId: string; readonly opening: number },
+    props: EditorScreenProps & { readonly recipeId: string; readonly opening: number },
 ): JSX.Element | null {
     const cook = useCookDrafts();
     const { data: recipe } = useSuspenseQuery(recipeQueries(useRecipeServiceClient()).detail(props.recipeId));
@@ -167,7 +178,7 @@ function SeededEditor({
     recipe,
     opening,
     ...props
-}: RecipeEditorScreenProps & {
+}: EditorScreenProps & {
     readonly recipeId: string;
     readonly opening: number;
     readonly cook: CookDrafts;
@@ -187,8 +198,7 @@ function SeededEditor({
 
 /** The editor over its seed. */
 function RecipeEditorSession({
-    section,
-    line,
+    arrival,
     openPaste = false,
     onFinished,
     onClose,
@@ -199,14 +209,12 @@ function RecipeEditorSession({
     mode,
     drafts,
     seed,
-}: RecipeEditorScreenProps & {
+}: EditorScreenProps & {
     readonly mode: 'create' | 'edit';
     readonly drafts: DraftStore;
     readonly seed: EditorSeed;
 }): JSX.Element {
     const locale = useLocale();
-    // A route param can arrive unparsed from restored navigation state: it is parsed here, once, at the edge.
-    const arrival = arrivalOf(section, line);
     const queue = useSyncQueue();
     const profile = useUserProfile();
     const paidFeatures = paidFeatureStateOf(profile);

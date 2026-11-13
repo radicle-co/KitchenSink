@@ -189,7 +189,7 @@ describe('ScrollHost + field reveal host + Input (native) — naming a field', (
 /**
  * A deep link to an ingredient row (`scrollToStart`): the row hears it was named and the reveal host puts its top at the
  * top of the visible area, whatever else the section jump was about to do. The row's layout is scripted (top 300 at offset
- * 100, one gap of 16), so its start is 384.
+ * 100, one gap of 8), so its start is 392.
  */
 describe('ScrollHost + field reveal host + a row (native) — naming an element’s start', () => {
     it('puts the row’s top at the top of the visible area, once per call, and the section jump does not follow it', async () => {
@@ -204,7 +204,7 @@ describe('ScrollHost + field reveal host + a row (native) — naming an element�
 
         expect(seam.scrolls).toEqual([
             { by: 'section', y: 500 },
-            { by: 'field', y: 384 },
+            { by: 'field', y: 392 },
         ]);
         expect(seen.api?.current).not.toBe('steps');
     });

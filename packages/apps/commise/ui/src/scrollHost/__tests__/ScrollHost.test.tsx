@@ -247,45 +247,6 @@ describe('ScrollHost (web)', () => {
         field.remove();
     });
 
-    /**
-     * A deep link to a row that opens an inline editor: the row's top goes just under the sticky chrome, so the editor's
-     * Done and Cancel are not below the fold. `block: 'start'` (the document's `scroll-padding-top` clears the chrome),
-     * not `nearest`, which leaves a row that is already partly in view where it is. No focus, no hash, no hold: the row
-     * is not a section.
-     */
-    it('scrollToStart puts the element’s top at the start of the viewport, and answers whether it found it', () => {
-        const api = renderHost();
-        const row = document.createElement('li');
-        row.id = 'recipe-ingredient-row';
-        document.body.append(row);
-        row.scrollIntoView = vi.fn();
-        window.history.replaceState(null, '', '/page');
-        const before = api().current;
-
-        expect(api().scrollToStart('recipe-ingredient-row')).toBe(true);
-
-        expect(row.scrollIntoView).toHaveBeenCalledExactlyOnceWith({ behavior: 'smooth', block: 'start' });
-        expect(document.activeElement).not.toBe(row);
-        expect(window.location.hash).toBe('');
-        expect(api().current).toBe(before);
-        expect(api().scrollToStart('no-such-row')).toBe(false);
-        row.remove();
-    });
-
-    it('scrollToStart is instant under reduced motion', () => {
-        reducedMotion = true;
-        const api = renderHost();
-        const row = document.createElement('li');
-        row.id = 'recipe-ingredient-row';
-        document.body.append(row);
-        row.scrollIntoView = vi.fn();
-
-        api().scrollToStart('recipe-ingredient-row');
-
-        expect(row.scrollIntoView).toHaveBeenCalledWith({ behavior: 'auto', block: 'start' });
-        row.remove();
-    });
-
     it('holds no scroller handle on web', () => {
         expect(renderHost()().handle.current).toBeNull();
     });
@@ -408,6 +369,84 @@ describe('ScrollHost (web) — revealSpan', () => {
         expect(api().revealSpan('row', 'no-such-field')).toBe(false);
         expect(api().revealSpan('no-such-row', 'field')).toBe(false);
         expect(window.scrollTo).not.toHaveBeenCalled();
+    });
+
+    /**
+     * A deep link to an ingredient row (`scrollToStart`): ONE scroll, computed from both edges of the row, which ends in
+     * its editor's Done and Cancel. The row's top goes one gap under the document's `scroll-padding-top` (the sticky
+     * header), unless the row does not fit between the header and the bar, when its end wins: Done and Cancel one gap
+     * above the action bar. No focus, no hash, no held section: the row is not a section.
+     */
+    describe('scrollToStart', () => {
+        it('puts the row’s top one gap under the top of the window, in one smooth scroll', () => {
+            const api = renderSpanHost();
+            place({ top: 300, bottom: 420 }, { top: 0, bottom: 0 });
+            window.history.replaceState(null, '', '/page');
+            const before = api().current;
+
+            expect(api().scrollToStart('row')).toBe(true);
+
+            expect(window.scrollTo).toHaveBeenCalledExactlyOnceWith({ top: 1000 + 300 - 8, behavior: 'smooth' });
+            expect(document.activeElement).not.toBe(document.getElementById('row'));
+            expect(window.location.hash).toBe('');
+            expect(api().current).toBe(before);
+        });
+
+        it('keeps the row’s top clear of the sticky header: the document’s scroll-padding', () => {
+            style = document.createElement('style');
+            style.textContent = 'html { scroll-padding-top: 72px; scroll-padding-bottom: 100px; }';
+            document.head.append(style);
+            const api = renderSpanHost();
+            place({ top: 300, bottom: 420 }, { top: 0, bottom: 0 });
+
+            api().scrollToStart('row');
+
+            // The free area starts at 72: the row's top is 228 into it, so 228 - 8 further down.
+            expect(window.scrollTo).toHaveBeenCalledExactlyOnceWith({ top: 1000 + 228 - 8, behavior: 'smooth' });
+        });
+
+        it('too tall for the space between the header and the bar: the row’s end wins, one gap above the bar', () => {
+            style = document.createElement('style');
+            style.textContent = 'html { scroll-padding-top: 72px; scroll-padding-bottom: 100px; }';
+            document.head.append(style);
+            const api = renderSpanHost();
+            // 500 tall in a free area of 600 - 72 - 100 = 428.
+            place({ top: 100, bottom: 600 }, { top: 0, bottom: 0 });
+
+            api().scrollToStart('row');
+
+            // The end (528 into the free area) must land at 428 - 8: 528 + 8 - 428 = 108 down. Never two scrolls.
+            expect(window.scrollTo).toHaveBeenCalledExactlyOnceWith({ top: 1000 + 108, behavior: 'smooth' });
+        });
+
+        it('scrolls nothing when the row already starts one gap under the header', () => {
+            style = document.createElement('style');
+            style.textContent = 'html { scroll-padding-top: 72px; scroll-padding-bottom: 100px; }';
+            document.head.append(style);
+            const api = renderSpanHost();
+            place({ top: 80, bottom: 200 }, { top: 0, bottom: 0 });
+
+            expect(api().scrollToStart('row')).toBe(true);
+
+            expect(window.scrollTo).not.toHaveBeenCalled();
+        });
+
+        it('is instant under reduced motion', () => {
+            reducedMotion = true;
+            const api = renderSpanHost();
+            place({ top: 300, bottom: 420 }, { top: 0, bottom: 0 });
+
+            api().scrollToStart('row');
+
+            expect(window.scrollTo).toHaveBeenCalledWith({ top: 1292, behavior: 'auto' });
+        });
+
+        it('answers false and scrolls nothing for an element that is not there', () => {
+            const api = renderSpanHost();
+
+            expect(api().scrollToStart('no-such-row')).toBe(false);
+            expect(window.scrollTo).not.toHaveBeenCalled();
+        });
     });
 });
 

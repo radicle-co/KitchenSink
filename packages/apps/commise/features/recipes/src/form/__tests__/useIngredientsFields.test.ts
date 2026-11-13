@@ -39,7 +39,7 @@ import type { IngredientRowView } from '../ingredientRowView.js';
 import type { IngredientLineKey } from '../lineKey.js';
 import type { DraftAction } from '../draftAction.js';
 import { applyDraftAction, type RecipeIngredientsFieldsProps } from '../props.js';
-import { createRowEditHold } from '../../editor/rowEditHold.js';
+import { createHold } from '../../editor/hold.js';
 import { useIngredientsFields } from '../useIngredientsFields.js';
 import type { RecipeFormErrors } from '../validate.js';
 
@@ -885,27 +885,18 @@ describe('useIngredientsFields — groups (build spec §7.5.5)', () => {
 });
 
 /**
- * A live region speaks a CHANGE of its text, so a notice that is already in the region when it mounts is not said by
- * many screen readers. The model therefore says nothing on the first render and the notice from the next one.
+ * The missing-line notice is the model's to offer: it is there for a link to a line the draft does not hold, until the
+ * cook opens a row. Speaking it as a CHANGE (a live region says nothing for text present at mount) is the design-system
+ * `LiveRegion`'s `announceOnMount`, proved in `@commise/ui` and over the real editor by `RecipeEditorSurface.rowEditor`.
  */
-describe('useIngredientsFields — the missing-line notice is spoken after mount', () => {
-    it('is empty on the first render and set after it, for a link to a line the draft does not hold', () => {
-        const seen: (string | undefined)[] = [];
-        renderHook(() => {
-            const model = useIngredientsFields({
-                ...propsOf({ lines: [bound('salt')] }),
-                arrivalLine: { kind: 'missing' },
-            });
-            seen.push(model.jumpNotice);
+describe('useIngredientsFields — the missing-line notice', () => {
+    it('is offered for a link to a line the draft does not hold', () => {
+        const { result } = renderFields({ ...propsOf({ lines: [bound('salt')] }), arrivalLine: { kind: 'missing' } });
 
-            return model;
-        });
-
-        expect(seen[0]).toBeUndefined();
-        expect(seen.at(-1)).toEqual(expect.stringContaining('couldn’t find that ingredient'));
+        expect(result.current.jumpNotice).toEqual(expect.stringContaining('couldn’t find that ingredient'));
     });
 
-    it('says nothing without a missing line', () => {
+    it('is not offered without a missing line', () => {
         const { result } = renderFields(propsOf({ lines: [bound('salt')] }));
 
         expect(result.current.jumpNotice).toBeUndefined();
@@ -918,7 +909,7 @@ describe('useIngredientsFields — the missing-line notice is spoken after mount
  */
 describe('useIngredientsFields — the open row editor raises the row edit hold', () => {
     it('raises it while a row editor is open and lets go when it closes', () => {
-        const hold = createRowEditHold();
+        const hold = createHold();
         const props = { ...propsOf({ lines: [bound('salt')] }), rowEditHold: hold };
         const { result } = renderFields(props);
         const key = keyAt(props, 0);
@@ -934,7 +925,7 @@ describe('useIngredientsFields — the open row editor raises the row edit hold'
     });
 
     it('is raised at once for a row an arrival opens', () => {
-        const hold = createRowEditHold();
+        const hold = createHold();
         const base = propsOf({ lines: [bound('salt')] });
         renderFields({ ...base, rowEditHold: hold, arrivalLine: { kind: 'found', key: keyAt(base, 0) } });
 
@@ -942,7 +933,7 @@ describe('useIngredientsFields — the open row editor raises the row edit hold'
     });
 
     it('lets go when the field group goes away, with nobody told', () => {
-        const hold = createRowEditHold();
+        const hold = createHold();
         const released = vi.fn();
         hold.onReleased(released);
         const base = propsOf({ lines: [bound('salt')] });

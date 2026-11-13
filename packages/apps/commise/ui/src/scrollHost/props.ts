@@ -104,12 +104,14 @@ export interface ScrollHostApi {
      */
     readonly revealSpan: (topId: string, bottomId: string) => boolean;
     /**
-     * Scroll an element's top to the start of the visible area, under the sticky chrome: a deep link to an ingredient row
-     * whose inline editor opens below it, so the editor's Done and Cancel are not below the fold. Instant under reduced
-     * motion. It moves no focus, records no hash and holds no section: the element is not a section.
+     * Show an element from its top, under the sticky chrome: a deep link to an ingredient row, whose box ends in its open
+     * editor's Done and Cancel. ONE scroll from both of its edges, inside what the document's `scroll-padding` leaves of
+     * the window: its top one gap below the top edge, unless it does not fit between the edges, when its end wins (its
+     * bottom one gap above the bottom edge, as in `revealSpan`) and as much of it as fits shows above. Instant under
+     * reduced motion. It moves no focus, records no hash and holds no section: the element is not a section.
      *
-     * @returns Whether the element was found. Native finds no element by id, so it answers `false` and the caller falls
-     *     back (`revealSpan`, then the section).
+     * @returns Whether the element was found. Native finds no element by id: the element hears it was named
+     *     (`useFieldStartReveal`) and asks the field reveal host, so it always answers `true`.
      */
     readonly scrollToStart: (id: string) => boolean;
     /** The heading's layout report (native). Inert on web, which finds the heading by `headingId`. */

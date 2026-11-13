@@ -39,7 +39,7 @@ import { useEffect, useEffectEvent, useReducer, useState, type RefObject } from 
 import type { LayoutChangeEvent } from 'react-native';
 
 import { useReduceMotion } from '../motion/useReduceMotion.native.js';
-import { TARGET_GAP_DP, centreTarget, startTarget } from './centreReveal.js';
+import { TARGET_GAP_DP, centreTarget } from './centreReveal.js';
 import {
     REVEAL_CLOSED,
     REVEAL_GAP_DP,
@@ -52,7 +52,7 @@ import {
 import type { FieldRevealer, ListRequest, RevealRequest } from './fieldRevealContext.js';
 import { measureField, scrollContentTo, type RevealScroller } from './measureField.native.js';
 import type { RevealSpacerProps } from './RevealSpacer.native.js';
-import { spanTarget } from './spanReveal.js';
+import { spanTarget, startSpanTarget } from './spanReveal.js';
 
 /** What the host renders with. */
 export interface FieldRevealHost {
@@ -290,7 +290,8 @@ export function useFieldRevealHost(scroller: RefObject<RevealScroller | null>): 
         };
     }, [target, laidOut]);
 
-    // A start is placed once the visible area is laid out: its top goes one gap below the area's top.
+    // A start is placed once the visible area is laid out: its top goes one gap below the area's top, unless its end
+    // (the row editor's Done and Cancel) would then be out of view, and the end wins (`startSpanTarget`).
     useEffect(() => {
         const view = currentScroller();
 
@@ -308,11 +309,12 @@ export function useFieldRevealHost(scroller: RefObject<RevealScroller | null>): 
             const place =
                 measure === null
                     ? null
-                    : startTarget({
+                    : startSpanTarget({
                           top: measure.top,
+                          bottom: measure.top + measure.height,
                           offset: measure.offset,
                           viewport: currentViewport(),
-                          keep: TARGET_GAP_DP,
+                          keep: REVEAL_GAP_DP,
                       });
 
             if (place !== null) {

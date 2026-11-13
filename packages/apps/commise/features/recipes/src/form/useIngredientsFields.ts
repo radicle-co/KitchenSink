@@ -186,14 +186,6 @@ export function useIngredientsFields(props: RecipeIngredientsFieldsProps): Ingre
         setJumpCleared(true);
     }
 
-    // A live region speaks a CHANGE of its text, and many screen readers say nothing for text present at mount. So the
-    // notice is held back for one commit: the region mounts empty, then the text arrives.
-    const [mounted, setMounted] = useState(false);
-    // @sideEffect Lets the first commit pass before the notice is offered.
-    useEffect(() => {
-        setMounted(true);
-    }, []);
-
     // A pick the cook typed over while it was in flight: the add field holds a new word, so its row is not scrolled to
     // (`ingredientArrival.md`). Decided once, when that pick settles.
     const [typedInFlight, setTypedInFlight] = useState(false);
@@ -313,7 +305,7 @@ export function useIngredientsFields(props: RecipeIngredientsFieldsProps): Ingre
             onClose: () => setFoodDetailsKey(undefined),
         },
         openRow: rows.find((row) => row.editorOpen),
-        jumpNotice: mounted && arrival?.kind === 'missing' && !jumpCleared ? addCopy.jumpLineMissing : undefined,
+        jumpNotice: arrival?.kind === 'missing' && !jumpCleared ? addCopy.jumpLineMissing : undefined,
         trailing: {
             entryField: {
                 entry,

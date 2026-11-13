@@ -81,20 +81,13 @@ describe('useEditorPage — a deep link to an ingredient line', () => {
         expect(host.scrollToSection).not.toHaveBeenCalled();
     });
 
-    it('falls back to the smallest scroll that shows the row where the host finds no row by id', () => {
+    // The host answers `false` only when it finds no such row (web), and then no other scroll could show it either.
+    it('falls back to the section when the host does not have the row', () => {
         host.scrollToStart = vi.fn(() => false);
-        mountArriving({ section: 'ingredients', line: { kind: 'found', key: ROW } });
-
-        expect(host.revealSpan).toHaveBeenCalledExactlyOnceWith(ingredientRowId(ROW), ingredientRowId(ROW));
-        expect(host.scrollToSection).not.toHaveBeenCalled();
-    });
-
-    it('falls back to the section when no scroll can show the row', () => {
-        host.scrollToStart = vi.fn(() => false);
-        host.revealSpan = vi.fn(() => false);
         mountArriving({ section: 'ingredients', line: { kind: 'found', key: ROW } });
 
         expect(host.scrollToSection).toHaveBeenCalledExactlyOnceWith('ingredients');
+        expect(host.revealSpan).not.toHaveBeenCalled();
     });
 
     it('goes to the section for a line the draft does not hold', () => {

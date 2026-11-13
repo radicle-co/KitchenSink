@@ -127,8 +127,7 @@ import {
 } from '../editor/editorView.js';
 import { visibilityFollowUp } from '../editor/visibilityFollowUp.js';
 import { gateOutcomeOf, refusedFieldsOf, type GateOutcome, type RefusedField } from '../editor/gate.js';
-import type { PasteHold } from '../editor/pasteHold.js';
-import type { RowEditHold } from '../editor/rowEditHold.js';
+import type { Hold } from '../editor/hold.js';
 import type { LineAddress } from '../editor/editorArrival.js';
 import type { DraftKeep, MementoWrite, SaveStatus } from '../editor/saveStatus.js';
 import { VisibilityNotHeldError } from '../editor/visibilityNotHeldError.js';
@@ -287,13 +286,13 @@ export interface UseRecipeEditorOptions {
      * writes it where its own state changes, and a checkpoint reads it when it runs. Either it or {@link pastePending}
      * holding is enough to hold the create.
      */
-    readonly pasteHold?: PasteHold;
+    readonly pasteHold?: Hold;
     /**
      * The shared row edit hold (`editor/rowEditHold.ts`): raised while a row editor is open, so a never-published
      * draft's checkpoints wait for its Cancel or Done (`serverWriteFor`'s `rowEditHeld`). Letting go of it runs the
      * checkpoint it deferred.
      */
-    readonly rowEditHold?: RowEditHold;
+    readonly rowEditHold?: Hold;
     /** The clock, for the draft's `savedAt`. */
     readonly now?: () => Date;
     /**
@@ -1852,7 +1851,7 @@ function useDiscardLeft(ctx: EditorContext, discarding: boolean): void {
  *
  * @sideEffect Subscribes to the shared hold, and runs a `checkpointIdle` checkpoint on its release.
  */
-function useReleasedHold(ctx: EditorContext, hold: PasteHold | undefined): void {
+function useReleasedHold(ctx: EditorContext, hold: Hold | undefined): void {
     const released = useEffectEvent((): void => {
         runCheckpoint(ctx, 'checkpointIdle');
     });

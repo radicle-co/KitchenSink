@@ -13,6 +13,7 @@
  *
  * @pattern Mediator — between the host's row-editor controllers and the row controls, through `useIngredientsFields`
  */
+import { LiveRegion } from '@commise/ui/live-region';
 import { Button } from '@commise/ui/button';
 import { Combobox } from '@commise/ui/combobox';
 import { DialogActions } from '@commise/ui/dialog-actions';
@@ -250,9 +251,9 @@ export const RecipeIngredientsFields: FC<RecipeIngredientsFieldsProps> = (props)
                 {model.settledMessage}
             </p>
             {/* A link named an ingredient the draft does not hold: said quietly and politely, until a row is opened. */}
-            <p role="status" className="text-caption text-ink-muted empty:hidden">
+            <LiveRegion politeness="polite" announceOnMount className="text-caption text-ink-muted">
                 {model.jumpNotice ?? ''}
-            </p>
+            </LiveRegion>
             {model.listError !== undefined && (
                 <p id={ingredientsErrorId} className={errorText} role="alert">
                     {model.listError}

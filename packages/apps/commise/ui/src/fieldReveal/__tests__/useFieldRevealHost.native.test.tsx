@@ -722,7 +722,17 @@ describe('useFieldRevealHost — a start (scrollToStart)', () => {
 
         await aim(rendered);
 
-        expect(seam.scrolls).toEqual([{ y: 100 + 120 - 16, animated: true }]);
+        expect(seam.scrolls).toEqual([{ y: 100 + 120 - 8, animated: true }]);
+    });
+
+    // The row and its editor are taller than the area: Done and Cancel (the row's end) win, one gap above the bottom edge.
+    it('too tall to show whole: the end wins, one gap above the bottom edge, in ONE scroll', async () => {
+        const rendered = host(400);
+        seam.measures = [{ top: 100, height: 500, offset: 200 }];
+
+        await aim(rendered);
+
+        expect(seam.scrolls).toEqual([{ y: 200 + 600 + 8 - 400, animated: true }]);
     });
 
     it('moves nothing when it cannot be measured', async () => {
@@ -746,7 +756,7 @@ describe('useFieldRevealHost — a start (scrollToStart)', () => {
             await Promise.resolve();
         });
 
-        expect(seam.scrolls).toEqual([{ y: 384, animated: true }]);
+        expect(seam.scrolls).toEqual([{ y: 392, animated: true }]);
     });
 
     it('a release cancels a start still measuring', async () => {

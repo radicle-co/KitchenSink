@@ -159,7 +159,7 @@ export function useEditorPage(props: RecipeEditorViewProps): EditorPage {
     // is not a deep link. A link that named a line this draft holds shows that row (its inline editor too, from 600)
     // where the host can find it by id, and otherwise lands on the section.
     const [deepLink] = useState(arrival);
-    const { revealSpan, scrollToStart } = host;
+    const { scrollToStart } = host;
     const jumpToDeepLink = useEffectEvent((): void => {
         if (deepLink === undefined) {
             return;
@@ -167,9 +167,10 @@ export function useEditorPage(props: RecipeEditorViewProps): EditorPage {
 
         const rowId = deepLink.line?.kind === 'found' ? ingredientRowId(deepLink.line.key) : undefined;
 
-        // The row's top goes under the sticky chrome, so an inline editor opened below it shows whole. A host that finds
-        // no row by id (native) falls back to the smallest scroll that shows it, then to the section.
-        if (rowId === undefined || !(scrollToStart(rowId) || revealSpan(rowId, rowId))) {
+        // The row's top goes under the sticky chrome, so an inline editor opened below it shows whole. Web answers `false`
+        // only when no such row is mounted, and then the section is the next best place. Native always answers `true`
+        // (the row hears it was named, `useFieldStartReveal`), so nothing scrolls there if the row is not mounted.
+        if (rowId === undefined || !scrollToStart(rowId)) {
             scrollToSection(deepLink.section);
         }
     });

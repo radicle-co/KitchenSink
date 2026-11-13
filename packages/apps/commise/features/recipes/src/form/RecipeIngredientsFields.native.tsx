@@ -238,7 +238,9 @@ export const RecipeIngredientsFields: FC<RecipeIngredientsFieldsProps> = (props)
                 {model.settledMessage}
             </LiveRegion>
             {/* A link named an ingredient the draft does not hold: said quietly and politely, until a row is opened. */}
-            <LiveRegion politeness="polite">{model.jumpNotice ?? ''}</LiveRegion>
+            <LiveRegion politeness="polite" announceOnMount>
+                {model.jumpNotice ?? ''}
+            </LiveRegion>
             {model.listError !== undefined && (
                 <Text
                     nativeID={ingredientsErrorId}

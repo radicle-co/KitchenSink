@@ -1,11 +1,11 @@
 /** The paste hold (`pasteHold.ts`): one cell the paste writes and the editor reads. */
 import { describe, expect, it, vi } from 'vitest';
 
-import { createPasteHold } from '../pasteHold.js';
+import { createHold } from '../hold.js';
 
-describe('createPasteHold', () => {
+describe('createHold', () => {
     it('starts not holding, and answers what was last set', () => {
-        const hold = createPasteHold();
+        const hold = createHold();
 
         expect(hold.get()).toBe(false);
         hold.set(true);
@@ -15,8 +15,8 @@ describe('createPasteHold', () => {
     });
 
     it('two holds are independent', () => {
-        const a = createPasteHold();
-        const b = createPasteHold();
+        const a = createHold();
+        const b = createHold();
 
         a.set(true);
         expect(b.get()).toBe(false);
@@ -28,9 +28,9 @@ describe('createPasteHold', () => {
  * re-arms the idle timer, and the create the hold deferred waited for the next blur, section change or exit. The hold
  * now says when it lets go, so the editor can run the checkpoint it deferred.
  */
-describe('createPasteHold — the release', () => {
+describe('createHold — the release', () => {
     it('tells a listener once when the hold goes from holding to not holding', () => {
-        const hold = createPasteHold();
+        const hold = createHold();
         const released = vi.fn();
         hold.onReleased(released);
 
@@ -43,7 +43,7 @@ describe('createPasteHold — the release', () => {
     });
 
     it('does not tell anyone about a hold that was never taken', () => {
-        const hold = createPasteHold();
+        const hold = createHold();
         const released = vi.fn();
         hold.onReleased(released);
 
@@ -53,7 +53,7 @@ describe('createPasteHold — the release', () => {
     });
 
     it('⛔ stays quiet when the paste goes away: nobody is left to checkpoint for', () => {
-        const hold = createPasteHold();
+        const hold = createHold();
         const released = vi.fn();
         hold.onReleased(released);
 
@@ -65,7 +65,7 @@ describe('createPasteHold — the release', () => {
     });
 
     it('stops telling a listener that unsubscribed', () => {
-        const hold = createPasteHold();
+        const hold = createHold();
         const released = vi.fn();
         hold.onReleased(released)();
 

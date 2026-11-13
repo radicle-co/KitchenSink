@@ -45,7 +45,7 @@ import {
 } from './ingredientGroups.js';
 import { withLineBinding } from './lineBinding.js';
 import { restoreLineFields } from './lineFieldsMemento.js';
-import type { RowEditHold } from '../editor/rowEditHold.js';
+import type { Hold } from '../editor/hold.js';
 import type { IngredientLineKey } from './lineKey.js';
 import { settleIngredientLines, type LookupRetry } from './ingredientStatus.js';
 import type { PasteChoicePaneProps } from './pasteChoicePaneProps.js';
@@ -373,7 +373,7 @@ export interface RecipeIngredientsFieldsProps extends RecipeFormSectionProps {
      * The hold the editor's checkpoints read (`editor/rowEditHold.ts`): raised while a row editor is open, so its Cancel
      * can still put the line back, and let go of when it closes.
      */
-    readonly rowEditHold?: RowEditHold;
+    readonly rowEditHold?: Hold;
     /**
      * The cook's own line as the import read it, by line key, for a line that needs review (plan: needs-review). Display
      * only — never part of the draft.

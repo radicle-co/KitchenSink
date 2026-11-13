@@ -41,7 +41,7 @@ vi.mock('../usePasteMatching.js', () => ({
     },
 }));
 
-import { createPasteHold, type PasteHold } from '../pasteHold.js';
+import { createHold, type Hold } from '../hold.js';
 import { useIngredientsPaste } from '../useIngredientsPaste.js';
 
 const READING: PastedLine = { kind: 'reading', lineIndex: 0, sourceLine: '2 cups flour', phase: 'reading' };
@@ -51,7 +51,7 @@ const render = (
     over: Partial<PasteIntoIngredients>,
     lines: number,
     initiallyOpen = false,
-    hold: PasteHold = createPasteHold(),
+    hold: Hold = createHold(),
     matching: Partial<PasteMatching> = {},
 ) => {
     doubles.paste = makePasteIntoIngredients({ sessionKey: 'job-1', ...over });
@@ -117,9 +117,9 @@ describe('useIngredientsPaste — Publish waits only for work in flight', () => 
         expect(render({}, 0).result.current.pending).toBe(false);
         expect(render({ submitting: true }, 0).result.current.pending).toBe(true);
         expect(render({ lines: [READING] }, 0).result.current.pending).toBe(true);
-        expect(render({}, 0, false, createPasteHold(), { joining: true }).result.current.pending).toBe(true);
+        expect(render({}, 0, false, createHold(), { joining: true }).result.current.pending).toBe(true);
         expect(
-            render({}, 0, false, createPasteHold(), {
+            render({}, 0, false, createHold(), {
                 pending: new Map([['0:0', { kind: 'useProposal' as const }]]),
             }).result.current.pending,
         ).toBe(true);
@@ -127,7 +127,7 @@ describe('useIngredientsPaste — Publish waits only for work in flight', () => 
 
     it('⛔ does NOT wait for a line that is only being checked: the cook may publish, and the sheet says what is open', () => {
         const checking = { ...makeNeedsChoiceLine(), state: 'checking' as const, proposal: 'milk' };
-        const { result } = render({}, 3, false, createPasteHold(), { lines: [checking], drawn: [checking] });
+        const { result } = render({}, 3, false, createHold(), { lines: [checking], drawn: [checking] });
 
         expect(result.current.pending).toBe(false);
     });
@@ -152,7 +152,7 @@ describe('useIngredientsPaste — what it hands the field group', () => {
     });
 
     it('says the rows are waiting when the work is parked for a connection', () => {
-        const { result } = render({ lines: [READING] }, 0, false, createPasteHold(), { paused: true });
+        const { result } = render({ lines: [READING] }, 0, false, createHold(), { paused: true });
 
         expect(result.current.view.reading.map((row) => row.state)).toEqual(['waiting']);
     });
@@ -188,7 +188,7 @@ describe('useIngredientsPaste — what it hands the field group', () => {
 
     it('⛔ hands the matched lines the paste list draws, and the draft keys the ordinary rows must leave out', () => {
         const line = makeConfidentLine();
-        const { result } = render({}, 1, false, createPasteHold(), {
+        const { result } = render({}, 1, false, createHold(), {
             lines: [line],
             drawn: [line],
             ownedKeys: new Set(['n:line0']),
@@ -223,7 +223,7 @@ describe('useIngredientsPaste — what it hands the field group', () => {
 
     it('offline with lines on the list shows the offline notice naming where the draft is kept', () => {
         const line = makeConfidentLine();
-        const { result } = render({ pollPaused: true }, 1, false, createPasteHold(), { lines: [line], drawn: [line] });
+        const { result } = render({ pollPaused: true }, 1, false, createHold(), { lines: [line], drawn: [line] });
 
         expect(result.current.view.matching?.notice).toEqual({ kind: 'offline', keep: 'tabSession' });
     });
@@ -232,14 +232,14 @@ describe('useIngredientsPaste — what it hands the field group', () => {
 describe('useIngredientsPaste — the publish sheet (R23)', () => {
     it('is not asked for while no line needs a pick', () => {
         const line = makeConfidentLine();
-        const { result } = render({}, 1, false, createPasteHold(), { lines: [line], drawn: [line] });
+        const { result } = render({}, 1, false, createHold(), { lines: [line], drawn: [line] });
 
         expect(result.current.openChoices.facts).toBeUndefined();
     });
 
     it('names the lines that need a pick, and counts the draft', () => {
         const open = makeNeedsChoiceLine({ line: { measure: '', words: 'bread' } });
-        const { result } = render({}, 4, false, createPasteHold(), { lines: [open], drawn: [open] });
+        const { result } = render({}, 4, false, createHold(), { lines: [open], drawn: [open] });
 
         expect(result.current.openChoices.facts).toEqual({
             openNames: ['bread'],
@@ -253,7 +253,7 @@ describe('useIngredientsPaste — the publish sheet (R23)', () => {
         const expandTo = vi.fn();
         const moveTo = vi.fn();
         const open = makeNeedsChoiceLine();
-        const { result } = render({}, 1, false, createPasteHold(), { lines: [open], drawn: [open], expandTo, moveTo });
+        const { result } = render({}, 1, false, createHold(), { lines: [open], drawn: [open], expandTo, moveTo });
 
         act(() => result.current.openChoices.chooseNow());
 
@@ -269,7 +269,7 @@ describe('useIngredientsPaste — the hold', () => {
      * while the paste is sent or its lines are reading, lets go when they have joined, and lets go if the paste unmounts.
      */
     it('⛔ holds the shared paste hold while pending, and lets go when done or unmounted', () => {
-        const hold = createPasteHold();
+        const hold = createHold();
         const view = render({ submitting: true }, 0, false, hold);
         expect(hold.get()).toBe(true);
 
@@ -286,7 +286,7 @@ describe('useIngredientsPaste — the hold', () => {
     });
 
     it('⛔ tells the editor the hold was released once its lines have joined, and not when the paste unmounts', () => {
-        const hold = createPasteHold();
+        const hold = createHold();
         const released = vi.fn();
         hold.onReleased(released);
         const view = render({ submitting: true }, 0, false, hold);
@@ -404,7 +404,7 @@ describe('useIngredientsPaste — every end of a paste clears pending and readin
     });
 
     it('unmounting releases the hold and the flags are not read again', () => {
-        const hold = createPasteHold();
+        const hold = createHold();
         const view = render({ lines: [READING] }, 0, false, hold);
 
         expect(hold.get()).toBe(true);
@@ -453,6 +453,6 @@ describe('useIngredientsPaste — every end of a paste clears pending and readin
 
     it('the paste being sent is "Reading…", and so is a pick being sent or a line joining', () => {
         expect(flagsOf(makePasteIntoIngredients({ submitting: true })).reading).toBe(true);
-        expect(render({}, 0, false, createPasteHold(), { joining: true }).result.current.reading).toBe(true);
+        expect(render({}, 0, false, createHold(), { joining: true }).result.current.reading).toBe(true);
     });
 });

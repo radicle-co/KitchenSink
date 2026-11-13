@@ -13,7 +13,7 @@
  *
  * @pattern Adapter over the ARIA live-region channel
  */
-import type { FC } from 'react';
+import { useDeferredValue, type FC } from 'react';
 
 import type { LiveRegionPoliteness, LiveRegionProps } from './props.js';
 import { useOccurrenceSlot } from './useOccurrenceSlot.js';
@@ -37,30 +37,31 @@ export const LiveRegion: FC<LiveRegionProps> = ({
     politeness,
     occurrence,
     visuallyHidden = false,
+    announceOnMount = false,
     className,
 }) => {
     const slot = useOccurrenceSlot(occurrence);
+    // React 19: the first render answers '' and the real message follows in the next commit, so a message the region
+    // mounts with arrives as a change (`announceOnMount`).
+    const deferred = useDeferredValue(children, '');
+    const message = announceOnMount ? deferred : children;
     const classes = visuallyHidden ? 'sr-only' : className;
 
     if (occurrence === undefined) {
         return (
-            <Region
-                text={children}
-                politeness={politeness}
-                {...(classes === undefined ? {} : { className: classes })}
-            />
+            <Region text={message} politeness={politeness} {...(classes === undefined ? {} : { className: classes })} />
         );
     }
 
     return (
         <>
             <Region
-                text={slot === 0 ? children : ''}
+                text={slot === 0 ? message : ''}
                 politeness={politeness}
                 {...(classes === undefined ? {} : { className: classes })}
             />
             <Region
-                text={slot === 1 ? children : ''}
+                text={slot === 1 ? message : ''}
                 politeness={politeness}
                 {...(classes === undefined ? {} : { className: classes })}
             />

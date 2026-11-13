@@ -198,22 +198,85 @@ test.describe('an address that no longer names a line', () => {
         page,
     }) => {
         await openDetail(page);
+
         // A position the recipe does not hold (the line was removed), and a version that moved on, in turn.
         for (const stale of [`${VERSION}.9`, `${VERSION - 1}.${DOUBTED_POSITION}`]) {
+            // A navigation that changes only the hash is not a new page load, and the jump runs once on mount: leave first.
+            await page.goto('about:blank');
             await page.goto(route(`/recipes/${RECIPE_ID}/edit#ingredients/${stale}`));
             await expect(page.getByRole('heading', { level: 1, name: 'Edit recipe' })).toBeVisible();
 
-            await expect(page.getByText('We couldn’t find that ingredient.', { exact: false })).toBeVisible();
+            // The notice is a polite status region (the page holds several), found by its role and its words.
+            await expect(
+                page.getByRole('status').filter({ hasText: 'We couldn’t find that ingredient.' }),
+            ).toBeVisible();
             await expect(page.getByLabel('Amount', { exact: true })).toHaveCount(0);
             await expect(page).toHaveURL(/#ingredients$/u);
         }
     });
 });
 
+/** The two controls the row editor owes the cook after a jump. */
+const EDITOR_ACTIONS = ['Done', 'Cancel'] as const;
+
+/** One animation frame, then another: what a scroll in flight has moved by in between is read from the page itself. */
+const afterTwoFrames = (page: Page): Promise<void> =>
+    page.evaluate(
+        () => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))),
+    );
+
+/**
+ * What is wrong with where Done and Cancel are, right now: empty when each is drawn inside the viewport, below the sticky
+ * header and above the bottom action bar, and the page has stopped scrolling. The sticky header is a plain <header> (no
+ * banner role inside <main>): it is reached through its Close control.
+ */
+async function reachViolations(
+    page: Page,
+    editor: Locator,
+    viewport: { readonly width: number; readonly height: number } | null,
+): Promise<string[]> {
+    const before = await page.evaluate(() => window.scrollY);
+    await afterTwoFrames(page);
+    const after = await page.evaluate(() => window.scrollY);
+    const headerBottom = await page
+        .getByRole('button', { name: 'Close editor' })
+        .evaluate((el) => el.closest('header')?.getBoundingClientRect().bottom ?? Number.NaN);
+    const bar = await page.getByRole('group', { name: 'Recipe actions' }).boundingBox();
+
+    if (viewport === null || bar === null || Number.isNaN(headerBottom)) {
+        return ['the viewport, the action bar or the header is not there'];
+    }
+
+    const found: string[] = before === after ? [] : ['the page is still scrolling'];
+
+    for (const name of EDITOR_ACTIONS) {
+        const box = await editor.getByRole('button', { name, exact: true }).boundingBox();
+
+        if (box === null) {
+            found.push(`${name} is not drawn`);
+            continue;
+        }
+
+        if (box.y < headerBottom) {
+            found.push(`${name} is under the header`);
+        }
+
+        if (box.y + box.height > bar.y) {
+            found.push(`${name} is under the action bar`);
+        }
+
+        if (box.y + box.height > viewport.height || box.x < 0 || box.x + box.width > viewport.width) {
+            found.push(`${name} is outside the viewport`);
+        }
+    }
+
+    return found;
+}
+
 /**
  * After the jump the row editor's Done and Cancel must be reachable: fully inside the viewport, below the sticky header
- * and above the bottom action bar. This is the scroll contract the editor owes an arrival at a line; it is RED until the
- * scroll host's fix lands, and pins it after.
+ * and above the bottom action bar. This is the scroll contract the editor owes an arrival at a line; It pins the scroll host's
+ * rule: the row's top under the header, or, when the row and its editor do not fit, Done and Cancel above the bar.
  */
 for (const width of [1280, 1024, 768]) {
     test.describe(`after the jump at ${width} px`, () => {
@@ -224,25 +287,16 @@ for (const width of [1280, 1024, 768]) {
             await page.getByRole('link', { name: LINK_NAME }).click();
             const editor = await openEditor(page, 0);
             const viewport = page.viewportSize();
-            // The sticky header is a plain <header> (no banner role inside <main>): reach it through its Close control.
-            const headerBottom = await page
-                .getByRole('button', { name: 'Close editor' })
-                .evaluate((el) => (el.closest('header') as HTMLElement).getBoundingClientRect().bottom);
-            const bar = await page.getByRole('group', { name: 'Recipe actions' }).boundingBox();
 
             expect(viewport).not.toBeNull();
-            expect(bar).not.toBeNull();
 
-            for (const name of ['Done', 'Cancel']) {
-                const box = await editor.getByRole('button', { name, exact: true }).boundingBox();
-
-                expect(box, `${name} is drawn`).not.toBeNull();
-                expect(box!.y, `${name} is below the header`).toBeGreaterThanOrEqual(headerBottom);
-                expect(box!.y + box!.height, `${name} is above the action bar`).toBeLessThanOrEqual(bar!.y);
-                expect(box!.y + box!.height, `${name} is inside the viewport`).toBeLessThanOrEqual(viewport!.height);
-                expect(box!.x, `${name} is inside the viewport`).toBeGreaterThanOrEqual(0);
-                expect(box!.x + box!.width, `${name} is inside the viewport`).toBeLessThanOrEqual(viewport!.width);
-            }
+            // The jump's scroll is smooth and still moving when the page first settles, so the boxes are read until they
+            // agree with the contract and have stopped moving, never once at the first moment they exist.
+            await expect
+                .poll(async () => reachViolations(page, editor, viewport), {
+                    message: 'Done and Cancel are reachable once the jump has settled',
+                })
+                .toEqual([]);
         });
     });
 }

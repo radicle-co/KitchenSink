@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
+import { useLayoutEffect } from 'react';
 import { AccessibilityInfo } from 'react-native';
 
 import { formatRgb } from 'culori';
@@ -359,6 +360,41 @@ describe('LiveRegion (native) — a region in a type role', () => {
 
         expect(Object.fromEntries(keys.map((key) => [key, resolvedStyle(node, key)]))).toEqual(
             Object.fromEntries(keys.map((key) => [key, expected(key)])),
+        );
+    });
+});
+
+/**
+ * A live region speaks a CHANGE, and Android does not reliably speak text a region mounts with. A screen that opens WITH
+ * a message to say asks for `announceOnMount`: the region mounts empty, holds the message from the next commit, and iOS
+ * announces it then.
+ */
+describe('LiveRegion (native) — announceOnMount', () => {
+    it('mounts empty, holds the message from the next commit, and announces it once', () => {
+        const seen: string[] = [];
+
+        const Probe = (): null => {
+            useLayoutEffect(() => {
+                seen.push(document.body.textContent ?? '');
+            });
+
+            return null;
+        };
+
+        render(
+            <>
+                <LiveRegion politeness="polite" announceOnMount>
+                    We couldn’t find that ingredient.
+                </LiveRegion>
+                <Probe />
+            </>,
+        );
+
+        expect(seen[0]).toBe('');
+        expect(screen.getByText('We couldn’t find that ingredient.')).toBeTruthy();
+        expect(AccessibilityInfo.announceForAccessibilityWithOptions).toHaveBeenCalledExactlyOnceWith(
+            'We couldn’t find that ingredient.',
+            { queue: true },
         );
     });
 });

@@ -25,7 +25,7 @@ import type { IngredientRowEditor } from '../hooks/useIngredientRowEditor.js';
 import { reviewReasonOf } from '../ingredientMatching/reviewReason.js';
 import { useMatchCopy } from '../ingredientMatching/useMatchCopy.js';
 import type { OpenChoicesFacts } from './openChoicesCopy.js';
-import type { PasteHold } from './pasteHold.js';
+import type { Hold } from './hold.js';
 import { pasteMilestoneOf, pasteProgressOf, pasteRowsOf, waitsOnCook } from './pasteProgress.js';
 import type { SourceLinkExtraction } from '@kitchensink/recipe-core';
 
@@ -52,7 +52,7 @@ export interface UseIngredientsPasteOptions {
     /** Open the sheet at once: Home's first-run Paste ingredients (§7.5.4). */
     readonly initiallyOpen: boolean;
     /** The hold the editor reads before its server create (`pasteHold.ts`): this paste is its one writer. */
-    readonly hold: PasteHold;
+    readonly hold: Hold;
     /** The row editor: the paste list's picks go through its one commit port, and its food picker opens on a line. */
     readonly rowEditor: IngredientRowEditor;
     /** Where the draft is kept (D7), for the offline notice. */

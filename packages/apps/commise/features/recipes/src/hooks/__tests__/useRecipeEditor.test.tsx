@@ -35,8 +35,7 @@ import { PrivateSlotsFullError } from '@kitchensink/recipe-service-client';
 
 import type { PrivateRefusal } from '../../actions/privateGate.js';
 import { errorsStillHolding } from '../../editor/gate.js';
-import { createPasteHold, type PasteHold } from '../../editor/pasteHold.js';
-import { createRowEditHold, type RowEditHold } from '../../editor/rowEditHold.js';
+import { createHold, type Hold } from '../../editor/hold.js';
 import type { DraftMemento, DraftStore } from '../../editor/draftStore.js';
 import { seedLineKey, type IngredientLineKey } from '../../form/lineKey.js';
 import { toDraftValues } from '../../editor/draftStore.js';
@@ -94,11 +93,11 @@ const NEVER_PUBLISHED = makeRecipeDetail({ id: 'rec_1', currentVersion: 3, statu
 
 function mount(
     seed: EditorSeed = {},
-    pasteHold?: PasteHold,
+    pasteHold?: Hold,
     port = fakePort(),
     // A function when the refusal changes during the case (a slot read that answers after a Publish was sent).
     privateRefusal: PrivateRefusal | undefined | (() => PrivateRefusal | undefined) = undefined,
-    rowEditHold?: RowEditHold,
+    rowEditHold?: Hold,
 ) {
     const drafts = fakeDrafts();
     const onExit = vi.fn<(exit: EditorExit) => void>();
@@ -1747,7 +1746,7 @@ describe('paste and the create', () => {
     });
 
     it('holds the create while the shared paste hold says a paste is joining, read when the checkpoint runs', async () => {
-        const hold = createPasteHold();
+        const hold = createHold();
         const { result, port } = mount({}, hold);
 
         hold.set(true);
@@ -1773,7 +1772,7 @@ describe('paste and the create', () => {
      * the hold deferred then waited for the next blur, section change or exit. Letting go of the hold runs the checkpoint.
      */
     it('⛔ creates a titled draft when the hold lets go, though the paste joined no rows and the draft did not change', async () => {
-        const hold = createPasteHold();
+        const hold = createHold();
         const { result, port } = mount({}, hold);
 
         typeTitle(result);
@@ -1794,7 +1793,7 @@ describe('paste and the create', () => {
     });
 
     it('does not create from a release while the draft is below the floor (no title)', async () => {
-        const hold = createPasteHold();
+        const hold = createHold();
         const { port } = mount({}, hold);
 
         hold.set(true);
@@ -1812,7 +1811,7 @@ describe('paste and the create', () => {
      * lines (D10), and the hold letting go later does not send a second create.
      */
     it('⛔ creates the draft when the app goes to the background mid-paste, and the later lines keep no source', async () => {
-        const hold = createPasteHold();
+        const hold = createHold();
         const { result, port } = mount({}, hold);
 
         typeTitle(result);
@@ -4416,7 +4415,7 @@ describe('a row editor holds the draft’s server checkpoints', () => {
     });
 
     it('⛔ sends nothing at the idle checkpoint or the app-hide while the hold is raised, and one update at its release', async () => {
-        const hold = createRowEditHold();
+        const hold = createHold();
         const { result, port } = mount({ recipe: WITH_REVIEW_LINE }, undefined, undefined, undefined, hold);
         const [line] = result.current.values.ingredients;
 
@@ -4448,7 +4447,7 @@ describe('a row editor holds the draft’s server checkpoints', () => {
     });
 
     it('sends nothing at all when Cancel put the line back, because the draft is what the server holds', async () => {
-        const hold = createRowEditHold();
+        const hold = createHold();
         const { result, port } = mount({ recipe: WITH_REVIEW_LINE }, undefined, undefined, undefined, hold);
         const before = result.current.values;
 
@@ -4469,7 +4468,7 @@ describe('a row editor holds the draft’s server checkpoints', () => {
     });
 
     it('a leave still saves while the hold is raised', async () => {
-        const hold = createRowEditHold();
+        const hold = createHold();
         const { result, port } = mount({ recipe: WITH_REVIEW_LINE }, undefined, undefined, undefined, hold);
         const [line] = result.current.values.ingredients;
 

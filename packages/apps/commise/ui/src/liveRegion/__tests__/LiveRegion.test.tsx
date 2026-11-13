@@ -5,6 +5,7 @@
  * occurrence a change from empty on a region that already exists.
  */
 import { cleanup, render, screen } from '@testing-library/react';
+import { useLayoutEffect } from 'react';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { LiveRegion } from '../LiveRegion.js';
@@ -98,5 +99,48 @@ describe('LiveRegion (web)', () => {
         expect(screen.getAllByRole('alert').map((region) => region.className)).toEqual(
             occurrence === undefined ? ['text-danger-text'] : ['text-danger-text', 'sr-only'],
         );
+    });
+});
+
+/**
+ * A live region speaks a CHANGE of its text, and many screen readers say nothing for text that is in the region when it
+ * mounts. A screen that opens WITH a message to say (a link to an ingredient the draft does not hold) asks for
+ * `announceOnMount`: the region mounts empty and holds the message from the next commit, so the message arrives as a
+ * change.
+ */
+describe('LiveRegion (web) — announceOnMount', () => {
+    /** The region's text at each commit, read in a layout effect of a sibling that mounts after the region. */
+    function mountRecording(announceOnMount: boolean): string[] {
+        const seen: string[] = [];
+
+        const Probe = (): null => {
+            useLayoutEffect(() => {
+                seen.push(document.querySelector('[role="status"]')?.textContent ?? '');
+            });
+
+            return null;
+        };
+
+        render(
+            <>
+                <LiveRegion politeness="polite" {...(announceOnMount ? { announceOnMount } : {})}>
+                    We couldn’t find that ingredient.
+                </LiveRegion>
+                <Probe />
+            </>,
+        );
+
+        return seen;
+    }
+
+    it('mounts empty and holds the message from the next commit', () => {
+        const seen = mountRecording(true);
+
+        expect(seen[0]).toBe('');
+        expect(textsOf('status')).toEqual(['We couldn’t find that ingredient.']);
+    });
+
+    it('without it the message is in the region at mount, as before', () => {
+        expect(mountRecording(false)[0]).toBe('We couldn’t find that ingredient.');
     });
 });

@@ -14,10 +14,10 @@
  * None of this mutates the stored recipe: Cooking Mode is a read-only consumer.
  */
 export interface CookingSession {
-    recipeId: string;
+    readonly recipeId: string;
     /** ISO 8601 timestamp. */
-    startedAt: string;
-    currentStepIndex: number;
+    readonly startedAt: string;
+    readonly currentStepIndex: number;
     /** Array, not a `Set`, so the session survives a JSON round-trip. */
-    completedSteps: number[];
+    readonly completedSteps: readonly number[];
 }

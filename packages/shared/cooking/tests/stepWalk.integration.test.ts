@@ -17,8 +17,8 @@ import {
     stepPlace,
     tickLine,
     tickedLineCount,
-} from '../src/index.js';
-import type { CookingStep, LineTicks } from '../src/index.js';
+} from '@kitchensink/cooking-core';
+import type { CookingStep, LineTicks } from '@kitchensink/cooking-core';
 import { GOLDEN_CORPUS_STEPS } from '../src/__fixtures__/stepLinesGolden.js';
 
 /**

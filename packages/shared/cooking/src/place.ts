@@ -1,5 +1,6 @@
+import { stepAt } from './cookingSteps.js';
 import type { CookingStep } from './cookingSteps.js';
-import { InvalidLineIndexError, InvalidStepIndexError, InvalidTotalStepsError } from './errors.js';
+import { InvalidLineIndexError } from './errors.js';
 
 /** Where the cook is among a recipe's steps, numbered from 1 for display. */
 export interface StepPlace {
@@ -29,16 +30,9 @@ export interface LinePlace {
  * @throws {InvalidStepIndexError} When `stepIndex` is not an index of the recipe.
  */
 export function stepPlace(stepIndex: number, steps: readonly CookingStep[]): StepPlace {
+    stepAt(steps, stepIndex);
+
     const totalSteps = steps.length;
-
-    if (totalSteps === 0) {
-        throw new InvalidTotalStepsError(0);
-    }
-
-    if (!Number.isInteger(stepIndex) || stepIndex < 0 || stepIndex >= totalSteps) {
-        throw new InvalidStepIndexError(stepIndex, totalSteps);
-    }
-
     const position = stepIndex + 1;
 
     return {

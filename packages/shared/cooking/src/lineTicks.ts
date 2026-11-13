@@ -1,5 +1,6 @@
+import { stepAt } from './cookingSteps.js';
 import type { CookingStep } from './cookingSteps.js';
-import { InvalidLineIndexError, InvalidStepIndexError } from './errors.js';
+import { InvalidLineIndexError } from './errors.js';
 
 /** One line of one step. Both indexes are 0-based. */
 export interface LineKey {
@@ -28,40 +29,21 @@ export function createLineTicks(): LineTicks {
     return { ticked: [] };
 }
 
-/**
- * The line count of one step, read from the parsed steps.
- *
- * @param stepIndex - The step.
- * @param steps - The cooking steps (`cookingStepsOf`).
- * @returns The step's line count. Pure.
- * @throws {InvalidStepIndexError} When `stepIndex` is not an index of `steps`.
- */
-function lineCountOf(stepIndex: number, steps: readonly CookingStep[]): number {
-    const step = Number.isInteger(stepIndex) ? steps[stepIndex] : undefined;
-
-    // `steps[i]` is typed `CookingStep` but is `undefined` past the end (`noUncheckedIndexedAccess` is off).
-    if (step === undefined) {
-        throw new InvalidStepIndexError(stepIndex, steps.length);
-    }
-
-    return step.lines.length;
-}
-
 const sameKey = (a: LineKey, b: LineKey): boolean => a.stepIndex === b.stepIndex && a.lineIndex === b.lineIndex;
 
 /**
  * Ticks one line. Ticking a ticked line changes nothing.
  *
- * @pattern Command — over the {@link LineTicks} state, as the session reducer's commands are
  * @param ticks - The current ticks.
  * @param key - The line to tick.
  * @param steps - The cooking steps (`cookingStepsOf`); the line count is read from the named step, never passed in.
  * @returns The new ticks. Pure.
+ * @throws {InvalidTotalStepsError} When the recipe has no steps.
  * @throws {InvalidStepIndexError} When `key.stepIndex` is not an index of `steps`.
  * @throws {InvalidLineIndexError} When `key.lineIndex` is not a line of that step.
  */
 export function tickLine(ticks: LineTicks, key: LineKey, steps: readonly CookingStep[]): LineTicks {
-    const lineCount = lineCountOf(key.stepIndex, steps);
+    const lineCount = stepAt(steps, key.stepIndex).lines.length;
 
     if (!Number.isInteger(key.lineIndex) || key.lineIndex < 0 || key.lineIndex >= lineCount) {
         throw new InvalidLineIndexError(key.lineIndex, lineCount);
@@ -103,10 +85,11 @@ export function isLineTicked(ticks: LineTicks, key: LineKey): boolean {
  * @param stepIndex - The step.
  * @param steps - The cooking steps (`cookingStepsOf`); the line count is read from the named step, never passed in.
  * @returns The focus line's index, or `null` when every line is ticked (Next coming) or the step has none. Pure.
+ * @throws {InvalidTotalStepsError} When the recipe has no steps.
  * @throws {InvalidStepIndexError} When `stepIndex` is not an index of `steps`.
  */
 export function focusLineIndex(ticks: LineTicks, stepIndex: number, steps: readonly CookingStep[]): number | null {
-    const lineCount = lineCountOf(stepIndex, steps);
+    const lineCount = stepAt(steps, stepIndex).lines.length;
 
     for (let lineIndex = 0; lineIndex < lineCount; lineIndex++) {
         if (!isLineTicked(ticks, { stepIndex, lineIndex })) {
@@ -135,8 +118,9 @@ export function tickedLineCount(ticks: LineTicks, stepIndex: number): number {
  * @param stepIndex - The step.
  * @param steps - The cooking steps (`cookingStepsOf`); the line count is read from the named step, never passed in.
  * @returns `true` when the step has lines and all are ticked. Pure.
+ * @throws {InvalidTotalStepsError} When the recipe has no steps.
  * @throws {InvalidStepIndexError} When `stepIndex` is not an index of `steps`.
  */
 export function allLinesTicked(ticks: LineTicks, stepIndex: number, steps: readonly CookingStep[]): boolean {
-    return lineCountOf(stepIndex, steps) > 0 && focusLineIndex(ticks, stepIndex, steps) === null;
+    return stepAt(steps, stepIndex).lines.length > 0 && focusLineIndex(ticks, stepIndex, steps) === null;
 }

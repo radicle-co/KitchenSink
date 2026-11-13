@@ -517,7 +517,7 @@ jobs:
             # refuses. Seven days, like the test app it pairs with: a re-run of a red shard reads this run's copy, and the
             # owner's rule is "re-run on red", so it must outlive the day.
             - name: Upload the seed and pool CLI bundles
-              uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+              uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
               with:
                   name: e2e-seed-cli
                   path: ${{ runner.temp }}/seedCli
@@ -1360,7 +1360,7 @@ jobs:
             # `cancelled()` too: a shard stopped by `timeout-minutes` is cancelled, not failed, and is the one whose report matters.
             - name: Upload Maestro artifacts
               if: (failure() || cancelled()) && steps.secrets.outcome == 'success'
-              uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+              uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
               with:
                   # PER SHARD — `upload-artifact@v4` FAILS on a name another job in the same run already
                   # uploaded, so a constant name here would red the second shard for a reason that has nothing
@@ -1832,7 +1832,7 @@ jobs:
             # `cancelled()` too: a shard stopped by `timeout-minutes` is cancelled, not failed, and is the one whose report matters.
             - name: Upload Maestro artifacts
               if: (failure() || cancelled()) && steps.secrets.outcome == 'success'
-              uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+              uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
               with:
                   # PER SHARD AND PER PLATFORM — `upload-artifact@v4` fails on a name another job of the run already
                   # uploaded, and the Android shards claim `maestro-report-<stage>-<shard>`.
@@ -2429,7 +2429,7 @@ jobs:
                   done
             - name: Upload the deployed-origin k6 summaries
               if: ${{ always() && steps.live.outputs.recipe != '' }}
-              uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+              uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
               with:
                   name: deployed-k6-summaries-${{ steps.target.outputs.stage }}
                   path: |

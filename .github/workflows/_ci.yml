@@ -2211,7 +2211,7 @@ jobs:
             # which is what makes the download below restore in place.
             - name: Upload the web production build for the Playwright suite
               if: matrix.workspace == '@commise/web' && steps.secrets.outcome == 'success'
-              uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+              uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
               with:
                   name: web-next-build-${{ inputs.stage }}
                   path: |
@@ -2587,7 +2587,7 @@ jobs:
             # merged report must describe the whole run, so a PASSING shard's blob is required too.
             - name: Upload blob report (shard ${{ matrix.shard }})
               if: ${{ !cancelled() && steps.secrets.outcome == 'success' }}
-              uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+              uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
               with:
                   name: integration-web-blob-${{ inputs.stage }}-${{ matrix.shard }}
                   path: packages/apps/commise/web/blob-report
@@ -2599,7 +2599,7 @@ jobs:
             # competing partial uploads.
             - name: Upload visual + fidelity output (shard ${{ matrix.shard }})
               if: ${{ !cancelled() && steps.secrets.outcome == 'success' }}
-              uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+              uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
               with:
                   name: integration-web-visual-${{ inputs.stage }}-${{ matrix.shard }}
                   path: |
@@ -2611,7 +2611,7 @@ jobs:
             # by `e2e-web-report`; this is the trace payload the blob report does not carry.
             - name: Upload Playwright traces (shard ${{ matrix.shard }})
               if: failure() && steps.secrets.outcome == 'success'
-              uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+              uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
               with:
                   name: playwright-traces-${{ inputs.stage }}-${{ matrix.shard }}
                   path: packages/apps/commise/web/test-results
@@ -2774,7 +2774,7 @@ jobs:
                   PLAYWRIGHT_HTML_OUTPUT_DIR: packages/apps/commise/web/playwright-report
             - name: Upload merged Playwright report
               if: steps.merge.outputs.merged == 'true'
-              uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+              uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
               with:
                   name: playwright-report-${{ inputs.stage }}
                   path: packages/apps/commise/web/playwright-report
@@ -2804,7 +2804,7 @@ jobs:
             # failure diagnostic, and its whole purpose is to be read on a green run.
             - name: Upload mockup-fidelity report
               if: steps.merge.outputs.merged == 'true'
-              uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+              uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
               with:
                   name: mockup-fidelity-${{ inputs.stage }}
                   path: packages/apps/commise/web/mockup-fidelity

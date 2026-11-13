@@ -266,7 +266,7 @@ jobs:
               id: reuploadAndroid
               if: steps.eligible.outputs.eligible == 'true' && steps.fetchAndroid.outcome == 'success'
               continue-on-error: true
-              uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+              uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
               with:
                   name: ${{ steps.keys.outputs.android_name }}
                   path: ${{ runner.temp }}/reuse/android
@@ -326,7 +326,7 @@ jobs:
               id: reuploadIos
               if: steps.eligible.outputs.eligible == 'true' && steps.fetchIos.outcome == 'success'
               continue-on-error: true
-              uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+              uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
               with:
                   name: ${{ steps.keys.outputs.ios_name }}
                   path: ${{ runner.temp }}/reuse/ios
@@ -436,7 +436,7 @@ jobs:
               run: bash packages/apps/commise/mobile/scripts/buildTestApp.sh android
             # An APK is already compressed, so the upload does not compress it again.
             - name: Upload the Android test app
-              uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+              uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
               with:
                   name: ${{ needs.plan.outputs.android_name }}
                   path: packages/apps/commise/mobile/dist-testApp/android
@@ -522,7 +522,7 @@ jobs:
             # The app is a tarball because `upload-artifact` drops the executable bit and an .app is full of executables;
             # the tarball is already compressed.
             - name: Upload the iOS test app
-              uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+              uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
               with:
                   name: ${{ needs.plan.outputs.ios_name }}
                   path: packages/apps/commise/mobile/dist-testApp/ios

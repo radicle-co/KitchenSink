@@ -1,8 +1,7 @@
 /**
  * Integration tier: the Mac Android host over a REAL `MacSession` and a scripted shell. The session-open contract lives
- * here, because it is a contract between the host and the session: the lane run asks for a lane's environment while it
- * provisions the lane's users, before `prepare` has opened the session, and asks again when it starts the runner. The
- * host's other behaviour is covered by `src/maestroLanes/__tests__/macAndroidHost.test.ts`.
+ * here, because it is a contract between the host and the session: `laneEnv` must be safe to ask before `prepare` has
+ * opened the session, and must give its full answer after.
  */
 import { describe, expect, it } from 'vitest';
 

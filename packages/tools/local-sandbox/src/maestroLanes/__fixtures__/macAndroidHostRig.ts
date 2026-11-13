@@ -1,4 +1,5 @@
-import { createMacAndroidHost } from '../macAndroidHost.js';
+import type { AndroidHost } from '../androidHost.js';
+import { createMacAndroidHost, type MacAndroidHostOptions } from '../macAndroidHost.js';
 import type { MacShell } from '../macSession.js';
 import type { LaneSpec, RunContext } from '../laneTypes.js';
 
@@ -10,7 +11,7 @@ const MANIFEST = [
 ].join('\n');
 
 /** The settings a Mac Android host reads, with values no real AVD or image has, so a number written in the host shows. */
-export const makeSettings = (overrides: Partial<Parameters<typeof createMacAndroidHost>[0]['settings']> = {}) => ({
+export const makeSettings = (overrides: Partial<MacAndroidHostOptions['settings']> = {}) => ({
     avd: 'ks_lane_lean',
     avdConfig: [
         'hw.lcd.width=999',
@@ -52,7 +53,7 @@ export const makeRun = (overrides: Partial<RunContext> = {}): RunContext => ({
 export const APK_PATH = '/repo/packages/apps/commise/mobile/dist-testApp/android/app.apk';
 
 export interface MacAndroidRig {
-    readonly host: ReturnType<typeof createMacAndroidHost>;
+    readonly host: AndroidHost;
     readonly lines: string[];
     readonly tunnels: string[][];
     readonly links: [string, string][];

@@ -80,8 +80,18 @@ export const OLDEST_IMPORT_AGE_METRIC_NAME = 'OldestBulkImportAgeSeconds';
  */
 export const IMPORT_PURGE_LOCK_TIMEOUT_MS = 5_000;
 
-/** Postgres `lock_not_available`: the SQLSTATE a statement fails with when it waits past `lock_timeout`. */
-const LOCK_NOT_AVAILABLE = '55P03';
+/**
+ * How long one batch's statement may run in all (transaction-local). `lock_timeout` bounds each lock wait, not the
+ * statement, so several short waits could still add up past the host's minute.
+ */
+export const IMPORT_PURGE_STATEMENT_TIMEOUT_MS = 15_000;
+
+/**
+ * The SQLSTATEs that mean "this batch could not finish now, the rest waits for the next tick": `lock_not_available`
+ * (waited past `lock_timeout`), `query_canceled` (ran past `statement_timeout`) and `deadlock_detected`. Each rolls the
+ * batch back and leaves a healthy connection; anything else is a failure.
+ */
+const QUIET_STOP_SQLSTATES: ReadonlySet<string> = new Set(['55P03', '57014', '40P01']);
 
 /** The most batches one tick runs, a hard stop beside the time budget. */
 export const IMPORT_PURGE_MAX_BATCHES_PER_TICK = 100;
@@ -116,15 +126,21 @@ export async function purgeFinishedImports(pool: ImportPurgePool, clock: () => n
 
     try {
         for (let batch = 0; batch < IMPORT_PURGE_MAX_BATCHES_PER_TICK; batch += 1) {
-            const count = await purgeOneBatch(client);
+            const outcome = await purgeOneBatch(client);
 
-            if (count === undefined) {
-                logger.warn('bulk import purge waited past its lock timeout; the rest waits for the next tick', {
-                    deleted,
-                });
+            if (typeof outcome === 'string') {
+                logger.warn(
+                    'bulk import purge stopped on a database timeout or deadlock; the rest waits for the next tick',
+                    {
+                        deleted,
+                        sqlstate: outcome,
+                    },
+                );
 
                 return deleted;
             }
+
+            const count = outcome;
 
             deleted += count;
 
@@ -145,19 +161,22 @@ export async function purgeFinishedImports(pool: ImportPurgePool, clock: () => n
 }
 
 /**
- * One batch in its own transaction, with a transaction-local lock timeout.
+ * One batch in its own transaction, with transaction-local lock and statement timeouts.
  *
  * @param client - A connection the caller holds for the whole purge.
- * @returns How many imports it deleted, or `undefined` when it waited past {@link IMPORT_PURGE_LOCK_TIMEOUT_MS} and was
- *   rolled back.
+ * @returns How many imports it deleted, or the SQLSTATE (a string) of a quiet stop (lock timeout, statement timeout or
+ *   deadlock) after rolling the batch back.
  * @sideEffect Deletes `recipe_imports` rows (see {@link purgeFinishedImports}).
  */
-async function purgeOneBatch(client: ExpiryQueryable): Promise<number | undefined> {
+async function purgeOneBatch(client: ExpiryQueryable): Promise<number | string> {
     await client.query('BEGIN', []);
 
     try {
         // `set_config(..., true)` is `SET LOCAL` with a bound parameter: it ends with this transaction.
-        await client.query(`SELECT set_config('lock_timeout', $1, true)`, [`${IMPORT_PURGE_LOCK_TIMEOUT_MS}ms`]);
+        await client.query(`SELECT set_config('lock_timeout', $1, true), set_config('statement_timeout', $2, true)`, [
+            `${IMPORT_PURGE_LOCK_TIMEOUT_MS}ms`,
+            `${IMPORT_PURGE_STATEMENT_TIMEOUT_MS}ms`,
+        ]);
 
         const result = await client.query(
             `WITH gone AS (
@@ -192,8 +211,8 @@ async function purgeOneBatch(client: ExpiryQueryable): Promise<number | undefine
             );
         }
 
-        if (error instanceof pg.DatabaseError && error.code === LOCK_NOT_AVAILABLE) {
-            return undefined;
+        if (error instanceof pg.DatabaseError && error.code !== undefined && QUIET_STOP_SQLSTATES.has(error.code)) {
+            return error.code;
         }
 
         throw error;

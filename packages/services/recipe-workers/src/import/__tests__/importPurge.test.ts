@@ -17,6 +17,7 @@ import {
     IMPORT_PURGE_BATCH_SIZE,
     IMPORT_PURGE_LOCK_TIMEOUT_MS,
     IMPORT_PURGE_MAX_BATCHES_PER_TICK,
+    IMPORT_PURGE_STATEMENT_TIMEOUT_MS,
     IMPORT_PURGE_TIME_BUDGET_MS,
     IMPORT_METRIC_NAMESPACE,
     IMPORTS_PURGED_METRIC_NAME,
@@ -178,7 +179,12 @@ describe('purgeFinishedImports', () => {
 
         // `set_config(…, true)` is `SET LOCAL`: it ends with the transaction, so the pooled connection keeps no setting.
         expect(setting?.text).toMatch(/set_config\('lock_timeout',\s*\$1,\s*true\)/u);
-        expect(setting?.params).toStrictEqual([`${IMPORT_PURGE_LOCK_TIMEOUT_MS}ms`]);
+        // The lock timeout bounds one lock wait, not the statement, so the statement gets its own transaction-local bound.
+        expect(setting?.text).toMatch(/set_config\('statement_timeout',\s*\$2,\s*true\)/u);
+        expect(setting?.params).toStrictEqual([
+            `${IMPORT_PURGE_LOCK_TIMEOUT_MS}ms`,
+            `${IMPORT_PURGE_STATEMENT_TIMEOUT_MS}ms`,
+        ]);
     });
 
     it('waits for a lock far less than the time budget, so one stuck batch cannot take the host’s minute', () => {
@@ -186,21 +192,33 @@ describe('purgeFinishedImports', () => {
         expect(IMPORT_PURGE_LOCK_TIMEOUT_MS).toBeLessThanOrEqual(IMPORT_PURGE_TIME_BUDGET_MS / 4);
     });
 
-    it('⛔ stops the tick quietly on a lock timeout: it rolls the batch back, keeps what earlier batches deleted, and waits for the next tick', async () => {
-        const { pool, order, release } = purgePool([IMPORT_PURGE_BATCH_SIZE], {
-            deleteFails: pgError('canceling statement due to lock timeout', '55P03'),
-            failOnDelete: 2,
-        });
-
-        expect(await purgeFinishedImports(pool)).toBe(IMPORT_PURGE_BATCH_SIZE);
-        expect(order.slice(4)).toStrictEqual(['BEGIN', 'SELECT', 'delete', 'ROLLBACK']);
-        // A lock timeout leaves a healthy connection: it goes back to the pool, not destroyed.
-        expect(release).toHaveBeenCalledTimes(1);
-        expect(release).toHaveBeenCalledWith(undefined);
+    it('keeps the statement timeout above the lock timeout and well under the time budget', () => {
+        expect(IMPORT_PURGE_STATEMENT_TIMEOUT_MS).toBeGreaterThan(IMPORT_PURGE_LOCK_TIMEOUT_MS);
+        expect(IMPORT_PURGE_STATEMENT_TIMEOUT_MS).toBeLessThanOrEqual(IMPORT_PURGE_TIME_BUDGET_MS);
     });
 
+    it.each([
+        ['55P03', 'canceling statement due to lock timeout'],
+        ['57014', 'canceling statement due to statement timeout'],
+        ['40P01', 'deadlock detected'],
+    ])(
+        '⛔ stops the tick quietly on %s: it rolls the batch back, keeps what earlier batches deleted, and waits for the next tick',
+        async (code, message) => {
+            const { pool, order, release } = purgePool([IMPORT_PURGE_BATCH_SIZE], {
+                deleteFails: pgError(message, code),
+                failOnDelete: 2,
+            });
+
+            expect(await purgeFinishedImports(pool)).toBe(IMPORT_PURGE_BATCH_SIZE);
+            expect(order.slice(4)).toStrictEqual(['BEGIN', 'SELECT', 'delete', 'ROLLBACK']);
+            // A lock timeout leaves a healthy connection: it goes back to the pool, not destroyed.
+            expect(release).toHaveBeenCalledTimes(1);
+            expect(release).toHaveBeenCalledWith(undefined);
+        },
+    );
+
     it('rolls back and throws any other failure, and destroys the connection rather than pool it', async () => {
-        const failure = pgError('deadlock detected', '40P01');
+        const failure = pgError('foreign key violation', '23503');
         const { pool, order, release } = purgePool([], { deleteFails: failure });
 
         await expect(purgeFinishedImports(pool)).rejects.toBe(failure);
@@ -209,7 +227,7 @@ describe('purgeFinishedImports', () => {
     });
 
     it('puts the batch’s own failure first in the errors when the rollback fails too', async () => {
-        const failure = pgError('deadlock detected', '40P01');
+        const failure = pgError('foreign key violation', '23503');
         const { pool, release } = purgePool([], { deleteFails: failure, rollbackFails: true });
 
         const thrown: unknown = await purgeFinishedImports(pool).catch((error: unknown) => error);
@@ -219,12 +237,15 @@ describe('purgeFinishedImports', () => {
         expect(release).toHaveBeenCalledWith(thrown);
     });
 
-    it('treats a lock timeout as a failure when it is not a Postgres error (only the SQLSTATE says lock timeout)', async () => {
-        const failure = Object.assign(new Error('lock timeout'), { code: '55P03' });
-        const { pool } = purgePool([], { deleteFails: failure });
+    it.each(['55P03', '57014', '40P01'])(
+        'treats %s as a failure when it is not a Postgres error (only the SQLSTATE says so)',
+        async (code) => {
+            const failure = Object.assign(new Error('not from pg'), { code });
+            const { pool } = purgePool([], { deleteFails: failure });
 
-        await expect(purgeFinishedImports(pool)).rejects.toBe(failure);
-    });
+            await expect(purgeFinishedImports(pool)).rejects.toBe(failure);
+        },
+    );
 
     it('returns its connection to the pool after a clean run', async () => {
         const { pool, release } = poolDeleting(0);

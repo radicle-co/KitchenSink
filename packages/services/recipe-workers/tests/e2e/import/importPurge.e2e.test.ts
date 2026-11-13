@@ -237,6 +237,10 @@ describe('bulk import purge (LOCAL e2e)', () => {
                 const setting = await purger.query<{ lock_timeout: string }>(`SHOW lock_timeout`);
 
                 expect(setting.rows).toStrictEqual([{ lock_timeout: '0' }]);
+
+                const statement = await purger.query<{ statement_timeout: string }>(`SHOW statement_timeout`);
+
+                expect(statement.rows).toStrictEqual([{ statement_timeout: '0' }]);
                 expect(await purgeFinishedImports(purger)).toBe(1);
             } finally {
                 await purger.end();

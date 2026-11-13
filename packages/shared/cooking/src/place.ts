@@ -1,3 +1,4 @@
+import type { CookingStep } from './cookingSteps.js';
 import { InvalidLineIndexError, InvalidStepIndexError, InvalidTotalStepsError } from './errors.js';
 
 /** Where the cook is among a recipe's steps, numbered from 1 for display. */
@@ -51,11 +52,13 @@ export function stepPlace(stepIndex: number, totalSteps: number): StepPlace {
  * is never shown.
  *
  * @param lineIndex - The 0-based line index.
- * @param lineCount - The step's line count.
+ * @param step - The parsed step (`cookingStepsOf`); its line count is read from its lines, never passed in.
  * @returns The displayed place, or `null` when no line count is shown.
  * @throws {InvalidLineIndexError} When the step has lines and `lineIndex` is not one of them.
  */
-export function linePlace(lineIndex: number, lineCount: number): LinePlace | null {
+export function linePlace(lineIndex: number, step: CookingStep): LinePlace | null {
+    const lineCount = step.lines.length;
+
     if (lineCount <= 1) {
         return null;
     }

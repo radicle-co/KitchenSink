@@ -39,6 +39,7 @@ import {
     LogIn,
     LogOut,
     LayoutGrid,
+    ListChecks,
     List,
     Menu,
     Minus,
@@ -120,4 +121,5 @@ export const GLYPHS: Readonly<Record<IconName, LucideIcon>> = {
     list: List,
     layoutGrid: LayoutGrid,
     cookingPot: CookingPot,
+    listChecks: ListChecks,
 };

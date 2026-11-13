@@ -36,6 +36,7 @@ import ImagePlusGlyph from 'lucide-react-native/icons/image-plus';
 import InfoGlyph from 'lucide-react-native/icons/info';
 import ListPlusGlyph from 'lucide-react-native/icons/list-plus';
 import LockGlyph from 'lucide-react-native/icons/lock';
+import ListChecksGlyph from 'lucide-react-native/icons/list-checks';
 import LogInGlyph from 'lucide-react-native/icons/log-in';
 import LogOutGlyph from 'lucide-react-native/icons/log-out';
 import LayoutGridGlyph from 'lucide-react-native/icons/layout-grid';
@@ -124,4 +125,5 @@ export const GLYPHS: Readonly<Record<IconName, NativeGlyph>> = {
     list: ListGlyph,
     layoutGrid: LayoutGridGlyph,
     cookingPot: CookingPotGlyph,
+    listChecks: ListChecksGlyph,
 };

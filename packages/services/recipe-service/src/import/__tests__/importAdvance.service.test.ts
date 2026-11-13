@@ -1436,11 +1436,13 @@ describe('ImportAdvanceService — saving what is ready', () => {
             expect(built.store.items.get(0)?.stage).toBe('saved');
         });
 
+        // A full slot is `PRIVATE_SLOTS_FULL`, which pauses; an `INVALID_VISIBILITY` the pre-check did not predict is held
+        // with the cook's facts, so a change of them gives it one more look.
         it('⛔ looks at a create refused under Free once more under Pro, and holds it again there: one look per change', async () => {
             const built = build(
                 world({
                     create: async () => {
-                        throw invalidVisibility('All of your private slots are in use.');
+                        throw invalidVisibility('A book recipe is private only.');
                     },
                 }),
             );

@@ -148,8 +148,9 @@ function outcomeOfCreateRefusal(error: unknown): 'saved' | 'waiting' | 'createRe
         return 'waiting';
     }
 
-    // Judged under the cook's facts (a free cook with no slot left is refused; on Pro the same create is not): the hold
-    // records them, so a change of plan or containment brings the item back.
+    // The item-side check predicted an allowed visibility and the create disagreed (a full slot is `PRIVATE_SLOTS_FULL`, which
+    // pauses, and a contained publish has its own code). Held with the cook's facts, so a change of plan or containment
+    // gives it one more look rather than none.
     if (isRecipeDomainError(error) && error.code === RecipeErrorCode.INVALID_VISIBILITY) {
         return 'createRefused';
     }
@@ -571,11 +572,14 @@ export class ImportAdvanceService {
         const provenance = statement === undefined ? undefined : resolveStatementProvenance(statement);
 
         // ⛔ Unreachable by the issue rule above: a missing statement, an unusable link (a refused visibility) and a save gap
-        // each stop the item there. Reaching this is a defect, so it throws (the advance logs it) rather than hold quietly.
+        // each stop the item there. Reaching this is a defect, so it is said once and held where the cook sees it
+        // (`saveRefused`), never retried on every advance (ruling (a) on #220).
         if (provenance === undefined || reading === undefined || 'gap' in reading) {
-            throw new Error(
-                `import ${header.id} item ${String(item.ordinal)}: the issue rule passed an item that cannot be saved`,
+            this.logger.error(
+                `import ${header.id} item ${String(item.ordinal)}: the issue rule passed an item that cannot be saved; it is held`,
             );
+
+            return this.hold(header, item, holdOf('createRefused', cook));
         }
 
         const saveable = reading.saveable;

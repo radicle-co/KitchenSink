@@ -228,6 +228,29 @@ describe('the snackbar inside an open native window (integration: real host, rea
         expect(onTimeout).toHaveBeenCalledOnce();
     });
 
+    it('ignores the first handle when the same input is shown twice', () => {
+        let first: SnackbarHandle | undefined;
+        const input: SnackbarInput = { message: 'Ticks cleared' };
+        render(
+            <SnackbarHost>
+                <Window label="Ingredients">
+                    <Shower
+                        input={input}
+                        onHandle={(next) => {
+                            first ??= next;
+                        }}
+                    />
+                </Window>
+            </SnackbarHost>,
+        );
+
+        showFrom('Ticks cleared');
+        showFrom('Ticks cleared');
+        act(() => first?.dismiss());
+
+        expect(regionsHolding('Ticks cleared')).toHaveLength(1);
+    });
+
     it('ignores a dismiss after a newer snackbar replaced it', () => {
         let first: SnackbarHandle | undefined;
         render(

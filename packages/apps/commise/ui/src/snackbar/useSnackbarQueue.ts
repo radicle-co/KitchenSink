@@ -59,9 +59,12 @@ export function useSnackbarQueue(): SnackbarQueue {
 
     // Stable across renders (`dispatch` is), so a leaf can name them as effect dependencies.
     const show = useCallback((input: SnackbarInput): SnackbarHandle => {
-        dispatch({ type: 'show', input, now: Date.now() });
+        // One token per showing, so a handle never reaches a later showing of the same input.
+        const shown = Symbol('snackbar');
 
-        return { dismiss: () => dispatch({ type: 'dismiss', input }) };
+        dispatch({ type: 'show', input, shown, now: Date.now() });
+
+        return { dismiss: () => dispatch({ type: 'dismiss', shown }) };
     }, []);
     const act = useCallback((id: number, action: SnackbarAction) => {
         dispatch({ type: 'act', id });

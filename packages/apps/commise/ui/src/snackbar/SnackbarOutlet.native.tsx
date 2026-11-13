@@ -11,6 +11,9 @@
  * It sits `SNACKBAR_GAP` above the window's own bottom safe area, not above the page's bottom chrome: inside a window
  * the page's tab bar is not on screen.
  *
+ * shortcut: covers a pinned sheet footer; publish the footer height and sit above it (eng7's option b) when the first
+ * footered sheet shows a snackbar.
+ *
  * @pattern Mediator — a drawing slot the snackbar host's Mediator fills; the queue, the timer and the pause stay in the
  *     host
  */

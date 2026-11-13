@@ -153,6 +153,17 @@ export class ImportViewBuilder {
                       ingredientLineCount: item.saveFacts.ingredientLineCount,
                       stepCount: item.saveFacts.stepCount,
                   }));
+        // Only a matched, unrefused item has a save gap to judge: a refused one has no ingredient line or step, and a saved one
+        // has no payload left. (`importSaveGapOf` throws for either, which is a defect, not a hold.)
+        const reading =
+            statement === null || item.stage !== 'matched' || refusal !== null
+                ? undefined
+                : importSaveGapOf({
+                      statement,
+                      ...importSaveFactsOf(item, item.saveFacts.file),
+                      ingredientLineCount: item.saveFacts.ingredientLineCount,
+                      stepCount: item.saveFacts.stepCount,
+                  });
         const issue = importItemIssueOf({
             heldAtCurrentRevision: item.heldAtRev === item.decisionRev,
             stage: item.stage,
@@ -173,17 +184,7 @@ export class ImportViewBuilder {
             paid: item.allowanceSpentAt !== null,
             allowanceSpent: read.allowanceSpent,
             refusal,
-            // Only a matched, unrefused item has a save gap to judge: a refused one has no ingredient line or step, and a
-            // saved one has no payload left. (`importSaveGapOf` throws for either, which is a defect, not a hold.)
-            saveGap:
-                statement === null || item.stage !== 'matched' || refusal !== null
-                    ? null
-                    : importSaveGapOf({
-                          statement,
-                          ...importSaveFactsOf(item, item.saveFacts.file),
-                          ingredientLineCount: item.saveFacts.ingredientLineCount,
-                          stepCount: item.saveFacts.stepCount,
-                      }),
+            saveGap: reading !== undefined && 'gap' in reading ? reading.gap : null,
         });
 
         return {

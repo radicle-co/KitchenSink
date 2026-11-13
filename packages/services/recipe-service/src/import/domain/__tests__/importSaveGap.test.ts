@@ -32,10 +32,18 @@ const COMPLETE: ImportSaveFacts = {
     servings: 4,
     prepTimeMinutes: 10,
     cookTimeMinutes: 20,
+    totalTimeMinutes: 30,
     ingredientLineCount: 3,
     stepCount: 2,
 };
-const gap = (patch: Partial<ImportSaveFacts>) => importSaveGapOf({ ...COMPLETE, ...patch });
+const reading = (patch: Partial<ImportSaveFacts>) => importSaveGapOf({ ...COMPLETE, ...patch });
+
+/** The gap the save names, or `null` when the reading is saveable. */
+const gap = (patch: Partial<ImportSaveFacts>) => {
+    const read = reading(patch);
+
+    return 'gap' in read ? read.gap : null;
+};
 
 describe('importCuisineOf: the cuisine the save uses', () => {
     it("takes the cook's choice over the file's", () => {
@@ -153,9 +161,26 @@ describe("importSaveFactsOf: what the save would send, the cook's choice over th
     });
 });
 
-describe('importSaveGapOf: the first thing the save still needs, or null', () => {
-    it('is null for a recipe with everything', () => {
-        expect(gap({})).toBeNull();
+describe('importSaveGapOf: the first thing the save still needs, or the facts the create sends', () => {
+    // GATE minor 3 on #220: the one reading answers both questions, so no caller narrows a second resolution of the facts.
+    it('answers the facts the create sends for a recipe with everything', () => {
+        expect(reading({})).toStrictEqual({
+            saveable: {
+                cuisine: 'Italian',
+                servings: 4,
+                prepTimeMinutes: 10,
+                cookTimeMinutes: 20,
+                totalTimeMinutes: 30,
+            },
+        });
+    });
+
+    it('adds prep and cook for the total it sends when none is known', () => {
+        expect(reading({ totalTimeMinutes: null })).toMatchObject({ saveable: { totalTimeMinutes: 30 } });
+    });
+
+    it('answers the gap, and no facts, for a recipe the save cannot send', () => {
+        expect(reading({ servings: null })).toStrictEqual({ gap: 'servings' });
     });
 
     it('needs a cuisine when neither the cook nor the file gave one', () => {
@@ -193,15 +218,13 @@ describe('importSaveGapOf: the first thing the save still needs, or null', () =>
         );
     });
 
-    it('judges no gap for a web statement whose link is not a usable source: the save refuses it on the label instead', () => {
-        expect(
-            gap({
-                cuisine: null,
-                servings: null,
-                prepTimeMinutes: null,
-                statement: { kind: 'public_web', citation: 'https://commise.app/r/1' },
-            }),
-        ).toBeNull();
+    // REWRITTEN for GATE minor 3: a link that is not a usable source sets no label, so the CUISINE is not judged (the
+    // visibility issue refuses that item first). Servings and times do not depend on the label and are still judged.
+    it('judges no cuisine for a web statement whose link is not a usable source, and still judges servings and times', () => {
+        const unusable = { kind: 'public_web', citation: 'https://commise.app/r/1' } as const;
+
+        expect(gap({ cuisine: null, statement: unusable })).toBeNull();
+        expect(gap({ cuisine: null, servings: null, statement: unusable })).toBe('servings');
     });
 
     it('asks a book or paid-site import for a cuisine like any other recipe', () => {

@@ -50,10 +50,23 @@ export interface ImportSaveFacts {
     readonly servings: number | null;
     readonly prepTimeMinutes: number | null;
     readonly cookTimeMinutes: number | null;
+    readonly totalTimeMinutes: number | null;
     /** The file's ingredient lines. The save writes at least one line per file line, so this is the saved count's floor. */
     readonly ingredientLineCount: number;
     readonly stepCount: number;
 }
+
+/** The facts the create body needs, each known: the cook's choice or the file's (ADR-0072 §3 as amended 2026-11-11). */
+export interface SaveableFacts {
+    readonly cuisine: string | null;
+    readonly servings: number;
+    readonly prepTimeMinutes: number;
+    readonly cookTimeMinutes: number;
+    readonly totalTimeMinutes: number;
+}
+
+/** What {@link importSaveGapOf} reads: the first thing the save still needs, or the facts the create sends. */
+export type ImportSaveReading = { readonly gap: ImportSaveGap } | { readonly saveable: SaveableFacts };
 
 /** The fields of a stored payload the save facts are read from; the rest of the document is not parsed for them. */
 const payloadFactsSchema = z.object({
@@ -142,7 +155,7 @@ function gapOfRequirement(requirement: PublishRequirement): 'cuisine' {
 }
 
 /**
- * The first thing the save still needs, or `null` when the recipe can be saved. Pure.
+ * The first thing the save still needs, or the facts the create sends when there is nothing. Pure.
  *
  * One key, not the list: the item list shows one issue per recipe, and the cook fixes one thing at a time. The cuisine comes
  * from the ONE publish policy; servings and times hold on an ABSENT value and never on `0`.
@@ -150,11 +163,43 @@ function gapOfRequirement(requirement: PublishRequirement): 'cuisine' {
  * @throws Error when the recipe has no ingredient line or no step: the import refuses such an item before it gets here, so
  *   reaching this is a defect, not something to hold.
  */
-export function importSaveGapOf(facts: ImportSaveFacts): ImportSaveGap | null {
+export function importSaveGapOf(facts: ImportSaveFacts): ImportSaveReading {
+    const cuisineGap = cuisineGapOf(facts);
+
+    if (cuisineGap !== null) {
+        return { gap: cuisineGap };
+    }
+
+    const { cuisine, servings, prepTimeMinutes, cookTimeMinutes } = facts;
+
+    if (servings === null) {
+        return { gap: 'servings' };
+    }
+
+    if (prepTimeMinutes === null || cookTimeMinutes === null) {
+        return { gap: 'times' };
+    }
+
+    return {
+        saveable: {
+            cuisine,
+            servings,
+            prepTimeMinutes,
+            cookTimeMinutes,
+            totalTimeMinutes: facts.totalTimeMinutes ?? prepTimeMinutes + cookTimeMinutes,
+        },
+    };
+}
+
+/**
+ * The cuisine gap the ONE publish policy names, or `null`. A web statement whose link is not a usable source sets no label,
+ * so the cuisine is not judged for it: the visibility seam refuses that item, and the save never writes it.
+ *
+ * @throws Error for a recipe with no ingredient line or no step (see {@link gapOfRequirement}).
+ */
+function cuisineGapOf(facts: ImportSaveFacts): 'cuisine' | null {
     const provenance = resolveStatementProvenance(facts.statement);
 
-    // A web statement whose link is not a usable source sets no label, so there is nothing to judge here: the visibility
-    // seam refuses that item, and the save never writes it.
     if (provenance === undefined) {
         return null;
     }
@@ -168,14 +213,6 @@ export function importSaveGapOf(facts: ImportSaveFacts): ImportSaveGap | null {
         stepCount: facts.stepCount,
     });
 
-    if (!decision.allowed) {
-        // Every missing requirement is mapped, so a refused item throws whichever order the policy lists them in.
-        return decision.missing.map(gapOfRequirement)[0];
-    }
-
-    if (facts.servings === null) {
-        return 'servings';
-    }
-
-    return facts.prepTimeMinutes === null || facts.cookTimeMinutes === null ? 'times' : null;
+    // Every missing requirement is mapped, so a refused item throws whichever order the policy lists them in.
+    return decision.allowed ? null : decision.missing.map(gapOfRequirement)[0];
 }

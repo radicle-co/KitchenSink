@@ -85,12 +85,7 @@ import {
 import { importItemIssueOf, type ItemIssue } from './domain/importItemIssue.js';
 import { importRefusalOf } from './domain/importRefusal.js';
 import { IMPORT_DEFAULT_PAGE_SIZE, type ImportAdvanceLimits } from './domain/importLimits.js';
-import {
-    fileSaveFactsOf,
-    importSaveFactsOf,
-    importSaveGapOf,
-    type ImportResolvedFacts,
-} from './domain/importSaveGap.js';
+import { fileSaveFactsOf, importSaveFactsOf, importSaveGapOf, type SaveableFacts } from './domain/importSaveGap.js';
 import { isReadyToSave } from './domain/importSaveReadiness.js';
 import { statementOfColumns } from './domain/importStatement.js';
 import { visibilityRefusedFor } from './domain/importVisibility.js';
@@ -157,26 +152,6 @@ function outcomeOfCreateRefusal(error: unknown): SaveOutcome | 'unpublishable' |
     }
 
     return undefined;
-}
-
-/** The facts the create body needs, each known: the cook's choice or the file's (ADR-0072 §3 as amended 2026-11-11). */
-interface SaveableFacts {
-    readonly cuisine: string | null;
-    readonly servings: number;
-    readonly prepTimeMinutes: number;
-    readonly cookTimeMinutes: number;
-    readonly totalTimeMinutes: number;
-}
-
-/** The resolved facts, when the create body has every one it requires; `undefined` when one is unknown. Pure. */
-function saveableFactsOf(facts: ImportResolvedFacts): SaveableFacts | undefined {
-    const { cuisine, servings, prepTimeMinutes, cookTimeMinutes, totalTimeMinutes } = facts;
-
-    if (servings === null || prepTimeMinutes === null || cookTimeMinutes === null || totalTimeMinutes === null) {
-        return undefined;
-    }
-
-    return { cuisine, servings, prepTimeMinutes, cookTimeMinutes, totalTimeMinutes };
 }
 
 /** The create body for an imported recipe, PUBLISHED with the visibility the cook chose. Pure. */
@@ -566,9 +541,12 @@ export class ImportAdvanceService {
         }
 
         const recipe = read.data;
-        const facts = importSaveFactsOf(item, fileSaveFactsOf(item.payload));
         const counts = { ingredientLineCount: recipe.ingredientLines.length, stepCount: recipe.steps.length };
         const refusal = item.refusal ?? importRefusalOf(counts);
+        const reading =
+            statement === undefined || refusal !== null
+                ? undefined
+                : importSaveGapOf({ statement, ...importSaveFactsOf(item, fileSaveFactsOf(item.payload)), ...counts });
 
         if (item.refusal === null && refusal !== null) {
             // The upload refuses such a recipe and the refusal stays `received`, so a matched one is a defect. It is held by
@@ -597,10 +575,7 @@ export class ImportAdvanceService {
                     statement,
                     requested,
                 ),
-            saveGap:
-                statement === undefined || refusal !== null
-                    ? null
-                    : importSaveGapOf({ statement, ...facts, ...counts }),
+            saveGap: reading !== undefined && 'gap' in reading ? reading.gap : null,
             private: requested === 'private',
             outOfSlots: !privateAllowed,
         });
@@ -609,20 +584,18 @@ export class ImportAdvanceService {
             return this.settle(header, item, SAVE_OUTCOME_OF_ISSUE[issue]);
         }
 
-        // The ONE reading of a statement as provenance, the same one a recipe's own `statement` takes (ADR-0089). A link that
-        // is not a usable source is a refused visibility just above, so `undefined` here only narrows the type.
+        // The ONE reading of a statement as provenance, the same one a recipe's own `statement` takes (ADR-0089).
         const provenance = statement === undefined ? undefined : resolveStatementProvenance(statement);
 
-        if (provenance === undefined) {
-            return 'waiting';
+        // ⛔ Unreachable by the issue rule above: a missing statement, an unusable link (a refused visibility) and a save gap
+        // each stop the item there. Reaching this is a defect, so it throws (the advance logs it) rather than hold quietly.
+        if (provenance === undefined || reading === undefined || 'gap' in reading) {
+            throw new Error(
+                `import ${header.id} item ${String(item.ordinal)}: the issue rule passed an item that cannot be saved`,
+            );
         }
 
-        const saveable = saveableFactsOf(facts);
-
-        // The issue above holds an item missing servings or a time, so `undefined` here only narrows the type.
-        if (saveable === undefined) {
-            return this.hold(header, item);
-        }
+        const saveable = reading.saveable;
 
         const snapshot = await this.lines.findForItem(header.id, item.ordinal);
         const matches = await this.lineView.matchesOf(actingPrincipalOf(principal), caller, snapshot, deadline);

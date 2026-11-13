@@ -18,7 +18,7 @@
 
 ### User Story 1 - Cooking Mode (Priority: P2)
 
-A user selects a recipe and enters "Cooking Mode," which presents a step-by-step, hands-free-friendly interface optimized for use while actively cooking. Instructions are displayed one step at a time in large, readable text. The user advances through steps with simple gestures, taps, or voice commands. Timers are integrated for steps that require waiting.
+A user selects a recipe and enters "Cooking Mode," which presents a step-by-step, hands-free-friendly interface optimized for use while actively cooking. Instructions are displayed one step at a time in calm, readable text sized for a cook at arm's length (FR-032). The user advances through steps with simple gestures, taps, or voice commands. Timers are integrated for steps that require waiting.
 
 **Why this priority**: Cooking mode is a high-engagement feature that makes the app genuinely useful in the kitchen, differentiating it from static recipe viewers.
 
@@ -26,7 +26,7 @@ A user selects a recipe and enters "Cooking Mode," which presents a step-by-step
 
 **Acceptance Scenarios**:
 
-1. **Given** a user selects a recipe, **When** they enter Cooking Mode, **Then** the first instruction step is displayed in large, readable text optimized for kitchen use.
+1. **Given** a user selects a recipe, **When** they enter Cooking Mode, **Then** the first instruction step is displayed in the type sizes FR-032 sets, readable at arm's length.
 2. **Given** a user is in Cooking Mode, **When** they advance to the next step, **Then** the display transitions smoothly to show the next instruction.
 3. **Given** a step includes a time duration (e.g., "bake for 25 minutes"), **When** the user starts the timer, **Then** a countdown is displayed and an alert sounds when complete.
 4. **Given** a user is in Cooking Mode, **When** they want to go back to review a previous step, **Then** they can navigate backward without losing their place.

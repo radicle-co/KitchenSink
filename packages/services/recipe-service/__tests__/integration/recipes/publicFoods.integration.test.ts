@@ -261,6 +261,19 @@ describe('PATCH /api/v1/recipes/{id}', () => {
         });
         expect(update).not.toHaveBeenCalled();
     });
+
+    it('publishes a public draft whose stated web link makes it private: the private line is allowed (ADR-0089)', async () => {
+        stored = { ...stored, status: 'draft', firstPublishedAt: null };
+
+        const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}`, {
+            expectedVersion: 1,
+            status: 'published',
+            statement: { kind: 'public_web', citation: 'https://example.com/spiced-bread' },
+        });
+
+        expect(response.status).toBe(200);
+        expect(update).toHaveBeenCalledOnce();
+    });
 });
 
 describe('PATCH /api/v1/recipes/{id}/visibility', () => {

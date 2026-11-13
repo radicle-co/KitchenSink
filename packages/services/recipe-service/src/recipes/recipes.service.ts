@@ -1351,10 +1351,14 @@ export class RecipesService {
             ));
 
         // ADR-0029 section 4: judged on the state the write leaves, against the lines it leaves (the patch's, else the
-        // stored ones), after recapture. The visibility an update leaves is the stored one: only set-visibility moves it.
+        // stored ones), after recapture. The visibility an update leaves is the stored one, except that a stated source sets
+        // Private in this same write (ADR-0089). The transaction's last statement re-checks the row it actually wrote.
         const publicState = {
             status: dto.status ?? recipeStatusSchema.parse(existing.recipe.status),
-            visibility: existing.recipe.visibility,
+            visibility:
+                correction.kind === 'apply' && correction.makePrivate
+                    ? RecipeVisibility.PRIVATE
+                    : existing.recipe.visibility,
         };
         const nowPublicFoods = await this.publicFoodsGuard(
             caller,

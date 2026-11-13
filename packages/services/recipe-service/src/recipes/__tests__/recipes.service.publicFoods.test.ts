@@ -284,6 +284,49 @@ describe('RecipesService.update - public recipes hold no private food (rebind an
         expect(update).not.toHaveBeenCalled();
     });
 
+    it('judges the visibility the write LEAVES: a stated web link makes a public draft private, so its private food is allowed', async () => {
+        // The statement sets Private in the same write (ADR-0089), so the recipe published here is private from its first
+        // instant. Judging the stored PUBLIC would refuse a legal write, or ask food to recapture an owner it must not touch.
+        const update = vi
+            .fn()
+            .mockResolvedValue(aggregate({ visibility: 'private', sourceType: 'imported_public' }, [PRIVATE_LOOKUP]));
+        const findById = vi
+            .fn()
+            .mockResolvedValue(aggregate({ status: 'draft', visibility: 'public' }, [PRIVATE_LOOKUP]));
+        const clearPublicFoodOwners = vi.fn(async () => undefined);
+        const { service } = serviceOver(fakeRecipesDal({ findById, update, clearPublicFoodOwners }), {
+            [PRIVATE_FOOD]: 'public',
+        });
+
+        await service.update(
+            principal,
+            'r-1',
+            patch({ status: 'published', statement: { kind: 'public_web', citation: 'https://example.com/soup' } }),
+            undefined,
+        );
+
+        expect(update).toHaveBeenCalledTimes(1);
+        // A private recipe is not bound by the rule, so no recapture runs and the captured owner stays.
+        expect(clearPublicFoodOwners).not.toHaveBeenCalled();
+    });
+
+    it('allows that draft while food still says the food is private: the private recipe the write leaves may hold it', async () => {
+        const update = vi.fn().mockResolvedValue(aggregate({ visibility: 'private' }, [PRIVATE_LOOKUP]));
+        const findById = vi
+            .fn()
+            .mockResolvedValue(aggregate({ status: 'draft', visibility: 'public' }, [PRIVATE_LOOKUP]));
+        const { service } = serviceOver(fakeRecipesDal({ findById, update }));
+
+        await service.update(
+            principal,
+            'r-1',
+            patch({ status: 'published', statement: { kind: 'public_web', citation: 'https://example.com/soup' } }),
+            undefined,
+        );
+
+        expect(update).toHaveBeenCalledTimes(1);
+    });
+
     it('allows the same lines on a published PRIVATE recipe', async () => {
         const update = vi.fn().mockResolvedValue(aggregate({ visibility: 'private' }, [PRIVATE_LOOKUP]));
         const findById = vi.fn().mockResolvedValue(aggregate({ visibility: 'private' }));

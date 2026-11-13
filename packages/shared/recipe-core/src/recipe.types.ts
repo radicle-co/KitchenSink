@@ -130,6 +130,34 @@ export type RecipeSourceKind = (typeof RECIPE_SOURCE_KINDS)[number];
 export const recipeSourceKindSchema = z.enum(RECIPE_SOURCE_KINDS);
 
 /**
+ * What a client reads a source kind it does not know as. The vocabulary is OPEN on the way out (ADR-0089: "adapted" and
+ * "family" wait on the owner), so a newer server's kind must not fail an installed client's whole recipe read. Every rule
+ * that reads a kind treats it as the most closed one: private only, and not correctable.
+ */
+export const UNRECOGNISED_SOURCE_KIND = 'unrecognised';
+
+/** A source kind as a client reads it off the wire: a known kind, or {@link UNRECOGNISED_SOURCE_KIND}. */
+export type RecipeSourceKindView = RecipeSourceKind | typeof UNRECOGNISED_SOURCE_KIND;
+
+/**
+ * The tolerant wire read of a source kind: a known kind is itself, any other STRING is {@link UNRECOGNISED_SOURCE_KIND}, and
+ * a value that is not a string still fails. Only the response read uses it; every request and the database stay closed.
+ * A preprocess, not a transform, because the contract fingerprint describes the output side and records a transform as
+ * unrepresentable (the same shape as the import's statement view).
+ */
+export const recipeSourceKindViewSchema = z.preprocess(
+    (value) =>
+        typeof value === 'string' && !(RECIPE_SOURCE_KINDS as readonly string[]).includes(value)
+            ? UNRECOGNISED_SOURCE_KIND
+            : value,
+    z
+        .enum([...RECIPE_SOURCE_KINDS, UNRECOGNISED_SOURCE_KIND])
+        .describe(
+            `${UNRECOGNISED_SOURCE_KIND} is client-side only: what a client reads for a kind newer than it knows. The server never sends it.`,
+        ),
+);
+
+/**
  * Allowed recipe difficulty values (CR-001 / FR-001b).
  */
 export const RecipeDifficulty = {
@@ -272,9 +300,10 @@ export interface Recipe {
     sourceType: RecipeSourceType;
     /**
      * What the cook said the source is (ADR-0089), ABSENT for a recipe with no statement, the curator's public-domain
-     * text included. `public_web` makes the recipe private only ({@link privateRuleOf}).
+     * text included. `public_web` makes the recipe private only ({@link privateRuleOf}). The server only ever writes a kind
+     * it knows; a client's wire read ({@link recipeSchema}) reads a newer one as {@link UNRECOGNISED_SOURCE_KIND}.
      */
-    sourceKind?: RecipeSourceKind;
+    sourceKind?: RecipeSourceKindView;
     sourceUrl?: string;
     sourceAttribution?: string;
     clonedFromId?: string;
@@ -384,7 +413,12 @@ export type PrivateRule = 'slots' | 'privateOnly';
  * @param sourceKind - What the cook said the source is, or `null` when the recipe has no statement.
  * @returns `privateOnly` for a book or paid-site recipe or a web copy, else `slots`. Pure.
  */
-export function privateRuleOf(sourceType: RecipeSourceType, sourceKind: RecipeSourceKind | null): PrivateRule {
+export function privateRuleOf(sourceType: RecipeSourceType, sourceKind: RecipeSourceKindView | null): PrivateRule {
+    // A kind this client cannot name fails closed: it offers Public for nothing whose rule it does not know.
+    if (sourceKind === UNRECOGNISED_SOURCE_KIND) {
+        return 'privateOnly';
+    }
+
     switch (sourceType) {
         case RecipeSourceType.IMPORTED_PHYSICAL:
         case RecipeSourceType.IMPORTED_PAID:
@@ -432,7 +466,7 @@ export const recipeSchema = z.object({
     // Absent until the first publish, kept after (ADR-0058 rule 1) — see the `Recipe` interface above.
     firstPublishedAt: isoDateTimeStringSchema.optional(),
     sourceType: recipeSourceTypeSchema,
-    sourceKind: recipeSourceKindSchema.optional(),
+    sourceKind: recipeSourceKindViewSchema.optional(),
     sourceUrl: z.string().url().optional(),
     sourceAttribution: z.string().min(1).optional(),
     clonedFromId: idSchema.optional(),

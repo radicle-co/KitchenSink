@@ -30,8 +30,23 @@ describe('parseSourceLink', () => {
         ['https://example.com/a.', 'https://example.com/a'],
         ['https://example.com/a),', 'https://example.com/a'],
         ['https://example.com/a?x=1!', 'https://example.com/a?x=1'],
+        ['https://example.com/a)', 'https://example.com/a'],
+        ['https://example.com/a]', 'https://example.com/a'],
+        ['https://example.com/a}.', 'https://example.com/a'],
+        ['https://example.com/Pie_(food)).', 'https://example.com/Pie_(food)'],
     ])('drops trailing punctuation from %s', (text, url) => {
         expect(parseSourceLink(text)).toMatchObject({ ok: true, link: { url } });
+    });
+
+    // A closing bracket that the address itself opened is part of the address (a Wikipedia title, a query with a list):
+    // only an UNBALANCED one is sentence punctuation.
+    it.each([
+        ['https://en.wikipedia.org/wiki/Pie_(food)', 'https://en.wikipedia.org/wiki/Pie_(food)'],
+        ['https://en.wikipedia.org/wiki/Pie_(food).', 'https://en.wikipedia.org/wiki/Pie_(food)'],
+        ['https://example.com/a?tags=[x]', 'https://example.com/a?tags=[x]'],
+        ['https://example.com/a?q={x}', 'https://example.com/a?q={x}'],
+    ])('keeps a closing bracket the address opened: %s', (text, url) => {
+        expect(parseSourceLink(text)).toMatchObject({ ok: true, link: { url: new URL(url).href } });
     });
 
     it('names an IDN site by its registrable domain', () => {

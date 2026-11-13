@@ -35,6 +35,16 @@ describe('sourceIsCorrectable', () => {
             false,
         ],
         [
+            'a cook-written recipe whose kind this client does not know (fails closed)',
+            { ...OPEN, sourceKind: 'unrecognised' },
+            false,
+        ],
+        [
+            'an imported recipe whose kind this client does not know (fails closed)',
+            { ...OPEN, sourceType: 'imported_public', sourceKind: 'unrecognised' },
+            false,
+        ],
+        [
             'a published web copy',
             { ...OPEN, sourceType: 'imported_public', sourceKind: 'public_web', firstPublishedAt: AT },
             false,

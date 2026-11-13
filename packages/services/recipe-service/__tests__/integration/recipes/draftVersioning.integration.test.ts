@@ -149,6 +149,8 @@ beforeAll(async () => {
                     lockSlotFacts: async () => ({
                         visibility: stored.visibility as RecipeVisibility,
                         status: stored.status as RecipeStatus,
+                        sourceType: stored.sourceType,
+                        sourceKind: stored.sourceKind,
                     }),
                     // ADR-0029 section 4: the database holds no private food in these suites.
                     privateFoodLines: async () => [],

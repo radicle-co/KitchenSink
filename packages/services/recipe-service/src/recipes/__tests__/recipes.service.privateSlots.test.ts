@@ -20,7 +20,7 @@ import { RecipeErrorCode, RecipeVisibility, type RecipeSourceType } from '@kitch
 import type { Principal } from '../../auth/principal.js';
 import { makeIngredientLineRow, makeRecipeRow, makeRecipeStepRow } from '../../__fixtures__/index.js';
 import { CURATOR_IMPORT_SCOPE } from '../recipes.schema.js';
-import type { RecipeAggregate, RecipesDal } from '../dal/recipes.dal.js';
+import type { LockedRecipeFacts, RecipeAggregate, RecipesDal } from '../dal/recipes.dal.js';
 import type { CreateRecipeDto } from '../dto/createRecipe.dto.js';
 import { fakeRecipesDal, FAKE_TX } from '../__fixtures__/recipesDal.fixture.js';
 import { makeRecipesService } from '../__fixtures__/recipesService.fixture.js';
@@ -282,7 +282,12 @@ describe('RecipesService.setVisibility - private slots (ADR-0073)', () => {
         const found = aggregate({ visibility: currentVisibility, sourceType, status });
         const setVisibility = vi.fn().mockResolvedValue(aggregate({ visibility: 'private', sourceType }));
         const lockAndCountPrivateSlots = vi.fn(async () => used);
-        const lockSlotFacts = vi.fn(async () => ({ visibility: currentVisibility as RecipeVisibility, status }));
+        const lockSlotFacts = vi.fn(async (): Promise<LockedRecipeFacts | undefined> => ({
+            visibility: currentVisibility as RecipeVisibility,
+            status,
+            sourceType,
+            sourceKind: null,
+        }));
         const dal = fakeRecipesDal({
             findById: vi.fn().mockResolvedValue(found),
             setVisibility,
@@ -396,7 +401,27 @@ describe('RecipesService.setVisibility - private slots (ADR-0073)', () => {
         }
     });
 
-    it('PUBLIC takes no lock and no count (it frees a slot), whatever the cook holds', async () => {
+    it('decides the SOURCE from the row read under the lock: a web link stated meanwhile keeps it from going public', async () => {
+        // The pre-transaction read says the cook wrote it; by the time the lock is held a PATCH has stated a web link,
+        // which made it a private-only web copy (ADR-0089). Judging the stale source would publish a web copy.
+        const { dal, setVisibility, lockSlotFacts } = holding(0, 'private');
+        lockSlotFacts.mockResolvedValue({
+            visibility: RecipeVisibility.PRIVATE,
+            status: 'published',
+            sourceType: 'imported_public',
+            sourceKind: 'public_web',
+        });
+
+        const error = await refusalOf(
+            serviceOver(dal).setVisibility(principal(), 'r-1', RecipeVisibility.PUBLIC, undefined),
+        );
+
+        expect(error.code).toBe(RecipeErrorCode.INVALID_VISIBILITY);
+        expect(lockSlotFacts).toHaveBeenCalledWith(FAKE_TX, 'r-1');
+        expect(setVisibility).not.toHaveBeenCalled();
+    });
+
+    it('PUBLIC takes no per-user lock and no count (it frees a slot), whatever the cook holds', async () => {
         const { dal, lockAndCountPrivateSlots, setVisibility } = holding(60, 'private');
         setVisibility.mockResolvedValue(aggregate({ visibility: 'public' }));
 
@@ -506,7 +531,11 @@ describe('RecipesService.update - publishing a private draft takes a slot (ADR-0
         });
         const update = vi.fn().mockResolvedValue(aggregate({ visibility: facts.visibility, status: 'published' }));
         const lockAndCountPrivateSlots = vi.fn(async () => used);
-        const lockSlotFacts = vi.fn(async () => facts);
+        const lockSlotFacts = vi.fn(async (): Promise<LockedRecipeFacts> => ({
+            ...facts,
+            sourceType,
+            sourceKind: null,
+        }));
         const dal = fakeRecipesDal({
             findById: vi.fn().mockResolvedValue(found),
             update,
@@ -579,7 +608,12 @@ describe('RecipesService.update - publishing a private draft takes a slot (ADR-0
             findById: vi.fn().mockResolvedValue(found),
             update,
             lockAndCountPrivateSlots: vi.fn(async () => 50),
-            lockSlotFacts: vi.fn(async () => ({ visibility: 'private' as const, status: 'draft' as const })),
+            lockSlotFacts: vi.fn(async (): Promise<LockedRecipeFacts> => ({
+                visibility: 'private',
+                status: 'draft',
+                sourceType: 'user_created',
+                sourceKind: null,
+            })),
         });
 
         const error = await refusalOf(serviceOver(dal).update(principal(), 'r-1', PATCH, undefined));

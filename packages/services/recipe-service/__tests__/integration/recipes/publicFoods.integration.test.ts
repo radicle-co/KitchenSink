@@ -162,7 +162,12 @@ beforeAll(async () => {
                     setVisibility,
                     lockAndCountPrivateSlots: async () => 0,
                     countPrivateSlots: async () => 0,
-                    lockSlotFacts: async () => ({ visibility: stored.visibility, status: stored.status }),
+                    lockSlotFacts: async () => ({
+                        visibility: stored.visibility,
+                        status: stored.status,
+                        sourceType: stored.sourceType,
+                        sourceKind: stored.sourceKind,
+                    }),
                     findById: async (id: string) => (id === stored.id ? aggregateOf(stored) : undefined),
                     // The database's own last check finds nothing: the policy alone must refuse here.
                     privateFoodLines: async () => [],

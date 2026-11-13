@@ -14,7 +14,7 @@
  */
 import { vi } from 'vitest';
 
-import type { RecipesDal } from '../dal/recipes.dal.js';
+import type { LockedRecipeFacts, RecipeAggregate, RecipesDal } from '../dal/recipes.dal.js';
 import type { RecipeTx } from '../../database/unitOfWork.js';
 
 /**
@@ -24,9 +24,10 @@ import type { RecipeTx } from '../../database/unitOfWork.js';
  * @returns The stub, cast to the DAL type.
  */
 export function fakeRecipesDal(overrides: Partial<RecipesDal> = {}): RecipesDal {
+    const findById = overrides.findById ?? vi.fn();
     const dal = {
         create: vi.fn(),
-        findById: vi.fn(),
+        findById,
         findRowById: vi.fn(),
         findAll: vi.fn(),
         update: vi.fn(),
@@ -35,8 +36,20 @@ export function fakeRecipesDal(overrides: Partial<RecipesDal> = {}): RecipesDal 
         // ADR-0073: a cook with no private recipes by default. A suite about slots overrides these with the count it needs.
         lockAndCountPrivateSlots: vi.fn(async () => 0),
         countPrivateSlots: vi.fn(async () => 0),
-        // A public DRAFT by default: publishing it is never counted, so a suite that is not about slots is unaffected.
-        lockSlotFacts: vi.fn(async () => ({ visibility: 'public', status: 'draft' })),
+        // The row lock reads the row `findById` holds, so a suite sees the same recipe before and under the lock unless it
+        // overrides this to stage a race. With no row staged: a public, cook-written DRAFT (publishing one is never counted).
+        lockSlotFacts: vi.fn(async (_tx: RecipeTx, id: string): Promise<LockedRecipeFacts> => {
+            const found: RecipeAggregate | undefined = await findById(id);
+
+            return found === undefined
+                ? { visibility: 'public', status: 'draft', sourceType: 'user_created', sourceKind: null }
+                : {
+                      visibility: found.recipe.visibility,
+                      status: found.recipe.status,
+                      sourceType: found.recipe.sourceType,
+                      sourceKind: found.recipe.sourceKind,
+                  };
+        }),
         // ADR-0029 section 4: no captured owners to clear and no private lines by default.
         clearPublicFoodOwners: vi.fn(async () => undefined),
         privateFoodLines: vi.fn(async () => []),

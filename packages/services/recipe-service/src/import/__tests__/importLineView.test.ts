@@ -76,7 +76,7 @@ function build(
                 (ref) =>
                     [
                         `${ref.kind}:${ref.id}`,
-                        answers[`${ref.kind}:${ref.id}`] ?? ({ outcome: 'unreachable' } as FoodRefAnswer),
+                        answers[`${ref.kind}:${ref.id}`] ?? ({ outcome: 'unreachable' } satisfies FoodRefAnswer),
                     ] as const,
             ),
         ),

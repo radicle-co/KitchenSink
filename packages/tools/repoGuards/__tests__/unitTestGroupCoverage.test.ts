@@ -136,6 +136,8 @@ describe('the sharded unit tier covers every package with tests', () => {
         const step = testSteps().find((s) => s.name?.startsWith('Run unit tests') === true);
 
         expect(step?.env?.['TEST_CONCURRENCY']).toBe('${{ matrix.concurrency || 10 }}');
-        expect(step?.run).toMatch(/npx turbo run test \$TEST_FILTER --concurrency="\$TEST_CONCURRENCY"/);
+        // ADR-0091: the step runs turbo through the changed-only selector, which hands every flag that is not a
+        // `--filter` straight to `turbo run` (`e2ePlan`'s `checkScopeBin` suite holds that).
+        expect(step?.run).toMatch(/npm run -s scope -- run test \$TEST_FILTER --concurrency="\$TEST_CONCURRENCY"/);
     });
 });

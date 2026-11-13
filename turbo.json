@@ -196,6 +196,60 @@
             ],
             "outputs": []
         },
+        // ⛔ THE TESTS BELOW READ FILES OUTSIDE THEIR PACKAGE, AND SAY WHICH (ADR-0091). Each read is a
+        // `$TURBO_ROOT$` input, so a change to the file both misses the cache and selects the test in a changed-only
+        // run. `testReadsDeclared.test.ts` (repo-guards) fails for a cacheable fast-tier test that reads outside its
+        // package without one. Each entry repeats its base task, because a package-task entry replaces it.
+        "@kitchensink/cdk-bootstrap#test": {
+            // `qualifiers.test.ts` reads the global stack that grants the CI role its qualifiers.
+            "dependsOn": ["^build"],
+            "inputs": [
+                "$TURBO_DEFAULT$",
+                "$TURBO_ROOT$/packages/infra/global/lib/platform/GithubActionsAccessStack.ts"
+            ],
+            "outputs": []
+        },
+        "@kitchensink/db-schema-guard#test:integration": {
+            // `seedManifest.integration.test.ts` digests the food catalog seed it guards.
+            "dependsOn": ["^build"],
+            "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/packages/services/food-service/src/foods/seed/data/**"],
+            "outputs": []
+        },
+        "@kitchensink/e2e-seed#test": {
+            // `remoteProbeWords.test.ts` reads the recipe service's lexical tier, whose words it probes.
+            "dependsOn": ["^build"],
+            "inputs": [
+                "$TURBO_DEFAULT$",
+                "$TURBO_ROOT$/packages/services/recipe-service/src/ingredients/resolution/lexicalTier.ts"
+            ],
+            "outputs": []
+        },
+        "@kitchensink/loadtest#test": {
+            // The load-tier partition tests read every service's k6 scenarios.
+            "dependsOn": ["^build"],
+            "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/packages/services/*/tests/load/**"],
+            "outputs": []
+        },
+        "@kitchensink/local-sandbox#test": {
+            // `localMaestro.test.ts` reads the CI Maestro workflow it mirrors.
+            "dependsOn": ["^build"],
+            "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/.github/workflows/_ci-heavy.yml"],
+            "outputs": []
+        },
+        "@kitchensink/recipe-import-core#test:integration": {
+            // `corpusPipeline.integration.test.ts` reads every app's manifest.
+            "dependsOn": ["^build"],
+            "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/packages/apps/**/package.json"],
+            "outputs": []
+        },
+        // e2e-plan's integration suites build the import graphs of BOTH apps and read their specs, flows and fixtures
+        // through `src/` helpers. That is the whole app tree and everything it imports, which no input list can name,
+        // so the task always runs, as `design-artifact`'s do (ADR-0091).
+        "@kitchensink/e2e-plan#test:integration": {
+            "dependsOn": ["^build"],
+            "outputs": [],
+            "cache": false
+        },
         // ⛔ THE CONFORMANCE LAYER MUST NOT CACHE ON ITS OWN PACKAGE ALONE.
         //
         // `repo-guards`' suite is the repo-wide guard layer, not a unit suite over its own package. Its
@@ -273,6 +327,10 @@
         // deliberately: the token emitter imports `@commise/ui`'s built entry point.
         "@kitchensink/docgen-components#test": {
             "dependsOn": ["^build"],
+            // Not for the cache, which is off: for the changed-only selector (ADR-0091). The committed catalogue under
+            // `docs/generated/` lies outside every package, so without this declaration a regenerated catalogue (most UI
+            // pull requests) widened every fast tier to the whole repository. This task is its reader.
+            "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/docs/generated/**"],
             "outputs": [],
             "cache": false
         },

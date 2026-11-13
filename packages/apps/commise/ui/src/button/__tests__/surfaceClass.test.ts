@@ -262,15 +262,12 @@ describe('buttonSurfaceClass — the state matrix (§1.10)', () => {
         }
     });
 
-    it('gives a secondary glyph actionText only under the action tone, and no other tier a tone of its own', () => {
+    // The recipe only turns the resolved tone into a class. WHEN a glyph is steel is `glyphToneOf`'s, and the type test
+    // pins that only a secondary button can ask for the action tone.
+    it('draws the glyph in actionText under the action tone, and quiet always', () => {
         expect(buttonGlyphClass('secondary', 'action')).toBe('text-action-text');
         expect(buttonGlyphClass('secondary', 'label')).toBe('');
-
-        // A filled tier's glyph sits on the fill; ghost is already all actionText. The tone moves neither.
-        for (const variant of ['primary', 'ghost', 'destructive'] as const) {
-            expect(buttonGlyphClass(variant, 'action'), variant).toBe('');
-        }
-
+        expect(buttonGlyphClass('secondary')).toBe('');
         expect(buttonGlyphClass('quiet', 'label')).toBe('text-action-text');
     });
 

@@ -487,7 +487,11 @@ describe('Button (web)', () => {
                     </Button>,
                 );
 
-                expect(slot(container)?.className ?? '', JSON.stringify(state)).not.toContain('text-action-text');
+                const glyph = slot(container);
+
+                // The slot must exist, or a missing glyph would pass this test.
+                expect(glyph, JSON.stringify(state)).not.toBeNull();
+                expect(glyph?.className, JSON.stringify(state)).not.toContain('text-action-text');
                 unmount();
             }
         });

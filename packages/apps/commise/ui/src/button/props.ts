@@ -187,9 +187,11 @@ export function surfaceOf(props: ButtonProps): { readonly variant: ButtonVariant
 }
 
 /**
- * The glyph tone a set of props asks for, in its current state. A disabled or refused button shows no action cue, so its
- * glyph takes the label's colour; a busy one keeps the tone, because busy wins over both (as everywhere on the button)
- * and its spinner is the glyph. Pure.
+ * The glyph tone a set of props asks for, in its current state: the ONE policy for when a Button glyph is steel beyond
+ * `quiet`. The web recipe (`buttonGlyphClass`) and the native leaf (`glyphRoleOf`) each read it and only turn its answer
+ * into their own colour form. Only the secondary tier's type admits `glyphTone`, so only a secondary button can answer
+ * `action`. A disabled or refused button shows no action cue, so its glyph takes the label's colour; a busy one keeps
+ * the tone, because busy wins over both (as everywhere on the button) and its spinner is the glyph. Pure.
  *
  * @param props - The button's props.
  * @returns `action` only for a secondary button that asks for it and is not dimmed; otherwise `label`.

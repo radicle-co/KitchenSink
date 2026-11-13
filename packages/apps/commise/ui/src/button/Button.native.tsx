@@ -63,9 +63,12 @@ const GLYPH: Readonly<Record<ButtonSurface, Role>> = {
     destructiveConfirm: 'onAction',
 };
 
-/** The glyph and spinner role of a button: its surface's, or `actionText` under the `action` glyph tone. Pure. */
+/**
+ * The glyph and spinner role of a button: `actionText` under the `action` glyph tone, else its surface's. The native
+ * adapter of the glyph colour: `glyphToneOf` decides when the tone is `action`, the same policy the web leaf reads. Pure.
+ */
 const glyphRoleOf = (surface: ButtonSurface, props: ButtonProps): Role =>
-    surface === 'secondary' && glyphToneOf(props) === 'action' ? 'actionText' : GLYPH[surface];
+    glyphToneOf(props) === 'action' ? 'actionText' : GLYPH[surface];
 
 /** Resolve the accessible name: an explicit override, else the string label, else undefined. */
 const resolveAccessibilityLabel = (

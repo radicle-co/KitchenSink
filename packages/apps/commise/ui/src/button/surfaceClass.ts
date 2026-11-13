@@ -133,17 +133,18 @@ function surfaceClassOf(key: keyof typeof SURFACE): string {
 }
 
 /**
- * The class a tier's glyph (and its busy spinner) takes beyond `currentColor`, which is its label's colour. Two cases part
- * the two, each an `ink` label with an `actionText` glyph: `quiet` always, the cue that a control with no surface is
- * pressable; and `secondary` under the `action` glyph tone, the cue on a surfaced step-forward control. The ONE place
- * that rule is written; every control that draws a Button glyph reads it. Pure.
+ * The class a tier's glyph (and its busy spinner) takes beyond `currentColor`, which is its label's colour: the web
+ * adapter of the glyph colour. `quiet` always parts the two, an `ink` label with an `actionText` glyph, the cue that a
+ * control with no surface is pressable. Any other tier takes `actionText` only under the `action` glyph tone, which
+ * `glyphToneOf` decides: that policy owns WHEN a glyph is steel, and only the secondary tier's type can ask for it.
+ * Pure.
  *
  * @param variant - The tier.
- * @param glyphTone - The glyph tone (`glyphToneOf`). Defaults to `label`; only `secondary` reads it.
+ * @param glyphTone - The resolved glyph tone, from `glyphToneOf`. Defaults to `label`.
  * @returns A Tailwind colour utility, or `''` when the glyph takes its label's colour.
  */
 export function buttonGlyphClass(variant: ButtonVariant, glyphTone: ButtonGlyphTone = 'label'): string {
-    return variant === 'quiet' || (variant === 'secondary' && glyphTone === 'action') ? 'text-action-text' : '';
+    return variant === 'quiet' || glyphTone === 'action' ? 'text-action-text' : '';
 }
 
 /** The surface key a tier and tone select. Pure. */

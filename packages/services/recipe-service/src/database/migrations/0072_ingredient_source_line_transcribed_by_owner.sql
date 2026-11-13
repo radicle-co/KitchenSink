@@ -31,12 +31,17 @@
 -- run leaves a job row: `account_erasure_jobs` is never deleted (it is the erasure's legal record), and a
 -- `test_reset_jobs` row that erasure deletes (step 15) is older than the erasure job that deleted it. Every job write
 -- that follows a detach (the completion, an error note, a later claim) sets `updated_at = now()`. A job still queued or
--- running counts as now and later ('infinity'), because its detach may already have committed. So a recipe with no
--- pointer, created AFTER the latest moment any job was touched, cannot have been detached: it is not a clone.
+-- running may have a detach committed AFTER its last touch: the worker claims (touching the row), detaches, and can die
+-- before it writes again. But every detach runs inside a worker invocation that began with a claim, and an invocation
+-- dies at the worker's 5-minute timeout (`ERASURE_WORKER_TIMEOUT`). So an in-flight job counts as its last touch plus 15
+-- minutes: the erasure sweeper's own `STALE_AFTER`, the window after which it already treats a `running` job as dead,
+-- not slow. A STUCK job therefore bounds the backfill instead of freezing it at zero rows forever. So a recipe with no
+-- pointer, created AFTER the latest moment any job could have detached, cannot have been detached: it is not a clone.
 --
 --   TRUE  where source_line IS NOT NULL
 --           AND cloned_from_id IS NULL
---           AND created_at > the latest job time (-infinity when neither table has a row)
+--           AND created_at > the latest job time (+15 minutes for a queued or running job;
+--                                                  -infinity when neither table has a row)
 --   FALSE everywhere else.
 --
 -- ⚠️ Accepted cost: an owner-created recipe made BEFORE the latest job, and every self-clone made before this migration,
@@ -54,11 +59,11 @@ ALTER TABLE ingredients ADD COLUMN source_line_transcribed_by_owner boolean NOT 
 
 WITH horizon AS (
     SELECT GREATEST(
-        (SELECT max(CASE WHEN status IN ('queued', 'running') THEN 'infinity'::timestamptz
-                         ELSE GREATEST(created_at, updated_at, confirmed_at) END)
+        (SELECT max(GREATEST(created_at, updated_at, confirmed_at)
+                    + CASE WHEN status IN ('queued', 'running') THEN interval '15 minutes' ELSE interval '0' END)
            FROM account_erasure_jobs),
-        (SELECT max(CASE WHEN status IN ('queued', 'running') THEN 'infinity'::timestamptz
-                         ELSE GREATEST(created_at, updated_at) END)
+        (SELECT max(GREATEST(created_at, updated_at)
+                    + CASE WHEN status IN ('queued', 'running') THEN interval '15 minutes' ELSE interval '0' END)
            FROM test_reset_jobs)
     ) AS latest_job_at
 )
@@ -70,9 +75,11 @@ UPDATE ingredients AS line
    AND recipe.cloned_from_id IS NULL
    AND recipe.created_at > COALESCE(horizon.latest_job_at, '-infinity'::timestamptz);
 
+-- NOT VALID: enforced on every write from here on, but the scan of the existing rows waits for 0073, which validates it
+-- under SHARE UPDATE EXCLUSIVE instead of inside this file's ACCESS EXCLUSIVE transaction.
 ALTER TABLE ingredients
     ADD CONSTRAINT ingredients_transcribed_by_owner_has_source_line
-        CHECK (NOT source_line_transcribed_by_owner OR source_line IS NOT NULL);
+        CHECK (NOT source_line_transcribed_by_owner OR source_line IS NOT NULL) NOT VALID;
 
 COMMENT ON COLUMN ingredients.source_line_transcribed_by_owner IS
     'True when the recipe''s owner supplied source_line. With ownership, it decides who is shown that text (ADR-0090). False on a clone of another cook''s recipe.';

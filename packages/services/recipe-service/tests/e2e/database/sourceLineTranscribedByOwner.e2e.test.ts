@@ -13,7 +13,8 @@
  * | a clone with its pointer | FALSE |
  * | a clone whose pointer an erasure NULLed (created before the job) | FALSE |
  * | a non-clone created before the job (the accepted cost: indistinguishable from the row above) | FALSE |
- * | anything, while a job is still running | FALSE |
+ * | anything created inside a queued or running job's window (its last touch plus the bound) | FALSE |
+ * | a recipe created after a stuck queued or running job's window closed | TRUE |
  *
  * And the schema itself: the column defaults to FALSE for an insert that does not name it (the previous release's
  * inserts), and the CHECK refuses a TRUE with no text to describe.
@@ -33,9 +34,12 @@ import { provisionRoleDatabase, type RoleDatabase } from '@kitchensink/service-t
 import { runMigrations } from '../../../src/lambdas/migrate/handler.js';
 import { migrationsDir, recipeDbSpec } from '../../support/roleDb.js';
 
-/** The migration under test: its `schema_migrations` name, and its file. */
-const MIGRATION = '0072_ingredient_source_line_transcribed_by_owner';
-const MIGRATION_FILE = `${MIGRATION}.sql`;
+/** The migrations under test, in order: 0072 adds the column and its CHECK as NOT VALID, 0073 validates it. */
+const MIGRATIONS = [
+    '0072_ingredient_source_line_transcribed_by_owner',
+    '0073_ingredient_transcribed_by_owner_validate',
+] as const;
+const MIGRATION_FILES: readonly string[] = MIGRATIONS.map((name) => `${name}.sql`);
 const DATABASE = 'recipe_transcribed_by_owner_test';
 
 const COOK = '01JTRANSCRIBEDCOOK0000001';
@@ -46,8 +50,10 @@ const ERASED = '01JTRANSCRIBEDERASED00001';
 const JOB_AT = '2026-11-10T12:00:00Z';
 const BEFORE_JOB = '2026-11-09T12:00:00Z';
 const AFTER_JOB = '2026-11-11T12:00:00Z';
+/** Inside an in-flight job's window: five minutes after its last touch, well under the 15-minute bound. */
+const INSIDE_JOB_WINDOW = '2026-11-10T12:05:00Z';
 
-/** Every migration except 0072, so the database stands where the previous release left it. */
+/** Every migration except the two under test, so the database stands where the previous release left it. */
 let beforeDir: string;
 let handle: RoleDatabase;
 
@@ -126,8 +132,8 @@ async function migrateOver<T>(seed: (client: pg.PoolClient) => Promise<T>): Prom
             database: DATABASE,
         });
 
-        // Not vacuous: 0072 is the ONE migration this run applied.
-        expect(result.applied).toStrictEqual([MIGRATION]);
+        // Not vacuous: 0072 and 0073 are the ONLY migrations this run applied.
+        expect(result.applied).toStrictEqual([...MIGRATIONS]);
     } finally {
         await pool.end();
     }
@@ -139,7 +145,7 @@ beforeAll(async () => {
     beforeDir = await mkdtemp(join(tmpdir(), 'recipe-migrations-'));
 
     for (const file of await readdir(migrationsDir)) {
-        if (file.endsWith('.sql') && file !== MIGRATION_FILE) {
+        if (file.endsWith('.sql') && !MIGRATION_FILES.includes(file)) {
             await copyFile(join(migrationsDir, file), join(beforeDir, file));
         }
     }
@@ -211,15 +217,58 @@ describe('migration 0072 backfill — TRUE only where the owner is proven to hav
         });
     });
 
-    it('⛔ backfills NOTHING while an erasure is still running: its detach may already have committed', async () => {
-        const owned = await migrateOver(async (client) => {
+    it("⛔ backfills nothing created inside a running job's window: its detach may already have committed", async () => {
+        const ids = await migrateOver(async (client) => {
             await client.query(
                 `INSERT INTO account_erasure_jobs (owner_id, status, created_at, updated_at)
                  VALUES ($1, 'running', $2, $2)`,
                 [ERASED, JOB_AT],
             );
 
-            return seedRecipe(client, { ownerId: COOK, createdAt: AFTER_JOB, clonedFromId: null });
+            return {
+                inside: await seedRecipe(client, { ownerId: COOK, createdAt: INSIDE_JOB_WINDOW, clonedFromId: null }),
+                after: await seedRecipe(client, { ownerId: COOK, createdAt: AFTER_JOB, clonedFromId: null }),
+            };
+        });
+
+        await handle.asOwner(async (client) => {
+            expect((await flagsOf(client, ids.inside))[0]).toStrictEqual(['2 cups flour, sifted', false]);
+            // ⛔ The job has been idle a day. A worker invocation dies at its 5-minute timeout, so no detach can
+            // commit after the window closes: a STUCK job must not freeze the backfill at zero rows forever.
+            expect((await flagsOf(client, ids.after))[0]).toStrictEqual(['2 cups flour, sifted', true]);
+        });
+    });
+
+    it('bounds a stuck QUEUED reset job the same way', async () => {
+        const ids = await migrateOver(async (client) => {
+            await client.query(
+                `INSERT INTO test_reset_jobs (user_id, status, created_at, updated_at) VALUES ($1, 'queued', $2, $2)`,
+                [ERASED, JOB_AT],
+            );
+
+            return {
+                inside: await seedRecipe(client, { ownerId: COOK, createdAt: INSIDE_JOB_WINDOW, clonedFromId: null }),
+                after: await seedRecipe(client, { ownerId: COOK, createdAt: AFTER_JOB, clonedFromId: null }),
+            };
+        });
+
+        await handle.asOwner(async (client) => {
+            expect((await flagsOf(client, ids.inside))[0]).toStrictEqual(['2 cups flour, sifted', false]);
+            expect((await flagsOf(client, ids.after))[0]).toStrictEqual(['2 cups flour, sifted', true]);
+        });
+    });
+
+    it('⛔ backfills nothing while a job touched just now is in flight', async () => {
+        const owned = await migrateOver(async (client) => {
+            const owned = await seedRecipe(client, { ownerId: COOK, createdAt: AFTER_JOB, clonedFromId: null });
+
+            await client.query(
+                `INSERT INTO account_erasure_jobs (owner_id, status, created_at, updated_at)
+                 VALUES ($1, 'running', now(), now())`,
+                [ERASED],
+            );
+
+            return owned;
         });
 
         await handle.asOwner(async (client) => {
@@ -280,6 +329,14 @@ describe('migration 0072 schema', () => {
 
             expect(refused?.code).toBe('23514');
             expect(refused?.constraint).toBe('ingredients_transcribed_by_owner_has_source_line');
+
+            // 0072 adds the CHECK as NOT VALID so its scan holds no ACCESS EXCLUSIVE lock; 0073 validates it.
+            const constraint = await app.query<{ convalidated: boolean }>(
+                `SELECT convalidated FROM pg_constraint
+                  WHERE conname = 'ingredients_transcribed_by_owner_has_source_line'`,
+            );
+
+            expect(constraint.rows).toStrictEqual([{ convalidated: true }]);
         } finally {
             await app.end();
         }

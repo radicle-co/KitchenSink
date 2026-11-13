@@ -97,11 +97,18 @@ On this branch, no clone marker survives a detach. A clone is a draft, so it wri
 - A detach changes only a clone that already exists at the time of the detach.
 - Each such run leaves a job row. `account_erasure_jobs` is the legal record of an erasure, and nothing deletes it.
   Erasure deletes `test_reset_jobs` rows (step 15), but each of those is older than the erasure job that deleted it.
-- Each job write after a detach sets `updated_at`. A job that is still queued or running counts as unbounded, because
-  its detach can be committed already.
+- Each job write after a detach sets `updated_at`. A job that is still queued or running may have a detach that
+  committed after its last write. But each detach runs inside a worker run that began with a claim, and that claim
+  wrote `updated_at`. The worker stops at its 5-minute timeout. So a queued or running job counts as its last write
+  plus 15 minutes. That is the erasure sweeper's `STALE_AFTER`, after which it already treats a running job as dead.
+  A stuck job therefore limits the backfill. It does not stop it.
 
 > TRUE where `source_line IS NOT NULL`, `cloned_from_id IS NULL`, and the recipe was created after the latest erasure
-> or purge job was touched. With no job rows, there is no time limit.
+> or purge job was touched (plus 15 minutes for a queued or running job). With no job rows, there is no time limit.
+
+Migration 0072 adds the CHECK as `NOT VALID`, because the runner applies each file in one transaction and 0072's
+`ADD COLUMN` holds ACCESS EXCLUSIVE until it commits. Migration 0073 validates the CHECK in its own transaction, which
+takes only SHARE UPDATE EXCLUSIVE.
 
 A completed erasure replay runs the detach again and does not touch the job row. This is safe: the erased account
 cannot write, so its owner-only set is already empty, and the replay detaches nothing.

@@ -370,7 +370,7 @@ export interface RecipeIngredientsFieldsProps extends RecipeFormSectionProps {
      */
     readonly arrivalLine?: ArrivalLine;
     /**
-     * The hold the editor's checkpoints read (`editor/rowEditHold.ts`): raised while a row editor is open, so its Cancel
+     * The hold the editor's checkpoints read (`editor/hold.ts`): raised while a row editor is open, so its Cancel
      * can still put the line back, and let go of when it closes.
      */
     readonly rowEditHold?: Hold;

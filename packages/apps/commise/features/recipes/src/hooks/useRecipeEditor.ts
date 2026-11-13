@@ -282,13 +282,13 @@ export interface UseRecipeEditorOptions {
      */
     readonly pastePending?: boolean;
     /**
-     * The shared paste hold (`editor/pasteHold.ts`), made BEFORE the editor and the paste and handed to both: the paste
+     * The shared paste hold (`editor/hold.ts`), made BEFORE the editor and the paste and handed to both: the paste
      * writes it where its own state changes, and a checkpoint reads it when it runs. Either it or {@link pastePending}
      * holding is enough to hold the create.
      */
     readonly pasteHold?: Hold;
     /**
-     * The shared row edit hold (`editor/rowEditHold.ts`): raised while a row editor is open, so a never-published
+     * The shared row edit hold (`editor/hold.ts`): raised while a row editor is open, so a never-published
      * draft's checkpoints wait for its Cancel or Done (`serverWriteFor`'s `rowEditHeld`). Letting go of it runs the
      * checkpoint it deferred.
      */
@@ -1842,7 +1842,7 @@ function useDiscardLeft(ctx: EditorContext, discarding: boolean): void {
 }
 
 /**
- * A hold let go of: run the checkpoint it deferred. The paste's (A-021) and an open row editor's (`rowEditHold.ts`) are
+ * A hold let go of: run the checkpoint it deferred. The paste's (A-021) and an open row editor's (`hold.ts`) are
  * the same cell.
  *
  * A paste let go of its hold: run the checkpoint it deferred (A-021). The lines a paste joins change the draft, which

@@ -265,7 +265,7 @@ describe('useIngredientsPaste — the publish sheet (R23)', () => {
 
 describe('useIngredientsPaste — the hold', () => {
     /**
-     * The hold the editor reads before its server create (A1's `pasteHold.ts`): this paste is its one writer. It holds
+     * The hold the editor reads before its server create (A1's paste hold, `editor/hold.ts`): this paste is its one writer. It holds
      * while the paste is sent or its lines are reading, lets go when they have joined, and lets go if the paste unmounts.
      */
     it('⛔ holds the shared paste hold while pending, and lets go when done or unmounted', () => {

@@ -170,7 +170,7 @@ export function useIngredientsFields(props: RecipeIngredientsFieldsProps): Ingre
     const [unheard, setUnheard] = useState(rowEditor.settled);
     const lineEditor = useLineEditorState(values.ingredients, initialLine);
     // While a row editor is open its Cancel can still put the line back, so the editor's server checkpoints wait
-    // (`editor/rowEditHold.ts`). The hold is let go of when the editor closes, which runs the one that was deferred.
+    // (`editor/hold.ts`). The hold is let go of when the editor closes, which runs the one that was deferred.
     const { rowEditHold } = props;
     const editorOpen = lineEditor.openKey !== undefined;
     // @sideEffect Raises or lowers the shared hold where the open state changes.

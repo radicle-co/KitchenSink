@@ -148,7 +148,7 @@ const nameField = (): HTMLInputElement =>
 
 describe('the phone row editor sheet, over the real editor session (web)', () => {
     // REWRITTEN (needs-review, row edit hold): this case used to prove the sheet survived an idle checkpoint's answer
-    // arriving while it was open. A row editor now HOLDS the draft's server checkpoints (`rowEditHold.ts`), so the idle
+    // arriving while it was open. A row editor now HOLDS the draft's server checkpoints (the row edit hold, `editor/hold.ts`), so the idle
     // pause sends nothing while the sheet is open, and the checkpoint it deferred runs once, at Done. The typed name must
     // still survive the pause, the keystrokes and the close.
     it('stays open and keeps a new name typed after the name was cleared and the idle pause passed', async () => {

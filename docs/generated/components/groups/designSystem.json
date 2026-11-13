@@ -6,11 +6,11 @@
     "coverage": {
         "components": 94,
         "implementations": 152,
-        "props": 969,
+        "props": 971,
         "documentedComponents": 94,
         "implementationsWithModuleDoc": 152,
         "implementationsWithComponentDoc": 138,
-        "documentedProps": 872,
+        "documentedProps": 874,
         "classifiedComponents": 87,
         "componentsWithPatternTag": 94,
         "crossPlatformComponents": 58
@@ -8951,6 +8951,15 @@
                     "exportKind": "named",
                     "props": [
                         {
+                            "name": "announceOnMount",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The region mounts WITH a message it must say (a screen that opens on a notice). A live region speaks a change of\nits text, and many screen readers say nothing for text present when it mounts, so the region mounts empty and\nholds the message from the next commit (`useDeferredValue`'s initial value). Later changes are unaffected. Absent:\nthe message is in the region at mount, as for a region mounted early and empty.",
+                            "declaredIn": "packages/apps/commise/ui/src/liveRegion/props.ts"
+                        },
+                        {
                             "name": "children",
                             "type": "string",
                             "typeDetail": null,
@@ -9044,7 +9053,9 @@
                         }
                     ],
                     "usesRefApi": [],
-                    "booleanPropsSelectingSubtree": [],
+                    "booleanPropsSelectingSubtree": [
+                        "announceOnMount"
+                    ],
                     "docSignals": {
                         "presentational": false,
                         "orchestration": false
@@ -9072,6 +9083,15 @@
                     "exportKind": "named",
                     "props": [
                         {
+                            "name": "announceOnMount",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The region mounts WITH a message it must say (a screen that opens on a notice). A live region speaks a change of\nits text, and many screen readers say nothing for text present when it mounts, so the region mounts empty and\nholds the message from the next commit (`useDeferredValue`'s initial value). Later changes are unaffected. Absent:\nthe message is in the region at mount, as for a region mounted early and empty.",
+                            "declaredIn": "packages/apps/commise/ui/src/liveRegion/props.ts"
+                        },
+                        {
                             "name": "children",
                             "type": "string",
                             "typeDetail": null,
@@ -9165,7 +9185,9 @@
                         }
                     ],
                     "usesRefApi": [],
-                    "booleanPropsSelectingSubtree": [],
+                    "booleanPropsSelectingSubtree": [
+                        "announceOnMount"
+                    ],
                     "docSignals": {
                         "presentational": true,
                         "orchestration": false

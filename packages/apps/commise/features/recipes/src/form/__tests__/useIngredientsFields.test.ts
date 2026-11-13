@@ -904,7 +904,7 @@ describe('useIngredientsFields — the missing-line notice', () => {
 });
 
 /**
- * An open row editor holds the draft's server checkpoints (`editor/rowEditHold.ts`): the hold is raised while an editor
+ * An open row editor holds the draft's server checkpoints (`editor/hold.ts`): the hold is raised while an editor
  * is open, so its Cancel can still put the line back, and let go of when it closes, by Done or Cancel.
  */
 describe('useIngredientsFields — the open row editor raises the row edit hold', () => {

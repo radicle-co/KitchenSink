@@ -397,4 +397,33 @@ describe('LiveRegion (native) — announceOnMount', () => {
             { queue: true },
         );
     });
+
+    // A region that did not ask for `announceOnMount` holds no deferred value: its message, and every update, is in the
+    // render it is given.
+    it('without it the message is there at mount, and an update is in the same render', () => {
+        const seen: string[] = [];
+
+        const Probe = (): null => {
+            useLayoutEffect(() => {
+                seen.push(document.body.textContent ?? '');
+            });
+
+            return null;
+        };
+
+        const view = (text: string) => (
+            <>
+                <LiveRegion politeness="polite">{text}</LiveRegion>
+                <Probe />
+            </>
+        );
+        const { rerender } = render(view('Creating…'));
+
+        expect(seen).toEqual(['Creating…']);
+
+        rerender(view('Created.'));
+
+        expect(seen.at(-1)).toBe('Created.');
+        expect(seen).not.toContain('');
+    });
 });

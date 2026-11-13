@@ -1,4 +1,4 @@
-/** The paste hold (`pasteHold.ts`): one cell the paste writes and the editor reads. */
+/** A hold (`editor/hold.ts`): one cell its writer sets and the editor reads. */
 import { describe, expect, it, vi } from 'vitest';
 
 import { createHold } from '../hold.js';

@@ -31,40 +31,48 @@ const Region: FC<{ readonly text: string; readonly politeness: LiveRegionPoliten
     </span>
 );
 
-/** Text whose appearance and changes are announced to the screen reader. */
-export const LiveRegion: FC<LiveRegionProps> = ({
-    children,
-    politeness,
-    occurrence,
-    visuallyHidden = false,
-    announceOnMount = false,
-    className,
-}) => {
+/** The region over the message it is given now. */
+const Messaged: FC<LiveRegionProps> = ({ children, politeness, occurrence, visuallyHidden = false, className }) => {
     const slot = useOccurrenceSlot(occurrence);
-    // React 19: the first render answers '' and the real message follows in the next commit, so a message the region
-    // mounts with arrives as a change (`announceOnMount`).
-    const deferred = useDeferredValue(children, '');
-    const message = announceOnMount ? deferred : children;
     const classes = visuallyHidden ? 'sr-only' : className;
 
     if (occurrence === undefined) {
         return (
-            <Region text={message} politeness={politeness} {...(classes === undefined ? {} : { className: classes })} />
+            <Region
+                text={children}
+                politeness={politeness}
+                {...(classes === undefined ? {} : { className: classes })}
+            />
         );
     }
 
     return (
         <>
             <Region
-                text={slot === 0 ? message : ''}
+                text={slot === 0 ? children : ''}
                 politeness={politeness}
                 {...(classes === undefined ? {} : { className: classes })}
             />
             <Region
-                text={slot === 1 ? message : ''}
+                text={slot === 1 ? children : ''}
                 politeness={politeness}
                 {...(classes === undefined ? {} : { className: classes })}
             />
         </>
     );
 };
+
+/**
+ * A region that mounts WITH a message it must say (`announceOnMount`). React 19: the first render answers '' and the
+ * real message follows in the next commit, so the message arrives as a change. Its own component, so only the regions
+ * that ask for it hold a deferred value: every other region renders its message in the render it is given.
+ */
+const AnnouncedOnMount: FC<LiveRegionProps> = (props) => {
+    const message = useDeferredValue(props.children, '');
+
+    return <Messaged {...props}>{message}</Messaged>;
+};
+
+/** Text whose appearance and changes are announced to the screen reader. */
+export const LiveRegion: FC<LiveRegionProps> = (props) =>
+    props.announceOnMount === true ? <AnnouncedOnMount {...props} /> : <Messaged {...props} />;

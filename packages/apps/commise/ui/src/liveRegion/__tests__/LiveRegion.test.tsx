@@ -143,4 +143,33 @@ describe('LiveRegion (web) — announceOnMount', () => {
     it('without it the message is in the region at mount, as before', () => {
         expect(mountRecording(false)[0]).toBe('We couldn’t find that ingredient.');
     });
+
+    // A region that did not ask for `announceOnMount` holds no deferred value: text present at mount, and every update,
+    // is in the very render it is given (an alert read straight after the render that raised it).
+    it('without it an alert is there at mount, and an update is in the same render', () => {
+        const seen: string[] = [];
+
+        const Probe = (): null => {
+            useLayoutEffect(() => {
+                seen.push(document.querySelector('[role="alert"]')?.textContent ?? '');
+            });
+
+            return null;
+        };
+
+        const view = (text: string) => (
+            <>
+                <LiveRegion politeness="assertive">{text}</LiveRegion>
+                <Probe />
+            </>
+        );
+        const { rerender } = render(view('Could not save.'));
+
+        expect(seen).toEqual(['Could not save.']);
+
+        rerender(view('Could not save it either.'));
+
+        expect(seen.at(-1)).toBe('Could not save it either.');
+        expect(seen).not.toContain('');
+    });
 });

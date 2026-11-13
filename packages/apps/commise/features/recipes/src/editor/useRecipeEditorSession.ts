@@ -21,7 +21,7 @@
  * - **Paste a list**: offered while the editor says so (`pasteOffered`, D10), each line keeping its source while the
  *   editor says so (`pastedLineKeepsSource`), and a paste still joining holding the server create (`serverWriteFor`).
  *   The paste is composed after the editor, which it dispatches into, so the hold is made BEFORE both and handed to
- *   each (`pasteHold.ts`): the paste writes it, a checkpoint reads it.
+ *   each (`hold.ts`): the paste writes it, a checkpoint reads it.
  *
  * No JSX: the sections each container draws are page composition (`docs/CODING_STANDARDS.md` §14.2).
  *
@@ -125,7 +125,7 @@ export interface EditorPreview {
 export interface RecipeEditorSession {
     readonly editor: UseRecipeEditorResult;
     readonly rowEditor: IngredientRowEditor;
-    /** Raised by an open row editor (`rowEditHold.ts`); the ingredients field group writes it. */
+    /** Raised by an open row editor (`hold.ts`); the ingredients field group writes it. */
     readonly rowEditHold: Hold;
     readonly nutrition: ReturnType<typeof useLineNutrition>;
     readonly lookupRetry: LookupRetry;

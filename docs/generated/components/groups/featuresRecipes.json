@@ -22629,11 +22629,11 @@
                         },
                         {
                             "name": "rowEditHold",
-                            "type": "PasteHold",
+                            "type": "Hold",
                             "typeDetail": null,
                             "required": false,
                             "defaultValue": null,
-                            "description": "The hold the editor's checkpoints read (`editor/rowEditHold.ts`): raised while a row editor is open, so its Cancel\ncan still put the line back, and let go of when it closes.",
+                            "description": "The hold the editor's checkpoints read (`editor/hold.ts`): raised while a row editor is open, so its Cancel\ncan still put the line back, and let go of when it closes.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/form/props.ts"
                         },
                         {
@@ -22757,11 +22757,11 @@
                         },
                         {
                             "name": "rowEditHold",
-                            "type": "PasteHold",
+                            "type": "Hold",
                             "typeDetail": null,
                             "required": false,
                             "defaultValue": null,
-                            "description": "The hold the editor's checkpoints read (`editor/rowEditHold.ts`): raised while a row editor is open, so its Cancel\ncan still put the line back, and let go of when it closes.",
+                            "description": "The hold the editor's checkpoints read (`editor/hold.ts`): raised while a row editor is open, so its Cancel\ncan still put the line back, and let go of when it closes.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/form/props.ts"
                         },
                         {

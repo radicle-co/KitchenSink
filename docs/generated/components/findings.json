@@ -2,7 +2,7 @@
     "schemaVersion": 1,
     "counts": {
         "ambiguous-layer-signal": 9,
-        "boolean-prop-selects-subtree": 8,
+        "boolean-prop-selects-subtree": 10,
         "cross-platform-props-diverge": 23,
         "missing-component-doc": 165,
         "missing-module-doc": 23,
@@ -626,6 +626,26 @@
                 "onTouchStartCapture",
                 "ref",
                 "target"
+            ]
+        },
+        {
+            "rule": "boolean-prop-selects-subtree",
+            "severity": "review",
+            "component": "designSystem/liveRegion/LiveRegion",
+            "sourcePath": "packages/apps/commise/ui/src/liveRegion/LiveRegion.native.tsx",
+            "message": "a boolean prop selects between two rendered subtrees — behaviour switch, or display derivation?",
+            "evidence": [
+                "announceOnMount"
+            ]
+        },
+        {
+            "rule": "boolean-prop-selects-subtree",
+            "severity": "review",
+            "component": "designSystem/liveRegion/LiveRegion",
+            "sourcePath": "packages/apps/commise/ui/src/liveRegion/LiveRegion.tsx",
+            "message": "a boolean prop selects between two rendered subtrees — behaviour switch, or display derivation?",
+            "evidence": [
+                "announceOnMount"
             ]
         },
         {

@@ -10,7 +10,7 @@
  * While a paste's lines are still joining the recipe, or a pick is being sent, `pending` holds Publish: a recipe
  * published then would lose them, and the rows themselves say "Reading…". ⛔ A line still being CHECKED does not hold it:
  * the cook may publish, and the publish sheet (`openChoices`) says which lines have no food yet (R23). The same fact holds
- * the server create, through the shared paste hold the editor reads when a checkpoint runs (`pasteHold.ts`): written as
+ * the server create, through the shared paste hold the editor reads when a checkpoint runs (`editor/hold.ts`): written as
  * the paste's state commits, cleared on unmount.
  *
  * @pattern Facade — one entry point over the paste, its matching and its sheet, for the two containers
@@ -51,7 +51,7 @@ export interface UseIngredientsPasteOptions {
     readonly lineKeys: readonly string[];
     /** Open the sheet at once: Home's first-run Paste ingredients (§7.5.4). */
     readonly initiallyOpen: boolean;
-    /** The hold the editor reads before its server create (`pasteHold.ts`): this paste is its one writer. */
+    /** The hold the editor reads before its server create (`editor/hold.ts`): this paste is its one writer. */
     readonly hold: Hold;
     /** The row editor: the paste list's picks go through its one commit port, and its food picker opens on a line. */
     readonly rowEditor: IngredientRowEditor;

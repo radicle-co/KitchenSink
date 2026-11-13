@@ -163,6 +163,12 @@ describe('addByFoodVariantId — binding a variant the cook picked (curated U9, 
         const ingredient = await h.service.addByFoodVariantId(CALLER, ' V-flat ', COOK);
 
         expect(h.refs.resolveForBind).toHaveBeenCalledWith(CALLER, { kind: 'variant', id: 'V-flat' });
+
+        // Review item 4 on #220: the caller's signal reaches food's bind check.
+        const signal = new AbortController().signal;
+
+        await h.service.addByRef(CALLER, { kind: 'variant', id: 'V-flat' }, undefined, { signal });
+        expect(h.refs.resolveForBind).toHaveBeenLastCalledWith(CALLER, { kind: 'variant', id: 'V-flat' }, { signal });
         expect(ingredient).toMatchObject({
             id: 'lookup-V-flat',
             name: 'beef brisket',

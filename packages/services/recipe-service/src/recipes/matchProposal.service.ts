@@ -348,6 +348,8 @@ export class MatchProposalService {
      * @param acting - The verified caller's acting slice.
      * @param caller - The caller's credential, forwarded to food.
      * @param jobIds - The jobs, in the order they should be matched.
+     * @param options - `signal`: the CALLER's own budget (a bulk import's call). The match ends with whichever of it and
+     *   this call's own deadline fires first.
      * @returns One entry per job, in order: the record as read and whether every owed food now has a current match
      *   (`matchesComplete`); `missing`; `expired`; or `skipped` when the deadline passed before the job was read.
      * @throws `DeadlineExceededError` when not even the first job could be read before the deadline.
@@ -357,10 +359,12 @@ export class MatchProposalService {
         acting: ActingPrincipal,
         caller: CallerToken | undefined,
         jobIds: readonly string[],
+        options: { readonly signal?: AbortSignal } = {},
     ): Promise<readonly JobProposeResult[]> {
         // ⛔ ONE deadline for the whole call (rule 9), taken before any I/O, as an instant and as a signal.
         const deadlineAt = this.limits.now() + MATCH_PROPOSE_DEADLINE_MS;
-        const deadline = this.limits.signalAt(deadlineAt);
+        const own = this.limits.signalAt(deadlineAt);
+        const deadline = options.signal === undefined ? own : AbortSignal.any([own, options.signal]);
         const contexts = new Map<string, JobContext>();
         const settled = new Map<string, JobProposeResult>();
 

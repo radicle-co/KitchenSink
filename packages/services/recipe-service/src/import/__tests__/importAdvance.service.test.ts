@@ -22,6 +22,7 @@ import type { Role } from '@kitchensink/clerk-verify';
 import { RecipeSourceType, RecipeVisibility, type IngredientQuantity } from '@kitchensink/recipe-core';
 
 import { CallerToken } from '../../auth/CallerToken.js';
+import { DeadlineExceededError } from '../../common/boundedBy.js';
 import { sha256Hex } from '../../common/sha256.js';
 import {
     makeParseJobLine,
@@ -863,6 +864,17 @@ describe('ImportAdvanceService — saving what is ready', () => {
         expect(recipes.create).not.toHaveBeenCalled();
     });
 
+    it('⛔ binds every food under the call’s signal, the one the line reads take', async () => {
+        const { answered, ingredients, lineView } = run(world());
+
+        await answered;
+
+        const bindSignal = ingredients.addByRef.mock.calls[0]?.[3]?.signal;
+
+        expect(bindSignal).toBeInstanceOf(AbortSignal);
+        expect(bindSignal).toBe(lineView.matchesOf.mock.calls[0]?.[3]);
+    });
+
     it('⛔ binds the confident line as `exact`, the default as `default` (keepAsWritten), the open food and the heading as written', async () => {
         const { answered, recipes, ingredients } = run(world());
 
@@ -1565,6 +1577,29 @@ describe('ImportAdvanceService — saving what is ready', () => {
 });
 
 describe('ImportAdvanceService.advance — the whole step', () => {
+    // Review item 4 on #220: every call that reaches food runs inside the ONE call budget, so the call's signal goes with it.
+    it('⛔ hands the call’s signal to the matcher, so matching does not outlive the call', async () => {
+        const jobId = importJobIdOf(IMPORT_ID, 0, 0, sha256Hex);
+        const { answered, matcher } = run({
+            items: [received(0, undefined, { stage: 'parsing', allowanceSpentAt: new Date(), parseJobId: jobId })],
+        });
+
+        await answered;
+
+        expect(matcher.proposeForJobs.mock.calls[0]?.[3]?.signal).toBeInstanceOf(AbortSignal);
+    });
+
+    it('⛔ a matcher that runs out of time before its first read does not fail the call: the rest waits', async () => {
+        const jobId = importJobIdOf(IMPORT_ID, 0, 0, sha256Hex);
+        const built = build({
+            items: [received(0, undefined, { stage: 'parsing', allowanceSpentAt: new Date(), parseJobId: jobId })],
+        });
+
+        built.matcher.proposeForJobs.mockRejectedValueOnce(new DeadlineExceededError());
+
+        await expect(built.service.advance(built.principal, CALLER, IMPORT_ID)).resolves.toBe(VIEW);
+    });
+
     it('runs pay, parse, match and save in that order and answers the view the builder derives', async () => {
         const jobId = importJobIdOf(IMPORT_ID, 0, 0, sha256Hex);
         const job = makeParseJobRecord({ id: jobId, status: 'complete', lines: [makeParseJobLine({ lineIndex: 0 })] });

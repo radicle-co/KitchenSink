@@ -267,13 +267,22 @@ export class IngredientsService {
      * @param caller - The caller's credential.
      * @param ref - The root or variant the caller picked.
      * @param callerUserId - The caller, recorded as owner of their own private food.
+     * @param options - `signal`: the caller's own deadline, forwarded to food's bind check.
      * @returns The bound ingredient, `RESOLVED`.
      * @throws {RecipeError} `UNKNOWN_INGREDIENT` (→ 400) when food will not let the food be bound.
-     * @throws {HttpException} `502 SOURCE_UNAVAILABLE` when food cannot be asked.
+     * @throws {HttpException} `502 SOURCE_UNAVAILABLE` when food cannot be asked, or the signal ended the ask.
      * @sideEffect One food-service request, then at most one binding write.
      */
-    public async addByRef(caller: CallerToken | undefined, ref: FoodRef, callerUserId?: string): Promise<Ingredient> {
-        const answer = await this.refs.resolveForBind(caller, ref);
+    public async addByRef(
+        caller: CallerToken | undefined,
+        ref: FoodRef,
+        callerUserId?: string,
+        options: { readonly signal?: AbortSignal } = {},
+    ): Promise<Ingredient> {
+        const answer =
+            options.signal === undefined
+                ? await this.refs.resolveForBind(caller, ref)
+                : await this.refs.resolveForBind(caller, ref, { signal: options.signal });
         const admission = admitResolvedRef(answer, callerUserId);
 
         if (!isAdmission(admission)) {

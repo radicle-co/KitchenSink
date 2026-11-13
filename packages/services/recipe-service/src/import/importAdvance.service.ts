@@ -45,6 +45,7 @@ import { RecipeErrorCode, RecipeVisibility, ABSENT_QUANTITY } from '@kitchensink
 
 import type { CallerToken } from '../auth/CallerToken.js';
 import { actingPrincipalOf, isPremiumPrincipal, type Principal } from '../auth/principal.js';
+import { isDeadlineExceededError } from '../common/boundedBy.js';
 import { apiErrorCodeOf } from '../common/apiError.js';
 import { sha256Hex } from '../common/sha256.js';
 import type { FoodRef } from '../database/schema/foodLookupArm.js';
@@ -324,7 +325,7 @@ export class ImportAdvanceService {
         await this.imports.touch(header.id);
 
         await this.payAndStartParsing(principal, header, deadlineAt);
-        await this.matchParsing(principal, caller, header, deadlineAt);
+        await this.matchParsing(principal, caller, header, { at: deadlineAt, signal: deadline });
         await this.saveReady(principal, caller, header, { at: deadlineAt, signal: deadline });
 
         return this.builder.build(principal, header, { limit: IMPORT_DEFAULT_PAGE_SIZE });
@@ -378,9 +379,9 @@ export class ImportAdvanceService {
         principal: Principal,
         caller: CallerToken | undefined,
         header: ImportHeader,
-        deadlineAt: number,
+        deadline: CallDeadline,
     ): Promise<void> {
-        if (this.limits.now() >= deadlineAt) {
+        if (this.limits.now() >= deadline.at) {
             return;
         }
 
@@ -393,7 +394,21 @@ export class ImportAdvanceService {
             return;
         }
 
-        const results = await this.matcher.proposeForJobs(actingPrincipalOf(principal), caller, [...byJob.keys()]);
+        let results: readonly JobProposeResult[];
+
+        try {
+            results = await this.matcher.proposeForJobs(actingPrincipalOf(principal), caller, [...byJob.keys()], {
+                signal: deadline.signal,
+            });
+        } catch (error) {
+            // The call's budget ran out before the matcher read its first job: nothing was matched, and the next call
+            // matches them. Any other failure is not this step's to swallow.
+            if (isDeadlineExceededError(error)) {
+                return;
+            }
+
+            throw error;
+        }
 
         for (const result of results) {
             const item = byJob.get(result.jobId);
@@ -647,7 +662,7 @@ export class ImportAdvanceService {
             ...entry,
             binding: bindingOf({ mode: header.matchMode, itemReview: item.review, reviewClosed, line: entry.facts }),
         }));
-        const built = await this.buildLines(principal, caller, recipe, decided);
+        const built = await this.buildLines(principal, caller, recipe, decided, deadline);
 
         if (built === undefined) {
             return 'waiting';
@@ -736,6 +751,7 @@ export class ImportAdvanceService {
         caller: CallerToken | undefined,
         recipe: ImportRecipe,
         decided: readonly DecidedLine[],
+        deadline: AbortSignal,
     ): Promise<
         { readonly lines: CreateRecipeDto['ingredients']; readonly origins: readonly LineOriginDirective[] } | undefined
     > {
@@ -744,7 +760,7 @@ export class ImportAdvanceService {
         for (const entry of decided) {
             const admission: Admission =
                 entry.binding.kind === 'bind'
-                    ? await this.admit(principal, caller, entry.match, entry.line, entry.binding.foodId)
+                    ? await this.admit(principal, caller, entry.match, entry.line, entry.binding.foodId, deadline)
                     : { kind: 'asWritten' };
 
             if (admission.kind === 'unavailable') {
@@ -827,6 +843,7 @@ export class ImportAdvanceService {
         match: ParseProposalMatch,
         line: ImportLine,
         foodId: string,
+        deadline: AbortSignal,
     ): Promise<Admission> {
         const ref: FoodRef | undefined = foodRefOfId(match, pickOfLine(line), foodId);
 
@@ -835,7 +852,10 @@ export class ImportAdvanceService {
         }
 
         try {
-            return { kind: 'bound', bindingId: (await this.ingredients.addByRef(caller, ref, principal.userId)).id };
+            return {
+                kind: 'bound',
+                bindingId: (await this.ingredients.addByRef(caller, ref, principal.userId, { signal: deadline })).id,
+            };
         } catch (error) {
             if (isRecipeDomainError(error) && error.code === RecipeErrorCode.UNKNOWN_INGREDIENT) {
                 return { kind: 'asWritten' };

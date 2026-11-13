@@ -217,6 +217,26 @@ describe('FoodRefsGateway.resolveForBind — the bind path’s one check (R51)',
         });
     });
 
+    // Review item 4 on #220: a bulk import's save binds as the cook inside one call's budget, so its bind check ends with it.
+    it('⛔ forwards the caller’s signal to food, and an aborted one is SOURCE_UNAVAILABLE, never a hung bind', async () => {
+        const resolveRefs = vi.fn(async (refs: { kind: string; id: string }[], options?: { signal?: AbortSignal }) => {
+            if (options?.signal?.aborted === true) {
+                throw new Error('aborted');
+            }
+
+            return entriesFor(refs);
+        });
+        const gateway = new FoodRefsGateway(makeClients(resolveRefs));
+        const live = new AbortController().signal;
+
+        await gateway.resolveForBind(CALLER, { kind: 'root', id: 'a' }, { signal: live });
+        expect(resolveRefs).toHaveBeenLastCalledWith([{ kind: 'root', id: 'a' }], { signal: live });
+
+        await expect(
+            gateway.resolveForBind(CALLER, { kind: 'root', id: 'a' }, { signal: AbortSignal.abort() }),
+        ).rejects.toMatchObject({ response: { code: 'SOURCE_UNAVAILABLE' } });
+    });
+
     it('⛔ throws SOURCE_UNAVAILABLE when food cannot be asked — a bind is never made on no answer', async () => {
         const resolveRefs = vi.fn().mockRejectedValue(new Error('socket hang up'));
 

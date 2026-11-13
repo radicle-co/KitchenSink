@@ -1,8 +1,6 @@
 /**
- * Unit tests for `plural.ts`, the one way this package says a count. It moved here from `editor/messages.ts`, beside
- * `fillTemplate`, so a count in the import or matching copy no longer reaches into the editor's messages for it. The
- * cases pin the contract every count-bearing template relies on: the locale's plural rule picks the form, and every
- * `{count}` in it is filled.
+ * Unit tests for `plural.ts`, the one way this package says a count. The cases pin the contract every count-bearing
+ * template relies on: the locale's plural rule picks the form, and every `{count}` in it is filled.
  */
 import { describe, expect, it } from 'vitest';
 

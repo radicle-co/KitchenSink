@@ -96,15 +96,20 @@ function aggregateOf(recipe = stored): RecipeAggregate {
     };
 }
 
-const update = vi.fn(async (_id: string, patch: { readonly expectedVersion: number }) => {
-    if (patch.expectedVersion !== stored.currentVersion) {
-        return undefined;
-    }
+const update = vi.fn(
+    async (
+        _id: string,
+        patch: { readonly expectedVersion: number; readonly ingredients?: readonly IngredientLineInput[] },
+    ) => {
+        if (patch.expectedVersion !== stored.currentVersion) {
+            return undefined;
+        }
 
-    stored = { ...stored, currentVersion: stored.currentVersion + 1 };
+        stored = { ...stored, currentVersion: stored.currentVersion + 1 };
 
-    return aggregateOf();
-});
+        return aggregateOf();
+    },
+);
 const setVisibility = vi.fn(async (_id: string, visibility: RecipeVisibility) => {
     stored = { ...stored, visibility };
 
@@ -318,6 +323,20 @@ describe('the writes that return a detail', () => {
         expect(text).toContain(RECIPE_ID);
         expect(text).not.toContain('sourceLine');
         expect(text).not.toContain('GRANDMOTHERS');
+    });
+
+    // The mock hands back a line that already holds the flag, so what the SERVICE ASKED the DAL to write is asserted
+    // on the argument; the real-database half is `tests/e2e/recipes/sourceLineDisclosure.e2e.test.ts`.
+    it("⛔ the owner's PATCH that resends the line asks the DAL to keep the flag", async () => {
+        const res = await call(OWNER, 'PATCH', `/api/v1/recipes/${RECIPE_ID}`, {
+            expectedVersion: 1,
+            ingredients: [{ ingredientId: ARM.lookupId, quantity: { kind: 'exact', value: 1 }, unit: 'unit' }],
+        });
+        const written = update.mock.calls[0]?.[1].ingredients?.[0];
+
+        expect(res.status, await res.clone().text()).toBe(200);
+        expect(written?.sourceLine).toBe(SECRET);
+        expect(written?.sourceLineTranscribedByOwner).toBe(true);
     });
 
     it("the owner's PATCH returns the line to its owner", async () => {

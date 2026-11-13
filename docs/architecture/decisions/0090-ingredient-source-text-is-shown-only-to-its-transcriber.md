@@ -70,6 +70,11 @@ a clone copies the text.
 `POST /api/v1/import` (ADR-0072) is not on this branch. When it lands, it uses the same writer, and the required field
 makes it state the value. For the cook's own import the value is TRUE, as for a create.
 
+`ownerVouches` (`ingredientLine.planner.ts`) is a statement the caller makes, not a mode switch. Create says TRUE because
+the caller is the owner. Update says FALSE. Today an update request never carries `sourceLine`, so the statement has no
+effect on update: the planner writes TRUE only on a line that has text, and an update line has none until the carry-forward
+adds it. Whoever lets an update carry text later must decide what to say here, and the compiler makes them say it.
+
 A version restore does not bring a flag back from history. A snapshot carries neither the text nor the flag. A restore
 is an update, so each restored line takes the flag of the current line it matches, or FALSE.
 

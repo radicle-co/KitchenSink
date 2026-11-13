@@ -51,6 +51,12 @@ describe('Icon (native)', () => {
         expect(glyphOf(container).dataset['iconName']).toBe('trash');
     });
 
+    it('draws the cooking pot for cookingPot', () => {
+        const { container } = render(<Icon name="cookingPot" />);
+
+        expect(glyphOf(container).dataset['iconName']).toBe('cooking-pot');
+    });
+
     it('is decorative by default: inside a view hidden from assistive tech', () => {
         const { container } = render(<Icon name="search" />);
 

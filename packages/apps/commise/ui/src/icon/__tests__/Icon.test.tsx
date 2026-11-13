@@ -28,6 +28,12 @@ describe('Icon (web)', () => {
         expect(svgOf(container).classList.contains('lucide-house')).toBe(true);
     });
 
+    it('draws the cooking pot for cookingPot', () => {
+        const { container } = render(<Icon name="cookingPot" />);
+
+        expect(svgOf(container).classList.contains('lucide-cooking-pot')).toBe(true);
+    });
+
     it('is decorative by default: hidden from assistive tech and not focusable', () => {
         const { container } = render(<Icon name="search" />);
 

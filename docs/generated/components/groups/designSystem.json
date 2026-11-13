@@ -763,7 +763,8 @@
                                 "\"bell\"",
                                 "\"menu\"",
                                 "\"list\"",
-                                "\"layoutGrid\""
+                                "\"layoutGrid\"",
+                                "\"cookingPot\""
                             ],
                             "required": false,
                             "defaultValue": null,
@@ -1027,7 +1028,8 @@
                                 "\"bell\"",
                                 "\"menu\"",
                                 "\"list\"",
-                                "\"layoutGrid\""
+                                "\"layoutGrid\"",
+                                "\"cookingPot\""
                             ],
                             "required": false,
                             "defaultValue": null,
@@ -3290,7 +3292,8 @@
                                 "\"bell\"",
                                 "\"menu\"",
                                 "\"list\"",
-                                "\"layoutGrid\""
+                                "\"layoutGrid\"",
+                                "\"cookingPot\""
                             ],
                             "required": true,
                             "defaultValue": null,
@@ -3431,7 +3434,8 @@
                                 "\"bell\"",
                                 "\"menu\"",
                                 "\"list\"",
-                                "\"layoutGrid\""
+                                "\"layoutGrid\"",
+                                "\"cookingPot\""
                             ],
                             "required": true,
                             "defaultValue": null,
@@ -3581,7 +3585,8 @@
                                 "\"bell\"",
                                 "\"menu\"",
                                 "\"list\"",
-                                "\"layoutGrid\""
+                                "\"layoutGrid\"",
+                                "\"cookingPot\""
                             ],
                             "required": true,
                             "defaultValue": null,
@@ -3701,7 +3706,8 @@
                                 "\"bell\"",
                                 "\"menu\"",
                                 "\"list\"",
-                                "\"layoutGrid\""
+                                "\"layoutGrid\"",
+                                "\"cookingPot\""
                             ],
                             "required": true,
                             "defaultValue": null,
@@ -4614,7 +4620,8 @@
                                 "\"bell\"",
                                 "\"menu\"",
                                 "\"list\"",
-                                "\"layoutGrid\""
+                                "\"layoutGrid\"",
+                                "\"cookingPot\""
                             ],
                             "required": true,
                             "defaultValue": null,
@@ -4749,7 +4756,8 @@
                                 "\"bell\"",
                                 "\"menu\"",
                                 "\"list\"",
-                                "\"layoutGrid\""
+                                "\"layoutGrid\"",
+                                "\"cookingPot\""
                             ],
                             "required": true,
                             "defaultValue": null,
@@ -5244,7 +5252,8 @@
                                 "\"bell\"",
                                 "\"menu\"",
                                 "\"list\"",
-                                "\"layoutGrid\""
+                                "\"layoutGrid\"",
+                                "\"cookingPot\""
                             ],
                             "required": true,
                             "defaultValue": null,
@@ -5404,7 +5413,8 @@
                                 "\"bell\"",
                                 "\"menu\"",
                                 "\"list\"",
-                                "\"layoutGrid\""
+                                "\"layoutGrid\"",
+                                "\"cookingPot\""
                             ],
                             "required": true,
                             "defaultValue": null,
@@ -10595,7 +10605,8 @@
                                 "\"bell\"",
                                 "\"menu\"",
                                 "\"list\"",
-                                "\"layoutGrid\""
+                                "\"layoutGrid\"",
+                                "\"cookingPot\""
                             ],
                             "required": true,
                             "defaultValue": null,
@@ -10703,7 +10714,8 @@
                                 "\"bell\"",
                                 "\"menu\"",
                                 "\"list\"",
-                                "\"layoutGrid\""
+                                "\"layoutGrid\"",
+                                "\"cookingPot\""
                             ],
                             "required": true,
                             "defaultValue": null,
@@ -11076,7 +11088,8 @@
                                 "\"bell\"",
                                 "\"menu\"",
                                 "\"list\"",
-                                "\"layoutGrid\""
+                                "\"layoutGrid\"",
+                                "\"cookingPot\""
                             ],
                             "required": true,
                             "defaultValue": null,
@@ -11260,7 +11273,8 @@
                                 "\"bell\"",
                                 "\"menu\"",
                                 "\"list\"",
-                                "\"layoutGrid\""
+                                "\"layoutGrid\"",
+                                "\"cookingPot\""
                             ],
                             "required": true,
                             "defaultValue": null,

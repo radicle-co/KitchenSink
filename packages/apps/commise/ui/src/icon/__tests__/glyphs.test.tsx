@@ -101,6 +101,14 @@ describe('the glyph Registry', () => {
         expect(lucide.filter((specifier) => !specifier?.startsWith('lucide-react-native/icons/'))).toEqual([]);
     });
 
+    // The agreement test above would pass if both platforms drew the same WRONG glyph, for
+    // example `flame`, which already means kcal. This case pins the one meaning to the pot, on each platform.
+    it('draws cookingPot as the Lucide cooking-pot on web and on native, and not as flame', () => {
+        expect(webGlyphName('cookingPot')).toBe('cooking-pot');
+        expect(nativeGlyphNames().get('cookingPot')).toBe('cooking-pot');
+        expect(webGlyphName('cookingPot')).not.toBe(webGlyphName('flame'));
+    });
+
     it('mirrors in right-to-left exactly the glyphs that point left or right', () => {
         // The rule, not a restatement of the set: a chevron points a direction that reverses with the reading order.
         // The clock, the timer and every other glyph keep their drawing (spec §2.2).

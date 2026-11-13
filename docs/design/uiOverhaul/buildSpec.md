@@ -273,21 +273,21 @@ and `sm` hit areas, chips, row ⋯, the hero discs, the Stepper and the tab item
 - **Outline by default.** Filled only on the active tab, always with the label weight and the `hereBar`, never alone.
 - **One glyph list.** No screen picks its own glyph.
 
-| Meaning                              | Lucide name       | Meaning                | Lucide name      |
-| ------------------------------------ | ----------------- | ---------------------- | ---------------- |
-| Home                                 | `house`           | time                   | `clock`          |
-| Recipes                              | `book-open`       | serves                 | `users`          |
-| Discover                             | `compass`         | kcal                   | `flame`          |
-| new                                  | `plus`            | rating                 | `star`           |
-| paste                                | `clipboard-paste` | visibility             | `lock` / `globe` |
-| **every** "more" menu (⋮ is retired) | `ellipsis` (⋯)    | draft, edit            | `pencil-line`    |
-| back (mirrors in RTL)                | `chevron-left`    | step timer (no mirror) | `timer`          |
-| close                                | `x`               | screen on              | `sun`            |
-| search                               | `search`          | check                  | `check`          |
-| save a copy                          | `copy-plus`       | back to top            | `arrow-up`       |
-| delete                               | `trash-2`         | add photo              | `image-plus`     |
-| paste steps                          | `list-plus`       | add a timer            | `timer`          |
-| pull updates                         | `refresh-cw`      |                        |                  |
+| Meaning                              | Lucide name       | Meaning                          | Lucide name      |
+| ------------------------------------ | ----------------- | -------------------------------- | ---------------- |
+| Home                                 | `house`           | time                             | `clock`          |
+| Recipes                              | `book-open`       | serves                           | `users`          |
+| Discover                             | `compass`         | kcal                             | `flame`          |
+| new                                  | `plus`            | rating                           | `star`           |
+| paste                                | `clipboard-paste` | visibility                       | `lock` / `globe` |
+| **every** "more" menu (⋮ is retired) | `ellipsis` (⋯)    | draft, edit                      | `pencil-line`    |
+| back (mirrors in RTL)                | `chevron-left`    | step timer (no mirror)           | `timer`          |
+| close                                | `x`               | screen on                        | `sun`            |
+| search                               | `search`          | check                            | `check`          |
+| save a copy                          | `copy-plus`       | back to top                      | `arrow-up`       |
+| delete                               | `trash-2`         | add photo                        | `image-plus`     |
+| paste steps                          | `list-plus`       | add a timer                      | `timer`          |
+| pull updates                         | `refresh-cw`      | Start cooking / Continue cooking | `cooking-pot`    |
 
 ### 1.8 Imagery: `RecipeCover` and photos
 

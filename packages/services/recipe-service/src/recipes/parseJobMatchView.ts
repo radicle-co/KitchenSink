@@ -69,7 +69,11 @@ function resetsAt(period: string): { readonly reviewResetsAt: string } | Record<
     return end === undefined ? {} : { reviewResetsAt: end };
 }
 
-/** The metric for a curated mapping the gate contradicted on a paste line, under the one resolution namespace. */
+/**
+ * The metric for a curated mapping the review gate contradicted, on a paste line OR a bulk import line, under the one
+ * resolution namespace. One count for both (lead ruling on #220): the name predates the import and is kept, and where a
+ * contradiction was seen is the report's `subject`, written to the warn log beside it, never a dimension.
+ */
 const CURATION_METRIC = 'paste-curated-contradicted';
 
 /**

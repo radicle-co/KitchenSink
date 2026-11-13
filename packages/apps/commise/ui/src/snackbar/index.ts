@@ -7,4 +7,11 @@ export { UndoSnackbar } from './UndoSnackbar.js';
 export { isSnackbarHostMissingError, SnackbarHostMissingError } from './snackbarContext.js';
 export { useSnackbar } from './useSnackbar.js';
 export { DEFAULT_SNACKBAR_MS } from './props.js';
-export type { SnackbarAction, SnackbarApi, SnackbarHostProps, SnackbarInput, UndoSnackbarProps } from './props.js';
+export type {
+    SnackbarAction,
+    SnackbarApi,
+    SnackbarHandle,
+    SnackbarHostProps,
+    SnackbarInput,
+    UndoSnackbarProps,
+} from './props.js';

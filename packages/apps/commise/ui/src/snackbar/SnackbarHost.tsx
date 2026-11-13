@@ -44,7 +44,8 @@ export const SnackbarHost: FC<SnackbarHostProps> = ({ children }) => {
             value={{
                 show: (input) => {
                     setBottom(readInsets().bottom + SNACKBAR_GAP);
-                    queue.show(input);
+
+                    return queue.show(input);
                 },
             }}
         >

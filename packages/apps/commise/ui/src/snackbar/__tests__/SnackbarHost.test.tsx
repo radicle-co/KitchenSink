@@ -1,11 +1,11 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { useContext, type JSX } from 'react';
+import { useContext, useState, type JSX } from 'react';
 
 import { PopupInsetsContext } from '../../popupInsets/popupInsetsContext.js';
 import { SnackbarClearanceContext } from '../snackbarClearanceContext.js';
 import { SnackbarHost } from '../SnackbarHost.js';
-import type { SnackbarInput } from '../props.js';
+import type { SnackbarHandle, SnackbarInput } from '../props.js';
 import { useSnackbar } from '../useSnackbar.js';
 
 /**
@@ -47,7 +47,45 @@ const advance = (ms: number): void => {
 
 const statusText = (): string => screen.getByRole('status').textContent ?? '';
 
+/** A screen whose button shows a snackbar and whose second button dismisses it through the handle `show` returned. */
+function DismissingScreen({ input }: { readonly input: SnackbarInput }): JSX.Element {
+    const { show } = useSnackbar();
+    const [handle, setHandle] = useState<SnackbarHandle | undefined>(undefined);
+
+    return (
+        <>
+            <button type="button" onClick={() => setHandle(show(input))}>
+                {`show ${input.message}`}
+            </button>
+            <button type="button" onClick={() => handle?.dismiss()}>
+                dismiss
+            </button>
+        </>
+    );
+}
+
 describe('SnackbarHost (web)', () => {
+    it('settles a dismissed snackbar: its onTimeout runs once and the snackbar goes', () => {
+        const onTimeout = vi.fn();
+        render(
+            <SnackbarHost>
+                <DismissingScreen input={{ message: 'Ticks cleared', onTimeout }} />
+            </SnackbarHost>,
+        );
+
+        showFrom('Ticks cleared');
+        advance(1000);
+        fireEvent.click(screen.getByRole('button', { name: 'dismiss' }));
+
+        // At once, long before its own six seconds are up.
+        expect(onTimeout).toHaveBeenCalledOnce();
+        expect(statusText()).toBe('');
+
+        advance(60_000);
+
+        expect(onTimeout).toHaveBeenCalledOnce();
+    });
+
     it('refuses a screen that asks for a snackbar outside a host', () => {
         expect(() => render(<Screen input={{ message: 'x' }} />)).toThrow(/SnackbarHost/u);
     });

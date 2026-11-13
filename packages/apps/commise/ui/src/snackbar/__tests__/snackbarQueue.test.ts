@@ -8,7 +8,7 @@ import { INITIAL_SNACKBAR_STATE, msUntilExpiry, snackbarReducer, type SnackbarSt
  * dispatches and runs what the reducer has settled.
  */
 const show = (state: SnackbarState, message: string, now: number, extra: object = {}): SnackbarState =>
-    snackbarReducer(state, { type: 'show', input: { message, ...extra }, now });
+    snackbarReducer(state, { type: 'show', input: { message, ...extra }, shown: Symbol(message), now });
 
 describe('snackbarReducer', () => {
     it('shows a snackbar, running from now for its default duration', () => {
@@ -75,6 +75,42 @@ describe('snackbarReducer', () => {
 
         expect(snackbarReducer(paused, { type: 'pause', id, now: 4000 })).toBe(paused);
         expect(snackbarReducer(state, { type: 'resume', id, now: 4000 })).toBe(state);
+    });
+
+    it('settles a dismissed snackbar, so its onTimeout still runs', () => {
+        const input = { message: 'Ticks cleared' };
+        const shown = Symbol('shown');
+        const state = snackbarReducer(INITIAL_SNACKBAR_STATE, { type: 'show', input, shown, now: 0 });
+        const dismissed = snackbarReducer(state, { type: 'dismiss', shown });
+
+        expect(dismissed.current).toBeNull();
+        expect(dismissed.settled.map((entry) => entry.input)).toStrictEqual([input]);
+    });
+
+    it('ignores a dismiss for a snackbar that a newer one already replaced', () => {
+        const first = Symbol('first');
+        const replaced = snackbarReducer(
+            snackbarReducer(INITIAL_SNACKBAR_STATE, {
+                type: 'show',
+                input: { message: 'Ticks cleared' },
+                shown: first,
+                now: 0,
+            }),
+            { type: 'show', input: { message: 'Removed Pasta' }, shown: Symbol('second'), now: 10 },
+        );
+
+        expect(snackbarReducer(replaced, { type: 'dismiss', shown: first })).toBe(replaced);
+    });
+
+    it('ignores the first showing’s dismiss when the same input is shown again', () => {
+        const input = { message: 'Ticks cleared' };
+        const first = Symbol('first');
+        const again = snackbarReducer(
+            snackbarReducer(INITIAL_SNACKBAR_STATE, { type: 'show', input, shown: first, now: 0 }),
+            { type: 'show', input, shown: Symbol('again'), now: 10 },
+        );
+
+        expect(snackbarReducer(again, { type: 'dismiss', shown: first })).toBe(again);
     });
 
     it('lets the host forget the commits it has run', () => {

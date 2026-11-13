@@ -34,10 +34,20 @@ export interface SnackbarInput {
     readonly durationMs?: number;
 }
 
+/** The snackbar a screen showed, to take it down early. */
+export interface SnackbarHandle {
+    /**
+     * Take the snackbar down now. This settles the entry and runs `onTimeout`; it never cancels. A screen whose
+     * `onTimeout` does the work (a removal sent only when Undo's time is up) has that work done at once. It does nothing
+     * once the snackbar has gone, or once a newer one has replaced it.
+     */
+    readonly dismiss: () => void;
+}
+
 /** What `useSnackbar` hands a screen. */
 export interface SnackbarApi {
     /** Show a snackbar, committing the one it replaces. */
-    readonly show: (input: SnackbarInput) => void;
+    readonly show: (input: SnackbarInput) => SnackbarHandle;
 }
 
 /** The cross-platform `SnackbarHost` contract. */

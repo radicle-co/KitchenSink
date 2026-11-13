@@ -197,6 +197,18 @@ describe('importSaveGapOf: the first thing the save still needs, or the facts th
         expect(gap({ prepTimeMinutes: null, cookTimeMinutes: null })).toBe('times');
     });
 
+    // Re-review of #220: prep plus cook is the total the INSERT writes when the file states none, and the column is int4.
+    // A sum past the ceiling failed the INSERT ("integer out of range"), which no rule named, so the item was retried forever.
+    it('⛔ needs times when prep plus cook passes the ceiling the total can hold, and not when the file states the total', () => {
+        expect(gap({ prepTimeMinutes: 2_000_000_000, cookTimeMinutes: 2_000_000_000, totalTimeMinutes: null })).toBe(
+            'times',
+        );
+        expect(gap({ prepTimeMinutes: 2_147_483_000, cookTimeMinutes: 647, totalTimeMinutes: null })).toBeNull();
+        expect(
+            gap({ prepTimeMinutes: 2_000_000_000, cookTimeMinutes: 2_000_000_000, totalTimeMinutes: 30 }),
+        ).toBeNull();
+    });
+
     it('⛔ holds on an ABSENT value and never on 0: zero minutes and a zero-prep recipe are stated facts', () => {
         expect(gap({ prepTimeMinutes: 0, cookTimeMinutes: 0 })).toBeNull();
     });

@@ -13,7 +13,7 @@
  * is on every other route (ADR-0089). The step, the save and the item list all read the facts through
  * {@link importSaveFactsOf}, so what the wizard shows is what the save sends.
  */
-import { RecipeStatus, recipeCuisineSchema, type PublishRequirement } from '@kitchensink/recipe-core';
+import { INT4_CEILING, RecipeStatus, recipeCuisineSchema, type PublishRequirement } from '@kitchensink/recipe-core';
 import { z } from 'zod';
 
 import { evaluatePublication } from '../../recipes/domain/publishPolicy.js';
@@ -180,15 +180,15 @@ export function importSaveGapOf(facts: ImportSaveFacts): ImportSaveReading {
         return { gap: 'times' };
     }
 
-    return {
-        saveable: {
-            cuisine,
-            servings,
-            prepTimeMinutes,
-            cookTimeMinutes,
-            totalTimeMinutes: facts.totalTimeMinutes ?? prepTimeMinutes + cookTimeMinutes,
-        },
-    };
+    const totalTimeMinutes = facts.totalTimeMinutes ?? prepTimeMinutes + cookTimeMinutes;
+
+    // The total is an int4 column with the create route's ceiling. Each half within it does not keep their SUM within it,
+    // and an INSERT past it fails with no rule naming why: the cook is asked for times instead.
+    if (totalTimeMinutes > INT4_CEILING) {
+        return { gap: 'times' };
+    }
+
+    return { saveable: { cuisine, servings, prepTimeMinutes, cookTimeMinutes, totalTimeMinutes } };
 }
 
 /**

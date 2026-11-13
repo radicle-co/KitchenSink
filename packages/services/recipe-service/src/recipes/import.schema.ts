@@ -56,6 +56,7 @@ import {
     recipeIngredientNoteSchema,
     recipeStepInstructionSchema,
     recipeVisibilitySchema,
+    INT4_CEILING,
     MAX_PARSE_JOB_LINES,
     PARSE_JOB_LINE_MAX_CHARS,
     SOURCE_LINK_MAX_LENGTH,
@@ -452,6 +453,19 @@ const saysSomething = (body: {
 const SAYS_NOTHING = 'send a statement, a visibility, a cuisine, servings, a time, or several';
 
 /**
+ * Whether the prep and cook minutes a body gives fit together in the total the save sends (their sum, when the file states
+ * no total): an int4 column with the create route's ceiling, `INT4_CEILING`. A body that gives one of them only is judged by
+ * the save, which holds the item under "Needs times" when the sum with the file's half would not fit.
+ */
+const timesFitTheTotal = (body: { prepTimeMinutes?: number; cookTimeMinutes?: number }): boolean =>
+    body.prepTimeMinutes === undefined ||
+    body.cookTimeMinutes === undefined ||
+    body.prepTimeMinutes + body.cookTimeMinutes <= INT4_CEILING;
+
+/** The message of a body whose prep and cook minutes overflow the total. */
+const TIMES_OVERFLOW = 'prep and cook minutes together pass the most a recipe total can hold';
+
+/**
  * Body of `POST /api/v1/import/{importId}/items/{ordinal}`: the cook's choices on one item — what they say about the
  * recipe, whether it is public or private, and its cuisine. At least one; `visibility: null` clears the recipe's own choice
  * so it follows the import again.
@@ -468,7 +482,8 @@ export const recordImportChoicesRequestSchema = z
         cuisine: recipeCuisineSchema.optional(),
         ...cookFactsShape,
     })
-    .refine(saysSomething, { message: SAYS_NOTHING });
+    .refine(saysSomething, { message: SAYS_NOTHING })
+    .refine(timesFitTheTotal, { message: TIMES_OVERFLOW });
 
 /** Body of `POST …/items/{ordinal}`. */
 export type RecordImportChoicesRequest = z.infer<typeof recordImportChoicesRequestSchema>;
@@ -489,7 +504,8 @@ export const recordImportChoicesBatchRequestSchema = z.strictObject({
                     cuisine: recipeCuisineSchema.optional(),
                     ...cookFactsShape,
                 })
-                .refine(saysSomething, { message: SAYS_NOTHING }),
+                .refine(saysSomething, { message: SAYS_NOTHING })
+                .refine(timesFitTheTotal, { message: TIMES_OVERFLOW }),
         )
         .min(1)
         .max(MAX_IMPORT_CHOICES_PER_REQUEST)

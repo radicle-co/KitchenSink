@@ -382,6 +382,25 @@ describe('⛔ the servings and times a recipe needs to be saved (ADR-0072 §3 as
         );
     });
 
+    // Re-review of #220: the save sends prep plus cook as the total when the file states none, and the column is int4. Each
+    // half within the ceiling is not enough: their sum is what the INSERT writes.
+    it('⛔ refuses prep and cook whose sum the total could not hold, and accepts a sum AT the ceiling', () => {
+        const half = 2_000_000_000;
+
+        expect(
+            recordImportChoicesRequestSchema.safeParse({ prepTimeMinutes: half, cookTimeMinutes: half }).success,
+        ).toBe(false);
+        expect(
+            recordImportChoicesBatchRequestSchema.safeParse({
+                items: [{ ordinal: 0, prepTimeMinutes: half, cookTimeMinutes: half }],
+            }).success,
+        ).toBe(false);
+        expect(
+            recordImportChoicesRequestSchema.safeParse({ prepTimeMinutes: 2_147_483_000, cookTimeMinutes: 647 })
+                .success,
+        ).toBe(true);
+    });
+
     it("the bounds are the create route's own, value for value (picked, not copied)", () => {
         const probes = [-1, 0, 1, 2, 99, 100, 1_000, 10_000, 100_000, 2_147_483_647, 2_147_483_648];
 

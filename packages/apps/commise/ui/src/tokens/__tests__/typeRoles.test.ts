@@ -35,6 +35,7 @@ describe('typeRole — the §1.5 table', () => {
             cardTitle: { face: 'body', size: 16, weight: 'semibold', lineHeight: 20 },
             body: { face: 'body', size: 16, weight: 'normal', lineHeight: 24 },
             readingBody: { face: 'body', size: 18, weight: 'normal', lineHeight: 28 },
+            readingLarge: { face: 'body', size: 28, weight: 'normal', lineHeight: 32 },
             meta: { face: 'body', size: 14, weight: 'normal', lineHeight: 20 },
             list: { face: 'body', size: 14, weight: 'normal', lineHeight: 20 },
             label: { face: 'body', size: 14, weight: 'semibold', lineHeight: 20 },
@@ -84,6 +85,15 @@ describe('webTypeRoles — the --text-{role} projection', () => {
         });
     });
 
+    // The regular-weight reading role at the largest size, for the cooking focus line. It is not a heading.
+    it('emits the reading-large role at 28 px (1.75rem), leading 32 px, weight 400', () => {
+        expect(webTypeRoles['reading-large']).toEqual({
+            size: '1.75rem',
+            lineHeight: 'calc(32 / 28)',
+            fontWeight: '400',
+        });
+    });
+
     it('emits the list role at 14 px (0.875rem), leading 20 px, weight 400', () => {
         expect(webTypeRoles.list).toEqual({ size: '0.875rem', lineHeight: 'calc(20 / 14)', fontWeight: '400' });
     });
@@ -124,6 +134,7 @@ describe('webTypeRoles — the --text-{role} projection', () => {
                 'card-title',
                 'body',
                 'reading-body',
+                'reading-large',
                 'meta',
                 'list',
                 'label',
@@ -176,6 +187,14 @@ describe('nativeTokens.type — a face per weight, a pixel leading', () => {
     // REWRITTEN for the px model (2026-10-25): the leading is 20 px as stated, no longer 14 x 1.4 = 19.6.
     it('sets the list role in the regular body face at 14, with a 20 px leading', () => {
         expect(nativeTokens.type.list).toEqual({ fontFamily: bodyFontFace.normal, fontSize: 14, lineHeight: 20 });
+    });
+
+    it('sets the reading-large role in the regular body face at 28, with a 32 px leading', () => {
+        expect(nativeTokens.type.readingLarge).toEqual({
+            fontFamily: bodyFontFace.normal,
+            fontSize: 28,
+            lineHeight: 32,
+        });
     });
 
     it('gives the large title one size per container class', () => {

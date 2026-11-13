@@ -20,6 +20,7 @@ const CEILING = {
     cardTitle: 2,
     body: 2,
     readingBody: 2,
+    readingLarge: 2,
     meta: 2,
     list: 2,
     label: 2,
@@ -63,6 +64,13 @@ describe('scaledTypeMetrics', () => {
 
     it('gives an inline figure nothing, so it keeps the size and leading of its line', () => {
         expect(scaledTypeMetrics('figureInline', 3.1)).toEqual({});
+    });
+
+    // readingLarge is reading text, so it takes the 2x cap, not a title's 1.5x. 2x and 3x
+    // are the assertions: at 1.5x alone the two rulings cannot be told apart.
+    it('draws readingLarge at 56 on a 64 px leading at 2x, and stops there at 3x', () => {
+        expect(scaledTypeMetrics('readingLarge', 2)).toEqual({ fontSize: 56, lineHeight: '64px' });
+        expect(scaledTypeMetrics('readingLarge', 3)).toEqual({ fontSize: 56, lineHeight: '64px' });
     });
 
     it('draws body at 32 on a 48 px leading, and largeTitle at 1.5×, above every cap', () => {

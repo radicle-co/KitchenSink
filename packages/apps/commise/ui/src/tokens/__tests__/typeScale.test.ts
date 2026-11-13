@@ -22,6 +22,7 @@ const ROLE_NAMES = [
     'cardTitle',
     'body',
     'readingBody',
+    'readingLarge',
     'meta',
     'list',
     'label',
@@ -60,7 +61,7 @@ describe('TYPE_SIZES — the owner’s ruling', () => {
 });
 
 describe('typeRole — sizes and line heights', () => {
-    it('names exactly the twelve roles, with no overline', () => {
+    it('names exactly the thirteen roles, with no overline', () => {
         expect(Object.keys(typeRole).sort()).toEqual([...ROLE_NAMES].sort());
         expect(typeRole).not.toHaveProperty('overline');
     });

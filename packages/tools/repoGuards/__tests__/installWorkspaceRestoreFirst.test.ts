@@ -129,6 +129,10 @@ describe('the root workspace is restored, not reinstalled, on the deploy path', 
             'a CDK-shaped path with no committed lockfile',
             { run: 'npm ci --prefix packages/services/noLockfileYet/infra' },
         ],
+        // A loop over a command substitution or an array resolves to no directory, so it exempts nothing (decision
+        // 0205). The X2 follow-up gives such a target its own "unknown" state and changes these rows on purpose.
+        ['a loop over $(...)', { run: 'for d in $(ls -d packages/*/infra); do npm ci --prefix "$d"; done' }],
+        ['a loop over an array', { run: 'for d in "${apps[@]}"; do npm ci --prefix "$d"; done' }],
     ])('refuses %s as a root install', (_label, step) => {
         expect(rootNpmCi(step)).toBe(true);
     });

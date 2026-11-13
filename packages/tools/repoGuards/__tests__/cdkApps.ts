@@ -487,6 +487,8 @@ export interface InstallStep {
 export interface StepCommand {
     readonly text: string;
     readonly inDirectories: boolean;
+    /** The package directories the command runs in, as far as the step states them; empty when it does not. */
+    readonly targets: readonly string[];
 }
 
 /**
@@ -522,6 +524,27 @@ export function actionInputValues(): ReadonlyMap<string, ReadonlyMap<string, rea
     return values;
 }
 
+/** One `for <variable> in <list>` header of a shell script. */
+export interface LoopHeader {
+    readonly variable: string;
+    /** The words after `in`, as written, without the blanks around them. */
+    readonly list: string;
+}
+
+/**
+ * Every `for <variable> in <list>` header in a script, ended by `;` or a new line before `do`.
+ *
+ * @param run - The script.
+ * @returns The headers, in order. Pure.
+ */
+export function loopHeaders(run: string): readonly LoopHeader[] {
+    // Every part is disjoint from its neighbours (a word is never a blank), so a header with no terminator fails in
+    // linear time: CodeQL js/polynomial-redos flagged the earlier `\s+([^;\n]+?)\s*;`, where blanks fit three parts.
+    return [...run.matchAll(/\bfor[ \t]+(\w+)[ \t]+in((?:[ \t]+[^;\s]+)+)[ \t]*[;\n]\s*do\b/gu)].map(
+        ([, variable, list]) => ({ variable: variable ?? '', list: (list ?? '').trim() }),
+    );
+}
+
 /**
  * Split a step into its shell commands, and say for each whether it runs in one of `directories`.
  *
@@ -546,37 +569,41 @@ export function commandsOf(
     const run = withoutComments(step.run ?? '');
     const loops = new Map<string, readonly string[]>();
 
-    for (const [, variable, globs] of run.matchAll(/\bfor\s+(\w+)\s+in\s+([^;\n]+?)\s*;\s*do\b/gu)) {
+    for (const { variable, list } of loopHeaders(run)) {
         loops.set(
-            variable ?? '',
-            (globs ?? '')
+            variable,
+            list
                 .split(/\s+/u)
+                .map((pattern) => pattern.replace(/^"(.*)"$/u, '$1'))
                 .filter((pattern) => pattern !== '')
                 .flatMap((pattern) => globSync(pattern, { cwd: repoRoot })),
         );
     }
 
-    const inSet = (target: string): boolean => {
+    // A loop variable reaches the package directories its globs match; a literal path is normalised (`./a/` is `a`).
+    const resolve = (target: string): readonly string[] => {
         const variable = /^\$\{?(\w+)\}?$/u.exec(target)?.[1];
 
-        if (variable !== undefined) {
-            const reached = (loops.get(variable) ?? []).filter((match) =>
-                existsSync(path.join(repoRoot, match, 'package.json')),
-            );
+        return variable === undefined
+            ? [path.posix.normalize(target).replace(/^\.\//u, '').replace(/\/$/u, '')]
+            : (loops.get(variable) ?? []).filter((match) => existsSync(path.join(repoRoot, match, 'package.json')));
+    };
 
-            return reached.length > 0 && reached.every((match) => directories.has(match));
-        }
+    const inSet = (target: string): boolean => {
+        const reached = resolve(target);
 
-        return directories.has(target.replace(/\/$/u, ''));
+        return reached.length > 0 && reached.every((match) => directories.has(match));
     };
 
     const declared = step['working-directory'];
     const input = declared === undefined ? undefined : /^\$\{\{\s*inputs\.([\w-]+)\s*\}\}$/u.exec(declared)?.[1];
     const passed = input === undefined ? [] : (inputs.get(input) ?? []);
     let here = false;
+    let hereTargets: readonly string[] = [];
 
     if (declared !== undefined) {
         here = input === undefined ? inSet(declared) : passed.length > 0 && passed.every((value) => inSet(value));
+        hereTargets = input === undefined ? resolve(declared) : passed.flatMap(resolve);
     }
 
     return run
@@ -588,10 +615,13 @@ export function commandsOf(
 
             if (cd !== undefined) {
                 here = inSet(cd);
+                hereTargets = resolve(cd);
             }
 
             const prefix = /--prefix\s+"?([^"\s]+)"?/u.exec(text)?.[1];
 
-            return { text, inDirectories: prefix === undefined ? here : inSet(prefix) };
+            return prefix === undefined
+                ? { text, inDirectories: here, targets: hereTargets }
+                : { text, inDirectories: inSet(prefix), targets: resolve(prefix) };
         });
 }

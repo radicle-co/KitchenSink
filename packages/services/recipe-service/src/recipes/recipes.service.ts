@@ -1308,6 +1308,8 @@ export class RecipesService {
             throw sourceNotUsable('The source link is not a public web page address.');
         }
 
+        // A stated source sets Private in this same write (ADR-0089): every judgement below reads the visibility it leaves.
+        const forcesPrivate = correction.kind === 'apply' && correction.makePrivate;
         const sourceAfter =
             correction.kind === 'apply'
                 ? { sourceType: correction.provenance.sourceType, sourceKind: correction.provenance.sourceKind }
@@ -1355,10 +1357,7 @@ export class RecipesService {
         // Private in this same write (ADR-0089). The transaction's last statement re-checks the row it actually wrote.
         const publicState = {
             status: dto.status ?? recipeStatusSchema.parse(existing.recipe.status),
-            visibility:
-                correction.kind === 'apply' && correction.makePrivate
-                    ? RecipeVisibility.PRIVATE
-                    : existing.recipe.visibility,
+            visibility: forcesPrivate ? RecipeVisibility.PRIVATE : existing.recipe.visibility,
         };
         const nowPublicFoods = await this.publicFoodsGuard(
             caller,
@@ -1428,10 +1427,7 @@ export class RecipesService {
 
                 // A statement that makes a public draft private (ADR-0089) lands in the SAME write, so a draft published in it
                 // is a private recipe from the first instant and is judged as one.
-                const visibilityAfter =
-                    correction.kind === 'apply' && correction.makePrivate
-                        ? RecipeVisibility.PRIVATE
-                        : current.visibility;
+                const visibilityAfter = forcesPrivate ? RecipeVisibility.PRIVATE : current.visibility;
 
                 // The state this write leaves, judged on the visibility read UNDER the lock (ADR-0089): a private-only recipe
                 // is never published and public, even if a race left its draft public.
@@ -1503,7 +1499,7 @@ export class RecipesService {
                     ...(correction.kind === 'apply'
                         ? {
                               provenance: correction.provenance,
-                              ...(correction.makePrivate ? { visibility: RecipeVisibility.PRIVATE } : {}),
+                              ...(forcesPrivate ? { visibility: RecipeVisibility.PRIVATE } : {}),
                           }
                         : {}),
                     tags: dto.tags,

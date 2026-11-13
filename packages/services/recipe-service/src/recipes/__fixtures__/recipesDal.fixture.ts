@@ -24,7 +24,7 @@ import type { RecipeTx } from '../../database/unitOfWork.js';
  * @returns The stub, cast to the DAL type.
  */
 export function fakeRecipesDal(overrides: Partial<RecipesDal> = {}): RecipesDal {
-    const findById = overrides.findById ?? vi.fn();
+    const findById = overrides.findById ?? vi.fn<RecipesDal['findById']>();
     const dal = {
         create: vi.fn(),
         findById,

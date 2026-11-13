@@ -283,7 +283,7 @@ describe('RecipesService.setVisibility - private slots (ADR-0073)', () => {
         const setVisibility = vi.fn().mockResolvedValue(aggregate({ visibility: 'private', sourceType }));
         const lockAndCountPrivateSlots = vi.fn(async () => used);
         const lockSlotFacts = vi.fn(async (): Promise<LockedRecipeFacts | undefined> => ({
-            visibility: currentVisibility as RecipeVisibility,
+            visibility: currentVisibility,
             status,
             sourceType,
             sourceKind: null,

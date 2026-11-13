@@ -121,7 +121,7 @@ describe('stepWalk — Back keeps the ticks the cook left', () => {
 
         session = advance(session, steps.length);
         const ticks = tickLine(createLineTicks(), { stepIndex: 1, lineIndex: 0 }, steps);
-        session = goBack(advance(session, steps.length));
+        session = goBack(advance(session, steps.length), steps.length);
 
         expect(session.currentStepIndex).toBe(1);
         expect(focusLineIndex(ticks, 1, steps)).toBe(1);
@@ -141,7 +141,7 @@ describe('stepWalk — a blank step is not a step for the cook', () => {
         expect(steps[session.currentStepIndex]?.stepNumber).toBe(3);
         expect(stepPlace(session.currentStepIndex, total)).toMatchObject({ position: 2, total: 3 });
 
-        session = goBack(session);
+        session = goBack(session, total);
         expect(steps[session.currentStepIndex]?.stepNumber).toBe(1);
 
         session = advance(advance(advance(session, total), total), total);

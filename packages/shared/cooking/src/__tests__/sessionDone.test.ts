@@ -54,7 +54,7 @@ describe('session — Done is reached only from the last step', () => {
                         lastRecorded ||= session.currentStepIndex === total - 1;
                         session = advance(session, total);
                     } else {
-                        session = goBack(session);
+                        session = goBack(session, total);
                     }
 
                     if (sessionStatus(session, total) === 'complete') {

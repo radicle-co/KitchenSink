@@ -1,4 +1,4 @@
-import { InvalidTotalStepsError } from './errors.js';
+import { InvalidStepIndexError, InvalidTotalStepsError } from './errors.js';
 import type { CookingSession } from './types.js';
 
 /**
@@ -8,9 +8,8 @@ import type { CookingSession } from './types.js';
  *
  * Every transition takes a {@link CookingSession} and returns a **new** one, never mutating its input. The session
  * carries no `totalSteps` of its own: the step count belongs to the recipe, so callers pass the current count into
- * every transition that needs a boundary. That is also why the transitions repair rather than trust
- * `currentStepIndex`: a session held against a recipe that has since lost steps must land inside the new range
- * instead of rendering an out-of-range step.
+ * every transition. Each one rejects a `currentStepIndex` outside that count, as `stepPlace` and the line ticks do:
+ * nothing stores a session, so a bad index is a caller bug, and repairing it would record a step never cooked.
  *
  * Unchanged arrays are shared with the input session (structural sharing). Treat every session as immutable.
  */
@@ -46,20 +45,16 @@ function assertTotalSteps(totalSteps: number): void {
 }
 
 /**
- * Forces a possibly untrusted step index into the recipe's current range.
+ * Guards the session's step index against the recipe's current count.
  *
- * @param index - The index to repair.
- * @param lastIndex - The highest index the current recipe has.
- * @returns An integer in `[0, lastIndex]`.
+ * @param index - The session's `currentStepIndex`.
+ * @param totalSteps - The recipe's current step count, already checked.
+ * @throws {InvalidStepIndexError} When `index` is not an integer in `[0, totalSteps - 1]`.
  */
-function clampIndex(index: number, lastIndex: number): number {
-    // A non-finite index cannot be clamped by comparison (`Math.max(NaN, 0)` is NaN), so it falls
-    // back to the first step — the same place a fresh session starts.
-    if (!Number.isFinite(index)) {
-        return 0;
+function assertStepIndex(index: number, totalSteps: number): void {
+    if (!Number.isInteger(index) || index < 0 || index >= totalSteps) {
+        throw new InvalidStepIndexError(index, totalSteps);
     }
-
-    return Math.min(Math.max(Math.trunc(index), 0), lastIndex);
 }
 
 /**
@@ -83,8 +78,8 @@ function withStepRecorded(completedSteps: readonly number[], stepIndex: number):
  * @returns `true` when each index in `[0, totalSteps - 1]` is present.
  */
 function isEveryStepCompleted(completedSteps: readonly number[], totalSteps: number): boolean {
-    // Membership of every required index, rather than a count: a session held against a recipe that
-    // gained or lost steps can hold ghost indices, and counting them would report a half-cooked recipe
+    // Membership of every required index, rather than a count: a caller passing a smaller count than
+    // the session walked would leave ghost indices, and counting them would report a half-cooked recipe
     // as finished.
     return Array.from({ length: totalSteps }, (_unused, index) => index).every((index) =>
         completedSteps.includes(index),
@@ -121,17 +116,16 @@ export function createSession(input: CreateSessionInput): CookingSession {
  * @param totalSteps - The recipe's current step count.
  * @returns A new session at the next step.
  * @throws {InvalidTotalStepsError} When `totalSteps` is not a positive integer.
+ * @throws {InvalidStepIndexError} When the session's step is not one of the recipe's.
  */
 export function advance(session: CookingSession, totalSteps: number): CookingSession {
     assertTotalSteps(totalSteps);
-
-    const lastIndex = totalSteps - 1;
-    const departingIndex = clampIndex(session.currentStepIndex, lastIndex);
+    assertStepIndex(session.currentStepIndex, totalSteps);
 
     return {
         ...session,
-        currentStepIndex: Math.min(departingIndex + 1, lastIndex),
-        completedSteps: withStepRecorded(session.completedSteps, departingIndex),
+        currentStepIndex: Math.min(session.currentStepIndex + 1, totalSteps - 1),
+        completedSteps: withStepRecorded(session.completedSteps, session.currentStepIndex),
     };
 }
 
@@ -142,16 +136,18 @@ export function advance(session: CookingSession, totalSteps: number): CookingSes
  * losing their place", so going back reveals progress rather than undoing it.
  *
  * @param session - The current session.
+ * @param totalSteps - The recipe's current step count.
  * @returns A new session one step earlier, or at step 0 when already there.
+ * @throws {InvalidTotalStepsError} When `totalSteps` is not a positive integer.
+ * @throws {InvalidStepIndexError} When the session's step is not one of the recipe's.
  */
-export function goBack(session: CookingSession): CookingSession {
-    // No `totalSteps` is needed — moving backwards can only approach 0 — but a corrupt negative or
-    // non-finite index is still repaired, because `Math.max(NaN - 1, 0)` would otherwise be NaN.
-    const currentIndex = Number.isFinite(session.currentStepIndex) ? Math.trunc(session.currentStepIndex) : 0;
+export function goBack(session: CookingSession, totalSteps: number): CookingSession {
+    assertTotalSteps(totalSteps);
+    assertStepIndex(session.currentStepIndex, totalSteps);
 
     return {
         ...session,
-        currentStepIndex: Math.max(currentIndex - 1, 0),
+        currentStepIndex: Math.max(session.currentStepIndex - 1, 0),
     };
 }
 
@@ -162,9 +158,11 @@ export function goBack(session: CookingSession): CookingSession {
  * @param totalSteps - The recipe's current step count.
  * @returns The current {@link SessionStatus}.
  * @throws {InvalidTotalStepsError} When `totalSteps` is not a positive integer.
+ * @throws {InvalidStepIndexError} When the session's step is not one of the recipe's.
  */
 export function sessionStatus(session: CookingSession, totalSteps: number): SessionStatus {
     assertTotalSteps(totalSteps);
+    assertStepIndex(session.currentStepIndex, totalSteps);
 
     if (isEveryStepCompleted(session.completedSteps, totalSteps)) {
         return 'complete';

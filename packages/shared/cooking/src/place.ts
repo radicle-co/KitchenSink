@@ -59,7 +59,7 @@ export function stepPlace(stepIndex: number, totalSteps: number): StepPlace {
 export function linePlace(lineIndex: number, step: CookingStep): LinePlace | null {
     const lineCount = step.lines.length;
 
-    if (lineCount <= 1) {
+    if (lineCount === 0) {
         return null;
     }
 
@@ -67,5 +67,5 @@ export function linePlace(lineIndex: number, step: CookingStep): LinePlace | nul
         throw new InvalidLineIndexError(lineIndex, lineCount);
     }
 
-    return { position: lineIndex + 1, total: lineCount };
+    return lineCount === 1 ? null : { position: lineIndex + 1, total: lineCount };
 }

@@ -57,6 +57,10 @@ describe('linePlace', () => {
         expect(linePlace(2, stepWith(3))).toEqual({ position: 3, total: 3 });
     });
 
+    it.each([1, -1, 0.5, Number.NaN])('rejects line index %s of a one-line step', (index) => {
+        expect(() => linePlace(index, stepWith(1))).toThrow(expect.toSatisfy(isInvalidLineIndexError));
+    });
+
     it('gives the second of two lines', () => {
         expect(linePlace(1, stepWith(2))).toEqual({ position: 2, total: 2 });
     });

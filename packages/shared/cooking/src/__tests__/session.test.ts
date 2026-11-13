@@ -126,7 +126,7 @@ describe('session — advance moves forward and records the departed step', () =
     });
 });
 
-describe('session — advance clamps at the last step', () => {
+describe('session — advance stops at the last step', () => {
     it('never produces an out-of-range index', () => {
         const atLast = advance(advance(makeFrozenSession(), 3), 3);
 
@@ -156,60 +156,59 @@ describe('session — advance clamps at the last step', () => {
         expect(finished.currentStepIndex).toBe(0);
         expect(finished.completedSteps).toStrictEqual([0]);
     });
+});
 
-    it('clamps a restored index that the recipe no longer contains', () => {
-        // The recipe shrank while the session was persisted; the index must land inside the new
-        // range instead of walking further off the end.
-        const stale = makeFrozenSession({ currentStepIndex: 7 });
+/**
+ * Every transition rejects a step index the recipe does not have, as `stepPlace` and the line ticks do. Nothing in
+ * this release stores a session, so an index outside the recipe is a caller bug, and repairing it would record a step
+ * the cook never cooked.
+ */
+describe('session — a step index the recipe does not have is rejected', () => {
+    it.each([7, 3, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY])(
+        'advance, goBack and sessionStatus reject index %s of three, naming the index and the count',
+        (index) => {
+            const session = makeFrozenSession({ currentStepIndex: index });
+            const named = expect.toSatisfy(
+                (error) => isInvalidStepIndexError(error) && Object.is(error.index, index) && error.totalSteps === 3,
+            );
 
-        const advanced = advance(stale, 3);
+            expect(() => advance(session, 3)).toThrow(named);
+            expect(() => goBack(session, 3)).toThrow(named);
+            expect(() => sessionStatus(session, 3)).toThrow(named);
+        },
+    );
 
-        expect(advanced.currentStepIndex).toBe(2);
-        expect(advanced.completedSteps).toStrictEqual([2]);
+    it('goBack rejects an unusable step count', () => {
+        expect(() => goBack(makeFrozenSession(), 0)).toThrow(expect.toSatisfy(isInvalidTotalStepsError));
     });
 });
 
-describe('session — advance repairs a non-finite index', () => {
-    it.each([Number.NaN, Number.POSITIVE_INFINITY])('treats index %s as the first step', (index) => {
-        const advanced = advance(makeFrozenSession({ currentStepIndex: index }), 3);
-
-        expect(advanced.currentStepIndex).toBe(1);
-        expect(advanced.completedSteps).toStrictEqual([0]);
-    });
-});
-
-describe('session — goBack clamps at the first step', () => {
+describe('session — goBack stops at the first step', () => {
     it('steps back one position', () => {
         const atSecond = advance(makeFrozenSession(), 3);
 
-        expect(goBack(atSecond).currentStepIndex).toBe(0);
+        expect(goBack(atSecond, 3).currentStepIndex).toBe(0);
     });
 
     it('is a no-op at step 0 and keeps the session intact', () => {
         const session = makeFrozenSession();
 
-        expect(goBack(session)).toStrictEqual(session);
+        expect(goBack(session, 3)).toStrictEqual(session);
     });
 
     it('never loses the place — completed steps survive going back (FR-033)', () => {
         const atLast = advance(advance(makeFrozenSession(), 3), 3);
 
-        const back = goBack(atLast);
+        const back = goBack(atLast, 3);
 
         expect(back.currentStepIndex).toBe(1);
         expect(back.completedSteps).toStrictEqual([0, 1]);
-    });
-
-    it('repairs a corrupt negative index rather than propagating it', () => {
-        const corrupt = makeFrozenSession({ currentStepIndex: -4 });
-
-        expect(goBack(corrupt).currentStepIndex).toBe(0);
     });
 });
 
 describe('session — completedSteps never contains duplicates', () => {
     it('advancing, going back and advancing again records the step once', () => {
-        const bounced = advance(goBack(advance(makeFrozenSession(), 3)), 3);
+        const bounced = advance(goBack(advance(makeFrozenSession(), 3), 3), 3);
 
         expect(bounced.completedSteps).toStrictEqual([0]);
         expect(bounced.currentStepIndex).toBe(1);
@@ -219,8 +218,8 @@ describe('session — completedSteps never contains duplicates', () => {
         let session = makeFrozenSession();
         session = advance(session, 3);
         session = advance(session, 3);
-        session = goBack(session);
-        session = goBack(session);
+        session = goBack(session, 3);
+        session = goBack(session, 3);
         session = advance(session, 3);
         session = advance(session, 3);
 
@@ -241,7 +240,7 @@ describe('session — sessionStatus derives the statechart position', () => {
     it('returning to step 0 with work behind it is cooking, not idle', () => {
         // Position alone must not decide the status: this session sits at index 0 exactly like a
         // fresh one, and only `completedSteps` distinguishes them.
-        const back = goBack(advance(makeFrozenSession(), 3));
+        const back = goBack(advance(makeFrozenSession(), 3), 3);
 
         expect(back.currentStepIndex).toBe(0);
         expect(sessionStatus(back, 3)).toBe('cooking');
@@ -263,7 +262,7 @@ describe('session — sessionStatus derives the statechart position', () => {
     it('reviewing an earlier step after finishing stays complete', () => {
         const finished = advance(advance(advance(makeFrozenSession(), 3), 3), 3);
 
-        expect(sessionStatus(goBack(finished), 3)).toBe('complete');
+        expect(sessionStatus(goBack(finished, 3), 3)).toBe('complete');
     });
 
     it('a session away from step 0 with nothing completed is cooking, not idle', () => {
@@ -305,7 +304,7 @@ describe('session — every transition is pure', () => {
         const before = structuredClone(session);
 
         advance(session, 3);
-        goBack(session);
+        goBack(session, 3);
         sessionStatus(session, 3);
 
         expect(session).toStrictEqual(before);
@@ -315,7 +314,7 @@ describe('session — every transition is pure', () => {
         const session = makeFrozenSession();
 
         expect(advance(session, 3)).not.toBe(session);
-        expect(goBack(session)).not.toBe(session);
+        expect(goBack(session, 3)).not.toBe(session);
     });
 
     it('the completed-step array is copied, so the new session cannot corrupt the old', () => {
@@ -330,7 +329,7 @@ describe('session — every transition is pure', () => {
 
 describe('session — a session survives a JSON round trip', () => {
     it('a mid-navigation session is deep-equal after persist and restore', () => {
-        const midway = goBack(advance(advance(makeFrozenSession(), 3), 3));
+        const midway = goBack(advance(advance(makeFrozenSession(), 3), 3), 3);
 
         const restored: CookingSession = JSON.parse(JSON.stringify(midway));
 

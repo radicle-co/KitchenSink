@@ -124,7 +124,9 @@ const GOD_FILE_EXEMPTIONS: readonly GodFileExemption[] = [
             '`ImportCursorMovedError`, `ImportItemAlreadySavedError` and `PrivateSlotsFullError`, each a distinct ' +
             'refusal of the same boundary that a cook is told about in a different sentence. GREW 2026-11-11 (bulk ' +
             'import contract): the recipe client added `ImportItemLockedError`, the 409 for a changed recipe sent for an ' +
-            'item already being processed, which a surface treats differently from the other import 409s.',
+            'item already being processed, which a surface treats differently from the other import 409s. ' +
+            'GREW 2026-11-13 (cooking mode step model): cooking-core keeps its refusals in `errors.ts`, as ' +
+            '`authState.errors.ts` does; one boundary, a place outside the recipe (a step, a line or a step count).',
         files: [
             { file: 'packages/apps/commise/features/account/src/authState.errors.ts', classes: 2, components: 0 },
             { file: 'packages/apps/commise/features/account/src/errors.ts', classes: 7, components: 0 },
@@ -132,6 +134,7 @@ const GOD_FILE_EXEMPTIONS: readonly GodFileExemption[] = [
             { file: 'packages/clients/recipe-service/src/errors.ts', classes: 21, components: 0 },
             { file: 'packages/clients/bedrock/src/errors.ts', classes: 6, components: 0 },
             { file: 'packages/clients/usda/src/errors.ts', classes: 7, components: 0 },
+            { file: 'packages/shared/cooking/src/errors.ts', classes: 3, components: 0 },
             { file: 'packages/services/food-service/src/foods/dao/dao.errors.ts', classes: 3, components: 0 },
             { file: 'packages/shared/db-schema-guard/src/roles/tablePolicy.errors.ts', classes: 2, components: 0 },
             { file: 'packages/services/food-service/src/foods/foods.errors.ts', classes: 12, components: 0 },

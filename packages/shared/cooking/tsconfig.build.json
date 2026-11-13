@@ -1,0 +1,10 @@
+{
+    "$schema": "https://json.schemastore.org/tsconfig",
+    "extends": "./tsconfig.json",
+    // The EMIT project. `rootDir` narrows back to `src` so `dist` mirrors the source tree, and `include`
+    // is overridden (not merely `exclude`d) because the base project deliberately pulls in `tests/**` —
+    // an exclude list is easy to leave a glob behind, and test code must never reach `dist`.
+    "compilerOptions": { "rootDir": "src" },
+    "include": ["src/**/*.ts"],
+    "exclude": ["node_modules", "dist", "tests", "src/**/__tests__", "src/**/*.test.ts"]
+}

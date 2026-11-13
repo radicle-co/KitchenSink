@@ -158,6 +158,24 @@ describe('Stepper (web)', () => {
         }
     });
 
+    // Issue 219: at 320 px and 200% text the row (88 px buttons, gaps, count box) was about 24 px wider than the room, so
+    // the `+` left the screen. The ruling (decisions/0069): the gap is 2 (8 px at 1x), the count's MINIMUM width is
+    // 1.5rem (a minimum, so a three-digit count still widens it), and the buttons stay `size-11` for the target. The
+    // measured proof is `servingsStepperReflow.spec.ts`; jsdom can only pin the values the ruling named.
+    it('keeps its row narrow enough for 320 px at 200% text: gap-2, a min-w-6 count, and 44 px buttons', () => {
+        render(<Servings />);
+
+        const group = screen.getByRole('group', { name: 'Servings' });
+        const count = within(group).getByText('2');
+
+        expect(group.className.split(/\s+/u)).toContain('gap-2');
+        expect(group.className.split(/\s+/u)).not.toContain('gap-3');
+        expect(count.className.split(/\s+/u)).toContain('min-w-6');
+        expect(count.className.split(/\s+/u)).not.toContain('min-w-8');
+        expect(count.className.split(/\s+/u).some((token) => /^(w|max-w)-/u.test(token))).toBe(false);
+        expect(screen.getByRole('button', { name: 'More servings' }).className.split(/\s+/u)).toContain('size-11');
+    });
+
     // The recipe page puts the Stepper in the Ingredients heading row beside "for {n}" (`buildSpec.md` §6.1), where a
     // visible label would say the same thing twice. Hidden from sight, the label still names the group.
     it('can hide its label from sight while it still names the group', () => {

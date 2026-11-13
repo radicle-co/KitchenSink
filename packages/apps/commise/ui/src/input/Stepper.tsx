@@ -75,9 +75,9 @@ export const Stepper: FC<StepperProps> = ({
             <span id={labelId} className={labelVisibility === 'hidden' ? 'sr-only' : 'text-label text-ink-muted'}>
                 {label}
             </span>
-            <div role="group" aria-labelledby={labelId} className="flex items-center gap-3">
+            <div role="group" aria-labelledby={labelId} className="flex items-center gap-2">
                 {stepButton(-1, decreaseLabel, 'minus')}
-                <span className="min-w-8 text-center text-body font-semibold tabular-nums lining-nums text-ink">
+                <span className="min-w-6 text-center text-body font-semibold tabular-nums lining-nums text-ink">
                     {value}
                 </span>
                 {stepButton(1, increaseLabel, 'plus')}

@@ -120,3 +120,4 @@ versions.spec.ts	/, /recipes/[id], /recipes/[id]/versions, /sign-in/[[...sign-in
 visualRegression.spec.ts	*
 yourFoods.spec.ts	/, /foods, /profile, /sign-in/[[...sign-in]]
 publishRefusedPrivateFood.spec.ts	/, /recipes/[id]/edit, /foods/[foodId], /sign-in/[[...sign-in]]
+servingsStepperReflow.spec.ts	/, /recipes/[id], /sign-in/[[...sign-in]]

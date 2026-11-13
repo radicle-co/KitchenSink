@@ -12,9 +12,10 @@
  * It renders the page's ONE scroller. Every section is a direct child of the scroll content, one flat list. There is no
  * section switch: the page is one scroll, and "Screen on" is a labelled row in the page, drawn once.
  *
- * Left out until their features ship (`designAnswers.md` section
- * "2026-11-02: card, Home header and Recipe detail build questions", bullets "8 comments" row and "Start cooking"):
- * the comments row and "Start cooking".
+ * Left out until its feature ships (`designAnswers.md` section
+ * "2026-11-02: card, Home header and Recipe detail build questions", bullet "8 comments" row): the comments row. Start
+ * cooking is drawn, on its own row under the fact tiles, only when the recipe can be cooked and the app bound the cooking
+ * route.
  *
  * This is the PURE render half. Its orchestration shell, `RecipeDetailView.native.tsx`, binds the session state and
  * measures the layout, because a file does ONE thing (CODING_STANDARDS §1).
@@ -52,6 +53,7 @@ import { PinnedIngredientsBar } from './PinnedIngredientsBar.native.js';
 import { RecipeHero } from './RecipeHero.native.js';
 import { RecipeSourceLine } from './RecipeSourceLine.native.js';
 import { ServingScaleControl } from './ServingScaleControl.js';
+import { StartCookingRow } from './StartCookingRow.js';
 
 /** "Servings", the first thing in the opened list: it takes the screen-reader cursor when the list opens. */
 const PinnedServingsLabel: FC<{ readonly text: string }> = ({ text }) => {
@@ -78,6 +80,8 @@ const PinnedServingsLabel: FC<{ readonly text: string }> = ({ text }) => {
 export const RecipeDetailBody: FC<RecipeDetailBodyNativeProps> = ({
     recipe,
     headerActions,
+    canStartCooking,
+    onStartCooking,
     heroControls,
     scrollFooter,
     rating,
@@ -198,6 +202,7 @@ export const RecipeDetailBody: FC<RecipeDetailBodyNativeProps> = ({
                 tiles={detailStatCells(scaled, recipe.difficulty, { detail, duration, card })}
                 layout={layout}
             />
+            {canStartCooking === true && onStartCooking !== undefined && <StartCookingRow onPress={onStartCooking} />}
             {/* The action row: the host's text action (Edit recipe, Save a copy), then Screen on, a quiet action with the sun glyph. */}
             <View style={styles.actions}>
                 {headerActions}

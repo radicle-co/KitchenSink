@@ -148,6 +148,8 @@ export interface RecipeDetailActionMessages {
     readonly recipeDeleted: string;
     /** The back link above the meta line. */
     readonly backToRecipes: string;
+    /** The page's one filled action where the recipe can be cooked (`canStartCooking`). */
+    readonly startCooking: string;
 }
 
 export const recipeActionMessages: LocalizedMessages<RecipeActionMessages> = {
@@ -205,6 +207,7 @@ export const recipeActionMessages: LocalizedMessages<RecipeActionMessages> = {
             deleteRecipe: 'Delete recipe',
             recipeDeleted: 'Recipe deleted',
             backToRecipes: 'My recipes',
+            startCooking: 'Start cooking',
         },
         upsell: {
             noSlot: {

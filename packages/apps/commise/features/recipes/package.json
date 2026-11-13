@@ -39,6 +39,7 @@
         "@commise/features-core": "*",
         "@commise/i18n": "*",
         "@commise/ui": "*",
+        "@kitchensink/cooking-core": "*",
         "@kitchensink/food-service-client": "*",
         "@kitchensink/recipe-core": "*",
         "@kitchensink/recipe-service-client": "*",

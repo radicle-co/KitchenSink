@@ -4,7 +4,7 @@
  * numbers and never reaches the root barrel or `./detail`. This file is the target of the `./cook` entry in
  * `package.json`. The surface is pinned by `__tests__/cookSurface.test.ts`.
  */
-export { formatQuantity } from '../detail/model.js';
+export { formatAmount } from '../detail/model.js';
 export { IngredientCheckRow } from '../detail/IngredientCheckRow.js';
 export { ServingScaleControl } from '../detail/ServingScaleControl.js';
 export { useCookMarks, type CookMarksBinding } from '../detail/useCookMarks.js';

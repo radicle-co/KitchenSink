@@ -11,7 +11,7 @@ describe('@commise/features-recipes/cook', () => {
         expect(Object.keys(cook).sort()).toEqual([
             'IngredientCheckRow',
             'ServingScaleControl',
-            'formatQuantity',
+            'formatAmount',
             'useCookMarks',
             'useServingScale',
         ]);

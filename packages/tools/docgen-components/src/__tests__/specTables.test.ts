@@ -93,6 +93,18 @@ describe('colorRoleTable', () => {
     it('carries no contrast column: `redesignContrast.test.ts` owns the ratios', () => {
         expect(table.split('\n')[0]).toBe('| Role | Light | Dark |');
     });
+
+    it('throws a DocgenError for a role with no dark value, so an empty cell is never pinned as correct', () => {
+        let thrown: unknown;
+
+        try {
+            colorRoleTable({ action: '#325C7F' }, {}, palette);
+        } catch (error) {
+            thrown = error;
+        }
+
+        expect(isDocgenError(thrown)).toBe(true);
+    });
 });
 
 describe('spliceRegion', () => {

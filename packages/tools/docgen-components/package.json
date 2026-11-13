@@ -3,7 +3,7 @@
     "version": "0.0.0",
     "private": true,
     "type": "module",
-    "description": "Derives docs/generated/components + docs/generated/design from the React sources and the @commise/ui tokens. Generated output is committed and guarded by regenerate-and-diff.",
+    "description": "Derives docs/generated/components + docs/generated/design, and the token tables in docs/design/uiOverhaul/buildSpec.md, from the React sources and the @commise/ui tokens. Generated output is committed and guarded by regenerate-and-diff.",
     "main": "./src/index.ts",
     "types": "./src/index.ts",
     "exports": {

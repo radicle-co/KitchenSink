@@ -1,5 +1,6 @@
 /**
- * THE STALENESS GUARD for `docs/generated/components` and `docs/generated/design`.
+ * THE STALENESS GUARD for `docs/generated/components`, `docs/generated/design`, and the token tables in
+ * `docs/design/uiOverhaul/buildSpec.md` §1.4 and §1.5.
  *
  * ## Why this exists at all
  *
@@ -35,7 +36,7 @@ import { COMPONENTS_OUT_DIR, COMPONENT_GROUPS, DESIGN_OUT_DIR, REPO_ROOT } from 
 import { discoverComponentFiles } from '../src/discovery.js';
 import { exportsAComponentName } from '../src/extract.js';
 import { buildArtifacts, readCommittedArtifacts, readGroup } from '../src/generate.js';
-import { BUILD_SPEC_PATH, buildSpecDocument, endMarker, startMarker } from '../src/specTables.js';
+import { BUILD_SPEC_PATH, REGENERATE, buildSpecDocument, endMarker, startMarker } from '../src/specTables.js';
 import { buildDesignTokens } from '../src/tokens.js';
 
 const artifacts = buildArtifacts(REPO_ROOT);
@@ -168,10 +169,7 @@ describe('the build spec token tables (buildSpec.md §1.4 and §1.5)', () => {
     const committedSpec = readFileSync(join(REPO_ROOT, BUILD_SPEC_PATH), 'utf8');
 
     it('match what regenerating from the current @commise/ui tokens produces, byte for byte', async () => {
-        expect(
-            committedSpec === (await buildSpecDocument(REPO_ROOT)),
-            `run: npm run docs:generate --workspace=packages/tools/docgen-components`,
-        ).toBe(true);
+        expect(committedSpec === (await buildSpecDocument(REPO_ROOT)), `run: ${REGENERATE}`).toBe(true);
     });
 
     /** The first-column role names of the hand-written tables in one section, outside its generated region. */

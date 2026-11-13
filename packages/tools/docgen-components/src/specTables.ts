@@ -7,8 +7,6 @@
  * product; the rules beside each table (what a role is for, how it wraps) stay hand-written in the spec, because no
  * token states them.
  *
- * @pattern Template Method — `buildSpecDocument` fixes the steps (read, splice each region, format) and the pure
- *   renderers fill them
  * @sideEffect `buildSpecDocument` reads the spec and the repository's Prettier configuration.
  */
 import { readFile } from 'node:fs/promises';
@@ -25,7 +23,7 @@ import { DocgenError } from './errors.js';
 export const BUILD_SPEC_PATH = 'docs/design/uiOverhaul/buildSpec.md';
 
 /** The command that rewrites a generated region, named in its marker so a reader knows not to edit by hand. */
-const REGENERATE = 'npm run docs:generate --workspace=packages/tools/docgen-components';
+export const REGENERATE = 'npm run docs:generate --workspace=packages/tools/docgen-components';
 
 /** The line that opens a generated region. */
 export function startMarker(name: string): string {
@@ -99,6 +97,7 @@ export function typeRoleTable(
  * @param dark - Each role's dark value, keyed like `light`.
  * @param paletteValues - The palette, to name a light value by.
  * @returns The table, unpadded.
+ * @throws DocgenError when a role has no dark value.
  */
 export function colorRoleTable(
     light: Readonly<Record<string, string>>,
@@ -119,7 +118,15 @@ export function colorRoleTable(
 
     return table(
         ['Role', 'Light', 'Dark'],
-        Object.entries(light).map(([name, value]) => [`\`${name}\``, named(value), `\`${dark[name] ?? ''}\``]),
+        Object.entries(light).map(([name, value]) => {
+            const darkValue = dark[name];
+
+            if (darkValue === undefined) {
+                throw new DocgenError(`colour role "${name}" has no dark value.`);
+            }
+
+            return [`\`${name}\``, named(value), `\`${darkValue}\``];
+        }),
     );
 }
 

@@ -8,9 +8,11 @@
  * the title is visually hidden (the dialog is still named by it), the heading moves into the title row, and the
  * footer hides. ⛔ Close and the controls never change position in the tree, so the focused input never remounts.
  *
- * The footer is pinned below the scroll region until the title row and the footer together take more than half the
- * sheet (`isFooterUnpinned`, owner ruling on I7); past that it becomes the scroll region's last child and scrolls with
- * the content, while Close stays pinned in the title row. Heights come from `onLayout` (`usePinnedFooter`, `@commise/ui/layout`). ⚠️ Moving
+ * The footer is pinned below the scroll region until everything pinned above the region (the title row and the toolbar)
+ * and the footer together take more than half the sheet (`isFooterUnpinned`, owner ruling on I7); past that it becomes
+ * the scroll region's last child and scrolls with the content, while Close stays pinned in the title row. Heights come
+ * from `onLayout` (`usePinnedFooter`, `@commise/ui/layout`), and the region sits in `PinnedFooterScrollRegion`, which
+ * keeps it one control tall through the layout pass that decision lags (issue #192). ⚠️ Moving
  * the footer remounts it, so a screen-reader cursor resting on `Done` is lost when a rotation or the keyboard flips
  * the decision; React Native has no sticky footer in a plain `ScrollView` that would keep the node in place.
  *
@@ -44,9 +46,9 @@ import {
     sheetSideInsetPadding,
     sheetWidthStyle,
 } from './sheetPresentation.js';
+import { PinnedFooterScrollRegion } from '../layout/PinnedFooterScrollRegion.native.js';
 import { usePinnedFooter } from '../layout/usePinnedFooter.native.js';
 import { useKeyboardShown } from '../layout/useKeyboardShown.native.js';
-import { SheetScrollRegion } from './SheetScrollRegion.native.js';
 import { useSwipeToDismiss } from './useSwipeToDismiss.native.js';
 
 export interface BottomSheetPanelProps extends Pick<
@@ -138,44 +140,48 @@ export const BottomSheetPanel: FC<BottomSheetPanelProps> = ({
                 ]}
                 onLayout={pinning.onFrameLayout}
             >
-                {/* The swipe zone: the grab handle and the title row, so a drag that starts on the handle dismisses with the
-                same thresholds. The handle is decorative; the labelled Close button stays the accessible way out
-                (WCAG 2.5.7). */}
-                <View {...panHandlers} onLayout={pinning.onTopLayout}>
-                    <View
-                        aria-hidden
-                        importantForAccessibility="no-hide-descendants"
-                        style={[styles.handle, { backgroundColor: colors.lineDivider }]}
-                    />
-                    <View style={styles.titleRow}>
-                        <View style={styles.titleBox}>
-                            <Text
-                                ref={titleRef}
-                                role="heading"
-                                typeRole="barTitle"
-                                {...(collapsed ? { style: visuallyHidden } : {})}
+                {/* Everything pinned above the scroll region, measured as one block. Collapsed, it reports nothing, so
+                the height from before the collapse is kept and the footer comes back where it was. */}
+                <View onLayout={collapsed ? undefined : pinning.onTopLayout}>
+                    {/* The swipe zone: the grab handle and the title row, so a drag that starts on the handle dismisses
+                    with the same thresholds. The handle is decorative; the labelled Close button stays the accessible way
+                    out (WCAG 2.5.7). */}
+                    <View {...panHandlers}>
+                        <View
+                            aria-hidden
+                            importantForAccessibility="no-hide-descendants"
+                            style={[styles.handle, { backgroundColor: colors.lineDivider }]}
+                        />
+                        <View style={styles.titleRow}>
+                            <View style={styles.titleBox}>
+                                <Text
+                                    ref={titleRef}
+                                    role="heading"
+                                    typeRole="barTitle"
+                                    {...(collapsed ? { style: visuallyHidden } : {})}
+                                >
+                                    {title}
+                                </Text>
+                                {collapsed ? toolbar.heading : null}
+                            </View>
+                            <Pressable
+                                accessibilityRole="button"
+                                accessibilityLabel={closeLabel}
+                                onPress={onClose}
+                                style={styles.close}
                             >
-                                {title}
-                            </Text>
-                            {collapsed ? toolbar.heading : null}
+                                <Icon name="x" size={24} tone="inkMuted" />
+                            </Pressable>
                         </View>
-                        <Pressable
-                            accessibilityRole="button"
-                            accessibilityLabel={closeLabel}
-                            onPress={onClose}
-                            style={styles.close}
-                        >
-                            <Icon name="x" size={24} tone="inkMuted" />
-                        </Pressable>
                     </View>
+                    {toolbar === undefined ? null : (
+                        <View style={styles.toolbar}>
+                            <View {...panHandlers}>{collapsed ? null : toolbar.heading}</View>
+                            {toolbar.controls}
+                        </View>
+                    )}
                 </View>
-                {toolbar === undefined ? null : (
-                    <View style={styles.toolbar}>
-                        <View {...panHandlers}>{collapsed ? null : toolbar.heading}</View>
-                        {toolbar.controls}
-                    </View>
-                )}
-                <SheetScrollRegion>
+                <PinnedFooterScrollRegion>
                     <ScrollView
                         ref={scroller}
                         keyboardShouldPersistTaps="handled"
@@ -185,7 +191,7 @@ export const BottomSheetPanel: FC<BottomSheetPanelProps> = ({
                         <View style={[styles.scrollContent, footer === undefined ? endPadding : null]}>{children}</View>
                         {pinning.unpinned ? footerView : null}
                     </ScrollView>
-                </SheetScrollRegion>
+                </PinnedFooterScrollRegion>
                 {pinning.unpinned ? null : footerView}
             </Animated.View>
         </ToneScope>

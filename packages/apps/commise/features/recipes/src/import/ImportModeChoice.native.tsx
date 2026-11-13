@@ -7,14 +7,15 @@
  * A frame of its own (U17): the file, the modes and the reassurance scroll; Start and its hint sit in a bar OUTSIDE the
  * scroll region, at the bottom, within thumb reach. At large text or on a short screen the bar would take the frame:
  * past half of it the bar becomes the scroll region's last item instead (`usePinnedFooter`,
- * `docs/design/compactHeightLayout.md` §3.1), the house rule the review wizard shares.
+ * `docs/design/compactHeightLayout.md` §3.1), the house rule the review wizard shares. The scroll region sits in
+ * `PinnedFooterScrollRegion`, which keeps it one control tall through the layout pass that decision lags (§3.3).
  *
  * Presentational: the host decides what Start does. Painted from the theme's roles, so it reads in both themes.
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { Button } from '@commise/ui/button';
 import { Icon } from '@commise/ui/icon';
-import { useContainerClass, usePinnedFooter } from '@commise/ui/layout';
+import { PinnedFooterScrollRegion, useContainerClass, usePinnedFooter } from '@commise/ui/layout';
 import { nativeTokens } from '@commise/ui/native';
 import { RadioList } from '@commise/ui/radio-list';
 import { useTheme } from '@commise/ui/theme';
@@ -60,35 +61,41 @@ export const ImportModeChoice: FC<ImportModeChoiceProps> = ({
 
     return (
         <View style={styles.frame} onLayout={pinning.onFrameLayout}>
-            <ScrollView style={styles.grow} contentContainerStyle={styles.column} keyboardShouldPersistTaps="handled">
-                <Text accessibilityRole="header" style={[styles.title, { color: colors.ink }]}>
-                    {m.title}
-                </Text>
-                <Surface tone="paperRaised" style={[styles.file, { borderColor: colors.lineDivider }]}>
-                    <Icon name="bookOpen" size={20} />
-                    <View style={styles.fileWords}>
-                        <Text style={[styles.fileName, { color: colors.ink }]}>{fileName}</Text>
-                        <Text style={[styles.meta, { color: colors.inkMuted }]}>
-                            {fillTemplate(pluralOf(m.fileSummary, recipeCount, locale), { source: sourceName })}
-                        </Text>
-                    </View>
-                </Surface>
-                <Text style={[styles.body, { color: colors.inkMuted }]}>{m.intro}</Text>
-                <RadioList
-                    label={m.groupLabel}
-                    options={modeOptionsOf(messages)}
-                    value={mode}
-                    onChange={(id) => {
-                        const chosen = modeOfOptionId(id);
+            <PinnedFooterScrollRegion>
+                <ScrollView
+                    style={styles.grow}
+                    contentContainerStyle={styles.column}
+                    keyboardShouldPersistTaps="handled"
+                >
+                    <Text accessibilityRole="header" style={[styles.title, { color: colors.ink }]}>
+                        {m.title}
+                    </Text>
+                    <Surface tone="paperRaised" style={[styles.file, { borderColor: colors.lineDivider }]}>
+                        <Icon name="bookOpen" size={20} />
+                        <View style={styles.fileWords}>
+                            <Text style={[styles.fileName, { color: colors.ink }]}>{fileName}</Text>
+                            <Text style={[styles.meta, { color: colors.inkMuted }]}>
+                                {fillTemplate(pluralOf(m.fileSummary, recipeCount, locale), { source: sourceName })}
+                            </Text>
+                        </View>
+                    </Surface>
+                    <Text style={[styles.body, { color: colors.inkMuted }]}>{m.intro}</Text>
+                    <RadioList
+                        label={m.groupLabel}
+                        options={modeOptionsOf(messages)}
+                        value={mode}
+                        onChange={(id) => {
+                            const chosen = modeOfOptionId(id);
 
-                        if (chosen !== undefined) {
-                            onModeChange(chosen);
-                        }
-                    }}
-                />
-                {wide ? <Text style={[styles.meta, { color: colors.inkMuted }]}>{m.promise}</Text> : null}
-                {pinning.unpinned ? bar : null}
-            </ScrollView>
+                            if (chosen !== undefined) {
+                                onModeChange(chosen);
+                            }
+                        }}
+                    />
+                    {wide ? <Text style={[styles.meta, { color: colors.inkMuted }]}>{m.promise}</Text> : null}
+                    {pinning.unpinned ? bar : null}
+                </ScrollView>
+            </PinnedFooterScrollRegion>
             {pinning.unpinned ? null : bar}
         </View>
     );

@@ -22,7 +22,8 @@ import { VersionPreviewModal } from '../VersionPreviewModal.native.js';
 import { expectNativeDesignSystemButton } from '../../__tests__/nativeDesignSystemButton.js';
 import { commaJoinedTexts } from '../../__tests__/commaJoinedTexts.js';
 import { BRISKET_FLAT_HALF_PARTS, BRISKET_FLAT_HALF_SPOKEN } from '../../detail/__fixtures__/variantLines.js';
-import { pressFrameOf, render } from '@commise/ui/testing/tamagui';
+import { pressFrameOf, render, scrollRegionFloorOf } from '@commise/ui/testing/tamagui';
+import { touchFloor } from '@commise/ui/layout';
 
 vi.mock('react-native', async (importOriginal) => {
     const { withSystemScheme } = await import('@commise/ui/testing/system-color-scheme');
@@ -795,5 +796,13 @@ describe('VersionPreviewModal (native) — the pinned-footer limit', () => {
         expect(
             screen.getByText('Steps at v10').compareDocumentPosition(restore) & Node.DOCUMENT_POSITION_FOLLOWING,
         ).toBeTruthy();
+    });
+
+    // Issue #192: the actions' place is decided a layout pass after the sheet shrinks; the scroller keeps a floor
+    // through that pass instead of collapsing to zero height.
+    it('keeps the scroller at least one control tall', () => {
+        render(<VersionPreviewModal {...baseProps({ version: populatedVersion, diffFromCurrent: populatedDiff })} />);
+
+        expect(scrollRegionFloorOf(scrollerOf())).toBe(`${touchFloor()}px`);
     });
 });

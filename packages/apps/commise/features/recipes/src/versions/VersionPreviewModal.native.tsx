@@ -14,7 +14,9 @@
  * pinned under it through the design-system `DialogActions`, which stacks them full width on a phone.
  *
  * Past half the sheet (large text on a short phone) the pinned top and the actions would leave the body a sliver, so the
- * actions become the last item of the scroller (`usePinnedFooter`); the title, errors and summary stay pinned.
+ * actions become the last item of the scroller (`usePinnedFooter`); the title, errors and summary stay pinned. The
+ * scroller sits in `PinnedFooterScrollRegion`, which keeps it one control tall through the layout pass that decision
+ * lags.
  *
  * A discriminated three-way state (mutually exclusive, matching {@link VersionPreviewModalProps}'s JSDoc):
  * (1) a `progressbar` affordance while `isLoading`; (2) an `alert` for a failed lookup — either an explicit
@@ -33,7 +35,7 @@ import { VariantPartsLine } from '@commise/ui/variant-parts-line';
 import { Button } from '@commise/ui/button';
 import { DialogActions } from '@commise/ui/dialog-actions';
 import { FullScreenSheet } from '@commise/ui/full-screen-sheet';
-import { usePinnedFooter } from '@commise/ui/layout';
+import { PinnedFooterScrollRegion, usePinnedFooter } from '@commise/ui/layout';
 import { useTheme } from '@commise/ui/theme';
 import type { FC } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -167,110 +169,113 @@ export const VersionPreviewModal: FC<VersionPreviewModalProps> = ({
                 </View>
 
                 {showContent && version !== undefined && (
-                    <ScrollView
-                        keyboardShouldPersistTaps="handled"
-                        style={styles.scroll}
-                        contentContainerStyle={styles.scrollContent}
-                    >
-                        <View style={styles.fields}>
-                            <View style={styles.field}>
-                                <Text style={[styles.fieldLabel, muted]}>{conflict.titleLabel}</Text>
-                                <Text style={[styles.fieldValue, ink]}>{version.snapshot.title}</Text>
+                    <PinnedFooterScrollRegion>
+                        <ScrollView
+                            keyboardShouldPersistTaps="handled"
+                            style={styles.scroll}
+                            contentContainerStyle={styles.scrollContent}
+                        >
+                            <View style={styles.fields}>
+                                <View style={styles.field}>
+                                    <Text style={[styles.fieldLabel, muted]}>{conflict.titleLabel}</Text>
+                                    <Text style={[styles.fieldValue, ink]}>{version.snapshot.title}</Text>
+                                </View>
+                                <View style={styles.field}>
+                                    <Text style={[styles.fieldLabel, muted]}>{conflict.descriptionLabel}</Text>
+                                    <Text style={[styles.fieldValue, ink]}>{version.snapshot.description}</Text>
+                                </View>
+                                <View style={styles.field}>
+                                    <Text style={[styles.fieldLabel, muted]}>{conflict.servingsLabel}</Text>
+                                    <Text style={[styles.fieldValue, ink]}>{version.snapshot.servings}</Text>
+                                </View>
+                                <View style={styles.field}>
+                                    <Text style={[styles.fieldLabel, muted]}>{conflict.prepLabel}</Text>
+                                    <Text style={[styles.fieldValue, ink]}>
+                                        {formatDurationMinutes(version.snapshot.prepTimeMinutes, conflict.minutes)}
+                                    </Text>
+                                </View>
+                                <View style={styles.field}>
+                                    <Text style={[styles.fieldLabel, muted]}>{conflict.cookLabel}</Text>
+                                    <Text style={[styles.fieldValue, ink]}>
+                                        {formatDurationMinutes(version.snapshot.cookTimeMinutes, conflict.minutes)}
+                                    </Text>
+                                </View>
+                                <View style={styles.field}>
+                                    <Text style={[styles.fieldLabel, muted]}>{conflict.totalLabel}</Text>
+                                    <Text style={[styles.fieldValue, ink]}>
+                                        {formatDurationMinutes(
+                                            version.snapshot.prepTimeMinutes + version.snapshot.cookTimeMinutes,
+                                            conflict.minutes,
+                                        )}
+                                    </Text>
+                                </View>
                             </View>
-                            <View style={styles.field}>
-                                <Text style={[styles.fieldLabel, muted]}>{conflict.descriptionLabel}</Text>
-                                <Text style={[styles.fieldValue, ink]}>{version.snapshot.description}</Text>
-                            </View>
-                            <View style={styles.field}>
-                                <Text style={[styles.fieldLabel, muted]}>{conflict.servingsLabel}</Text>
-                                <Text style={[styles.fieldValue, ink]}>{version.snapshot.servings}</Text>
-                            </View>
-                            <View style={styles.field}>
-                                <Text style={[styles.fieldLabel, muted]}>{conflict.prepLabel}</Text>
-                                <Text style={[styles.fieldValue, ink]}>
-                                    {formatDurationMinutes(version.snapshot.prepTimeMinutes, conflict.minutes)}
-                                </Text>
-                            </View>
-                            <View style={styles.field}>
-                                <Text style={[styles.fieldLabel, muted]}>{conflict.cookLabel}</Text>
-                                <Text style={[styles.fieldValue, ink]}>
-                                    {formatDurationMinutes(version.snapshot.cookTimeMinutes, conflict.minutes)}
-                                </Text>
-                            </View>
-                            <View style={styles.field}>
-                                <Text style={[styles.fieldLabel, muted]}>{conflict.totalLabel}</Text>
-                                <Text style={[styles.fieldValue, ink]}>
-                                    {formatDurationMinutes(
-                                        version.snapshot.prepTimeMinutes + version.snapshot.cookTimeMinutes,
-                                        conflict.minutes,
-                                    )}
-                                </Text>
-                            </View>
-                        </View>
 
-                        <Text accessibilityRole="header" style={[styles.sectionHeading, ink]}>
-                            {fillTemplate(preview.ingredientsHeading, { version: version.versionNumber })}
-                        </Text>
-                        <View style={styles.ingredients}>
-                            {toVersionPreviewIngredientLines(
-                                version.snapshot.ingredients,
-                                preview,
-                                locale,
-                                ingredientLineName,
-                                unrestorablePositionsFor(restoreError, version.versionNumber),
-                            ).map((line) => (
-                                <View key={line.key} style={styles.ingredientRow}>
-                                    <View style={styles.ingredientLine}>
-                                        <Text
-                                            style={[styles.body, muted, styles.ingredientText]}
-                                            accessibilityLabel={versionLineAccessibilityLabel(line, amountWords)}
-                                        >
-                                            {line.text}
-                                            {/* Words, never colour alone: the refused restore named this line. On a
+                            <Text accessibilityRole="header" style={[styles.sectionHeading, ink]}>
+                                {fillTemplate(preview.ingredientsHeading, { version: version.versionNumber })}
+                            </Text>
+                            <View style={styles.ingredients}>
+                                {toVersionPreviewIngredientLines(
+                                    version.snapshot.ingredients,
+                                    preview,
+                                    locale,
+                                    ingredientLineName,
+                                    unrestorablePositionsFor(restoreError, version.versionNumber),
+                                ).map((line) => (
+                                    <View key={line.key} style={styles.ingredientRow}>
+                                        <View style={styles.ingredientLine}>
+                                            <Text
+                                                style={[styles.body, muted, styles.ingredientText]}
+                                                accessibilityLabel={versionLineAccessibilityLabel(line, amountWords)}
+                                            >
+                                                {line.text}
+                                                {/* Words, never colour alone: the refused restore named this line. On a
                                                 line with no details it is read with the line. */}
-                                            {line.cannotRestore !== undefined && line.variantParts === undefined && (
-                                                <Text style={[styles.cannotRestore, danger]}>
-                                                    {' '}
+                                                {line.cannotRestore !== undefined &&
+                                                    line.variantParts === undefined && (
+                                                        <Text style={[styles.cannotRestore, danger]}>
+                                                            {' '}
+                                                            {line.cannotRestore}
+                                                        </Text>
+                                                    )}
+                                            </Text>
+                                            {/* Curated U15 (§S1): a variant-bound line's dotted line, under it. */}
+                                            {line.variantParts !== undefined && (
+                                                <VariantPartsLine parts={line.variantParts} tone="secondary" />
+                                            )}
+                                            {/* With details, the marker ends the line after them: it is about the whole
+                                            line (the web leaf's order). */}
+                                            {line.cannotRestore !== undefined && line.variantParts !== undefined && (
+                                                <Text style={[styles.body, styles.cannotRestore, danger]}>
                                                     {line.cannotRestore}
                                                 </Text>
                                             )}
-                                        </Text>
-                                        {/* Curated U15 (§S1): a variant-bound line's dotted line, under it. */}
-                                        {line.variantParts !== undefined && (
-                                            <VariantPartsLine parts={line.variantParts} tone="secondary" />
-                                        )}
-                                        {/* With details, the marker ends the line after them: it is about the whole
-                                            line (the web leaf's order). */}
-                                        {line.cannotRestore !== undefined && line.variantParts !== undefined && (
-                                            <Text style={[styles.body, styles.cannotRestore, danger]}>
-                                                {line.cannotRestore}
-                                            </Text>
+                                        </View>
+                                        {line.calories !== undefined && (
+                                            <Text style={[styles.calories, muted]}>{line.calories}</Text>
                                         )}
                                     </View>
-                                    {line.calories !== undefined && (
-                                        <Text style={[styles.calories, muted]}>{line.calories}</Text>
-                                    )}
-                                </View>
-                            ))}
-                        </View>
+                                ))}
+                            </View>
 
-                        {version.snapshot.steps.length > 0 && (
-                            <>
-                                <Text accessibilityRole="header" style={[styles.sectionHeading, ink]}>
-                                    {fillTemplate(preview.stepsHeading, { version: version.versionNumber })}
-                                </Text>
-                                <View style={styles.ingredients}>
-                                    {toVersionPreviewSteps(version.snapshot.steps).map((step) => (
-                                        <View key={step.key} style={styles.stepRow}>
-                                            <Text style={[styles.body, muted]}>{step.marker}</Text>
-                                            <Text style={[styles.body, ink, styles.stepText]}>{step.text}</Text>
-                                        </View>
-                                    ))}
-                                </View>
-                            </>
-                        )}
-                        {actionsInBody ? actions : null}
-                    </ScrollView>
+                            {version.snapshot.steps.length > 0 && (
+                                <>
+                                    <Text accessibilityRole="header" style={[styles.sectionHeading, ink]}>
+                                        {fillTemplate(preview.stepsHeading, { version: version.versionNumber })}
+                                    </Text>
+                                    <View style={styles.ingredients}>
+                                        {toVersionPreviewSteps(version.snapshot.steps).map((step) => (
+                                            <View key={step.key} style={styles.stepRow}>
+                                                <Text style={[styles.body, muted]}>{step.marker}</Text>
+                                                <Text style={[styles.body, ink, styles.stepText]}>{step.text}</Text>
+                                            </View>
+                                        ))}
+                                    </View>
+                                </>
+                            )}
+                            {actionsInBody ? actions : null}
+                        </ScrollView>
+                    </PinnedFooterScrollRegion>
                 )}
 
                 {actionsInBody ? null : actions}

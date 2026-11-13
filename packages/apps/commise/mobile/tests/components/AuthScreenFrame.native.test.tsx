@@ -26,8 +26,10 @@ import { Text, type ScrollView as ScrollViewType } from 'react-native';
 import { Input } from '@commise/ui/input';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { touchFloor } from '@commise/ui/layout';
+
 import { AuthScreenFrame } from '../../src/components/auth/AuthScreenFrame.js';
-import { render } from '@commise/ui/testing/tamagui';
+import { render, scrollRegionFloorOf } from '@commise/ui/testing/tamagui';
 
 const state = vi.hoisted(() => ({
     keyboardShown: false,
@@ -105,8 +107,11 @@ function frame(extra: { readonly footer?: JSX.Element } = {}): JSX.Element {
 const scrollRegion = (): Element => document.querySelector('[data-scroll-region]') as Element;
 /** The view that holds the footer, which reports the footer's height. */
 const footerView = (): HTMLElement => screen.getByRole('button', GO).parentElement as HTMLElement;
-/** The view that holds the scroll region and the pinned footer, which reports the frame's height. */
-const frameView = (): HTMLElement => scrollRegion().parentElement as HTMLElement;
+/**
+ * The view that holds the scroll region's frame and the pinned footer, which reports the frame's height. REWRITTEN for
+ * issue #192: the scroll region now sits in a frame of its own that keeps its floor, one level further down.
+ */
+const frameView = (): HTMLElement => scrollRegion().parentElement?.parentElement as HTMLElement;
 const inScroll = (node: HTMLElement): boolean => scrollRegion().contains(node);
 
 /** Report layout: give the frame and the footer their heights, then fire the observer for every node it watches. */
@@ -225,6 +230,17 @@ describe('AuthScreenFrame — the footer, keyboard up', () => {
 
         expect(inScroll(screen.getByText('Switch'))).toBe(true);
         expect(inScroll(screen.getByRole('button', GO))).toBe(false);
+    });
+
+    // Issue #192: the keyboard shrinks the frame a layout pass before the rule moves the footer back into the flow, so
+    // for that pass a pinned footer can take the whole frame. A scroll region laid out at zero height there costs the
+    // focused field its focus on Android; the region keeps one control's height instead.
+    it('keeps the scroll region at least one control tall while the footer is pinned', () => {
+        render(frame());
+        layOut({ frame: 288, footer: 144 });
+
+        expect(inScroll(screen.getByRole('button', GO))).toBe(false);
+        expect(scrollRegionFloorOf(scrollRegion())).toBe(`${touchFloor()}px`);
     });
 
     it('pins it again when a taller frame reports the same footer', () => {

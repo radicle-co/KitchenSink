@@ -97,12 +97,13 @@ function appliedStyle(element: Element, property: string): string | undefined {
 const dialog = (): HTMLElement =>
     screen.getByRole('heading', { name: 'Filter recipes' }).closest('[role="dialog"]') as HTMLElement;
 /**
- * The top block the footer decision measures: the swipe zone, which holds the grab handle AND the title row that holds
- * the title's box and Close (Close's grandparent). REWRITTEN for parity item 7: it used to be the title row alone; the
- * handle joined the zone, and the measure must count it or the footer unpins about 17 pt late.
+ * The top block the footer decision measures: everything pinned above the scroll region, which is the swipe zone (the
+ * grab handle and the title row with Close) and, below it, the toolbar. REWRITTEN for issue #192 review item 3: it used
+ * to be the swipe zone alone (Close's grandparent), which left a toolbar out of the measure. Before that, parity item 7
+ * added the handle to the zone.
  */
-const titleRow = (): HTMLElement =>
-    screen.getByRole('button', { name: 'Close filters' }).parentElement?.parentElement as HTMLElement;
+const topBlock = (): HTMLElement =>
+    screen.getByRole('button', { name: 'Close filters' }).parentElement?.parentElement?.parentElement as HTMLElement;
 /** The footer: the view that holds Done. */
 const footer = (): HTMLElement => screen.getByRole('button', { name: 'Done' }).parentElement as HTMLElement;
 const scrollRegion = (): Element => dialog().querySelector('[data-scroll-region]') as Element;
@@ -111,10 +112,10 @@ const scrollRegion = (): Element => dialog().querySelector('[data-scroll-region]
  * Report layout: give each node its height, fire the observer for every node it watches, and let react-native-web's
  * deferred measurement run.
  */
-function layOut(heights: { readonly sheet: number; readonly titleRow: number; readonly footer: number }): void {
+function layOut(heights: { readonly sheet: number; readonly topBlock: number; readonly footer: number }): void {
     for (const [node, height] of [
         [dialog(), heights.sheet],
-        [titleRow(), heights.titleRow],
+        [topBlock(), heights.topBlock],
         [footer(), heights.footer],
     ] as const) {
         Object.defineProperty(node, 'offsetHeight', { value: height, configurable: true });
@@ -140,14 +141,14 @@ describe('Sheet (native) — the footer unpins past a limit', () => {
 
     it('stays pinned while the title row and footer take half the sheet or less', () => {
         renderSheet();
-        layOut({ sheet: 600, titleRow: 56, footer: 92 });
+        layOut({ sheet: 600, topBlock: 56, footer: 92 });
 
         expect(scrollRegion().contains(screen.getByRole('button', { name: 'Done' }))).toBe(false);
     });
 
     it('scrolls the footer with the content once they take more than half; Close stays pinned', () => {
         renderSheet();
-        layOut({ sheet: 300, titleRow: 64, footer: 92 });
+        layOut({ sheet: 300, topBlock: 64, footer: 92 });
 
         expect(scrollRegion().contains(screen.getByRole('button', { name: 'Done' }))).toBe(true);
         expect(scrollRegion().contains(screen.getByRole('button', { name: 'Close filters' }))).toBe(false);
@@ -161,23 +162,23 @@ describe('Sheet (native) — the footer unpins past a limit', () => {
 
     it('does not flip back when the moved footer reports the same height from its new place', () => {
         renderSheet();
-        layOut({ sheet: 300, titleRow: 64, footer: 92 });
-        layOut({ sheet: 300, titleRow: 64, footer: 92 });
+        layOut({ sheet: 300, topBlock: 64, footer: 92 });
+        layOut({ sheet: 300, topBlock: 64, footer: 92 });
 
         expect(scrollRegion().contains(screen.getByRole('button', { name: 'Done' }))).toBe(true);
     });
 
     it('pins it again when the sheet grows back: the keyboard closes, or the phone turns upright', () => {
         renderSheet();
-        layOut({ sheet: 300, titleRow: 64, footer: 92 });
-        layOut({ sheet: 700, titleRow: 64, footer: 92 });
+        layOut({ sheet: 300, topBlock: 64, footer: 92 });
+        layOut({ sheet: 700, topBlock: 64, footer: 92 });
 
         expect(scrollRegion().contains(screen.getByRole('button', { name: 'Done' }))).toBe(false);
     });
 
     it('keeps the hairline above an unpinned footer, which now ends the list', () => {
         renderSheet();
-        layOut({ sheet: 300, titleRow: 64, footer: 92 });
+        layOut({ sheet: 300, topBlock: 64, footer: 92 });
 
         expect(appliedStyle(footer(), 'border-top-width')).toMatch(/^0?\.?\d+(\.\d+)?px$/u);
         expect(appliedStyle(footer(), 'border-top-width')).not.toBe('0px');
@@ -204,7 +205,7 @@ describe('Sheet (native) — the footer unpins past a limit', () => {
         );
         const { rerender } = render(sheet());
 
-        layOut({ sheet: 300, titleRow: 64, footer: 92 });
+        layOut({ sheet: 300, topBlock: 64, footer: 92 });
         state.keyboardShown = true;
         act(() => rerender(sheet()));
         expect(screen.queryByRole('button', { name: 'Done' })).toBeNull();
@@ -234,6 +235,67 @@ describe('Sheet (native) — the footer unpins past a limit', () => {
         expect(resolvedStyle(frame, 'minHeight')).toBe(`${touchFloor()}px`);
         expect(resolvedStyle(frame, 'flexGrow')).toBe('1');
         expect(resolvedStyle(frame, 'flexShrink')).toBe('1');
+    });
+
+    // Review item 3 on #204. The toolbar sits above the scroll region as the title row does, so the floor cannot take
+    // its height. A measure that leaves it out keeps the footer pinned while title row + toolbar + footer leave the
+    // region less than the floor, and the floor then pushes the footer past the sheet's clipped edge.
+    it('counts the toolbar with the title row, so a tall toolbar unpins the footer', () => {
+        renderSheet({ toolbar: { heading: <Text>Search 40 options</Text>, controls: <Text>Search</Text> } });
+
+        expect(topBlock().contains(screen.getByText('Search'))).toBe(true);
+        expect(topBlock().contains(scrollRegion())).toBe(false);
+
+        // The swipe zone alone (handle and title row) is 56: with the 92 footer that is 148, under half of 300, so a
+        // measure of the swipe zone alone would keep the footer pinned.
+        const swipeZone = screen.getByRole('button', { name: 'Close filters' }).parentElement?.parentElement;
+
+        Object.defineProperty(swipeZone, 'offsetHeight', { value: 56, configurable: true });
+        layOut({ sheet: 300, topBlock: 166, footer: 92 });
+
+        expect(scrollRegion().contains(screen.getByRole('button', { name: 'Done' }))).toBe(true);
+    });
+
+    // While the toolbar is collapsed its heading sits in the title row and the block measures shorter. That height is
+    // not kept: judged by it, the footer would come back pinned and unpin a frame later, under the cook's thumb.
+    it('keeps the top block’s height from before a collapse', () => {
+        const toolbar = { heading: <Text>Search 40 options</Text>, controls: <Text>Search</Text> };
+        // A fresh element each render: the keyboard double is a plain read, so an identical element would let React
+        // skip the render that reads it.
+        const sheet = (): JSX.Element => (
+            <Sheet
+                open
+                onOpenChange={vi.fn()}
+                title="Filter recipes"
+                closeLabel="Close filters"
+                size="content"
+                toolbar={toolbar}
+                footer={<Text accessibilityRole="button">Done</Text>}
+            >
+                <Text>Dietary</Text>
+            </Sheet>
+        );
+        const { rerender } = render(sheet());
+
+        layOut({ sheet: 300, topBlock: 166, footer: 92 });
+        state.keyboardShown = true;
+        act(() => rerender(sheet()));
+
+        // Collapsed and measured at 40: 40 + 92 is under half of 300, so a kept 40 would pin the footer again.
+        Object.defineProperty(topBlock(), 'offsetHeight', { value: 40, configurable: true });
+        act(() => {
+            observer.callback?.(
+                [...observer.observed].map((target) => ({ target }) as unknown as ResizeObserverEntry),
+                {} as ResizeObserver,
+            );
+        });
+        act(() => {
+            vi.runOnlyPendingTimers();
+        });
+        state.keyboardShown = false;
+        act(() => rerender(sheet()));
+
+        expect(scrollRegion().contains(screen.getByRole('button', { name: 'Done' }))).toBe(true);
     });
 
     it('still hides an unpinned footer while the toolbar is collapsed', () => {

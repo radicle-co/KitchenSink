@@ -65,8 +65,9 @@ const names = [
 ] as const satisfies readonly IconName[];
 
 type MissingFromCard = Exclude<IconName, (typeof names)[number]>;
-const complete: [MissingFromCard] extends [never] ? true : MissingFromCard = true;
-void complete;
+// A type, not a value: the card bundle carries nothing for it. Exported so it is not dead code.
+type NoneMissing<T extends never> = T;
+export type CardIsComplete = NoneMissing<MissingFromCard>;
 
 export default defineCard({
     group: 'Media',

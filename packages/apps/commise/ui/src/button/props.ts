@@ -43,6 +43,13 @@ export const BUTTON_VISUAL_HEIGHT: Readonly<Record<ButtonSize, number>> = { lg: 
 /** A destructive button's tone: a danger label inline, or the filled surface a confirm dialog's action takes. */
 export type DestructiveTone = 'inline' | 'confirm';
 
+/**
+ * What colour a secondary button's glyph (and its busy spinner) takes: its label's (`label`, the default) or the action
+ * colour, `actionText` (`action`). `action` is the cue on a surfaced step-forward control such as a cooking step's Next,
+ * while its label stays `ink` on `paper`: the same split `quiet` makes, on a button with a surface.
+ */
+export type ButtonGlyphTone = 'label' | 'action';
+
 /** What every tier shares. */
 interface ButtonCommon {
     /** The visible label. Also the accessible name unless {@link accessibilityLabel} overrides it. */
@@ -122,6 +129,8 @@ interface PrimaryButton extends ButtonCommon {
     readonly variant?: 'primary';
     /** The meaning the button's glyph draws. */
     readonly icon: IconName;
+    /** Secondary only: a glyph on the `action` fill already takes the label's colour. */
+    readonly glyphTone?: never;
 }
 
 /**
@@ -132,6 +141,12 @@ interface SecondaryButton extends ButtonCommon {
     readonly variant: 'secondary';
     /** The meaning the button's glyph draws, if it has one. */
     readonly icon?: IconName;
+    /**
+     * The colour of the glyph and the busy spinner. Defaults to `label`, so the glyph matches the `ink` label. `action`
+     * draws it in `actionText` while the label and the surface stay as they are; a disabled or refused button drops the
+     * cue back to the label's colour ({@link glyphToneOf}).
+     */
+    readonly glyphTone?: ButtonGlyphTone;
 }
 
 /** A destructive button: a glyph is required, and it may take the confirm tone. */
@@ -141,6 +156,8 @@ interface DestructiveButton extends ButtonCommon {
     readonly icon: IconName;
     /** `inline` (the default) or the filled `confirm` surface, which only a confirm dialog's action takes. */
     readonly tone?: DestructiveTone;
+    /** Secondary only: a danger glyph stays in its label's colour. */
+    readonly glyphTone?: never;
 }
 
 /** A ghost or quiet button: the text-like tiers, whose glyph is optional. */
@@ -148,6 +165,8 @@ interface TextButton extends ButtonCommon {
     readonly variant: 'ghost' | 'quiet';
     /** The meaning the button's glyph draws, if it has one. */
     readonly icon?: IconName;
+    /** Secondary only: ghost is already all `actionText`, and quiet's glyph always is. */
+    readonly glyphTone?: never;
 }
 
 /** The cross-platform Button contract shared by the web and native leaves. */
@@ -165,4 +184,18 @@ export function surfaceOf(props: ButtonProps): { readonly variant: ButtonVariant
     }
 
     return { variant: props.variant ?? 'primary', tone: 'inline' };
+}
+
+/**
+ * The glyph tone a set of props asks for, in its current state. A disabled or refused button shows no action cue, so its
+ * glyph takes the label's colour; a busy one keeps the tone, because busy wins over both (as everywhere on the button)
+ * and its spinner is the glyph. Pure.
+ *
+ * @param props - The button's props.
+ * @returns `action` only for a secondary button that asks for it and is not dimmed; otherwise `label`.
+ */
+export function glyphToneOf(props: ButtonProps): ButtonGlyphTone {
+    const dimmed = props.busy !== true && (props.disabled === true || props.refused === true);
+
+    return props.glyphTone === 'action' && !dimmed ? 'action' : 'label';
 }

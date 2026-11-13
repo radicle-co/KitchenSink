@@ -29,7 +29,7 @@
 import { BUSY_CONTROL_CLASS } from './busyControlProps.js';
 import { FOCUS_RING_CLASS } from '../focusRing/focusRingClass.js';
 import { PRESS_FILL_CLASS } from '../surfaceTone/surfaceToneClass.js';
-import type { ButtonSize, ButtonVariant, DestructiveTone } from './props.js';
+import type { ButtonGlyphTone, ButtonSize, ButtonVariant, DestructiveTone } from './props.js';
 
 /**
  * Tier-independent surface: the icon+label flex row, the label type role (`cardTitle`, 16/20/600: owner ruling B1, 2026-10-26;
@@ -133,15 +133,17 @@ function surfaceClassOf(key: keyof typeof SURFACE): string {
 }
 
 /**
- * The class a tier's glyph (and its busy spinner) takes beyond `currentColor`, which is its label's colour. Only `quiet`
- * parts the two: an `ink` label with an `actionText` glyph, the cue that a control with no surface is pressable. The ONE
- * place that rule is written; `Button` and a link that wears the surface both read it. Pure.
+ * The class a tier's glyph (and its busy spinner) takes beyond `currentColor`, which is its label's colour. Two cases part
+ * the two, each an `ink` label with an `actionText` glyph: `quiet` always, the cue that a control with no surface is
+ * pressable; and `secondary` under the `action` glyph tone, the cue on a surfaced step-forward control. The ONE place
+ * that rule is written; every control that draws a Button glyph reads it. Pure.
  *
  * @param variant - The tier.
+ * @param glyphTone - The glyph tone (`glyphToneOf`). Defaults to `label`; only `secondary` reads it.
  * @returns A Tailwind colour utility, or `''` when the glyph takes its label's colour.
  */
-export function buttonGlyphClass(variant: ButtonVariant): string {
-    return variant === 'quiet' ? 'text-action-text' : '';
+export function buttonGlyphClass(variant: ButtonVariant, glyphTone: ButtonGlyphTone = 'label'): string {
+    return variant === 'quiet' || (variant === 'secondary' && glyphTone === 'action') ? 'text-action-text' : '';
 }
 
 /** The surface key a tier and tone select. Pure. */

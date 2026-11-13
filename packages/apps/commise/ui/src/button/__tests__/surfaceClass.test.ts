@@ -262,6 +262,18 @@ describe('buttonSurfaceClass — the state matrix (§1.10)', () => {
         }
     });
 
+    it('gives a secondary glyph actionText only under the action tone, and no other tier a tone of its own', () => {
+        expect(buttonGlyphClass('secondary', 'action')).toBe('text-action-text');
+        expect(buttonGlyphClass('secondary', 'label')).toBe('');
+
+        // A filled tier's glyph sits on the fill; ghost is already all actionText. The tone moves neither.
+        for (const variant of ['primary', 'ghost', 'destructive'] as const) {
+            expect(buttonGlyphClass(variant, 'action'), variant).toBe('');
+        }
+
+        expect(buttonGlyphClass('quiet', 'label')).toBe('text-action-text');
+    });
+
     it('paints inline destructive as a danger label on the neutral surface', () => {
         const tokens = tokensOf(buttonSurfaceClass('destructive'));
 

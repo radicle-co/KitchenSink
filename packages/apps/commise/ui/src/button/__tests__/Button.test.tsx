@@ -436,6 +436,63 @@ describe('Button (web)', () => {
         });
     });
 
+    /**
+     * A surfaced secondary button whose glyph takes the action colour (`glyphTone="action"`): the cue a step-forward
+     * control carries while its label stays `ink` on `paper`. Additive: the default stays the label's colour.
+     */
+    describe('the secondary action glyph', () => {
+        const slot = (container: HTMLElement): Element | null =>
+            container.querySelector('svg.lucide, .animate-spin')?.closest('span[aria-hidden="true"]') ?? null;
+
+        it('draws the glyph in actionText while the label stays ink on the unchanged secondary surface', () => {
+            const { container } = render(
+                <Button variant="secondary" icon="chevronRight" glyphTone="action" iconPlacement="end">
+                    Next step
+                </Button>,
+            );
+
+            expect(slot(container)?.className).toContain('text-action-text');
+            expect(screen.getByRole('button', { name: 'Next step' }).className).toBe(buttonSurfaceClass('secondary'));
+        });
+
+        it('keeps the label colour when glyphTone is absent or label, so no existing caller changes', () => {
+            for (const glyphTone of [undefined, 'label'] as const) {
+                const { container, unmount } = render(
+                    <Button variant="secondary" icon="chevronLeft" glyphTone={glyphTone}>
+                        Back
+                    </Button>,
+                );
+
+                expect(slot(container)?.className, String(glyphTone)).toBe('inline-flex shrink-0 items-center');
+                unmount();
+            }
+        });
+
+        it('draws the busy spinner in the same actionText tone as the glyph', () => {
+            const { container } = render(
+                <Button variant="secondary" icon="chevronRight" glyphTone="action" busy>
+                    Next step
+                </Button>,
+            );
+
+            expect(container.querySelector('.animate-spin')).not.toBeNull();
+            expect(slot(container)?.className).toContain('text-action-text');
+        });
+
+        it('shows no action cue while disabled or refused: the glyph takes the label colour', () => {
+            for (const state of [{ disabled: true }, { refused: true }]) {
+                const { container, unmount } = render(
+                    <Button variant="secondary" icon="chevronRight" glyphTone="action" {...state}>
+                        Next step
+                    </Button>,
+                );
+
+                expect(slot(container)?.className ?? '', JSON.stringify(state)).not.toContain('text-action-text');
+                unmount();
+            }
+        });
+    });
+
     describe('description', () => {
         it('is described by the reason it was given, which stays out of the accessible name', () => {
             render(

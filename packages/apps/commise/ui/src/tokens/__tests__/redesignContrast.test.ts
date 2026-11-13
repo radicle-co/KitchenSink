@@ -15,6 +15,7 @@ import { describe, expect, it } from 'vitest';
 import { chart, chartDark, palette, role, roleDark, tint, type Role } from '../colors.js';
 import { coverTint, coverTintDark } from '../covers.js';
 import { difficultyTone, difficultyToneDark, proTone, proToneDark } from '../tones.js';
+import { pressFillsOf } from '../../surfaceTone/surfaceTone.js';
 import { over, ratio } from './utils/contrast.js';
 
 const TEXT = 4.5;
@@ -68,6 +69,23 @@ function pairsOf(name: string, theme: Theme): readonly Pair[] {
         pair('inverseInk on inverse', theme.inverseInk, theme.inverse, TEXT),
         pair('inverseAction on inverse', theme.inverseAction, theme.inverse, TEXT),
     );
+
+    // A secondary button's action glyph (`glyphTone="action"`) stays actionText while pressed, so it must be seen on the
+    // surfaced button's resting `paper` fill AND on the press fill of every light-family surface (SC 1.4.11). The
+    // `inverse` press is out of this register's scope: it is the inverse ink over the inverse fill, for inverse content.
+    pairs.push(pair('actionText glyph on a secondary button at rest (paper)', theme.actionText, theme.paper, NON_TEXT));
+    const presses = pressFillsOf(theme, name === 'dark' ? 'dark' : 'light');
+
+    for (const tone of ['canvas', 'paper', 'paperRaised', 'paperOverlay', 'muted'] as const) {
+        pairs.push(
+            pair(
+                `actionText glyph on a secondary button pressed over ${tone}`,
+                theme.actionText,
+                presses[tone],
+                NON_TEXT,
+            ),
+        );
+    }
 
     for (const surface of ['paper', 'canvas'] as const) {
         const tinted = over(theme.attentionTint, theme[surface]);

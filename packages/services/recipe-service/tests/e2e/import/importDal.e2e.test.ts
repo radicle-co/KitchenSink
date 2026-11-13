@@ -319,6 +319,20 @@ describe('the bulk-import DALs (LOCAL e2e, real Postgres)', () => {
             expect(await imports.countUnsavedPrivate(header.id)).toBe(2);
         });
 
+        // A refused recipe is never saved, so it would use no slot: counting it would pause a cook out of slots, and offer
+        // "make the rest public", for recipes that can never be imported.
+        it('⛔ leaves a REFUSED recipe out of the unsaved private count', async () => {
+            const header = await newImport(3); // the import asks for private
+
+            await items.upsertItems(header.id, [
+                { ordinal: 0, recipe: recipe('fine') },
+                { ordinal: 1, recipe: recipe('no lines', []) },
+                { ordinal: 2, recipe: { ...recipe('no steps'), steps: [] } },
+            ]);
+
+            expect(await imports.countUnsavedPrivate(header.id)).toBe(1);
+        });
+
         it('⛔ fingerprints the verdicts on the lines’ keys, by EITHER key the line holds', async () => {
             const header = await newImport(1);
 

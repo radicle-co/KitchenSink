@@ -337,7 +337,8 @@ export class RecipeImportsDal {
 
     /**
      * How many unsaved items would be saved private: the item's own choice over the import's. The out-of-slots pause is
-     * derived from this and the live slot count (ADR-0073 §8); nothing about it is stored.
+     * derived from this and the live slot count (ADR-0073 §8); nothing about it is stored. A REFUSED recipe is never saved,
+     * so it would use no slot and is not counted.
      *
      * @sideEffect One count.
      */
@@ -348,6 +349,7 @@ export class RecipeImportsDal {
               JOIN recipe_imports h ON h.id = i.import_id
              WHERE i.import_id = ${importId}
                AND i.stage <> 'saved'
+               AND i.refusal IS NULL
                AND COALESCE(i.visibility, h.visibility) = 'private'
         `);
 

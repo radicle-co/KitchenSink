@@ -1334,7 +1334,22 @@ describe('ImportAdvanceService — saving what is ready', () => {
             expect(recipes.create.mock.calls[0]?.[1]).toMatchObject({ totalTimeMinutes: 90 });
         });
 
-        it('⛔ an item that was REFUSED never gets here: one that does is a defect that is logged and left, never a hold', async () => {
+        // A stored refusal cannot sit on a matched item (a CHECK holds it to `received`). Should one reach the save all the same,
+        // nothing the save can do changes it, so it is held: looked at once, never again on every advance.
+        it.each(['noIngredients', 'noSteps'] as const)(
+            '⛔ holds an item that carries a stored %s refusal, and never defers it',
+            async (refusal) => {
+                const { answered, recipes, store } = run(world({ items: [matched(0, { refusal, decisionRev: 7 })] }));
+
+                await answered;
+
+                expect(recipes.create).not.toHaveBeenCalled();
+                expect(store.holdItem).toHaveBeenCalledWith(IMPORT_ID, 0, 7);
+                expect(store.deferItem).not.toHaveBeenCalled();
+            },
+        );
+
+        it('⛔ an EMPTY payload with no stored refusal is a defect: it is logged and left, never a hold', async () => {
             const noSteps = run(world({ items: [matched(0, { payload: { ...recipe(payloadLines), steps: [] } })] }));
             const noLines = run(world({ items: [matched(0, { payload: recipe([]) })], lines: { 0: [] } }));
 

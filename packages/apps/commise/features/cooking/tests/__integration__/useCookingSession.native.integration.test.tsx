@@ -2,7 +2,7 @@ import { heldKeepAwakeTags } from '@commise/ui/testing/expo-keep-awake';
 import { act, cleanup, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { useCookingSession } from '../useCookingSession.js';
+import { useCookingSession } from '@commise/features-cooking';
 
 afterEach(cleanup);
 

@@ -9,6 +9,6 @@
         "lib": ["ES2022", "DOM", "DOM.Iterable"],
         "types": []
     },
-    "include": ["src/**/*.ts", "src/**/*.tsx", "vitest.setup.native.ts"],
+    "include": ["src/**/*.ts", "src/**/*.tsx", "tests/**/*.ts", "tests/**/*.tsx", "vitest.setup.native.ts"],
     "exclude": ["node_modules", "dist"]
 }

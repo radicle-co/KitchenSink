@@ -1,8 +1,8 @@
+import { cookingMessages, navOf, useCookingSession } from '@commise/features-cooking';
+import { resolveMessages } from '@commise/i18n';
 import { InvalidTotalStepsError } from '@kitchensink/cooking-core';
 import { act, cleanup, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-
-import { useCookingSession } from '../useCookingSession.js';
 
 afterEach(cleanup);
 
@@ -258,5 +258,33 @@ describe('useCookingSession — the screen stays on while cooking and only then'
 
         Reflect.deleteProperty(navigator, 'wakeLock');
         expect(mount().result.current.keepAwakeAvailable).toBe(false);
+    });
+});
+
+describe('useCookingSession with the real copy — the Back and Next the cook reads', () => {
+    const copy = resolveMessages(cookingMessages, 'en');
+    const navFor = (result: { current: ReturnType<typeof useCookingSession> }) =>
+        navOf({
+            stepIndex: result.current.place.position - 1,
+            steps: result.current.steps,
+            everyLineTicked: result.current.everyLineTicked,
+            copy: copy.nav,
+        });
+
+    it('reads as the buttons do: Back names where it goes, Next fills once every line is ticked', () => {
+        const { result } = mount();
+
+        expect(navFor(result).back.a11yName).toBe('Back to the recipe');
+        expect(navFor(result).forward).toMatchObject({ kind: 'next', label: 'Next step', filled: false });
+
+        act(() => result.current.tick(0));
+        act(() => result.current.tick(1));
+        expect(navFor(result).forward).toMatchObject({ kind: 'startStep', label: 'Start step 2', filled: true });
+
+        act(() => result.current.next());
+        expect(navFor(result).back.a11yName).toBe('Back to step 1');
+
+        act(() => result.current.next());
+        expect(navFor(result).forward).toMatchObject({ kind: 'finish', label: 'Finish', filled: false });
     });
 });

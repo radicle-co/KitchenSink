@@ -39,7 +39,7 @@ const DEFINITIONS = new Map<string, TaskFacts>(
     GRAPHS.flatMap(([task, graph]) => graph.facts.map((fact) => [`${fact.package}#${task}`, fact] as const)),
 );
 
-const NOT_FAST = /\/tests\/(e2e|load|deployed)\/|\.e2e\.test\.|\.spec\.ts$/u;
+const NOT_FAST = /(?:\/tests\/(?:e2e|load|deployed)\/)|(?:\.e2e\.test\.)|(?:\.spec\.ts$)/u;
 const TEST_FILE = /\.test\.[cm]?[jt]sx?$|\/(__tests__|tests)\//u;
 const READS_FILES = /from ['"](node:)?(fs|fs\/promises|child_process)['"]|require\(['"](node:)?(fs|child_process)/u;
 

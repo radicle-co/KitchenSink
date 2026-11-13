@@ -8,6 +8,7 @@
  *
  * @pattern Policy — one pure rule for the box's size, read by both leaves
  */
+import { grownScale } from '../text/scaledType.js';
 import { typeRole, type TypeRole } from '../tokens/typography.js';
 
 /**
@@ -73,6 +74,19 @@ export function checkBoxSideOf(role: CheckBoxTextRole = DEFAULT_CHECK_BOX_TEXT_R
     const px = typeof size === 'number' ? size : size.regular;
 
     return Math.max(CHECK_BOX_MIN_SIDE, 2 * Math.round((px * 0.8) / 2));
+}
+
+/**
+ * The box's native side under the system text scale: its 1x side times its role's own growth (`grownScale`), so it
+ * never outgrows that text's cap. The native leaf draws this, and a row that places anything past the box reads it too.
+ * Pure.
+ *
+ * @param role - The row text's type role.
+ * @param textScale - The system text scale (`fontScale`).
+ * @returns The side in points.
+ */
+export function checkBoxSideAt(role: CheckBoxTextRole, textScale: number): number {
+    return checkBoxSideOf(role) * grownScale(role, textScale);
 }
 
 /** Props for the `CheckBoxGlyph` leaves (web and native). */

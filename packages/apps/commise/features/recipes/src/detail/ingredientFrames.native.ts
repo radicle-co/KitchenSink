@@ -5,7 +5,7 @@
  *
  * Every value is a token or a theme key, so a frame follows the scheme with no hook.
  */
-import { checkBoxSideOf } from '@commise/ui/check-box-glyph';
+import { checkBoxSideAt } from '@commise/ui/check-box-glyph';
 import { nativeTokens } from '@commise/ui/native';
 import { Text } from '@commise/ui/text';
 import { styled, XStack, YStack } from 'tamagui';
@@ -54,15 +54,19 @@ export const IngredientGroupLabel = styled(Text, {
 });
 
 /**
- * Where a row's text starts at 1x text: its gutter, the check box beside `body` text, and the gap after it. The hairline
- * between rows starts here (`IngredientCheckRow.native.tsx` pads and gaps with the same two steps).
+ * Where a row's text starts under the system text scale: its gutter, the check box beside `body` text (which grows with
+ * that text), and the gap after it. The hairline between rows starts here (`IngredientCheckRow.native.tsx` pads and
+ * gaps with the same two steps). Pure.
+ *
+ * @param textScale - The system text scale (`fontScale`), the one the design system grows the box from.
+ * @returns The inset in points.
  */
-export const ROW_TEXT_INSET = nativeTokens.spacing[4] + checkBoxSideOf('body') + nativeTokens.spacing[3];
+export const rowTextInsetAt = (textScale: number): number =>
+    nativeTokens.spacing[4] + checkBoxSideAt('body', textScale) + nativeTokens.spacing[3];
 
-/** The hairline between two rows, inset past the check box so it starts under the text. */
+/** The hairline between two rows. The row insets it past the check box (`rowTextInsetAt`) so it starts under the text. */
 export const IngredientRowDivider = styled(YStack, {
     name: 'IngredientRowDivider',
-    marginLeft: ROW_TEXT_INSET,
     borderTopWidth: '$hairline',
     borderColor: '$lineDivider',
 });

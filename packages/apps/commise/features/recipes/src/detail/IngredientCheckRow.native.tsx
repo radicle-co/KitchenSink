@@ -17,12 +17,12 @@ import { StandIn } from '@commise/ui/stand-in';
 import { StatusBadge } from '@commise/ui/status-badge';
 import { VariantPartsLine } from '@commise/ui/variant-parts-line';
 import { Fragment, type FC } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { Text } from '@commise/ui/text';
 
 import { PREP_JOINER } from '../format/prepJoiner.js';
 import { recipeMessages } from '../messages.js';
-import { IngredientRowDivider } from './ingredientFrames.native.js';
+import { IngredientRowDivider, rowTextInsetAt } from './ingredientFrames.native.js';
 import type { IngredientCheckRowProps } from './cookRowProps.js';
 import { ingredientRowName, ingredientRowStatuses } from './detailFacts.js';
 import { isStandInName, lineAmountName, lineDisplayName, variantPartTexts } from './lineName.js';
@@ -44,10 +44,12 @@ export const IngredientCheckRow: FC<IngredientCheckRowProps> = ({
     const parts = variantPartTexts(ingredient.variant?.parts);
     const statuses = ingredientRowStatuses(ingredient, allRemoved, detail);
     const notes = lineTailOf(ingredient);
+    // The same scale the design system grows the check box from, so the hairline starts where the grown box ends.
+    const { fontScale } = useWindowDimensions();
 
     return (
         <>
-            {divided && <IngredientRowDivider />}
+            {divided && <IngredientRowDivider marginLeft={rowTextInsetAt(fontScale)} />}
             <Pressable
                 role="checkbox"
                 aria-checked={checked}

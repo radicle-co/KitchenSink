@@ -20,13 +20,13 @@ import { styled, XStack } from 'tamagui';
 
 import { Icon } from '../icon/Icon.native.js';
 import { useReduceMotion } from '../motion/useReduceMotion.native.js';
-import { grownScale, scaledTypeSize } from '../text/scaledType.js';
+import { scaledTypeSize } from '../text/scaledType.js';
 import { TextScaleContext } from '../text/textScaleContext.native.js';
 import {
     CHECK_BOX_MIN_SIDE,
     DEFAULT_CHECK_BOX_TEXT_ROLE,
     GLYPH_CORNER_PER_SIDE,
-    checkBoxSideOf,
+    checkBoxSideAt,
     checkMarkMotion,
     type CheckBoxGlyphProps,
 } from './props.js';
@@ -62,7 +62,7 @@ const CheckMark = styled(XStack, {
 export const CheckBoxGlyph: FC<CheckBoxGlyphProps> = ({ checked, textRole = DEFAULT_CHECK_BOX_TEXT_ROLE }) => {
     const reduceMotion = useReduceMotion();
     const { textScale } = TextScaleContext.useStyledContext();
-    const side = checkBoxSideOf(textRole) * grownScale(textRole, textScale);
+    const side = checkBoxSideAt(textRole, textScale);
     const growth = side / CHECK_BOX_MIN_SIDE;
 
     return (

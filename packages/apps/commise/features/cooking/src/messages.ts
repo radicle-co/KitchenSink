@@ -4,13 +4,7 @@
  * through `useMessages(cookingMessages)`. A count is a `{ one, other }` pair with `{count}`, chosen by the shell's
  * view-model with `Intl.PluralRules`. The `en` set is required; adding a locale is another key.
  */
-import type { LocalizedMessages } from '@commise/i18n';
-
-/** A count's words: the singular, and the plural with `{count}`. */
-export interface CookingPluralMessages {
-    readonly one: string;
-    readonly other: string;
-}
+import type { LocalizedMessages, PluralText } from '@commise/i18n';
 
 /** The top bar: Exit. */
 export interface CookingTopMessages {
@@ -22,11 +16,11 @@ export interface CookingTopMessages {
     readonly place: string;
 }
 
-/** Back and Next step (C2, C3). */
+/** Back and Next step. */
 export interface CookingNavMessages {
     /** Visible label of Back, on every step. */
     readonly back: string;
-    /** Back's accessible name on step 1: it leaves to the recipe page. S8 replaces it with the Before you start name. */
+    /** Back's accessible name on step 1: it leaves to the recipe page. */
     readonly backA11yRecipe: string;
     /** Back's accessible name from step n+1 (contains `{n}`, the step it goes to). */
     readonly backA11y: string;
@@ -47,7 +41,7 @@ export interface CookingStepMessages {
     /** "Line 1 of 3", shown only when a step has more than one line (contains `{current}` and `{total}`). */
     readonly lineOf: string;
     /** The collapsed record of ticked lines (each contains `{count}` or says one). */
-    readonly tickedSummary: CookingPluralMessages;
+    readonly tickedSummary: PluralText;
     /** The control that opens the ticked lines. */
     readonly show: string;
     /** The polite announcement on a step change, with the focus line (contains `{current}`, `{total}` and `{line}`). */

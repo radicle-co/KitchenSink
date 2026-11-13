@@ -14,7 +14,7 @@ export interface CookingNavControl {
 /** The forward control: which action it is, and whether it is the filled one now. */
 export interface CookingForwardControl extends CookingNavControl {
     readonly kind: 'next' | 'finish' | 'startStep';
-    /** Filled when it is the action now. Next is never filled (owner ruling C2). */
+    /** Filled when it is the action now. Next is never filled. */
     readonly filled: boolean;
 }
 

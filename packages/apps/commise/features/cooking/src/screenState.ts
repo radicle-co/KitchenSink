@@ -31,7 +31,7 @@ export type CookingScreenState =
     | { readonly kind: 'done' };
 
 /**
- * Decide which of the seven screens to draw. The order is the precedence: the read first, then an empty recipe, then
+ * Decide which screen to draw. The order is the precedence: the read first, then an empty recipe, then
  * a finished session, then whether the step's lines are all ticked.
  *
  * @pattern Visitor — one discriminated union, decided once, so each shell switches over it exhaustively

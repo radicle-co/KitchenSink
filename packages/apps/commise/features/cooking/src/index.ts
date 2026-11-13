@@ -1,5 +1,5 @@
 /**
- * `@commise/features-cooking` — cooking mode's UI for web and native (feature 008). This entry holds the session hook, the
+ * `@commise/features-cooking` — cooking mode's UI for web and native. This entry holds the session hook, the
  * copy and the pure pieces both platforms share.
  */
 export { navOf } from './cookingCopy.js';

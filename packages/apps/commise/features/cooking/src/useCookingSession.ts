@@ -9,7 +9,7 @@
  * is missing, it is added to cooking-core, never here.
  *
  * The session lives in memory only: leaving the screen loses the place. The recipe is read ONCE: the steps
- * are split when the session opens, so a background refetch cannot change the steps or lines under the cook (R-15).
+ * are split when the session opens, so a background refetch cannot change the steps or lines under the cook.
  *
  * @pattern Headless hook — state and commands for two thin screens
  */
@@ -172,6 +172,11 @@ export function useCookingSession(input: UseCookingSessionInput): UseCookingSess
     const lineCount = step.lines.length;
     const focusLine = focusLineIndex(ticks, stepIndex, steps);
 
+    const isTicked = useCallback(
+        (lineIndex: number) => isLineTicked(ticks, { stepIndex, lineIndex }),
+        [ticks, stepIndex],
+    );
+
     // On while cooking; off on Done, and on leaving, which unmounts the screen and so this hook.
     useKeepAwake(status !== 'complete');
 
@@ -185,7 +190,7 @@ export function useCookingSession(input: UseCookingSessionInput): UseCookingSess
         focusPlace: focusLine === null ? null : linePlace(focusLine, step),
         tickedCount: tickedLineCount(ticks, stepIndex),
         everyLineTicked: allLinesTicked(ticks, stepIndex, steps),
-        isTicked: (lineIndex) => isLineTicked(ticks, { stepIndex, lineIndex }),
+        isTicked,
         tick: useCallback((lineIndex) => dispatch({ type: 'tick', lineIndex }), []),
         untick: useCallback((lineIndex) => dispatch({ type: 'untick', lineIndex }), []),
         next: useCallback(() => dispatch({ type: 'next' }), []),

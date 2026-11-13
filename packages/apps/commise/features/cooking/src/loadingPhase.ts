@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 /** What the loading screen shows: nothing, the skeleton, the skeleton with its label, or the slow-load actions. */
 export type LoadingPhase = 'blank' | 'skeleton' | 'label' | 'slow';
 
-/** When each phase begins, in milliseconds since the read started (spec S28). The ONE place the numbers are written. */
+/** When each phase begins, in milliseconds since the read started. The ONE place the numbers are written. */
 export const LOADING_PHASE_EDGES = { skeleton: 300, label: 1000, slow: 10_000 } as const;
 
 /**

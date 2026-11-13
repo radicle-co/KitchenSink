@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
-import { RecipeSourceType, RecipeVisibility, privateRuleOf, usesPremiumCapability } from '../index.js';
+import {
+    RecipeSourceType,
+    RecipeVisibility,
+    UNRECOGNISED_SOURCE_KIND,
+    privateRuleOf,
+    recipeSourceKindViewSchema,
+    usesPremiumCapability,
+} from '../index.js';
 import type { PrivateRule } from '../index.js';
 
 /**
@@ -39,6 +46,29 @@ describe('privateRuleOf', () => {
         [RecipeSourceType.IMPORTED_PAID, 'paid_site', 'privateOnly'],
     ] as const)('%s with source kind %s is under the %s rule', (sourceType, sourceKind, rule) => {
         expect(privateRuleOf(sourceType, sourceKind)).toBe(rule);
+    });
+
+    // A kind a newer server sent that this client does not know FAILS CLOSED: the client offers Public for nothing it cannot
+    // name. The server's own rule still decides; this only keeps an old client from offering what it would refuse.
+    it.each(Object.values(RecipeSourceType))('%s with an unrecognised kind is private only', (sourceType) => {
+        expect(privateRuleOf(sourceType, UNRECOGNISED_SOURCE_KIND)).toBe('privateOnly');
+    });
+});
+
+describe('recipeSourceKindViewSchema: the wire read of a source kind', () => {
+    it.each(['public_web', 'book', 'paid_site'] as const)('reads the known kind %s as itself', (kind) => {
+        expect(recipeSourceKindViewSchema.parse(kind)).toBe(kind);
+    });
+
+    it.each(['adapted', 'family', ''])(
+        'reads a kind it does not know (%j) as unrecognised, not a failed read',
+        (kind) => {
+            expect(recipeSourceKindViewSchema.parse(kind)).toBe(UNRECOGNISED_SOURCE_KIND);
+        },
+    );
+
+    it.each([null, 7, {}])('still refuses a value that is not a kind at all (%j)', (value) => {
+        expect(recipeSourceKindViewSchema.safeParse(value).success).toBe(false);
     });
 });
 

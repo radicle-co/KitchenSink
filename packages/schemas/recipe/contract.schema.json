@@ -1210,10 +1210,12 @@
                     "type": "string"
                 },
                 "sourceKind": {
+                    "description": "unrecognised is client-side only: what a client reads for a kind newer than it knows. The server never sends it.",
                     "enum": [
                         "public_web",
                         "book",
-                        "paid_site"
+                        "paid_site",
+                        "unrecognised"
                     ],
                     "type": "string"
                 },
@@ -1590,10 +1592,12 @@
                                 "type": "string"
                             },
                             "sourceKind": {
+                                "description": "unrecognised is client-side only: what a client reads for a kind newer than it knows. The server never sends it.",
                                 "enum": [
                                     "public_web",
                                     "book",
-                                    "paid_site"
+                                    "paid_site",
+                                    "unrecognised"
                                 ],
                                 "type": "string"
                             },
@@ -11407,10 +11411,12 @@
                     "type": "string"
                 },
                 "sourceKind": {
+                    "description": "unrecognised is client-side only: what a client reads for a kind newer than it knows. The server never sends it.",
                     "enum": [
                         "public_web",
                         "book",
-                        "paid_site"
+                        "paid_site",
+                        "unrecognised"
                     ],
                     "type": "string"
                 },
@@ -12280,10 +12286,12 @@
                     "type": "string"
                 },
                 "sourceKind": {
+                    "description": "unrecognised is client-side only: what a client reads for a kind newer than it knows. The server never sends it.",
                     "enum": [
                         "public_web",
                         "book",
-                        "paid_site"
+                        "paid_site",
+                        "unrecognised"
                     ],
                     "type": "string"
                 },
@@ -12796,10 +12804,12 @@
                                         "type": "string"
                                     },
                                     "sourceKind": {
+                                        "description": "unrecognised is client-side only: what a client reads for a kind newer than it knows. The server never sends it.",
                                         "enum": [
                                             "public_web",
                                             "book",
-                                            "paid_site"
+                                            "paid_site",
+                                            "unrecognised"
                                         ],
                                         "type": "string"
                                     },
@@ -13969,10 +13979,12 @@
                             "type": "string"
                         },
                         "sourceKind": {
+                            "description": "unrecognised is client-side only: what a client reads for a kind newer than it knows. The server never sends it.",
                             "enum": [
                                 "public_web",
                                 "book",
-                                "paid_site"
+                                "paid_site",
+                                "unrecognised"
                             ],
                             "type": "string"
                         },

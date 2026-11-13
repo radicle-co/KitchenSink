@@ -118,3 +118,63 @@ describe('keys', () => {
         expect(isCookMarksKeyOf('editor.draft.v1.user_1', 'user_1')).toBe(false);
     });
 });
+
+describe("applyCookMark — clearIngredientTicks (cooking mode's Clear ticks)", () => {
+    it('removes every ingredient tick and keeps the current-step marker', () => {
+        const after = applyCookMark(marks(['ing_a', 'ing_b'], 3), { kind: 'clearIngredientTicks' });
+
+        expect([...after.lines]).toEqual([]);
+        expect(after.currentStep).toBe(3);
+    });
+
+    it("is not `clear`: the recipe page's Clear checks still drops the marker too", () => {
+        expect(applyCookMark(marks(['ing_a'], 3), { kind: 'clear' })).toBe(EMPTY_COOK_MARKS);
+    });
+
+    it('returns the very same state when no ingredient is ticked, so the store writes nothing', () => {
+        const state = marks([], 3);
+
+        expect(applyCookMark(state, { kind: 'clearIngredientTicks' })).toBe(state);
+    });
+
+    it('never mutates the state it was given', () => {
+        const before = marks(['ing_a'], 2);
+
+        applyCookMark(before, { kind: 'clearIngredientTicks' });
+
+        expect([...before.lines]).toEqual(['ing_a']);
+    });
+});
+
+describe('applyCookMark — restoreIngredientTicks (Undo of Clear ticks)', () => {
+    it('adds the cleared keys back and removes none: a union with the ticks made since', () => {
+        const after = applyCookMark(marks(['ing_salt'], 2), {
+            kind: 'restoreIngredientTicks',
+            lines: ['ing_butter', 'ing_lemon'],
+        });
+
+        expect([...after.lines].sort()).toEqual(['ing_butter', 'ing_lemon', 'ing_salt']);
+        expect(after.currentStep).toBe(2);
+    });
+
+    it('restores a key that is already ticked once, not twice', () => {
+        const after = applyCookMark(marks(['ing_a']), { kind: 'restoreIngredientTicks', lines: ['ing_a', 'ing_b'] });
+
+        expect([...after.lines].sort()).toEqual(['ing_a', 'ing_b']);
+    });
+
+    it('returns the very same state when there is nothing new to add', () => {
+        const state = marks(['ing_a', 'ing_b']);
+
+        expect(applyCookMark(state, { kind: 'restoreIngredientTicks', lines: ['ing_a'] })).toBe(state);
+        expect(applyCookMark(state, { kind: 'restoreIngredientTicks', lines: [] })).toBe(state);
+    });
+
+    it('never mutates the state it was given', () => {
+        const before = marks(['ing_a']);
+
+        applyCookMark(before, { kind: 'restoreIngredientTicks', lines: ['ing_b'] });
+
+        expect([...before.lines]).toEqual(['ing_a']);
+    });
+});

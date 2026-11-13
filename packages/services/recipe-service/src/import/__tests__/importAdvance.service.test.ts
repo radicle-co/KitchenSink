@@ -1560,6 +1560,39 @@ describe('ImportAdvanceService — saving what is ready', () => {
                     logged.mockRestore();
                 }
             });
+
+            // GATE on #220, minor: the hold at the cap is a database write inside the save's catch too. If it fails, the item
+            // waits and is never said to be held; the next advance counts past the cap and holds it.
+            it('⛔ waits, and logs it, when the hold at the cap fails: the advance answers and the next one holds it', async () => {
+                const logged = vi.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+                const built = failing();
+                const holdFailures = () =>
+                    logged.mock.calls.filter(([message]) => String(message).includes('holding it failed')).length;
+
+                built.store.holdItem.mockRejectedValueOnce(new Error('the hold lost its connection'));
+
+                try {
+                    for (let call = 0; call < CAP - 1; call += 1) {
+                        await built.service.advance(built.principal, CALLER, IMPORT_ID);
+                    }
+
+                    await expect(built.service.advance(built.principal, CALLER, IMPORT_ID)).resolves.toBeDefined();
+
+                    expect(built.store.holdItem).toHaveBeenCalledOnce();
+                    expect(built.store.deferItem).toHaveBeenCalledTimes(CAP);
+                    expect(holdFailures()).toBe(1);
+                    expect(holdsAfterCap(logged)).toBe(0);
+
+                    await built.service.advance(built.principal, CALLER, IMPORT_ID);
+
+                    expect(built.store.holdItem).toHaveBeenCalledTimes(2);
+                    expect(built.store.deferItem).toHaveBeenCalledTimes(CAP);
+                    expect(holdFailures()).toBe(1);
+                    expect(holdsAfterCap(logged)).toBe(1);
+                } finally {
+                    logged.mockRestore();
+                }
+            });
         });
 
         it('⛔ never re-queues a held item: the next calls do not look at it, until a decision of the cook releases it', async () => {

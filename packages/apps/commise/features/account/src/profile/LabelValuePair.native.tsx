@@ -39,7 +39,8 @@ export const LabelValuePair: FC<LabelValuePairProps> = ({ label, value }) => {
             gap={stacked ? '$1' : '$3'}
         >
             <View flexShrink={stacked ? 1 : 0}>{label}</View>
-            <Text typeRole="body" color="$inkMuted" flexShrink={1} textAlign={stacked ? 'left' : 'right'}>
+            {/* minWidth 0: on the web a flex item cannot shrink below its longest word, and an email has no spaces. */}
+            <Text typeRole="body" color="$inkMuted" flexShrink={1} minWidth={0} textAlign={stacked ? 'left' : 'right'}>
                 {value}
             </Text>
         </View>

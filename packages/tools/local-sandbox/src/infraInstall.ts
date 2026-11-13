@@ -1,5 +1,5 @@
 /**
- * @module infraInstall — which CDK app directories still need their own `npm install`.
+ * @module infraInstall — which CDK app directories still need their own install, and how to install one.
  *
  * ⛔ NO CDK APP IS AN NPM WORKSPACE, ON PURPOSE. Each `infra/package.json` says so: `aws-cdk-lib` is 149 MB and
  * installs in that directory's OWN `node_modules`, never the root's. So `npm install` at the root, a fresh
@@ -8,8 +8,9 @@
  * last full run got past it by symlinking three packages from the main checkout.
  *
  * ⚠️ Resolution is Node's own (this directory, then each ancestor) BUT BOUNDED at the repo root, so a copy hoisted
- * within this checkout counts, and neither a sibling app's copy nor another checkout's does. Installing is `npm install --prefix <dir>`, the form CI uses
- * (`.github/actions/infra-package`); the infra directories carry no lockfile, so `npm ci` would refuse.
+ * within this checkout counts, and neither a sibling app's copy nor another checkout's does. Installing is
+ * `npm ci --prefix <dir>` from the app's committed lockfile, the form CI uses (`.github/actions/infra-package`), so a
+ * local synth runs against the same `aws-cdk-lib` as CI's.
  */
 import path from 'node:path';
 
@@ -54,7 +55,20 @@ export function appsMissingCdkLib(
 }
 
 /**
- * What to tell a developer whose `npm install --prefix <infra>` was refused for authentication.
+ * The npm arguments that install one CDK app from its committed lockfile, the way CI does. `npm ci`, never
+ * `npm install`: the install must match CI's `aws-cdk-lib` exactly and fail when the lockfile no longer fits the
+ * manifest. `--prefix`, not a cwd change: the directory is not a workspace, and a cwd inside the repo would make npm
+ * walk up and install the ROOT workspaces instead.
+ *
+ * @param appDir - Absolute directory of the CDK app.
+ * @returns The arguments after `npm`. Pure.
+ */
+export function cdkInstallArgs(appDir: string): readonly string[] {
+    return ['ci', '--prefix', appDir, '--no-audit', '--no-fund'];
+}
+
+/**
+ * What to tell a developer whose `npm ci --prefix <infra>` was refused for authentication.
  *
  * @param stderr - npm's stderr.
  * @returns The remedy, or `undefined` when the failure is not an authentication one. Pure.

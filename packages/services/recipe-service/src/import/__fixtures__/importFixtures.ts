@@ -1,13 +1,25 @@
 /**
  * Fixture factories for the bulk import service tests (`make*` accepting `Partial<T>`).
  */
-import type { IngredientQuantity } from '@kitchensink/recipe-core';
+import {
+    RecipeSourceType,
+    RecipeStatus,
+    RecipeVisibility,
+    type Ingredient,
+    type IngredientQuantity,
+} from '@kitchensink/recipe-core';
 import { lineDigest, parseStoredLineDigest } from '@kitchensink/recipe-core/parsing/parse-key';
 
 import type { Principal } from '../../auth/principal.js';
 import { sha256Hex } from '../../common/sha256.js';
 import { matchJudgementDigestOf } from '../../recipes/domain/matchProposal.js';
 import type { ParseJobMatch } from '../../recipes/domain/parseJobMatch.js';
+import type { RecipeResponse } from '../../recipes/dto/recipeResponse.dto.js';
+import type { ImportView } from '../../recipes/import.schema.js';
+import type { ParseJobResponse } from '../../recipes/parseJobs.schema.js';
+import type { RecipeDrizzle } from '../../database/client.js';
+import type { ImportedCreate } from '../../recipes/recipes.service.js';
+import type { IngredientRow } from '../../database/schema/ingredients.js';
 import type { ImportHeader } from '../dal/recipeImports.dal.js';
 import type { ImportItem, ListedImportItem } from '../dal/recipeImportItems.dal.js';
 import type { ImportLine } from '../dal/recipeImportLines.dal.js';
@@ -164,4 +176,120 @@ export function makeCurrentMatch(
         enqueuedAt: null,
         ...overrides,
     } as ParseJobMatch;
+}
+
+/** The recipe transaction handle the create path gives `afterWrite`. */
+export type FakeTransaction = Parameters<NonNullable<ImportedCreate['afterWrite']>>[0];
+
+/** What a create persisted, as `afterWrite` sees it. */
+export type SavedRecipeFacts = Parameters<NonNullable<ImportedCreate['afterWrite']>>[1];
+
+/**
+ * The one opaque transaction handle. The service under test only passes it through to the fake's `afterWrite`; nothing reads
+ * it, and a real one needs a database.
+ */
+export const FAKE_TRANSACTION = { tx: true } as unknown as FakeTransaction;
+
+/**
+ * The one opaque database handle. The code under test only passes it to a fake port; nothing reads it, and a real one needs
+ * a database.
+ */
+export const FAKE_DATABASE = {} as unknown as RecipeDrizzle;
+
+/** A recipe as `RecipesService.create` answers: published, user-created, private, with no lines. */
+export function makeRecipeResponse(overrides: Partial<RecipeResponse> = {}): RecipeResponse {
+    return {
+        id: 'R-new',
+        ownerId: USER,
+        title: 'Soup',
+        visibility: RecipeVisibility.PRIVATE,
+        status: RecipeStatus.PUBLISHED,
+        sourceType: RecipeSourceType.USER_CREATED,
+        hasSubstantiveEdit: false,
+        ingredients: [],
+        steps: [],
+        servings: 1,
+        prepTimeMinutes: 0,
+        cookTimeMinutes: 0,
+        totalTimeMinutes: 0,
+        tags: [],
+        dietaryFlags: [],
+        currentVersion: 1,
+        ratingCount: 0,
+        usesPremiumCapability: false,
+        createdAt: '2026-10-26T12:00:00.000Z',
+        updatedAt: '2026-10-26T12:00:00.000Z',
+        ...overrides,
+    };
+}
+
+/** An import view with nothing in it. */
+export function makeImportView(overrides: Partial<ImportView> = {}): ImportView {
+    return {
+        id: IMPORT_ID,
+        matchMode: 'keepAsWritten',
+        visibility: RecipeVisibility.PUBLIC,
+        cursorOrdinal: 0,
+        reviewClosed: false,
+        version: 'v1',
+        expectedTotal: 1,
+        allowance: { limit: 1000, used: 0, resetsAt: null },
+        pause: null,
+        counts: { total: 0, received: 0, parsing: 0, matched: 0, saved: 0 },
+        items: [],
+        nextAfter: null,
+        ...overrides,
+    };
+}
+
+/** A parse job as the create path answers: running, with no lines yet. */
+export function makeParseJobResponse(overrides: Partial<ParseJobResponse> = {}): ParseJobResponse {
+    return {
+        id: 'PJ-1',
+        status: 'running',
+        createdAt: '2026-10-26T12:00:00.000Z',
+        expiresAt: '2026-10-27T12:00:00.000Z',
+        lines: [],
+        ...overrides,
+    };
+}
+
+/** An ingredient binding as the ingredients service answers a bind. */
+export function makeIngredient(overrides: Partial<Ingredient> = {}): Ingredient {
+    return {
+        id: 'LK-1',
+        name: 'Milk, whole',
+        isUserEntered: false,
+        createdAt: '2026-10-26T12:00:00.000Z',
+        ...overrides,
+    };
+}
+
+/** A saved ingredient line (an `ingredients` row): 2 cups, bound to nothing in particular, no stated measure. */
+export function makeIngredientRow(overrides: Partial<IngredientRow> = {}): IngredientRow {
+    return {
+        id: 'ING-1',
+        recipeId: 'R-new',
+        foodLookupId: 'LK-1',
+        quantity: '2',
+        quantityHigh: null,
+        unit: 'cups',
+        displayText: null,
+        note: null,
+        sourceLine: null,
+        sourcePhrase: null,
+        statedQuantity: null,
+        statedQuantityHigh: null,
+        statedUnit: null,
+        preparation: null,
+        groupLabel: null,
+        boundBy: null,
+        importLineId: null,
+        sortOrder: 0,
+        userCalories: null,
+        userProteinG: null,
+        userCarbsG: null,
+        userFatG: null,
+        ...overrides,
+    };
 }

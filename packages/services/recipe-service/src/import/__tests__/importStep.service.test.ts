@@ -30,7 +30,15 @@ import {
 } from '../../recipes/import.schema.js';
 import type { ParseProposalMatch } from '../../recipes/parseJobs.schema.js';
 import { encodeLineCursor } from '../domain/importPaging.js';
-import { IMPORT_ID, makeHeader, makeItem, makeLine, makePrincipal, USER } from '../__fixtures__/importFixtures.js';
+import {
+    IMPORT_ID,
+    makeHeader,
+    makeItem,
+    makeLine,
+    makePrincipal,
+    makeRecipeResponse,
+    USER,
+} from '../__fixtures__/importFixtures.js';
 import { ImportStepService } from '../importStep.service.js';
 import type { ListedLine } from '../dal/recipeImportLines.dal.js';
 
@@ -145,16 +153,10 @@ function build(
     const rebind = {
         rebind: vi.fn(
             async (_principal: unknown, _recipeId: string, _position: number, _body: unknown, _caller: unknown) =>
-                ({}) as never,
+                makeRecipeResponse(),
         ),
     };
-    const service = new ImportStepService(
-        imports as never,
-        itemsDal as never,
-        linesDal as never,
-        lineView as never,
-        rebind as never,
-    );
+    const service = new ImportStepService(imports, itemsDal, linesDal, lineView, rebind);
 
     return { service, imports, itemsDal, linesDal, lineView, rebind };
 }

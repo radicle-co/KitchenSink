@@ -16,7 +16,7 @@
  *  - **A call is bounded** by its deadline and its ceilings.
  */
 import { HttpException, HttpStatus } from '@nestjs/common';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi, type Mock } from 'vitest';
 
 import { RecipeSourceType, RecipeVisibility, type IngredientQuantity } from '@kitchensink/recipe-core';
 
@@ -27,6 +27,8 @@ import {
     makeParseJobRecord,
     makeStoredProposal,
 } from '../../recipes/__fixtures__/parseJobMatches.fixture.js';
+import type { CreateRecipeDto } from '../../recipes/dto/createRecipe.dto.js';
+import type { JobProposeResult, MatchProposalService } from '../../recipes/matchProposal.service.js';
 import type { ParseProposalMatch } from '../../recipes/parseJobs.schema.js';
 import {
     foodNotAdmissible,
@@ -34,7 +36,9 @@ import {
     privateSlotsFull,
     publishRequirementsUnmet,
 } from '../../recipes/recipe.error.js';
-import type { RecipesService } from '../../recipes/recipes.service.js';
+import type { ImportedCreate, RecipesService } from '../../recipes/recipes.service.js';
+import type { IngredientsService } from '../../ingredients/ingredients.service.js';
+import type { RecipeImportsDal } from '../dal/recipeImports.dal.js';
 import type { ImportItem, PayOutcome } from '../dal/recipeImportItems.dal.js';
 import { ImportItemAlreadyClaimedError, ImportItemChangedError } from '../dal/recipeImportItems.errors.js';
 import type { ImportLine } from '../dal/recipeImportLines.dal.js';
@@ -43,25 +47,31 @@ import { importJobIdOf } from '../domain/importJobId.js';
 import { ImportAdvanceService } from '../importAdvance.service.js';
 import type { PrivateSlotsPort } from '../privateSlots.port.js';
 import {
+    FAKE_TRANSACTION,
     IMPORT_ID,
     makeCurrentMatch,
     makeHeader,
+    makeImportView,
+    makeIngredient,
+    makeIngredientRow,
     makeItem,
     makeLine,
+    makeParseJobResponse,
     makePrincipal,
+    makeRecipeResponse,
+    type SavedRecipeFacts,
     UNLIMITED_PRIVATE_SLOTS,
     USER,
 } from '../__fixtures__/importFixtures.js';
 
 const CALLER = CallerToken.fromAuthorizationHeader('Bearer cook-token');
 const COOK = makePrincipal();
-const VIEW = { id: IMPORT_ID } as never;
-const FAKE_TX = { tx: true } as never;
+const VIEW = makeImportView({ id: IMPORT_ID });
 
 /** The first call to `create`, typed, or a failure when there was none. */
-function firstCreate(recipes: { create: { mock: { calls: readonly (readonly unknown[])[] } } }): {
-    dto: { ingredients: Record<string, unknown>[]; visibility: string };
-    imported: { lineOrigins: { boundBy?: unknown }[] };
+function firstCreate(recipes: { create: Mock<RecipesService['create']> }): {
+    dto: CreateRecipeDto;
+    imported: ImportedCreate;
 } {
     const call = recipes.create.mock.calls[0];
 
@@ -71,20 +81,22 @@ function firstCreate(recipes: { create: { mock: { calls: readonly (readonly unkn
 
     // The import ALWAYS passes the fourth argument. A made-up default here would let a test of "no origins" pass even if the
     // service stopped passing `imported`, so a missing one is a failure.
-    if (call.length <= 3) {
+    const imported = call[3];
+
+    if (imported === undefined) {
         throw new Error('create was called without the import options (the fourth argument)');
     }
 
-    return { dto: call[1] as never, imported: call[3] as never };
+    return { dto: call[1], imported };
 }
 
 /** Run the save's `afterWrite` the way the create path does, inside its (fake) transaction. */
 async function runAfterWrite(
-    imported: { afterWrite?: (tx: never, saved: never) => Promise<void> } | undefined,
-    saved: unknown = { recipeId: 'R-new', ingredients: [], identities: new Map() },
+    imported: ImportedCreate | undefined,
+    saved: SavedRecipeFacts = { recipeId: 'R-new', ingredients: [], identities: new Map() },
 ): Promise<void> {
     if (imported?.afterWrite !== undefined) {
-        await imported.afterWrite(FAKE_TX, saved as never);
+        await imported.afterWrite(FAKE_TRANSACTION, saved);
     }
 }
 
@@ -275,8 +287,8 @@ interface World {
         jobIds: readonly string[],
     ) => readonly { jobId: string; kind: 'ok' | 'missing' | 'expired' | 'skipped'; matchesComplete?: boolean }[];
     readonly slots?: PrivateSlotsPort;
-    readonly create?: (...args: Parameters<RecipesService['create']>) => Promise<unknown>;
-    readonly addByRef?: (...args: unknown[]) => Promise<unknown>;
+    readonly create?: RecipesService['create'];
+    readonly addByRef?: IngredientsService['addByRef'];
     readonly limits?: Partial<ImportAdvanceLimits>;
     readonly tier?: 'free' | 'premium';
 }
@@ -284,16 +296,16 @@ interface World {
 function build(world: World = {}) {
     const header = makeHeader({ ...(world.header ?? {}) });
     const store = itemStore(world.items ?? []);
-    const imports = { findHeader: vi.fn(async () => header) };
+    const imports = { findHeader: vi.fn<RecipeImportsDal['findHeader']>(async () => header) };
     const lines = {
         findForItem: vi.fn(async (_importId: string, ordinal: number) => [...(world.lines?.[ordinal] ?? [])]),
         setSavedKeys: vi.fn(async (_tx: unknown, _entries: readonly { id: string; key: string }[]) => undefined),
     };
     const parseJobs = {
-        createPrepaid: vi.fn(
-            async (_user: string, _lines: readonly string[], jobId?: string) => ({ id: jobId ?? 'none' }) as never,
+        createPrepaid: vi.fn(async (_user: string, _lines: readonly string[], jobId?: string) =>
+            makeParseJobResponse({ id: jobId ?? 'none' }),
         ),
-        retry: vi.fn(async (_user: string, _jobId: string) => ({}) as never),
+        retry: vi.fn(async (_user: string, _jobId: string) => makeParseJobResponse()),
     };
     const matchStore = {
         findForJob: vi.fn(async (_user: string, jobId: string) => {
@@ -327,24 +339,27 @@ function build(world: World = {}) {
                   );
         }),
     };
+    /** One lookup's answer. A job the world does not hold is a job still RUNNING: it has not landed, so its item waits. */
+    const resultOf = (
+        jobId: string,
+        kind: 'ok' | 'missing' | 'expired' | 'skipped',
+        matchesComplete = true,
+    ): JobProposeResult =>
+        kind === 'ok'
+            ? {
+                  jobId,
+                  kind,
+                  record: world.jobs?.[jobId] ?? makeParseJobRecord({ id: jobId, status: 'running' }),
+                  matchesComplete,
+              }
+            : { jobId, kind };
     const matcher = {
-        proposeForJobs: vi.fn(async (_acting: unknown, _caller: unknown, jobIds: readonly string[]) =>
+        proposeForJobs: vi.fn<MatchProposalService['proposeForJobs']>(async (_acting, _caller, jobIds) =>
             world.proposed !== undefined
-                ? world.proposed(jobIds).map((entry) =>
-                      entry.kind === 'ok'
-                          ? {
-                                ...entry,
-                                record: world.jobs?.[entry.jobId] as never,
-                                matchesComplete: entry.matchesComplete ?? true,
-                            }
-                          : entry,
-                  )
-                : jobIds.map((jobId) => ({
-                      jobId,
-                      kind: 'ok' as const,
-                      record: world.jobs?.[jobId] as never,
-                      matchesComplete: true,
-                  })),
+                ? world
+                      .proposed(jobIds)
+                      .map((entry) => resultOf(entry.jobId, entry.kind, entry.matchesComplete ?? true))
+                : jobIds.map((jobId) => resultOf(jobId, 'ok')),
         ),
     };
     const lineView = {
@@ -369,45 +384,41 @@ function build(world: World = {}) {
     };
     let lookupCounter = 0;
     const ingredients = {
-        addByRef: vi.fn(
-            world.addByRef ??
-                (async (_caller: unknown, ref: { id: string }) => ({ id: `LK-${ref.id}`, foodId: ref.id }) as never),
+        addByRef: vi.fn<IngredientsService['addByRef']>(
+            world.addByRef ?? (async (_caller, ref) => makeIngredient({ id: `LK-${ref.id}`, foodId: ref.id })),
         ),
-        createFreeform: vi.fn(async (name: string) => ({ id: `FREE-${String(++lookupCounter)}-${name}` }) as never),
+        createFreeform: vi.fn<IngredientsService['createFreeform']>(async (name) =>
+            makeIngredient({ id: `FREE-${String(++lookupCounter)}-${name}`, name, isUserEntered: true }),
+        ),
     };
     const recipes = {
         create: vi.fn(
             world.create ??
-                (async (
-                    _principal: unknown,
-                    _dto: unknown,
-                    _caller: unknown,
-                    imported?: { afterWrite?: (tx: unknown, saved: unknown) => Promise<void> },
-                ) => {
+                (async (_principal: unknown, _dto: unknown, _caller: unknown, imported?: ImportedCreate) => {
                     await runAfterWrite(imported, {
                         recipeId: 'R-new',
                         ingredients: [],
                         identities: new Map(),
                     });
 
-                    return { id: 'R-new' } as never;
+                    return makeRecipeResponse();
                 }),
         ),
     };
     const builder = { build: vi.fn(async () => VIEW) };
     const limits: ImportAdvanceLimits = { ...DEFAULT_IMPORT_ADVANCE_LIMITS, ...(world.limits ?? {}) };
     const service = new ImportAdvanceService(
-        imports as never,
-        store as never,
-        lines as never,
-        parseJobs as never,
-        matchStore as never,
-        matcher as never,
-        lineView as never,
-        ingredients as never,
-        recipes as never,
+        imports,
+        store,
+        lines,
+        parseJobs,
+        matchStore,
+        matcher,
+        lineView,
+        ingredients,
+        recipes,
         world.slots ?? UNLIMITED_PRIVATE_SLOTS,
-        builder as never,
+        builder,
         limits,
     );
     const principal = world.tier === 'premium' ? makePrincipal({ roles: ['premium'] }) : COOK;
@@ -808,7 +819,7 @@ describe('ImportAdvanceService — saving what is ready', () => {
 
         await answered;
 
-        const [, , , imported] = recipes.create.mock.calls[0] ?? [];
+        const { imported } = firstCreate(recipes);
 
         expect(imported).toMatchObject({
             provenance: {
@@ -840,7 +851,7 @@ describe('ImportAdvanceService — saving what is ready', () => {
 
         await answered;
 
-        const [, dto, , imported] = recipes.create.mock.calls[0] ?? [];
+        const { dto, imported } = firstCreate(recipes);
 
         expect(ingredients.addByRef.mock.calls.map((call) => (call[1] as { id: string }).id)).toEqual([
             'F-whole',
@@ -854,7 +865,7 @@ describe('ImportAdvanceService — saving what is ready', () => {
             expect.stringContaining('FREE-') as unknown as string,
             expect.stringContaining('FREE-') as unknown as string,
         ]);
-        expect((imported as { lineOrigins: unknown[] }).lineOrigins).toEqual([
+        expect(imported.lineOrigins).toEqual([
             { kind: 'set', boundBy: 'exact', importLineId: 'L-milk' },
             { kind: 'set', boundBy: 'default', importLineId: 'L-salt' },
             { kind: 'set', boundBy: null, importLineId: 'L-pepper' },
@@ -917,26 +928,23 @@ describe('ImportAdvanceService — saving what is ready', () => {
     });
 
     it('⛔ claims the item and keys the saved lines INSIDE the recipe’s transaction, claim first', async () => {
-        const rowFor = (id: string, lookup: string) => ({
-            id: `ING-${id}`,
-            recipeId: 'R-new',
-            foodLookupId: lookup,
-            quantity: '2',
-            quantityHigh: null,
-            unit: 'cups',
-            sourceLine: '  2 cups whole milk ',
-            statedQuantity: null,
-            statedQuantityHigh: null,
-            statedUnit: null,
-            boundBy: 'exact',
-            importLineId: id,
-        });
+        const rowFor = (id: string, lookup: string) =>
+            makeIngredientRow({
+                id: `ING-${id}`,
+                recipeId: 'R-new',
+                foodLookupId: lookup,
+                quantity: '2',
+                unit: 'cups',
+                sourceLine: '  2 cups whole milk ',
+                boundBy: 'exact',
+                importLineId: id,
+            });
         const { answered, store, lines } = run(
             world({
                 create: async (_principal, _dto, _caller, imported) => {
                     await runAfterWrite(imported, {
                         recipeId: 'R-new',
-                        ingredients: [rowFor('L-milk', 'LK-1')] as never,
+                        ingredients: [rowFor('L-milk', 'LK-1')],
                         identities: new Map([
                             [
                                 'LK-1',
@@ -948,12 +956,14 @@ describe('ImportAdvanceService — saving what is ready', () => {
                                         foodOwnerId: null,
                                         createdAt: new Date(),
                                     },
+                                    name: undefined,
+                                    presence: 'unreachable',
                                 },
                             ],
-                        ]) as never,
+                        ]),
                     });
 
-                    return { id: 'R-new' };
+                    return makeRecipeResponse();
                 },
             }),
         );
@@ -961,7 +971,7 @@ describe('ImportAdvanceService — saving what is ready', () => {
         await answered;
 
         // The fence: the claim carries the revision of the item AS THE SAVE READ IT (see `decisionRev`), not a fresh read.
-        expect(store.claimSave).toHaveBeenCalledWith(FAKE_TX, IMPORT_ID, 0, 'R-new', 7);
+        expect(store.claimSave).toHaveBeenCalledWith(FAKE_TRANSACTION, IMPORT_ID, 0, 'R-new', 7);
         expect(lines.setSavedKeys).toHaveBeenCalledOnce();
         expect(lines.setSavedKeys.mock.calls[0]?.[1]).toEqual([
             { id: 'L-milk', key: expect.stringMatching(/^v\d+:/u) as unknown as string },
@@ -996,7 +1006,7 @@ describe('ImportAdvanceService — saving what is ready', () => {
 
                     await runAfterWrite(imported);
 
-                    return { id: 'R-new' };
+                    return makeRecipeResponse();
                 },
             }),
         );
@@ -1077,16 +1087,16 @@ describe('ImportAdvanceService — saving what is ready', () => {
                             throw foodNotAdmissible('F-table', 'absent');
                         }
 
-                        return { id: 'LK-ok' };
+                        return makeIngredient({ id: 'LK-ok' });
                     },
                 }),
             );
 
             await answered;
 
-            const [, , , imported] = recipes.create.mock.calls[0] ?? [];
+            const { imported } = firstCreate(recipes);
 
-            expect((imported as { lineOrigins: unknown[] }).lineOrigins[1]).toEqual({
+            expect(imported.lineOrigins[1]).toEqual({
                 kind: 'set',
                 boundBy: null,
                 importLineId: 'L-salt',
@@ -1137,12 +1147,11 @@ describe('ImportAdvanceService — saving what is ready', () => {
                 await answered;
 
                 expect(ingredients.addByRef).not.toHaveBeenCalled();
-                expect(firstCreate(recipes).imported.lineOrigins.map((origin) => origin.boundBy)).toEqual([
-                    null,
-                    null,
-                    null,
-                    null,
-                ]);
+                expect(
+                    firstCreate(recipes).imported.lineOrigins.map((origin) =>
+                        origin.kind === 'set' ? origin.boundBy : 'not-set',
+                    ),
+                ).toEqual([null, null, null, null]);
             },
         );
 
@@ -1358,7 +1367,7 @@ describe('ImportAdvanceService — saving what is ready', () => {
                     clock += 7_000; // the first save is slow
                     await runAfterWrite(args[3], { recipeId: 'R', ingredients: [], identities: new Map() });
 
-                    return { id: 'R' };
+                    return makeRecipeResponse({ id: 'R' });
                 },
             });
 
@@ -1386,7 +1395,7 @@ describe('ImportAdvanceService — saving what is ready', () => {
 
                 await runAfterWrite(args[3], { recipeId: 'R', ingredients: [], identities: new Map() });
 
-                return { id: 'R' };
+                return makeRecipeResponse({ id: 'R' });
             },
         });
 
@@ -1423,7 +1432,7 @@ describe('ImportAdvanceService.advance — the whole step', () => {
     it('is not found for a stranger’s import, and does no work', async () => {
         const { service, imports, store } = build({ items: [received(0)] });
 
-        imports.findHeader.mockResolvedValueOnce(undefined as never);
+        imports.findHeader.mockResolvedValueOnce(undefined);
 
         await expect(service.advance(COOK, CALLER, IMPORT_ID)).rejects.toMatchObject({ code: 'IMPORT_NOT_FOUND' });
         expect(store.payUnpaid).not.toHaveBeenCalled();

@@ -18,11 +18,11 @@ import { RecipeErrorCode } from '@kitchensink/recipe-core';
 import { isRecipeDomainError } from '../../recipes/recipe.error.js';
 import type { CreateImportRequest } from '../../recipes/import.schema.js';
 import { encodeImportListCursor } from '../domain/importPaging.js';
-import { IMPORT_ID, makeHeader, makePrincipal, USER } from '../__fixtures__/importFixtures.js';
+import { IMPORT_ID, makeHeader, makeImportView, makePrincipal, USER } from '../__fixtures__/importFixtures.js';
 import { ImportService } from '../import.service.js';
 import type { ImportHeader } from '../dal/recipeImports.dal.js';
 
-const VIEW = { id: IMPORT_ID } as never;
+const VIEW = makeImportView({ id: IMPORT_ID });
 const RECIPE = { title: 'Soup', ingredientLines: ['2 cups flour'], steps: [{ instruction: 'Mix.' }] };
 
 function build(

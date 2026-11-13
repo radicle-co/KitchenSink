@@ -19,7 +19,13 @@ import { describe, expect, it, vi } from 'vitest';
 import { importViewSchema } from '../../recipes/import.schema.js';
 import { ImportViewBuilder } from '../importView.builder.js';
 import type { PrivateSlotsPort } from '../privateSlots.port.js';
-import { makeHeader, makeListedItem, makePrincipal, UNLIMITED_PRIVATE_SLOTS } from '../__fixtures__/importFixtures.js';
+import {
+    FAKE_DATABASE,
+    makeHeader,
+    makeListedItem,
+    makePrincipal,
+    UNLIMITED_PRIVATE_SLOTS,
+} from '../__fixtures__/importFixtures.js';
 import type { ListedImportItem } from '../dal/recipeImportItems.dal.js';
 
 const ALLOWANCE = { limit: 1000, used: 7, resetsAt: '2026-10-27T12:00:00.000Z' };
@@ -43,7 +49,7 @@ function build(options: {
         },
         { findPage },
         { stateOf: vi.fn(async () => options.allowance ?? ALLOWANCE) },
-        {} as never,
+        FAKE_DATABASE,
         options.slots ?? UNLIMITED_PRIVATE_SLOTS,
     );
 

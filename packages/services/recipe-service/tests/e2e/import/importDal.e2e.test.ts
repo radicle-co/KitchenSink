@@ -999,18 +999,9 @@ describe('the bulk-import DALs (LOCAL e2e, real Postgres)', () => {
                 [importId, ordinal],
             );
             await items.attachJob(importId, ordinal, 0, await realJob());
+            // The picks below are made against `jd-0`, so the line must be judged under it.
             await items.snapshot(importId, ordinal, [
-                {
-                    lineIndex: 0,
-                    foodIndex: 0,
-                    sourceLine: '2 cups flour',
-                    lineDigest: 'ld',
-                    judgementDigest: 'jd-0',
-                    phrase: 'flour',
-                    name: 'flour',
-                    unit: 'cup',
-                    candidates: [],
-                } as never,
+                { ...snapshotLine(0, 0, '2 cups flour', 'flour'), judgementDigest: 'jd-0' },
             ]);
             await items.recordChoices(importId, ordinal, { statement: { kind: 'authored' } });
 

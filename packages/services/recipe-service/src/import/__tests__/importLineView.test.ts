@@ -16,7 +16,8 @@
  */
 import { describe, expect, it, vi } from 'vitest';
 
-import type { FoodRef } from '../../database/schema/foodLookupArm.js';
+import type { FoodRef, RootArm } from '../../database/schema/foodLookupArm.js';
+import type { FoodLookupsDal } from '../../ingredients/dal/foodLookups.dal.js';
 import type { FoodRefAnswer } from '../../ingredients/domain/foodRefAnswer.js';
 import { canonicalIngredientName } from '../../ingredients/domain/ingredientName.js';
 import type { LineVerdictRow } from '../../recipes/dal/lineVerifications.dal.js';
@@ -52,10 +53,7 @@ function build(
         readonly verdictsFail?: boolean;
         /** The verdict read never settles, as a stalled database would. */
         readonly verdictsHang?: boolean;
-        readonly arms?: Record<
-            string,
-            { kind: 'root'; lookupId: string; foodId: string } | { kind: 'unresolved'; lookupId: string }
-        >;
+        readonly arms?: Record<string, Pick<RootArm, 'kind' | 'lookupId' | 'foodId'>>;
     } = {},
 ) {
     const answers = options.answers ?? {
@@ -96,13 +94,25 @@ function build(
         async (keys: readonly string[], _period: string) =>
             new Set(keys.filter((key) => options.budgetSpent?.includes(key))),
     );
-    const findByIds = vi.fn(
-        async (ids: readonly string[]) =>
-            new Map(ids.flatMap((id) => (options.arms?.[id] === undefined ? [] : [[id, options.arms[id]] as const]))),
+    const findByIds = vi.fn<FoodLookupsDal['findByIds']>(
+        async (ids) =>
+            new Map(
+                ids.flatMap((id) => {
+                    const arm = options.arms?.[id];
+
+                    return arm === undefined
+                        ? []
+                        : [[id, { ...arm, foodOwnerId: null, createdAt: new Date(0) }] as const];
+                }),
+            ),
     );
-    const view = new ImportLineView({ findBandsByKeys, findExhaustedKeys, findBudgetSpentKeys }, { resolve }, {
-        findByIds,
-    } as never);
+    const view = new ImportLineView(
+        { findBandsByKeys, findExhaustedKeys, findBudgetSpentKeys },
+        { resolve },
+        {
+            findByIds,
+        },
+    );
 
     return { view, resolve, findBandsByKeys, findExhaustedKeys, findBudgetSpentKeys, findByIds };
 }

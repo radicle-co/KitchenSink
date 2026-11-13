@@ -182,7 +182,7 @@ async function purgeOneBatch(client: ExpiryQueryable): Promise<number | undefine
         try {
             await client.query('ROLLBACK', []);
         } catch (rollbackFailure) {
-            // The batch's own failure is the cause; a rollback on a broken connection must not replace it.
+            // errors[0] is the batch's own failure, so a rollback on a broken connection never hides it.
             throw new AggregateError(
                 [error, rollbackFailure],
                 'bulk import purge batch failed, and so did its rollback',

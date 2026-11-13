@@ -208,7 +208,7 @@ describe('purgeFinishedImports', () => {
         expect(release).toHaveBeenCalledWith(failure);
     });
 
-    it('keeps the batch’s own failure as the cause when the rollback fails too', async () => {
+    it('puts the batch’s own failure first in the errors when the rollback fails too', async () => {
         const failure = pgError('deadlock detected', '40P01');
         const { pool, release } = purgePool([], { deleteFails: failure, rollbackFails: true });
 

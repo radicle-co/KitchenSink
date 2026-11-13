@@ -505,7 +505,11 @@ export class ImportAdvanceService {
                     outcome = 'paused';
                     privateAllowed = false;
                 } else {
-                    outcome = await this.failed(principal, header, item, error);
+                    this.logger.error(
+                        `import ${header.id} item ${String(item.ordinal)}: saving it failed`,
+                        errorStack(error),
+                    );
+                    outcome = await this.failed(principal, header, item);
                 }
             }
 
@@ -676,32 +680,24 @@ export class ImportAdvanceService {
     }
 
     /**
-     * A save that failed for a cause no rule recognises: retried, until `saveFailureCap` failures in a row at this revision
-     * hold it as a create refusal (`saveRefused`), so every failure has an end state. The hold is said ONCE.
+     * After a save that failed for a cause no rule recognises (the caller logged it): retried, until `saveFailureCap`
+     * failures in a row at this revision hold it as a create refusal (`saveRefused`), so every failure has an end state. The
+     * hold is said ONCE.
      *
-     * @sideEffect Counts the failure; logs it; at the cap, writes the hold.
+     * @sideEffect Counts the failure; at the cap, writes the hold and logs it.
      */
-    private async failed(
-        principal: Principal,
-        header: ImportHeader,
-        item: ImportItem,
-        error: unknown,
-    ): Promise<SaveOutcome> {
+    private async failed(principal: Principal, header: ImportHeader, item: ImportItem): Promise<SaveOutcome> {
         const failures = await this.items.countSaveFailure(header.id, item.ordinal, item.decisionRev);
-        const where = `import ${header.id} item ${String(item.ordinal)}`;
 
-        if (failures !== undefined && failures >= this.limits.saveFailureCap) {
-            this.logger.error(
-                `${where}: saving it failed ${String(failures)} times in a row at this decision; it is held`,
-                errorStack(error),
-            );
-
-            return this.hold(header, item, holdOf('createRefused', visibilityFactsOf(principal)));
+        if (failures === undefined || failures < this.limits.saveFailureCap) {
+            return 'waiting';
         }
 
-        this.logger.error(`${where}: saving it failed; it is retried`, errorStack(error));
+        this.logger.error(
+            `import ${header.id} item ${String(item.ordinal)}: saving it failed ${String(failures)} times in a row at this decision; it is held`,
+        );
 
-        return 'waiting';
+        return this.hold(header, item, holdOf('createRefused', visibilityFactsOf(principal)));
     }
 
     // ── the save's two defect paths, each said ONCE: the hold that follows takes the item out of the queue ──────────────

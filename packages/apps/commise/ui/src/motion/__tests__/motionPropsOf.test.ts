@@ -41,4 +41,13 @@ describe('motionPropsOf', () => {
     ] as const)('gives the overlay no fade when reduce motion is %s', (_state, answer) => {
         expect(motionPropsOf(answer).overlay).toEqual({});
     });
+
+    // An element whose props gain or lose a `transition` is keyed by the mode, so it remounts instead of changing hook count.
+    it.each([
+        ['off', false, 'moving'],
+        ['on', true, 'still'],
+        ['not read yet', undefined, 'still'],
+    ] as const)('names the mode %s as %s', (_state, answer, mode) => {
+        expect(motionPropsOf(answer).mode).toBe(mode);
+    });
 });

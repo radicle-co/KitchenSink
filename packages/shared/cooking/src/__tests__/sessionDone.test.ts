@@ -38,6 +38,13 @@ describe('session — Done is reached only from the last step', () => {
         expect(sessionStatus(session, steps)).toBe('complete');
     });
 
+    it('ghost indices past the recipe do not make a 3-step recipe complete', () => {
+        const steps = makeOneLineSteps(3);
+        const session = { ...createSession({ ...START, steps }), completedSteps: [1, 5, 6] };
+
+        expect(sessionStatus(session, steps)).toBe('cooking');
+    });
+
     it('Cook it again starts a fresh (idle) session at step 0', () => {
         const steps = makeOneLineSteps(6);
         const again = createSession({ ...START, steps });

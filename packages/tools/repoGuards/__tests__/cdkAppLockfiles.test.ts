@@ -274,6 +274,18 @@ describe('a loop over CDK app globs installs inside the app set', () => {
 
     it.each([
         ['a glob list', 'for app in packages/infra/global packages/services/*/infra; do npm ci --prefix "$app"; done'],
+        // The exact shape of the CDK install loop in `_ci.yml`, so a parser change that breaks the real loop fails here.
+        [
+            'the real CDK install loop',
+            [
+                'for app in packages/infra/global packages/apps/*/*/infra packages/services/*/infra; do',
+                '    [ -f "${app}/package.json" ] || continue',
+                '    echo "::group::${app}"',
+                '    npm ci --prefix "${app}" --no-audit --no-fund',
+                '    echo "::endgroup::"',
+                'done',
+            ].join('\n'),
+        ],
         [
             'a quoted list',
             'for app in "packages/infra/global" "packages/services/*/infra"; do npm ci --prefix "$app"; done',

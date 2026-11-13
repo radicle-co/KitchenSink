@@ -121,7 +121,7 @@ describe('ImportLineView.matchesOf', () => {
     it('projects a snapshot line through the paste projection, with names resolved as the caller', async () => {
         const { view } = build();
         const line = makeLine({ id: 'L1' });
-        const matches = await view.matchesOf(ACTING, CALLER, [line]);
+        const matches = await view.matchesOf(ACTING, CALLER, [line], undefined);
 
         expect(matches.get('L1')).toMatchObject({
             state: 'checking',
@@ -133,14 +133,14 @@ describe('ImportLineView.matchesOf', () => {
 
     it('⛔ reads the verdict by key on every view: a contradiction makes the proposal a choice the cook makes', async () => {
         const { view } = build({ verdicts: { 'v1:proposal': DISAGREE } });
-        const matches = await view.matchesOf(ACTING, CALLER, [makeLine({ id: 'L1' })]);
+        const matches = await view.matchesOf(ACTING, CALLER, [makeLine({ id: 'L1' })], undefined);
 
         expect(matches.get('L1')).toMatchObject({ state: 'needsChoice', reason: 'reviewContradicted', proposed: null });
     });
 
     it('a verified exact-name proposal is confident', async () => {
         const { view } = build({ verdicts: { 'v1:proposal': AGREE } });
-        const matches = await view.matchesOf(ACTING, CALLER, [makeLine({ id: 'L1' })]);
+        const matches = await view.matchesOf(ACTING, CALLER, [makeLine({ id: 'L1' })], undefined);
 
         expect(matches.get('L1')).toMatchObject({ state: 'confident', reason: 'reviewVerified' });
     });
@@ -148,7 +148,12 @@ describe('ImportLineView.matchesOf', () => {
     it('a refused review is a choice, an exhausted one too', async () => {
         const refused = makeLine({ id: 'L1', review: 'refused', verificationKey: null });
         const exhausted = makeLine({ id: 'L2', lineIndex: 1, verificationKey: 'v1:gave-up' });
-        const matches = await build({ exhausted: ['v1:gave-up'] }).view.matchesOf(ACTING, CALLER, [refused, exhausted]);
+        const matches = await build({ exhausted: ['v1:gave-up'] }).view.matchesOf(
+            ACTING,
+            CALLER,
+            [refused, exhausted],
+            undefined,
+        );
 
         expect(matches.get('L1')).toMatchObject({ state: 'needsChoice', reason: 'reviewRefused' });
         expect(matches.get('L2')).toMatchObject({ state: 'needsChoice', reason: 'reviewUnchecked' });
@@ -156,7 +161,7 @@ describe('ImportLineView.matchesOf', () => {
 
     it('⛔ a review the ceiling refused this period is a choice with the moment the budget comes back', async () => {
         const { view, findBudgetSpentKeys } = build({ budgetSpent: ['v1:proposal'] });
-        const matches = await view.matchesOf(ACTING, CALLER, [makeLine({ id: 'L1' })]);
+        const matches = await view.matchesOf(ACTING, CALLER, [makeLine({ id: 'L1' })], undefined);
 
         expect(matches.get('L1')).toMatchObject({ state: 'needsChoice', reason: 'reviewBudgetSpent' });
         expect(matches.get('L1')).toHaveProperty('reviewResetsAt');
@@ -166,7 +171,7 @@ describe('ImportLineView.matchesOf', () => {
 
     it('⛔ is null for a line whose foods food could not be asked about (never a name from storage)', async () => {
         const { view } = build({ answers: {} });
-        const matches = await view.matchesOf(ACTING, CALLER, [makeLine({ id: 'L1' })]);
+        const matches = await view.matchesOf(ACTING, CALLER, [makeLine({ id: 'L1' })], undefined);
 
         expect(matches.get('L1')).toBeNull();
     });
@@ -174,17 +179,17 @@ describe('ImportLineView.matchesOf', () => {
     it('asks food once for every line’s foods, and not at all for no lines', async () => {
         const { view, resolve } = build();
 
-        await view.matchesOf(ACTING, CALLER, [makeLine({ id: 'L1' }), makeLine({ id: 'L2', lineIndex: 1 })]);
+        await view.matchesOf(ACTING, CALLER, [makeLine({ id: 'L1' }), makeLine({ id: 'L2', lineIndex: 1 })], undefined);
         expect(resolve).toHaveBeenCalledTimes(1);
 
         resolve.mockClear();
-        expect((await view.matchesOf(ACTING, CALLER, [])).size).toBe(0);
+        expect((await view.matchesOf(ACTING, CALLER, [], undefined)).size).toBe(0);
         expect(resolve).not.toHaveBeenCalled();
     });
 
     it('degrades an unreadable verdict table to "no verdict yet" instead of failing the view', async () => {
         const { view } = build({ verdictsFail: true });
-        const matches = await view.matchesOf(ACTING, CALLER, [makeLine({ id: 'L1' })]);
+        const matches = await view.matchesOf(ACTING, CALLER, [makeLine({ id: 'L1' })], undefined);
 
         expect(matches.get('L1')).toMatchObject({ state: 'checking' });
     });
@@ -199,7 +204,7 @@ describe('ImportLineView.matchesOf', () => {
 
     it('a contained test principal’s review is never sent, so it reads a choice and not “checking” forever', async () => {
         const contained = actingPrincipalOf(makePrincipal({ principalKind: 'test', containment: 'enforce' }));
-        const matches = await build().view.matchesOf(contained, CALLER, [makeLine({ id: 'L1' })]);
+        const matches = await build().view.matchesOf(contained, CALLER, [makeLine({ id: 'L1' })], undefined);
 
         expect(matches.get('L1')).toMatchObject({ state: 'needsChoice', reason: 'reviewNotAsked' });
     });
@@ -227,7 +232,7 @@ describe('ImportLineView.flagsOf', () => {
 
     it('is clear when the gate agrees with the saved line', async () => {
         const { view } = build({ arms, verdicts: { 'v1:saved': AGREE } });
-        const flags = await view.flagsOf(ACTING, CALLER, [listed()]);
+        const flags = await view.flagsOf(ACTING, CALLER, [listed()], undefined);
 
         expect(flags.get('L1')).toEqual({
             bound: { kind: 'root', id: 'F-whole', name: 'Milk, whole' },
@@ -237,7 +242,7 @@ describe('ImportLineView.flagsOf', () => {
 
     it('⛔ is flagged when the gate contradicts it, suggesting the DEFAULT candidate by name', async () => {
         const { view } = build({ arms, verdicts: { 'v1:saved': DISAGREE } });
-        const flags = await view.flagsOf(ACTING, CALLER, [listed()]);
+        const flags = await view.flagsOf(ACTING, CALLER, [listed()], undefined);
 
         expect(flags.get('L1')?.flag).toEqual({
             state: 'flagged',
@@ -254,7 +259,7 @@ describe('ImportLineView.flagsOf', () => {
                 { kind: 'root', id: 'F-skim', rung: 'default' },
             ],
         });
-        const flags = await view.flagsOf(ACTING, CALLER, [listed({ line })]);
+        const flags = await view.flagsOf(ACTING, CALLER, [listed({ line })], undefined);
 
         expect(flags.get('L1')?.flag).toEqual({
             state: 'flagged',
@@ -263,30 +268,48 @@ describe('ImportLineView.flagsOf', () => {
     });
 
     it('is checking while the review is still owed, and flagged once it gave up (never “checking” forever)', async () => {
-        const waiting = await build({ arms }).view.flagsOf(ACTING, CALLER, [listed()]);
-        const gaveUp = await build({ arms, exhausted: ['v1:saved'] }).view.flagsOf(ACTING, CALLER, [listed()]);
+        const waiting = await build({ arms }).view.flagsOf(ACTING, CALLER, [listed()], undefined);
+        const gaveUp = await build({ arms, exhausted: ['v1:saved'] }).view.flagsOf(
+            ACTING,
+            CALLER,
+            [listed()],
+            undefined,
+        );
 
         expect(waiting.get('L1')?.flag).toEqual({ state: 'checking' });
         expect(gaveUp.get('L1')?.flag).toMatchObject({ state: 'flagged' });
     });
 
     it('⛔ is flagged, not checking, when the ceiling refused the saved line’s review this period', async () => {
-        const flags = await build({ arms, budgetSpent: ['v1:saved'] }).view.flagsOf(ACTING, CALLER, [listed()]);
+        const flags = await build({ arms, budgetSpent: ['v1:saved'] }).view.flagsOf(
+            ACTING,
+            CALLER,
+            [listed()],
+            undefined,
+        );
 
         expect(flags.get('L1')?.flag).toMatchObject({ state: 'flagged' });
     });
 
     it('a line with no saved key was never judged: flagged, not checking', async () => {
-        const flags = await build({ arms }).view.flagsOf(ACTING, CALLER, [listed({ savedVerificationKey: null })]);
+        const flags = await build({ arms }).view.flagsOf(
+            ACTING,
+            CALLER,
+            [listed({ savedVerificationKey: null })],
+            undefined,
+        );
 
         expect(flags.get('L1')?.flag).toMatchObject({ state: 'flagged' });
     });
 
     it('suggests nothing for a line already bound to the default', async () => {
         const skimArms = { 'LK-1': { kind: 'root' as const, lookupId: 'LK-1', foodId: 'F-skim' } };
-        const flags = await build({ arms: skimArms, verdicts: { 'v1:saved': DISAGREE } }).view.flagsOf(ACTING, CALLER, [
-            listed(),
-        ]);
+        const flags = await build({ arms: skimArms, verdicts: { 'v1:saved': DISAGREE } }).view.flagsOf(
+            ACTING,
+            CALLER,
+            [listed()],
+            undefined,
+        );
 
         expect(flags.get('L1')?.flag).toEqual({ state: 'flagged', suggestion: null });
     });
@@ -296,6 +319,7 @@ describe('ImportLineView.flagsOf', () => {
             ACTING,
             CALLER,
             [listed()],
+            undefined,
         );
 
         expect(down.get('L1')?.bound).toEqual({ kind: 'root', id: 'F-whole', name: null });
@@ -307,7 +331,7 @@ describe('ImportLineView.flagsOf', () => {
     });
 
     it('reads a line whose binding is gone as unbound: no entry, so the list drops it', async () => {
-        const flags = await build({ arms: {} }).view.flagsOf(ACTING, CALLER, [listed()]);
+        const flags = await build({ arms: {} }).view.flagsOf(ACTING, CALLER, [listed()], undefined);
 
         expect(flags.has('L1')).toBe(false);
     });

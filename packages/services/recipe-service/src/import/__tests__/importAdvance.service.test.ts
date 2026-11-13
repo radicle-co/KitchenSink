@@ -45,6 +45,7 @@ import type { ImportLine } from '../dal/recipeImportLines.dal.js';
 import { DEFAULT_IMPORT_ADVANCE_LIMITS, type ImportAdvanceLimits } from '../domain/importLimits.js';
 import { importJobIdOf } from '../domain/importJobId.js';
 import { ImportAdvanceService } from '../importAdvance.service.js';
+import type { ImportLineView } from '../importLineView.js';
 import type { PrivateSlotsPort } from '../privateSlots.port.js';
 import {
     FAKE_TRANSACTION,
@@ -363,12 +364,8 @@ function build(world: World = {}) {
         ),
     };
     const lineView = {
-        matchesOf: vi.fn(
-            async (
-                _acting: unknown,
-                _caller: unknown,
-                rows: readonly ImportLine[],
-            ): Promise<ReadonlyMap<string, ParseProposalMatch | null>> =>
+        matchesOf: vi.fn<ImportLineView['matchesOf']>(
+            async (_acting, _caller, rows): Promise<ReadonlyMap<string, ParseProposalMatch | null>> =>
                 new Map(
                     rows.map(
                         (row) =>
@@ -1077,6 +1074,19 @@ describe('ImportAdvanceService — saving what is ready', () => {
 
             await expect(answered).resolves.toBe(VIEW);
             expect(recipes.create).not.toHaveBeenCalled();
+        });
+
+        // ADR-0072: each advance is a bounded step. The match read asks the verdict tables and food, so it must end with the
+        // call's own deadline, or a stalled read holds the call past the client's timeout and the client retries into it.
+        it('⛔ bounds the match read by the call’s own deadline', async () => {
+            const { answered, lineView } = run(world());
+
+            await answered;
+
+            const deadline = lineView.matchesOf.mock.calls[0]?.[3];
+
+            expect(deadline).toBeInstanceOf(AbortSignal);
+            expect(deadline?.aborted).toBe(false);
         });
 
         // A declared name is a new record every time (it never converges), and nothing reaps one no line points at. So

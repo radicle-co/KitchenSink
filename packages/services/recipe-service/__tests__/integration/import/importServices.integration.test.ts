@@ -215,7 +215,7 @@ describe('the import services under the real injector', () => {
             }),
         ]);
         const { steps } = await compile();
-        const step = await steps.step(COOK, CALLER, IMPORT_ID, 0);
+        const step = await steps.step(COOK, CALLER, IMPORT_ID, 0, undefined);
 
         expect(importStepResponseSchema.parse(step)).toEqual(step);
         expect(step.lines[0]).toMatchObject({
@@ -231,7 +231,7 @@ describe('the import services under the real injector', () => {
         lines.findForItem.mockResolvedValue([makeLine({ id: 'L0' })]);
         verdicts.findBudgetSpentKeys.mockResolvedValue(new Set(['v1:proposal']));
         const { steps } = await compile();
-        const step = await steps.step(COOK, CALLER, IMPORT_ID, 0);
+        const step = await steps.step(COOK, CALLER, IMPORT_ID, 0, undefined);
 
         expect(importStepResponseSchema.parse(step)).toEqual(step);
         expect(step.lines[0]?.match).toMatchObject({ state: 'needsChoice', reason: 'reviewBudgetSpent' });
@@ -280,12 +280,12 @@ describe('the import services under the real injector', () => {
             items.recordChoices.mockResolvedValue('ok');
             lines.findForItem.mockResolvedValue([]);
             const { steps } = await compile();
-            const step = await steps.step(COOK, CALLER, IMPORT_ID, 0);
+            const step = await steps.step(COOK, CALLER, IMPORT_ID, 0, undefined);
 
             expect(importStepResponseSchema.parse(step)).toEqual(step);
             expect(step.cuisine).toBeNull();
 
-            await steps.recordChoices(COOK, CALLER, IMPORT_ID, 0, { cuisine: 'Thai' });
+            await steps.recordChoices(COOK, CALLER, IMPORT_ID, 0, { cuisine: 'Thai' }, undefined);
 
             expect(items.recordChoices).toHaveBeenCalledWith(IMPORT_ID, 0, { cuisine: 'Thai' });
         });

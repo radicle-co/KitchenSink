@@ -106,6 +106,7 @@ export class ImportStepService {
         caller: CallerToken | undefined,
         importId: string,
         ordinal: number,
+        deadline: AbortSignal | undefined,
     ): Promise<ImportStepResponse> {
         const header = await ownedImport(this.imports, principal, importId);
         const item = await this.items.findItem(header.id, ordinal);
@@ -114,7 +115,7 @@ export class ImportStepService {
             throw importNotFound(importId);
         }
 
-        return this.stepOf(principal, caller, header, item);
+        return this.stepOf(principal, caller, header, item, deadline);
     }
 
     /**
@@ -128,6 +129,7 @@ export class ImportStepService {
         importId: string,
         ordinal: number,
         body: RecordImportChoicesRequest,
+        deadline: AbortSignal | undefined,
     ): Promise<ImportStepResponse> {
         const header = await ownedImport(this.imports, principal, importId);
         const outcome = await this.items.recordChoices(header.id, ordinal, body);
@@ -140,7 +142,7 @@ export class ImportStepService {
             throw importNotFound(importId);
         }
 
-        return this.step(principal, caller, importId, ordinal);
+        return this.step(principal, caller, importId, ordinal, deadline);
     }
 
     /**
@@ -157,6 +159,7 @@ export class ImportStepService {
         importId: string,
         ordinal: number,
         body: ImportPickRequest,
+        deadline: AbortSignal | undefined,
     ): Promise<ImportPickResponse> {
         const header = await ownedImport(this.imports, principal, importId);
         const item = await this.items.findItem(header.id, ordinal);
@@ -177,7 +180,7 @@ export class ImportStepService {
         // The step is built for the item AS IT NOW IS: a pick that met a save may have moved it to `saved`.
         return {
             applied: outcome.applied,
-            step: await this.stepOf(principal, caller, header, { ...item, stage: outcome.stage }),
+            step: await this.stepOf(principal, caller, header, { ...item, stage: outcome.stage }, deadline),
         };
     }
 
@@ -191,6 +194,7 @@ export class ImportStepService {
         caller: CallerToken | undefined,
         importId: string,
         query: LineQuery,
+        deadline: AbortSignal | undefined,
     ): Promise<ImportFlaggedResponse> {
         const header = await ownedImport(this.imports, principal, importId);
         const acting = actingPrincipalOf(principal);
@@ -201,7 +205,7 @@ export class ImportStepService {
 
         for (let scan = 0; scan < IMPORT_FLAGGED_MAX_SCANS && kept.length <= limit && !exhausted; scan += 1) {
             const rows = await this.lines.listFlaggable(principal.userId, header.id, after, IMPORT_FLAGGED_SCAN_SIZE);
-            const reads = await this.lineView.flagsOf(acting, caller, rows);
+            const reads = await this.lineView.flagsOf(acting, caller, rows, deadline);
 
             exhausted = rows.length < IMPORT_FLAGGED_SCAN_SIZE;
 
@@ -233,6 +237,7 @@ export class ImportStepService {
             acting,
             caller,
             shown.map(({ row }) => row.line),
+            deadline,
         );
 
         return {
@@ -269,6 +274,7 @@ export class ImportStepService {
         caller: CallerToken | undefined,
         importId: string,
         query: LineQuery,
+        deadline: AbortSignal | undefined,
     ): Promise<ImportToCheckResponse> {
         const header = await ownedImport(this.imports, principal, importId);
         const limit = query.limit ?? IMPORT_LINES_DEFAULT_PAGE_SIZE;
@@ -279,6 +285,7 @@ export class ImportStepService {
             actingPrincipalOf(principal),
             caller,
             shown.map((row) => row.line),
+            deadline,
         );
 
         return {
@@ -406,6 +413,7 @@ export class ImportStepService {
         caller: CallerToken | undefined,
         header: ImportHeader,
         item: ImportItem,
+        deadline: AbortSignal | undefined,
     ): Promise<ImportStepResponse> {
         const acting = actingPrincipalOf(principal);
         const lines = await this.lines.findForItem(header.id, item.ordinal);
@@ -421,8 +429,8 @@ export class ImportStepService {
                 : [{ ...link, line, title: item.title, savedVerificationKey: line.savedVerificationKey }];
         });
         const [matches, flags] = await Promise.all([
-            this.lineView.matchesOf(acting, caller, lines),
-            this.lineView.flagsOf(acting, caller, flaggable),
+            this.lineView.matchesOf(acting, caller, lines, deadline),
+            this.lineView.flagsOf(acting, caller, flaggable, deadline),
         ]);
 
         return {

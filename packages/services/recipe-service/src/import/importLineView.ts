@@ -82,7 +82,7 @@ export class ImportLineView {
         acting: ActingPrincipal,
         caller: CallerToken | undefined,
         lines: readonly ImportLine[],
-        deadline?: AbortSignal,
+        deadline: AbortSignal | undefined,
     ): Promise<ReadonlyMap<string, ParseProposalMatch | null>> {
         if (lines.length === 0) {
             return new Map();
@@ -110,7 +110,7 @@ export class ImportLineView {
         acting: ActingPrincipal,
         caller: CallerToken | undefined,
         listed: readonly ListedLine[],
-        deadline?: AbortSignal,
+        deadline: AbortSignal | undefined,
     ): Promise<ReadonlyMap<string, FlaggedRead>> {
         if (listed.length === 0) {
             return new Map();

@@ -91,6 +91,12 @@ import { ImportViewBuilder } from './importView.builder.js';
 import { PRIVATE_SLOTS, isPrivateSlotsFull, type PrivateSlotsPort } from './privateSlots.port.js';
 import { ownedImport } from './importOwnership.js';
 
+/** One call's time budget: the clock time it ends at, for the step ceilings, and the same end as a signal, for reads. */
+interface CallDeadline {
+    readonly at: number;
+    readonly signal: AbortSignal;
+}
+
 /** What a save attempt came to. `held`: only the cook can unblock it, so it waits out of the queue until they decide. */
 type SaveOutcome = 'saved' | 'waiting' | 'paused' | 'held';
 
@@ -276,10 +282,12 @@ export class ImportAdvanceService {
     public async advance(principal: Principal, caller: CallerToken | undefined, importId: string): Promise<ImportView> {
         const header = await ownedImport(this.imports, principal, importId);
         const deadlineAt = this.limits.now() + this.limits.deadlineMs;
+        // The same budget as a signal, for the reads that can stall (the verdict tables, food): they end with the call.
+        const deadline = AbortSignal.timeout(this.limits.deadlineMs);
 
         await this.payAndStartParsing(principal, header, deadlineAt);
         await this.matchParsing(principal, caller, header, deadlineAt);
-        await this.saveReady(principal, caller, header, deadlineAt);
+        await this.saveReady(principal, caller, header, { at: deadlineAt, signal: deadline });
 
         return this.builder.build(principal, header, { limit: IMPORT_DEFAULT_PAGE_SIZE });
     }
@@ -429,7 +437,7 @@ export class ImportAdvanceService {
         principal: Principal,
         caller: CallerToken | undefined,
         header: ImportHeader,
-        deadlineAt: number,
+        deadline: CallDeadline,
     ): Promise<void> {
         const candidates = await this.items.findSaveCandidates(header.id, this.limits.saveExamine);
 
@@ -442,14 +450,17 @@ export class ImportAdvanceService {
         let privateAllowed = await this.slots.hasAvailable(principal);
 
         for (const item of candidates) {
-            if (saved >= this.limits.saveBatch || this.limits.now() + this.limits.saveMinMs > deadlineAt) {
+            if (saved >= this.limits.saveBatch || this.limits.now() + this.limits.saveMinMs > deadline.at) {
                 return;
             }
 
             let outcome: SaveOutcome = 'waiting';
 
             try {
-                outcome = await this.saveOne(principal, caller, header, item, privateAllowed);
+                outcome = await this.saveOne(principal, caller, header, item, {
+                    privateAllowed,
+                    deadline: deadline.signal,
+                });
             } catch (error) {
                 if (isPrivateSlotsFull(error)) {
                     outcome = 'paused';
@@ -485,7 +496,7 @@ export class ImportAdvanceService {
         caller: CallerToken | undefined,
         header: ImportHeader,
         item: ImportItem,
-        privateAllowed: boolean,
+        { privateAllowed, deadline }: { readonly privateAllowed: boolean; readonly deadline: AbortSignal },
     ): Promise<SaveOutcome> {
         const requested: ImportVisibility = item.visibility ?? header.visibility;
         const statement = statementOfColumns(item);
@@ -534,7 +545,7 @@ export class ImportAdvanceService {
         }
 
         const snapshot = await this.lines.findForItem(header.id, item.ordinal);
-        const matches = await this.lineView.matchesOf(actingPrincipalOf(principal), caller, snapshot);
+        const matches = await this.lineView.matchesOf(actingPrincipalOf(principal), caller, snapshot, deadline);
         const facts = snapshot.map((line) => {
             const match = matches.get(line.id);
 
@@ -691,7 +702,14 @@ export class ImportAdvanceService {
             }
 
             for (const entry of foods) {
-                built.push(await this.foodLine(rawLine, entry, admissions.get(entry) ?? { kind: 'asWritten' }));
+                const admission = admissions.get(entry);
+
+                // Every decided entry was admitted above; a miss is a defect, never a reason to keep a bound food as text.
+                if (admission === undefined) {
+                    throw new Error(`import line ${entry.line.id}: no admission was recorded for its food`);
+                }
+
+                built.push(await this.foodLine(rawLine, entry, admission));
             }
         }
 

@@ -39,6 +39,7 @@ import {
     makeRecipeResponse,
     USER,
 } from '../__fixtures__/importFixtures.js';
+import type { ImportLineView } from '../importLineView.js';
 import { ImportStepService } from '../importStep.service.js';
 import type { ListedLine } from '../dal/recipeImportLines.dal.js';
 
@@ -138,17 +139,11 @@ function build(
         countToCheck: vi.fn(async () => options.count ?? 0),
     };
     const lineView = {
-        matchesOf: vi.fn(
-            async (
-                _acting: unknown,
-                _caller: unknown,
-                rows: readonly { id: string }[],
-            ): Promise<ReadonlyMap<string, ParseProposalMatch | null>> =>
+        matchesOf: vi.fn<ImportLineView['matchesOf']>(
+            async (_acting, _caller, rows): Promise<ReadonlyMap<string, ParseProposalMatch | null>> =>
                 new Map(rows.map((row) => [row.id, MATCH] as const)),
         ),
-        flagsOf: vi.fn(
-            async (_acting: unknown, _caller: unknown, _rows: readonly ListedLine[]) => options.flags ?? new Map(),
-        ),
+        flagsOf: vi.fn<ImportLineView['flagsOf']>(async () => options.flags ?? new Map()),
     };
     const rebind = {
         rebind: vi.fn(
@@ -169,12 +164,44 @@ const codeOf = async (promise: Promise<unknown>): Promise<unknown> => {
         : (error as { getResponse?: () => { code: string } }).getResponse?.().code;
 };
 
+// The route's request deadline reaches every read the line view makes (verdicts and food), as the paste route's does, so a
+// stalled table cannot hold a request past the client's timeout.
+describe('ImportStepService — the request deadline reaches the line view', () => {
+    const deadline = new AbortController().signal;
+
+    it('on the step: both the match read and the flag read', async () => {
+        const { service, lineView } = build();
+
+        await service.step(COOK, CALLER, IMPORT_ID, 0, deadline);
+
+        expect(lineView.matchesOf.mock.calls[0]?.[3]).toBe(deadline);
+        expect(lineView.flagsOf.mock.calls[0]?.[3]).toBe(deadline);
+    });
+
+    it('on the to-check list', async () => {
+        const { service, lineView } = build({ toCheck: [] });
+
+        await service.toCheck(COOK, CALLER, IMPORT_ID, { limit: 5 }, deadline);
+
+        expect(lineView.matchesOf.mock.calls[0]?.[3]).toBe(deadline);
+    });
+
+    it('on the flagged list: the flag scan and the match read', async () => {
+        const { service, lineView } = build();
+
+        await service.flagged(COOK, CALLER, IMPORT_ID, { limit: 5 }, deadline);
+
+        expect(lineView.flagsOf.mock.calls[0]?.[3]).toBe(deadline);
+        expect(lineView.matchesOf.mock.calls[0]?.[3]).toBe(deadline);
+    });
+});
+
 describe('ImportStepService.step', () => {
     it('shows an unsaved item’s lines with their match, measure and judgement, and no flag or origin', async () => {
         const { service } = build({
             lines: [makeLine({ id: 'L0', preparation: 'chopped', quantity: '2', quantityHigh: '3' })],
         });
-        const step = await service.step(COOK, CALLER, IMPORT_ID, 0);
+        const step = await service.step(COOK, CALLER, IMPORT_ID, 0, undefined);
 
         expect(importStepResponseSchema.parse(step)).toEqual(step);
         expect(step).toMatchObject({
@@ -212,7 +239,7 @@ describe('ImportStepService.step', () => {
                 }),
             ],
         });
-        const step = await service.step(COOK, CALLER, IMPORT_ID, 0);
+        const step = await service.step(COOK, CALLER, IMPORT_ID, 0, undefined);
 
         expect(importStepResponseSchema.parse(step)).toEqual(step);
         expect(step.lines[0]).toMatchObject({ phrase: 'large eggs', name: 'eggs', measure: { unit: 'large' } });
@@ -223,7 +250,7 @@ describe('ImportStepService.step', () => {
 
     it('reads a source that stated no amount as an absent quantity, never a fabricated 1', async () => {
         const { service } = build({ lines: [makeLine({ id: 'L0', quantity: null, quantityHigh: null, unit: '' })] });
-        const step = await service.step(COOK, CALLER, IMPORT_ID, 0);
+        const step = await service.step(COOK, CALLER, IMPORT_ID, 0, undefined);
 
         expect(step.lines[0]?.measure).toEqual({ quantity: { kind: 'absent' }, unit: '' });
     });
@@ -236,7 +263,7 @@ describe('ImportStepService.step', () => {
                 makeLine({ id: 'L2', lineIndex: 2, pickedAsWritten: true, pickedAgainstDigest: 'jd-0' }),
             ],
         });
-        const step = await service.step(COOK, CALLER, IMPORT_ID, 0);
+        const step = await service.step(COOK, CALLER, IMPORT_ID, 0, undefined);
 
         expect(step.lines.map((line) => line.pick)).toEqual([
             { kind: 'food', id: 'F-skim' },
@@ -260,7 +287,7 @@ describe('ImportStepService.step', () => {
             ]),
             flags: new Map([['L0', flag]]),
         });
-        const step = await service.step(COOK, CALLER, IMPORT_ID, 0);
+        const step = await service.step(COOK, CALLER, IMPORT_ID, 0, undefined);
 
         expect(step.lines.map((line) => [line.boundBy, line.flag])).toEqual([
             ['autoBest', { state: 'checking' }],
@@ -276,14 +303,14 @@ describe('ImportStepService.step', () => {
 
         lineView.matchesOf.mockResolvedValueOnce(new Map([['L0', null]]));
 
-        expect((await service.step(COOK, CALLER, IMPORT_ID, 0)).lines[0]?.match).toBeNull();
+        expect((await service.step(COOK, CALLER, IMPORT_ID, 0, undefined)).lines[0]?.match).toBeNull();
     });
 
     it('⛔ is not found for a stranger’s import and for an item that never arrived', async () => {
-        expect(await codeOf(build({ header: undefined }).service.step(COOK, CALLER, IMPORT_ID, 0))).toBe(
+        expect(await codeOf(build({ header: undefined }).service.step(COOK, CALLER, IMPORT_ID, 0, undefined))).toBe(
             RecipeErrorCode.IMPORT_NOT_FOUND,
         );
-        expect(await codeOf(build({ item: undefined }).service.step(COOK, CALLER, IMPORT_ID, 0))).toBe(
+        expect(await codeOf(build({ item: undefined }).service.step(COOK, CALLER, IMPORT_ID, 0, undefined))).toBe(
             RecipeErrorCode.IMPORT_NOT_FOUND,
         );
     });
@@ -299,6 +326,7 @@ describe('ImportStepService.step — the cuisine the save will use (ADR-0072 §3
             CALLER,
             IMPORT_ID,
             0,
+            undefined,
         );
 
         expect(step.cuisine).toBe('French');
@@ -307,7 +335,7 @@ describe('ImportStepService.step — the cuisine the save will use (ADR-0072 §3
     it("shows the cook's cuisine over the file's", async () => {
         const step = await build({
             item: matched({ cuisine: 'Thai', payload: { title: 'Soup', cuisine: 'French' } }),
-        }).service.step(COOK, CALLER, IMPORT_ID, 0);
+        }).service.step(COOK, CALLER, IMPORT_ID, 0, undefined);
 
         expect(step.cuisine).toBe('Thai');
     });
@@ -318,6 +346,7 @@ describe('ImportStepService.step — the cuisine the save will use (ADR-0072 §3
             CALLER,
             IMPORT_ID,
             0,
+            undefined,
         );
 
         expect(step.cuisine).toBeNull();
@@ -327,7 +356,7 @@ describe('ImportStepService.step — the cuisine the save will use (ADR-0072 §3
 describe('ImportStepService.recordChoices', () => {
     it('records the choices and answers the step', async () => {
         const { service, itemsDal } = build();
-        const step = await service.recordChoices(COOK, CALLER, IMPORT_ID, 0, { visibility: 'private' });
+        const step = await service.recordChoices(COOK, CALLER, IMPORT_ID, 0, { visibility: 'private' }, undefined);
 
         expect(itemsDal.recordChoices).toHaveBeenCalledWith(IMPORT_ID, 0, { visibility: 'private' });
         expect(step.ordinal).toBe(0);
@@ -336,7 +365,7 @@ describe('ImportStepService.recordChoices', () => {
     it('passes a cuisine to the item as a decision of the cook', async () => {
         const { service, itemsDal } = build();
 
-        await service.recordChoices(COOK, CALLER, IMPORT_ID, 0, { cuisine: 'Thai' });
+        await service.recordChoices(COOK, CALLER, IMPORT_ID, 0, { cuisine: 'Thai' }, undefined);
 
         expect(itemsDal.recordChoices).toHaveBeenCalledWith(IMPORT_ID, 0, { cuisine: 'Thai' });
     });
@@ -344,14 +373,28 @@ describe('ImportStepService.recordChoices', () => {
     it('maps a saved item to IMPORT_ITEM_ALREADY_SAVED and a missing one to not found', async () => {
         expect(
             await codeOf(
-                build({ choices: 'saved' }).service.recordChoices(COOK, CALLER, IMPORT_ID, 0, { visibility: 'public' }),
+                build({ choices: 'saved' }).service.recordChoices(
+                    COOK,
+                    CALLER,
+                    IMPORT_ID,
+                    0,
+                    { visibility: 'public' },
+                    undefined,
+                ),
             ),
         ).toBe(RecipeErrorCode.IMPORT_ITEM_ALREADY_SAVED);
         expect(
             await codeOf(
-                build({ choices: 'missing' }).service.recordChoices(COOK, CALLER, IMPORT_ID, 0, {
-                    visibility: 'public',
-                }),
+                build({ choices: 'missing' }).service.recordChoices(
+                    COOK,
+                    CALLER,
+                    IMPORT_ID,
+                    0,
+                    {
+                        visibility: 'public',
+                    },
+                    undefined,
+                ),
             ),
         ).toBe(RecipeErrorCode.IMPORT_NOT_FOUND);
     });
@@ -362,7 +405,7 @@ describe('ImportStepService.pick — an unsaved item', () => {
 
     it('records the pick against the judgement the cook saw and answers applied with the step', async () => {
         const { service, linesDal, rebind } = build();
-        const answer = await service.pick(COOK, CALLER, IMPORT_ID, 0, food);
+        const answer = await service.pick(COOK, CALLER, IMPORT_ID, 0, food, undefined);
 
         // An item that is not saved yet: the write is fenced against a racing save (`onlyUnsaved`).
         expect(linesDal.recordPick).toHaveBeenCalledWith(
@@ -382,14 +425,14 @@ describe('ImportStepService.pick — an unsaved item', () => {
 
     it('⛔ answers a stale pick as applied: false with the FRESH step (neither an error nor silent)', async () => {
         const { service } = build({ pick: 'stale' });
-        const answer = await service.pick(COOK, CALLER, IMPORT_ID, 0, food);
+        const answer = await service.pick(COOK, CALLER, IMPORT_ID, 0, food, undefined);
 
         expect(answer.applied).toBe(false);
         expect(answer.step.ordinal).toBe(0);
     });
 
     it('is not found for a line the caller does not have', async () => {
-        expect(await codeOf(build({ pick: 'missing' }).service.pick(COOK, CALLER, IMPORT_ID, 0, food))).toBe(
+        expect(await codeOf(build({ pick: 'missing' }).service.pick(COOK, CALLER, IMPORT_ID, 0, food, undefined))).toBe(
             RecipeErrorCode.IMPORT_NOT_FOUND,
         );
     });
@@ -413,7 +456,14 @@ describe('ImportStepService.pick — a SAVED line rebinds the draft as the cook'
     it('⛔ rebinds the ingredient at its position to the picked FOOD through the one rebind command, at the draft’s current version', async () => {
         const { service, rebind } = saved({ version: 7 });
 
-        const answer = await service.pick(COOK, CALLER, IMPORT_ID, 0, request({ kind: 'food', id: 'F-skim' }));
+        const answer = await service.pick(
+            COOK,
+            CALLER,
+            IMPORT_ID,
+            0,
+            request({ kind: 'food', id: 'F-skim' }),
+            undefined,
+        );
 
         // The version is the one read WITH the line's position (`findLinkedIngredient`), never a second read.
         expect(rebind.rebind).toHaveBeenCalledWith(
@@ -429,7 +479,7 @@ describe('ImportStepService.pick — a SAVED line rebinds the draft as the cook'
     it('rebinds a picked VARIANT through the variant door', async () => {
         const { service, rebind } = saved();
 
-        await service.pick(COOK, CALLER, IMPORT_ID, 0, request({ kind: 'variant', id: 'V-flat' }));
+        await service.pick(COOK, CALLER, IMPORT_ID, 0, request({ kind: 'variant', id: 'V-flat' }), undefined);
 
         expect(rebind.rebind.mock.calls[0]?.[3]).toEqual({
             expectedVersion: 4,
@@ -448,7 +498,14 @@ describe('ImportStepService.pick — a SAVED line rebinds the draft as the cook'
             linked: new Map([['L0', { boundBy: 'cook' as const }]]),
         });
 
-        const answer = await service.pick(COOK, CALLER, IMPORT_ID, 0, request({ kind: 'food', id: 'F-skim' }));
+        const answer = await service.pick(
+            COOK,
+            CALLER,
+            IMPORT_ID,
+            0,
+            request({ kind: 'food', id: 'F-skim' }),
+            undefined,
+        );
 
         expect(rebind.rebind).toHaveBeenCalledOnce();
         expect(answer.applied).toBe(true);
@@ -469,7 +526,7 @@ describe('ImportStepService.pick — a SAVED line rebinds the draft as the cook'
     it('⛔ records the pick only AFTER the rebind succeeded, and not at all when it failed', async () => {
         const ok = saved();
 
-        await ok.service.pick(COOK, CALLER, IMPORT_ID, 0, request({ kind: 'food', id: 'F-skim' }));
+        await ok.service.pick(COOK, CALLER, IMPORT_ID, 0, request({ kind: 'food', id: 'F-skim' }), undefined);
         expect(ok.rebind.rebind.mock.invocationCallOrder[0]).toBeLessThan(
             ok.linesDal.recordPick.mock.invocationCallOrder[0] ?? Number.NaN,
         );
@@ -478,14 +535,21 @@ describe('ImportStepService.pick — a SAVED line rebinds the draft as the cook'
 
         failing.rebind.rebind.mockRejectedValue(new Error('food is down'));
         await expect(
-            failing.service.pick(COOK, CALLER, IMPORT_ID, 0, request({ kind: 'food', id: 'F-skim' })),
+            failing.service.pick(COOK, CALLER, IMPORT_ID, 0, request({ kind: 'food', id: 'F-skim' }), undefined),
         ).rejects.toThrow('food is down');
         expect(failing.linesDal.recordPick).not.toHaveBeenCalled();
     });
 
     it('⛔ a stale judgement digest rebinds nothing and records nothing', async () => {
         const { service, rebind, linesDal } = saved({ line: makeLine({ id: 'L0', judgementDigest: 'jd-NEW' }) });
-        const answer = await service.pick(COOK, CALLER, IMPORT_ID, 0, request({ kind: 'food', id: 'F-skim' }));
+        const answer = await service.pick(
+            COOK,
+            CALLER,
+            IMPORT_ID,
+            0,
+            request({ kind: 'food', id: 'F-skim' }),
+            undefined,
+        );
 
         expect(answer.applied).toBe(false);
         expect(rebind.rebind).not.toHaveBeenCalled();
@@ -496,7 +560,7 @@ describe('ImportStepService.pick — a SAVED line rebinds the draft as the cook'
         const { service, rebind, linesDal } = saved({
             linkedIngredient: { recipeId: RECIPE_ID, sortOrder: 3, boundBy: null },
         });
-        const answer = await service.pick(COOK, CALLER, IMPORT_ID, 0, request({ kind: 'asWritten' }));
+        const answer = await service.pick(COOK, CALLER, IMPORT_ID, 0, request({ kind: 'asWritten' }), undefined);
 
         expect(answer.applied).toBe(true);
         expect(rebind.rebind).not.toHaveBeenCalled();
@@ -516,7 +580,7 @@ describe('ImportStepService.pick — a SAVED line rebinds the draft as the cook'
     it('⛔ refuses “as written” on a line the import BOUND: unbinding belongs to the editor, and nothing is written', async () => {
         const { service, rebind, linesDal } = saved();
         const failure = await service
-            .pick(COOK, CALLER, IMPORT_ID, 0, request({ kind: 'asWritten' }))
+            .pick(COOK, CALLER, IMPORT_ID, 0, request({ kind: 'asWritten' }), undefined)
             .catch((thrown: unknown) => thrown);
 
         expect((failure as { getResponse: () => { code: string } }).getResponse().code).toBe('VALIDATION_FAILED');
@@ -527,9 +591,9 @@ describe('ImportStepService.pick — a SAVED line rebinds the draft as the cook'
     it('is not found when the draft was deleted or the line was edited out of the link', async () => {
         const { service } = saved({ linkedIngredient: undefined });
 
-        expect(await codeOf(service.pick(COOK, CALLER, IMPORT_ID, 0, request({ kind: 'food', id: 'F-skim' })))).toBe(
-            RecipeErrorCode.RECIPE_NOT_FOUND,
-        );
+        expect(
+            await codeOf(service.pick(COOK, CALLER, IMPORT_ID, 0, request({ kind: 'food', id: 'F-skim' }), undefined)),
+        ).toBe(RecipeErrorCode.RECIPE_NOT_FOUND);
     });
 });
 
@@ -549,7 +613,7 @@ describe('ImportStepService.flagged', () => {
                 ['L2', flaggedRead('checking')],
             ]),
         });
-        const page = await service.flagged(COOK, CALLER, IMPORT_ID, { limit: 10 });
+        const page = await service.flagged(COOK, CALLER, IMPORT_ID, { limit: 10 }, undefined);
 
         expect(importFlaggedResponseSchema.parse(page)).toEqual(page);
         expect(page.lines.map((line) => [line.lineIndex, line.flag.state])).toEqual([
@@ -581,7 +645,7 @@ describe('ImportStepService.flagged', () => {
                 ['L101', flaggedRead('flagged')],
             ]),
         });
-        const page = await service.flagged(COOK, CALLER, IMPORT_ID, { limit: 2 });
+        const page = await service.flagged(COOK, CALLER, IMPORT_ID, { limit: 2 }, undefined);
 
         expect(page.lines.map((line) => line.lineIndex)).toEqual([100, 101]);
         expect(page.nextAfter).toBeNull();
@@ -594,7 +658,7 @@ describe('ImportStepService.flagged', () => {
             flaggable: [rows],
             flags: new Map(rows.map((row) => [row.line.id, flaggedRead('flagged')] as const)),
         });
-        const page = await service.flagged(COOK, CALLER, IMPORT_ID, { limit: 2 });
+        const page = await service.flagged(COOK, CALLER, IMPORT_ID, { limit: 2 }, undefined);
 
         expect(page.lines.map((line) => line.lineIndex)).toEqual([0, 1]);
         expect(page.nextAfter).toBe(encodeLineCursor({ ordinal: 0, lineIndex: 1, foodIndex: 0 }));
@@ -607,7 +671,7 @@ describe('ImportStepService.flagged', () => {
             flaggable: all,
             flags: new Map(all.flat().map((row) => [row.line.id, flaggedRead('clear')] as const)),
         });
-        const page = await service.flagged(COOK, CALLER, IMPORT_ID, { limit: 5 });
+        const page = await service.flagged(COOK, CALLER, IMPORT_ID, { limit: 5 }, undefined);
 
         expect(page.lines).toEqual([]);
         expect(linesDal.listFlaggable).toHaveBeenCalledTimes(5);
@@ -617,16 +681,16 @@ describe('ImportStepService.flagged', () => {
     it('drops a line whose binding no longer names a food (it has no read)', async () => {
         const { service } = build({ flaggable: [[listedLine(0)]], flags: new Map() });
 
-        expect((await service.flagged(COOK, CALLER, IMPORT_ID, {})).lines).toEqual([]);
+        expect((await service.flagged(COOK, CALLER, IMPORT_ID, {}, undefined)).lines).toEqual([]);
     });
 
     it('⛔ refuses a cursor it did not issue, and is not found for a stranger’s import', async () => {
         const failure = await build()
-            .service.flagged(COOK, CALLER, IMPORT_ID, { after: 'junk' })
+            .service.flagged(COOK, CALLER, IMPORT_ID, { after: 'junk' }, undefined)
             .catch((thrown: unknown) => thrown);
 
         expect((failure as { getResponse: () => { code: string } }).getResponse().code).toBe('VALIDATION_FAILED');
-        expect(await codeOf(build({ header: undefined }).service.flagged(COOK, CALLER, IMPORT_ID, {}))).toBe(
+        expect(await codeOf(build({ header: undefined }).service.flagged(COOK, CALLER, IMPORT_ID, {}, undefined))).toBe(
             RecipeErrorCode.IMPORT_NOT_FOUND,
         );
     });
@@ -636,7 +700,7 @@ describe('ImportStepService.toCheck', () => {
     it('lists the lines saved as written that wait, each with its match so the cook can pick', async () => {
         const rows = [listedLine(0, { boundBy: null }), listedLine(1, { boundBy: null })];
         const { service, linesDal } = build({ toCheck: rows });
-        const page = await service.toCheck(COOK, CALLER, IMPORT_ID, { limit: 5 });
+        const page = await service.toCheck(COOK, CALLER, IMPORT_ID, { limit: 5 }, undefined);
 
         expect(importToCheckResponseSchema.parse(page)).toEqual(page);
         expect(page.lines.map((line) => line.lineIndex)).toEqual([0, 1]);
@@ -653,7 +717,7 @@ describe('ImportStepService.toCheck', () => {
 
     it('sets nextAfter exactly when more follow', async () => {
         const rows = [0, 1, 2].map((index) => listedLine(index, { boundBy: null }));
-        const page = await build({ toCheck: rows }).service.toCheck(COOK, CALLER, IMPORT_ID, { limit: 2 });
+        const page = await build({ toCheck: rows }).service.toCheck(COOK, CALLER, IMPORT_ID, { limit: 2 }, undefined);
 
         expect(page.lines).toHaveLength(2);
         expect(page.nextAfter).toBe(encodeLineCursor({ ordinal: 0, lineIndex: 1, foodIndex: 0 }));
@@ -674,7 +738,7 @@ describe('acting principal', () => {
         const contained = makePrincipal({ principalKind: 'test', containment: 'enforce' });
         const { service, lineView } = build();
 
-        await service.step(contained, CALLER, IMPORT_ID, 0);
+        await service.step(contained, CALLER, IMPORT_ID, 0, undefined);
 
         expect(lineView.matchesOf.mock.calls[0]?.[0]).toEqual(actingPrincipalOf(contained));
     });

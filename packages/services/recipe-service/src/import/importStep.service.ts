@@ -106,7 +106,7 @@ export class ImportStepService {
         caller: CallerToken | undefined,
         importId: string,
         ordinal: number,
-        deadline: AbortSignal | undefined,
+        deadline: AbortSignal,
     ): Promise<ImportStepResponse> {
         const header = await ownedImport(this.imports, principal, importId);
         const item = await this.items.findItem(header.id, ordinal);
@@ -129,7 +129,7 @@ export class ImportStepService {
         importId: string,
         ordinal: number,
         body: RecordImportChoicesRequest,
-        deadline: AbortSignal | undefined,
+        deadline: AbortSignal,
     ): Promise<ImportStepResponse> {
         const header = await ownedImport(this.imports, principal, importId);
         const outcome = await this.items.recordChoices(header.id, ordinal, body);
@@ -159,7 +159,7 @@ export class ImportStepService {
         importId: string,
         ordinal: number,
         body: ImportPickRequest,
-        deadline: AbortSignal | undefined,
+        deadline: AbortSignal,
     ): Promise<ImportPickResponse> {
         const header = await ownedImport(this.imports, principal, importId);
         const item = await this.items.findItem(header.id, ordinal);
@@ -194,7 +194,7 @@ export class ImportStepService {
         caller: CallerToken | undefined,
         importId: string,
         query: LineQuery,
-        deadline: AbortSignal | undefined,
+        deadline: AbortSignal,
     ): Promise<ImportFlaggedResponse> {
         const header = await ownedImport(this.imports, principal, importId);
         const acting = actingPrincipalOf(principal);
@@ -274,7 +274,7 @@ export class ImportStepService {
         caller: CallerToken | undefined,
         importId: string,
         query: LineQuery,
-        deadline: AbortSignal | undefined,
+        deadline: AbortSignal,
     ): Promise<ImportToCheckResponse> {
         const header = await ownedImport(this.imports, principal, importId);
         const limit = query.limit ?? IMPORT_LINES_DEFAULT_PAGE_SIZE;
@@ -413,7 +413,7 @@ export class ImportStepService {
         caller: CallerToken | undefined,
         header: ImportHeader,
         item: ImportItem,
-        deadline: AbortSignal | undefined,
+        deadline: AbortSignal,
     ): Promise<ImportStepResponse> {
         const acting = actingPrincipalOf(principal);
         const lines = await this.lines.findForItem(header.id, item.ordinal);

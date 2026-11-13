@@ -63,6 +63,9 @@ import { ParseJobsService } from '../../../src/recipes/parseJobs.service.js';
 import { RecipesService } from '../../../src/recipes/recipes.service.js';
 import { RECIPE_LINE_VERIFICATIONS_DAL } from '../../../src/recipes/recipes.tokens.js';
 
+/** A deadline that never fires: every read on the import side takes one (ADR-0072 §2). */
+const DEADLINE = new AbortController().signal;
+
 const CALLER = CallerToken.fromAuthorizationHeader('Bearer cook-token');
 const COOK = makePrincipal();
 const DB = { marker: 'the drizzle client' };
@@ -230,7 +233,7 @@ describe('the import services under the real injector', () => {
             }),
         ]);
         const { steps } = await compile();
-        const step = await steps.step(COOK, CALLER, IMPORT_ID, 0, undefined);
+        const step = await steps.step(COOK, CALLER, IMPORT_ID, 0, DEADLINE);
 
         expect(importStepResponseSchema.parse(step)).toEqual(step);
         expect(step.lines[0]).toMatchObject({
@@ -246,7 +249,7 @@ describe('the import services under the real injector', () => {
         lines.findForItem.mockResolvedValue([makeLine({ id: 'L0' })]);
         verdicts.findBudgetSpentKeys.mockResolvedValue(new Set(['v1:proposal']));
         const { steps } = await compile();
-        const step = await steps.step(COOK, CALLER, IMPORT_ID, 0, undefined);
+        const step = await steps.step(COOK, CALLER, IMPORT_ID, 0, DEADLINE);
 
         expect(importStepResponseSchema.parse(step)).toEqual(step);
         expect(step.lines[0]?.match).toMatchObject({ state: 'needsChoice', reason: 'reviewBudgetSpent' });
@@ -405,12 +408,12 @@ describe('the import services under the real injector', () => {
             items.recordChoices.mockResolvedValue('ok');
             lines.findForItem.mockResolvedValue([]);
             const { steps } = await compile();
-            const step = await steps.step(COOK, CALLER, IMPORT_ID, 0, undefined);
+            const step = await steps.step(COOK, CALLER, IMPORT_ID, 0, DEADLINE);
 
             expect(importStepResponseSchema.parse(step)).toEqual(step);
             expect(step.cuisine).toBeNull();
 
-            await steps.recordChoices(COOK, CALLER, IMPORT_ID, 0, { cuisine: 'Thai' }, undefined);
+            await steps.recordChoices(COOK, CALLER, IMPORT_ID, 0, { cuisine: 'Thai' }, DEADLINE);
 
             expect(items.recordChoices).toHaveBeenCalledWith(IMPORT_ID, 0, { cuisine: 'Thai' });
         });
@@ -420,7 +423,7 @@ describe('the import services under the real injector', () => {
             items.recordChoices.mockResolvedValue('ok');
             lines.findForItem.mockResolvedValue([]);
             const { steps } = await compile();
-            const step = await steps.step(COOK, CALLER, IMPORT_ID, 0, undefined);
+            const step = await steps.step(COOK, CALLER, IMPORT_ID, 0, DEADLINE);
 
             expect(importStepResponseSchema.parse(step)).toEqual(step);
             expect(step).toMatchObject({
@@ -436,7 +439,7 @@ describe('the import services under the real injector', () => {
                 IMPORT_ID,
                 0,
                 { servings: 6, prepTimeMinutes: 0, cookTimeMinutes: 30 },
-                undefined,
+                DEADLINE,
             );
 
             expect(items.recordChoices).toHaveBeenCalledWith(IMPORT_ID, 0, {

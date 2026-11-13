@@ -221,11 +221,12 @@ function candidatesOf(match: ParseJobMatch, answerOf: (ref: FoodRef) => FoodRefA
 
 /**
  * One store read that the view survives losing: bounded by the request's deadline, and on any failure the logged `failure`
- * and `empty` (rule 4: an unreadable fact is the absence of the fact, never a failed poll).
+ * and `empty` (rule 4: an unreadable fact is the absence of the fact, never a failed poll). Exported so the bulk import's
+ * line view bounds its own store reads the same way, with no second copy.
  *
  * @sideEffect Runs `read`; logs a failure.
  */
-async function readOrEmpty<T>(
+export async function readOrEmpty<T>(
     logger: Pick<Logger, 'warn'>,
     subject: string,
     deadline: AbortSignal | undefined,

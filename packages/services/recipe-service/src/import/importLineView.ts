@@ -27,7 +27,14 @@ import type { LineVerificationsDal } from '../recipes/dal/lineVerifications.dal.
 import { identityReadingOf } from '../recipes/domain/lineVerification.js';
 import { isDefaultRung } from '../recipes/domain/matchProposal.js';
 import { reviewStandingOf } from '../recipes/domain/reviewStanding.js';
-import { foodsOfMatch, isNamed, namedFood, projectMatch, readMatchFacts } from '../recipes/parseJobMatchView.js';
+import {
+    foodsOfMatch,
+    isNamed,
+    namedFood,
+    projectMatch,
+    readMatchFacts,
+    readOrEmpty,
+} from '../recipes/parseJobMatchView.js';
 import type { ParseProposalMatch } from '../recipes/parseJobs.schema.js';
 import type { ImportFlag } from '../recipes/import.schema.js';
 import { RECIPE_LINE_VERIFICATIONS_DAL } from '../recipes/recipes.tokens.js';
@@ -75,14 +82,14 @@ export class ImportLineView {
      * @param acting - The verified caller (a contained test principal's reviews are never sent, ADR-0040).
      * @param caller - The caller's credential, forwarded to food for names.
      * @param lines - The snapshot lines.
-     * @param deadline - The request's deadline, when it has one.
+     * @param deadline - The request's deadline. Every read ends with it, and an aborted one degrades the read, never throws.
      * @returns Line id → match; `null` for a line whose foods food could not be asked about. @sideEffect Reads.
      */
     public async matchesOf(
         acting: ActingPrincipal,
         caller: CallerToken | undefined,
         lines: readonly ImportLine[],
-        deadline: AbortSignal | undefined,
+        deadline: AbortSignal,
     ): Promise<ReadonlyMap<string, ParseProposalMatch | null>> {
         if (lines.length === 0) {
             return new Map();
@@ -103,20 +110,28 @@ export class ImportLineView {
      * @param acting - The verified caller.
      * @param caller - The caller's credential.
      * @param listed - The candidate lines (every origin but `cook`), each with the ingredient it became.
-     * @param deadline - The request's deadline, when it has one.
-     * @returns Line id → bound food and flag. A line whose binding no longer names a food has no entry. @sideEffect Reads.
+     * @param deadline - The request's deadline. Every read ends with it, and an aborted one degrades the read, never throws.
+     * @returns Line id → bound food and flag. A line whose binding no longer names a food has no entry, and so does every
+     *   line when the bindings cannot be read in time (the list then shows none until the next read). @sideEffect Reads.
      */
     public async flagsOf(
         acting: ActingPrincipal,
         caller: CallerToken | undefined,
         listed: readonly ListedLine[],
-        deadline: AbortSignal | undefined,
+        deadline: AbortSignal,
     ): Promise<ReadonlyMap<string, FlaggedRead>> {
         if (listed.length === 0) {
             return new Map();
         }
 
-        const arms = await this.lookups.findByIds(listed.map((row) => row.foodLookupId));
+        const arms = await readOrEmpty(
+            this.logger,
+            'import',
+            deadline,
+            () => this.lookups.findByIds(listed.map((row) => row.foodLookupId)),
+            new Map(),
+            'bindings could not be read; the lines read as unbound',
+        );
         const rows = listed.flatMap((row) => {
             const arm = arms.get(row.foodLookupId);
             const bound = arm === undefined ? undefined : foodRefOf(arm);
@@ -171,7 +186,7 @@ export class ImportLineView {
     private readFacts(
         acting: ActingPrincipal,
         caller: CallerToken | undefined,
-        deadline: AbortSignal | undefined,
+        deadline: AbortSignal,
         ask: { readonly keys: readonly string[]; readonly foods: readonly FoodRef[] },
     ): ReturnType<typeof readMatchFacts> {
         return readMatchFacts(

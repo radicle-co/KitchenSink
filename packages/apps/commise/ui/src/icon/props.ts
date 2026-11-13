@@ -69,6 +69,8 @@ export const ICON_NAMES = [
     // The library's list/grid switch (slice 4, `buildSpec.md` §4.3).
     'list',
     'layoutGrid',
+    // The cooking-mode entry, "Start cooking" and "Continue cooking". `flame` already means kcal.
+    'cookingPot',
 ] as const;
 
 /** A meaning the Registry can draw. */

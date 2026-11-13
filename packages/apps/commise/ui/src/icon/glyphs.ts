@@ -24,6 +24,7 @@ import {
     ClipboardPaste,
     Clock,
     Compass,
+    CookingPot,
     CopyPlus,
     Ellipsis,
     Eye,
@@ -118,4 +119,5 @@ export const GLYPHS: Readonly<Record<IconName, LucideIcon>> = {
     menu: Menu,
     list: List,
     layoutGrid: LayoutGrid,
+    cookingPot: CookingPot,
 };

@@ -56,6 +56,7 @@ const names = [
     'menu',
     'list',
     'layoutGrid',
+    'cookingPot',
 ] as const;
 
 export default defineCard({

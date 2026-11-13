@@ -7,6 +7,8 @@ This package builds two claude.ai artifacts from the Commise sources:
 
 Nothing in it is hand-copied from the product. The bundle compiles the real web leaves (`window.Commise`) and the real React Native leaves through react-native-web (`window.Commise.Native`). The tokens come from `@commise/ui`'s own exports.
 
+Motion on the native side is not the device's. The native leaves run on Tamagui's web core here, so Tamagui's device animation driver cannot load, and the bundle uses the CSS stand-in the native test lanes use (`@commise/ui/testing/animations-shim`). Each native component is also wrapped so it renders inside `DesignSystemProvider`, the way the app's root mounts it (`src/runtime/designSystemScope.ts`).
+
 ## The two artifacts
 
 | Artifact       | Link                                              | Built into                  |

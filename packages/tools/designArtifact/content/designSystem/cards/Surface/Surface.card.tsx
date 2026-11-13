@@ -16,7 +16,7 @@ const TONES = [
 
 export default defineCard({
     group: 'Layout',
-    height: 520,
+    height: 590,
     platforms: 'both',
     uses: ['Surface', 'Button', 'Chip'],
     render: ({ Surface, Button, Chip }) => (

@@ -26,9 +26,14 @@ declare global {
         React: ReactLike;
         ReactDOM: ReactDomLike;
         /** The web components; `Native` holds the native leaves. */
-        Commise: { readonly Native: unknown };
+        Commise: { readonly Native: Readonly<Record<string, unknown>> };
         __react?: BridgedReact;
         __jsx?: JsxRuntime;
+        /** Defined by `runtime/designSystemScopeEntry`; puts the native components inside the Tamagui provider. */
+        __scopeDesignSystem?: (
+            native: Readonly<Record<string, unknown>>,
+            components: readonly string[],
+        ) => Readonly<Record<string, unknown>>;
     }
 
     /** Defined by the compiled card, which the page inlines ahead of the runtime. */

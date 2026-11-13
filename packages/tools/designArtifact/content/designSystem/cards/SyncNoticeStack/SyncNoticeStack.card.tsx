@@ -8,7 +8,7 @@ const noop = (): void => undefined;
 
 export default defineCard({
     group: 'Feedback',
-    height: 420,
+    height: 430,
     platforms: 'both',
     notes: {
         web: 'On web the stack draws nothing: the notices flow at the top of main.',

@@ -10,7 +10,7 @@ const labels = { failed: 'We couldn’t refresh your recipes.', retry: 'Try agai
 
 export default defineCard({
     group: 'Feedback',
-    height: 260,
+    height: 300,
     platforms: 'both',
     uses: ['RefreshNotice'],
     render: ({ RefreshNotice }) => (

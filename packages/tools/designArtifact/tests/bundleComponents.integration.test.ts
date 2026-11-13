@@ -3,11 +3,16 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { statSync } from 'node:fs';
 import { join } from 'node:path';
 
+import { transform } from 'esbuild';
+
 import { bundleComponents } from '../src/bundle/bundleComponents.js';
 import { EsbuildBundler } from '../src/bundle/esbuildBundler.js';
 import { COMMISE_ROOT, UI_SRC } from '../src/config.js';
 import { REACT18_BRIDGE_SOURCE } from '../src/runtime/react18Bridge.js';
 import { discoverSurface } from '../src/surface/discoverSurface.js';
+
+/** A marker no real source contains, swapped in for every free `process` reference. */
+const FREE_PROCESS = '__freeProcessReference__';
 
 describe('bundleComponents with the real esbuild bundler over the real sources', () => {
     const surface = discoverSurface();
@@ -60,5 +65,19 @@ describe('bundleComponents with the real esbuild bundler over the real sources',
     it('contains no copy of React and no runtime fake process', () => {
         expect(script).not.toContain('react.production');
         expect(script).not.toMatch(/window\.process\s*=/u);
+    });
+
+    it('reads no `process` global, which the page does not define', async () => {
+        // esbuild's define rewrites only FREE references, so this is real scope analysis: zod's `process()` methods
+        // and other bound names stay untouched. Strict on purpose: even a `typeof process` guard would count.
+        const { code } = await transform(script, { loader: 'js', define: { process: FREE_PROCESS } });
+
+        expect(code.split(FREE_PROCESS).length - 1).toBe(0);
+    });
+
+    it('carries the CSS animation driver, neither the browser stub that throws nor the native-core driver', () => {
+        expect(script).not.toContain('This animation driver only works on native');
+        expect(script).not.toContain('createAnimations.native.js');
+        expect(script).toContain('ui/src/testing/animationsShim.ts');
     });
 });

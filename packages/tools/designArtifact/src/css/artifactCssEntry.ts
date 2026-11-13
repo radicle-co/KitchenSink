@@ -23,6 +23,18 @@ export const CONTENT_SOURCE_ROOTS: readonly string[] = [
 ];
 
 /**
+ * The two rules of Tamagui's web reset (`@tamagui/core/reset.css`) the native half needs. The whole reset cannot be
+ * imported: it unsets `p`, `button` and `input` everywhere, which would restyle the web components. A device draws
+ * neither default these rules undo: a Tamagui or react-native-web pressable is a `<button>` on the web (classes
+ * `is_View` and `css-…`), whose browser default centres the row's text, and react-native-web's modal focus trap
+ * focuses its hidden backdrop, which the browser rings.
+ */
+const TAMAGUI_RESET_RULES: readonly string[] = [
+    ':where(button.is_View,button[class^=css-]){text-align:inherit}',
+    ':where([aria-hidden=true][tabindex]):focus{outline:none}',
+];
+
+/**
  * The Tailwind input for the artifact stylesheet. Pure.
  *
  * Every `@import` comes first: CSS drops an `@import` that follows another rule.
@@ -42,6 +54,8 @@ export function artifactCssEntry(sourceRoots: readonly string[]): string {
         "@import '@commise/ui/theme.css' source(none);",
         '',
         '@custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *));',
+        '',
+        ...TAMAGUI_RESET_RULES,
         '',
         ...sourceRoots.map((root) => `@source "${root}";`),
         '',

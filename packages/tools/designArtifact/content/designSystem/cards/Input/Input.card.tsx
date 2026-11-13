@@ -50,7 +50,7 @@ function Field({ id, label, init, native, ui, placeholder, invalid, disabled, me
 
 export default defineCard({
     group: 'Forms',
-    height: 400,
+    height: 420,
     platforms: 'both',
     uses: ['FieldLabel', 'Input'],
     render: (ui, { platform }) => {

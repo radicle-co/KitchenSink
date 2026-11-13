@@ -31,6 +31,9 @@ export interface ReactLike {
         deps: readonly unknown[],
     ): (...args: Args) => Result;
     readonly useEffectEvent?: EffectEventHook;
+    /** Read by the design-system scope (`runtime/designSystemScope`), not by the bridge. */
+    createContext(defaultValue: unknown): unknown;
+    useContext(context: unknown): unknown;
 }
 
 /** `window.__react`: the host React with `useEffectEvent` guaranteed. */

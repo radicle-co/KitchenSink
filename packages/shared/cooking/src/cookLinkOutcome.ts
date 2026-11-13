@@ -27,7 +27,7 @@ export type CookLinkOutcome = 'cook' | 'editor' | 'noSteps' | 'gone';
  * An unreadable recipe is `gone` before anything else is read, so a link never tells a non-owner that a recipe is a
  * draft or has no steps; S32 never says why.
  *
- * @pattern Specification — composes {@link isCookable} rather than restating it
+ * @pattern Policy — a decision function that composes the {@link isCookable} Specification rather than restating it
  * @param input - The recipe's status and step count (steps with text, `cookingStepsOf`), and the viewer's relation.
  * @returns The outcome. Pure.
  */

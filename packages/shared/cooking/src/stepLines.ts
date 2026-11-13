@@ -40,7 +40,7 @@ const SPLIT_OPTIONS = {
  * The library leaves punctuation that stands outside any sentence ("Mix.  ?? Bake.") as a node of its own. That text
  * is never dropped: it joins the line before it, or the line after it when it comes first.
  *
- * @pattern Strategy — one implementation behind the `(text) => lines` function type, over `sentence-splitter`.
+ * @pattern Adapter over `sentence-splitter` — its sentence node tree becomes the domain's list of lines.
  * @param text - The step's instruction text.
  * @returns The lines, trimmed and in order. Each is a slice of `text`, and only whitespace lies between them. An
  * empty or whitespace-only step has no lines.

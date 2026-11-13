@@ -10,11 +10,11 @@ export interface CookingStep {
 }
 
 /**
- * The recipe's steps as cooking mode walks them, in recipe order. A step with no text is not a step for the cook (FR-033a).
+ * The recipe's steps as cooking mode walks them, in recipe order (FR-033a).
  *
- * A step without text (`hasStepText`, the one definition) is not a step for the cook: it is skipped here, so every count downstream (the
- * place, the track, Done, and the step count `isCookable` and `cookLinkOutcome` read) covers only steps with text,
- * and no step with no lines reaches the reducers.
+ * A step without text (`hasStepText`, the one definition) is not a step for the cook: it is skipped here, so every
+ * count downstream (the place, the track, Done, and the step count `isCookable` and `cookLinkOutcome` read) covers
+ * only steps with text, and no step with no lines reaches the reducers.
  *
  * @param steps - The recipe's steps, in order.
  * @returns One {@link CookingStep} per step with text. Pure.

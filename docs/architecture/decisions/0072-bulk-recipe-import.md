@@ -139,14 +139,23 @@ recipe it created, so a repeated `advance` sees the item as done.
   only a total holds until the cook gives prep and cook. The total is the file's total when it states one. Otherwise it
   is prep plus cook. The step shows these resolved values (`servings`, `prepTimeMinutes`, `cookTimeMinutes`,
   `totalTimeMinutes`), so the wizard shows what the save will send.
-- **An item only the cook can unblock is held, never re-queued.** The save asks the item list's own rule
+- **An item the save cannot save is held, never re-queued.** The save asks the item list's own rule
   (`importItemIssueOf`), in its order, before it reads the matches. A save gap and a refused visibility each hold the
-  item. The hold records the item's `decision_rev` in `held_at_rev` (migration 0076), and the save candidates leave out
-  an item held at its current revision. Every decision of the cook moves `decision_rev`, so
-  the next decision releases the hold by itself. A recipe with no line or no step is refused before it gets here, so
-  reaching the save with one is a defect: the policy throws, and the item is logged and left. A refusal from the create
-  path that the check did not predict is logged as a defect and holds the item. The issue the list shows is derived
-  from the item at read time, never read from the hold. A refusal comes first in that derivation.
+  item. The hold records the item's `decision_rev` in `held_at_rev` (migration 0076) and WHY it was held in
+  `held_reason` (migration 0082): `item`, `unreadable`, `visibility` or `createRefused`.
+    - Every decision of the cook moves `decision_rev`, so the next decision releases any hold by itself.
+    - A `visibility` or `createRefused` hold also records the cook facts it was judged under in `held_cook_key` (the
+      principal kind, the containment and the plan). The save candidates leave such an item out only for a cook with the
+      same facts. So an upgrade or a containment change brings it back with no decision, and if it is still refused it
+      is held again under the new facts.
+    - A recipe with no line or no step is refused at upload. One that reaches the save all the same is held for its
+      refusal (`item`), and the defect is logged once. A payload this build cannot read is held as `unreadable`, and
+      logged once.
+    - A refusal from the create path that the check did not predict is held as `createRefused`, and an unpublishable
+      one is logged once as a defect.
+    - The issue the list shows is derived at read time. A refusal comes first. Last of the holding reasons,
+      `saveRefused` is read from the hold: it shows only for an `unreadable` or `createRefused` hold that still applies to
+      the cook asking, so a hold whose cause is gone, or one the cook can see the cause of, never shows it.
 - The import still binds nothing in the background and never chooses a visibility for the cook.
 - **This is bulk import only.** The single-recipe imports (a link, a paste, a video) are unchanged.
 
@@ -254,8 +263,10 @@ The owner ruled that bulk import has an allowance of its own, separate from past
   records that it paid, so a repeated `advance` or a re-created parse job never charges it twice.
 - **A file of any size is accepted** (owner ruling, second round). There is no per-file cap. A file larger than the
   room left today imports what fits, and the rest follows as room frees up.
-- An `advance` that reaches the allowance does the work it can still pay for and returns the `IMPORT_QUOTA_EXCEEDED`
-  refusal with `resetsAt` for the rest. The import pauses. The next call after that time resumes it.
+- An `advance` that reaches the allowance does the work it can still pay for and answers the import view as usual. It
+  never answers `IMPORT_QUOTA_EXCEEDED`, which is paste's refusal. The view's `allowance` carries the cook's limit (200
+  on Free, 1,000 on a paid plan, where superusers and VIPs count as paid), what the window used, and `resetsAt`. Each
+  item still unpaid shows `waitingForAllowance`. The next call after `resetsAt` resumes the import.
 - The ledger's channel names follow the route: `bulk`, not `migration`. Migration 0058 is not pushed, so it is
   edited in place rather than followed by a rename.
 - `importAllowancePolicy.ts` counts each channel's rows against that channel's limit. On bulk, the limit is the

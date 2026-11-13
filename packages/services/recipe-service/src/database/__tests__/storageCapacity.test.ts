@@ -375,7 +375,7 @@ const accounts: readonly ColumnAccount[] = [
     {
         table: 'recipe_import_items',
         column: 'held_at_rev',
-        why: 'Copied from the item’s own decision_rev when the save holds it (migration 0068), so it is bounded by that column; no wire field sets it.',
+        why: 'Copied from the item’s own decision_rev when the save holds it (migration 0076), so it is bounded by that column; no wire field sets it.',
     },
     {
         table: 'recipe_import_lines',

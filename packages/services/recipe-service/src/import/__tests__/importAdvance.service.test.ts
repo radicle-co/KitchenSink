@@ -891,7 +891,7 @@ describe('ImportAdvanceService — saving what is ready', () => {
 
     it('⛔ saves the row the editor saves: the shown words and the note, and a line kept as written under its saved NAME', async () => {
         // Owner ruling 2026-11-08: the cook's words are the shown name and "(9 inch)" is a note. The snapshot keeps the row
-        // `pastedLineRowOf` built (migration 0067); the phrase is what the match was asked, not what the line is called.
+        // `pastedLineRowOf` built (migration 0074); the phrase is what the match was asked, not what the line is called.
         const shown = { ...milk, displayText: 'farm-fresh whole milk', note: '1 quart jar' };
         const named = { ...pepper, name: 'cracked pepper' };
         const { answered, recipes, ingredients } = run(world({ lines: { 0: [shown, salt, named] } }));

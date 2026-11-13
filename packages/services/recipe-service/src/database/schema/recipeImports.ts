@@ -121,9 +121,9 @@ export const recipeImportItems = pgTable(
         sourceKind: text('source_kind'),
         /** This recipe's own choice, overriding the import's. */
         visibility: text('visibility'),
-        /** The cuisine the cook gave in the import, replacing the file's (0068). */
+        /** The cuisine the cook gave in the import, replacing the file's (0076). */
         cuisine: text('cuisine'),
-        /** The `decision_rev` at which the save found the item short of what Publish needs; skipped while it is current (0068). */
+        /** The `decision_rev` at which the save found the item short of what Publish needs; skipped while it is current (0076). */
         heldAtRev: integer('held_at_rev'),
         createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
         updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
@@ -207,7 +207,7 @@ export const recipeImportLines = pgTable(
         statedQuantityHigh: numeric('stated_quantity_high', { precision: 10, scale: 3 }),
         statedUnit: text('stated_unit'),
         preparation: text('preparation'),
-        /** The food's name as the editor saves it (a leading size word moved to the unit), 0067. */
+        /** The food's name as the editor saves it (a leading size word moved to the unit), 0074. */
         name: text('name').notNull(),
         /** The cook's words, when the parse chose them as the shown name (owner ruling 2026-11-08). */
         displayText: text('display_text'),

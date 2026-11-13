@@ -42,7 +42,7 @@ const UNIQUE_VIOLATION = '23505';
 
 type Columns = Record<string, unknown>;
 
-describe('the bulk-import tables (LOCAL e2e; migrations 0059, 0060, 0066, 0067, 0068)', () => {
+describe('the bulk-import tables (LOCAL e2e; migrations 0059, 0060, 0066, 0074 to 0077)', () => {
     let pool: pg.Pool;
 
     beforeAll(async () => {
@@ -209,7 +209,7 @@ describe('the bulk-import tables (LOCAL e2e; migrations 0059, 0060, 0066, 0067, 
             ]);
         });
 
-        // `name` is the COOK'S words with a size word moved out (0067), never a name food gave: ADR-0045 still holds.
+        // `name` is the COOK'S words with a size word moved out (0074), never a name food gave: ADR-0045 still holds.
         it('recipe_import_lines holds NO catalog food name, NO verdict and NO bound_by (the ingredient owns that)', async () => {
             expect(await columnsOf('recipe_import_lines')).toEqual([
                 'candidates',
@@ -403,7 +403,24 @@ describe('the bulk-import tables (LOCAL e2e; migrations 0059, 0060, 0066, 0067, 
             await refused(insert('recipe_import_items', receivedItem(importId, -1)), CHECK_VIOLATION);
         });
 
-        describe('what Publish needs (0068, ADR-0072 §3 as amended 2026-11-11)', () => {
+        // 0074 and 0076 add these CHECKs NOT VALID, so the scan of existing rows never runs under ADD COLUMN's ACCESS
+        // EXCLUSIVE lock. 0075 and 0077 validate them. A missing VALIDATE file leaves `convalidated` false.
+        it.each([
+            ['recipe_import_lines', 'recipe_import_lines_name_check'],
+            ['recipe_import_lines', 'recipe_import_lines_display_text_check'],
+            ['recipe_import_lines', 'recipe_import_lines_note_check'],
+            ['recipe_import_items', 'recipe_import_items_cuisine_check'],
+            ['recipe_import_items', 'recipe_import_items_held_at_rev_check'],
+        ])('%s.%s is present and VALIDATED (0074 to 0077)', async (table, name) => {
+            const { rows } = await pool.query<{ convalidated: boolean }>(
+                `SELECT convalidated FROM pg_constraint WHERE conrelid = $1::regclass AND conname = $2`,
+                [table, name],
+            );
+
+            expect(rows).toEqual([{ convalidated: true }]);
+        });
+
+        describe('what Publish needs (0076, ADR-0072 §3 as amended 2026-11-11)', () => {
             it("keeps the cook's cuisine and a hold, and both are optional", async () => {
                 const importId = await newImport();
                 const chosen = await insert(
@@ -768,7 +785,7 @@ describe('the bulk-import tables (LOCAL e2e; migrations 0059, 0060, 0066, 0067, 
             expect(row['candidates']).toEqual(candidates);
         });
 
-        it('⛔ keeps the row the editor saves: its name, the shown words and the note (0067, owner ruling 2026-11-08)', async () => {
+        it('⛔ keeps the row the editor saves: its name, the shown words and the note (0074, owner ruling 2026-11-08)', async () => {
             const importId = await withItem();
             const row = await insert(
                 'recipe_import_lines',

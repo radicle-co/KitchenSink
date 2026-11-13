@@ -9,7 +9,7 @@
  *    constructor that grew a parameter fails `compile()` here, which no unit test can see.
  *  - **The wire shape across real collaborators.** The step goes through the REAL `ImportLineView` and the REAL paste
  *    projection (`projectMatch`), so the line the wizard receives is what the published schema accepts, including the row the
- *    import saves (migration 0067: name, shown words, note) and a review the spend ceiling refused this month
+ *    import saves (migration 0074: name, shown words, note) and a review the spend ceiling refused this month
  *    (`reviewBudgetSpent`, owner ruling 2026-10-26).
  *  - **The allowance asks one flat limit.** The view reads the ledger through `stateOf(db, user, 'bulk')`: no tier rides it.
  *  - **What Publish needs holds an item, through every service at once** (ADR-0072 §3 as amended 2026-11-11). An advance

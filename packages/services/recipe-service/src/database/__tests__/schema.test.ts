@@ -297,7 +297,7 @@ describe('recipe-service schema — table contracts (T011–T014, T118, T119, T1
             citation: { type: 'text', notNull: false },
             source_kind: { type: 'text', notNull: false },
             visibility: { type: 'text', notNull: false },
-            // What Publish needs (0068): the cook's cuisine, and the revision at which the save held the item for one.
+            // What Publish needs (0076): the cook's cuisine, and the revision at which the save held the item for one.
             cuisine: { type: 'text', notNull: false },
             held_at_rev: { type: 'integer', notNull: false },
             created_at: { type: 'timestampwithtimezone', notNull: true },
@@ -305,7 +305,7 @@ describe('recipe-service schema — table contracts (T011–T014, T118, T119, T1
         });
     });
 
-    it('recipe_import_lines — the snapshot of a match, with NO catalog food name, NO verdict and NO bound_by (0059, 0067)', () => {
+    it('recipe_import_lines — the snapshot of a match, with NO catalog food name, NO verdict and NO bound_by (0059, 0074)', () => {
         expect(getTableName(recipeImportLines)).toBe('recipe_import_lines');
         expectColumns(recipeImportLines, {
             id: { type: 'uuid', notNull: true },
@@ -325,7 +325,7 @@ describe('recipe-service schema — table contracts (T011–T014, T118, T119, T1
             stated_quantity_high: { type: 'numeric(10,3)', notNull: false },
             stated_unit: { type: 'text', notNull: false },
             preparation: { type: 'text', notNull: false },
-            // The row the editor saves (0067's header): the cook's words, never a name food gave.
+            // The row the editor saves (0074's header): the cook's words, never a name food gave.
             name: { type: 'text', notNull: true },
             display_text: { type: 'text', notNull: false },
             note: { type: 'text', notNull: false },

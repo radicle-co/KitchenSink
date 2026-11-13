@@ -7,7 +7,7 @@
  * the proposed food with its tier, rung and margin, the candidates with their default mark, and the verification key. It holds
  * ids and the cook's own words and never a food name (ADR-0045), and never the verdict (read by key on every view).
  *
- * ⛔ THE ROW IS THE ONE THE EDITOR SAVES (`pastedLineRowOf`, migration 0067): the cook's own words win, only the first food of
+ * ⛔ THE ROW IS THE ONE THE EDITOR SAVES (`pastedLineRowOf`, migration 0074): the cook's own words win, only the first food of
  * a line carries the measure, a leading size word is the unit, a dimension in parentheses is the note, and the cook's words are
  * the shown name when the parse chose them (owner ruling 2026-11-08). The recipe line the import saves therefore reads as the
  * cook wrote it and has the measure the proposal was judged under, so the saved line's verdict key equals the proposal's and

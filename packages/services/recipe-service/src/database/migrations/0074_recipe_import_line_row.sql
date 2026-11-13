@@ -1,4 +1,4 @@
--- 0067 — the bulk import's snapshot line keeps the ROW the editor saves, not only its measure (ADR-0072 §4).
+-- 0074 — the bulk import's snapshot line keeps the ROW the editor saves, not only its measure (ADR-0072 §4).
 --
 -- ⛔ THE SAVED LINE MUST READ AS THE COOK WROTE IT. recipe-core's `pastedLineRowOf` builds a pasted row: a leading size word is
 -- the unit ("3 large eggs" is 3 `large` `eggs`), a dimension in parentheses is a NOTE and never the unit ("1 (9 inch) pie
@@ -13,17 +13,25 @@
 -- The quantity and unit columns already hold that row's measure, which is the measure the proposal's verdict key covers, so
 -- the saved line keys exactly as the proposal did and the gate is not paid twice.
 --
--- Additive (ADR-0035), and each column refuses a blank as `ingredients.display_text` and `ingredients.note` do. `name` is
--- NOT NULL: every snapshot line is written from the row, and the table has no live rows (it is new in this series, lead
--- ruling 2026-11-11), so there is no line from before the row to fall back for. `display_text` and `note` are nullable. No
--- GRANT: the service role's DML on this table comes from 0059 (ADR-0039).
+-- Additive (ADR-0035). `name` is NOT NULL with no default: every snapshot line is written from the row, and no released code
+-- writes this table (the import routes are not registered), so it holds no rows on any stage. If a stage ever did hold one,
+-- this ADD COLUMN fails and the deploy stops; it never invents a name. `display_text` and `note` are nullable. No GRANT: the
+-- service role's DML on this table comes from 0059 (ADR-0039).
+--
+-- Each column refuses a blank, as `ingredients.display_text` and `ingredients.note` do. The CHECKs are added NOT VALID: they
+-- bind every write at once, and 0075 scans the existing rows under a lighter lock.
 
 -- ⚠️ Bounded wait: ALTER TABLE takes ACCESS EXCLUSIVE on the table. A deploy that cannot take it in 5 s fails and a re-run
 -- retries it (`migrationLockTimeout.test.ts` holds the rule).
 SET LOCAL lock_timeout = '5s';
 
 ALTER TABLE recipe_import_lines
-    ADD COLUMN name text NOT NULL CONSTRAINT recipe_import_lines_name_check CHECK (btrim(name) <> ''),
-    ADD COLUMN display_text text
-        CONSTRAINT recipe_import_lines_display_text_check CHECK (display_text IS NULL OR btrim(display_text) <> ''),
-    ADD COLUMN note text CONSTRAINT recipe_import_lines_note_check CHECK (note IS NULL OR btrim(note) <> '');
+    ADD COLUMN name text NOT NULL,
+    ADD COLUMN display_text text,
+    ADD COLUMN note text;
+
+ALTER TABLE recipe_import_lines
+    ADD CONSTRAINT recipe_import_lines_name_check CHECK (btrim(name) <> '') NOT VALID,
+    ADD CONSTRAINT recipe_import_lines_display_text_check
+        CHECK (display_text IS NULL OR btrim(display_text) <> '') NOT VALID,
+    ADD CONSTRAINT recipe_import_lines_note_check CHECK (note IS NULL OR btrim(note) <> '') NOT VALID;

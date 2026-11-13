@@ -888,7 +888,7 @@ describe('the bulk-import DALs (LOCAL e2e, real Postgres)', () => {
             await items.attachJob(header.id, 0, 0, await realJob());
 
             const snapshot = [
-                // The row the editor saves (0067): the cook's words as the shown name, and a dimension as the note.
+                // The row the editor saves (0074): the cook's words as the shown name, and a dimension as the note.
                 { ...snapshotLine(0, 0, '2 cups flour', 'flour'), displayText: 'bread flour', note: '9 inch' },
                 snapshotLine(1, 0, '1 tsp salt and pepper', 'salt'),
                 snapshotLine(1, 1, '1 tsp salt and pepper', 'pepper'),

@@ -206,6 +206,8 @@ export interface RowLineEditorView {
      * cook's own line, shown verbatim in the notice, lives INSIDE it, so an original without the notice cannot be built.
      */
     readonly reviewNotice?: { readonly originalLine?: string };
+    /** The notice's focus request: a level the notice group takes while the editor is open (an arrival at the line). */
+    readonly noticeFocus?: ControlFocus;
     /** The food as one line: its name, and its calories per 100 g when food publishes them. */
     readonly food: string;
     readonly ids: Readonly<Record<IngredientEditorField, string>>;
@@ -572,6 +574,7 @@ interface LineEditorInput {
     readonly onChangeFood: (() => void) | undefined;
     /** The cook's original line for this line, when the server sent one (whether or not it needs review). */
     readonly originalLine: string | undefined;
+    readonly noticeFocus: ControlFocus;
 }
 
 /** What one bound of the Amount field shows, and whether its text states no amount. */
@@ -636,6 +639,7 @@ const lineEditorOf = (input: LineEditorInput, ctx: IngredientRowContext): RowLin
 
     return {
         title: displayName,
+        noticeFocus: input.noticeFocus,
         closeLabel: fillTemplate(m.rowEditorClose, { food: displayName }),
         ...(needsReview
             ? { reviewNotice: input.originalLine === undefined ? {} : { originalLine: input.originalLine } }
@@ -926,6 +930,7 @@ export const ingredientRowViewOf = (
             {
                 line,
                 index,
+                noticeFocus: focus.editor(line.key),
                 displayName,
                 foodName,
                 marks,

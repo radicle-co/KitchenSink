@@ -33,6 +33,7 @@ function decide(
         readonly draftFloorMet?: boolean;
         readonly changedSinceServerWrite?: boolean;
         readonly pastePending?: boolean;
+        readonly rowEditHeld?: boolean;
     } = {},
 ): ServerWrite {
     return serverWriteFor({
@@ -41,6 +42,7 @@ function decide(
         draftFloorMet: over.draftFloorMet ?? true,
         changedSinceServerWrite: over.changedSinceServerWrite ?? true,
         pastePending: over.pastePending ?? false,
+        ...(over.rowEditHeld === undefined ? {} : { rowEditHeld: over.rowEditHeld }),
     });
 }
 
@@ -212,5 +214,36 @@ describe('the cadence', () => {
     /** The device save is fast and the server checkpoint deliberately slower: one is cheap, the other a request. */
     it('saves to the device well before it checkpoints to the server', () => {
         expect(DEVICE_SAVE_IDLE_MS).toBeLessThan(SERVER_CHECKPOINT_IDLE_MS);
+    });
+});
+
+/**
+ * A row editor's Cancel puts back what the row held when it opened, and "You wrote" comes from the server's own copy of
+ * that line. A checkpoint that sent the half-edited line meanwhile would make the server drop its source, and Cancel
+ * could not bring it back. So while a row's restore point exists, the draft's checkpoints wait.
+ */
+describe('serverWriteFor — a row editor holds the checkpoints', () => {
+    it.each<CheckpointTrigger>(['checkpointIdle', 'appHidden', 'sectionChange', 'fieldBlur', 'photoPicked'])(
+        'a never-published draft sends nothing at %s while a row editor is open',
+        (trigger) => {
+            expect(decide('neverPublished', trigger, { rowEditHeld: true })).toStrictEqual(NONE);
+        },
+    );
+
+    it.each<CheckpointTrigger>(['editorExit', 'saveChanges', 'publish'])(
+        'still saves at %s, so a leave or a Publish loses nothing',
+        (trigger) => {
+            expect(decide('neverPublished', trigger, { rowEditHeld: true })).toStrictEqual({
+                kind: 'update',
+                publish: trigger === 'publish',
+            });
+        },
+    );
+
+    it('sends the held checkpoint once the row editor has closed', () => {
+        expect(decide('neverPublished', 'checkpointIdle', { rowEditHeld: false })).toStrictEqual({
+            kind: 'update',
+            publish: false,
+        });
     });
 });

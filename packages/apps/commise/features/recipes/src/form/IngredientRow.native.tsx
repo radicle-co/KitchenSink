@@ -18,6 +18,7 @@
 import { ActionMenu } from '@commise/ui/action-menu';
 import { useBackIntercept } from '@commise/ui/back-intercept';
 import { Combobox } from '@commise/ui/combobox';
+import { useFieldStartReveal } from '@commise/ui/field-reveal';
 import { useFocusRequest } from '@commise/ui/focus-request';
 import { Icon } from '@commise/ui/icon';
 import { useKeyboardHidden } from '@commise/ui/layout';
@@ -34,6 +35,7 @@ import { Pressable, StyleSheet, View, type LayoutChangeEvent } from 'react-nativ
 
 import { AmountRun } from './AmountRun.native.js';
 import { PREP_JOINER } from '../format/prepJoiner.js';
+import { ingredientRowId } from './fieldIds.js';
 import { ingredientCommitFailureId, ingredientNoFoodNoteId, ingredientStandInId } from './fieldErrorIds.js';
 import { rowBadgeStatus } from './ingredientRowPolicy.js';
 import type { IngredientRowView } from './ingredientRowView.js';
@@ -153,9 +155,15 @@ export const IngredientRow: FC<IngredientRowProps> = ({
 }) => {
     const { colors } = useTheme();
     const { secondLine, line } = row;
+    // The node the scroll host measures when a deep link names this row's start (`ScrollHost.scrollToStart`): the DOM-like
+    // handle of an external, imperative system (`measureLayout`), which has no declarative form.
+    const node = useRef<View>(null);
+
+    useFieldStartReveal(ingredientRowId(line.key), node);
 
     return (
         <View
+            ref={node}
             role="listitem"
             collapsable={false}
             {...(onLayout === undefined ? {} : { onLayout })}

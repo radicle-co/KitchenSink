@@ -320,6 +320,24 @@ export const needsReviewAddressOf = (
 };
 
 /**
+ * Whether a line gets the "Needs review" control, and the address it carries: the ONE decision both platforms' detail
+ * bodies draw their leaf from. Only the recipe's owner gets it (another cook keeps the plain badge), and only a surface
+ * that can open the editor. Pure.
+ *
+ * @param recipe - The recipe as the detail read returns it.
+ * @param position - The line's position in `recipe.ingredients`.
+ * @param context - `owner`: the viewer owns the recipe. `canOpenEditor`: the surface has an editor to go to (web: an
+ *   edit href; native: an `onReviewLine` handler).
+ * @returns The address to open, or `undefined` when the line gets no control.
+ */
+export const reviewControlAddressOf = (
+    recipe: Pick<RecipeDetail, 'currentVersion' | 'ingredients'>,
+    position: number,
+    context: { readonly owner: boolean; readonly canOpenEditor: boolean },
+): LineAddress | undefined =>
+    context.owner && context.canOpenEditor ? needsReviewAddressOf(recipe, position) : undefined;
+
+/**
  * How many of a recipe's lines the gate contradicted. Pure.
  *
  * @param ingredients - The recipe's ingredient lines.

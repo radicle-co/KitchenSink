@@ -39,7 +39,7 @@ import { useEffect, useEffectEvent, useReducer, useState, type RefObject } from 
 import type { LayoutChangeEvent } from 'react-native';
 
 import { useReduceMotion } from '../motion/useReduceMotion.native.js';
-import { TARGET_GAP_DP, centreTarget } from './centreReveal.js';
+import { TARGET_GAP_DP, centreTarget, startTarget } from './centreReveal.js';
 import {
     REVEAL_CLOSED,
     REVEAL_GAP_DP,
@@ -86,6 +86,8 @@ export function useFieldRevealHost(scroller: RefObject<RevealScroller | null>): 
     const [pending, setPending] = useState<PendingRequest | null>(null);
     // The target waiting to be shown; one-shot.
     const [target, setTarget] = useState<Extract<RevealRequest, { readonly kind: 'target' }> | null>(null);
+    // The element a deep link named, waiting to be put at the top; one-shot.
+    const [start, setStart] = useState<Extract<RevealRequest, { readonly kind: 'start' }> | null>(null);
     const [revealer] = useState(() => {
         const reveal: FieldRevealer = (request) => {
             switch (request.kind) {
@@ -112,6 +114,15 @@ export function useFieldRevealHost(scroller: RefObject<RevealScroller | null>): 
 
                     return () => {
                         setTarget((current) => (current === request ? null : current));
+                    };
+
+                case 'start':
+                    // The element the cook was taken to is the one to show, so nothing held earlier may move it again.
+                    setPending(null);
+                    setStart(request);
+
+                    return () => {
+                        setStart((current) => (current === request ? null : current));
                     };
 
                 case 'list':
@@ -278,6 +289,43 @@ export function useFieldRevealHost(scroller: RefObject<RevealScroller | null>): 
             released = true;
         };
     }, [target, laidOut]);
+
+    // A start is placed once the visible area is laid out: its top goes one gap below the area's top.
+    useEffect(() => {
+        const view = currentScroller();
+
+        if (start === null || view === null || !laidOut) {
+            return undefined;
+        }
+
+        let released = false;
+
+        void measureField(start.field, view).then((measure) => {
+            if (released) {
+                return;
+            }
+
+            const place =
+                measure === null
+                    ? null
+                    : startTarget({
+                          top: measure.top,
+                          offset: measure.offset,
+                          viewport: currentViewport(),
+                          keep: TARGET_GAP_DP,
+                      });
+
+            if (place !== null) {
+                scrollTo(view, place);
+            }
+
+            setStart((current) => (current === start ? null : current));
+        });
+
+        return () => {
+            released = true;
+        };
+    }, [start, laidOut]);
 
     const onSpacerLayout = (event: LayoutChangeEvent): void => {
         const { y, height } = event.nativeEvent.layout;

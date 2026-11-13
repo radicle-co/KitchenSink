@@ -7,7 +7,8 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { arrivalFromHash, arrivalHash, arrivalOf, type EditorArrival } from '../editorArrival.js';
+import { arrivalFromHash, arrivalHash, arrivalOf, resolveArrival, type EditorArrival } from '../editorArrival.js';
+import { seedLineKey } from '../../form/lineKey.js';
 
 describe('arrivalFromHash — the section-only forms (replaces sectionFromHash, A16)', () => {
     it.each<[string, EditorArrival | undefined]>([
@@ -94,5 +95,45 @@ describe('arrivalHash', () => {
     ])('%j → %s, and round-trips', (arrival, hash) => {
         expect(arrivalHash(arrival)).toBe(hash);
         expect(arrivalFromHash(hash)).toEqual(arrival);
+    });
+});
+
+describe('resolveArrival — a link’s address against the draft the editor holds', () => {
+    const FIRST = seedLineKey(3, 0);
+    const SECOND = seedLineKey(3, 1);
+    const held = [FIRST, SECOND];
+    const keyAt = (address: { readonly version: number; readonly position: number }) =>
+        address.version === 3 ? held[address.position] : undefined;
+
+    it('found: the address names a line the draft still holds', () => {
+        expect(resolveArrival({ section: 'ingredients', line: { version: 3, position: 1 } }, keyAt, held)).toEqual({
+            section: 'ingredients',
+            line: { kind: 'found', key: SECOND },
+        });
+    });
+
+    it('missing: the position is past the end', () => {
+        expect(resolveArrival({ section: 'ingredients', line: { version: 3, position: 9 } }, keyAt, held)).toEqual({
+            section: 'ingredients',
+            line: { kind: 'missing' },
+        });
+    });
+
+    it('missing: the recipe moved to another version', () => {
+        expect(resolveArrival({ section: 'ingredients', line: { version: 4, position: 0 } }, keyAt, held)).toEqual({
+            section: 'ingredients',
+            line: { kind: 'missing' },
+        });
+    });
+
+    it('missing: the key resolves but a resumed draft has lost that line', () => {
+        expect(resolveArrival({ section: 'ingredients', line: { version: 3, position: 1 } }, keyAt, [FIRST])).toEqual({
+            section: 'ingredients',
+            line: { kind: 'missing' },
+        });
+    });
+
+    it('section only: no line at all, and none is said to be missing', () => {
+        expect(resolveArrival({ section: 'steps' }, keyAt, held)).toEqual({ section: 'steps' });
     });
 });

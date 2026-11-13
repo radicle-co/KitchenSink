@@ -64,8 +64,8 @@ import { lineDisplayName } from './lineName.js';
 import {
     allLinesFoodRemoved,
     detailNoticeState,
-    needsReviewAddressOf,
     removedFoodNotice,
+    reviewControlAddressOf,
     type RecipeDetailBodyWebProps,
 } from './model.js';
 import { ReviewLineLink } from './ReviewLineLink.js';
@@ -158,7 +158,7 @@ export const RecipeDetailBody: FC<RecipeDetailBodyWebProps> = ({
 
     // The owner's way from a line that needs review to that line in the editor; another cook keeps the plain badge.
     const reviewAction = (position: number, ingredient: RecipeIngredientView): ReactNode => {
-        const address = owner && editHref !== undefined ? needsReviewAddressOf(recipe, position) : undefined;
+        const address = reviewControlAddressOf(recipe, position, { owner, canOpenEditor: editHref !== undefined });
 
         return address === undefined ? undefined : (
             <ReviewLineLink

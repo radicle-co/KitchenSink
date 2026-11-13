@@ -128,6 +128,7 @@ import {
 import { visibilityFollowUp } from '../editor/visibilityFollowUp.js';
 import { gateOutcomeOf, refusedFieldsOf, type GateOutcome, type RefusedField } from '../editor/gate.js';
 import type { PasteHold } from '../editor/pasteHold.js';
+import type { RowEditHold } from '../editor/rowEditHold.js';
 import type { LineAddress } from '../editor/editorArrival.js';
 import type { DraftKeep, MementoWrite, SaveStatus } from '../editor/saveStatus.js';
 import { VisibilityNotHeldError } from '../editor/visibilityNotHeldError.js';
@@ -287,6 +288,12 @@ export interface UseRecipeEditorOptions {
      * holding is enough to hold the create.
      */
     readonly pasteHold?: PasteHold;
+    /**
+     * The shared row edit hold (`editor/rowEditHold.ts`): raised while a row editor is open, so a never-published
+     * draft's checkpoints wait for its Cancel or Done (`serverWriteFor`'s `rowEditHeld`). Letting go of it runs the
+     * checkpoint it deferred.
+     */
+    readonly rowEditHold?: RowEditHold;
     /** The clock, for the draft's `savedAt`. */
     readonly now?: () => Date;
     /**
@@ -716,6 +723,7 @@ function submitWrite(ctx: EditorContext, trigger: CheckpointTrigger, drained: bo
         draftFloorMet: meetsDraftFloor(draft),
         changedSinceServerWrite: serverValues === undefined || !recipeFormValuesEqual(draft, serverValues),
         pastePending: pasteHeld(ctx),
+        rowEditHeld: ctx.opts.rowEditHold?.get() === true,
     });
 
     if (write.kind === 'none') {
@@ -1835,13 +1843,16 @@ function useDiscardLeft(ctx: EditorContext, discarding: boolean): void {
 }
 
 /**
+ * A hold let go of: run the checkpoint it deferred. The paste's (A-021) and an open row editor's (`rowEditHold.ts`) are
+ * the same cell.
+ *
  * A paste let go of its hold: run the checkpoint it deferred (A-021). The lines a paste joins change the draft, which
  * re-arms the idle timers; a paste that joins NO rows (headings, measure-only lines) changes nothing, so without this
  * the create it held waited for the next blur, section change or exit.
  *
- * @sideEffect Subscribes to the shared paste hold, and runs a `checkpointIdle` checkpoint on its release.
+ * @sideEffect Subscribes to the shared hold, and runs a `checkpointIdle` checkpoint on its release.
  */
-function useReleasedPasteHold(ctx: EditorContext, hold: PasteHold | undefined): void {
+function useReleasedHold(ctx: EditorContext, hold: PasteHold | undefined): void {
     const released = useEffectEvent((): void => {
         runCheckpoint(ctx, 'checkpointIdle');
     });
@@ -1989,7 +2000,8 @@ export function useRecipeEditor(seed: EditorSeed, opts: UseRecipeEditorOptions):
 
     useSettlements(ctx, opts.port);
     useStayed(stores.lane);
-    useReleasedPasteHold(ctx, opts.pasteHold);
+    useReleasedHold(ctx, opts.pasteHold);
+    useReleasedHold(ctx, opts.rowEditHold);
     useDiscardLeft(ctx, lane.discarding !== undefined);
     useIdleTimers(ctx, core.draft, core.touched && view.status !== 'done');
     useCommandRunner(ctx, core, view.outstanding);

@@ -89,6 +89,7 @@ const makeFocus = (refusal: RefusalFocus = { pointed: false, onHandled: () => un
         name: () => level,
         open: () => level,
         actions: () => level,
+        editor: () => level,
         trailing: level,
         refusal: { name: () => refusal, trailing: refusal },
         request: vi.fn<RowFocus['request']>(),

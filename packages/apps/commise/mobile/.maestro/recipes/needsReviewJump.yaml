@@ -42,6 +42,11 @@ appId: ${APP_ID}
       visible: 'You wrote'
       timeout: 30000
 - assertVisible: '${E2E_NEEDS_REVIEW_SOURCE_LINE}'
+# The sheet's own "Needs review" heading, above "You wrote". The detail's pill carries the same words, so the text alone
+# would pass without the sheet; `above` ties it to the notice.
+- assertVisible:
+      text: 'Needs review'
+      above: 'You wrote'
 - assertVisible: 'Counted as'
 - assertVisible: 'Change'
 

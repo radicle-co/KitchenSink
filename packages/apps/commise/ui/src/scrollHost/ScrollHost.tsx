@@ -260,6 +260,19 @@ export const ScrollHost: FC<ScrollHostWebProps> = ({
 
                 return true;
             },
+            scrollToStart: (id) => {
+                const target = document.getElementById(id);
+
+                if (target === null) {
+                    return false;
+                }
+
+                // `block: 'start'`, not `nearest`: the row's top goes under the sticky chrome (the document's
+                // `scroll-padding-top`), so the editor opened below it shows whole.
+                target.scrollIntoView({ behavior: jumpBehavior(), block: 'start' });
+
+                return true;
+            },
             revealSpan: (topId, bottomId) => {
                 const top = document.getElementById(topId);
                 const bottom = document.getElementById(bottomId);

@@ -103,6 +103,15 @@ export interface ScrollHostApi {
      *     through `FieldRevealContext` instead), so it always answers `false`.
      */
     readonly revealSpan: (topId: string, bottomId: string) => boolean;
+    /**
+     * Scroll an element's top to the start of the visible area, under the sticky chrome: a deep link to an ingredient row
+     * whose inline editor opens below it, so the editor's Done and Cancel are not below the fold. Instant under reduced
+     * motion. It moves no focus, records no hash and holds no section: the element is not a section.
+     *
+     * @returns Whether the element was found. Native finds no element by id, so it answers `false` and the caller falls
+     *     back (`revealSpan`, then the section).
+     */
+    readonly scrollToStart: (id: string) => boolean;
     /** The heading's layout report (native). Inert on web, which finds the heading by `headingId`. */
     readonly headingLayout: (event: LayoutReport) => void;
     /** A section's layout report (native). Inert on web, which finds sections by id. */

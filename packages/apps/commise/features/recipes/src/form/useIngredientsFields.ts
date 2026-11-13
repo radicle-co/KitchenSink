@@ -17,7 +17,7 @@
 import { offlineNoticeMessages } from '@commise/features-core/offline';
 import { useLocale, useMessages } from '@commise/i18n/react';
 import type { RecipeNutrition } from '@kitchensink/recipe-core';
-import { useContext, useState } from 'react';
+import { useContext, useEffect, useState } from 'react';
 
 import { lineDisplayName } from '../detail/lineName.js';
 import { editorMessages } from '../editor/messages.js';
@@ -29,6 +29,7 @@ import { useDebouncedValue } from '../hooks/useDebouncedValue.js';
 import { useLastDefined } from '../hooks/useLastDefined.js';
 import { recipeMessages } from '../messages.js';
 import { trailingEntryDescribedBy } from './fieldErrorIds.js';
+import { isLineNeedsReview } from '../detail/model.js';
 import { namesAFood } from './ingredientRowPolicy.js';
 import { ingredientRowViewOf, type IngredientRowContext, type IngredientRowView } from './ingredientRowView.js';
 import type { IngredientLineKey } from './lineKey.js';
@@ -145,11 +146,15 @@ export function useIngredientsFields(props: RecipeIngredientsFieldsProps): Ingre
     const { ingredients: addCopy } = useMessages(editorMessages);
     const { entry, naming } = rowEditor;
     // An arrival at a row hands its open control focus once: the row exists, or nothing is asked for.
+    const arrival = props.arrivalLine;
+    const initialLine = arrival?.kind === 'found' ? arrival.key : undefined;
+    const arrivedLine = values.ingredients.find((line) => line.key === initialLine);
+    // A line under review opens its editor with a notice, and the notice takes the focus; any other line's open control does.
     const focus = useRowFocus(
         rowEditor,
-        props.initialLine !== undefined && values.ingredients.some((line) => line.key === props.initialLine)
-            ? { key: props.initialLine, control: 'open' }
-            : undefined,
+        arrivedLine === undefined
+            ? undefined
+            : { key: arrivedLine.key, control: isLineNeedsReview(arrivedLine) ? 'editor' : 'open' },
     );
     const trailingText = entry.textOf(TRAILING);
     const reading = liveReadingOf(trailingText, locale, addCopy.reading, shared.amountWords);
@@ -163,13 +168,31 @@ export function useIngredientsFields(props: RecipeIngredientsFieldsProps): Ingre
     // (`docs/design/rowEditorOpenDecisions.md` E2). Whether the cook moved past it is the host's.
     const present = useContext(SectionPresenceContext);
     const [unheard, setUnheard] = useState(rowEditor.settled);
-    const lineEditor = useLineEditorState(values.ingredients, props.initialLine);
+    const lineEditor = useLineEditorState(values.ingredients, initialLine);
+    // While a row editor is open its Cancel can still put the line back, so the editor's server checkpoints wait
+    // (`editor/rowEditHold.ts`). The hold is let go of when the editor closes, which runs the one that was deferred.
+    const { rowEditHold } = props;
+    const editorOpen = lineEditor.openKey !== undefined;
+    // @sideEffect Raises or lowers the shared hold where the open state changes.
+    useEffect(() => {
+        rowEditHold?.set(editorOpen);
+    }, [rowEditHold, editorOpen]);
+    // @sideEffect The field group went away: the hold is cleared and nobody is told, for there is no editor left to close.
+    useEffect(() => () => rowEditHold?.discard(), [rowEditHold]);
     // The "couldn't find that ingredient" line goes the first time the cook opens any row. Adjusted during render.
     const [jumpCleared, setJumpCleared] = useState(false);
 
     if (!jumpCleared && lineEditor.openKey !== undefined) {
         setJumpCleared(true);
     }
+
+    // A live region speaks a CHANGE of its text, and many screen readers say nothing for text present at mount. So the
+    // notice is held back for one commit: the region mounts empty, then the text arrives.
+    const [mounted, setMounted] = useState(false);
+    // @sideEffect Lets the first commit pass before the notice is offered.
+    useEffect(() => {
+        setMounted(true);
+    }, []);
 
     // A pick the cook typed over while it was in flight: the add field holds a new word, so its row is not scrolled to
     // (`ingredientArrival.md`). Decided once, when that pick settles.
@@ -290,7 +313,7 @@ export function useIngredientsFields(props: RecipeIngredientsFieldsProps): Ingre
             onClose: () => setFoodDetailsKey(undefined),
         },
         openRow: rows.find((row) => row.editorOpen),
-        jumpNotice: props.jumpMissing === true && !jumpCleared ? addCopy.jumpLineMissing : undefined,
+        jumpNotice: mounted && arrival?.kind === 'missing' && !jumpCleared ? addCopy.jumpLineMissing : undefined,
         trailing: {
             entryField: {
                 entry,

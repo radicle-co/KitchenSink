@@ -71,4 +71,17 @@ describe('ReviewLineButton (native)', () => {
         expect(getComputedStyle(pill).flexShrink).toBe('1');
         expect(getComputedStyle(chevron).flexShrink).toBe('0');
     });
+
+    it('exposes the pill and the chevron as ONE accessible element: the chevron is hidden from assistive tech', () => {
+        render(<ReviewLineButton food="Smoked Paprika" onPress={() => undefined} />);
+        const control = screen.getByRole('button', { name: 'Needs review: Smoked Paprika' });
+
+        expect(screen.getAllByRole('button')).toHaveLength(1);
+        expect(screen.queryAllByRole('img')).toHaveLength(0);
+        // The chevron glyph is `aria-hidden` (an unnamed `Icon`), so it adds no accessible node of its own.
+        const glyph = control.querySelector('[data-commise-stub="icon"]');
+
+        expect(glyph?.closest('[aria-hidden="true"]')).not.toBeNull();
+        expect(control.querySelectorAll('[role="button"]')).toHaveLength(0);
+    });
 });

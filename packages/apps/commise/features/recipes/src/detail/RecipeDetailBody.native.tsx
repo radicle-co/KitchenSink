@@ -51,7 +51,7 @@ import { lineDisplayName } from './lineName.js';
 import {
     allLinesFoodRemoved,
     detailNoticeState,
-    needsReviewAddressOf,
+    reviewControlAddressOf,
     type RecipeDetailBodyNativeProps,
 } from './model.js';
 import { pinnedBarFactsOf } from './pinnedBarFacts.js';
@@ -132,7 +132,7 @@ export const RecipeDetailBody: FC<RecipeDetailBodyNativeProps> = ({
 
     // The owner's way from a line that needs review to that line in the editor; another cook keeps the plain badge.
     const reviewAction = (position: number, ingredient: RecipeIngredientView): ReactNode => {
-        const address = owner && onReviewLine !== undefined ? needsReviewAddressOf(recipe, position) : undefined;
+        const address = reviewControlAddressOf(recipe, position, { owner, canOpenEditor: onReviewLine !== undefined });
 
         return address === undefined || onReviewLine === undefined ? undefined : (
             <ReviewLineButton

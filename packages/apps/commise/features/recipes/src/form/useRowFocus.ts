@@ -45,6 +45,8 @@ export interface RowFocus {
     /** The row's open control ("Edit {amount} {food}"), which every row has. */
     readonly open: (key: IngredientLineKey) => ControlFocus;
     readonly actions: (key: IngredientLineKey) => ControlFocus;
+    /** The open editor's notice: where an arrival at a line under review lands. */
+    readonly editor: (key: IngredientLineKey) => ControlFocus;
     readonly trailing: ControlFocus;
     /** Where a refused save points, by field (R7). */
     readonly refusal: {
@@ -123,6 +125,7 @@ export function useRowFocus(
         }),
         open: (key) => ({ requested: isFocusRequested(request, key, 'open'), onHandled: clear }),
         actions: (key) => ({ requested: isFocusRequested(request, key, 'actions'), onHandled: clear }),
+        editor: (key) => ({ requested: isFocusRequested(request, key, 'editor'), onHandled: clear }),
         trailing: {
             requested: trailingRequested,
             onHandled: () => setTrailingRequested(false),

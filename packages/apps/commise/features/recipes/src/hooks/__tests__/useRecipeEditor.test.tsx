@@ -36,6 +36,7 @@ import { PrivateSlotsFullError } from '@kitchensink/recipe-service-client';
 import type { PrivateRefusal } from '../../actions/privateGate.js';
 import { errorsStillHolding } from '../../editor/gate.js';
 import { createPasteHold, type PasteHold } from '../../editor/pasteHold.js';
+import { createRowEditHold, type RowEditHold } from '../../editor/rowEditHold.js';
 import type { DraftMemento, DraftStore } from '../../editor/draftStore.js';
 import { seedLineKey, type IngredientLineKey } from '../../form/lineKey.js';
 import { toDraftValues } from '../../editor/draftStore.js';
@@ -97,6 +98,7 @@ function mount(
     port = fakePort(),
     // A function when the refusal changes during the case (a slot read that answers after a Publish was sent).
     privateRefusal: PrivateRefusal | undefined | (() => PrivateRefusal | undefined) = undefined,
+    rowEditHold?: RowEditHold,
 ) {
     const drafts = fakeDrafts();
     const onExit = vi.fn<(exit: EditorExit) => void>();
@@ -127,6 +129,7 @@ function mount(
                 reportError,
                 pastePending: props.pastePending ?? false,
                 ...(pasteHold === undefined ? {} : { pasteHold }),
+                ...(rowEditHold === undefined ? {} : { rowEditHold }),
                 now: () => new Date('2026-10-09T12:00:00.000Z'),
             }),
         { initialProps: { seed } as { readonly seed: EditorSeed; readonly pastePending?: boolean } },
@@ -4386,5 +4389,99 @@ describe('a draft with a web link as its Source (ADR-0089)', () => {
                 },
             },
         });
+    });
+});
+
+/**
+ * A row editor's Cancel puts back what the row held when it opened, and the cook's own words ("You wrote") are the
+ * server's copy of the line. A line a paste read in has a review verdict and a source line on the server from the create
+ * on, so the recipe is a never-published draft that holds a NEEDS_REVIEW line. An idle or app-hide checkpoint that sends
+ * the half-edited line makes the server drop that line's source and flag, which Cancel cannot bring back. So while a row
+ * editor is open (its hold is raised) those checkpoints wait, and the release runs the one that was deferred.
+ */
+describe('a row editor holds the draft’s server checkpoints', () => {
+    const REVIEW_LINE = makeIngredientView({ ingredientId: 'chick', name: 'chick', resolutionStatus: 'NEEDS_REVIEW' });
+    const WITH_REVIEW_LINE = makeRecipeDetail({
+        id: 'rec_1',
+        currentVersion: 3,
+        status: RecipeStatus.DRAFT,
+        ingredients: [REVIEW_LINE],
+    });
+
+    it('is a never-published draft that holds a line needing review (the paste path’s result after the create)', () => {
+        const { result } = mount({ recipe: WITH_REVIEW_LINE });
+
+        expect(result.current.lifecycle).toBe('neverPublished');
+        expect(result.current.values.ingredients[0]).toMatchObject({ resolutionStatus: 'NEEDS_REVIEW' });
+    });
+
+    it('⛔ sends nothing at the idle checkpoint or the app-hide while the hold is raised, and one update at its release', async () => {
+        const hold = createRowEditHold();
+        const { result, port } = mount({ recipe: WITH_REVIEW_LINE }, undefined, undefined, undefined, hold);
+        const [line] = result.current.values.ingredients;
+
+        hold.set(true);
+        act(() => {
+            result.current.setValues({
+                ...result.current.values,
+                ingredients: [{ ...line!, quantity: 9 }],
+            });
+        });
+        act(() => {
+            result.current.checkpoint('appHidden');
+            vi.advanceTimersByTime(SERVER_CHECKPOINT_IDLE_MS);
+        });
+        await settle();
+
+        expect(port.submitted).toEqual([]);
+
+        // Done: the editor closes with the edit kept, and the deferred checkpoint runs once.
+        act(() => {
+            hold.set(false);
+        });
+        await settle();
+
+        expect(port.submitted.map((intent) => intent.intentKind)).toEqual(['update']);
+        expect(port.submitted[0]).toMatchObject({
+            payload: { input: { ingredients: [expect.objectContaining({ quantity: { kind: 'exact', value: 9 } })] } },
+        });
+    });
+
+    it('sends nothing at all when Cancel put the line back, because the draft is what the server holds', async () => {
+        const hold = createRowEditHold();
+        const { result, port } = mount({ recipe: WITH_REVIEW_LINE }, undefined, undefined, undefined, hold);
+        const before = result.current.values;
+
+        hold.set(true);
+        act(() => {
+            result.current.setValues({ ...before, ingredients: [{ ...before.ingredients[0]!, quantity: 9 }] });
+        });
+        act(() => {
+            vi.advanceTimersByTime(SERVER_CHECKPOINT_IDLE_MS);
+        });
+        act(() => {
+            result.current.setValues(before);
+            hold.set(false);
+        });
+        await settle();
+
+        expect(port.submitted).toEqual([]);
+    });
+
+    it('a leave still saves while the hold is raised', async () => {
+        const hold = createRowEditHold();
+        const { result, port } = mount({ recipe: WITH_REVIEW_LINE }, undefined, undefined, undefined, hold);
+        const [line] = result.current.values.ingredients;
+
+        hold.set(true);
+        act(() => {
+            result.current.setValues({ ...result.current.values, ingredients: [{ ...line!, quantity: 9 }] });
+        });
+        act(() => {
+            result.current.checkpoint('editorExit');
+        });
+        await settle();
+
+        expect(port.submitted.map((intent) => intent.intentKind)).toEqual(['update']);
     });
 });

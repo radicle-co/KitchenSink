@@ -18,7 +18,7 @@ import { useMessages } from '@commise/i18n/react';
 import { useIsOffline } from '@commise/query';
 import { useSnackbar } from '@commise/ui/snackbar';
 import type { NativeStackScreenProps, createNativeStackNavigator } from '@react-navigation/native-stack';
-import { useCallback, type JSX } from 'react';
+import { useCallback, useEffect, type JSX } from 'react';
 
 import { RecipeEditorScreen } from '../screens/RecipeEditorScreen.js';
 import { PreventLeave } from './PreventLeave.js';
@@ -101,6 +101,16 @@ function RecipeCreateRoute({ navigation, route }: TaskProps<'RecipeCreate'>): JS
 function RecipeEditRoute({ navigation, route }: TaskProps<'RecipeEdit'>): JSX.Element {
     const subscribeToLeave = useLeaveSubscription(navigation);
     const tell = useFinishedNotice();
+    const hasLine = route.params.line !== undefined;
+
+    // A deep link's line address is read once, by the editor's first render. It is let go of after that, as the web
+    // strips its hash: left in the params it would outlive the line it named.
+    // @sideEffect Clears the `line` route param once the editor has been handed it.
+    useEffect(() => {
+        if (hasLine) {
+            navigation.setParams({ line: undefined });
+        }
+    }, [hasLine, navigation]);
 
     return (
         <RecipeEditorScreen

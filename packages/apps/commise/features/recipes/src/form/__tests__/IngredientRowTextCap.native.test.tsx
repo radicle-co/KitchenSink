@@ -42,6 +42,7 @@ const focus = {
     name: () => level,
     open: () => level,
     actions: () => level,
+    editor: () => level,
     trailing: level,
     refusal: { name: () => refusal, trailing: refusal },
     request: vi.fn<RowFocus['request']>(),

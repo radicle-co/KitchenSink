@@ -6,24 +6,15 @@
 import type { IconName } from '@commise/ui/icon-names';
 import type { ReactNode } from 'react';
 
-import type { IngredientLineKey } from '../form/lineKey.js';
 import type { UseRecipeEditorResult } from '../hooks/useRecipeEditor.js';
 import type { GateOutcome } from './gate.js';
 import type { OpenChoicesFacts } from './openChoicesCopy.js';
 import type { DraftKeep } from './saveStatus.js';
 import type { EditorSectionId } from './sections.js';
+import type { ResolvedArrival } from './editorArrival.js';
 
 /** The header's element id: the popups in the sections read its edge to keep clear of it (`chromeInsets.ts`). */
 export const EDITOR_HEADER_ID = 'recipe-editor-header';
-
-/** A deep link's arrival with its line address resolved to the draft's own key (`RecipeEditorSurface`). */
-export interface ResolvedArrival {
-    readonly section: EditorSectionId;
-    /** The row to show, when the link named a line this draft holds. */
-    readonly lineKey?: IngredientLineKey;
-    /** The link named a line (whether or not this draft holds it): a miss is told to the cook. */
-    readonly addressed?: boolean;
-}
 
 /** Props for `EditorHeader`. */
 export interface EditorHeaderProps {

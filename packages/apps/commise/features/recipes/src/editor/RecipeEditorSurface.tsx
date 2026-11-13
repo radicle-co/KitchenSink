@@ -47,8 +47,8 @@ import { pendingIngredientIds } from '../form/ingredientStatus.js';
 import type { EditorSeed } from '../hooks/useRecipeEditor.js';
 import { useLastDefined } from '../hooks/useLastDefined.js';
 import type { PasteOrigin } from './useEditorSource.js';
-import type { EditorArrival } from './editorArrival.js';
-import type { PhotoFinishBar, RecipeEditorViewProps, ResolvedArrival } from './frameProps.js';
+import { resolveArrival, type EditorArrival, type ResolvedArrival } from './editorArrival.js';
+import type { PhotoFinishBar, RecipeEditorViewProps } from './frameProps.js';
 import { pluralOf } from '../format/plural.js';
 import type { UseRecipePhotoManagerResult } from '../hooks/useRecipePhotoManager.js';
 import { photoMessages } from '../photos/messages.js';
@@ -143,21 +143,15 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
     );
     // The link's address is read against the editor's keys ONCE. A later render never re-resolves it: the keys move as the
     // cook edits, and the row that opened is the one the link meant.
-    const [arrived] = useState<ResolvedArrival | undefined>(() => {
-        if (arrival === undefined) {
-            return undefined;
-        }
-
-        // A key the address resolves to is a line only while the draft still holds it: a resumed draft can have lost it.
-        const resolved = arrival.line === undefined ? undefined : editor.lineKeyAt(arrival.line);
-        const lineKey = editor.values.ingredients.some((line) => line.key === resolved) ? resolved : undefined;
-
-        return {
-            section: arrival.section,
-            ...(lineKey === undefined ? {} : { lineKey }),
-            addressed: arrival.line !== undefined,
-        };
-    });
+    const [arrived] = useState<ResolvedArrival | undefined>(() =>
+        arrival === undefined
+            ? undefined
+            : resolveArrival(
+                  arrival,
+                  editor.lineKeyAt,
+                  editor.values.ingredients.map((line) => line.key),
+              ),
+    );
     // ⛔ READ FROM THE ENTRY AS IT IS NOW: the editor learns the entry's text only at a press (`errorsStillHolding`).
     const { pending } = session.rowEditor.entry;
     const pendingFieldId = pending === undefined ? undefined : entryFieldIdOf(pending.target);
@@ -280,10 +274,10 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
                     nutrition={session.nutrition}
                     lookupRetry={session.lookupRetry}
                     rowEditor={session.rowEditor}
+                    rowEditHold={session.rowEditHold}
                     paste={paste.view}
                     {...(originalLines === undefined ? {} : { originalLines })}
-                    {...(arrived?.lineKey === undefined ? {} : { initialLine: arrived.lineKey })}
-                    {...(arrived?.addressed === true && arrived.lineKey === undefined ? { jumpMissing: true } : {})}
+                    {...(arrived?.line === undefined ? {} : { arrivalLine: arrived.line })}
                     {...(onOpenFood === undefined ? {} : { onOpenFood })}
                 />
                 <PasteListSheet

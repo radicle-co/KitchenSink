@@ -5,7 +5,7 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { TARGET_GAP_DP, centreTarget } from '../centreReveal.js';
+import { TARGET_GAP_DP, centreTarget, startTarget } from '../centreReveal.js';
 
 const VIEW = { viewport: 400, keep: 16 } as const;
 
@@ -42,5 +42,34 @@ describe('centreTarget', () => {
 
     it('holds a 16 dp gap', () => {
         expect(TARGET_GAP_DP).toBe(16);
+    });
+});
+
+/**
+ * A deep link to an ingredient row (`scrollToStart`): the row's TOP goes one gap below the visible area's top, whatever
+ * its height, so the editor opened under it shows from its first line. The smallest-scroll rules (`spanTarget`) leave a
+ * row that is already partly in view where it is, which is the finding this one answers.
+ */
+describe('startTarget', () => {
+    it('puts the top of the element one gap below the top of the visible area', () => {
+        expect(startTarget({ top: 300, offset: 100, viewport: 400, keep: 16 })).toBe(100 + 300 - 16);
+    });
+
+    it('moves a row already inside the area up to the top: it does not leave it where it is', () => {
+        expect(startTarget({ top: 120, offset: 0, viewport: 400, keep: 16 })).toBe(104);
+    });
+
+    it('scrolls back up when the row is above the area', () => {
+        expect(startTarget({ top: -80, offset: 500, viewport: 400, keep: 16 })).toBe(500 - 80 - 16);
+    });
+
+    it('never scrolls above the content start', () => {
+        expect(startTarget({ top: 4, offset: 0, viewport: 400, keep: 16 })).toBeNull();
+        expect(startTarget({ top: -30, offset: 10, viewport: 400, keep: 16 })).toBe(0);
+    });
+
+    it('answers null when it is already there, and while the visible area is not laid out', () => {
+        expect(startTarget({ top: 16, offset: 200, viewport: 400, keep: 16 })).toBeNull();
+        expect(startTarget({ top: 300, offset: 100, viewport: 0, keep: 16 })).toBeNull();
     });
 });

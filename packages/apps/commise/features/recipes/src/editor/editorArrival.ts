@@ -10,6 +10,8 @@
  *
  * @pattern Value Object — {@link EditorArrival}, parsed once at the edge
  */
+import type { IngredientLineKey } from '../form/lineKey.js';
+import type { ArrivalLine } from '../form/props.js';
 import { isEditorSectionId, type EditorSectionId } from './sections.js';
 
 /** A stored ingredient line, named by the recipe version it was read at and its position in that read. */
@@ -83,4 +85,37 @@ export function arrivalHash(arrival: EditorArrival): string {
     const { section, line } = arrival;
 
     return line === undefined ? `#${section}` : `#${section}/${line.version}.${line.position}`;
+}
+
+/** A deep link's arrival with its line address resolved to the draft's own key. */
+export interface ResolvedArrival {
+    readonly section: EditorSectionId;
+    /** Absent when the link named no line. */
+    readonly line?: ArrivalLine;
+}
+
+/**
+ * Read a link's address against the draft's keys. A key the address resolves to is a line only while the draft still
+ * holds it: a resumed draft can have lost it.
+ *
+ * @param arrival - The parsed arrival.
+ * @param keyAt - The editor's `lineKeyAt`: the key a stored address names, or `undefined`.
+ * @param heldKeys - The keys of the draft's lines now.
+ * @returns The arrival with its line found, missing, or absent. Pure.
+ */
+export function resolveArrival(
+    arrival: EditorArrival,
+    keyAt: (address: LineAddress) => IngredientLineKey | undefined,
+    heldKeys: readonly IngredientLineKey[],
+): ResolvedArrival {
+    if (arrival.line === undefined) {
+        return { section: arrival.section };
+    }
+
+    const key = keyAt(arrival.line);
+
+    return {
+        section: arrival.section,
+        line: key !== undefined && heldKeys.includes(key) ? { kind: 'found', key } : { kind: 'missing' },
+    };
 }

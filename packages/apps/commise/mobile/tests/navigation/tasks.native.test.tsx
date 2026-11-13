@@ -5,7 +5,7 @@
  * re-rendered. A real native stack; the editor screen is a stub that records what it is handed.
  */
 import { SnackbarHost } from '@commise/ui/snackbar';
-import { NavigationContainer, useNavigation } from '@react-navigation/native';
+import { NavigationContainer, useNavigation, useRoute } from '@react-navigation/native';
 import { onlineManager } from '@tanstack/react-query';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { act, cleanup } from '@testing-library/react';
@@ -19,13 +19,19 @@ const handed = vi.hoisted(() => ({
     leaves: [] as unknown[],
     setParams: undefined as (() => void) | undefined,
     foodPages: [] as { readonly foodId: string; readonly offline: boolean }[],
+    /** The `line` each render of the editor stub was handed, and the `line` the route's params hold after each. */
+    lines: [] as unknown[],
+    routeLines: [] as unknown[],
 }));
 
 vi.mock('../../src/screens/RecipeEditorScreen.js', () => ({
-    RecipeEditorScreen: (props: { readonly subscribeToLeave?: unknown }) => {
+    RecipeEditorScreen: (props: { readonly subscribeToLeave?: unknown; readonly line?: unknown }) => {
         const navigation = useNavigation();
+        const route = useRoute();
 
         handed.leaves.push(props.subscribeToLeave);
+        handed.lines.push(props.line);
+        handed.routeLines.push((route.params as { readonly line?: unknown } | undefined)?.line);
         handed.setParams = () => navigation.setParams({ section: 'steps' } as never);
 
         return null;
@@ -46,6 +52,8 @@ afterEach(() => {
     cleanup();
     handed.leaves = [];
     handed.foodPages = [];
+    handed.lines = [];
+    handed.routeLines = [];
     onlineManager.setOnline(true);
 });
 
@@ -81,6 +89,37 @@ describe('taskScreens', () => {
             expect(typeof handed.leaves[0]).toBe('function');
         },
     );
+});
+
+/**
+ * A deep link's `line` is read once, when the editor opens. Left in the route's params, a later re-render or a
+ * restored navigation state would carry the address of a line the cook has since changed, so the route lets go of it
+ * after use, as the web strips the hash.
+ */
+describe('RecipeEdit — the deep link’s line is used once', () => {
+    it('hands the editor the line, then clears it from the route params', async () => {
+        const Stack = createNativeStackNavigator<RootStackParamList>();
+        const line = { version: 3, position: 1 };
+
+        render(
+            <SnackbarHost>
+                <NavigationContainer
+                    initialState={{
+                        routes: [{ name: 'RecipeEdit', params: { recipeId: 'rec_1', section: 'ingredients', line } }],
+                    }}
+                >
+                    <Stack.Navigator>{taskScreens(Stack)}</Stack.Navigator>
+                </NavigationContainer>
+            </SnackbarHost>,
+        );
+        await act(async () => {
+            await Promise.resolve();
+        });
+
+        expect(handed.lines[0]).toEqual(line);
+        expect(handed.routeLines[0]).toEqual(line);
+        expect(handed.routeLines.at(-1)).toBeUndefined();
+    });
 });
 
 describe('the food page route', () => {

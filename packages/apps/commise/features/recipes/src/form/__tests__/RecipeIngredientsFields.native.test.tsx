@@ -37,6 +37,19 @@ vi.mock('@commise/ui/text-input', async (importOriginal) => {
     return recordingTextInputModule(await importOriginal<typeof import('@commise/ui/text-input')>());
 });
 
+// The rows hear the host naming their start (`useFieldStartReveal`); the host side is proved in `@commise/ui`.
+const starts = vi.hoisted(() => ({ ids: [] as string[] }));
+
+vi.mock('@commise/ui/field-reveal', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('@commise/ui/field-reveal')>();
+
+    return {
+        ...actual,
+        useFieldStartReveal: (id: string): void => {
+            starts.ids.push(id);
+        },
+    };
+});
 vi.mock('../../layout/useMainContainerClass.native.js', () => ({ useMainContainerClass: () => layout.container }));
 // Rows 6 and 7's panel searches the line's words through the progressive food search. This suite pins the panel's frame,
 // not that search, which `RecipeIngredientsFields.rowEditor.native` and `rowEditor.integration` own.
@@ -74,6 +87,7 @@ import { useFakeRowEditor } from '../../__fixtures__/useFakeRowEditor.js';
 import type { LookupRetry } from '../ingredientStatus.js';
 import type { IngredientNutrition, LookupEntry } from '../nutritionLookup.js';
 import type { DraftAction } from '../draftAction.js';
+import { ingredientRowId } from '../fieldIds.js';
 import { seedLineKey, type IngredientLineKey } from '../lineKey.js';
 import { applyDraftAction } from '../props.js';
 import { toCreateRecipeInput } from '../wire.js';
@@ -150,7 +164,7 @@ const StatefulLeaf: FC<{
     readonly seen?: RecipeFormValues[];
     readonly nutrition?: IngredientNutrition;
     readonly dispatched?: DraftAction[];
-    /** A row editor to open on arrival (`RecipeIngredientsFieldsProps.initialLine`). */
+    /** A row editor to open on arrival (`RecipeIngredientsFieldsProps.arrivalLine`, found). */
     readonly initialLine?: IngredientLineKey;
     /** The cook's original lines by key, for a line that needs review. */
     readonly originalLines?: ReadonlyMap<IngredientLineKey, string>;
@@ -185,7 +199,7 @@ const StatefulLeaf: FC<{
             nutrition={nutrition ?? NUTRITION}
             lookupRetry={LOOKUP_RETRY}
             rowEditor={rowEditor}
-            {...(initialLine === undefined ? {} : { initialLine })}
+            {...(initialLine === undefined ? {} : { arrivalLine: { kind: 'found', key: initialLine } as const })}
             {...(originalLines === undefined ? {} : { originalLines })}
         />
     );
@@ -444,6 +458,16 @@ describe('RecipeIngredientsFields (native) — the ⋯ (§7.5.1)', () => {
         ]);
     });
 
+    // NEW (needs-review jump): a deep link names a row's START through the scroll host, so each row listens for its own id.
+    it('each row listens for the host naming its start, by its own row id', () => {
+        starts.ids = [];
+        render(<StatefulLeaf initial={THREE} />);
+
+        const keys = withLineKeys(THREE).map((line) => ingredientRowId(line.key));
+
+        expect(new Set(starts.ids)).toEqual(new Set(keys));
+    });
+
     it('Remove removes ONLY that line', () => {
         const dispatched: DraftAction[] = [];
         render(<StatefulLeaf initial={THREE} dispatched={dispatched} />);
@@ -542,6 +566,21 @@ describe('RecipeIngredientsFields (native) — the row editor on a phone: a shee
         fireEvent.click(within(dialogTitled('Arborio rice')).getByRole('button', { name: en.rowDone }));
 
         expect(seen.at(-1)?.ingredients[0]).toMatchObject({ preparation: 'washed' });
+    });
+
+    // NEW (needs-review jump, designer): Done and Cancel hand the screen-reader cursor back to the row's open control.
+    it.each([en.rowDone, en.rowCancel])('%s returns screen-reader focus to the row’s open control', (label) => {
+        const send = vi.mocked(AccessibilityInfo.sendAccessibilityEvent);
+        render(<StatefulLeaf initial={[RICE]} />);
+        press('Edit 300 g Arborio rice');
+        send.mockClear();
+
+        fireEvent.click(within(dialogTitled('Arborio rice')).getByRole('button', { name: label }));
+
+        const taken = send.mock.calls.filter(([, event]) => event === 'focus').map(([node]) => node as unknown as Node);
+        const target = screen.getByRole('button', { name: 'Edit 300 g Arborio rice' });
+
+        expect(taken.some((node) => node === target || node.contains(target))).toBe(true);
     });
 
     it('arriving at a row opens its sheet; a stale address opens nothing', () => {

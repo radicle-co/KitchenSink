@@ -1230,6 +1230,27 @@ describe('RecipeDetailView (web) — the owner’s Needs review control', () => 
         expect(screen.queryByRole('link', { name: /Needs review/u })).toBeNull();
     });
 
+    it('puts the link in the row of the line it addresses: the SECOND line, not the first row', () => {
+        const twoLines = makeRecipeDetail({
+            currentVersion: 3,
+            ingredients: [
+                makeIngredientView({ ingredientId: 'salt', name: 'Salt' }),
+                makeIngredientView({
+                    ingredientId: 'paprika',
+                    name: 'Smoked Paprika',
+                    resolutionStatus: FoodResolutionStatus.NEEDS_REVIEW,
+                }),
+            ],
+        });
+
+        renderAsOwner(view({ viewerIsOwner: true, recipe: twoLines }));
+        const link = screen.getByRole('link', { name: 'Needs review: Smoked Paprika' });
+
+        expect(link.getAttribute('href')).toBe('/en/recipes/rec_1/edit#ingredients/3.1');
+        expect(link.closest('li')).toBe(screen.getByRole('checkbox', { name: /Smoked Paprika/u }).closest('li'));
+        expect(screen.getByRole('checkbox', { name: /Salt/u }).closest('li')?.querySelector('a')).toBeNull();
+    });
+
     it('a line that does not need review gets no control', () => {
         renderAsOwner(view({ viewerIsOwner: true }));
 

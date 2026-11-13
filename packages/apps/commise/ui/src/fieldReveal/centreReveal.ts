@@ -45,3 +45,33 @@ export function centreTarget({ top, height, offset, viewport, keep }: CentrePlac
 
     return target === offset ? null : target;
 }
+
+/** The element and the scroller it is shown in, all in dp of one unit. */
+export interface StartPlace {
+    /** The element's top in the visible area; negative when it is above the visible area's top edge. */
+    readonly top: number;
+    /** The scroll offset now. */
+    readonly offset: number;
+    /** The visible area's height; 0 until laid out, which places nothing. */
+    readonly viewport: number;
+    /** The gap held between the element's top and the visible area's top edge. */
+    readonly keep: number;
+}
+
+/**
+ * The scroll offset that puts the element's TOP one gap below the visible area's top, whatever its height: where a deep
+ * link to an ingredient row takes the cook, so the editor opened under the row shows from its first line. Unlike
+ * `spanTarget` it moves a row that is already partly in view. Pure.
+ *
+ * @param place - Where the element and the scroller are.
+ * @returns The offset, never below 0; `null` when the visible area is not laid out or the element is already there.
+ */
+export function startTarget({ top, offset, viewport, keep }: StartPlace): number | null {
+    if (viewport <= 0) {
+        return null;
+    }
+
+    const target = Math.max(0, offset + top - keep);
+
+    return target === offset ? null : target;
+}

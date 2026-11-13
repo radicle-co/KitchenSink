@@ -59,6 +59,7 @@ import {
 import type { DraftStore } from './draftStore.js';
 import { outcomeOfExit, type EditorFinish, type FinishedOutcome } from './finishedOutcome.js';
 import { createPasteHold } from './pasteHold.js';
+import { createRowEditHold, type RowEditHold } from './rowEditHold.js';
 import { previewRecipeOf } from './previewRecipe.js';
 import type { DraftKeep } from './saveStatus.js';
 import { useEditorPhotos, type EditorPhotos } from './useEditorPhotos.js';
@@ -125,6 +126,8 @@ export interface EditorPreview {
 export interface RecipeEditorSession {
     readonly editor: UseRecipeEditorResult;
     readonly rowEditor: IngredientRowEditor;
+    /** Raised by an open row editor (`rowEditHold.ts`); the ingredients field group writes it. */
+    readonly rowEditHold: RowEditHold;
     readonly nutrition: ReturnType<typeof useLineNutrition>;
     readonly lookupRetry: LookupRetry;
     readonly paste: IngredientsPaste;
@@ -158,6 +161,8 @@ export function useRecipeEditorSession(options: UseRecipeEditorSessionOptions): 
     const [previewing, setPreviewing] = useState(false);
     // Made before the editor and the paste, which each need the other: the paste writes it, a checkpoint reads it.
     const [pasteHold] = useState(createPasteHold);
+    // Raised by an open row editor, read by the editor's checkpoints: the row's Cancel must still have a line to put back.
+    const [rowEditHold] = useState(createRowEditHold);
 
     /**
      * Published, or its changes saved: visibility follows its answer, then the recipe shows. A Private the server is known
@@ -224,6 +229,7 @@ export function useRecipeEditorSession(options: UseRecipeEditorSessionOptions): 
         // The outbox's cache observer writes each synced recipe write's answer here, so this is usually a cache read.
         readRecipe: (id) => queryClient.ensureQueryData(recipeQueries(client).detail(id)),
         pasteHold,
+        rowEditHold,
         privateRefusal,
     });
 
@@ -316,6 +322,7 @@ export function useRecipeEditorSession(options: UseRecipeEditorSessionOptions): 
     return {
         editor,
         rowEditor,
+        rowEditHold,
         nutrition,
         lookupRetry,
         paste,

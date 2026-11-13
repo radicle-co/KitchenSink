@@ -126,7 +126,7 @@ const StatefulLeaf: FC<{
     readonly seen?: RecipeFormValues[];
     readonly nutrition?: IngredientNutrition;
     readonly dispatched?: DraftAction[];
-    /** A row editor to open on arrival (`RecipeIngredientsFieldsProps.initialLine`). */
+    /** A row editor to open on arrival (`RecipeIngredientsFieldsProps.arrivalLine`, found). */
     readonly initialLine?: IngredientLineKey;
     /** The cook's original lines by key, for a line that needs review. */
     readonly originalLines?: ReadonlyMap<IngredientLineKey, string>;
@@ -161,7 +161,7 @@ const StatefulLeaf: FC<{
             nutrition={nutrition ?? NUTRITION}
             lookupRetry={LOOKUP_RETRY}
             rowEditor={rowEditor}
-            {...(initialLine === undefined ? {} : { initialLine })}
+            {...(initialLine === undefined ? {} : { arrivalLine: { kind: 'found', key: initialLine } as const })}
             {...(originalLines === undefined ? {} : { originalLines })}
         />
     );
@@ -515,6 +515,29 @@ describe('RecipeIngredientsFields (web) — the ⋯ (§7.5.1)', () => {
         await vi.waitFor(() =>
             expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Edit 300 g Sugar' })),
         );
+    });
+
+    // NEW: the 'editor' focus request is its own control, so a Remove that targets the next row's open control cannot
+    // land on that row's notice, even while that row's editor is open.
+    it('Remove hands focus to the next row’s open control even when that row’s editor is open', async () => {
+        layout.container = 'regular';
+        const user = userEvent.setup();
+        const review: UnkeyedFormIngredient = {
+            ...RICE,
+            ingredientId: 'r',
+            name: 'Sugar',
+            resolutionStatus: FoodResolutionStatus.NEEDS_REVIEW,
+        };
+        render(<StatefulLeaf initial={[{ ...RICE, name: 'Flour' }, review]} />);
+
+        await user.click(screen.getByRole('button', { name: 'Edit 300 g Sugar' }));
+        await openMenu(user, 'Flour');
+        await user.click(screen.getByRole('menuitem', { name: en.statusActionRemove }));
+
+        await vi.waitFor(() =>
+            expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Edit 300 g Sugar' })),
+        );
+        expect(document.activeElement).not.toBe(screen.getByRole('group', { name: en.statusNeedsReview }));
     });
 
     it('removing the last row hands focus to the add field', async () => {
@@ -904,6 +927,38 @@ describe('RecipeIngredientsFields (web) — arriving at a row from a link', () =
         await vi.waitFor(() =>
             expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Edit 300 g Salt' })),
         );
+    });
+
+    // NEW (needs-review jump, designer): a needs-review arrival hands focus to the editor's notice group, so a screen reader
+    // reads what is wrong first and no text field takes the keyboard. Before this, focus stayed on the row's open control.
+    it('focus lands on a needs-review arrival’s notice group, never in a text field', async () => {
+        layout.container = 'regular';
+        const key = withLineKeys([NEEDS_REVIEW])[0]!.key;
+        render(<StatefulLeaf initial={[NEEDS_REVIEW]} initialLine={key} />);
+
+        await vi.waitFor(() =>
+            expect(document.activeElement).toBe(screen.getByRole('group', { name: en.statusNeedsReview })),
+        );
+    });
+
+    it('Done on a needs-review arrival returns focus to the row’s open control', async () => {
+        layout.container = 'regular';
+        const user = userEvent.setup();
+        const key = withLineKeys([NEEDS_REVIEW])[0]!.key;
+        render(<StatefulLeaf initial={[NEEDS_REVIEW]} initialLine={key} />);
+        await user.click(screen.getByRole('button', { name: en.rowDone }));
+
+        await vi.waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: /^Edit / })));
+    });
+
+    it('Cancel on a needs-review arrival returns focus to the row’s open control', async () => {
+        layout.container = 'regular';
+        const user = userEvent.setup();
+        const key = withLineKeys([NEEDS_REVIEW])[0]!.key;
+        render(<StatefulLeaf initial={[NEEDS_REVIEW]} initialLine={key} />);
+        await user.click(screen.getByRole('button', { name: en.rowCancel }));
+
+        await vi.waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: /^Edit / })));
     });
 
     it('opens nothing without an arrival', () => {

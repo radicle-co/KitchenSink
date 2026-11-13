@@ -260,6 +260,7 @@ yet. The table below is generated from `typeRole`. A size is one of 14, 16, 18 o
 | `cardTitle`    | Inter   | 16               | 600    | 20               |                 |
 | `body`         | Inter   | 16               | 400    | 24               |                 |
 | `readingBody`  | Inter   | 18               | 400    | 28               |                 |
+| `readingLarge` | Inter   | 28               | 400    | 36               |                 |
 | `meta`         | Inter   | 14               | 400    | 20               |                 |
 | `list`         | Inter   | 14               | 400    | 20               |                 |
 | `label`        | Inter   | 14               | 600    | 20               |                 |
@@ -279,6 +280,7 @@ The default rule of each role:
 | `cardTitle`    | truncate:2                                                        |
 | `body`         | wrap                                                              |
 | `readingBody`  | wrap, measure 62ch                                                |
+| `readingLarge` | wrap. Never on a screen that also shows `largeTitle`              |
 | `meta`         | per element                                                       |
 | `list`         | wrap                                                              |
 | `label`        | `room`                                                            |

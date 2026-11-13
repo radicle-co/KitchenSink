@@ -65,8 +65,12 @@ The vocabulary is closed on the way in and open on the way out. Requests and the
 A client reads any other kind in a response as `unrecognised` (`recipeSourceKindViewSchema`). The bulk import's
 statement view follows the same rule. Every rule that reads a kind treats `unrecognised` as the most closed kind: private
 only, and not correctable. The server never sends `unrecognised`, so it can never become a real kind. Only clients built
-after this rule read a new kind safely. When the oldest supported app reads a new kind (such as "adapted" or "family"),
-the server can start to send it.
+after this rule read a new kind safely. Apps installed before this release still reject an unknown kind and fail the
+whole recipe read. So a new kind (such as "adapted" or "family") does not ship until builds from this release are the
+installed base. The published response schema lists `unrecognised` and describes it as a client-side reading that the
+server never sends. That was a choice. Every recipe response embeds one shared schema. With a closed published enum, a
+client reads an unknown kind as absent, and an absent kind makes the client offer Public. A client that fails closed was
+judged worth more than a contract that names no value the server does not send (lead ruling, 2026-11-13).
 
 ### 5. A web copy is private only
 

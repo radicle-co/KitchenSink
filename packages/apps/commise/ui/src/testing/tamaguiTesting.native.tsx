@@ -300,6 +300,25 @@ export function pressFrameOf(control: Element): HTMLElement {
 }
 
 /**
+ * The floor a frame keeps under a scroll region (`PinnedFooterScrollRegion`): the minimum height of the nearest ancestor
+ * of the scroller that sets one above zero. react-native-web gives every `View` `minHeight: 0`, so a zero is not a floor.
+ *
+ * @param scroller - The scroll region's element, or any element inside the frame around it.
+ * @returns The floor as the DOM resolves it (`'48px'`), or `undefined` when no ancestor keeps one.
+ */
+export function scrollRegionFloorOf(scroller: Element): string | undefined {
+    for (let at = scroller.parentElement; at !== null; at = at.parentElement) {
+        const floor = resolvedStyle(at, 'minHeight');
+
+        if (/^[1-9]\d*(\.\d+)?px$/u.test(floor)) {
+            return floor;
+        }
+    }
+
+    return undefined;
+}
+
+/**
  * The press scale `PressScale` draws a control at: `1` at rest, `0.98` while held.
  *
  * @param control - The pressable control, found by its role.

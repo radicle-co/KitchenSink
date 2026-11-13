@@ -9,17 +9,24 @@
  * up, the two can take almost the whole frame and leave the content a sliver. Past the limit the footer scrolls with
  * the content instead; the exit stays pinned.
  *
- * The rule reads the frame's ACTUAL height, and that height does not change when the footer moves: pinned, a
- * content-sized frame is `min(top + content + footer, available)`, and unpinned it is the same sum under the same cap.
- * So the decision cannot flip back on the render after the footer moves. A frame that unpins while nothing scrolls
- * looks the same.
+ * The rule reads the frame's ACTUAL height, and it must not flip back on the render after the footer moves. On native
+ * the scroll region keeps a floor of one control (`PinnedFooterScrollRegion`, issue #192); on the web the floor is 0.
+ * Pinned, a content-sized frame is `min(top + max(content, floor) + footer, available)`. Unpinned, the footer is inside
+ * the region, so the frame is `min(top + max(content + footer, floor), available)`. Each term of the second is at most
+ * the first, so the frame only stays the same or shrinks once the footer unpins. A smaller frame makes "taller than
+ * half" truer, so the decision holds. Only a change from outside (the keyboard closing, a rotation) grows the frame and
+ * pins the footer again. A frame whose height its parent fixes does not change at all.
  *
  * @pattern Specification — one pure predicate every platform leaf feeds with its own measurements.
  */
 
 /** Heights the rule reads, in px (web) or dp (native). `0` means not measured yet. */
 export interface PinnedFooterMeasure {
-    /** The pinned row above the scroll region that holds the exit. ⛔ Not the Sheet's toolbar. */
+    /**
+     * What is pinned above the scroll region: the row that holds the exit. The native Sheet also counts its toolbar,
+     * because its region keeps a floor, and the floor cannot give back a pinned height that is left out here. The web
+     * Sheet's region has no floor, and it measures the title row alone.
+     */
     readonly pinnedTop: number;
     /** The footer, with its padding and hairline. */
     readonly footer: number;

@@ -26,12 +26,13 @@ vi.mock('react-native', async (importOriginal) => {
 });
 
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
+import { touchFloor } from '@commise/ui/layout';
 import { themeFor } from '@commise/ui/theme';
 
 import { ImportWizardStep } from '../ImportWizardStep.native.js';
 import { importMessages } from '../messages.js';
 import type { ImportWizardStepProps } from '../props.js';
-import { pressFrameOf, render, resolvedColour } from '@commise/ui/testing/tamagui';
+import { pressFrameOf, render, resolvedColour, scrollRegionFloorOf } from '@commise/ui/testing/tamagui';
 
 const w = importMessages.en.wizard;
 
@@ -114,6 +115,21 @@ describe('ImportWizardStep (native)', () => {
         expect(bar.contains(lines)).toBe(false);
         expect(scrollerOf(lines)).not.toBeNull();
         expect(scrollerOf(lines)?.contains(bar)).toBe(false);
+    });
+
+    // Issue #192: the bar's place is decided a layout pass after the frame shrinks, and a scroll region laid out at
+    // zero height in that pass costs a focused field its focus on Android. The step holds no field today; the frame
+    // keeps the floor so the one it gains cannot lose focus that way.
+    it('keeps its scroll region at least one control tall', () => {
+        renderStep();
+
+        const scroller = scrollerOf(screen.getByText('the lines'));
+
+        if (scroller === null) {
+            throw new Error('the lines are not in a scroll region');
+        }
+
+        expect(scrollRegionFloorOf(scroller)).toBe(`${touchFloor()}px`);
     });
 
     it('draws the rail only at the wide container class', () => {

@@ -4,15 +4,15 @@
     "packageName": "@commise/ui",
     "layer": "design-system",
     "coverage": {
-        "components": 94,
-        "implementations": 152,
-        "props": 969,
-        "documentedComponents": 94,
-        "implementationsWithModuleDoc": 152,
-        "implementationsWithComponentDoc": 138,
-        "documentedProps": 872,
+        "components": 95,
+        "implementations": 153,
+        "props": 972,
+        "documentedComponents": 95,
+        "implementationsWithModuleDoc": 153,
+        "implementationsWithComponentDoc": 139,
+        "documentedProps": 875,
         "classifiedComponents": 87,
-        "componentsWithPatternTag": 94,
+        "componentsWithPatternTag": 95,
         "crossPlatformComponents": 58
     },
     "components": [
@@ -9982,7 +9982,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/ui/src/overlay/OverlayHost.native.tsx",
                     "dir": "packages/apps/commise/ui/src/overlay",
-                    "moduleDoc": "@commise/ui/overlay — the window every sheet and dialog opens in, and the one door their dismissals use.\n\nAn open `Modal` takes Android Back itself and calls `onRequestClose`; no `BackHandler` event is emitted while one is\nup. So a Back interceptor registered inside a window, on the provider's registry, is on a chain no press can reach.\nThe host fixes both halves: it turns Back into a `DismissRequest` after asking the window's OWN interceptors, and it\npublishes that sink so the scrim, the Close control and the swipe raise the same request.\n\n- The host owns `open`. It is a controlled component: the content never keeps its own open state, and a request the\n  host ignores leaves the overlay up (the discard guard, the `submitting` veto).\n- The scope is a registry of its own. It does NOT join the ancestor provider's chain, because the ancestor's\n  `BackHandler` is not live while this window is up.\n- `visible` passes through unchanged: a sheet keeps the Modal mounted, a dialog unmounts it. No mode prop.\n\nAn orchestration component: it renders no surface of its own and decides who answers a dismissal.",
+                    "moduleDoc": "@commise/ui/overlay — the window every sheet and dialog opens in, and the one door their dismissals use.\n\nAn open `Modal` takes Android Back itself and calls `onRequestClose`; no `BackHandler` event is emitted while one is\nup. So a Back interceptor registered inside a window, on the provider's registry, is on a chain no press can reach.\nThe host fixes both halves: it turns Back into a `DismissRequest` after asking the window's OWN interceptors, and it\npublishes that sink so the scrim, the Close control and the swipe raise the same request.\n\n- The host owns `open`. It is a controlled component: the content never keeps its own open state, and a request the\n  host ignores leaves the overlay up (the discard guard, the `submitting` veto).\n- The scope is a registry of its own. It does NOT join the ancestor provider's chain, because the ancestor's\n  `BackHandler` is not live while this window is up.\n- `visible` passes through unchanged: a sheet keeps the Modal mounted, a dialog unmounts it. No mode prop.\n- It mounts the window's snackbar outlet, so a snackbar shown while the window is open draws above it.\n\nAn orchestration component: it renders no surface of its own and decides who answers a dismissal.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -10022,6 +10022,15 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "The host's dismissal policy, called once per request with the route that raised it. Idempotent.",
+                            "declaredIn": "packages/apps/commise/ui/src/overlay/OverlayHost.native.tsx"
+                        },
+                        {
+                            "name": "presenting",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Whether the window is open for the cook now, so the snackbar draws in it. Defaults to `visible`. A sheet whose\nexit plays keeps its window visible, and passes `false` here so the snackbar moves back at once.",
                             "declaredIn": "packages/apps/commise/ui/src/overlay/OverlayHost.native.tsx"
                         }
                     ],
@@ -14560,7 +14569,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/ui/src/snackbar/SnackbarHost.native.tsx",
                     "dir": "packages/apps/commise/ui/src/snackbar",
-                    "moduleDoc": "@commise/ui/snackbar — the native {@link SnackbarHost}: mounted once per app (at the native root), it gives\nscreens `useSnackbar` and draws the one snackbar on screen.\n\nThe snackbar sits in a pass-through overlay over the app, 16 pt above the bottom chrome (read from the page's\n`PopupInsetsContext` reader as each one shows), in a polite `status` region that is always mounted. ⚠️ Native has\nno hover, and React Native cannot see where the screen-reader cursor is, so SC 2.2.1's pause is the stronger rule:\nwhile a screen reader runs, the snackbar does not time out at all, and when it stops the snackbar runs out its own\nremaining time.\n\nIt also publishes the showing snackbar's measured height (`SnackbarClearanceContext`), so the floating create button\nrises above the bar instead of sitting under it.",
+                    "moduleDoc": "@commise/ui/snackbar — the native {@link SnackbarHost}: mounted once per app (at the native root), it gives\nscreens `useSnackbar` and draws the one snackbar on screen.\n\nThe snackbar sits in a pass-through overlay over the app, 16 pt above the bottom chrome (read from the page's\n`PopupInsetsContext` reader as each one shows), in a polite `status` region that is always mounted. ⚠️ Native has\nno hover, and React Native cannot see where the screen-reader cursor is, so SC 2.2.1's pause is the stronger rule:\nwhile a screen reader runs, the snackbar does not time out at all, and when it stops the snackbar runs out its own\nremaining time.\n\nIt also publishes the showing snackbar's measured height (`SnackbarClearanceContext`), so the floating create button\nrises above the bar instead of sitting under it.\n\nAn open sheet or dialog is a window of its own, above the app root, so while one is open the host hands the snackbar\nto that window's outlet (`SnackbarOutlet`, mounted by `OverlayHost`) and draws nothing itself. The queue, the timer\nand the pause stay here, so closing the window moves the snackbar back without ending it.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -14584,6 +14593,86 @@
                             "defaultValue": null,
                             "description": "The app the host serves.",
                             "declaredIn": "packages/apps/commise/ui/src/snackbar/props.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "designSystem/snackbar/SnackbarOutlet",
+            "name": "SnackbarOutlet",
+            "group": "designSystem",
+            "packageName": "@commise/ui",
+            "layer": "design-system",
+            "dir": "packages/apps/commise/ui/src/snackbar",
+            "kind": "unclassified",
+            "patterns": [
+                "Mediator — a drawing slot the snackbar host's Mediator fills; the queue, the timer and the pause stay in the\n    host"
+            ],
+            "platforms": [
+                "native"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "SnackbarOutlet",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/ui/src/snackbar/SnackbarOutlet.native.tsx",
+                    "dir": "packages/apps/commise/ui/src/snackbar",
+                    "moduleDoc": "@commise/ui/snackbar — the native {@link SnackbarOutlet}: the place an open window offers the snackbar host.\n\nA React Native `Modal` is a window of its own, so a snackbar the host draws at the app root sits under an open sheet\nor dialog, where its Undo cannot be reached. `OverlayHost` mounts one outlet in every window it opens. While the\nwindow presents, the outlet registers with the host and keeps a polite `status` region mounted, empty until the host\nhands it the snackbar. The region exists before any snackbar arrives, which is what lets the change be announced.\nOnly the outlet on top draws, and the host draws in its own place only while no outlet is registered, so the snackbar\nis in one place at a time and is read out once.\n\nIt sits `SNACKBAR_GAP` above the window's own bottom safe area, not above the page's bottom chrome: inside a window\nthe page's tab bar is not on screen.\n\nshortcut: covers a pinned sheet footer; publish the footer height and sit above it (eng7's option b) when the first\nfootered sheet shows a snackbar.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/ui/snackbar — the native {@link SnackbarOutlet}: the place an open window offers the snackbar host."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Mediator — a drawing slot the snackbar host's Mediator fills; the queue, the timer and the pause stay in the\n    host"
+                        }
+                    ],
+                    "description": "The snackbar's place in one open window.",
+                    "tags": [
+                        {
+                            "name": "param",
+                            "text": "props - Whether the window presents, and how deep it is nested."
+                        },
+                        {
+                            "name": "returns",
+                            "text": "The window's status region, holding the snackbar when this outlet is on top; nothing outside a host or\nwhile the window does not present."
+                        },
+                        {
+                            "name": "sideEffect",
+                            "text": "Registers the outlet with the host while the window presents."
+                        }
+                    ],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "depth",
+                            "type": "number",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "How many windows deep this window is: 1 when opened from the app, 2 inside another window, and so on.",
+                            "declaredIn": "packages/apps/commise/ui/src/snackbar/SnackbarOutlet.native.tsx"
+                        },
+                        {
+                            "name": "presenting",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Whether the window is open for the cook now: `false` while it is held or its exit plays.",
+                            "declaredIn": "packages/apps/commise/ui/src/snackbar/SnackbarOutlet.native.tsx"
                         }
                     ],
                     "usesRefApi": [],

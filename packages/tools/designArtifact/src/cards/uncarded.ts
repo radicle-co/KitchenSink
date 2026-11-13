@@ -45,6 +45,8 @@ export const UNCARDED: Readonly<Record<string, string>> = {
         "The scroll hint's chevron, a part of HorizontalScroller on native that Tamagui cannot draw yet. The HorizontalScroller card covers it.",
     ScrollFade:
         "The scroll hint's gradient fade, a part of HorizontalScroller on native that Tamagui cannot draw yet. The HorizontalScroller card covers it.",
+    SnackbarOutlet:
+        "Native-only slot inside a sheet's or dialog's window where the snackbar draws while that window is open. It has no look of its own, since it places the snackbar the SnackbarHost card covers.",
     SheetEngine:
         "Native-only engine of the Sheet (Tamagui's Sheet inside the host's window). Screens place Sheet, which the Sheet card covers.",
     Text: "Native-only text primitive with no web sibling: web sets type with Tailwind's role utilities. A screen names a type role, and the roles are defined in `typography.ts`.",

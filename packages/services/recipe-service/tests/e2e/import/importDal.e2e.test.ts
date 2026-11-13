@@ -24,6 +24,7 @@ import { RecipeImportLinesDal } from '../../../src/import/dal/recipeImportLines.
 import { RecipeImportsDal } from '../../../src/import/dal/recipeImports.dal.js';
 import { ImportAllowanceDal } from '../../../src/common/dal/importAllowance.dal.js';
 import { cookKeyOf, holdOf } from '../../../src/import/domain/importHold.js';
+import { fileSaveFactsOf } from '../../../src/import/domain/importSaveGap.js';
 import { ensureFoodLookup } from '../../support/lineChain.js';
 import { recipeDb } from '../../support/roleDb.js';
 
@@ -754,6 +755,48 @@ describe('the bulk-import DALs (LOCAL e2e, real Postgres)', () => {
             expect((await items.findSaveCandidates(header.id, 2, FREE_KEY)).map((item) => item.ordinal)).toEqual([
                 1, 3,
             ]);
+        });
+
+        // GATE minor 2 on #220: the item list reads the save facts out of the payload in SQL (`->> 'cuisine'`, `payloadInt`),
+        // and the save reads them in TypeScript (`fileSaveFactsOf`, zod). Two readers of one document must agree, or the list
+        // shows an issue the save does not see, or the other way round. Every payload here is one the contract admits.
+        it('⛔ the list’s SQL reading of the save facts agrees with the save’s zod reading, for every shape a file states', async () => {
+            const stated = [
+                { cuisine: 'Italian', servings: 4, prepTimeMinutes: 10, cookTimeMinutes: 20, totalTimeMinutes: 30 },
+                {},
+                { prepTimeMinutes: 0, cookTimeMinutes: 0, totalTimeMinutes: 0 },
+                { totalTimeMinutes: 45 },
+                { cuisine: 'Thai' },
+                { servings: 1, cookTimeMinutes: 240 },
+            ];
+            const header = await newImport(stated.length);
+
+            await items.upsertItems(
+                header.id,
+                stated.map((facts, ordinal) => ({
+                    ordinal,
+                    recipe: {
+                        ...recipe(`Facts ${String(ordinal)}`, ordinal === 1 ? [] : ['2 cups flour', '1 egg']),
+                        ...facts,
+                    },
+                })),
+            );
+
+            const listed = await items.findPage(header.id, undefined, 50);
+
+            expect(listed).toHaveLength(stated.length);
+
+            for (const row of listed) {
+                const stored = await items.findItem(header.id, row.ordinal);
+                const payload = stored?.payload;
+
+                expect(row.saveFacts.file).toStrictEqual(fileSaveFactsOf(payload));
+                expect(row.saveFacts.file).toStrictEqual(fileSaveFactsOf(stated[row.ordinal]));
+                expect([row.saveFacts.ingredientLineCount, row.saveFacts.stepCount]).toEqual([
+                    row.ordinal === 1 ? 0 : 2,
+                    1,
+                ]);
+            }
         });
 
         describe('⛔ a held item is not looked at again until the cook decides something (ADR-0072 §3 as amended 2026-11-11)', () => {

@@ -6,7 +6,7 @@
 - **Amended by:** [ADR-0077](0077-recipe-rights-label-linked-cards-and-outside-copy-checks.md): §9's statement list gains
   "Adapted in my own words" and "From a family member or friend, with their permission". A family or friend recipe is
   no longer labelled like a paid source. The rest of §9 stands, except that a web import now goes private for any cook,
-  using a slot, as ADR-0077 §6 says. The Premium-and-substantive-edit notes in §9 no longer apply.
+  using a slot, as ADR-0077 §6 says.
 - **Amended by:** [ADR-0089](0089-a-pasted-web-link-sets-the-source-and-a-web-copy-stays-private.md): §9. The web
   statement is the same member a recipe's own `statement` uses, and a recipe from a public web page is private only. The
   exception to ADR-0023 is no longer this route alone: a cook's pasted link sets the same label on
@@ -115,15 +115,17 @@ recipe it created, so a repeated `advance` sees the item as done.
 - **On approval**, a public recipe becomes public, and a private one simply stays private, in the slot it already
   holds.
 - Because the save publishes, the recipe records its first version then (ADR-0058).
-- **A recipe that lacks what Publish needs waits in the import** (lead ruling, 2026-11-11). Publish needs a cuisine
-  (except for a public-domain web import), at least one ingredient line and at least one step (`publishPolicy.ts`).
+- **A recipe that lacks what Publish needs waits in the import** (lead ruling, 2026-11-11). Publish needs a cuisine,
+  at least one ingredient line and at least one step (`publishPolicy.ts`). Only the curator's public-domain text is
+  exempt from the cuisine, and the import never sets it: a web statement is a web copy (ADR-0089 §5).
   Another app's export often states no cuisine. The import does not make one up: no default, no cuisine picked by the
   AI, and no draft save. The item is listed under "Needs a cuisine" (`needsIngredients` and `needsSteps` for the other
   two), after "Needs your statement" and the visibility, and before the slot pause. The cook gives the cuisine in the
   wizard or in the batch choices (an additive `cuisine` field), and it replaces the file's for that recipe. The next
   `advance` then saves the recipe published.
-- **An item that cannot be published is held, never re-queued.** The save asks the same publish policy before it
-  reads the matches. On a gap it records the item's `decision_rev` in `held_at_rev` (migration 0068), and the save
+- **An item only the cook can unblock is held, never re-queued.** The save asks the item list's own rule
+  (`importItemIssueOf`), in its order, before it reads the matches. A publish gap and a refused visibility each hold
+  the item. The hold records the item's `decision_rev` in `held_at_rev` (migration 0076), and the save
   candidates leave out an item held at its current revision. Every decision of the cook moves `decision_rev`, so the
   next decision releases the hold by itself. A refusal from the create path that the check did not predict is logged
   as a defect and holds the item the same way. The issue the list shows is derived from the item at read time, never
@@ -285,20 +287,19 @@ The owner ruled that bulk import has an allowance of its own, separate from past
   decides whether each choice is allowed for that recipe's label, as the table shows. A recipe whose source is not a
   public web page cannot be public. That is FR-014a's own rule.
 - **A free cook has 50 private slots** (ADR-0073). Every recipe a free cook holds as private uses one, book and
-  paid-site recipes included. A Premium cook has no limit. A free cook keeps a book or paid-site recipe private only
-  while a slot is free. An `imported_public` recipe still goes private only with Premium and a substantive edit, so
-  slots never apply to it.
+  paid-site recipes included. A Premium cook has no limit. A free cook keeps a book, paid-site or web recipe private
+  only while a slot is free (ADR-0077 §6, ADR-0089 §5).
 - **When a free cook runs out of slots, the import pauses** (ADR-0073 §8). The ordinary slot count already includes
   the cook's private recipes in review, because each holds its slot. When the private items left exceed the free
   slots, it saves no more private items and warns the cook. The cook chooses to stop there, or to make the rest
   public: one list of the remaining recipes with their sources, which the cook may untick, and one confirmation that
-  records a separate statement for each recipe. A book or paid-site item can never go public, so for it the choice is
-  skip or stop. The pause is derived from the live count, and the cook's choice is
+  records a separate statement for each recipe. A book, paid-site or web item can never go public, so for it the choice
+  is skip or stop. The pause is derived from the live count, and the cook's choice is
   stored on the item.
 - **Counsel confirms the statement's wording before launch**, both forms included. It is on 016 FR-050's list.
-- **A cook who chooses Private for a public web recipe is refused on a fresh import.** `imported_public` goes
-  private only with Premium and after a substantive edit. The import keeps that recipe public, or lets the cook
-  change the choice, and never edits the recipe to get round the rule.
+- **A cook who chooses Public for a public web recipe is refused** (ADR-0089 §5). The item is held under
+  "Visibility not allowed" until the cook chooses Private or changes the statement. The import never changes the
+  choice or edits the recipe to get round the rule.
 - **004 FR-028 no longer asks for Premium** on any route (owner ruling, 2026-10-26, ADR-0073 §7). A free cook brings
   in book and paid-site recipes by any route, within their slots.
 

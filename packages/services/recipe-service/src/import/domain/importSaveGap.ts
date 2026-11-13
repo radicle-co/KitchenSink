@@ -13,7 +13,7 @@
  * is on every other route (ADR-0089). The step, the save and the item list all read the facts through
  * {@link importSaveFactsOf}, so what the wizard shows is what the save sends.
  */
-import { RecipeStatus, recipeCuisineSchema } from '@kitchensink/recipe-core';
+import { RecipeStatus, recipeCuisineSchema, type PublishRequirement } from '@kitchensink/recipe-core';
 import { z } from 'zod';
 
 import { evaluatePublication } from '../../recipes/domain/publishPolicy.js';
@@ -128,6 +128,20 @@ export function importSaveFactsOf(chosen: ImportCookChoices, file: ImportFileFac
 }
 
 /**
+ * The save gap a missing publish requirement is, or a throw for one the import refuses before it gets here. An exhaustive
+ * switch, so a requirement the policy gains is a compile error here until someone decides what the import does about it.
+ */
+function gapOfRequirement(requirement: PublishRequirement): 'cuisine' {
+    switch (requirement) {
+        case 'cuisine':
+            return 'cuisine';
+        case 'ingredients':
+        case 'steps':
+            throw new Error('an item with no ingredient line or no step was refused at import and cannot be saved');
+    }
+}
+
+/**
  * The first thing the save still needs, or `null` when the recipe can be saved. Pure.
  *
  * One key, not the list: the item list shows one issue per recipe, and the cook fixes one thing at a time. The cuisine comes
@@ -154,12 +168,9 @@ export function importSaveGapOf(facts: ImportSaveFacts): ImportSaveGap | null {
         stepCount: facts.stepCount,
     });
 
-    if (!decision.allowed && (decision.missing.includes('ingredients') || decision.missing.includes('steps'))) {
-        throw new Error('an item with no ingredient line or no step was refused at import and cannot be saved');
-    }
-
     if (!decision.allowed) {
-        return 'cuisine';
+        // Every missing requirement is mapped, so a refused item throws whichever order the policy lists them in.
+        return decision.missing.map(gapOfRequirement)[0];
     }
 
     if (facts.servings === null) {

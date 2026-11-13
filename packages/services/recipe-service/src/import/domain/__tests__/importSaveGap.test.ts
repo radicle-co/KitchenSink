@@ -215,4 +215,10 @@ describe('importSaveGapOf: the first thing the save still needs, or null', () =>
         expect(() => gap({ ingredientLineCount: 0 })).toThrow(/refused/u);
         expect(() => gap({ stepCount: 0 })).toThrow(/refused/u);
     });
+
+    // Review L3 on #220: 'cuisine' is the answer to a MISSING CUISINE only, never to any refusal of the publish policy.
+    it('⛔ throws, and never names the cuisine, for a recipe the policy refuses for a cuisine AND a missing step', () => {
+        expect(() => gap({ cuisine: null, stepCount: 0 })).toThrow(/refused/u);
+        expect(() => gap({ cuisine: null, ingredientLineCount: 0 })).toThrow(/refused/u);
+    });
 });

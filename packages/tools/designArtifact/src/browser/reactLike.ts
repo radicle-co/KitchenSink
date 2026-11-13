@@ -32,7 +32,7 @@ export interface ReactLike {
     ): (...args: Args) => Result;
     readonly useEffectEvent?: EffectEventHook;
     /** Read by the design-system scope (`runtime/designSystemScope`), not by the bridge. */
-    createContext<T>(defaultValue: T): unknown;
+    createContext(defaultValue: unknown): unknown;
     useContext(context: unknown): unknown;
 }
 

@@ -38,8 +38,9 @@ const NATIVE_EXTENSIONS = ['.web.tsx', '.web.ts', '.web.js', '.tsx', '.ts', '.js
  *
  * `process.env.*` and `__DEV__` are replaced at build time instead of defining `window.process` at run time, so
  * no code path can observe a fake `process`. `process.env` itself becomes an empty object, so a flag that is not
- * defined reads `undefined` instead of throwing on the page, which has no `process`. `global` and `EXPO_OS` are defined on native only: React Native
- * packages assume `global`, browsers do not have it, and a web build must not claim to be an iOS app.
+ * defined reads `undefined` instead of throwing on the page, which has no `process`. `global` and `EXPO_OS` are
+ * defined on native only: React Native packages assume `global`, browsers do not have it, and a web build must not
+ * claim to be an iOS app.
  *
  * @param request - The bundle to build.
  * @param aliasesFor - Module specifier aliases for the request's platform.

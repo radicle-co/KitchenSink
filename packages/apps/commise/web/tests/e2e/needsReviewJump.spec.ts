@@ -506,7 +506,7 @@ for (const frame of FRAMES) {
  * Cancel in view between the header and the action bar. This is where the chosen threshold is measured.
  */
 // Mirrors INLINE_EDITOR_MIN_VIEWPORT_REM in @commise/features-recipes `form/inlineEditorFit.ts`, which no package export
-// exposes. Change both together: if they drift, this case tests a window the rule never decides at.
+// exposes. Change both together: if they drift, one of the two edge cases below fails.
 const INLINE_THRESHOLD_REM = 46;
 
 for (const textScale of [1, 2]) {
@@ -534,6 +534,22 @@ for (const textScale of [1, 2]) {
                     message: 'Done and Cancel are reachable at the inline threshold',
                 })
                 .toEqual([]);
+        });
+    });
+
+    // One pixel shorter, the same editor opens as the sheet. With the case above, a threshold that drifts either way fails.
+    test.describe(`the jump one pixel below the inline threshold, text at ${textScale * 100}%`, () => {
+        test.use({ viewport: { width: 1280, height: INLINE_THRESHOLD_REM * 16 * textScale - 1 } });
+
+        test('opens as the sheet, with the reason on top', async ({ page }) => {
+            await applyTextScale(page, textScale);
+            await openDetail(page, [healthyLine, longestDoubtedLine]);
+            await page.getByRole('link', { name: LINK_NAME }).click();
+            const sheet = await openEditor(page, 1);
+
+            await expectRootFontSize(page, textScale);
+            await expect(reviewNotice(sheet)).toBeVisible();
+            await expect(reviewNotice(sheet)).toBeInViewport();
         });
     });
 }

@@ -248,8 +248,8 @@ describe('a rebind that changes nothing (e2e, assembled app + food fake)', () =>
                 [importId],
             );
             const line = await pool.query<{ id: string }>(
-                `INSERT INTO recipe_import_lines (import_id, ordinal, line_index, food_index, source_line, line_digest, judgement_digest, phrase, unit)
-                 VALUES ($1, 0, 0, 0, $2, 'ld', 'jd', $3, 'g') RETURNING id`,
+                `INSERT INTO recipe_import_lines (import_id, ordinal, line_index, food_index, source_line, line_digest, judgement_digest, phrase, name, unit)
+                 VALUES ($1, 0, 0, 0, $2, 'ld', 'jd', $3, $3, 'g') RETURNING id`,
                 [importId, `500 g ${phrase}`, phrase],
             );
             const lineId = line.rows[0]?.id ?? '';

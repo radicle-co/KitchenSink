@@ -34,15 +34,19 @@ import {
     importAllowanceEvents,
     type ImportAllowanceChannel,
 } from '../../database/schema/importAllowanceEvents.js';
-import { evaluateImportAllowance, importAllowanceWindowStart } from '../importAllowancePolicy.js';
+import {
+    describeImportAllowance,
+    evaluateImportAllowance,
+    importAllowanceWindowStart,
+    type ImportAllowanceScope,
+    type ImportAllowanceState,
+} from '../importAllowancePolicy.js';
 
-/** What a caller asks the allowance for. */
-export interface AdmitRequest {
-    /** What is spending the unit. */
-    readonly channel: ImportAllowanceChannel;
-    /** How many units: a positive integer (the policy throws otherwise). More than the room left is admitted in part. */
-    readonly units: number;
-}
+/**
+ * What a caller asks the allowance for: the scope spending (its channel, and the plan where the channel's limit depends on
+ * it) and how many units, a positive integer (the policy throws otherwise). More than the room left is admitted in part.
+ */
+export type AdmitRequest = ImportAllowanceScope & { readonly units: number };
 
 /**
  * The outcome of an admission. A refusal wrote no ledger row (the user's expired rows may still have been pruned).
@@ -125,7 +129,7 @@ export class ImportAllowanceDal {
         const windowEvents = rows.map((row) => ({ ...row, channel: channelOf(row.channel) }));
 
         const decision = evaluateImportAllowance({
-            channel: request.channel,
+            ...request,
             windowEvents,
             requestedUnits: request.units,
             now,
@@ -145,6 +149,46 @@ export class ImportAllowanceDal {
     }
 
     /**
+     * What a channel's allowance stands at: the limit, the units spent in the window, and when more opens. A READ: it takes no
+     * lock and writes nothing, so the import view can poll it. It reads the same clock, the same window edge and the same rows
+     * the admission does, so the view and the next `advance` cannot disagree.
+     *
+     * @param reader - The client (or a transaction).
+     * @param userId - The verified app-user ULID.
+     * @param scope - The channel, and the plan where its limit depends on it.
+     * @returns The state. @sideEffect Reads the database clock and the ledger.
+     */
+    public async stateOf(
+        reader: Pick<Writer, 'select'>,
+        userId: string,
+        scope: ImportAllowanceScope,
+    ): Promise<ImportAllowanceState> {
+        const { channel } = scope;
+        const now = await this.readClock(reader);
+        const rows = await reader
+            .select({
+                channel: importAllowanceEvents.channel,
+                units: importAllowanceEvents.units,
+                createdAt: importAllowanceEvents.createdAt,
+            })
+            .from(importAllowanceEvents)
+            .where(
+                and(
+                    eq(importAllowanceEvents.userId, userId),
+                    eq(importAllowanceEvents.channel, channel),
+                    gt(importAllowanceEvents.createdAt, importAllowanceWindowStart(channel, now)),
+                ),
+            )
+            .orderBy(asc(importAllowanceEvents.createdAt));
+
+        return describeImportAllowance({
+            ...scope,
+            windowEvents: rows.map((row) => ({ ...row, channel: channelOf(row.channel) })),
+            now,
+        });
+    }
+
+    /**
      * The database's wall clock, to the millisecond a JS `Date` can hold.
      *
      * Read as an integer of epoch milliseconds rather than as a timestamp: the driver's timestamp text is not something
@@ -153,7 +197,7 @@ export class ImportAllowanceDal {
      * @param tx - The open transaction.
      * @returns The instant. @sideEffect Reads the clock.
      */
-    private async readClock(tx: Writer): Promise<Date> {
+    private async readClock(tx: Pick<Writer, 'select'>): Promise<Date> {
         const [row] = await tx
             .select({
                 epochMs: sql<number>`floor(extract(epoch from clock_timestamp()) * 1000)::bigint`.mapWith(Number),

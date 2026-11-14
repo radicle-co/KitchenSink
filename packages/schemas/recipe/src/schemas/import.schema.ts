@@ -67,6 +67,7 @@ import {
     recipeIngredientNoteSchema,
     recipeStepInstructionSchema,
     recipeVisibilitySchema,
+    INT4_CEILING,
     MAX_PARSE_JOB_LINES,
     PARSE_JOB_LINE_MAX_CHARS,
     SOURCE_LINK_MAX_LENGTH,
@@ -238,7 +239,8 @@ export type ImportStatementView = z.infer<typeof importStatementViewSchema>;
  * The descriptive fields are the create-recipe ones, picked from {@link createRecipeRequestSchema}, so every character
  * limit and `int4` ceiling is the one the create route enforces. The ingredients are RAW LINES: the server parses and
  * matches them (the file does not bind a food), and a line is bounded like a paste's. Servings and the three times may be
- * absent, because another app's export often states none; the save fills what is absent.
+ * absent, because another app's export often states none. An absent one is never made up: the item is held under "Needs
+ * servings" or "Needs times" until the cook gives it (ADR-0072 §3 as amended 2026-11-11).
  *
  * Its serialized size is bounded ({@link MAX_IMPORT_RECIPE_BYTES}), so any one recipe fits one request.
  *
@@ -437,26 +439,64 @@ export const importPickRequestSchema = z.strictObject({
 /** Body of `PUT …/items/{ordinal}/pick`. */
 export type ImportPickRequest = z.infer<typeof importPickRequestSchema>;
 
-/** Whether a choices body says anything: a statement, a visibility or a cuisine. */
-const saysSomething = (body: { statement?: unknown; visibility?: unknown; cuisine?: unknown }): boolean =>
-    body.statement !== undefined || body.visibility !== undefined || body.cuisine !== undefined;
+/** The facts the cook can give for a recipe whose file states none, picked from the create route so the bounds are its. */
+const cookFactsShape = createRecipeRequestSchema
+    .pick({ servings: true, prepTimeMinutes: true, cookTimeMinutes: true })
+    .partial().shape;
+
+/** Whether a choices body says anything: a statement, a visibility, a cuisine, servings or a time. */
+const saysSomething = (body: {
+    statement?: unknown;
+    visibility?: unknown;
+    cuisine?: unknown;
+    servings?: unknown;
+    prepTimeMinutes?: unknown;
+    cookTimeMinutes?: unknown;
+}): boolean =>
+    body.statement !== undefined ||
+    body.visibility !== undefined ||
+    body.cuisine !== undefined ||
+    body.servings !== undefined ||
+    body.prepTimeMinutes !== undefined ||
+    body.cookTimeMinutes !== undefined;
+
+/** The message of a choices body that says nothing. */
+const SAYS_NOTHING = 'send a statement, a visibility, a cuisine, servings, a time, or several';
+
+/**
+ * Whether the prep and cook minutes a body gives fit together in the total the save sends (their sum, when the file states
+ * no total): an int4 column with the create route's ceiling, `INT4_CEILING`. A body that gives one of them only is judged by
+ * the save, which holds the item under "Needs times" when the sum with the file's half would not fit.
+ *
+ * `importSaveGapOf` is the authority for the total's ceiling; this is the wire guard that refuses a body it can judge alone.
+ */
+const timesFitTheTotal = (body: { prepTimeMinutes?: number; cookTimeMinutes?: number }): boolean =>
+    body.prepTimeMinutes === undefined ||
+    body.cookTimeMinutes === undefined ||
+    body.prepTimeMinutes + body.cookTimeMinutes <= INT4_CEILING;
+
+/** The message of a body whose prep and cook minutes overflow the total. */
+const TIMES_OVERFLOW = 'prep and cook minutes together pass the most a recipe total can hold';
 
 /**
  * Body of `POST /api/v1/import/{importId}/items/{ordinal}`: the cook's choices on one item — what they say about the
  * recipe, whether it is public or private, and its cuisine. At least one; `visibility: null` clears the recipe's own choice
  * so it follows the import again.
  *
- * `cuisine` exists because the import saves every recipe PUBLISHED (ADR-0072 §3) and Publish needs one: a file that states
- * none holds the item under "Needs a cuisine" until the cook gives it (ADR-0072 §3 as amended 2026-11-11). It replaces the
- * file's cuisine for this recipe. Nothing picks one for the cook.
+ * `cuisine`, `servings`, `prepTimeMinutes` and `cookTimeMinutes` exist because the import saves every recipe PUBLISHED (ADR-0072 §3)
+ * and Publish needs a cuisine, and the create route needs servings and the times: a file that states none holds the item
+ * under "Needs a cuisine", "Needs servings" or "Needs times" until the cook gives it (ADR-0072 §3 as amended 2026-11-11).
+ * Each replaces the file's value for this recipe, with the create route's bounds. Nothing picks one for the cook.
  */
 export const recordImportChoicesRequestSchema = z
     .strictObject({
         statement: importStatementSchema.optional(),
         visibility: recipeVisibilitySchema.nullable().optional(),
         cuisine: recipeCuisineSchema.optional(),
+        ...cookFactsShape,
     })
-    .refine(saysSomething, { message: 'send a statement, a visibility, a cuisine, or several' });
+    .refine(saysSomething, { message: SAYS_NOTHING })
+    .refine(timesFitTheTotal, { message: TIMES_OVERFLOW });
 
 /** Body of `POST …/items/{ordinal}`. */
 export type RecordImportChoicesRequest = z.infer<typeof recordImportChoicesRequestSchema>;
@@ -475,8 +515,10 @@ export const recordImportChoicesBatchRequestSchema = z.strictObject({
                     statement: importStatementSchema.optional(),
                     visibility: recipeVisibilitySchema.nullable().optional(),
                     cuisine: recipeCuisineSchema.optional(),
+                    ...cookFactsShape,
                 })
-                .refine(saysSomething, { message: 'send a statement, a visibility, a cuisine, or several' }),
+                .refine(saysSomething, { message: SAYS_NOTHING })
+                .refine(timesFitTheTotal, { message: TIMES_OVERFLOW }),
         )
         .min(1)
         .max(MAX_IMPORT_CHOICES_PER_REQUEST)
@@ -536,6 +578,11 @@ const importCountsSchema = z.object({
     parsing: z.number().int().nonnegative(),
     matched: z.number().int().nonnegative(),
     saved: z.number().int().nonnegative(),
+    /**
+     * Recipes the import refuses outright (no ingredient line or no step, ADR-0072 §3). Terminal: never paid for, parsed or
+     * saved. Counted in `total` and NOT in `received`, so `received` is the items still waiting to move on.
+     */
+    refused: z.number().int().nonnegative(),
 });
 
 /** One item as the list shows it. */
@@ -552,7 +599,9 @@ export const importItemSummarySchema = z.object({
     recipeId: z.uuid().nullable(),
     /**
      * Why the item cannot be saved yet, as an opaque key the clients localize (`visibilityRefused`, `waitingForAllowance`,
-     * `needsCuisine` and the other publish requirements, a pick the server rejected, a review that is stuck), or `null`. The stage enum is closed and parsed strictly, so a
+     * `needsCuisine`, `needsServings` or `needsTimes`, `noIngredients` or `noSteps` (the import refuses the recipe: it is never
+     * paid for, parsed or saved), `saveRefused` (the save held it for a reason none of the others names), a pick the
+     * server rejected, a review that is stuck), or `null`. The stage enum is closed and parsed strictly, so a
      * new stuck state arrives as a new key here and never as a new stage.
      */
     issue: z.object({ reason: z.string().min(1) }).nullable(),
@@ -677,8 +726,22 @@ export const importStepResponseSchema = z.object({
     review: importReviewMarkSchema,
     statement: importStatementViewSchema.nullable(),
     visibility: recipeVisibilitySchema.nullable(),
-    /** The cuisine the save will use: the cook's choice, else the file's, else `null` (the item then needs one). */
+    /**
+     * The cuisine the save will use: the cook's choice, else the file's, else `null` (the item then needs one). A saved
+     * item's file is gone, so its step shows only a cuisine the cook gave; the recipe holds what was saved.
+     */
     cuisine: z.string().min(1).nullable(),
+    /** The servings the save will send: the cook's choice, else the file's, else `null` (the item then needs them). */
+    servings: z.number().int().nullable(),
+    /** The prep minutes the save will send: the cook's choice, else the file's, else `null` (the item then needs times). */
+    prepTimeMinutes: z.number().int().nullable(),
+    /** The cook minutes the save will send: the cook's choice, else the file's, else `null` (the item then needs times). */
+    cookTimeMinutes: z.number().int().nullable(),
+    /**
+     * The total minutes the save will send: the file's total when it states one, else prep plus cook when both are known,
+     * else `null`. A file that states only a total leaves prep and cook `null`, so the item needs times.
+     */
+    totalTimeMinutes: z.number().int().nullable(),
     lines: z.array(importStepLineSchema),
 });
 
@@ -757,7 +820,10 @@ export const importSummarySchema = z.object({
     expectedTotal: z.number().int().positive(),
     counts: importCountsSchema,
     createdAt: z.iso.datetime(),
-    /** The last time the cook or a step wrote to the import. The working data is purged 30 days after it (ADR-0072 §12). */
+    /**
+     * The import's last activity: every `advance` moves it, and so does every write by the cook. The working data is purged
+     * 30 days after it (ADR-0072 §9).
+     */
     updatedAt: z.iso.datetime(),
 });
 
@@ -781,7 +847,7 @@ export type ImportListResponse = z.infer<typeof importListResponseSchema>;
  * `GET /api/v1/import/to-check-count`: how many lines, across every import the caller still holds, were saved as written and
  * wait for the cook to pick a food or keep them (the “{count} to check” at the top of My recipes). A line leaves the count
  * when the cook picks or keeps it, or edits it into a food in the editor; it also leaves when its import's working data is
- * purged (ADR-0072 §12).
+ * purged (ADR-0072 §9).
  */
 export const importToCheckCountResponseSchema = z.object({ count: z.number().int().nonnegative() });
 

@@ -1,106 +1,140 @@
 /**
  * The wizard's cursor over the items of a bulk import.
  *
- * DESIGN PATTERN: **State reducer** — pure functions from one cursor to the next. The cursor OWNS the per-item
- * marks (pending, reviewed, skipped) because moving is what sets them, and the binding policy reads them. Name no route.
+ * DESIGN PATTERN: **State reducer** — pure functions from one position to the next, naming the ONE mark each move makes. Name
+ * no route.
  *
  *  - `nextItem` marks the item reviewed and moves on; `skipItem` marks it skipped and moves on.
  *  - Past the last item the position is `done`. `backItem` leaves `done` for the last item and stops at the first.
  *  - `openItem` jumps to an item in range and ignores anything else.
  *  - Moving never changes a mark except for the item being left by `nextItem` and `skipItem`.
+ *
+ * ⚠️ The cursor carries a POSITION AND THE COUNT, not one mark per item. A file of any size is accepted (owner ruling,
+ * ADR-0072 §8), so a cursor holding an array as long as the file would let a hostile `expectedTotal` allocate it; a move
+ * returns the single mark it makes and the store writes that one row.
+ *
+ * The stored form is `recipe_imports.cursor_ordinal`: an item's ordinal, or the count itself for done.
  */
 import type { ItemReview } from './importBindingPolicy.js';
 
 /** Where the cook is. */
 export type CursorPosition = { readonly kind: 'at'; readonly index: number } | { readonly kind: 'done' };
 
-/** A position and one mark per item. */
-export interface ImportCursor {
-    readonly position: CursorPosition;
-    readonly reviews: readonly ItemReview[];
+/** The one mark a move makes. */
+interface CursorMark {
+    readonly index: number;
+    readonly review: ItemReview;
 }
 
+/** The result of a move: the new position, and the mark to write (none for a move that marks nothing). */
+export interface CursorMove {
+    readonly position: CursorPosition;
+    readonly mark: CursorMark | undefined;
+}
+
+const DONE: CursorPosition = { kind: 'done' };
+
 /**
- * Start at the first item, everything pending.
+ * The position a fresh import starts at.
  *
- * @param count - How many items there are.
- * @returns The cursor; `done` when there are none. Pure.
+ * @param count - How many items the file holds.
+ * @returns The first item; done when there are none. Pure.
  */
-export function startCursor(count: number): ImportCursor {
-    return {
-        position: count > 0 ? { kind: 'at', index: 0 } : { kind: 'done' },
-        reviews: Array.from({ length: count }, (): ItemReview => 'pending'),
-    };
+export function startPosition(count: number): CursorPosition {
+    return count > 0 ? { kind: 'at', index: 0 } : DONE;
 }
 
 /**
  * Mark the current item and move past it.
  *
- * @param cursor - The cursor.
- * @param mark - The mark for the item being left.
- * @returns The next cursor; unchanged when done. Pure.
+ * @param position - Where the cook is.
+ * @param count - How many items the file holds.
+ * @param review - The mark for the item being left.
+ * @returns The next position and the mark; nothing when already done. Pure.
  */
-function leave(cursor: ImportCursor, mark: ItemReview): ImportCursor {
-    const { position } = cursor;
-
+function leave(position: CursorPosition, count: number, review: ItemReview): CursorMove {
     if (position.kind === 'done') {
-        return cursor;
+        return { position, mark: undefined };
     }
 
-    const reviews = cursor.reviews.map((existing, index) => (index === position.index ? mark : existing));
-    const nextIndex = position.index + 1;
+    const next = position.index + 1;
 
     return {
-        position: nextIndex < reviews.length ? { kind: 'at', index: nextIndex } : { kind: 'done' },
-        reviews,
+        position: next < count ? { kind: 'at', index: next } : DONE,
+        mark: { index: position.index, review },
     };
 }
 
 /**
  * Mark the current item reviewed and move on.
  *
- * @param cursor - The cursor.
- * @returns The next cursor. Pure.
+ * @param position - Where the cook is.
+ * @param count - How many items the file holds.
+ * @returns The move. Pure.
  */
-export function nextItem(cursor: ImportCursor): ImportCursor {
-    return leave(cursor, 'reviewed');
+export function nextItem(position: CursorPosition, count: number): CursorMove {
+    return leave(position, count, 'reviewed');
 }
 
 /**
  * Mark the current item skipped and move on.
  *
- * @param cursor - The cursor.
- * @returns The next cursor. Pure.
+ * @param position - Where the cook is.
+ * @param count - How many items the file holds.
+ * @returns The move. Pure.
  */
-export function skipItem(cursor: ImportCursor): ImportCursor {
-    return leave(cursor, 'skipped');
+export function skipItem(position: CursorPosition, count: number): CursorMove {
+    return leave(position, count, 'skipped');
 }
 
 /**
- * Move to the previous item, changing no mark.
+ * Move to the previous item, marking nothing.
  *
- * @param cursor - The cursor.
- * @returns The previous cursor; unchanged at the first item or with no items. Pure.
+ * @param position - Where the cook is.
+ * @param count - How many items the file holds.
+ * @returns The previous position; unchanged at the first item or with no items. Pure.
  */
-export function backItem(cursor: ImportCursor): ImportCursor {
-    const { position, reviews } = cursor;
-
+export function backItem(position: CursorPosition, count: number): CursorMove {
     if (position.kind === 'done') {
-        return reviews.length === 0 ? cursor : { ...cursor, position: { kind: 'at', index: reviews.length - 1 } };
+        return { position: count === 0 ? DONE : { kind: 'at', index: count - 1 }, mark: undefined };
     }
 
-    return position.index === 0 ? cursor : { ...cursor, position: { kind: 'at', index: position.index - 1 } };
+    return { position: position.index === 0 ? position : { kind: 'at', index: position.index - 1 }, mark: undefined };
 }
 
 /**
- * Jump to an item, changing no mark.
+ * Jump to an item, marking nothing.
  *
- * @param cursor - The cursor.
+ * @param position - Where the cook is.
+ * @param count - How many items the file holds.
  * @param index - The item to open.
- * @returns The cursor there; unchanged when the index is not an item. Pure.
+ * @returns The position there; unchanged when the index is not an item. Pure.
  */
-export function openItem(cursor: ImportCursor, index: number): ImportCursor {
-    return Number.isInteger(index) && index >= 0 && index < cursor.reviews.length
-        ? { ...cursor, position: { kind: 'at', index } }
-        : cursor;
+export function openItem(position: CursorPosition, count: number, index: number): CursorMove {
+    return {
+        position: Number.isInteger(index) && index >= 0 && index < count ? { kind: 'at', index } : position,
+        mark: undefined,
+    };
+}
+
+/**
+ * The position a stored `cursor_ordinal` means.
+ *
+ * @param ordinal - The column: an item's ordinal, or the count for done.
+ * @param count - How many items the file holds.
+ * @returns The position. Pure.
+ */
+export function positionOfOrdinal(ordinal: number, count: number): CursorPosition {
+    return ordinal >= count ? DONE : { kind: 'at', index: ordinal };
+}
+
+/**
+ * The `cursor_ordinal` a position is stored as.
+ *
+ * @param position - The position.
+ * @param count - How many items the file holds.
+ * @returns The ordinal; the count for done. Pure.
+ */
+export function ordinalOfPosition(position: CursorPosition, count: number): number {
+    return position.kind === 'done' ? count : position.index;
 }

@@ -245,6 +245,26 @@ function currentMilkRow() {
     } as const;
 }
 
+describe('MatchProposalService.proposeForJobs — under the caller’s signal (review item 4 on #220)', () => {
+    it('⛔ ends with the CALLER’s signal as well as its own deadline: an aborted one reads no job', async () => {
+        const { service, getJob } = setup();
+
+        await expect(service.proposeForJobs(COOK, CALLER, [JOB], { signal: AbortSignal.abort() })).rejects.toSatisfy(
+            isDeadlineExceededError,
+        );
+        expect(getJob).not.toHaveBeenCalled();
+    });
+
+    it('matches as before under a live signal', async () => {
+        const { service } = setup();
+        const [result] = await service.proposeForJobs(COOK, CALLER, [JOB], {
+            signal: new AbortController().signal,
+        });
+
+        expect(result?.kind).toBe('ok');
+    });
+});
+
 describe('MatchProposalService.propose — whose job, and which jobs', () => {
     it('⛔ answers PARSE_JOB_NOT_FOUND for a stranger, and writes nothing', async () => {
         const { service, matches, queue } = setup();

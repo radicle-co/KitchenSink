@@ -223,13 +223,20 @@ export class FoodRefsGateway {
      *
      * @param caller - The requesting user's credential.
      * @param ref - The food to bind.
+     * @param options - `signal`: the CALLER's own deadline (a bulk import's call budget). An aborted read is a failure to
+     *   ask, so it throws like any other.
      * @returns Food's answer.
      * @throws {HttpException} `502 SOURCE_UNAVAILABLE` when food cannot be asked.
      * @sideEffect One food-service HTTP request.
      */
-    public async resolveForBind(caller: CallerToken | undefined, ref: FoodRef): Promise<FoodRefAnswer> {
+    public async resolveForBind(
+        caller: CallerToken | undefined,
+        ref: FoodRef,
+        options: { readonly signal?: AbortSignal } = {},
+    ): Promise<FoodRefAnswer> {
         try {
-            const { entries } = await this.clients.standard(caller).resolveRefs([ref]);
+            const client = this.clients.standard(caller);
+            const { entries } = await client.resolveRefs([ref], options);
             const entry = entries.find((candidate) => foodRefKey(candidate.ref) === foodRefKey(ref));
 
             if (entry === undefined) {

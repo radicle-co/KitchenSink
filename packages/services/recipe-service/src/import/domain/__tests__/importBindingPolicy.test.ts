@@ -42,12 +42,13 @@ const LINES = {
         candidates: [cand('p'), cand('other')],
     },
     noMatch: { state: 'noMatch', reason: 'noCandidates', proposedFoodId: undefined, candidates: [] },
-} satisfies Record<string, Omit<LineFacts, 'cookChoice'>>;
+} satisfies Record<string, Omit<LineFacts, 'cookChoice' | 'budgetSpent'>>;
 
 type LineName = keyof typeof LINES;
 
-const facts = (name: LineName, cookChoice: LineFacts['cookChoice'] = undefined): LineFacts => ({
+const facts = (name: LineName, cookChoice: LineFacts['cookChoice'] = undefined, budgetSpent = false): LineFacts => ({
     ...LINES[name],
+    budgetSpent,
     cookChoice,
 });
 
@@ -174,6 +175,42 @@ describe('a cook decision comes first, in every regime', () => {
                 expect(bindingOf({ ...input, line: facts(name, { kind: 'asWritten' }) })).toEqual(AS_WRITTEN);
             }
         }
+    });
+});
+
+describe('⛔ the AI budget is spent: nothing binds without the cook, in every mode (ADR-0072 §10)', () => {
+    const all = REGIMES.flatMap((r) => r.inputs);
+
+    it('keeps every line as written, whatever its state, in every regime (kills: a default or best match still binding)', () => {
+        for (const input of all) {
+            for (const name of Object.keys(LINES) as LineName[]) {
+                expect(
+                    bindingOf({ ...input, line: facts(name, undefined, true) }),
+                    `${JSON.stringify(input)} ${name}`,
+                ).toEqual(AS_WRITTEN);
+            }
+        }
+    });
+
+    it('does not bind even a line that still reads confident (a stale match must not slip through)', () => {
+        for (const input of all) {
+            expect(bindingOf({ ...input, line: facts('exact', undefined, true) })).toEqual(AS_WRITTEN);
+            expect(bindingOf({ ...input, line: facts('curated', undefined, true) })).toEqual(AS_WRITTEN);
+        }
+    });
+
+    it('lets the cook’s own pick bind: the cook’s decision always wins', () => {
+        for (const input of all) {
+            expect(bindingOf({ ...input, line: facts('needsChoice', { kind: 'food', foodId: 'mine' }, true) })).toEqual(
+                bind('mine', 'cook'),
+            );
+        }
+    });
+
+    it('is open to the cook until they accept it, so the review wizard cannot skip past it', () => {
+        expect(isOpenLine(facts('exact', undefined, true))).toBe(true);
+        expect(isOpenLine(facts('needsChoice', { kind: 'asWritten' }, true))).toBe(false);
+        expect(isOpenLine(facts('needsChoice', { kind: 'food', foodId: 'x' }, true))).toBe(false);
     });
 });
 

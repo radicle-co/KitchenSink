@@ -177,6 +177,12 @@ const DELIBERATE_SILENCE: ReadonlyMap<string, string> = new Map([
             '`onReadFailure`, which logs it with its own job or recipe context, and every item is asked about',
     ],
     [
+        'packages/services/recipe-service/src/import/domain/importPaging.ts#decodeJson',
+        'a paging cursor that is not base64url JSON IS the answer: it decodes to `undefined`, and the caller refuses it ' +
+            'as a 400 for a cursor this service did not issue (a stale or hostile cursor is the client’s error, not a ' +
+            'failure of ours to record)',
+    ],
+    [
         'packages/services/recipe-service/src/photos/photos.service.ts#detectImageContentType',
         '`file-type` throws on a truncated or malformed buffer, which IS the answer — "not a determinable ' +
             'image" — and becomes a 422 rather than escaping as a 500',

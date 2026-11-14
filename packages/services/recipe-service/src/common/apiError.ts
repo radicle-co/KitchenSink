@@ -168,3 +168,19 @@ export function apiError(code: RecipeErrorCode, message: string, details?: Recor
 
     return new HttpException(body, RECIPE_ERROR_STATUS[code]);
 }
+
+/**
+ * The code a thrown exception's body carries, if any: the one reader of what {@link apiError} writes.
+ *
+ * @param error - Anything thrown.
+ * @returns The code, or `undefined` for anything that is not an `HttpException` with a coded body. Pure.
+ */
+export function apiErrorCodeOf(error: unknown): string | undefined {
+    if (!(error instanceof HttpException)) {
+        return undefined;
+    }
+
+    const body = error.getResponse();
+
+    return typeof body === 'object' && 'code' in body ? String(body.code) : undefined;
+}

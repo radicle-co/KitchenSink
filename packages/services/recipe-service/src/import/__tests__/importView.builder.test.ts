@@ -1,0 +1,476 @@
+/**
+ * `ImportViewBuilder` — the import view a `GET`, an `advance`, a cursor move and every other write answers with
+ * (ADR-0072 §2, §8, §9). Over fakes for every port.
+ *
+ * What each case guards:
+ *
+ *  - **The view is complete and parses against the PUBLISHED contract** (`importViewSchema`), so a field the builder forgets
+ *    fails here and not in a client.
+ *  - **The allowance state is in the view**, so an `advance` that reached the allowance can answer 200 and the client keeps
+ *    the progress it paid for (ADR-0072 §8 as amended).
+ *  - **The pause is derived from the live slot count and the unsaved private items, and never stored** (ADR-0073 §8).
+ *  - **An item's issue is derived** (`importItemIssueOf`), including the visibility the policy refuses for the label the
+ *    statement sets.
+ *  - **`version` moves when a verdict lands** (the fingerprint is an input), though no row of the import changed.
+ *  - **A page asks for one row more than it returns**, so `nextAfter` is set exactly when more follow.
+ */
+import { describe, expect, it, vi } from 'vitest';
+
+import type { Role } from '@kitchensink/clerk-verify';
+
+import type { ImportAllowanceDal } from '../../common/dal/importAllowance.dal.js';
+import { importViewSchema } from '../../recipes/import.schema.js';
+import { cookKeyOf } from '../domain/importHold.js';
+import { visibilityFactsOf } from '../domain/importVisibility.js';
+import { ImportViewBuilder } from '../importView.builder.js';
+import type { PrivateSlotsPort } from '../privateSlots.port.js';
+import {
+    FAKE_DATABASE,
+    makeHeader,
+    makeListedItem,
+    makePrincipal,
+    UNLIMITED_PRIVATE_SLOTS,
+} from '../__fixtures__/importFixtures.js';
+import type { ListedImportItem } from '../dal/recipeImportItems.dal.js';
+
+const ALLOWANCE = { limit: 1000, used: 7, resetsAt: '2026-10-27T12:00:00.000Z' };
+const COUNTS = { total: 3, received: 2, parsing: 0, matched: 1, saved: 0, refused: 0 };
+
+function build(options: {
+    readonly items?: readonly ListedImportItem[];
+    readonly slots?: PrivateSlotsPort;
+    readonly unsavedPrivate?: number;
+    readonly verdicts?: { count: number; latest: string | null };
+    readonly allowance?: typeof ALLOWANCE;
+}) {
+    const findPage = vi.fn(async (_importId: string, _after: number | undefined, _limit: number) => [
+        ...(options.items ?? []),
+    ]);
+    const stateOf = vi.fn<ImportAllowanceDal['stateOf']>(async () => options.allowance ?? ALLOWANCE);
+    const builder = new ImportViewBuilder(
+        {
+            countsByStage: vi.fn(async () => COUNTS),
+            verdictFingerprint: vi.fn(async () => options.verdicts ?? { count: 0, latest: null }),
+            countUnsavedPrivate: vi.fn(async () => options.unsavedPrivate ?? 0),
+        },
+        { findPage },
+        { stateOf },
+        FAKE_DATABASE,
+        options.slots ?? UNLIMITED_PRIVATE_SLOTS,
+    );
+
+    return { builder, findPage, stateOf };
+}
+
+const view = (
+    options: Parameters<typeof build>[0] = {},
+    header = makeHeader(),
+    page = { limit: 100 },
+    principal = makePrincipal(),
+) => build(options).builder.build(principal, header, page);
+
+describe('ImportViewBuilder', () => {
+    it('answers a view that parses against the published contract', async () => {
+        const answered = await view({
+            items: [
+                makeListedItem({
+                    ordinal: 0,
+                    title: 'Soup',
+                    stage: 'saved',
+                    statementKind: 'authored',
+                    recipeId: '66666666-6666-4666-8666-0000000000a1',
+                    savedAt: new Date(),
+                }),
+                makeListedItem({ ordinal: 1, title: 'Stew' }),
+            ],
+        });
+
+        expect(importViewSchema.parse(answered)).toEqual(answered);
+    });
+
+    it('carries the header, the counts and the allowance the view was built from', async () => {
+        const answered = await view(
+            {},
+            makeHeader({ matchMode: 'review', visibility: 'private', expectedTotal: 9, cursorOrdinal: 2 }),
+        );
+
+        expect(answered).toMatchObject({
+            id: makeHeader().id,
+            matchMode: 'review',
+            visibility: 'private',
+            expectedTotal: 9,
+            cursorOrdinal: 2,
+            reviewClosed: false,
+            counts: COUNTS,
+            allowance: ALLOWANCE,
+        });
+    });
+
+    // Owner ruling 2026-11-11: bulk is 200 a day on Free and 1,000 on paid, and superusers and VIPs count as paid. The view
+    // reads the allowance under the caller's plan, through the ONE plan fact (`isPremiumPrincipal`).
+    it.each([
+        ['a free cook', [] as const, false],
+        ['a Premium cook', ['premium'] as const, true],
+        ['⛔ a superuser', ['superuser'] as const, true],
+        ['⛔ a VIP', ['vip'] as const, true],
+        ['an admin, who is not a paid plan', ['admin'] as const, false],
+    ] satisfies readonly (readonly [string, readonly Role[], boolean])[])(
+        'reads the allowance of %s under the plan it holds',
+        async (_name, roles, isPremium) => {
+            const { builder, stateOf } = build({});
+
+            await builder.build(makePrincipal({ roles: [...roles] }), makeHeader(), { limit: 100 });
+
+            expect(stateOf.mock.calls[0]?.[2]).toStrictEqual({ channel: 'bulk', isPremium });
+        },
+    );
+
+    it('reads a cursor at the count as done (null) and a Save-and-leave header as closed', async () => {
+        const answered = await view({}, makeHeader({ expectedTotal: 3, cursorOrdinal: 3, reviewClosedAt: new Date() }));
+
+        expect(answered.cursorOrdinal).toBeNull();
+        expect(answered.reviewClosed).toBe(true);
+    });
+
+    describe('paging', () => {
+        it('asks for one row more than the page, and sets nextAfter exactly when more follow', async () => {
+            const items = [0, 1, 2].map((ordinal) => makeListedItem({ ordinal }));
+            const { builder, findPage } = build({ items });
+            const first = await builder.build(makePrincipal(), makeHeader(), { limit: 2 });
+
+            expect(findPage).toHaveBeenCalledWith(makeHeader().id, undefined, 3);
+            expect(first.items.map((item) => item.ordinal)).toEqual([0, 1]);
+            expect(first.nextAfter).toBe(1);
+
+            const last = await build({ items: items.slice(0, 2) }).builder.build(makePrincipal(), makeHeader(), {
+                limit: 2,
+            });
+
+            expect(last.nextAfter).toBeNull();
+        });
+
+        it('passes the cursor through', async () => {
+            const { builder, findPage } = build({ items: [] });
+
+            await builder.build(makePrincipal(), makeHeader(), { after: 7, limit: 50 });
+
+            expect(findPage).toHaveBeenCalledWith(makeHeader().id, 7, 51);
+        });
+    });
+
+    describe('the pause (ADR-0073 §8): derived, never stored', () => {
+        const noSlots: PrivateSlotsPort = { hasAvailable: async () => false };
+
+        it('is outOfSlots when no slot is free and an unsaved item would be private', async () => {
+            expect((await view({ slots: noSlots, unsavedPrivate: 2 })).pause).toEqual({ reason: 'outOfSlots' });
+        });
+
+        it('is none while a slot is free', async () => {
+            expect((await view({ unsavedPrivate: 2 })).pause).toBeNull();
+        });
+
+        it('is none when nothing unsaved is private (the import is not stuck on slots)', async () => {
+            expect((await view({ slots: noSlots, unsavedPrivate: 0 })).pause).toBeNull();
+        });
+    });
+
+    describe('an item’s issue', () => {
+        /** A matched, stated item whose file states the given facts (everything, unless a test takes one away). */
+        const matchedItem = (
+            file: Partial<ListedImportItem['saveFacts']['file']>,
+            overrides: Partial<ListedImportItem> = {},
+        ) =>
+            makeListedItem({
+                stage: 'matched',
+                matchedAt: new Date(),
+                statementKind: 'authored',
+                saveFacts: {
+                    file: {
+                        cuisine: 'Thai',
+                        servings: 4,
+                        prepTimeMinutes: 10,
+                        cookTimeMinutes: 20,
+                        totalTimeMinutes: 30,
+                        ...file,
+                    },
+                    ingredientLineCount: 2,
+                    stepCount: 1,
+                },
+                ...overrides,
+            });
+        const issueOf = async (item: ListedImportItem) => (await view({ items: [item] })).items[0]?.issue;
+
+        it('⛔ names a matched item whose file states no cuisine and the cook gave none (ADR-0072 §3 as amended 2026-11-11)', async () => {
+            expect(await issueOf(matchedItem({ cuisine: null }))).toEqual({ reason: 'needsCuisine' });
+        });
+
+        it("reads the cook's cuisine over a file that states none, so a given cuisine clears the issue", async () => {
+            expect(await issueOf(matchedItem({ cuisine: null }, { cuisine: 'Thai' }))).toBeNull();
+        });
+
+        // REWRITTEN for ADR-0089: a web statement makes a web copy, which needs a cuisine. The old test lifted the cuisine
+        // issue for it, as if it were the curator's public-domain text. (A recipe with no step is a refusal now, below.)
+        it('asks a web import for a cuisine as Publish does', async () => {
+            expect(
+                await issueOf(
+                    matchedItem(
+                        { cuisine: null },
+                        {
+                            statementKind: 'source',
+                            sourceKind: 'public_web',
+                            citation: 'https://example.org/r',
+                            // Private: a web copy asked to be public is refused first, which hides the cuisine issue.
+                            visibility: 'private',
+                        },
+                    ),
+                ),
+            ).toEqual({ reason: 'needsCuisine' });
+        });
+
+        it('⛔ names servings and times the file does not state, and the cook clears each by giving it (a 0 is a value)', async () => {
+            expect(await issueOf(matchedItem({ servings: null }))).toEqual({ reason: 'needsServings' });
+            expect(await issueOf(matchedItem({ servings: null }, { servings: 2 }))).toBeNull();
+            expect(await issueOf(matchedItem({ prepTimeMinutes: null, totalTimeMinutes: null }))).toEqual({
+                reason: 'needsTimes',
+            });
+            expect(
+                await issueOf(
+                    matchedItem(
+                        { prepTimeMinutes: null, cookTimeMinutes: null },
+                        { prepTimeMinutes: 0, cookTimeMinutes: 0 },
+                    ),
+                ),
+            ).toBeNull();
+        });
+
+        it('a file that states only a total still needs times: the total is not prep and cook', async () => {
+            expect(await issueOf(matchedItem({ prepTimeMinutes: null, cookTimeMinutes: null }))).toEqual({
+                reason: 'needsTimes',
+            });
+        });
+
+        // REWRITTEN for review M1 on #220: `saveRefused` is read from WHY the save held the item, not from the bare revision,
+        // which named every hold `saveRefused` (a label hold too) and kept naming it after the cause had gone.
+        it('⛔ names an item the save held for a reason no rule explains as `saveRefused` (review item 7 on #220)', async () => {
+            const free = cookKeyOf(visibilityFactsOf(makePrincipal()));
+            const held = { decisionRev: 4, heldAtRev: 4 };
+
+            expect(await issueOf(matchedItem({}, { ...held, heldReason: 'createRefused', heldCookKey: free }))).toEqual(
+                {
+                    reason: 'saveRefused',
+                },
+            );
+            expect(await issueOf(matchedItem({}, { ...held, heldReason: 'unreadable' }))).toEqual({
+                reason: 'saveRefused',
+            });
+            // A decision since the hold moved the revision: the hold no longer stands, so neither does the issue.
+            expect(
+                await issueOf(matchedItem({}, { decisionRev: 5, heldAtRev: 4, heldReason: 'unreadable' })),
+            ).toBeNull();
+        });
+
+        it('⛔ never names `saveRefused` for a hold whose cause is gone: an upgrade after a hold, or a cause the cook can see', async () => {
+            const free = cookKeyOf(visibilityFactsOf(makePrincipal()));
+            const held = { decisionRev: 4, heldAtRev: 4 };
+            const asPro = async (item: ListedImportItem) =>
+                (await view({ items: [item] }, makeHeader(), { limit: 100 }, makePrincipal({ roles: ['premium'] })))
+                    .items[0]?.issue;
+
+            expect(
+                await asPro(matchedItem({}, { ...held, heldReason: 'createRefused', heldCookKey: free })),
+            ).toBeNull();
+            expect(await asPro(matchedItem({}, { ...held, heldReason: 'visibility', heldCookKey: free }))).toBeNull();
+            expect(await issueOf(matchedItem({}, { ...held, heldReason: 'item' }))).toBeNull();
+        });
+
+        it('⛔ names a matched item whose file has no step or no line by that refusal, and never throws building the view', async () => {
+            const counted = (ingredientLineCount: number, stepCount: number) =>
+                makeListedItem({
+                    stage: 'matched',
+                    matchedAt: new Date(),
+                    statementKind: 'authored',
+                    saveFacts: {
+                        file: {
+                            cuisine: 'Thai',
+                            servings: 4,
+                            prepTimeMinutes: 10,
+                            cookTimeMinutes: 20,
+                            totalTimeMinutes: 30,
+                        },
+                        ingredientLineCount,
+                        stepCount,
+                    },
+                });
+
+            expect(await issueOf(counted(2, 0))).toEqual({ reason: 'noSteps' });
+            expect(await issueOf(counted(0, 1))).toEqual({ reason: 'noIngredients' });
+        });
+
+        it('⛔ names a refused recipe by its stored refusal, even unpaid with the allowance spent', async () => {
+            const refused = (refusal: 'noIngredients' | 'noSteps') =>
+                makeListedItem({ stage: 'received', refusal, allowanceSpentAt: null });
+            const spent = await view({
+                items: [refused('noIngredients'), refused('noSteps')],
+                allowance: { ...ALLOWANCE, used: ALLOWANCE.limit },
+            });
+
+            expect(spent.items.map((item) => item.issue)).toEqual([{ reason: 'noIngredients' }, { reason: 'noSteps' }]);
+        });
+
+        it('⛔ builds a view over a saved item, whose payload is gone, without judging its save facts', async () => {
+            const saved = makeListedItem({
+                stage: 'saved',
+                savedAt: new Date(),
+                matchedAt: new Date(),
+                statementKind: 'authored',
+                saveFacts: {
+                    file: {
+                        cuisine: null,
+                        servings: null,
+                        prepTimeMinutes: null,
+                        cookTimeMinutes: null,
+                        totalTimeMinutes: null,
+                    },
+                    ingredientLineCount: 0,
+                    stepCount: 0,
+                },
+            });
+
+            expect(await issueOf(saved)).toBeNull();
+        });
+
+        it('names a matched item with no statement', async () => {
+            const answered = await view({ items: [makeListedItem({ stage: 'matched', matchedAt: new Date() })] });
+
+            expect(answered.items[0]?.issue).toEqual({ reason: 'needsStatement' });
+        });
+
+        it('⛔ names a visibility the policy refuses for the label the statement sets: a book recipe asked to be public', async () => {
+            const answered = await view(
+                {
+                    items: [
+                        makeListedItem({
+                            stage: 'matched',
+                            matchedAt: new Date(),
+                            statementKind: 'source',
+                            sourceKind: 'book',
+                            citation: 'Joy, p. 12',
+                            visibility: 'public',
+                        }),
+                    ],
+                },
+                makeHeader({ visibility: 'public' }),
+            );
+
+            expect(answered.items[0]?.issue).toEqual({ reason: 'visibilityRefused' });
+        });
+
+        it('uses the item’s own visibility over the import’s', async () => {
+            const book = {
+                stage: 'matched' as const,
+                matchedAt: new Date(),
+                statementKind: 'source',
+                sourceKind: 'book',
+                citation: 'x',
+            };
+            const answered = await view(
+                { items: [makeListedItem({ ...book, visibility: 'private' })] },
+                makeHeader({ visibility: 'public' }),
+            );
+
+            expect(answered.items[0]?.issue).toBeNull();
+        });
+
+        it('names an item that waits for the allowance once the day is spent', async () => {
+            const answered = await view({
+                items: [makeListedItem({ stage: 'received' })],
+                allowance: { limit: 1000, used: 1000, resetsAt: '2026-10-27T12:00:00.000Z' },
+            });
+
+            expect(answered.items[0]?.issue).toEqual({ reason: 'waitingForAllowance' });
+        });
+
+        it('names a private matched item that is paused for want of a slot', async () => {
+            const answered = await view(
+                {
+                    slots: { hasAvailable: async () => false },
+                    unsavedPrivate: 1,
+                    items: [
+                        makeListedItem({
+                            stage: 'matched',
+                            matchedAt: new Date(),
+                            statementKind: 'source',
+                            sourceKind: 'book',
+                            citation: 'x',
+                        }),
+                    ],
+                },
+                makeHeader({ visibility: 'private' }),
+            );
+
+            expect(answered.items[0]?.issue).toEqual({ reason: 'outOfSlots' });
+        });
+    });
+
+    describe('the item as the list shows it', () => {
+        it('shows the statement in the wire shape, the recipe and the visibility override', async () => {
+            const answered = await view({
+                items: [
+                    makeListedItem({
+                        ordinal: 4,
+                        stage: 'saved',
+                        savedAt: new Date(),
+                        recipeId: '66666666-6666-4666-8666-0000000000a1',
+                        statementKind: 'source',
+                        sourceKind: 'public_web',
+                        citation: 'https://example.com/r',
+                        visibility: 'public',
+                        review: 'skipped',
+                    }),
+                ],
+            });
+
+            expect(answered.items[0]).toEqual({
+                ordinal: 4,
+                title: 'Soup',
+                stage: 'saved',
+                review: 'skipped',
+                statement: { kind: 'public_web', citation: 'https://example.com/r' },
+                visibility: 'public',
+                recipeId: '66666666-6666-4666-8666-0000000000a1',
+                issue: null,
+            });
+        });
+
+        it('shows no statement as null', async () => {
+            expect((await view({ items: [makeListedItem()] })).items[0]?.statement).toBeNull();
+        });
+    });
+
+    describe('version', () => {
+        it('is the same for the same facts and moves when a verdict lands (no row of the import changed)', async () => {
+            const before = await view({ verdicts: { count: 1, latest: '2026-10-26T12:00:00.000000Z' } });
+            const same = await view({ verdicts: { count: 1, latest: '2026-10-26T12:00:00.000000Z' } });
+            const after = await view({ verdicts: { count: 2, latest: '2026-10-26T12:00:09.000000Z' } });
+
+            expect(same.version).toBe(before.version);
+            expect(after.version).not.toBe(before.version);
+        });
+
+        // Every advance now moves the import's activity clock (ADR-0072 §9's purge clock). The view does not show that clock,
+        // so an advance that changed nothing the cook can see must answer the version the client already holds.
+        it('⛔ does not move when only the activity clock does', async () => {
+            const a = await view({}, makeHeader({ updatedAt: new Date('2026-10-26T12:00:00.000Z') }));
+            const b = await view({}, makeHeader({ updatedAt: new Date('2026-10-26T12:05:00.000Z') }));
+
+            expect(b.version).toBe(a.version);
+        });
+
+        it('moves when the allowance does, so a paused import is seen to resume', async () => {
+            const a = await view({});
+            const b = await view({ allowance: { ...ALLOWANCE, used: 8 } });
+
+            expect(b.version).not.toBe(a.version);
+        });
+    });
+});

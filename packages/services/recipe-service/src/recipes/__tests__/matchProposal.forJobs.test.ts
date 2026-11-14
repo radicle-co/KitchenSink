@@ -19,6 +19,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { parseStoredLineDigest } from '@kitchensink/recipe-core/parsing/parse-key';
 
 import { CallerToken } from '../../auth/CallerToken.js';
+import { DeadlineExceededError } from '../../common/boundedBy.js';
 import type { Principal } from '../../auth/principal.js';
 import type { FoodRef } from '../../database/schema/foodLookupArm.js';
 import type { FoodRefAnswer } from '../../ingredients/domain/foodRefAnswer.js';
@@ -66,6 +67,8 @@ interface World {
     /** Called on each catalog search, so a case can move its fake clock the way a slow search would. */
     readonly onSearch?: () => void;
     readonly concurrency?: number;
+    /** The catalog blend's switch (rule 4). On unless a case turns it off. */
+    readonly catalogEnabled?: boolean;
 }
 
 function setup(world: World) {
@@ -111,7 +114,7 @@ function setup(world: World) {
         { getJob },
         matches,
         tiers,
-        { enabled: true, searchTimeoutMs: () => 600 },
+        { enabled: world.catalogEnabled ?? true, searchTimeoutMs: () => 600 },
         { resolve } as unknown as FoodRefsGateway,
         queue,
         fakeLineVerificationsDal(),
@@ -208,6 +211,36 @@ describe('MatchProposalService.proposeForJobs', () => {
 
             expect(again).toMatchObject({ kind: 'ok', matchesComplete: true });
             expect(lexical).not.toHaveBeenCalled();
+        });
+
+        // Review finding 2 on #185-#188: `owed` started as an empty list, so a job whose owed foods were never counted read as
+        // "nothing owed" and so as complete, and the importer would snapshot a review with no matches in it.
+        it('⛔ is false when the catalog is switched off, because nothing was matched (rule 4)', async () => {
+            const { service, matches } = setup({ jobs: [job(JOB_A)], catalogEnabled: false });
+            const [result] = await service.proposeForJobs(COOK, CALLER, [JOB_A]);
+
+            expect(result).toMatchObject({ kind: 'ok', matchesComplete: false });
+            expect(matches.rows.size).toBe(0);
+        });
+
+        it('⛔ is false for a job whose owed foods were never counted because the deadline passed first', async () => {
+            const { service, matches } = setup({ jobs: [job(JOB_A), job(JOB_B)] });
+            const read = matches.findForJob.bind(matches);
+
+            vi.spyOn(matches, 'findForJob').mockImplementation(async (ownerId, jobId) => {
+                if (jobId === JOB_B) {
+                    throw new DeadlineExceededError();
+                }
+
+                return read(ownerId, jobId);
+            });
+
+            const results = await service.proposeForJobs(COOK, CALLER, [JOB_A, JOB_B]);
+
+            expect(results.map((result) => [result.jobId, result.kind === 'ok' && result.matchesComplete])).toEqual([
+                [JOB_A, false],
+                [JOB_B, false],
+            ]);
         });
 
         it('is true for a job with no parsed line yet (nothing is owed until a line lands)', async () => {

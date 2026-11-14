@@ -57,6 +57,9 @@ export const IMPORT_MATCHED_BY = ['curated', 'memo', 'lexical'] as const;
 /** Where the review gate's request stands for a snapshot line. */
 export const IMPORT_LINE_REVIEWS = ['owed', 'refused'] as const;
 
+/** Why an import refuses a recipe outright: no ingredient line, or no step (0078). Mirrors `ImportRefusal`. */
+export const IMPORT_REFUSALS = ['noIngredients', 'noSteps'] as const;
+
 /** One stage of an item. */
 export type ImportStage = (typeof IMPORT_STAGES)[number];
 
@@ -121,6 +124,24 @@ export const recipeImportItems = pgTable(
         sourceKind: text('source_kind'),
         /** This recipe's own choice, overriding the import's. */
         visibility: text('visibility'),
+        /** The cuisine the cook gave in the import, replacing the file's (0076). */
+        cuisine: text('cuisine'),
+        /** The `decision_rev` at which the save found the item short of what Publish needs; skipped while it is current (0076). */
+        heldAtRev: integer('held_at_rev'),
+        /** The servings the cook gave in the import, replacing the file's (0078). */
+        servings: integer('servings'),
+        /** The prep minutes the cook gave in the import, replacing the file's (0078). */
+        prepTimeMinutes: integer('prep_time_minutes'),
+        /** The cook minutes the cook gave in the import, replacing the file's (0078). */
+        cookTimeMinutes: integer('cook_time_minutes'),
+        /** Why the import refuses the recipe, set when the item is written; a refused item never leaves `received` (0078). */
+        refusal: text('refusal'),
+        /** Why the save held the item at `held_at_rev`; NULL for a hold written before 0082, read as a cause in the item. */
+        heldReason: text('held_reason'),
+        /** The cook facts a hold whose cause they decide was judged under (`cookKeyOf`), so other facts release it (0082). */
+        heldCookKey: text('held_cook_key'),
+        /** Unrecognised save failures in a row at this revision; the cap holds the item, a decision resets it (0084). */
+        saveFailures: integer('save_failures').notNull().default(0),
         createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
         updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
     },
@@ -129,6 +150,38 @@ export const recipeImportItems = pgTable(
         check('recipe_import_items_ordinal_check', sql`${table.ordinal} >= 0`),
         check('recipe_import_items_parse_generation_check', sql`${table.parseGeneration} >= 0`),
         check('recipe_import_items_decision_rev_check', sql`${table.decisionRev} >= 0`),
+        check('recipe_import_items_held_at_rev_check', sql`${table.heldAtRev} IS NULL OR ${table.heldAtRev} >= 0`),
+        check('recipe_import_items_servings_check', sql`${table.servings} IS NULL OR ${table.servings} >= 1`),
+        check(
+            'recipe_import_items_prep_time_minutes_check',
+            sql`${table.prepTimeMinutes} IS NULL OR ${table.prepTimeMinutes} >= 0`,
+        ),
+        check(
+            'recipe_import_items_cook_time_minutes_check',
+            sql`${table.cookTimeMinutes} IS NULL OR ${table.cookTimeMinutes} >= 0`,
+        ),
+        check(
+            'recipe_import_items_refusal_check',
+            sql`${table.refusal} IS NULL OR ${table.refusal} IN ('noIngredients', 'noSteps')`,
+        ),
+        check(
+            'recipe_import_items_refusal_only_received',
+            sql`${table.refusal} IS NULL OR ${table.stage} = 'received'`,
+        ),
+        check(
+            'recipe_import_items_held_reason_check',
+            // A CASE, because a CHECK passes on NULL (0082 says why).
+            sql`CASE
+                WHEN ${table.heldReason} IS NULL THEN ${table.heldCookKey} IS NULL
+                WHEN ${table.heldReason} IN ('item', 'unreadable')
+                    THEN ${table.heldAtRev} IS NOT NULL AND ${table.heldCookKey} IS NULL
+                WHEN ${table.heldReason} IN ('visibility', 'createRefused')
+                    THEN ${table.heldAtRev} IS NOT NULL AND ${table.heldCookKey} IS NOT NULL
+                ELSE false
+            END`,
+        ),
+        check('recipe_import_items_save_failures_check', sql`${table.saveFailures} >= 0`),
+        check('recipe_import_items_cuisine_check', sql`${table.cuisine} IS NULL OR btrim(${table.cuisine}) <> ''`),
         check('recipe_import_items_title_check', sql`btrim(${table.title}) <> ''`),
         check('recipe_import_items_stage_check', inArray(table.stage, [...IMPORT_STAGES])),
         check('recipe_import_items_review_check', inArray(table.review, [...IMPORT_ITEM_REVIEWS])),
@@ -201,6 +254,12 @@ export const recipeImportLines = pgTable(
         statedQuantityHigh: numeric('stated_quantity_high', { precision: 10, scale: 3 }),
         statedUnit: text('stated_unit'),
         preparation: text('preparation'),
+        /** The food's name as the editor saves it (a leading size word moved to the unit), 0074. */
+        name: text('name').notNull(),
+        /** The cook's words, when the parse chose them as the shown name (owner ruling 2026-11-08). */
+        displayText: text('display_text'),
+        /** A dimension the cook wrote in parentheses ("9 inch"), never the unit. */
+        note: text('note'),
         matchedBy: text('matched_by'),
         foodId: text('food_id'),
         foodVariantId: text('food_variant_id'),
@@ -218,9 +277,15 @@ export const recipeImportLines = pgTable(
         pickedFoodVariantId: text('picked_food_variant_id'),
         pickedAsWritten: boolean('picked_as_written').notNull().default(false),
         pickedAgainstDigest: text('picked_against_digest'),
+        /** When the contradiction of this line's CURATED proposal was counted for curation review, once (0080). */
+        curationReportedAt: timestamp('curation_reported_at', { withTimezone: true }),
         createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     },
     (table) => [
+        check(
+            'recipe_import_lines_curation_reported_check',
+            sql`${table.curationReportedAt} IS NULL OR (${table.matchedBy} = 'curated' AND ${table.verificationKey} IS NOT NULL)`,
+        ),
         foreignKey({
             columns: [table.importId, table.ordinal],
             foreignColumns: [recipeImportItems.importId, recipeImportItems.ordinal],
@@ -274,6 +339,12 @@ export const recipeImportLines = pgTable(
             'recipe_import_lines_preparation_check',
             sql`${table.preparation} IS NULL OR btrim(${table.preparation}) <> ''`,
         ),
+        check('recipe_import_lines_name_check', sql`btrim(${table.name}) <> ''`),
+        check(
+            'recipe_import_lines_display_text_check',
+            sql`${table.displayText} IS NULL OR btrim(${table.displayText}) <> ''`,
+        ),
+        check('recipe_import_lines_note_check', sql`${table.note} IS NULL OR btrim(${table.note}) <> ''`),
     ],
 );
 

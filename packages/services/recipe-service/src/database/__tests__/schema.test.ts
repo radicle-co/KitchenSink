@@ -297,12 +297,26 @@ describe('recipe-service schema — table contracts (T011–T014, T118, T119, T1
             citation: { type: 'text', notNull: false },
             source_kind: { type: 'text', notNull: false },
             visibility: { type: 'text', notNull: false },
+            // What Publish needs (0076): the cook's cuisine, and the revision at which the save held the item for one.
+            cuisine: { type: 'text', notNull: false },
+            held_at_rev: { type: 'integer', notNull: false },
+            // What the cook gives for a file that states none (0078): servings and the two times, each nullable (NULL = none given).
+            servings: { type: 'integer', notNull: false },
+            prep_time_minutes: { type: 'integer', notNull: false },
+            cook_time_minutes: { type: 'integer', notNull: false },
+            // Why the import refuses the recipe, set when the item is written (0078). Never leaves `received`.
+            refusal: { type: 'text', notNull: false },
+            // Why the save held the item, and the cook facts a cook-dependent hold was judged under (0082).
+            held_reason: { type: 'text', notNull: false },
+            held_cook_key: { type: 'text', notNull: false },
+            // Unrecognised save failures in a row at this revision (0084).
+            save_failures: { type: 'integer', notNull: true },
             created_at: { type: 'timestampwithtimezone', notNull: true },
             updated_at: { type: 'timestampwithtimezone', notNull: true },
         });
     });
 
-    it('recipe_import_lines — the snapshot of a match, with NO food name, NO verdict and NO bound_by (0059)', () => {
+    it('recipe_import_lines — the snapshot of a match, with NO catalog food name, NO verdict and NO bound_by (0059, 0074)', () => {
         expect(getTableName(recipeImportLines)).toBe('recipe_import_lines');
         expectColumns(recipeImportLines, {
             id: { type: 'uuid', notNull: true },
@@ -322,6 +336,10 @@ describe('recipe-service schema — table contracts (T011–T014, T118, T119, T1
             stated_quantity_high: { type: 'numeric(10,3)', notNull: false },
             stated_unit: { type: 'text', notNull: false },
             preparation: { type: 'text', notNull: false },
+            // The row the editor saves (0074's header): the cook's words, never a name food gave.
+            name: { type: 'text', notNull: true },
+            display_text: { type: 'text', notNull: false },
+            note: { type: 'text', notNull: false },
             matched_by: { type: 'text', notNull: false },
             food_id: { type: 'text', notNull: false },
             food_variant_id: { type: 'text', notNull: false },
@@ -336,6 +354,8 @@ describe('recipe-service schema — table contracts (T011–T014, T118, T119, T1
             picked_food_variant_id: { type: 'text', notNull: false },
             picked_as_written: { type: 'boolean', notNull: true },
             picked_against_digest: { type: 'text', notNull: false },
+            // When a curated contradiction on this line was counted for curation review, once (0080).
+            curation_reported_at: { type: 'timestampwithtimezone', notNull: false },
             created_at: { type: 'timestampwithtimezone', notNull: true },
         });
     });

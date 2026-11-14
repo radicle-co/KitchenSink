@@ -124,7 +124,9 @@ const GOD_FILE_EXEMPTIONS: readonly GodFileExemption[] = [
             '`ImportCursorMovedError`, `ImportItemAlreadySavedError` and `PrivateSlotsFullError`, each a distinct ' +
             'refusal of the same boundary that a cook is told about in a different sentence. GREW 2026-11-11 (bulk ' +
             'import contract): the recipe client added `ImportItemLockedError`, the 409 for a changed recipe sent for an ' +
-            'item already being processed, which a surface treats differently from the other import 409s. ' +
+            "item already being processed, which a surface treats differently from the other import 409s. The service's " +
+            'import save claim has its own two-member taxonomy (`recipeImportItems.errors.ts`: saved by someone else, ' +
+            'or a decision moved the fence), which one `catch` discriminates and which answer opposite things. ' +
             'GREW 2026-11-13 (cooking mode step model): cooking-core keeps its refusals in `errors.ts`, as ' +
             '`authState.errors.ts` does; one boundary, a place outside the recipe (a step, a line or a step count).',
         files: [
@@ -136,6 +138,11 @@ const GOD_FILE_EXEMPTIONS: readonly GodFileExemption[] = [
             { file: 'packages/clients/usda/src/errors.ts', classes: 7, components: 0 },
             { file: 'packages/shared/cooking/src/errors.ts', classes: 3, components: 0 },
             { file: 'packages/services/food-service/src/foods/dao/dao.errors.ts', classes: 3, components: 0 },
+            {
+                file: 'packages/services/recipe-service/src/import/dal/recipeImportItems.errors.ts',
+                classes: 2,
+                components: 0,
+            },
             { file: 'packages/shared/db-schema-guard/src/roles/tablePolicy.errors.ts', classes: 2, components: 0 },
             { file: 'packages/services/food-service/src/foods/foods.errors.ts', classes: 12, components: 0 },
             // Extracted 2026-09-04 when the misrouted-delivery fix made the handler export two classes.

@@ -79,8 +79,8 @@ describe('bulk import purge (LOCAL e2e)', () => {
                   [id, recipeId],
               ));
         const line = await pool.query<{ id: string }>(
-            `INSERT INTO recipe_import_lines (import_id, ordinal, line_index, food_index, source_line, line_digest, judgement_digest, phrase, unit)
-             VALUES ($1, 0, 0, 0, '1 cup flour', 'ld', 'jd', 'flour', 'cup') RETURNING id`,
+            `INSERT INTO recipe_import_lines (import_id, ordinal, line_index, food_index, source_line, line_digest, judgement_digest, phrase, name, unit)
+             VALUES ($1, 0, 0, 0, '1 cup flour', 'ld', 'jd', 'flour', 'flour', 'cup') RETURNING id`,
             [id],
         );
 

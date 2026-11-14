@@ -3,8 +3,9 @@
  *
  * Time is data, not a counter. A running timer is stored as the instant it ends and a paused one as the time left, so
  * the time left is always worked out from the clock the caller passes in. Nothing here reads a clock, counts a tick or
- * schedules anything: `ring` may arrive from several sources (a timeout, the app coming to the front, a second source), so the
- * reducer, not the caller, decides when the end has come. That is what keeps "ended" at most once per run however many sources fire.
+ * schedules anything: `ring` may arrive from several sources (a timeout, the app coming to the front), so the reducer,
+ * not the caller, decides when the end has come. That is what keeps "ended" at most once per run however many sources
+ * fire.
  *
  * The reducer has no servings input, because cook time does not scale with yield (FR-034a).
  *

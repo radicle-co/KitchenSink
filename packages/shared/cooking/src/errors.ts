@@ -1,6 +1,5 @@
 /**
- * The errors `@kitchensink/cooking-core` throws, each with its matching `is*` guard. The step model throws these
- * when it is asked for a place outside the recipe.
+ * The errors `@kitchensink/cooking-core` throws, each with its matching `is*` guard.
  */
 
 /** Raised when a step count is not a positive integer, so no valid step index could exist. */

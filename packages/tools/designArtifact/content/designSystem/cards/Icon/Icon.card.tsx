@@ -71,7 +71,7 @@ export type CardIsComplete = NoneMissing<MissingFromCard>;
 
 export default defineCard({
     group: 'Media',
-    height: 830,
+    height: 900,
     platforms: 'both',
     uses: ['Icon'],
     render: ({ Icon }) => (

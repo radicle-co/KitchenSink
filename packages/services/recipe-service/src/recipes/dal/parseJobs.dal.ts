@@ -196,10 +196,7 @@ export class ParseJobsDal implements ParseJobsDalPort {
             // for commit together; a refusal returns before anything below runs, so a refused paste leaves no job, no
             // line and no ledger row. `prepaid` is the one admission that spends nothing (a bulk import's recipe already paid on its own channel).
             if (admission.kind === 'charge') {
-                const outcome = await this.allowance.admit(tx, ownerId, {
-                    channel: admission.channel,
-                    units: admission.units,
-                });
+                const outcome = await this.allowance.admit(tx, ownerId, admission);
 
                 if (outcome.kind === 'refused') {
                     return outcome;

@@ -17,7 +17,7 @@ import { z } from 'zod';
 
 const CANVAS_DIR = join(__dirname, '..', '..', '..', '..', 'docs', 'design', 'canvases');
 
-const canvasSchema = z.object({
+const canvasSchema = z.strictObject({
     id: z.string().min(1),
     title: z.string().min(1),
     url: z.string().min(1),
@@ -29,7 +29,7 @@ const canvasSchema = z.object({
     note: z.string().optional(),
 });
 
-const registrySchema = z.object({ canvases: z.array(canvasSchema) });
+const registrySchema = z.strictObject({ canvases: z.array(canvasSchema) });
 
 type CanvasEntry = z.infer<typeof canvasSchema>;
 
@@ -216,5 +216,11 @@ describe('registryProblems', () => {
 
     it('rejects an entry with an unknown status', () => {
         expect(() => registrySchema.parse({ canvases: [{ ...designSystem, status: 'draft' }] })).toThrow();
+    });
+
+    // A misspelt key ("plaform") would otherwise be dropped silently, and the entry would read as having no platform.
+    it('rejects an entry or a registry with a key the README does not name', () => {
+        expect(() => registrySchema.parse({ canvases: [{ ...designSystem, plaform: 'web' }] })).toThrow();
+        expect(() => registrySchema.parse({ canvases: [designSystem], version: 2 })).toThrow();
     });
 });

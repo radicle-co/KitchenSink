@@ -7,7 +7,7 @@ import { chmodSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, w
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { DeviceAdapter, LanePlatform, LaneSpec } from '../laneTypes.js';
 import { runLaneRun, type LaneRunDeps } from '../laneRun.js';
@@ -30,7 +30,6 @@ function stubRunner(dir: string): string {
         [
             '#!/usr/bin/env bash',
             'env | sort > "${MAESTRO_FIXTURE_ENV_FILE}.env"',
-            'date +%s%N > "${MAESTRO_FIXTURE_ENV_FILE}.started"',
             'code_var="EXIT_${MAESTRO_SHARD_INDEX}"',
             'exit "${!code_var:-0}"',
             '',
@@ -254,13 +253,48 @@ describe('runLaneRun — a lane run over fakes', () => {
         expect(envOf(laneFile(state, 1))['MAESTRO_FLOW_SELECTOR']).toBe('');
     });
 
-    it('starts the lanes staggered', async () => {
-        const { state, deps } = harness({ staggerMs: 300 });
+    /**
+     * The run controls one thing here: when it CALLS `spawnLane`. This test pins that each call comes no earlier than
+     * `staggerMs` after the one before it, on a fake clock. It used to read a timestamp each stub runner wrote after
+     * its own bash start-up, which added the two children's start-up difference to the gap and failed CI (#202).
+     */
+    it('starts each lane no earlier than the stagger after the lane before it', async () => {
+        const staggerMs = 300;
+        const spawnedAt: number[] = [];
+        const { deps } = harness({
+            staggerMs,
+            spawnLane: () => {
+                spawnedAt.push(Date.now());
 
-        await runLaneRun(deps, { platforms: ['android'], requested: 2, selection: 'all' });
+                return { pid: 0, exit: Promise.resolve(0), stop: () => undefined };
+            },
+        });
+        vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
 
-        const started = [1, 2].map((index) => Number(readFileSync(`${laneFile(state, index)}.started`, 'utf8')) / 1e6);
-        expect((started[1] ?? 0) - (started[0] ?? 0)).toBeGreaterThanOrEqual(250);
+        try {
+            const run = runLaneRun(deps, { platforms: ['android'], requested: 3, selection: 'all' });
+
+            await vi.advanceTimersByTimeAsync(0);
+            expect(spawnedAt, 'the first lane starts at once').toHaveLength(1);
+
+            for (const lanes of [2, 3]) {
+                await vi.advanceTimersByTimeAsync(staggerMs - 1);
+                expect(spawnedAt, `lane ${lanes} must wait the whole stagger`).toHaveLength(lanes - 1);
+
+                await vi.advanceTimersByTimeAsync(1);
+                expect(spawnedAt, `lane ${lanes} starts once the stagger has passed`).toHaveLength(lanes);
+            }
+
+            expect(await run).toBe(0);
+
+            const first = spawnedAt[0] ?? Number.NaN;
+
+            for (const [lane, at] of spawnedAt.entries()) {
+                expect(at - first, `lane ${lane} after lane 0`).toBeGreaterThanOrEqual(lane * staggerMs);
+            }
+        } finally {
+            vi.useRealTimers();
+        }
     });
 
     it('exits with the worst lane code, and still tears everything down', async () => {

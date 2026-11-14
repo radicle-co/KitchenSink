@@ -1923,6 +1923,11 @@ jobs:
             - name: Run e2e-plan integration tests
               if: ${{ contains(fromJSON(steps.scope.outputs.packages), '@kitchensink/e2e-plan') }}
               run: npm run test:integration --workspace=@kitchensink/e2e-plan
+            # The Mac Android host over a real MacSession and a scripted shell: the lane environment before and after the
+            # session opens. No Mac is reached, so it runs on this Linux runner.
+            - name: Run local-sandbox integration tests
+              if: ${{ contains(fromJSON(steps.scope.outputs.packages), '@kitchensink/local-sandbox') }}
+              run: npm run test:integration --workspace=@kitchensink/local-sandbox
             # The design-artifact build over the REAL sources: esbuild bundles both platforms' component surfaces, Tailwind
             # compiles their stylesheet, and the surface checks run on the actual cards and canvas boards. No browser,
             # no network. The Chromium render of every card and board is the LOCAL e2e tier, on a developer's machine.

@@ -74,14 +74,14 @@ export interface CookingDoneMessages {
 export interface CookingLoadingMessages {
     /** The place while the recipe loads. */
     readonly place: string;
-    /** Added after one second. */
+    /** Shown from the `label` phase of `loadingPhase`. */
     readonly label: string;
 }
 
 /** The load error. */
 export interface CookingErrorMessages {
     readonly title: string;
-    /** The body when the device is online. There are no timers yet, so it has no timer sentence. */
+    /** The body when the device is online. */
     readonly body: string;
     /** The body when the device is offline and the recipe is not stored. */
     readonly offlineBody: string;

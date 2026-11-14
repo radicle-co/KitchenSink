@@ -86,7 +86,6 @@ export interface UseCookingSessionResult {
 }
 
 interface State {
-    readonly recipeId: string;
     readonly steps: readonly CookingStep[];
     readonly session: CookingSession;
     readonly ticks: LineTicks;
@@ -112,7 +111,6 @@ function open(input: UseCookingSessionInput): State {
     const steps = cookingStepsOf(input.steps);
 
     return {
-        recipeId: input.recipeId,
         steps,
         session: createSession({
             recipeId: input.recipeId,
@@ -136,7 +134,7 @@ function reduce(state: State, action: Action): State {
         return {
             ...state,
             session: createSession({
-                recipeId: state.recipeId,
+                recipeId: state.session.recipeId,
                 steps: state.steps,
                 startedAt: action.startedAt,
             }),

@@ -33,11 +33,13 @@ describe('cookingMessages', () => {
         expect(en.nav.backA11yRecipe).toBe('Back to the recipe');
         expect(en.nav.next).toBe('Next step');
         expect(en.nav.finish).toBe('Finish');
-        expect(en.nav.startStep).toBe('Start step {n}');
-        expect(en.next.upNext).toBe('Up next · step {n}');
-        expect(en.step.lineOf).toBe('Line {current} of {total}');
+        expect(en.nav.startStep).toBe('Start\u00a0step {n}');
+        expect(en.nav.nextPreview).toBe('Next ·\u00a0step {n}');
+        expect(en.next.upNext).toBe('Up next ·\u00a0step {n}');
+        expect(en.step.lineOf).toBe('Line\u00a0{current} of {total}');
         expect(en.step.show).toBe('Show');
-        expect(en.done.title).toBe('All {total} steps done');
+        expect(en.done.title.one).toBe('All done');
+        expect(en.done.title.other).toBe('All {count} steps done');
         expect(en.done.screenOff).toBe('The screen can turn off again.');
         expect(en.done.backToRecipe).toBe('Back to the recipe');
         expect(en.done.cookAgain).toBe('Cook it again');
@@ -49,7 +51,7 @@ describe('cookingMessages', () => {
     });
 
     it('says the place and the step announcement, with and without a focus line', () => {
-        expect(en.top.place).toBe('Step {current} of {total}');
+        expect(en.top.place).toBe('Step\u00a0{current} of {total}');
         expect(en.step.announce).toBe('Step {current} of {total}. {line}');
         // Every line ticked leaves no focus line to read, so the announcement is the place alone.
         expect(en.step.announceNoLine).toBe('Step {current} of {total}.');
@@ -68,7 +70,8 @@ describe('cookingMessages', () => {
         expect(placeholdersOf(en.nav.nextA11y)).toEqual(['n']);
         expect(placeholdersOf(en.nav.nextPreview)).toEqual(['n']);
         expect(placeholdersOf(en.step.lineOf)).toEqual(['current', 'total']);
-        expect(placeholdersOf(en.done.title)).toEqual(['total']);
+        expect(placeholdersOf(en.done.title.one)).toEqual([]);
+        expect(placeholdersOf(en.done.title.other)).toEqual(['count']);
         expect(placeholdersOf(en.done.enjoy)).toEqual(['recipe']);
     });
 });

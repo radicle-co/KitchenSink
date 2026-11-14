@@ -58,8 +58,8 @@ export interface CookingNextMessages {
 
 /** Done. */
 export interface CookingDoneMessages {
-    /** The heading (contains `{total}`). */
-    readonly title: string;
+    /** The heading: one form for a one-step recipe, and the other with `{count}` steps. */
+    readonly title: PluralText;
     /** The line under it (contains `{recipe}`). */
     readonly enjoy: string;
     /** Said only where the screen was kept on. */
@@ -125,7 +125,7 @@ export const cookingMessages: LocalizedMessages<CookingMessages> = {
         top: {
             exit: 'Exit',
             exitA11y: 'Exit cooking mode',
-            place: 'Step {current} of {total}',
+            place: 'Step\u00a0{current} of {total}',
         },
         nav: {
             back: 'Back',
@@ -134,21 +134,21 @@ export const cookingMessages: LocalizedMessages<CookingMessages> = {
             next: 'Next step',
             nextA11y: 'Next step, step {n}',
             finish: 'Finish',
-            startStep: 'Start step {n}',
-            nextPreview: 'Next · step {n}',
+            startStep: 'Start\u00a0step {n}',
+            nextPreview: 'Next ·\u00a0step {n}',
         },
         step: {
-            lineOf: 'Line {current} of {total}',
+            lineOf: 'Line\u00a0{current} of {total}',
             tickedSummary: { one: 'You ticked 1 line', other: 'You ticked {count} lines' },
             show: 'Show',
             announce: 'Step {current} of {total}. {line}',
             announceNoLine: 'Step {current} of {total}.',
         },
         next: {
-            upNext: 'Up next · step {n}',
+            upNext: 'Up next ·\u00a0step {n}',
         },
         done: {
-            title: 'All {total} steps done',
+            title: { one: 'All done', other: 'All {count} steps done' },
             enjoy: '{recipe}. Enjoy it.',
             screenOff: 'The screen can turn off again.',
             backToRecipe: 'Back to the recipe',

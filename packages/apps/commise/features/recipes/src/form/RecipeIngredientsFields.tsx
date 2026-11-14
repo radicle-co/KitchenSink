@@ -2,13 +2,12 @@
 
 /**
  * @module @commise/features-recipes/form — `RecipeIngredientsFields` (web): the editor's Ingredients section body
- * (build spec §7.5): quiet read rows with their `⋯`, the row editor (a sheet below a 600 container, inline from 600),
- * the groups, the one add field (type the amount, then pick the food), Paste a list in the empty section, and the
+ * (build spec §7.5): quiet read rows with their `⋯`, the row editor (inline in its row when the window and the container
+ * both meet the limits in `inlineEditorFit.ts`, otherwise the sheet), the groups, the one add field (type the amount, then pick the food), Paste a list in the empty section, and the
  * running total at the section's foot.
  *
  * This orchestration component takes the section's state, focus and views from `useIngredientsFields` and picks the
- * row editor's frame by `useRowEditorPlacement` (the container's class and the window's room); the leaves only draw. Rows are grouped in one
- * list per run: an ungrouped recipe is one list named "Ingredients" with no group chrome, and each group's list is named
+ * row editor's frame by `useRowEditorPlacement`; the leaves only draw. Rows are grouped in one list per run: an ungrouped recipe is one list named "Ingredients" with no group chrome, and each group's list is named
  * by its heading. A row that moves to another group remounts under it, and its `⋯` takes focus back by request.
  *
  * @pattern Mediator — between the host's row-editor controllers and the row controls, through `useIngredientsFields`
@@ -130,8 +129,8 @@ export const RecipeIngredientsFields: FC<RecipeIngredientsFieldsProps> = (props)
     const { nutrition, rowEditor, paste } = props;
     const reading = paste?.reading ?? [];
     const { authoredFood, details } = rowEditor;
-    // §7.5.2: the row editor is a sheet below a 600 container and inline from 600, when the window has room for it
-    // (`inlineEditorFit.ts`): otherwise the same sheet, whose Done and Cancel stay pinned.
+    // §7.5.2: the row editor is inline when the window and the container both meet the limits in `inlineEditorFit.ts`,
+    // otherwise the sheet, whose Done and Cancel stay pinned.
     const { inline, wideContainer } = useRowEditorPlacement(model.openRow !== undefined);
     // The add field when no run holds it: the empty section, or a list whose rows are all being read.
     const addFieldHere =

@@ -153,8 +153,8 @@ export const RecipeIngredientsFields: FC<RecipeIngredientsFieldsProps> = (props)
             acknowledgeRefusal();
         }
     }, [pendingFocusRequested]);
-    // §7.12: a sheet on a phone, inline on a tablet (from a 600 pt content width) when the screen has room for it
-    // (`inlineEditorFit.ts`): otherwise the same sheet, as on the web.
+    // §7.12: the row editor is inline when the screen and the content width both meet the limits in
+    // `inlineEditorFit.ts` (a tablet), otherwise the sheet, as on the web.
     const { inline, wideContainer } = useRowEditorPlacement(model.openRow !== undefined);
     // The add field when no run holds it: the empty section, or a list whose rows are all being read.
     const addFieldHere =

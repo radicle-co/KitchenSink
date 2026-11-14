@@ -2,8 +2,8 @@
  * @module @commise/features-recipes/form — whether the window and the container have room for the row editor INLINE now
  * (`inlineEditorFit.ts`). `useRowEditorPlacement.ts` holds the answer while an editor is open.
  *
- * The window's height and the root font size are read, and the container's width is passed in, through `useSyncExternalStore`, so a resize or a text-size change
- * is read on the next render.
+ * The window's height and the root font size are read through `useSyncExternalStore`, so a resize or a text-size change
+ * is read on the next render. The container's width is passed in by the caller, which measures it.
  *
  * @pattern Observer — a subscription to the window's size and the root's style, over the one pure `editorFitsInline`
  */
@@ -37,13 +37,14 @@ function fitsNow(containerWidth: number): boolean {
  * Whether the window and the container have room for the inline row editor now.
  *
  * @param containerWidth - The editor container's content width, in px, read once by the caller.
- * @returns The answer for the window as it is now. On the server, `true`: a wide container draws the inline editor.
+ * @returns The answer for the window as it is now. On the server, `false`, as `editorFitsInline` answers for the
+ * unmeasured container (width 0), so hydration agrees with the first client render.
  * @sideEffect Subscribes to the window's size and the root element's style for the component's life.
  */
 export function useInlineEditorFitsNow(containerWidth: number): boolean {
     return useSyncExternalStore(
         subscribe,
         () => fitsNow(containerWidth),
-        () => true,
+        () => false,
     );
 }

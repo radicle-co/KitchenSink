@@ -43,6 +43,7 @@ import {
     importCursorRequestSchema,
     importItemInputSchema,
     importPickRequestSchema,
+    recordImportChoicesRequestSchema,
 } from '../../recipes/import.schema.js';
 
 import * as schema from '../schema/index.js';
@@ -371,6 +372,43 @@ const accounts: readonly ColumnAccount[] = [
         table: 'recipe_import_items',
         column: 'decision_rev',
         why: 'Server-incremented by each write of the cook’s decisions on the item (a request can write a few per second at most, and an item is saved once); no wire field sets it.',
+    },
+    {
+        table: 'recipe_import_items',
+        column: 'held_at_rev',
+        why: 'Copied from the item’s own decision_rev when the save holds it (migration 0076), so it is bounded by that column; no wire field sets it.',
+    },
+    {
+        table: 'recipe_import_items',
+        column: 'save_failures',
+        why: 'Server-incremented by one failed save, and the save holds the item at IMPORT_SAVE_FAILURE_CAP failures in a row (migration 0084); no wire field sets it.',
+    },
+    {
+        table: 'recipe_import_items',
+        column: 'servings',
+        fields: [
+            { field: 'RecordImportChoicesRequest.servings', schema: recordImportChoicesRequestSchema.shape.servings },
+        ],
+    },
+    {
+        table: 'recipe_import_items',
+        column: 'prep_time_minutes',
+        fields: [
+            {
+                field: 'RecordImportChoicesRequest.prepTimeMinutes',
+                schema: recordImportChoicesRequestSchema.shape.prepTimeMinutes,
+            },
+        ],
+    },
+    {
+        table: 'recipe_import_items',
+        column: 'cook_time_minutes',
+        fields: [
+            {
+                field: 'RecordImportChoicesRequest.cookTimeMinutes',
+                schema: recordImportChoicesRequestSchema.shape.cookTimeMinutes,
+            },
+        ],
     },
     {
         table: 'recipe_import_lines',

@@ -89,6 +89,31 @@ export function requiresCuisine(sourceType: RecipeSourceType, sourceKind: Recipe
     }
 }
 
+/** The part of Publish that is about content, as the requirement names the vocabulary spells them. */
+type ContentRequirement = Extract<PublishRequirement, 'ingredients' | 'steps'>;
+
+/**
+ * The content requirements a recipe with this many ingredient lines and steps still lacks, in the vocabulary's page order.
+ * Pure. The ONE statement of "at least one ingredient and one step": {@link evaluatePublication} reads it, and so does a bulk
+ * import that refuses a recipe without them (ADR-0072 §3).
+ *
+ * @param counts - The ingredient lines and steps the recipe holds.
+ * @returns The unmet ones; empty when the recipe has both.
+ */
+export function unmetContentRequirements(counts: {
+    readonly ingredientCount: number;
+    readonly stepCount: number;
+}): readonly ContentRequirement[] {
+    const unmet: Readonly<Record<ContentRequirement, boolean>> = {
+        ingredients: counts.ingredientCount === 0,
+        steps: counts.stepCount === 0,
+    };
+
+    return PUBLISH_REQUIREMENTS.filter(
+        (requirement): requirement is ContentRequirement => requirement !== 'cuisine' && unmet[requirement],
+    );
+}
+
 /**
  * Evaluate whether a write may leave a recipe in this state. Pure — inputs only.
  *
@@ -100,10 +125,11 @@ export function evaluatePublication(input: PublishPolicyInput): PublishDecision 
         return { allowed: true, reason: 'A draft may be saved with anything missing.' };
     }
 
+    const content = unmetContentRequirements(input);
     const unmet: Readonly<Record<PublishRequirement, boolean>> = {
         cuisine: requiresCuisine(input.sourceType, input.sourceKind) && (input.cuisine ?? '').trim() === '',
-        ingredients: input.ingredientCount === 0,
-        steps: input.stepCount === 0,
+        ingredients: content.includes('ingredients'),
+        steps: content.includes('steps'),
     };
     const [first, ...rest] = PUBLISH_REQUIREMENTS.filter((requirement) => unmet[requirement]);
 

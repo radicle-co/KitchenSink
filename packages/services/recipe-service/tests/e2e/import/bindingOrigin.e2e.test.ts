@@ -118,8 +118,8 @@ async function snapshotLines(count: number): Promise<{ importId: string; lineIds
             [importId, ordinal],
         );
         const line = await pool.query<{ id: string }>(
-            `INSERT INTO recipe_import_lines (import_id, ordinal, line_index, food_index, source_line, line_digest, judgement_digest, phrase, unit)
-             VALUES ($1, $2, 0, 0, 'l', 'ld', 'jd', 'p', '') RETURNING id`,
+            `INSERT INTO recipe_import_lines (import_id, ordinal, line_index, food_index, source_line, line_digest, judgement_digest, phrase, name, unit)
+             VALUES ($1, $2, 0, 0, 'l', 'ld', 'jd', 'p', 'p', '') RETURNING id`,
             [importId, ordinal],
         );
 

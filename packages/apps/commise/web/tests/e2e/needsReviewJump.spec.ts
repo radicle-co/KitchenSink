@@ -316,8 +316,20 @@ for (const [width, textScale] of [
         test('Done and Cancel sit between the sticky header and the bottom action bar', async ({ page }) => {
             // A cook's larger text is in force from the first paint, as a browser text-size setting is: set before load,
             // so the jump measures the page the cook sees.
+            // An init script runs before <html> exists, and hydration rewrites its attributes. So the size is applied as soon
+            // as <html> appears and again whenever a style attribute changes, with `important` over any stylesheet.
             await page.addInitScript((scale) => {
-                document.documentElement.style.fontSize = `${String(scale * 100)}%`;
+                const apply = (): void => {
+                    document.documentElement?.style.setProperty('font-size', `${String(scale * 100)}%`, 'important');
+                };
+
+                apply();
+                new MutationObserver(apply).observe(document, {
+                    childList: true,
+                    subtree: true,
+                    attributes: true,
+                    attributeFilter: ['style'],
+                });
             }, textScale);
             await openDetail(page);
             await page.getByRole('link', { name: LINK_NAME }).click();
@@ -325,6 +337,10 @@ for (const [width, textScale] of [
             const viewport = page.viewportSize();
 
             expect(viewport).not.toBeNull();
+            // The text size is really in force before anything is measured: a case that ran at 100% proved nothing.
+            await expect
+                .poll(() => page.evaluate(() => getComputedStyle(document.documentElement).fontSize))
+                .toBe(`${String(16 * textScale)}px`);
 
             // The jump's scroll is smooth and still moving when the page first settles, so the boxes are read until they
             // agree with the contract and have stopped moving, never once at the first moment they exist.

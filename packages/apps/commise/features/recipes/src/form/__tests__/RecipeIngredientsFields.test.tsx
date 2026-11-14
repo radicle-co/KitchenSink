@@ -43,6 +43,7 @@ import type { IngredientNutrition, LookupEntry } from '../nutritionLookup.js';
 import type { DraftAction } from '../draftAction.js';
 import { expectDesignSystemButton } from '../../__tests__/designSystemButton.js';
 import { seedLineKey, type IngredientLineKey } from '../lineKey.js';
+import { ingredientRowId } from '../fieldIds.js';
 import { applyDraftAction } from '../props.js';
 import { toCreateRecipeInput } from '../wire.js';
 import { type IngredientsPasteView } from '../props.js';
@@ -52,6 +53,14 @@ import type { ContainerClass } from '@commise/ui/container-class';
 const layout = vi.hoisted(() => ({ container: 'narrow' as ContainerClass }));
 
 vi.mock('../../layout/useMainContainerClass.js', () => ({ useMainContainerClass: () => layout.container }));
+
+// The page's scroll host, where a case gives one: only the start of a row a link names is read from it here.
+const host = vi.hoisted(() => ({ start: undefined as undefined | ((id: string) => boolean) }));
+
+vi.mock('@commise/ui/scroll-host', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('@commise/ui/scroll-host')>()),
+    useOptionalScrollHost: () => (host.start === undefined ? null : { scrollToStart: host.start }),
+}));
 // Rows 6 and 7's panel searches the line's words through the progressive food search. This suite pins the panel's frame,
 // not that search, which `RecipeIngredientsFields.rowEditor` and `rowEditor.integration` own.
 vi.mock('../../hooks/ingredientSuggestionSource.js', () => ({
@@ -63,6 +72,7 @@ vi.mock('../../hooks/ingredientSuggestionSource.js', () => ({
 
 beforeEach(() => {
     layout.container = 'narrow';
+    host.start = undefined;
 });
 afterEach(cleanup);
 
@@ -959,6 +969,35 @@ describe('RecipeIngredientsFields (web) — arriving at a row from a link', () =
         await user.click(screen.getByRole('button', { name: en.rowCancel }));
 
         await vi.waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: /^Edit / })));
+    });
+
+    /**
+     * The container class is read after the first layout, so the page's own jump on mount runs while the editor is still
+     * a sheet: the row it scrolls to is one line tall. The inline editor then mounts and the row grows by hundreds of
+     * pixels, which the one scroll never saw (Done and Cancel under the action bar at 200% text). The field group asks
+     * for the row's start again once the editor is inline, so the scroll is computed over the row as it ends up.
+     */
+    it('asks the host for the row’s start again once the inline editor has mounted, and not while it is a sheet', () => {
+        const start = vi.fn<(id: string) => boolean>(() => true);
+        host.start = start;
+        const view = render(<StatefulLeaf initial={[RICE, SALT]} initialLine={KEY_OF_SECOND} />);
+
+        expect(start).not.toHaveBeenCalled();
+
+        layout.container = 'regular';
+        view.rerender(<StatefulLeaf initial={[RICE, SALT]} initialLine={KEY_OF_SECOND} />);
+
+        expect(start).toHaveBeenCalledExactlyOnceWith(ingredientRowId(KEY_OF_SECOND));
+        expect(within(rowItems()[1]!).getByLabelText(en.rowAmountLabel)).toBeTruthy();
+    });
+
+    it('does not ask for a start of its own when no row was named', () => {
+        const start = vi.fn<(id: string) => boolean>(() => true);
+        host.start = start;
+        layout.container = 'regular';
+        render(<StatefulLeaf initial={[RICE, SALT]} />);
+
+        expect(start).not.toHaveBeenCalled();
     });
 
     it('opens nothing without an arrival', () => {

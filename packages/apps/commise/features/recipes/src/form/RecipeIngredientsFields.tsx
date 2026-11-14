@@ -159,6 +159,24 @@ export const RecipeIngredientsFields: FC<RecipeIngredientsFieldsProps> = (props)
             revealArrival(arrivedKey);
         }
     }, [arrivedKey]);
+
+    // A link names a row, and the page scrolls to it on mount. The container class is read after the first layout, so that
+    // scroll sees a row one line tall, with its editor still a sheet; the inline editor mounts a moment later and the row
+    // grows. So once the editor is inline, the row's start is asked for again, over the row as it ends up
+    // (`ScrollHost.scrollToStart`). Not timed: it is the editor mounting that moves the row's end.
+    const linkedKey = props.arrivalLine?.kind === 'found' ? props.arrivalLine.key : undefined;
+    const settleLinkedRow = useEffectEvent((): void => {
+        if (linkedKey !== undefined && model.openRow?.line.key === linkedKey) {
+            scrollHost?.scrollToStart(ingredientRowId(linkedKey));
+        }
+    });
+
+    // @sideEffect Asks the scroll host to place the linked row again when the editor becomes inline.
+    useEffect(() => {
+        if (inline) {
+            settleLinkedRow();
+        }
+    }, [inline]);
     // The sheet keeps its row while it closes; the key is kept, never the row object.
     const sheetKey = useLastDefined(model.openRow?.line.key);
     const sheetRow = rows.find((row) => row.line.key === sheetKey);

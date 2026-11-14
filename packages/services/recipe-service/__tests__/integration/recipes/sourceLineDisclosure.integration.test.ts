@@ -214,7 +214,13 @@ beforeAll(async () => {
                     transaction: async (work: (tx: unknown) => Promise<unknown>) => work({ __tx: true }),
                     lockAndCountPrivateSlots: async () => 0,
                     countPrivateSlots: async () => 0,
-                    lockSlotFacts: async () => ({ visibility: stored.visibility, status: stored.status }),
+                    // The row lock reads the slot AND source facts (#212): the same stored row findRowById holds.
+                    lockSlotFacts: async () => ({
+                        visibility: stored.visibility,
+                        status: stored.status,
+                        sourceType: stored.sourceType,
+                        sourceKind: stored.sourceKind,
+                    }),
                     clearPublicFoodOwners: async () => undefined,
                     privateFoodLines: async () => [],
                 },

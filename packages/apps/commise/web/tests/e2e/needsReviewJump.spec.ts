@@ -48,16 +48,32 @@ const doubtedLine = {
     sourceLine: SOURCE_LINE,
 } as const;
 const DOUBTED_POSITION = 1;
+
+/** A recipe line as the mock serves it. */
+type Ingredient = typeof healthyLine | typeof doubtedLine | typeof longestDoubtedLine;
+
+/**
+ * The doubted line with the longest content its editor can hold: a range (two Amount fields), a note and a preparation,
+ * and a long "You wrote" line. It is the editor at its tallest, for the edge of the inline rule.
+ */
+const longestDoubtedLine = {
+    ...doubtedLine,
+    quantity: { kind: 'range', low: 2, high: 3 },
+    note: 'the smoked kind, not the sweet, from the new jar that was opened last week',
+    preparation: 'toasted in a dry pan until fragrant, then ground fine',
+    sourceLine:
+        '2 to 3 tsp smoked paprika (the Spanish kind, pimentón de la Vera, not the sweet one), toasted in a dry pan until fragrant and then ground fine, or to taste, plus more for the top',
+} as const;
 const LINK_NAME = 'Needs review: paprika';
 
 /** The recipe the owner opens: a healthy line, then the doubted one. */
-const ownerRecipe = (viewerId: string) =>
+const ownerRecipe = (viewerId: string, ingredients: readonly Ingredient[]) =>
     makeRecipeDetail({
         id: RECIPE_ID,
         ownerId: viewerId,
         title: 'Jump Probe',
         currentVersion: VERSION,
-        ingredients: [healthyLine, doubtedLine],
+        ingredients: [...ingredients],
     });
 
 /** Where the row editor opens at each width: the sheet on a phone, inline in the row from 600. */
@@ -79,10 +95,10 @@ async function openEditor(page: Page, dialogs: 0 | 1): Promise<Locator> {
 }
 
 /** Sign in, mock the API with the owner's two-line recipe, and open its detail. */
-async function openDetail(page: Page): Promise<void> {
+async function openDetail(page: Page, ingredients: readonly Ingredient[] = [healthyLine, doubtedLine]): Promise<void> {
     await signInWithTicket(page);
     const viewerId = await readViewerAppId(page);
-    await mockRecipeApi(page, { viewerId, recipes: [ownerRecipe(viewerId)] });
+    await mockRecipeApi(page, { viewerId, recipes: [ownerRecipe(viewerId, ingredients)] });
     await page.goto(route(`/recipes/${RECIPE_ID}`));
     await expect(page.getByRole('heading', { name: 'Jump Probe' })).toBeVisible();
 }
@@ -299,54 +315,223 @@ async function reachViolations(
 }
 
 /**
- * After the jump the row editor's Done and Cancel must be reachable: fully inside the viewport, below the sticky header
- * and above the bottom action bar. This is the scroll contract the editor owes an arrival at a line; It pins the scroll host's
- * rule: the row's top under the header, or, when the row and its editor do not fit, Done and Cancel above the bar.
+ * A cook's larger text, in force from the first paint as a browser text-size setting is. An init script runs before
+ * <html> exists, and hydration rewrites its attributes, so the size is applied as soon as <html> appears and again
+ * whenever a style attribute changes, with `important` over any stylesheet.
  */
-for (const [width, textScale] of [
-    [1280, 1],
-    [1024, 1],
-    [768, 1],
-    [1280, 2],
-    [768, 2],
-] as const) {
-    test.describe(`after the jump at ${width} px, text at ${textScale * 100}%`, () => {
+async function applyTextScale(page: Page, scale: number): Promise<void> {
+    await page.addInitScript((factor) => {
+        const apply = (): void => {
+            document.documentElement?.style.setProperty('font-size', `${String(factor * 100)}%`, 'important');
+        };
+
+        apply();
+        new MutationObserver(apply).observe(document, {
+            childList: true,
+            subtree: true,
+            attributes: true,
+            attributeFilter: ['style'],
+        });
+    }, scale);
+}
+
+/** The text size is really in force before anything is measured: a case that ran at 100% proved nothing. */
+async function expectRootFontSize(page: Page, scale: number): Promise<void> {
+    await expect
+        .poll(() => page.evaluate(() => getComputedStyle(document.documentElement).fontSize))
+        .toBe(`${String(16 * scale)}px`);
+}
+
+/**
+ * After the jump the row editor's Done and Cancel must be reachable: fully inside the viewport, below the sticky header
+ * and above the bottom action bar. This is the scroll contract the editor owes an arrival at a line when the editor is
+ * INLINE, which it is only while the window has room for it (`inlineEditorFit.ts`): the row's top under the header, or,
+ * when the row and its editor do not fit, Done and Cancel above the bar.
+ */
+for (const width of [1280, 1024, 768]) {
+    test.describe(`after the jump at ${width} px, text at 100%`, () => {
         test.use({ viewport: { width, height: 800 } });
 
         test('Done and Cancel sit between the sticky header and the bottom action bar', async ({ page }) => {
-            // A cook's larger text is in force from the first paint, as a browser text-size setting is: set before load,
-            // so the jump measures the page the cook sees.
-            // An init script runs before <html> exists, and hydration rewrites its attributes. So the size is applied as soon
-            // as <html> appears and again whenever a style attribute changes, with `important` over any stylesheet.
-            await page.addInitScript((scale) => {
-                const apply = (): void => {
-                    document.documentElement?.style.setProperty('font-size', `${String(scale * 100)}%`, 'important');
-                };
-
-                apply();
-                new MutationObserver(apply).observe(document, {
-                    childList: true,
-                    subtree: true,
-                    attributes: true,
-                    attributeFilter: ['style'],
-                });
-            }, textScale);
+            await applyTextScale(page, 1);
             await openDetail(page);
             await page.getByRole('link', { name: LINK_NAME }).click();
             const editor = await openEditor(page, 0);
             const viewport = page.viewportSize();
 
             expect(viewport).not.toBeNull();
-            // The text size is really in force before anything is measured: a case that ran at 100% proved nothing.
-            await expect
-                .poll(() => page.evaluate(() => getComputedStyle(document.documentElement).fontSize))
-                .toBe(`${String(16 * textScale)}px`);
+            await expectRootFontSize(page, 1);
 
             // The jump's scroll is smooth and still moving when the page first settles, so the boxes are read until they
             // agree with the contract and have stopped moving, never once at the first moment they exist.
             await expect
                 .poll(async () => reachViolations(page, editor, viewport), {
                     message: 'Done and Cancel are reachable once the jump has settled',
+                })
+                .toEqual([]);
+        });
+    });
+}
+
+/**
+ * At 200% text the inline editor does not fit between the header and the action bar, so a link opens the SAME editor as
+ * the sheet, whose Done and Cancel are pinned: the reason ("Needs review") shows at its top, and Done and Cancel stay in
+ * view while a field has focus. Closing it by Done returns focus to the edited row's open control.
+ */
+for (const [width, pinned] of [
+    [1280, true],
+    [1024, true],
+    // Here the footer is `unpinned`: at this text size the title row and the actions take more than half of the sheet,
+    // and the sheet's own rule (`isFooterUnpinned`, owner ruling "unpin past a limit") lets the actions scroll with the
+    // content. The exit (the title row's Close) stays pinned, and Done and Cancel are reached by scrolling the sheet.
+    [768, false],
+] as const) {
+    test.describe(`the jump at ${width} px, text at 200%`, () => {
+        test.use({ viewport: { width, height: 800 } });
+
+        test(`opens as the sheet, with the reason on top and Done and Cancel ${pinned ? 'in view' : 'a scroll away'} while Amount has focus`, async ({
+            page,
+        }) => {
+            await applyTextScale(page, 2);
+            await openDetail(page);
+            await page.getByRole('link', { name: LINK_NAME }).click();
+            const sheet = await openEditor(page, 1);
+
+            await expectRootFontSize(page, 2);
+
+            const notice = reviewNotice(sheet);
+            const amount = sheet.getByLabel('Amount', { exact: true });
+            const done = sheet.getByRole('button', { name: 'Done', exact: true });
+            const cancel = sheet.getByRole('button', { name: 'Cancel', exact: true });
+
+            await expect(notice).toBeVisible();
+            await expect(notice).toBeInViewport();
+            await amount.focus();
+            await expect(amount).toBeFocused();
+
+            if (pinned) {
+                await expect(done).toBeInViewport();
+                await expect(cancel).toBeInViewport();
+            } else {
+                await done.scrollIntoViewIfNeeded();
+                await expect(done).toBeInViewport();
+                await expect(cancel).toBeInViewport();
+            }
+        });
+
+        test('Done returns focus to the edited row’s open control', async ({ page }) => {
+            await applyTextScale(page, 2);
+            await openDetail(page);
+            await page.getByRole('link', { name: LINK_NAME }).click();
+            const sheet = await openEditor(page, 1);
+
+            await sheet.getByRole('button', { name: 'Done', exact: true }).click();
+
+            await expect(page.getByRole('dialog')).toHaveCount(0);
+            await expect(page.getByRole('button', { name: /^Edit .*paprika/u })).toBeFocused();
+        });
+    });
+}
+
+test.describe('the jump on a phone', () => {
+    test.use({ viewport: { width: 390, height: 844 } });
+
+    test('Done returns focus to the edited row’s open control', async ({ page }) => {
+        await openDetail(page);
+        await page.getByRole('link', { name: LINK_NAME }).click();
+        const sheet = await openEditor(page, 1);
+
+        await sheet.getByRole('button', { name: 'Done', exact: true }).click();
+
+        await expect(page.getByRole('dialog')).toHaveCount(0);
+        await expect(page.getByRole('button', { name: /^Edit .*paprika/u })).toBeFocused();
+    });
+});
+
+/**
+ * The jump flow raises no console error, warning or page error of its own. Dev builds show a "N issues" badge for these, and
+ * a hydration mismatch or a key warning from the editor would be one. Known third-party notices are named, not skipped by
+ * type.
+ */
+const KNOWN_NOTICES: readonly RegExp[] = [
+    /Clerk has been loaded with development keys/u,
+    /was detected as the Largest Contentful Paint/u,
+    // The browser's own line for a failed fetch names no URL: the failed responses below are judged by URL instead.
+    /^Failed to load resource/u,
+];
+
+/**
+ * Requests this suite's API mock does not answer, so the dev server answers 404: the connectivity probe and the food
+ * sources list, which the page asks for whatever it opens. They are the environment's, not the jump's.
+ */
+const UNMOCKED_REQUESTS: readonly RegExp[] = [/\/en\/health$/u, /\/api\/v1\/foods\/sources$/u];
+
+for (const frame of FRAMES) {
+    test.describe(`the jump flow logs no errors — ${frame.name}`, () => {
+        test.use({ viewport: frame.viewport });
+
+        test('from the recipe page to Cancel', async ({ page }) => {
+            const logged: string[] = [];
+
+            page.on('console', (message) => {
+                if (
+                    ['error', 'warning'].includes(message.type()) &&
+                    !KNOWN_NOTICES.some((known) => known.test(message.text()))
+                ) {
+                    logged.push(`${message.type()}: ${message.text()}`);
+                }
+            });
+            page.on('pageerror', (error) => logged.push(`pageerror: ${error.message}`));
+            page.on('response', (response) => {
+                if (response.status() >= 400 && !UNMOCKED_REQUESTS.some((known) => known.test(response.url()))) {
+                    logged.push(`${String(response.status())} ${response.url()}`);
+                }
+            });
+
+            await openDetail(page);
+            // Only the flow under test is judged: whatever the pages before it logged is not this feature's.
+            logged.length = 0;
+            await page.getByRole('link', { name: LINK_NAME }).click();
+            const editor = await openEditor(page, frame.dialogs);
+            await editor.getByRole('button', { name: 'Cancel', exact: true }).click();
+
+            expect(logged).toEqual([]);
+        });
+    });
+}
+
+/**
+ * The edge of the inline rule (`inlineEditorFit.ts`): a window one pixel taller than the threshold, at the cook's text
+ * size, with the editor at its tallest. The editor must still be inline, its reason ("Needs review") on top, and Done and
+ * Cancel in view between the header and the action bar. This is where the chosen threshold is measured.
+ */
+// Mirrors INLINE_EDITOR_MIN_VIEWPORT_REM in @commise/features-recipes `form/inlineEditorFit.ts`, which no package export
+// exposes. Change both together: if they drift, this case tests a window the rule never decides at.
+const INLINE_THRESHOLD_REM = 46;
+
+for (const textScale of [1, 2]) {
+    test.describe(`the jump at the inline threshold, text at ${textScale * 100}%`, () => {
+        test.use({ viewport: { width: 1280, height: INLINE_THRESHOLD_REM * 16 * textScale + 1 } });
+
+        test('opens inline with the longest content, the reason on top and Done and Cancel in view', async ({
+            page,
+        }) => {
+            await applyTextScale(page, textScale);
+            await openDetail(page, [healthyLine, longestDoubtedLine]);
+            await page.getByRole('link', { name: LINK_NAME }).click();
+            const editor = await openEditor(page, 0);
+            const viewport = page.viewportSize();
+
+            expect(viewport).not.toBeNull();
+            await expectRootFontSize(page, textScale);
+            // The range's second bound is drawn: the editor holds the content this case is about.
+            await expect(editor.getByLabel(/^Amount/u)).toHaveCount(2);
+            await expect(reviewNotice(editor)).toBeVisible();
+            await expect(reviewNotice(editor)).toBeInViewport();
+
+            await expect
+                .poll(async () => reachViolations(page, editor, viewport), {
+                    message: 'Done and Cancel are reachable at the inline threshold',
                 })
                 .toEqual([]);
         });

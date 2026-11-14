@@ -1590,3 +1590,88 @@ describe('RecipeIngredientsFields (web) — a stand-in row that holds the cook�
         expect(screen.queryByText(/Counted as/u)).toBeNull();
     });
 });
+
+/**
+ * From a wide container the row editor opens inline ONLY when the window is tall enough for it, in the cook's own text
+ * size (`inlineEditorFit.ts`); otherwise it opens as the sheet, whose Done and Cancel stay pinned. The choice is made when
+ * the editor opens and held until it closes, so a resize or a text-size change under an open editor never swaps its frame.
+ */
+describe('RecipeIngredientsFields (web) — inline only when it fits', () => {
+    const SALT: UnkeyedFormIngredient = { ...RICE, ingredientId: 'b', name: 'Salt' };
+    const KEY_OF_SECOND = withLineKeys([RICE, SALT])[1]!.key;
+
+    const setWindow = (height: number, rootFontPx: number): void => {
+        Object.defineProperty(window, 'innerHeight', { configurable: true, value: height });
+        document.documentElement.style.fontSize = `${String(rootFontPx)}px`;
+        window.dispatchEvent(new Event('resize'));
+    };
+
+    afterEach(() => {
+        document.documentElement.style.fontSize = '';
+        Object.defineProperty(window, 'innerHeight', { configurable: true, value: 768 });
+    });
+
+    it('opens inline in a tall window at the default text size', async () => {
+        layout.container = 'regular';
+        setWindow(800, 16);
+        const user = userEvent.setup();
+        render(<StatefulLeaf initial={[RICE, SALT]} />);
+
+        await user.click(screen.getByRole('button', { name: 'Edit 300 g Salt' }));
+
+        expect(screen.queryByRole('dialog')).toBeNull();
+        expect(within(rowItems()[1]!).getByLabelText(en.rowAmountLabel)).toBeTruthy();
+    });
+
+    it('opens the sheet from a wide container when the cook’s text size leaves no room for it', async () => {
+        layout.container = 'regular';
+        setWindow(800, 32);
+        const user = userEvent.setup();
+        render(<StatefulLeaf initial={[RICE, SALT]} />);
+
+        await user.click(screen.getByRole('button', { name: 'Edit 300 g Salt' }));
+
+        const sheet = screen.getByRole('dialog', { name: 'Salt' });
+
+        expect(within(sheet).getByLabelText(en.rowAmountLabel)).toBeTruthy();
+        expect(within(sheet).getByRole('button', { name: en.rowDone })).toBeTruthy();
+    });
+
+    it('opens a linked row as the sheet too, when there is no room', () => {
+        layout.container = 'regular';
+        setWindow(800, 32);
+        render(<StatefulLeaf initial={[RICE, SALT]} initialLine={KEY_OF_SECOND} />);
+
+        expect(screen.getByRole('dialog', { name: 'Salt' })).toBeTruthy();
+    });
+
+    it('opens the sheet in a short window at the default text size', async () => {
+        layout.container = 'regular';
+        setWindow(600, 16);
+        const user = userEvent.setup();
+        render(<StatefulLeaf initial={[RICE, SALT]} />);
+
+        await user.click(screen.getByRole('button', { name: 'Edit 300 g Salt' }));
+
+        expect(screen.getByRole('dialog', { name: 'Salt' })).toBeTruthy();
+    });
+
+    it('keeps an open editor in the frame it opened in, and chooses again at the next opening', async () => {
+        layout.container = 'regular';
+        setWindow(800, 16);
+        const user = userEvent.setup();
+        render(<StatefulLeaf initial={[RICE, SALT]} />);
+
+        await user.click(screen.getByRole('button', { name: 'Edit 300 g Salt' }));
+        act(() => setWindow(800, 32));
+
+        // The text got larger under the open editor: it stays inline, with its fields where the cook left them.
+        expect(screen.queryByRole('dialog')).toBeNull();
+        expect(within(rowItems()[1]!).getByLabelText(en.rowAmountLabel)).toBeTruthy();
+
+        await user.click(screen.getByRole('button', { name: en.rowDone }));
+        await user.click(screen.getByRole('button', { name: 'Edit 300 g Salt' }));
+
+        expect(screen.getByRole('dialog', { name: 'Salt' })).toBeTruthy();
+    });
+});

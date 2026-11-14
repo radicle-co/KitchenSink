@@ -60,12 +60,17 @@ vi.mock('../../hooks/ingredientSuggestionSource.js', () => ({
     }),
 }));
 // react-native-web does not implement `sendAccessibilityEvent`, which the sheets call to move the screen-reader cursor.
+// The window is as tall as a tablet's unless a case sets it: react-native-web in jsdom has no height at all, and the row
+// editor opens inline only when the screen has room for it (`inlineEditorFit.ts`).
+const screenSize = vi.hoisted(() => ({ height: 900 }));
+
 vi.mock('react-native', async (importOriginal) => {
     const actual = await importOriginal<typeof import('react-native')>();
 
     return {
         ...actual,
         AccessibilityInfo: { ...actual.AccessibilityInfo, sendAccessibilityEvent: vi.fn() },
+        useWindowDimensions: () => ({ ...actual.useWindowDimensions(), height: screenSize.height }),
     };
 });
 
@@ -1230,5 +1235,36 @@ describe('RecipeIngredientsFields (native) — a stand-in row that holds the coo
         expect(screen.getByText(standIns.privateFood)).toBeTruthy();
         expect(screen.getByText(en.rowNotCounted)).toBeTruthy();
         expect(screen.queryByText(/Counted as/u)).toBeNull();
+    });
+});
+
+/**
+ * A tablet's row editor opens inline only when the screen has room for it, as on the web (`inlineEditorFit.ts`): a short
+ * screen, or a large text size, opens the same sheet a phone gets, with Done and Cancel pinned.
+ */
+describe('RecipeIngredientsFields (native) — a tablet’s editor is inline only when it fits', () => {
+    afterEach(() => {
+        screenSize.height = 900;
+    });
+
+    it('opens the sheet on a wide container whose screen is too short for the inline editor', () => {
+        layout.container = 'regular';
+        screenSize.height = 400;
+        render(<StatefulLeaf initial={[RICE]} />);
+
+        press('Edit 300 g Arborio rice');
+
+        expect(dialogTitled('Arborio rice')).toBeTruthy();
+    });
+
+    it('opens the editor under its row on a tall screen', () => {
+        layout.container = 'regular';
+        screenSize.height = 900;
+        render(<StatefulLeaf initial={[RICE]} />);
+
+        press('Edit 300 g Arborio rice');
+
+        expect(queryDialogTitled('Arborio rice')).toBeNull();
+        expect(screen.getByLabelText(en.rowAmountLabel)).toBeTruthy();
     });
 });

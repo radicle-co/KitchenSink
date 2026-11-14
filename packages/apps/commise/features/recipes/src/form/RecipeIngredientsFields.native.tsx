@@ -49,6 +49,7 @@ import { trailingEntryFieldOf } from './trailingEntryField.js';
 import type { SectionAddView } from './useIngredientGroups.js';
 import { usePasteLayout } from './usePasteLayout.js';
 import { useIngredientsFields, type IngredientsFieldsModel } from './useIngredientsFields.js';
+import { useRoomForInlineEditor } from './useRoomForInlineEditor.js';
 
 /** The dp between a group's list and the add field under it: the stack lays it out, and an arrival adds it. */
 const LIST_TO_FIELD_DP = nativeTokens.spacing[1];
@@ -153,8 +154,10 @@ export const RecipeIngredientsFields: FC<RecipeIngredientsFieldsProps> = (props)
             acknowledgeRefusal();
         }
     }, [pendingFocusRequested]);
-    // §7.12: a sheet on a phone, inline on a tablet (from a 600 pt content width).
-    const inline = useMainContainerClass() !== 'narrow';
+    // §7.12: a sheet on a phone, inline on a tablet (from a 600 pt content width) when the screen has room for it
+    // (`inlineEditorFit.ts`): otherwise the same sheet, as on the web.
+    const wideContainer = useMainContainerClass() !== 'narrow';
+    const inline = useRoomForInlineEditor(model.openRow !== undefined) && wideContainer;
     // The add field when no run holds it: the empty section, or a list whose rows are all being read.
     const addFieldHere =
         model.sections.length === 0 && !model.emptyGroups.some((group) => group.addHere.kind === 'field');
@@ -165,7 +168,7 @@ export const RecipeIngredientsFields: FC<RecipeIngredientsFieldsProps> = (props)
                 {editor.pasteList}
             </Button>
         ) : null;
-    const pasteBesideField = pasteButton !== null && addFieldHere && inline;
+    const pasteBesideField = pasteButton !== null && addFieldHere && wideContainer;
     // ⛔ NO LINE DRAWN TWICE: the draft lines the paste list owns are drawn by its matched list (`PasteMatchedBlock`).
     const { wide, sections, matching } = usePasteLayout(model.sections, paste);
     const rows = sections.flatMap((section) => section.rows);

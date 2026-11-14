@@ -51,6 +51,7 @@ import { trailingEntryFieldOf } from './trailingEntryField.js';
 import type { SectionAddView } from './useIngredientGroups.js';
 import { usePasteLayout } from './usePasteLayout.js';
 import { useIngredientsFields, type IngredientsFieldsModel } from './useIngredientsFields.js';
+import { useRoomForInlineEditor } from './useRoomForInlineEditor.js';
 
 /** The one add field, with its reading, its notices and its sentences (§7.5.3). */
 const AddField: FC<{ readonly model: IngredientsFieldsModel; readonly trailingAction?: ReactNode }> = ({
@@ -130,8 +131,10 @@ export const RecipeIngredientsFields: FC<RecipeIngredientsFieldsProps> = (props)
     const { nutrition, rowEditor, paste } = props;
     const reading = paste?.reading ?? [];
     const { authoredFood, details } = rowEditor;
-    // §7.5.2: the row editor is a sheet below a 600 container and inline from 600.
-    const inline = useMainContainerClass() !== 'narrow';
+    // §7.5.2: the row editor is a sheet below a 600 container and inline from 600, when the window has room for it
+    // (`inlineEditorFit.ts`): otherwise the same sheet, whose Done and Cancel stay pinned.
+    const wideContainer = useMainContainerClass() !== 'narrow';
+    const inline = useRoomForInlineEditor(model.openRow !== undefined) && wideContainer;
     // The add field when no run holds it: the empty section, or a list whose rows are all being read.
     const addFieldHere =
         model.sections.length === 0 && !model.emptyGroups.some((group) => group.addHere.kind === 'field');
@@ -142,7 +145,7 @@ export const RecipeIngredientsFields: FC<RecipeIngredientsFieldsProps> = (props)
                 {editor.pasteList}
             </Button>
         ) : null;
-    const pasteBesideField = pasteButton !== null && addFieldHere && inline;
+    const pasteBesideField = pasteButton !== null && addFieldHere && wideContainer;
     // ⛔ NO LINE DRAWN TWICE: the draft lines the paste list owns are drawn by its matched list (`PasteMatchedBlock`).
     const { wide, sections, matching } = usePasteLayout(model.sections, paste);
     const rows = sections.flatMap((section) => section.rows);

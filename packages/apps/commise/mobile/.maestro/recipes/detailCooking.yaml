@@ -27,6 +27,9 @@ appId: ${APP_ID}
       timeout: 20000
       centerElement: true
 - tapOn: '${E2E_RECIPE_LAMB}'
+# The detail's Back disc is named for where it goes, so only the opened page has it. A tap that landed elsewhere (the
+# search field, with the keyboard up) fails here, at the step that missed.
+- assertVisible: 'Back to My recipes'
 # DOWN: recipe detail opens at its top, and at the largest text the action row sits below the fold.
 - runFlow:
       file: common/scrollIntoTapView.yaml

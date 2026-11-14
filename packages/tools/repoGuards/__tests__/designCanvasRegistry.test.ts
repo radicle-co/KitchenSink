@@ -17,19 +17,21 @@ import { z } from 'zod';
 
 const CANVAS_DIR = join(__dirname, '..', '..', '..', '..', 'docs', 'design', 'canvases');
 
-const canvasSchema = z.object({
-    id: z.string().min(1),
-    title: z.string().min(1),
-    url: z.string().min(1),
-    kind: z.enum(['designSystem', 'page', 'feature', 'unused']),
-    status: z.enum(['current', 'archive', 'unused']),
-    source: z.enum(['repo', 'live', 'none']),
-    platform: z.enum(['web', 'mobile', 'combined']).optional(),
-    subject: z.string().min(1).optional(),
-    note: z.string().optional(),
-});
+const canvasSchema = z
+    .object({
+        id: z.string().min(1),
+        title: z.string().min(1),
+        url: z.string().min(1),
+        kind: z.enum(['designSystem', 'page', 'feature', 'unused']),
+        status: z.enum(['current', 'archive', 'unused']),
+        source: z.enum(['repo', 'live', 'none']),
+        platform: z.enum(['web', 'mobile', 'combined']).optional(),
+        subject: z.string().min(1).optional(),
+        note: z.string().optional(),
+    })
+    .strict();
 
-const registrySchema = z.object({ canvases: z.array(canvasSchema) });
+const registrySchema = z.object({ canvases: z.array(canvasSchema) }).strict();
 
 type CanvasEntry = z.infer<typeof canvasSchema>;
 
@@ -216,5 +218,11 @@ describe('registryProblems', () => {
 
     it('rejects an entry with an unknown status', () => {
         expect(() => registrySchema.parse({ canvases: [{ ...designSystem, status: 'draft' }] })).toThrow();
+    });
+
+    // A misspelt key ("plaform") would otherwise be dropped silently, and the entry would read as having no platform.
+    it('rejects an entry or a registry with a key the README does not name', () => {
+        expect(() => registrySchema.parse({ canvases: [{ ...designSystem, plaform: 'web' }] })).toThrow();
+        expect(() => registrySchema.parse({ canvases: [designSystem], version: 2 })).toThrow();
     });
 });

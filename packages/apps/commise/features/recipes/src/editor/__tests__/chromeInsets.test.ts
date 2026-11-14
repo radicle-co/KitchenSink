@@ -5,7 +5,13 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { chromeInsetsOf, FOCUS_CLEARANCE_PX, readChromeInsets, scrollPaddingOf } from '../chromeInsets.js';
+import {
+    chromeInsetsOf,
+    FOCUS_CLEARANCE_PX,
+    readChromeInsets,
+    scrollPaddingOf,
+    topChromeClearanceOf,
+} from '../chromeInsets.js';
 
 describe('chromeInsetsOf', () => {
     it.each([
@@ -87,21 +93,40 @@ describe('readChromeInsets', () => {
  */
 describe('scrollPaddingOf', () => {
     it('clears the top chrome, and a pinned bar plus the clearance', () => {
-        expect(scrollPaddingOf({ topBottom: 100, barPinned: true, barHeight: 72 })).toEqual({
+        expect(scrollPaddingOf({ topClearance: 100, barPinned: true, barHeight: 72 })).toEqual({
             top: 100,
             bottom: 72 + FOCUS_CLEARANCE_PX,
         });
     });
 
     it('asks nothing for a bar that scrolls with the page: it is in the flow, not over it', () => {
-        expect(scrollPaddingOf({ topBottom: 100, barPinned: false, barHeight: 72 })).toEqual({ top: 100, bottom: 0 });
+        expect(scrollPaddingOf({ topClearance: 100, barPinned: false, barHeight: 72 })).toEqual({
+            top: 100,
+            bottom: 0,
+        });
     });
 
     it('asks nothing before the chrome is measured', () => {
-        expect(scrollPaddingOf({ topBottom: 0, barPinned: true, barHeight: 0 })).toEqual({ top: 0, bottom: 0 });
+        expect(scrollPaddingOf({ topClearance: 0, barPinned: true, barHeight: 0 })).toEqual({ top: 0, bottom: 0 });
     });
 
     it('never asks for a negative top (a band scrolled out of view)', () => {
-        expect(scrollPaddingOf({ topBottom: -40, barPinned: true, barHeight: 72 }).top).toBe(0);
+        expect(scrollPaddingOf({ topClearance: -40, barPinned: true, barHeight: 72 }).top).toBe(0);
+    });
+});
+
+/**
+ * The clearance the document's scroll padding asks of the top: the HEIGHT of every box stuck at the top, summed, so it is
+ * the same at every scroll position (a box's bottom edge is not, before it has stuck).
+ */
+describe('topChromeClearanceOf', () => {
+    it.each([
+        { name: 'the header alone', heights: [56], clearance: 56 },
+        { name: 'the header and the section bar', heights: [56, 44], clearance: 100 },
+        { name: 'a box the width hides (height 0) takes no part', heights: [56, 0, 44], clearance: 100 },
+        { name: 'nothing mounted yet', heights: [], clearance: 0 },
+        { name: 'a negative height is no clearance', heights: [56, -10], clearance: 56 },
+    ])('$name', ({ heights, clearance }) => {
+        expect(topChromeClearanceOf(heights)).toBe(clearance);
     });
 });

@@ -77,7 +77,7 @@ vi.mock('../../hooks/ingredientSuggestionSource.js', () => ({
 }));
 
 /**
- * Tall enough for the inline row editor at the default text size (`INLINE_EDITOR_MIN_VIEWPORT_REM`, 43 rem = 688 px), so
+ * Tall enough for the inline row editor at the default text size (`INLINE_EDITOR_MIN_VIEWPORT_REM`, 46 rem = 736 px), so
  * a test that means "inline" gets it, set here so no test leans on jsdom's own height.
  */
 const TALL_WINDOW_PX = 800;

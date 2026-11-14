@@ -14,14 +14,15 @@ import { route } from './basePath';
 
 /**
  * A window the row editor opens INLINE in: 50 rem high and, with the sidebar, a 60 rem container at the default text size,
- * both over the 43 rem that `INLINE_EDITOR_MIN_VIEWPORT_REM` and `INLINE_EDITOR_MIN_CONTAINER_REM` in `inlineEditorFit.ts` ask for. A spec that
- * means the inline frame sets this. (Playwright's 1280 x 720 default is 45 rem, so it is inline too, but a spec never
- * leans on it.)
+ * over the 46 rem high and 43 rem wide that `INLINE_EDITOR_MIN_VIEWPORT_REM` and `INLINE_EDITOR_MIN_CONTAINER_REM` in
+ * `inlineEditorFit.ts` ask for. A spec that
+ * means the inline frame sets this. (Playwright's 1280 x 720 default is 45 rem, under the 46 rem inline height, so a spec that
+ * leans on it gets the sheet.)
  */
 export const INLINE_EDITOR_VIEWPORT = { width: 1280, height: 800 } as const;
 
 /**
- * A short laptop window: 37.5 rem high at the default text size, clearly under the 43 rem inline height, so the row
+ * A short laptop window: 37.5 rem high at the default text size, clearly under the 46 rem inline height, so the row
  * editor opens as the sheet. A spec that means the sheet on a wide screen sets it.
  */
 export const SHEET_EDITOR_VIEWPORT = { width: 1280, height: 600 } as const;
@@ -159,6 +160,52 @@ export async function editorTopChrome(
 
         return { x: header?.left ?? 0, y: top, width: header?.width ?? 0, height: bottom - top };
     }, TOP_CHROME_IDS);
+}
+
+/** What {@link topChromeBottom} measured: the band's lowest edge, and how many boxes made it. */
+export interface TopChrome {
+    /** The largest bottom edge, in CSS px, of every sticky or fixed box anchored at the top that overlaps the target. */
+    readonly bottom: number;
+    /** How many boxes were measured: a check that measured nothing must not pass. */
+    readonly count: number;
+}
+
+/**
+ * Everything drawn over the top of the page above a target: the largest bottom edge of every `sticky` or `fixed` element
+ * whose `top` is set (so it is anchored at the top, which leaves the action bar out), that has a height, and that
+ * overlaps the target horizontally (which leaves the side rail out). Read from computed styles, so it needs no name for
+ * the header or the section tabs, and a new sticky box is counted without a change here.
+ *
+ * @param page - The page.
+ * @param target - The box the chrome must clear.
+ * @returns The lowest edge, and how many boxes made it.
+ */
+export async function topChromeBottom(page: Page, target: Locator): Promise<TopChrome> {
+    const handle = await target.elementHandle();
+
+    if (handle === null) {
+        return { bottom: Number.NaN, count: 0 };
+    }
+
+    return page.evaluate((node) => {
+        const reach = node.getBoundingClientRect();
+        let bottom = Number.NEGATIVE_INFINITY;
+        let count = 0;
+
+        for (const element of document.querySelectorAll('*')) {
+            const style = getComputedStyle(element);
+            const rect = element.getBoundingClientRect();
+            const anchored = ['sticky', 'fixed'].includes(style.position) && style.top !== 'auto';
+            const overlaps = rect.left < reach.right && rect.right > reach.left;
+
+            if (anchored && rect.height > 0 && overlaps && !element.contains(node)) {
+                bottom = Math.max(bottom, rect.bottom);
+                count += 1;
+            }
+        }
+
+        return { bottom, count };
+    }, handle);
 }
 
 /** The text, escaped for a `RegExp`. */

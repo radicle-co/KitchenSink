@@ -19,24 +19,24 @@ const TALL = 3000;
 describe('editorFitsInline', () => {
     // The measured values (needsReviewJump.spec.ts, 2026-11-14), written out here so a change to a constant is a decision
     // in two places and not one that passes by deriving its own expectation.
-    it('pins the measured thresholds at 43 rem high and 43 rem wide', () => {
-        expect(INLINE_EDITOR_MIN_VIEWPORT_REM).toBe(43);
+    it('pins the measured thresholds at 46 rem high and 43 rem wide', () => {
+        expect(INLINE_EDITOR_MIN_VIEWPORT_REM).toBe(46);
         expect(INLINE_EDITOR_MIN_CONTAINER_REM).toBe(43);
     });
 
     it.each([
-        ['exactly 43 rem high and wide at the default size', 43 * 16, 43 * 16, 16],
+        ['exactly 46 rem high and 43 rem wide at the default size', 46 * 16, 43 * 16, 16],
         ['a tall, wide window at the default size', 1200, 1200, 16],
-        ['exactly 43 rem high and wide at a text size a little larger', 43 * 17, 43 * 17, 17],
-        ['exactly 43 rem high and wide at 200% text', 43 * 32, 43 * 32, 32],
+        ['exactly 46 rem high and 43 rem wide at a text size a little larger', 46 * 17, 43 * 17, 17],
+        ['exactly 46 rem high and 43 rem wide at 200% text', 46 * 32, 43 * 32, 32],
     ])('fits: %s', (_name, viewportHeight, containerWidth, rootFontPx) => {
         expect(editorFitsInline({ viewportHeight, containerWidth, rootFontPx })).toBe(true);
     });
 
     it.each([
-        ['one pixel under 43 rem high', 43 * 16 - 1, WIDE, 16],
-        ['42 rem high', 42 * 16, WIDE, 16],
-        ['200% text, one pixel under 43 rem high', 43 * 32 - 1, WIDE * 2, 32],
+        ['one pixel under 46 rem high', 46 * 16 - 1, WIDE, 16],
+        ['45 rem high', 45 * 16, WIDE, 16],
+        ['200% text, one pixel under 46 rem high', 46 * 32 - 1, WIDE * 2, 32],
         ['200% text in a 1200 px window', 1200, WIDE * 2, 32],
         ['one pixel under 43 rem wide', TALL, 43 * 16 - 1, 16],
         ['42 rem wide', TALL, 42 * 16, 16],

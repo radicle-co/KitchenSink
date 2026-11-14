@@ -11,25 +11,47 @@
  * while the bar holds it). They are read from the page when the hook applies, never from the bar's height as a LATER
  * commit measured it: a deep link's jump runs in the commit the editor mounts, and a foot that waited for that
  * measurement was `auto` while the jump read it, which put Done and Cancel under the bar. The bar's measured height
- * (which grows with the fix line and a parked-write notice) only says WHEN to read again.
+ * (which grows with the fix line and a parked-write notice) and the header's (which grows when it wraps) only say WHEN
+ * to read again.
+ *
+ * The top edge is the HEIGHTS of the sticky top boxes, summed, not where their bottom edges sit: before the section bar
+ * has stuck its bottom edge includes the gutter above it, and a header scrolled up is somewhere else, so a position read
+ * made a jump's clearance depend on the scroll it began from.
  *
  * @pattern Adapter over the document element's `scroll-padding` — a layout effect that applies and restores it
  */
 import { useLayoutEffect } from 'react';
 
-import { readChromeInsets, scrollPaddingOf } from './chromeInsets.js';
+import { readChromeInsets, scrollPaddingOf, topChromeClearanceOf } from './chromeInsets.js';
 import { EDITOR_ACTION_BAR_ID, EDITOR_TOP_CHROME_IDS } from './frameProps.js';
+
+/**
+ * The height of each sticky top box that is mounted, as laid out now; a box the width hides is 0.
+ *
+ * @returns The heights, in CSS px, the header first.
+ * @sideEffect Reads layout: one bounding rect per box.
+ */
+const topChromeHeights = (): number[] =>
+    EDITOR_TOP_CHROME_IDS.flatMap((id) => {
+        const node = document.getElementById(id);
+
+        return node === null ? [] : [node.getBoundingClientRect().height];
+    });
 
 /**
  * Keep the document's scroll padding on the editor's sticky chrome while the editor is mounted.
  *
- * @param bar - Whether the action bar holds the viewport's foot, and its last measured height: a change of either reads
- *     the page again. The padding itself comes from the layout.
+ * @param measured - Whether the action bar holds the viewport's foot, its last measured height, and the header's: a change
+ *     of any reads the page again. The padding itself comes from the layout.
  * @sideEffect Sets `scroll-padding-top` and `scroll-padding-bottom` on the document element, re-reads them when the
  *     window resizes, and clears both on unmount.
  */
-export function useEditorScrollPadding(bar: { readonly pinned: boolean; readonly height: number }): void {
-    const { pinned, height } = bar;
+export function useEditorScrollPadding(measured: {
+    readonly pinned: boolean;
+    readonly height: number;
+    readonly topHeight: number;
+}): void {
+    const { pinned, height, topHeight } = measured;
 
     useLayoutEffect(() => {
         const root = document.documentElement;
@@ -37,7 +59,7 @@ export function useEditorScrollPadding(bar: { readonly pinned: boolean; readonly
         const apply = (): void => {
             const insets = readChromeInsets(EDITOR_TOP_CHROME_IDS, EDITOR_ACTION_BAR_ID);
             const padding = scrollPaddingOf({
-                topBottom: insets.top,
+                topClearance: topChromeClearanceOf(topChromeHeights()),
                 barPinned: insets.bottom > 0,
                 barHeight: insets.bottom,
             });
@@ -54,5 +76,5 @@ export function useEditorScrollPadding(bar: { readonly pinned: boolean; readonly
             root.style.scrollPaddingTop = '';
             root.style.scrollPaddingBottom = '';
         };
-    }, [pinned, height]);
+    }, [pinned, height, topHeight]);
 }

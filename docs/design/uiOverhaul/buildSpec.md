@@ -1565,12 +1565,14 @@ ingredient row breaks unit words (#144)", items 1 to 7). There is **no amount co
 
 #### 7.5.2 The row editor
 
-- **Which one (one rule, both platforms):** the editor opens inline only when the window is at least 43 rem high AND
+- **Which one (one rule, both platforms):** the editor opens inline only when the window is at least 46 rem high AND
   the editor's container is at least 43 rem wide. Otherwise it opens as the sheet. Both numbers are in rem, so a larger
   text size needs a taller and wider space. They were measured on 2026-11-14 with the longest content (a range, a note, a
-  preparation and a long "You wrote" line), reached by the "Needs review" jump: the reason must show whole between the
-  sticky header and the action bar, and Done and Cancel must be in view. 43 rem high is the shortest window at 100% text.
-  With the window held at 43 rem high, the container needs 43 rem at 100% text and 41 rem at 200% text. A narrower
+  preparation and a long "You wrote" line), reached by the "Needs review" jump: the reason must show whole below ALL the
+  sticky chrome (the header and the section tabs under it) and above the action bar, and Done and Cancel must be in view.
+  46 rem high is the shortest window (it is 43 rem over a wide window, and 46 rem at the narrowest container the width
+  limit admits; at 200% text it is 45 rem). With the window held at 46 rem high, the container (the content box of the
+  editor's column) needs 43 rem at 100% text and 41 rem at 200% text. A narrower
   container makes the editor taller, which is why the two limits go together. The 600 px `narrow` class is unchanged and
   still drives other layout, such as the paste button. The frame an open editor started in is kept until it closes.
 - **Under either limit:** a content-height bottom sheet (`Sheet size="content"`). The list stays still, and the
@@ -1814,7 +1816,7 @@ serving · {counted} of {total} counted". `stepTimerLabel` (`form/messages.ts:68
 | Current-section tracking | `IntersectionObserver`                                        | `onLayout` + throttled `onScroll`                                       | translated         | platform APIs                                                              |
 | Section jump             | `scroll-margin-top`, focus to the H2                          | `scrollTo`, accessibility focus to the H2                               | translated         | same job                                                                   |
 | Refused Publish          | the first invalid field takes focus (keyboard focus)          | the field is centred, the screen-reader cursor moves to it, no keyboard | translated         | §7.8: the keyboard would hide the message and open a combobox's list       |
-| Row editor               | inline from 43 rem high and 43 rem wide, sheet otherwise      | sheet on phone, inline on tablet                                        | translated         | the keyboard and the thumb                                                 |
+| Row editor               | inline from 46 rem high and 43 rem wide, sheet otherwise      | sheet on phone, inline on tablet                                        | translated         | the keyboard and the thumb                                                 |
 | Row reorder              | ⋯ Move up / down. No drag                                     | the same                                                                | kept               | SC 2.5.7                                                                   |
 | Paste                    | sheet                                                         | sheet, the system paste menu in the field                               | kept               | same job                                                                   |
 | Add photos               | file input, drag and drop on a fine pointer                   | "Take photo" / "Choose from library"                                    | translated         | the camera                                                                 |
@@ -2597,7 +2599,7 @@ Where a slice makes an existing spec obsolete, its coverage moves to the named n
 
 ### Slice 8: the Ingredients section and the one-tap create entry
 
-- **Changes:** quiet read rows, the row ⋯ menu, the row editor (inline from 43 rem high and 43 rem wide, sheet otherwise), the quantity-first
+- **Changes:** quiet read rows, the row ⋯ menu, the row editor (inline from 46 rem high and 43 rem wide, sheet otherwise), the quantity-first
   add field with the live reading (after A1 and A2), Paste a list, groups, the nutrition total. The FAB and the sidebar
   button switch to **one tap opens the editor**. Home's first-run Paste ingredients opens the editor with the paste
   sheet open. `/recipes/parse*` and the native parse screens retire.

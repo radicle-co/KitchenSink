@@ -3,7 +3,7 @@ import type { Locator, Page } from '@playwright/test';
 
 import { route } from './utils/basePath';
 import { signInWithTicket } from './utils/auth';
-import { INLINE_EDITOR_VIEWPORT, ingredientOpen } from './utils/recipeEditor';
+import { INLINE_EDITOR_VIEWPORT, ingredientOpen, topChromeBottom } from './utils/recipeEditor';
 import { makeRecipeDetail, mockRecipeApi, readViewerAppId } from './utils/recipeApi';
 
 /**
@@ -267,9 +267,15 @@ const afterTwoFrames = (page: Page): Promise<void> =>
     );
 
 /**
- * What is wrong with where Done and Cancel are, right now: empty when each is drawn inside the viewport, below the sticky
- * header and above the bottom action bar, and the page has stopped scrolling. The sticky header is a plain <header> (no
- * banner role inside <main>): it is reached through its Close control.
+ * The fewest sticky boxes a reading may find: the header is always there. A reading that found none measured the wrong
+ * thing, so it fails. The section tabs under it show only in a narrow container, and the edge cases assert them.
+ */
+const MIN_TOP_CHROME_BOXES = 1;
+
+/**
+ * What is wrong with where Done and Cancel are, right now: empty when each is drawn inside the viewport, below ALL the
+ * sticky chrome at the top (the header and the section tabs under it, `topChromeBottom`) and above the bottom action
+ * bar, and the page has stopped scrolling.
  */
 async function reachViolations(
     page: Page,
@@ -279,13 +285,11 @@ async function reachViolations(
     const before = await page.evaluate(() => window.scrollY);
     await afterTwoFrames(page);
     const after = await page.evaluate(() => window.scrollY);
-    const headerBottom = await page
-        .getByRole('button', { name: 'Close editor' })
-        .evaluate((el) => el.closest('header')?.getBoundingClientRect().bottom ?? Number.NaN);
+    const chrome = await topChromeBottom(page, editor);
     const bar = await page.getByRole('group', { name: 'Recipe actions' }).boundingBox();
 
-    if (viewport === null || bar === null || Number.isNaN(headerBottom)) {
-        return ['the viewport, the action bar or the header is not there'];
+    if (viewport === null || bar === null || chrome.count < MIN_TOP_CHROME_BOXES) {
+        return ['the viewport, the action bar or the sticky top chrome is not there'];
     }
 
     const found: string[] = before === after ? [] : ['the page is still scrolling'];
@@ -298,8 +302,8 @@ async function reachViolations(
             continue;
         }
 
-        if (box.y < headerBottom) {
-            found.push(`${name} is under the header`);
+        if (box.y < chrome.bottom) {
+            found.push(`${name} is under the sticky chrome`);
         }
 
         if (box.y + box.height > bar.y) {
@@ -315,24 +319,22 @@ async function reachViolations(
 }
 
 /**
- * What is wrong with where the reason sits, right now: empty when the whole notice is drawn below the sticky header and
- * above the bottom action bar. `toBeInViewport` alone passes on a sliver, so it cannot say the cook can read the reason.
+ * What is wrong with where the reason sits, right now: empty when the whole notice is drawn below ALL the sticky chrome at
+ * the top (the header and the section tabs) and above the bottom action bar. `toBeInViewport` alone passes on a sliver, so it cannot say the cook can read the reason.
  */
 async function noticeViolations(page: Page, notice: Locator): Promise<string[]> {
-    const headerBottom = await page
-        .getByRole('button', { name: 'Close editor' })
-        .evaluate((el) => el.closest('header')?.getBoundingClientRect().bottom ?? Number.NaN);
+    const chrome = await topChromeBottom(page, notice);
     const bar = await page.getByRole('group', { name: 'Recipe actions' }).boundingBox();
     const box = await notice.boundingBox();
 
-    if (box === null || bar === null || Number.isNaN(headerBottom)) {
-        return ['the notice, the action bar or the header is not there'];
+    if (box === null || bar === null || chrome.count < MIN_TOP_CHROME_BOXES) {
+        return ['the notice, the action bar or the sticky top chrome is not there'];
     }
 
     const found: string[] = [];
 
-    if (box.y < headerBottom) {
-        found.push('the notice is under the header');
+    if (box.y < chrome.bottom) {
+        found.push('the notice is under the sticky chrome');
     }
 
     if (box.y + box.height > bar.y) {
@@ -462,6 +464,49 @@ for (const [width, pinned] of [
     });
 }
 
+/**
+ * #236: the section bar sticks at `--top-chrome`, the header's height. On a phone with the cook's text at 200% the header
+ * wraps and is taller than the 3.5rem the variable once held, so the bar was drawn OVER the header's lower edge once the
+ * page scrolled. After a scroll, the bar's top is at or below the header's bottom.
+ */
+test.describe('the section bar under a header that wraps (#236)', () => {
+    test.use({ viewport: { width: 390, height: 844 } });
+
+    test('sticks below the whole header at 200% text', async ({ page }) => {
+        await applyTextScale(page, 2);
+        await openDetail(page);
+        await page.goto(route(`/recipes/${RECIPE_ID}/edit`));
+        await expect(page.getByRole('heading', { level: 1, name: 'Edit recipe' })).toBeVisible();
+        await expectRootFontSize(page, 2);
+        // A change gives the header its status line ("Changes kept in this tab"), which wraps it onto a second row.
+        await page.getByLabel('Title').first().fill('A much longer recipe title to edit');
+        await expect(page.getByText('Changes kept in this tab').first()).toBeVisible();
+
+        const header = page.getByRole('button', { name: 'Close editor' }).locator('xpath=ancestor::header');
+        const bar = page.getByRole('button', { name: /^Sections\. Current:/u }).locator('xpath=..');
+
+        await page.evaluate(() => window.scrollTo(0, 600));
+        await afterTwoFrames(page);
+
+        const headerBox = await header.boundingBox();
+        const barBox = await bar.boundingBox();
+
+        expect(headerBox).not.toBeNull();
+        expect(barBox).not.toBeNull();
+        // The header is taller than the 3.5rem (112 px at 200%) the variable held: the case is the wrapped header.
+        expect(headerBox?.height ?? 0).toBeGreaterThan(112);
+        // The bar's top is at or below the header's bottom edge (a pixel of rounding is allowed).
+        await expect
+            .poll(async () => {
+                const h = await header.boundingBox();
+                const b = await bar.boundingBox();
+
+                return h === null || b === null ? Number.NaN : b.y - (h.y + h.height);
+            })
+            .toBeGreaterThanOrEqual(-0.5);
+    });
+});
+
 test.describe('the jump on a phone', () => {
     test.use({ viewport: { width: 390, height: 844 } });
 
@@ -530,13 +575,13 @@ for (const frame of FRAMES) {
 }
 
 /**
- * The edges of the inline rule (`inlineEditorFit.ts`), with the editor at its tallest: the window must be 43 rem high AND
+ * The edges of the inline rule (`inlineEditorFit.ts`), with the editor at its tallest: the window must be 46 rem high AND
  * the editor's container 43 rem wide. At both limits the editor is inline, with its reason ("Needs review") fully between
  * the sticky header and the action bar and Done and Cancel in view. One rem under either limit it is the sheet.
  */
 // Mirror INLINE_EDITOR_MIN_VIEWPORT_REM and INLINE_EDITOR_MIN_CONTAINER_REM in @commise/features-recipes
 // `form/inlineEditorFit.ts`, which no package export exposes. Change both together: if they drift, an edge case fails.
-const INLINE_THRESHOLD_REM = 43;
+const INLINE_THRESHOLD_REM = 46;
 const INLINE_CONTAINER_REM = 43;
 // With the sidebar showing (a window from 840 px), the window is 20 rem wider than the editor's container: measured
 // 2026-11-14 at 100% and 200% text (a 1008 px window held a 43 rem container, and a 2016 px window at 200% text did too).
@@ -554,6 +599,9 @@ async function expectInlineReach(page: Page, editor: Locator): Promise<void> {
     expect(viewport).not.toBeNull();
     // The range's second bound is drawn: the editor holds the content this case is about.
     await expect(editor.getByLabel(/^Amount/u)).toHaveCount(2);
+    // The header AND the section tabs are over the page's top at the inline edge: a reading of the header alone passed
+    // while the first line of the reason sat under the tabs.
+    expect((await topChromeBottom(page, reviewNotice(editor))).count).toBeGreaterThanOrEqual(2);
     await expect
         .poll(async () => reachViolations(page, editor, viewport), { message: 'Done and Cancel are reachable' })
         .toEqual([]);
@@ -569,17 +617,17 @@ for (const textScale of [1, 2]) {
     });
     const edges = [
         {
-            name: 'inline at 43 rem high and 43 rem wide',
+            name: 'inline at 46 rem high and 43 rem wide',
             viewport: window(INLINE_THRESHOLD_REM, INLINE_CONTAINER_REM),
             inline: true,
         },
         {
-            name: 'sheet at 42 rem high and 43 rem wide',
+            name: 'sheet at 45 rem high and 43 rem wide',
             viewport: window(INLINE_THRESHOLD_REM - 1, INLINE_CONTAINER_REM),
             inline: false,
         },
         {
-            name: 'sheet at 43 rem high and 42 rem wide',
+            name: 'sheet at 46 rem high and 42 rem wide',
             viewport: window(INLINE_THRESHOLD_REM, INLINE_CONTAINER_REM - 1),
             inline: false,
         },

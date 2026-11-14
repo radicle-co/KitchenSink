@@ -13,21 +13,27 @@
 /**
  * The window height, in rem, that the inline editor needs.
  *
- * Measured, 2026-11-14: 43 rem. It is the smallest window height at which the editor at its tallest (a range, a note, a
- * preparation and a long "You wrote" line), reached by the "Needs review" jump, opens inline with the whole reason between
- * the sticky header and the action bar and Done and Cancel in view. The steps were one rem at a time, at 100% text, at
- * 1280 and at 1024 px wide: both fail at 42 rem and pass from 43.
+ * Measured, 2026-11-14: 46 rem. It is the smallest window height at which the editor at its tallest (a range, a note, a
+ * preparation and a long "You wrote" line), reached by the "Needs review" jump, opens inline with the whole reason BELOW
+ * ALL the sticky chrome (the header and the section tabs under it, read from computed styles) and above the action bar,
+ * and Done and Cancel in view. An earlier reading measured the header alone, passed from 43 rem, and left the first line
+ * of the reason under the section tabs. The steps were one rem at a time, with the inline editor forced, over a window
+ * 1280 and 1024 px wide at 100% text (fails at 42 and 45 rem, passes from 43 and 46) and 2560 and 2048 px wide at 200%
+ * text (the same rem widths; passes from 42 and 45). 46 is the largest, and it holds at the narrowest container the
+ * width limit admits.
  */
-export const INLINE_EDITOR_MIN_VIEWPORT_REM = 43;
+export const INLINE_EDITOR_MIN_VIEWPORT_REM = 46;
 
 /**
  * The width, in rem, that the editor's container needs for the inline editor.
  *
- * Measured, 2026-11-14: 43 rem. The window was held at exactly 43 rem high (the height limit above), the editor was
+ * Measured, 2026-11-14: 43 rem, the content box of the editor's `MainColumn` (its client width less its padding, as
+ * `useMainContainerWidth` reads it). The window was held at exactly 46 rem high (the height limit above), the editor was
  * the longest one (a range, a note, a preparation and a long "You wrote" line) reached by the "Needs review" jump, and the
- * container was widened one rem at a time with the strict reading (the whole reason between the sticky header and the
- * action bar, Done and Cancel in view). At 100% text it fails at 42 rem and passes from 43; at 200% text it passes from
- * 41. 43 is the larger. A narrower container makes the editor taller, so the two limits are read together.
+ * container was widened one rem at a time with the strict reading (the whole reason below all the sticky chrome and above
+ * the action bar, Done and Cancel in view). At 100% text it fails at 42 rem and passes from 43; at 200% text it fails at
+ * 40 and passes from 41. 43 is the larger. A narrower container makes the editor taller, so the two limits are read
+ * together.
  */
 export const INLINE_EDITOR_MIN_CONTAINER_REM = 43;
 

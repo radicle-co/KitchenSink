@@ -54,6 +54,18 @@ export function readChromeInsets(topIds: readonly string[], barId: string): Popu
     });
 }
 
+/**
+ * The clearance the document's `scroll-padding-top` asks of the top: the HEIGHTS of the sticky boxes stuck there, summed
+ * (the header, and the section index's strip or bar under it; a box the width hides measures 0). A height is the same at
+ * every scroll position, where a box's bottom edge is not before it has stuck. Pure.
+ *
+ * @param heights - The height of each sticky top box, in CSS px.
+ * @returns The padding to ask for the top, never negative.
+ */
+export function topChromeClearanceOf(heights: readonly number[]): number {
+    return heights.reduce((sum, height) => sum + Math.max(0, height), 0);
+}
+
 /** How far past the action bar's top a focused control stops: build spec §7.10, "the ActionBar height + 16". */
 export const FOCUS_CLEARANCE_PX = 16;
 
@@ -65,20 +77,21 @@ export interface ScrollPadding {
 
 /**
  * The scroll padding that keeps a focused control from sliding under the sticky chrome (WCAG 2.2 SC 2.4.11; build spec
- * §7.10): above, the bottom edge of the header and the section bar stuck under it; below, the action bar's height and
+ * §7.10): above, the height of the header and the section bar stuck under it; below, the action bar's height and
  * the clearance — but only while the bar holds the viewport's foot. A bar that scrolls with the page is content, not an
  * overlay. Pure.
  *
- * @param measure - The top chrome's lowest bottom edge, whether the bar is pinned, and the bar's height.
+ * @param measure - The top chrome's clearance ({@link topChromeClearanceOf}), whether the bar is pinned, and the bar's
+ *     height.
  * @returns The padding to ask of the document.
  */
 export function scrollPaddingOf(measure: {
-    readonly topBottom: number;
+    readonly topClearance: number;
     readonly barPinned: boolean;
     readonly barHeight: number;
 }): ScrollPadding {
     return {
-        top: Math.max(0, measure.topBottom),
+        top: Math.max(0, measure.topClearance),
         bottom: measure.barPinned && measure.barHeight > 0 ? measure.barHeight + FOCUS_CLEARANCE_PX : 0,
     };
 }

@@ -17,7 +17,7 @@
 import { containerClassOf } from '@commise/ui/container-class';
 import { useState } from 'react';
 
-import { useMainContainerWidth } from '../layout/useMainContainerClass.js';
+import { useMainContainerWidth } from '../layout/useMainContainerWidth.js';
 import { useInlineEditorFitsNow } from './useInlineEditorFitsNow.js';
 
 /** Where the row editor opens, and whether the container is wide enough for controls beside the add field. */

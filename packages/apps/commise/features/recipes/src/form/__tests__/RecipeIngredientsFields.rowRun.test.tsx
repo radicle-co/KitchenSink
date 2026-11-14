@@ -26,6 +26,8 @@ import {
 
 vi.mock('../../layout/useMainContainerClass.js', () => ({
     useMainContainerClass: () => 'narrow',
+}));
+vi.mock('../../layout/useMainContainerWidth.js', () => ({
     useMainContainerWidth: () => 390,
 }));
 vi.mock('../../hooks/ingredientSuggestionSource.js', () => ({

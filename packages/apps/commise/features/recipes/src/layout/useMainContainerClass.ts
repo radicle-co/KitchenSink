@@ -2,87 +2,18 @@
 
 /**
  * @module @commise/features-recipes/layout — the web container class of `<main>`, the space every surface's cards get
- * (`docs/design/uiOverhaul/buildSpec.md` §1.2). The element measured is the one `MainElementContext` names (the shell's
- * `<main>`, or a `MainColumn`), the `main` container whose content box is the width the content gets — the same width
- * `@regular/main:` and `@wide/main:` read in CSS.
+ * (`docs/design/uiOverhaul/buildSpec.md` §1.2), read through the one shared observer (`useMainContentReading`, which
+ * says which element is measured and why).
  *
  * A JavaScript reading is needed only where the class picks a COMPONENT, not a style: `cardVariantOf` and the library's
  * default view. It is `narrow` on the server and until `<main>` is measured, so a server render and its hydration agree.
+ * It re-renders only when the class changes, not on every width change.
  *
- * ⛔ Inside the shell it measures the `<main>` the shell provides (`MainElementContext`), never the document's first:
- * during a load the document held a second, hidden `<main>` ahead of the shell's, and measuring that one left Discover's
- * filter panel a Filters button at 1440 px. And the class is read from the element's LIVE width on every snapshot, never
- * from a cached number: the observer is only the signal that it changed. Both are measured history in
- * `__tests__/useMainContainerClass.test.tsx`. Outside a shell (a canvas board, a test) it measures the document's `<main>`.
- *
- * @pattern Adapter over `ResizeObserver` as a `useSyncExternalStore` source
  * @sideEffect Observes the measured `<main>` while mounted.
  */
 import { containerClassOf, type ContainerClass } from '@commise/ui/container-class';
-import { MainElementContext } from '@commise/ui/main-element';
-import { use, useCallback, useSyncExternalStore } from 'react';
 
-/**
- * An element's content-box width: its client width less its horizontal padding.
- *
- * @param element - The element.
- * @returns The width, in px.
- */
-function contentWidthOfElement(element: Element): number {
-    const style = getComputedStyle(element);
-
-    return element.clientWidth - (parseFloat(style.paddingLeft) || 0) - (parseFloat(style.paddingRight) || 0);
-}
-
-/**
- * The `<main>` to measure: the shell's when one is provided (`null` until it mounts), else the document's.
- *
- * @param provided - The context value: the shell's element, `null` before it mounts, or `undefined` outside a shell.
- * @returns The element, or `null` when there is none to measure.
- */
-function measuredMain(provided: HTMLElement | null | undefined): Element | null {
-    if (provided !== undefined) {
-        return provided;
-    }
-
-    return typeof document === 'undefined' ? null : document.querySelector('main');
-}
-
-/**
- * A reading of `<main>`'s content width, following it as it resizes. The ONE observer both public hooks share.
- *
- * @param read - Turns the content width, in px, into the value the caller wants.
- * @param server - The value on the server and until `<main>` is measured.
- * @returns The reading.
- */
-function useMainContentReading<T>(read: (contentPx: number) => T, server: T): T {
-    const provided = use(MainElementContext);
-
-    const subscribe = useCallback(
-        (notify: () => void): (() => void) => {
-            const main = measuredMain(provided);
-
-            if (main === null || typeof ResizeObserver === 'undefined') {
-                return () => undefined;
-            }
-
-            const observer = new ResizeObserver(notify);
-
-            observer.observe(main);
-
-            return () => observer.disconnect();
-        },
-        [provided],
-    );
-
-    const snapshot = useCallback((): T => {
-        const main = measuredMain(provided);
-
-        return main === null ? server : read(contentWidthOfElement(main));
-    }, [provided, read, server]);
-
-    return useSyncExternalStore(subscribe, snapshot, () => server);
-}
+import { useMainContentReading } from './useMainContentReading.js';
 
 /**
  * The container class of `<main>`, following it as it resizes.
@@ -91,16 +22,4 @@ function useMainContentReading<T>(read: (contentPx: number) => T, server: T): T 
  */
 export function useMainContainerClass(): ContainerClass {
     return useMainContentReading(containerClassOf, 'narrow');
-}
-
-const identity = (px: number): number => px;
-
-/**
- * The content width of `<main>` in px, following it as it resizes. Re-renders on every width change, so a reader that
- * needs only the class uses {@link useMainContainerClass}.
- *
- * @returns The width, in px; 0 on the server and until `<main>` is measured.
- */
-export function useMainContainerWidth(): number {
-    return useMainContentReading(identity, 0);
 }

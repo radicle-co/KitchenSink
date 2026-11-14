@@ -39,6 +39,8 @@ import { useRecipeEditorSession } from '../useRecipeEditorSession.js';
 
 vi.mock('../../layout/useMainContainerClass.native.js', () => ({
     useMainContainerClass: () => 'narrow',
+}));
+vi.mock('../../layout/useMainContainerWidth.native.js', () => ({
     useMainContainerWidth: () => 390,
 }));
 // The row panel's food search is not what this suite is about.

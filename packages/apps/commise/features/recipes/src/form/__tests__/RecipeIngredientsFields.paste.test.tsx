@@ -44,6 +44,8 @@ const layout = vi.hoisted(() => ({ container: 'narrow' as ContainerClass }));
 
 vi.mock('../../layout/useMainContainerClass.js', () => ({
     useMainContainerClass: () => layout.container,
+}));
+vi.mock('../../layout/useMainContainerWidth.js', () => ({
     // Wide enough for the inline editor (43 rem) when the case says a regular or wide container.
     useMainContainerWidth: () => ({ narrow: 390, regular: 800, wide: 1000 })[layout.container],
 }));

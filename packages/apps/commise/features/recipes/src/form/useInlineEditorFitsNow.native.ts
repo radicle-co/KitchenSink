@@ -13,10 +13,15 @@ const BASE_ROOT_DP = 16;
 /**
  * Whether the screen has room for the inline row editor now.
  *
+ * @param containerWidth - The content width, in dp, read once by the caller.
  * @returns The answer for the screen as it is now.
  */
-export function useInlineEditorFitsNow(): boolean {
+export function useInlineEditorFitsNow(containerWidth: number): boolean {
     const { height } = useWindowDimensions();
 
-    return editorFitsInline({ viewportHeight: height, rootFontPx: BASE_ROOT_DP * PixelRatio.getFontScale() });
+    return editorFitsInline({
+        viewportHeight: height,
+        containerWidth,
+        rootFontPx: BASE_ROOT_DP * PixelRatio.getFontScale(),
+    });
 }

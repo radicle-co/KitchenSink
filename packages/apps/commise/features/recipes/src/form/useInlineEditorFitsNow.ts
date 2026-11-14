@@ -1,8 +1,8 @@
 /**
- * @module @commise/features-recipes/form — whether the window has room for the row editor INLINE now
+ * @module @commise/features-recipes/form — whether the window and the container have room for the row editor INLINE now
  * (`inlineEditorFit.ts`). `useRowEditorPlacement.ts` holds the answer while an editor is open.
  *
- * The window's height and the root font size are read through `useSyncExternalStore`, so a resize or a text-size change
+ * The window's height and the root font size are read, and the container's width is passed in, through `useSyncExternalStore`, so a resize or a text-size change
  * is read on the next render.
  *
  * @pattern Observer — a subscription to the window's size and the root's style, over the one pure `editorFitsInline`
@@ -24,20 +24,26 @@ function subscribe(listener: () => void): () => void {
     };
 }
 
-/** Whether the window holds the inline editor now. @sideEffect Reads layout: the root's computed font size. */
-function fitsNow(): boolean {
+/** Whether the window and the container hold the inline editor now. @sideEffect Reads layout: the root's font size. */
+function fitsNow(containerWidth: number): boolean {
     return editorFitsInline({
         viewportHeight: window.innerHeight,
+        containerWidth,
         rootFontPx: Number.parseFloat(window.getComputedStyle(document.documentElement).fontSize),
     });
 }
 
 /**
- * Whether the window has room for the inline row editor now.
+ * Whether the window and the container have room for the inline row editor now.
  *
+ * @param containerWidth - The editor container's content width, in px, read once by the caller.
  * @returns The answer for the window as it is now. On the server, `true`: a wide container draws the inline editor.
  * @sideEffect Subscribes to the window's size and the root element's style for the component's life.
  */
-export function useInlineEditorFitsNow(): boolean {
-    return useSyncExternalStore(subscribe, fitsNow, () => true);
+export function useInlineEditorFitsNow(containerWidth: number): boolean {
+    return useSyncExternalStore(
+        subscribe,
+        () => fitsNow(containerWidth),
+        () => true,
+    );
 }

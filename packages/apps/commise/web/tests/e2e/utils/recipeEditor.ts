@@ -12,6 +12,20 @@ import { route } from './basePath';
  * Selectors are role and label only (repo policy).
  */
 
+/**
+ * A window the row editor opens INLINE in: 50 rem high and, with the sidebar, a 60 rem container at the default text size,
+ * both over the 43 rem that `INLINE_EDITOR_MIN_VIEWPORT_REM` and `INLINE_EDITOR_MIN_CONTAINER_REM` in `inlineEditorFit.ts` ask for. A spec that
+ * means the inline frame sets this. (Playwright's 1280 x 720 default is 45 rem, so it is inline too, but a spec never
+ * leans on it.)
+ */
+export const INLINE_EDITOR_VIEWPORT = { width: 1280, height: 800 } as const;
+
+/**
+ * A short laptop window: 37.5 rem high at the default text size, clearly under the 43 rem inline height, so the row
+ * editor opens as the sheet. A spec that means the sheet on a wide screen sets it.
+ */
+export const SHEET_EDITOR_VIEWPORT = { width: 1280, height: 600 } as const;
+
 /** The editor's sections, by their headings. */
 export type EditorSectionName = 'Details' | 'Ingredients' | 'Steps' | 'Photos & publish';
 
@@ -179,7 +193,8 @@ export function ingredientRow(scope: Page | Locator, food: string): Locator {
 
 /**
  * Open a row's editor (build spec §7.5.2) and answer where its fields are: the phone sheet below a 600 container, or
- * the inline panel in the row from 600.
+ * the inline panel in the row from 600 in a window tall enough (`INLINE_EDITOR_VIEWPORT`). It answers the frame the page
+ * chose, so the caller sets the viewport for the frame it means.
  *
  * @param page - The page.
  * @param food - The food the row names.

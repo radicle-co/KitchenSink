@@ -27,7 +27,10 @@ import {
     type UnkeyedFormIngredient,
 } from '../../__fixtures__/index.js';
 
-vi.mock('../../layout/useMainContainerClass.native.js', () => ({ useMainContainerClass: () => 'narrow' }));
+vi.mock('../../layout/useMainContainerClass.native.js', () => ({
+    useMainContainerClass: () => 'narrow',
+    useMainContainerWidth: () => 390,
+}));
 vi.mock('../../hooks/ingredientSuggestionSource.js', () => ({
     useIngredientSuggestionSource: () => ({
         read: { kind: 'asking', resumed: false, answer: { database: undefined, sources: [], complete: false } },

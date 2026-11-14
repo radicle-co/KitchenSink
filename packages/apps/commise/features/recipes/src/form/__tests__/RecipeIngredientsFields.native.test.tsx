@@ -50,7 +50,11 @@ vi.mock('@commise/ui/field-reveal', async (importOriginal) => {
         },
     };
 });
-vi.mock('../../layout/useMainContainerClass.native.js', () => ({ useMainContainerClass: () => layout.container }));
+vi.mock('../../layout/useMainContainerClass.native.js', () => ({
+    useMainContainerClass: () => layout.container,
+    // Wide enough for the inline editor (43 rem) when the case says a regular or wide container.
+    useMainContainerWidth: () => ({ narrow: 390, regular: 800, wide: 1000 })[layout.container],
+}));
 // Rows 6 and 7's panel searches the line's words through the progressive food search. This suite pins the panel's frame,
 // not that search, which `RecipeIngredientsFields.rowEditor.native` and `rowEditor.integration` own.
 vi.mock('../../hooks/ingredientSuggestionSource.js', () => ({

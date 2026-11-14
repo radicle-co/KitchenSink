@@ -48,14 +48,14 @@ function measuredMain(provided: HTMLElement | null | undefined): Element | null 
     return typeof document === 'undefined' ? null : document.querySelector('main');
 }
 
-const serverSnapshot = (): ContainerClass => 'narrow';
-
 /**
- * The container class of `<main>`, following it as it resizes.
+ * A reading of `<main>`'s content width, following it as it resizes. The ONE observer both public hooks share.
  *
- * @returns `narrow`, `regular` or `wide`.
+ * @param read - Turns the content width, in px, into the value the caller wants.
+ * @param server - The value on the server and until `<main>` is measured.
+ * @returns The reading.
  */
-export function useMainContainerClass(): ContainerClass {
+function useMainContentReading<T>(read: (contentPx: number) => T, server: T): T {
     const provided = use(MainElementContext);
 
     const subscribe = useCallback(
@@ -75,11 +75,32 @@ export function useMainContainerClass(): ContainerClass {
         [provided],
     );
 
-    const snapshot = useCallback((): ContainerClass => {
+    const snapshot = useCallback((): T => {
         const main = measuredMain(provided);
 
-        return main === null ? 'narrow' : containerClassOf(contentWidthOfElement(main));
-    }, [provided]);
+        return main === null ? server : read(contentWidthOfElement(main));
+    }, [provided, read, server]);
 
-    return useSyncExternalStore(subscribe, snapshot, serverSnapshot);
+    return useSyncExternalStore(subscribe, snapshot, () => server);
+}
+
+/**
+ * The container class of `<main>`, following it as it resizes.
+ *
+ * @returns `narrow`, `regular` or `wide`.
+ */
+export function useMainContainerClass(): ContainerClass {
+    return useMainContentReading(containerClassOf, 'narrow');
+}
+
+const identity = (px: number): number => px;
+
+/**
+ * The content width of `<main>` in px, following it as it resizes. Re-renders on every width change, so a reader that
+ * needs only the class uses {@link useMainContainerClass}.
+ *
+ * @returns The width, in px; 0 on the server and until `<main>` is measured.
+ */
+export function useMainContainerWidth(): number {
+    return useMainContentReading(identity, 0);
 }

@@ -50,9 +50,13 @@ import { type IngredientsPasteView } from '../props.js';
 import type { IngredientRowEditor } from '../../hooks/useIngredientRowEditor.js';
 import type { ContainerClass } from '@commise/ui/container-class';
 
-const layout = vi.hoisted(() => ({ container: 'narrow' as ContainerClass }));
+const layout = vi.hoisted(() => ({ container: 'narrow' as ContainerClass, widthPx: undefined as number | undefined }));
 
-vi.mock('../../layout/useMainContainerClass.js', () => ({ useMainContainerClass: () => layout.container }));
+vi.mock('../../layout/useMainContainerClass.js', () => ({
+    useMainContainerClass: () => layout.container,
+    // Wide enough for the inline editor (43 rem) when the case says a regular or wide container.
+    useMainContainerWidth: () => layout.widthPx ?? { narrow: 390, regular: 800, wide: 1000 }[layout.container],
+}));
 
 // The page's scroll host, where a case gives one: only the start of a row a link names is read from it here.
 const host = vi.hoisted(() => ({ start: undefined as undefined | ((id: string) => boolean) }));
@@ -70,9 +74,17 @@ vi.mock('../../hooks/ingredientSuggestionSource.js', () => ({
     }),
 }));
 
+/**
+ * Tall enough for the inline row editor at the default text size (`INLINE_EDITOR_MIN_VIEWPORT_REM`, 43 rem = 688 px), so
+ * a test that means "inline" gets it, set here so no test leans on jsdom's own height.
+ */
+const TALL_WINDOW_PX = 800;
+
 beforeEach(() => {
     layout.container = 'narrow';
+    layout.widthPx = undefined;
     host.start = undefined;
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: TALL_WINDOW_PX });
 });
 afterEach(cleanup);
 
@@ -977,13 +989,16 @@ describe('RecipeIngredientsFields (web) — arriving at a row from a link', () =
      * pixels, which the one scroll never saw (Done and Cancel under the action bar at 200% text). The field group asks
      * for the row's start again once the editor is inline, so the scroll is computed over the row as it ends up.
      */
-    it('asks the host for the row’s start again once the inline editor has mounted, and not while it is a sheet', () => {
+    it('asks the host for the row’s start again once the container is measured and the inline editor has mounted, and not while it is a sheet', () => {
+        layout.widthPx = 0;
         const start = vi.fn<(id: string) => boolean>(() => true);
         host.start = start;
         const view = render(<StatefulLeaf initial={[RICE, SALT]} initialLine={KEY_OF_SECOND} />);
 
         expect(start).not.toHaveBeenCalled();
 
+        // The first measurement arrives: a regular container.
+        layout.widthPx = undefined;
         layout.container = 'regular';
         view.rerender(<StatefulLeaf initial={[RICE, SALT]} initialLine={KEY_OF_SECOND} />);
 
@@ -1608,12 +1623,12 @@ describe('RecipeIngredientsFields (web) — inline only when it fits', () => {
 
     afterEach(() => {
         document.documentElement.style.fontSize = '';
-        Object.defineProperty(window, 'innerHeight', { configurable: true, value: 768 });
+        Object.defineProperty(window, 'innerHeight', { configurable: true, value: TALL_WINDOW_PX });
     });
 
     it('opens inline in a tall window at the default text size', async () => {
         layout.container = 'regular';
-        setWindow(800, 16);
+        setWindow(TALL_WINDOW_PX, 16);
         const user = userEvent.setup();
         render(<StatefulLeaf initial={[RICE, SALT]} />);
 
@@ -1625,7 +1640,7 @@ describe('RecipeIngredientsFields (web) — inline only when it fits', () => {
 
     it('opens the sheet from a wide container when the cook’s text size leaves no room for it', async () => {
         layout.container = 'regular';
-        setWindow(800, 32);
+        setWindow(TALL_WINDOW_PX, 32);
         const user = userEvent.setup();
         render(<StatefulLeaf initial={[RICE, SALT]} />);
 
@@ -1637,9 +1652,29 @@ describe('RecipeIngredientsFields (web) — inline only when it fits', () => {
         expect(within(sheet).getByRole('button', { name: en.rowDone })).toBeTruthy();
     });
 
+    it('opens the sheet from a regular container narrower than 43 rem, and inline from 43 rem', async () => {
+        layout.container = 'regular';
+        setWindow(TALL_WINDOW_PX, 16);
+        const user = userEvent.setup();
+
+        layout.widthPx = 43 * 16 - 1;
+        const narrower = render(<StatefulLeaf initial={[RICE, SALT]} />);
+
+        await user.click(screen.getByRole('button', { name: 'Edit 300 g Salt' }));
+        expect(screen.getByRole('dialog', { name: 'Salt' })).toBeTruthy();
+        narrower.unmount();
+
+        layout.widthPx = 43 * 16;
+        render(<StatefulLeaf initial={[RICE, SALT]} />);
+
+        await user.click(screen.getByRole('button', { name: 'Edit 300 g Salt' }));
+        expect(screen.queryByRole('dialog')).toBeNull();
+        expect(within(rowItems()[1]!).getByLabelText(en.rowAmountLabel)).toBeTruthy();
+    });
+
     it('opens a linked row as the sheet too, when there is no room', () => {
         layout.container = 'regular';
-        setWindow(800, 32);
+        setWindow(TALL_WINDOW_PX, 32);
         render(<StatefulLeaf initial={[RICE, SALT]} initialLine={KEY_OF_SECOND} />);
 
         expect(screen.getByRole('dialog', { name: 'Salt' })).toBeTruthy();
@@ -1658,12 +1693,12 @@ describe('RecipeIngredientsFields (web) — inline only when it fits', () => {
 
     it('keeps an open editor in the frame it opened in, and chooses again at the next opening', async () => {
         layout.container = 'regular';
-        setWindow(800, 16);
+        setWindow(TALL_WINDOW_PX, 16);
         const user = userEvent.setup();
         render(<StatefulLeaf initial={[RICE, SALT]} />);
 
         await user.click(screen.getByRole('button', { name: 'Edit 300 g Salt' }));
-        act(() => setWindow(800, 32));
+        act(() => setWindow(TALL_WINDOW_PX, 32));
 
         // The text got larger under the open editor: it stays inline, with its fields where the cook left them.
         expect(screen.queryByRole('dialog')).toBeNull();

@@ -1565,10 +1565,18 @@ ingredient row breaks unit words (#144)", items 1 to 7). There is **no amount co
 
 #### 7.5.2 The row editor
 
-- **Below a 600 container:** a content-height bottom sheet (`Sheet size="content"`). The list stays still, and the
+- **Which one (one rule, both platforms):** the editor opens inline only when the window is at least 43 rem high AND
+  the editor's container is at least 43 rem wide. Otherwise it opens as the sheet. Both numbers are in rem, so a larger
+  text size needs a taller and wider space. They were measured on 2026-11-14 with the longest content (a range, a note, a
+  preparation and a long "You wrote" line), reached by the "Needs review" jump: the reason must show whole between the
+  sticky header and the action bar, and Done and Cancel must be in view. 43 rem high is the shortest window at 100% text.
+  With the window held at 43 rem high, the container needs 43 rem at 100% text and 41 rem at 200% text. A narrower
+  container makes the editor taller, which is why the two limits go together. The 600 px `narrow` class is unchanged and
+  still drives other layout, such as the paste button. The frame an open editor started in is kept until it closes.
+- **Under either limit:** a content-height bottom sheet (`Sheet size="content"`). The list stays still, and the
   sheet lifts the fields above the keyboard. **Cancel** (secondary) then **Done** (primary, `check`) are pinned above
   the keyboard as one `DialogActions` pair, side by side from 400 and stacked (Done on top) below it.
-- **From 600:** inline under the row, `pearl` at 60%, radius `md`, padding 16. One editor open at a time: opening
+- **With both limits met:** inline under the row, `pearl` at 60%, radius `md`, padding 16. One editor open at a time: opening
   another closes the first and keeps its values. **Cancel** then **Done** (primary) end the panel, as the same pair.
 - **Cancel** puts back the line's amount, range, unit, preparation, name and note as they were when the editor opened,
   then closes. It never undoes a food picked with Change, which closes the editor and commits on its own. Every other
@@ -1585,7 +1593,7 @@ ingredient row breaks unit words (#144)", items 1 to 7). There is **no amount co
     - "Unit": a `Combobox`, 112 px.
     - "Preparation": fills the rest, at least 160 px.
     - "Food details" (ghost) opens the existing details panel (nutrition, variants, candidates).
-- Layout from 600: Amount, Unit and Preparation on one line. Below 600 (the sheet): Amount and Unit on line 1,
+- Layout inline: Amount, Unit and Preparation on one line. In the sheet: Amount and Unit on line 1,
   Preparation full width on line 2.
 - Escape, Done or Cancel closes it. Focus returns to the row. No group field (groups are set at the section level).
 
@@ -1806,7 +1814,7 @@ serving · {counted} of {total} counted". `stepTimerLabel` (`form/messages.ts:68
 | Current-section tracking | `IntersectionObserver`                                        | `onLayout` + throttled `onScroll`                                       | translated         | platform APIs                                                              |
 | Section jump             | `scroll-margin-top`, focus to the H2                          | `scrollTo`, accessibility focus to the H2                               | translated         | same job                                                                   |
 | Refused Publish          | the first invalid field takes focus (keyboard focus)          | the field is centred, the screen-reader cursor moves to it, no keyboard | translated         | §7.8: the keyboard would hide the message and open a combobox's list       |
-| Row editor               | inline from 600, sheet below                                  | sheet on phone, inline on tablet                                        | translated         | the keyboard and the thumb                                                 |
+| Row editor               | inline from 43 rem high and 43 rem wide, sheet otherwise      | sheet on phone, inline on tablet                                        | translated         | the keyboard and the thumb                                                 |
 | Row reorder              | ⋯ Move up / down. No drag                                     | the same                                                                | kept               | SC 2.5.7                                                                   |
 | Paste                    | sheet                                                         | sheet, the system paste menu in the field                               | kept               | same job                                                                   |
 | Add photos               | file input, drag and drop on a fine pointer                   | "Take photo" / "Choose from library"                                    | translated         | the camera                                                                 |
@@ -2589,7 +2597,7 @@ Where a slice makes an existing spec obsolete, its coverage moves to the named n
 
 ### Slice 8: the Ingredients section and the one-tap create entry
 
-- **Changes:** quiet read rows, the row ⋯ menu, the row editor (sheet below 600, inline from 600), the quantity-first
+- **Changes:** quiet read rows, the row ⋯ menu, the row editor (inline from 43 rem high and 43 rem wide, sheet otherwise), the quantity-first
   add field with the live reading (after A1 and A2), Paste a list, groups, the nutrition total. The FAB and the sidebar
   button switch to **one tap opens the editor**. Home's first-run Paste ingredients opens the editor with the paste
   sheet open. `/recipes/parse*` and the native parse screens retire.

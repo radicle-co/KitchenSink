@@ -3,7 +3,7 @@ import type { Locator, Page } from '@playwright/test';
 
 import { route } from './utils/basePath';
 import { signInWithTicket } from './utils/auth';
-import { ingredientOpen } from './utils/recipeEditor';
+import { INLINE_EDITOR_VIEWPORT, ingredientOpen } from './utils/recipeEditor';
 import { makeRecipeDetail, mockRecipeApi, readViewerAppId } from './utils/recipeApi';
 
 /**
@@ -76,10 +76,10 @@ const ownerRecipe = (viewerId: string, ingredients: readonly Ingredient[]) =>
         ingredients: [...ingredients],
     });
 
-/** Where the row editor opens at each width: the sheet on a phone, inline in the row from 600. */
+/** Where the row editor opens at each width: the sheet on a phone, inline in the row from 600 in a window tall enough. */
 const FRAMES = [
     { name: 'phone (sheet)', viewport: { width: 390, height: 844 }, dialogs: 1 },
-    { name: 'desktop (inline)', viewport: { width: 1280, height: 900 }, dialogs: 0 },
+    { name: 'desktop (inline)', viewport: INLINE_EDITOR_VIEWPORT, dialogs: 0 },
 ] as const;
 
 /**
@@ -164,7 +164,7 @@ for (const frame of FRAMES) {
  * the edit survives as the device draft (ADR-0057) and is there when the cook opens the editor again.
  */
 test.describe('browser Back from the open row editor', () => {
-    test.use({ viewport: { width: 1280, height: 900 } });
+    test.use({ viewport: INLINE_EDITOR_VIEWPORT });
 
     test('keeps the typed amount for the next visit to the editor', async ({ page }) => {
         await openDetail(page);
@@ -315,6 +315,34 @@ async function reachViolations(
 }
 
 /**
+ * What is wrong with where the reason sits, right now: empty when the whole notice is drawn below the sticky header and
+ * above the bottom action bar. `toBeInViewport` alone passes on a sliver, so it cannot say the cook can read the reason.
+ */
+async function noticeViolations(page: Page, notice: Locator): Promise<string[]> {
+    const headerBottom = await page
+        .getByRole('button', { name: 'Close editor' })
+        .evaluate((el) => el.closest('header')?.getBoundingClientRect().bottom ?? Number.NaN);
+    const bar = await page.getByRole('group', { name: 'Recipe actions' }).boundingBox();
+    const box = await notice.boundingBox();
+
+    if (box === null || bar === null || Number.isNaN(headerBottom)) {
+        return ['the notice, the action bar or the header is not there'];
+    }
+
+    const found: string[] = [];
+
+    if (box.y < headerBottom) {
+        found.push('the notice is under the header');
+    }
+
+    if (box.y + box.height > bar.y) {
+        found.push('the notice is under the action bar');
+    }
+
+    return found;
+}
+
+/**
  * A cook's larger text, in force from the first paint as a browser text-size setting is. An init script runs before
  * <html> exists, and hydration rewrites its attributes, so the size is applied as soon as <html> appears and again
  * whenever a style attribute changes, with `important` over any stylesheet.
@@ -387,6 +415,7 @@ for (const [width, pinned] of [
     [768, false],
 ] as const) {
     test.describe(`the jump at ${width} px, text at 200%`, () => {
+        // 800 px is 25 rem at 200% text: far under the inline threshold, so the sheet is meant.
         test.use({ viewport: { width, height: 800 } });
 
         test(`opens as the sheet, with the reason on top and Done and Cancel ${pinned ? 'in view' : 'a scroll away'} while Amount has focus`, async ({
@@ -501,55 +530,83 @@ for (const frame of FRAMES) {
 }
 
 /**
- * The edge of the inline rule (`inlineEditorFit.ts`): a window one pixel taller than the threshold, at the cook's text
- * size, with the editor at its tallest. The editor must still be inline, its reason ("Needs review") on top, and Done and
- * Cancel in view between the header and the action bar. This is where the chosen threshold is measured.
+ * The edges of the inline rule (`inlineEditorFit.ts`), with the editor at its tallest: the window must be 43 rem high AND
+ * the editor's container 43 rem wide. At both limits the editor is inline, with its reason ("Needs review") fully between
+ * the sticky header and the action bar and Done and Cancel in view. One rem under either limit it is the sheet.
  */
-// Mirrors INLINE_EDITOR_MIN_VIEWPORT_REM in @commise/features-recipes `form/inlineEditorFit.ts`, which no package export
-// exposes. Change both together: if they drift, one of the two edge cases below fails.
-const INLINE_THRESHOLD_REM = 46;
+// Mirror INLINE_EDITOR_MIN_VIEWPORT_REM and INLINE_EDITOR_MIN_CONTAINER_REM in @commise/features-recipes
+// `form/inlineEditorFit.ts`, which no package export exposes. Change both together: if they drift, an edge case fails.
+const INLINE_THRESHOLD_REM = 43;
+const INLINE_CONTAINER_REM = 43;
+// With the sidebar showing (a window from 840 px), the window is 20 rem wider than the editor's container: measured
+// 2026-11-14 at 100% and 200% text (a 1008 px window held a 43 rem container, and a 2016 px window at 200% text did too).
+const SIDEBAR_AND_GUTTERS_REM = 20;
+
+/**
+ * The strict reading: the reason fully between the header and the bar, and Done and Cancel in view.
+ *
+ * @param page - The page, on the open inline editor.
+ * @param editor - The inline editor's region.
+ */
+async function expectInlineReach(page: Page, editor: Locator): Promise<void> {
+    const viewport = page.viewportSize();
+
+    expect(viewport).not.toBeNull();
+    // The range's second bound is drawn: the editor holds the content this case is about.
+    await expect(editor.getByLabel(/^Amount/u)).toHaveCount(2);
+    await expect
+        .poll(async () => reachViolations(page, editor, viewport), { message: 'Done and Cancel are reachable' })
+        .toEqual([]);
+    expect(await noticeViolations(page, reviewNotice(editor))).toEqual([]);
+}
 
 for (const textScale of [1, 2]) {
-    test.describe(`the jump at the inline threshold, text at ${textScale * 100}%`, () => {
-        test.use({ viewport: { width: 1280, height: INLINE_THRESHOLD_REM * 16 * textScale + 1 } });
-
-        test('opens inline with the longest content, the reason on top and Done and Cancel in view', async ({
-            page,
-        }) => {
-            await applyTextScale(page, textScale);
-            await openDetail(page, [healthyLine, longestDoubtedLine]);
-            await page.getByRole('link', { name: LINK_NAME }).click();
-            const editor = await openEditor(page, 0);
-            const viewport = page.viewportSize();
-
-            expect(viewport).not.toBeNull();
-            await expectRootFontSize(page, textScale);
-            // The range's second bound is drawn: the editor holds the content this case is about.
-            await expect(editor.getByLabel(/^Amount/u)).toHaveCount(2);
-            await expect(reviewNotice(editor)).toBeVisible();
-            await expect(reviewNotice(editor)).toBeInViewport();
-
-            await expect
-                .poll(async () => reachViolations(page, editor, viewport), {
-                    message: 'Done and Cancel are reachable at the inline threshold',
-                })
-                .toEqual([]);
-        });
+    const text = `text at ${textScale * 100}%`;
+    const px = (rem: number): number => rem * 16 * textScale;
+    const window = (heightRem: number, containerRem: number): { width: number; height: number } => ({
+        width: px(containerRem + SIDEBAR_AND_GUTTERS_REM),
+        height: px(heightRem),
     });
+    const edges = [
+        {
+            name: 'inline at 43 rem high and 43 rem wide',
+            viewport: window(INLINE_THRESHOLD_REM, INLINE_CONTAINER_REM),
+            inline: true,
+        },
+        {
+            name: 'sheet at 42 rem high and 43 rem wide',
+            viewport: window(INLINE_THRESHOLD_REM - 1, INLINE_CONTAINER_REM),
+            inline: false,
+        },
+        {
+            name: 'sheet at 43 rem high and 42 rem wide',
+            viewport: window(INLINE_THRESHOLD_REM, INLINE_CONTAINER_REM - 1),
+            inline: false,
+        },
+    ] as const;
 
-    // One pixel shorter, the same editor opens as the sheet. With the case above, a threshold that drifts either way fails.
-    test.describe(`the jump one pixel below the inline threshold, text at ${textScale * 100}%`, () => {
-        test.use({ viewport: { width: 1280, height: INLINE_THRESHOLD_REM * 16 * textScale - 1 } });
+    for (const edge of edges) {
+        test.describe(`the jump, ${edge.name}, ${text}`, () => {
+            test.use({ viewport: edge.viewport });
 
-        test('opens as the sheet, with the reason on top', async ({ page }) => {
-            await applyTextScale(page, textScale);
-            await openDetail(page, [healthyLine, longestDoubtedLine]);
-            await page.getByRole('link', { name: LINK_NAME }).click();
-            const sheet = await openEditor(page, 1);
+            test(
+                edge.inline ? 'opens inline with the longest content' : 'opens as the sheet, with the reason on top',
+                async ({ page }) => {
+                    await applyTextScale(page, textScale);
+                    await openDetail(page, [healthyLine, longestDoubtedLine]);
+                    await page.getByRole('link', { name: LINK_NAME }).click();
+                    const editor = await openEditor(page, edge.inline ? 0 : 1);
 
-            await expectRootFontSize(page, textScale);
-            await expect(reviewNotice(sheet)).toBeVisible();
-            await expect(reviewNotice(sheet)).toBeInViewport();
+                    await expectRootFontSize(page, textScale);
+                    await expect(reviewNotice(editor)).toBeVisible();
+
+                    if (edge.inline) {
+                        await expectInlineReach(page, editor);
+                    } else {
+                        await expect(reviewNotice(editor)).toBeInViewport({ ratio: 1 });
+                    }
+                },
+            );
         });
-    });
+    }
 }

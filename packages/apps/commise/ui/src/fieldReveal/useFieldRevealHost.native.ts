@@ -21,7 +21,9 @@
  * A FOCUS (`kind: 'focus'`, `docs/design/uiOverhaul/specSharedSystem.md` §16.3) is a field the cook is typing in. The
  * host holds it until the field blurs and keeps it inside the visible area by the same smallest scroll, with no blank
  * space. It re-checks each time the visible area gets SHORTER (the keyboard rising, then the pinned footer) and never
- * on a taller area or a change of the content, so the cook's own scrolling is not undone. An arrival pending on the
+ * on a taller area or a change of the content, so the cook's own scrolling is not undone. A focus may carry an `end`
+ * (an open row editor's Done and Cancel): when the span from the field's top to the end's bottom fits, that span is
+ * shown, so the actions land one gap above the keyboard; otherwise the field alone is, and the field wins. An arrival pending on the
  * same host wins (a focus is dropped while one waits, and an arrival replaces a held focus), and a list that is open
  * shows its own rows, so the focus waits for it to close.
  *
@@ -220,23 +222,36 @@ export function useFieldRevealHost(scroller: RefObject<RevealScroller | null>): 
 
         let released = false;
 
-        void measureField(focus.field, view).then((measure) => {
-            if (released || measure === null) {
-                return;
-            }
+        // The end (an open row editor's Done and Cancel) is measured with the field; one that cannot be measured is
+        // simply absent, and the field is shown alone.
+        const { end } = focus;
 
-            const place = spanTarget({
-                top: measure.top,
-                bottom: measure.top + measure.height,
-                offset: measure.offset,
-                viewport: currentViewport(),
-                keep: REVEAL_GAP_DP,
-            });
+        void Promise.all([measureField(focus.field, view), end === undefined ? null : measureField(end, view)]).then(
+            ([measure, endMeasure]) => {
+                if (released || measure === null) {
+                    return;
+                }
 
-            if (place !== null) {
-                scrollTo(view, place);
-            }
-        });
+                const viewportNow = currentViewport();
+                const endBottom = endMeasure === null ? null : endMeasure.top + endMeasure.height;
+                // The field and the end are shown together when they fit; when they do not, the field wins.
+                const bottom =
+                    endBottom !== null && endBottom - measure.top + 2 * REVEAL_GAP_DP <= viewportNow
+                        ? Math.max(endBottom, measure.top + measure.height)
+                        : measure.top + measure.height;
+                const place = spanTarget({
+                    top: measure.top,
+                    bottom,
+                    offset: measure.offset,
+                    viewport: viewportNow,
+                    keep: REVEAL_GAP_DP,
+                });
+
+                if (place !== null) {
+                    scrollTo(view, place);
+                }
+            },
+        );
 
         return () => {
             released = true;

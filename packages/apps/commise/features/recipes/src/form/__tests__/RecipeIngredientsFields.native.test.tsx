@@ -21,6 +21,7 @@ import { pressFrameOf, render as renderBare, renderWithTamagui, resolvedColour }
 import { fireEvent } from '@testing-library/dom';
 import { useState, type FC, type ReactElement, type ReactNode } from 'react';
 import { BackInterceptProvider } from '@commise/ui/back-intercept';
+import { FieldRevealContext, type RevealRequest } from '@commise/ui/field-reveal';
 import { recordedTextInputLabelled, recordedTextInputs } from '@commise/ui/testing/record-text-inputs';
 
 import { FoodResolutionStatus } from '@kitchensink/recipe-core';
@@ -301,6 +302,26 @@ describe('RecipeIngredientsFields (native) — the states (§7.5.1, §7.9)', () 
         );
         expect(within(salt!).getByRole('button', { name: 'Edit Salt' }).textContent).toBe('Salt');
     });
+
+    /**
+     * New (designer must-fix, 2026-11-14): the row reads like the recipe page. A WORD unit takes the plural of the amount
+     * ("7 cups", not "7 cup"), one stays singular, and a symbol keeps its spelling.
+     */
+    it.each([
+        { quantity: 7, unit: 'cup', read: '7 cups' },
+        { quantity: 1, unit: 'cup', read: '1 cup' },
+        { quantity: 2, unit: 'tsp', read: '2 tsp' },
+    ])(
+        'a $unit line of $quantity reads "$read" on the row and in its open control’s name',
+        ({ quantity, unit, read }) => {
+            renderLeaf({ values: valuesWith(withLineKeys([{ ...RICE, quantity, unit }])) });
+
+            const [rice] = rowItems();
+            const button = within(rice!).getByRole('button', { name: `Edit ${read} Arborio rice` });
+
+            expect(button.textContent?.replaceAll('\u00A0', ' ')).toContain(read);
+        },
+    );
 
     it('D21: a count of one reads in the singular, and the stored name stays plural', () => {
         renderLeaf({
@@ -778,6 +799,30 @@ describe('RecipeIngredientsFields (native) — the row editor on a tablet: inlin
 
         press(en.rowDone);
         expect(screen.queryByLabelText(en.rowAmountLabel)).toBeNull();
+    });
+
+    // The keyboard can hide the inline editor's Done and Cancel under it on a landscape tablet, so a focus inside the
+    // editor names the row as the `end` the host must show with the field (`withRevealEnd`).
+    it('focusing Amount sends a focus request that carries the row as its end, so Done and Cancel stay above the keyboard', () => {
+        const asked: RevealRequest[] = [];
+
+        const reveal = (request: RevealRequest): (() => void) => {
+            asked.push(request);
+
+            return () => undefined;
+        };
+
+        render(
+            <FieldRevealContext.Provider value={reveal}>
+                <StatefulLeaf initial={[RICE]} />
+            </FieldRevealContext.Provider>,
+        );
+
+        press('Edit 300 g Arborio rice');
+        // React hears a focus through `focusin`.
+        fireEvent.focusIn(screen.getByLabelText(en.rowAmountLabel));
+
+        expect(asked).toContainEqual(expect.objectContaining({ kind: 'focus', end: expect.anything() }));
     });
 
     // New (needs-review jump): the inline panel has the same Cancel + Done pair, and Cancel discards.

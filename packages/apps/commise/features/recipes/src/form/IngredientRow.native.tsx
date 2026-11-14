@@ -18,7 +18,7 @@
 import { ActionMenu } from '@commise/ui/action-menu';
 import { useBackIntercept } from '@commise/ui/back-intercept';
 import { Combobox } from '@commise/ui/combobox';
-import { useFieldStartReveal } from '@commise/ui/field-reveal';
+import { FieldRevealContext, useFieldStartReveal, useRevealEnd } from '@commise/ui/field-reveal';
 import { useFocusRequest } from '@commise/ui/focus-request';
 import { Icon } from '@commise/ui/icon';
 import { useKeyboardHidden } from '@commise/ui/layout';
@@ -161,6 +161,10 @@ export const IngredientRow: FC<IngredientRowProps> = ({
 
     useFieldStartReveal(ingredientRowId(line.key), node);
 
+    // A field typed in inside the open inline editor names this row as the end the host must keep in view with it: the row's
+    // bottom is where Done and Cancel are, and the keyboard can cover them.
+    const innerReveal = useRevealEnd(node);
+
     return (
         <View
             ref={node}
@@ -284,7 +288,7 @@ export const IngredientRow: FC<IngredientRowProps> = ({
                     </Text>
                 )}
             </View>
-            {inlineEditor}
+            <FieldRevealContext.Provider value={innerReveal}>{inlineEditor}</FieldRevealContext.Provider>
         </View>
     );
 };

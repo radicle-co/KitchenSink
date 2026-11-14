@@ -22,7 +22,7 @@ import { type Locale, fillTemplate } from '@commise/i18n';
 import type { ActionMenuItem } from '@commise/ui/action-menu';
 
 import { isStandInName, lineAmountName } from '../detail/lineName.js';
-import { formatQuantity, isLineNeedsReview, lineSummary, lineTailOf } from '../detail/model.js';
+import { formatAmount, isLineNeedsReview, lineSummary, lineTailOf } from '../detail/model.js';
 import type { LineCommitTarget } from '../hooks/lineCommit.js';
 import type { IngredientRowEditor } from '../hooks/useIngredientRowEditor.js';
 import { controlName } from '../format/cookAmount.js';
@@ -822,7 +822,8 @@ export const ingredientRowViewOf = (
     const writtenWords = !presentation.standIn && displayName !== foodName;
     // A stand-in row (a food the cook may not see) that holds the cook's words: the chip stays, and nothing is counted.
     const standInWords = presentation.standIn && (line.displayText ?? '').trim() !== '';
-    const amountText = formatQuantity(quantity, ctx.locale, line.unit);
+    // The row reads like the recipe page: a word unit takes the amount's number ("7 cups"). The fields keep the draft as written.
+    const amountText = formatAmount(quantity, ctx.locale, line.unit);
     // A stand-in row is named by its amount too, as the row shows it (WCAG 2.5.3, option C).
     const triggerFood = presentation.standIn
         ? controlName(lineSummary({ ...line, quantity }, ctx.locale, ctx.shared.ingredientLineName))

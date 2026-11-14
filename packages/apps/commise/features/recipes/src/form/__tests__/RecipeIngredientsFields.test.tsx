@@ -272,6 +272,26 @@ describe('RecipeIngredientsFields (web) — the states (§7.5.1, §7.9)', () => 
         expect(comma.className).toContain('sr-only');
     });
 
+    /**
+     * New (designer must-fix, 2026-11-14): the row reads like the recipe page. A WORD unit takes the plural of the amount
+     * ("7 cups", not "7 cup"), one stays singular, and a symbol keeps its spelling.
+     */
+    it.each([
+        { quantity: 7, unit: 'cup', read: '7 cups' },
+        { quantity: 1, unit: 'cup', read: '1 cup' },
+        { quantity: 2, unit: 'tsp', read: '2 tsp' },
+    ])(
+        'a $unit line of $quantity reads "$read" on the row and in its open control’s name',
+        ({ quantity, unit, read }) => {
+            renderLeaf({ values: valuesWith(withLineKeys([{ ...RICE, quantity, unit }])) });
+
+            const [rice] = rowItems();
+            const button = within(rice!).getByRole('button', { name: `Edit ${read} Arborio rice` });
+
+            expect(button.textContent?.replaceAll('\u00A0', ' ')).toContain(read);
+        },
+    );
+
     it('D21: a count of one reads in the singular, and the stored name stays plural', () => {
         renderLeaf({
             values: valuesWith(

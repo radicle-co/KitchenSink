@@ -9,6 +9,7 @@
  * @pattern Dependency Injection through a React context — the host provides the revealer, the field consumes it, and
  *     neither imports the other
  * @pattern Null Object — the default revealer asks nothing and releases nothing
+ * @pattern Decorator — `withRevealEnd` wraps a revealer and adds the end to the focus requests passing through
  */
 import { createContext } from 'react';
 import type { HostInstance } from 'react-native';
@@ -27,7 +28,9 @@ export type RevealTarget = Pick<HostInstance, 'measureLayout'>;
  *   never with blank space (`docs/design/uiOverhaul/ingredientArrival.md`). `above` is the dp from the top of the row
  *   that arrived to the top of the field.
  * - A `focus` is a field the cook is typing in: the host keeps it inside the visible area for as long as it is held,
- *   and checks again each time the visible area gets shorter (the keyboard rising, then the pinned footer).
+ *   and checks again each time the visible area gets shorter (the keyboard rising, then the pinned footer). An `end`
+ *   is the bottom of what the field sits in (an open row editor, down to its Done and Cancel): when the field and the
+ *   end fit in the visible area together, the host shows both, and otherwise the field alone (the field wins).
  * - A `start` is an element a deep link named (`ScrollHost.scrollToStart`): the host scrolls its top to the top of the
  *   visible area, once. It asks for no screen-reader cursor: the element's own sheet or notice owns that.
  * - A `target` is a field a refused Publish named: the host scrolls it to the middle of the visible area, once, and
@@ -38,7 +41,7 @@ export type RevealTarget = Pick<HostInstance, 'measureLayout'>;
 export type RevealRequest =
     | { readonly kind: 'list'; readonly field: RevealTarget; readonly below: number }
     | { readonly kind: 'arrival'; readonly field: RevealTarget; readonly above: number }
-    | { readonly kind: 'focus'; readonly field: RevealTarget }
+    | { readonly kind: 'focus'; readonly field: RevealTarget; readonly end?: RevealTarget }
     | { readonly kind: 'target'; readonly field: RevealTarget; readonly onShown: () => void }
     | { readonly kind: 'start'; readonly field: RevealTarget };
 
@@ -47,6 +50,18 @@ export type ListRequest = Extract<RevealRequest, { readonly kind: 'list' }>;
 
 /** Ask the host to show the field and the room below it. Called from an effect, never in render; returns the release. */
 export type FieldRevealer = (request: RevealRequest) => () => void;
+
+/**
+ * A revealer that gives every `focus` request the `end` of what the fields sit in, and passes every other request
+ * through untouched. Pure: it only wraps the parent revealer.
+ *
+ * @param reveal - The revealer the wrapped fields would otherwise call.
+ * @param end - The element whose bottom must show with the focused field (an open row editor).
+ * @returns A revealer for the fields inside that element.
+ */
+export function withRevealEnd(reveal: FieldRevealer, end: RevealTarget): FieldRevealer {
+    return (request) => reveal(request.kind === 'focus' ? { ...request, end } : request);
+}
 
 /** Releases nothing. */
 const RELEASE_NOTHING = (): void => undefined;

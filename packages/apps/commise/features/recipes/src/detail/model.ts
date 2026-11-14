@@ -79,7 +79,8 @@ const RANGE_SEPARATOR = '–';
 const AMOUNT_UNIT_JOINER = '\u00A0';
 
 /**
- * Format an ingredient quantity with its optional unit for the active locale. Each number goes through
+ * Format an ingredient quantity with its optional unit, the unit AS WRITTEN, for the active locale. For an amount shown
+ * beside a line use {@link formatAmount}, which pluralizes a word unit. Each number goes through
  * `format/cookAmount.ts` (a cook's fraction in English, a locale decimal elsewhere, never string concatenation of the
  * NUMBERS). Pure.
  *
@@ -122,12 +123,13 @@ export const formatQuantity = (quantity: IngredientQuantity, locale: Locale, uni
 };
 
 /**
- * {@link formatQuantity} for an amount SHOWN beside a line on the recipe page: a WORD unit takes the plural of the amount
+ * {@link formatQuantity} for an amount SHOWN beside a line, on the recipe page and on the editor's row: a WORD unit takes the plural of the amount
  * it follows (`1.5 cups`, `2 tablespoons`), a symbol (`tbsp`, `g`) does not (D11). Pure.
  *
- * Kept apart from {@link formatQuantity} on purpose: that one prints the unit AS THE COOK WROTE IT, which is what the
- * editor row and the parsed-line preview must keep showing, so their text matches what is in the field. The detail page
- * is read, not edited, and it rescales the amounts, which is when "1.5 cup" appears.
+ * Kept apart from {@link formatQuantity}, which prints the unit AS THE COOK WROTE IT. The recipe page, the editor's ingredient
+ * row and its accessible name read through this one (the row used to print "7 cup", and the designer ruled on 2026-11-14 that
+ * it must read like the recipe page). {@link formatQuantity} stays for text that must show what was stored: the version
+ * history and the live-reading speech, which passes no unit.
  *
  * @param quantity - The ingredient quantity value object.
  * @param locale - The active BCP-47 locale.
@@ -152,7 +154,7 @@ export const lineSummary = (
     locale: Locale,
     labels: IngredientLineNameMessages,
 ): string =>
-    `${formatQuantity(line.quantity, locale, line.unit)} ${lineAmountName(line, line.quantity, line.unit, labels)}`.trim();
+    `${formatAmount(line.quantity, locale, line.unit)} ${lineAmountName(line, line.quantity, line.unit, labels)}`.trim();
 
 /**
  * The read view's ingredient checkbox name (`docs/design/ingredientSpecialization.md` §S5): {@link lineSummary}, with the

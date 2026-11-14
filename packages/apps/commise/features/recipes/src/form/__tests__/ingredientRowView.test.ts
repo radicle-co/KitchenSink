@@ -893,6 +893,25 @@ describe('ingredientRowViewOf — the read row (build spec §7.5.1)', () => {
         expect(row.openLabel).toBe('Edit 1½ cups beef brisket');
     });
 
+    /**
+     * New (designer must-fix, 2026-11-14): the row reads like the recipe page (`formatAmount`), so a WORD unit takes the
+     * plural of the amount ("7 cups") and a symbol keeps its spelling ("2 tsp"). The row used to print the unit as the cook
+     * wrote it ("7 cup"). What is in the Amount and Unit fields is untouched: they still show the draft as written.
+     */
+    it.each([
+        { quantity: 7, unit: 'cup', amount: '7\u00A0cups' },
+        { quantity: 1, unit: 'cup', amount: '1\u00A0cup' },
+        { quantity: 2, unit: 'tsp', amount: '2\u00A0tsp' },
+        { quantity: 2, quantityHigh: 3, unit: 'cup', amount: '2–3\u00A0cups' },
+    ])('the row reads "$amount" for $quantity $unit, and its open label says the same', (line) => {
+        const { amount, ...stated } = line;
+        const { row } = onlyRow({ lines: [bound(stated)] });
+
+        expect(row.amountText).toBe(amount);
+        expect(row.openLabel).toBe(`Edit ${amount.replaceAll('\u00A0', ' ')} beef brisket`);
+        expect(row.lineEditor).toMatchObject({ unit: stated.unit });
+    });
+
     it('a line with no amount has an empty amount: never an invented "1" (F5)', () => {
         const { row } = onlyRow({ lines: [bound({ quantity: Number.NaN, unit: undefined, preparation: '  ' })] });
 

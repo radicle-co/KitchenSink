@@ -1,4 +1,7 @@
 appId: ${APP_ID}
+onFlowComplete:
+    # ⛔ ALWAYS back to portrait, pass or fail: the simulator is shared by every later flow on this shard (see landscape.yaml).
+    - setOrientation: PORTRAIT
 ---
 # The needs-review jump on a device (mobile): a line the verification gate called NEEDS_REVIEW shows the owner a
 # "Needs review: <food>" control on the recipe's detail, and tapping it opens the editor with THAT line's row editor sheet
@@ -64,11 +67,11 @@ appId: ${APP_ID}
 - extendedWaitUntil:
       notVisible: 'You wrote'
       timeout: 20000
-# The row names the unit as the line stores it ("cup"), so the pattern takes either number.
-- assertVisible: 'Edit 2 cups? ${E2E_NEEDS_REVIEW_FOOD}.*'
+# The row reads like the recipe page: a word unit takes the amount's number ("2 cups").
+- assertVisible: 'Edit 2 cups ${E2E_NEEDS_REVIEW_FOOD}.*'
 
 # DONE keeps. Reopen the same row, change the amount again, and close the sheet with Done.
-- tapOn: 'Edit 2 cups? ${E2E_NEEDS_REVIEW_FOOD}.*'
+- tapOn: 'Edit 2 cups ${E2E_NEEDS_REVIEW_FOOD}.*'
 - extendedWaitUntil:
       visible: 'You wrote'
       timeout: 20000
@@ -84,7 +87,62 @@ appId: ${APP_ID}
 - extendedWaitUntil:
       notVisible: 'You wrote'
       timeout: 20000
-- assertVisible: 'Edit 7 cups? ${E2E_NEEDS_REVIEW_FOOD}.*'
+- assertVisible: 'Edit 7 cups ${E2E_NEEDS_REVIEW_FOOD}.*'
+
+# iOS ONLY: with the keyboard up, the open editor's Done and Cancel stay ABOVE it, in landscape and in portrait (the field
+# reveal carries the row's end: `withRevealEnd`, `IngredientRow.native.tsx`). Android keeps its own `hideKeyboard` steps
+# above, because its keyboard's action key is ALSO named "Done" and this flow cannot tell the two apart there.
+#
+# The tap is anchored `rightOf: 'Cancel'`, so it can never resolve to the keyboard's own key named "Done". The same steps run
+# twice, once per orientation; Maestro has no loop or macro that keeps `when` and `setOrientation` readable, so they are
+# written out.
+#
+# ⛔ THE RUNNER MUST SET UP THE SIMULATOR BEFORE THIS FLOW (Maestro has no command for either):
+#   1. a SOFT keyboard: `defaults write com.apple.iphonesimulator ConnectHardwareKeyboard -bool false`, then boot the simulator.
+#      With the hardware keyboard connected no keyboard rises and the steps below prove nothing.
+#   2. a large text size: `xcrun simctl ui booted content_size accessibility-large`, and back to `large` afterwards.
+#   The inline editor needs a tablet-width window (an iPad); on a phone the same steps run against the sheet, which pins its
+#   own Done and Cancel, so they pass either way.
+- runFlow:
+      when:
+          platform: iOS
+      commands:
+          - setOrientation: LANDSCAPE_LEFT
+          - tapOn: 'Edit 7 cups ${E2E_NEEDS_REVIEW_FOOD}.*'
+          - extendedWaitUntil:
+                visible: 'You wrote'
+                timeout: 20000
+          - tapOn: 'Amount'
+          - eraseText: 5
+          - inputText: '5'
+          - assertVisible:
+                text: 'Done'
+                rightOf: 'Cancel'
+          - tapOn:
+                text: 'Done'
+                rightOf: 'Cancel'
+          - extendedWaitUntil:
+                notVisible: 'You wrote'
+                timeout: 20000
+          - assertVisible: 'Edit 5 cups ${E2E_NEEDS_REVIEW_FOOD}.*'
+          - setOrientation: PORTRAIT
+          - tapOn: 'Edit 5 cups ${E2E_NEEDS_REVIEW_FOOD}.*'
+          - extendedWaitUntil:
+                visible: 'You wrote'
+                timeout: 20000
+          - tapOn: 'Amount'
+          - eraseText: 5
+          - inputText: '7'
+          - assertVisible:
+                text: 'Done'
+                rightOf: 'Cancel'
+          - tapOn:
+                text: 'Done'
+                rightOf: 'Cancel'
+          - extendedWaitUntil:
+                notVisible: 'You wrote'
+                timeout: 20000
+          - assertVisible: 'Edit 7 cups ${E2E_NEEDS_REVIEW_FOOD}.*'
 
 # Leave with the close control, never Discard (it deletes the recipe). The next flow's reset deletes the probe either way.
 - tapOn: 'Close editor'

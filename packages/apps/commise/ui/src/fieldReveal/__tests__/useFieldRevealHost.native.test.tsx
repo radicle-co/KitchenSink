@@ -465,6 +465,62 @@ describe('useFieldRevealHost — a focus (specSharedSystem.md §16.3)', () => {
         expect(seam.measured).toBe(1);
     });
 
+    /** A focus that also names the open row's end (its Done and Cancel); the host measures the field, then the end. */
+    async function focusWithEnd(rendered: ReturnType<typeof host>): Promise<void> {
+        await act(async () => {
+            rendered.result.current.revealer({ kind: 'focus', field, end: { measureLayout: () => undefined } });
+            await Promise.resolve();
+        });
+    }
+
+    it('with an end, a keyboard that shrinks the area scrolls the field AND the end into view when both fit (Done and Cancel land one gap above the keyboard)', async () => {
+        const rendered = host(600);
+        // Field 200 to 240, the end's bottom at 400: all inside 600, so nothing moves yet.
+        seam.measures = [
+            { top: 200, height: 40, offset: 0 },
+            { top: 360, height: 40, offset: 0 },
+        ];
+        await focusWithEnd(rendered);
+        expect(seam.scrolls).toEqual([]);
+
+        // The keyboard rises: 300 dp. The span 192 to 408 (216 dp) fits, so the end's bottom goes to 300 - 8.
+        seam.measures = [
+            { top: 200, height: 40, offset: 0 },
+            { top: 360, height: 40, offset: 0 },
+        ];
+        await resize(rendered, 300);
+
+        expect(seam.scrolls).toEqual([{ y: 108, animated: true }]);
+    });
+
+    it('with an end that does not fit with the field, the field wins: today’s field-only scroll', async () => {
+        const rendered = host(700);
+        seam.measures = [
+            { top: 280, height: 40, offset: 0 },
+            { top: 560, height: 40, offset: 0 },
+        ];
+        await focusWithEnd(rendered);
+        expect(seam.scrolls).toEqual([]);
+
+        // 300 dp: the span 272 to 608 (336 dp) is too tall, so the field's own bottom goes one gap above the edge.
+        seam.measures = [
+            { top: 280, height: 40, offset: 0 },
+            { top: 560, height: 40, offset: 0 },
+        ];
+        await resize(rendered, 300);
+
+        expect(seam.scrolls).toEqual([{ y: 28, animated: true }]);
+    });
+
+    it('with an end that cannot be measured, keeps the field-only scroll', async () => {
+        const rendered = host(300);
+        seam.measures = [{ top: 280, height: 40, offset: 0 }, null];
+
+        await focusWithEnd(rendered);
+
+        expect(seam.scrolls).toEqual([{ y: 28, animated: true }]);
+    });
+
     it('is dropped while an arrival is pending', async () => {
         const rendered = host(600);
         seam.measures = [{ top: 250, height: 48, offset: 500 }];

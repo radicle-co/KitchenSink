@@ -23,7 +23,7 @@ import { canonicalCuisine, quantityLowerBound, type RecipeDetail, type RecipeSta
 import type { CreateRecipeRequest, RecipeStatementInput, UpdateRecipeRequest } from '@kitchensink/schema-recipe';
 import { type RecipeFormValues } from './values.js';
 import { sourceStatementOf } from './sourceLink.js';
-import { isStoredLine, seedLineKey } from './lineKey.js';
+import { isStoredLine, seedLineKey, type IngredientLineKey } from './lineKey.js';
 import { computeTotalTime } from './totalTime.js';
 import { draftQuantity } from './quantity.js';
 
@@ -167,6 +167,32 @@ export const toUpdateRecipeInput = (
         cuisine: rest.cuisine ?? null,
     };
 };
+
+/**
+ * The cook's own line for each stored line that has one, by the draft's line key, for display in a needs-review row
+ * editor. DISPLAY ONLY: it is derived at render from the server read, and is never put into the form value `sourceLine`
+ * (create-only write provenance) or into the device draft. The server decides who gets `sourceLine` (its owner), so a
+ * line without one simply has no entry. Pure.
+ *
+ * ⛔ Lined up by `keyAt` (the editor's `lineKeyAt`): the ONE alignment rule, which answers a key only when the read's
+ * version is the one the keys were seeded at. A resumed draft whose base is older than the read could otherwise show one
+ * line's words on another row after a reorder, and it answers nothing instead.
+ *
+ * @param detail - The recipe as the editor last read it.
+ * @param keyAt - The key of the stored line at a (version, position) address, or `undefined`.
+ * @returns The lines' own words, by key.
+ */
+export const originalLinesOf = (
+    detail: Pick<RecipeDetail, 'ingredients' | 'currentVersion'>,
+    keyAt: (address: { readonly version: number; readonly position: number }) => IngredientLineKey | undefined,
+): ReadonlyMap<IngredientLineKey, string> =>
+    new Map(
+        detail.ingredients.flatMap((line, position) => {
+            const key = keyAt({ version: detail.currentVersion, position });
+
+            return key === undefined || line.sourceLine === undefined ? [] : [[key, line.sourceLine] as const];
+        }),
+    );
 
 /**
  * Project a loaded {@link RecipeDetail} onto the editor's {@link RecipeFormValues} seed shape (T067, unified

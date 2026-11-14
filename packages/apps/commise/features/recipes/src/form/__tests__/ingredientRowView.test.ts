@@ -19,6 +19,7 @@ import {
     makeIngredientRowEditor,
     makeLookupRetry,
     makeRecipeFormValues,
+    withLineKey,
     withLineKeys,
     type UnkeyedFormIngredient,
 } from '../../__fixtures__/index.js';
@@ -37,7 +38,8 @@ import {
     type IngredientRowContext,
     type IngredientRowView,
 } from '../ingredientRowView.js';
-import type { IngredientLineKey } from '../lineKey.js';
+import { captureLineFields, type LineFieldsMemento } from '../lineFieldsMemento.js';
+import { seedLineKey, type IngredientLineKey } from '../lineKey.js';
 import type { LookupEntry } from '../nutritionLookup.js';
 import { recipeFormMessages } from '../messages.js';
 import { applyDraftAction } from '../props.js';
@@ -87,6 +89,7 @@ const makeFocus = (refusal: RefusalFocus = { pointed: false, onHandled: () => un
         name: () => level,
         open: () => level,
         actions: () => level,
+        editor: () => level,
         trailing: level,
         refusal: { name: () => refusal, trailing: refusal },
         request: vi.fn<RowFocus['request']>(),
@@ -109,6 +112,10 @@ interface Setup {
     readonly refusal?: RefusalFocus;
     /** The row whose editor is open. */
     readonly openKey?: IngredientLineKey;
+    /** The cook's original lines by key, as the editor derives them from the server read (display only). */
+    readonly originals?: ReadonlyMap<IngredientLineKey, string>;
+    /** What the open editor's Cancel puts back (`LineEditorState.restorePoint`). */
+    readonly restore?: { readonly memento: LineFieldsMemento; readonly rangeShown: boolean };
     /** How many named groups the list has (its own and the cook's new, empty ones). */
     readonly groupCount?: number;
     /** The text the cook typed in each amount bound while the editor is open (`LineEditorState.amountText`). */
@@ -137,6 +144,7 @@ const rowsOf = (setup: Setup) => {
         openKey: setup.openKey,
         open: vi.fn<(key: IngredientLineKey) => void>(),
         close: vi.fn<() => void>(),
+        restorePoint: () => setup.restore,
         rangeShown: () => false,
         showRange: vi.fn<(key: IngredientLineKey) => void>(),
         hideRange: vi.fn<(key: IngredientLineKey) => void>(),
@@ -170,6 +178,7 @@ const rowsOf = (setup: Setup) => {
         openFoodDetails,
         openMoveToGroup,
         groupCount: setup.groupCount ?? 0,
+        ...(setup.originals === undefined ? {} : { originalLines: setup.originals }),
         ...(setup.openFood === undefined ? {} : { openFood: setup.openFood }),
     };
     const rows: readonly IngredientRowView[] = values.ingredients.map((line, index) =>
@@ -1155,6 +1164,102 @@ describe('ingredientRowViewOf — the row editor (build spec §7.5.2)', () => {
 
         expect(lineEditor.close).toHaveBeenCalled();
         expect(focus.request).toHaveBeenCalledWith(keyOf(values.ingredients[0]), 'open');
+    });
+
+    /**
+     * The needs-review notice and the cook's original line (display only): the editor view says the line needs review
+     * only for a NEEDS_REVIEW line, carries the original only when the server sent one for THAT key, and the row says
+     * "You wrote" above the food search only while Change is open on such a line.
+     */
+    describe('needs review', () => {
+        const review = bound({ resolutionStatus: FoodResolutionStatus.NEEDS_REVIEW });
+
+        it('a NEEDS_REVIEW line with an original: the editor carries both', () => {
+            const key = keyOf(withLineKey(review));
+            const { row } = onlyRow({ lines: [review], originals: new Map([[key, '1 lb brisket, or so']]) });
+
+            expect(row.lineEditor.reviewNotice).toEqual({ originalLine: '1 lb brisket, or so' });
+        });
+
+        it('a NEEDS_REVIEW line with no original: the notice without the line', () => {
+            const { row } = onlyRow({ lines: [review] });
+
+            expect(row.lineEditor.reviewNotice).toEqual({});
+        });
+
+        it('a resolved line carries no notice and no original, even when an original is held for its key', () => {
+            const key = keyOf(withLineKey(bound()));
+            const { row } = onlyRow({ lines: [bound()], originals: new Map([[key, 'stale']]) });
+
+            expect(row.lineEditor.reviewNotice).toBeUndefined();
+        });
+
+        it('an original held for another line is not shown on this one', () => {
+            const { row } = onlyRow({ lines: [review], originals: new Map([[seedLineKey(9, 9), 'other line']]) });
+
+            expect(row.lineEditor.reviewNotice).toEqual({});
+        });
+
+        it('says what the cook wrote above the food search while Change is open, and not otherwise', () => {
+            const key = keyOf(withLineKey(review));
+            const originals = new Map([[key, '1 lb brisket']]);
+            const changing = onlyRow({ lines: [review], originals, entry: { changing: new Set([key]) } });
+            const idle = onlyRow({ lines: [review], originals });
+
+            expect(changing.row.youWroteInline).toBe('You wrote: “1 lb brisket”');
+            expect(idle.row.youWroteInline).toBeUndefined();
+        });
+    });
+
+    /**
+     * The row editor's Cancel: what it now proves is that it puts back ONLY through the keyed restore action with the
+     * memento taken at open, restores the range's view state both ways, then closes and returns focus; and that Done,
+     * by contrast, dispatches no restore.
+     */
+    describe('Cancel', () => {
+        const memento = captureLineFields(withLineKey({ ingredientId: 'ing_x', quantity: 1, isUserEntered: false }));
+
+        it('dispatches the restore for its own line, hides a range that was not shown, closes and refocuses', () => {
+            const { row, values, dispatch, lineEditor, focus } = onlyRow({
+                lines: [bound()],
+                restore: { memento, rangeShown: false },
+            });
+            const key = keyOf(values.ingredients[0]);
+
+            row.lineEditor.onCancel();
+
+            expect(dispatch).toHaveBeenCalledWith({ kind: 'restoreIngredientFields', key, memento });
+            expect(lineEditor.hideRange).toHaveBeenCalledWith(key);
+            expect(lineEditor.showRange).not.toHaveBeenCalled();
+            expect(lineEditor.close).toHaveBeenCalled();
+            expect(focus.request).toHaveBeenCalledWith(key, 'open');
+        });
+
+        it('shows the range again when it was shown at open', () => {
+            const { row, values, lineEditor } = onlyRow({ lines: [bound()], restore: { memento, rangeShown: true } });
+
+            row.lineEditor.onCancel();
+
+            expect(lineEditor.showRange).toHaveBeenCalledWith(keyOf(values.ingredients[0]));
+            expect(lineEditor.hideRange).not.toHaveBeenCalled();
+        });
+
+        it('with no restore point still closes, and changes nothing', () => {
+            const { row, dispatch, lineEditor } = onlyRow({ lines: [bound()] });
+
+            row.lineEditor.onCancel();
+
+            expect(dispatch).not.toHaveBeenCalled();
+            expect(lineEditor.close).toHaveBeenCalled();
+        });
+
+        it('Done dispatches no restore', () => {
+            const { row, dispatch } = onlyRow({ lines: [bound()], restore: { memento, rangeShown: false } });
+
+            row.lineEditor.onDone();
+
+            expect(dispatch).not.toHaveBeenCalled();
+        });
     });
 
     it('gives each field an id of its own line, so two rows never share a label target', () => {

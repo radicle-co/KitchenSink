@@ -34,7 +34,7 @@ import { currentSectionOf } from './currentSection.js';
 import { ScrollHostContext } from './scrollHostContext.js';
 import { INITIAL_SCROLL_STATE, nextScrollState } from './scrollState.js';
 import { REVEAL_GAP_DP } from '../fieldReveal/fieldReveal.js';
-import { spanTarget } from '../fieldReveal/spanReveal.js';
+import { spanTarget, startSpanTarget } from '../fieldReveal/spanReveal.js';
 
 /** How close to the end counts as the end, px. */
 const END_SLOP_PX = 1;
@@ -80,6 +80,19 @@ const pxOf = (length: string): number => {
 
     return Number.isFinite(px) ? px : 0;
 };
+
+/**
+ * The window less what the document keeps clear at its edges (the sticky header, the action bar): the same
+ * `scroll-padding` a focused control's own scroll honours, so every reveal here and the browser cannot disagree.
+ *
+ * @returns The top clearance and the height of the free area, in px. @sideEffect Reads computed style and the window.
+ */
+function freeArea(): { readonly clearTop: number; readonly viewport: number } {
+    const padding = window.getComputedStyle(document.documentElement);
+    const clearTop = pxOf(padding.scrollPaddingTop);
+
+    return { clearTop, viewport: window.innerHeight - clearTop - pxOf(padding.scrollPaddingBottom) };
+}
 
 /** The web design-system scroll host. */
 export const ScrollHost: FC<ScrollHostWebProps> = ({
@@ -260,6 +273,33 @@ export const ScrollHost: FC<ScrollHostWebProps> = ({
 
                 return true;
             },
+            scrollToStart: (id) => {
+                const target = document.getElementById(id);
+
+                if (target === null) {
+                    return false;
+                }
+
+                // ONE scroll from both of the element's edges: its top one gap under the header, or, when it and its end
+                // (the row editor's Done and Cancel) do not fit between the header and the bar, its end one gap above
+                // the bar (`startSpanTarget`). Two scrolls would race: the first is smooth and still moving when the
+                // second reads positions.
+                const { clearTop, viewport } = freeArea();
+                const box = target.getBoundingClientRect();
+                const place = startSpanTarget({
+                    top: box.top - clearTop,
+                    bottom: box.bottom - clearTop,
+                    offset: window.scrollY,
+                    viewport,
+                    keep: REVEAL_GAP_DP,
+                });
+
+                if (place !== null) {
+                    window.scrollTo({ top: place, behavior: jumpBehavior() });
+                }
+
+                return true;
+            },
             revealSpan: (topId, bottomId) => {
                 const top = document.getElementById(topId);
                 const bottom = document.getElementById(bottomId);
@@ -268,16 +308,12 @@ export const ScrollHost: FC<ScrollHostWebProps> = ({
                     return false;
                 }
 
-                // The window less what the document keeps clear at its edges (the sticky header, the action bar): the
-                // same `scroll-padding` a focused control's own scroll honours, so the two cannot disagree.
-                const padding = window.getComputedStyle(document.documentElement);
-                const clearTop = pxOf(padding.scrollPaddingTop);
-                const clearBottom = pxOf(padding.scrollPaddingBottom);
+                const { clearTop, viewport } = freeArea();
                 const target = spanTarget({
                     top: top.getBoundingClientRect().top - clearTop,
                     bottom: bottom.getBoundingClientRect().bottom - clearTop,
                     offset: window.scrollY,
-                    viewport: window.innerHeight - clearTop - clearBottom,
+                    viewport,
                     keep: REVEAL_GAP_DP,
                 });
 

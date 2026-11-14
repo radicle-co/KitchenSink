@@ -54,3 +54,24 @@ export function spanTarget({ top, bottom, offset, viewport, keep }: SpanPlace): 
 
     return target === offset ? null : target;
 }
+
+/**
+ * The scroll offset for a deep link to one element that ends in what the cook must reach (an ingredient row and its
+ * editor's Done and Cancel): the element's top one gap below the visible area's top, unless it and its end do not both
+ * fit between the edges. Then the END wins, as in {@link spanTarget}: its bottom goes one gap above the bottom edge and
+ * as much of the element as fits shows above it. One offset from both edges, so a caller scrolls once. Pure.
+ *
+ * @param place - Where the element's top and bottom and the scroller are.
+ * @returns The offset, never below 0; `null` when it is already there or the visible area is not laid out.
+ */
+export function startSpanTarget({ top, bottom, offset, viewport, keep }: SpanPlace): number | null {
+    if (viewport <= 0) {
+        return null;
+    }
+
+    const fits = bottom - top + 2 * keep <= viewport;
+    const delta = fits ? top - keep : bottom + keep - viewport;
+    const target = Math.max(0, offset + delta);
+
+    return target === offset ? null : target;
+}

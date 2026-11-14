@@ -41,6 +41,9 @@ import { useFakeRowEditor } from '../../__fixtures__/useFakeRowEditor.js';
 import type { LookupRetry } from '../ingredientStatus.js';
 import type { IngredientNutrition, LookupEntry } from '../nutritionLookup.js';
 import type { DraftAction } from '../draftAction.js';
+import { expectDesignSystemButton } from '../../__tests__/designSystemButton.js';
+import { seedLineKey, type IngredientLineKey } from '../lineKey.js';
+import { ingredientRowId } from '../fieldIds.js';
 import { applyDraftAction } from '../props.js';
 import { toCreateRecipeInput } from '../wire.js';
 import { type IngredientsPasteView } from '../props.js';
@@ -50,6 +53,14 @@ import type { ContainerClass } from '@commise/ui/container-class';
 const layout = vi.hoisted(() => ({ container: 'narrow' as ContainerClass }));
 
 vi.mock('../../layout/useMainContainerClass.js', () => ({ useMainContainerClass: () => layout.container }));
+
+// The page's scroll host, where a case gives one: only the start of a row a link names is read from it here.
+const host = vi.hoisted(() => ({ start: undefined as undefined | ((id: string) => boolean) }));
+
+vi.mock('@commise/ui/scroll-host', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('@commise/ui/scroll-host')>()),
+    useOptionalScrollHost: () => (host.start === undefined ? null : { scrollToStart: host.start }),
+}));
 // Rows 6 and 7's panel searches the line's words through the progressive food search. This suite pins the panel's frame,
 // not that search, which `RecipeIngredientsFields.rowEditor` and `rowEditor.integration` own.
 vi.mock('../../hooks/ingredientSuggestionSource.js', () => ({
@@ -61,6 +72,7 @@ vi.mock('../../hooks/ingredientSuggestionSource.js', () => ({
 
 beforeEach(() => {
     layout.container = 'narrow';
+    host.start = undefined;
 });
 afterEach(cleanup);
 
@@ -124,7 +136,11 @@ const StatefulLeaf: FC<{
     readonly seen?: RecipeFormValues[];
     readonly nutrition?: IngredientNutrition;
     readonly dispatched?: DraftAction[];
-}> = ({ initial, seen, nutrition, dispatched }) => {
+    /** A row editor to open on arrival (`RecipeIngredientsFieldsProps.arrivalLine`, found). */
+    readonly initialLine?: IngredientLineKey;
+    /** The cook's original lines by key, for a line that needs review. */
+    readonly originalLines?: ReadonlyMap<IngredientLineKey, string>;
+}> = ({ initial, seen, nutrition, dispatched, initialLine, originalLines }) => {
     const [values, setValues] = useState(() => valuesWith(withLineKeys(initial)));
 
     const change = (next: RecipeFormValues): void => {
@@ -155,6 +171,8 @@ const StatefulLeaf: FC<{
             nutrition={nutrition ?? NUTRITION}
             lookupRetry={LOOKUP_RETRY}
             rowEditor={rowEditor}
+            {...(initialLine === undefined ? {} : { arrivalLine: { kind: 'found', key: initialLine } as const })}
+            {...(originalLines === undefined ? {} : { originalLines })}
         />
     );
 };
@@ -509,6 +527,29 @@ describe('RecipeIngredientsFields (web) — the ⋯ (§7.5.1)', () => {
         );
     });
 
+    // NEW: the 'editor' focus request is its own control, so a Remove that targets the next row's open control cannot
+    // land on that row's notice, even while that row's editor is open.
+    it('Remove hands focus to the next row’s open control even when that row’s editor is open', async () => {
+        layout.container = 'regular';
+        const user = userEvent.setup();
+        const review: UnkeyedFormIngredient = {
+            ...RICE,
+            ingredientId: 'r',
+            name: 'Sugar',
+            resolutionStatus: FoodResolutionStatus.NEEDS_REVIEW,
+        };
+        render(<StatefulLeaf initial={[{ ...RICE, name: 'Flour' }, review]} />);
+
+        await user.click(screen.getByRole('button', { name: 'Edit 300 g Sugar' }));
+        await openMenu(user, 'Flour');
+        await user.click(screen.getByRole('menuitem', { name: en.statusActionRemove }));
+
+        await vi.waitFor(() =>
+            expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Edit 300 g Sugar' })),
+        );
+        expect(document.activeElement).not.toBe(screen.getByRole('group', { name: en.statusNeedsReview }));
+    });
+
     it('removing the last row hands focus to the add field', async () => {
         const user = userEvent.setup();
         render(<StatefulLeaf initial={THREE} />);
@@ -537,16 +578,75 @@ describe('RecipeIngredientsFields (web) — the row editor as a phone sheet (§7
         expect(within(sheet).queryByLabelText(/section|group/i)).toBeNull();
     });
 
-    // F11 (`evaluateFinal.md`; `buildSpec.md` §5.1): the phone sheet's one primary fills it, and it has no Cancel.
-    it('the line editor sheet’s Done fills the sheet and the sheet has no Cancel', async () => {
+    // REWRITTEN (needs-review jump): the sheet's footer is now a Cancel + Done PAIR in the design system's DialogActions.
+    // It proves Cancel comes first and is secondary, Done comes last and is the primary (with the check glyph), and both
+    // fill their slot. (It used to prove Done alone and "no Cancel", which the owner has reversed.)
+    it('the sheet’s footer is Cancel (secondary) then Done (primary), both filling their slot', async () => {
         const user = userEvent.setup();
         render(<StatefulLeaf initial={[RICE]} />);
 
         await user.click(screen.getByRole('button', { name: 'Edit 300 g Arborio rice' }));
         const sheet = screen.getByRole('dialog', { name: 'Arborio rice' });
+        const cancel = within(sheet).getByRole('button', { name: en.rowCancel });
+        const done = within(sheet).getByRole('button', { name: en.rowDone });
 
-        expect(within(sheet).getByRole('button', { name: en.rowDone }).className.split(' ')).toContain('w-full');
-        expect(within(sheet).queryByRole('button', { name: /cancel/i })).toBeNull();
+        expect(cancel.className.split(' ')).toContain('w-full');
+        expect(done.className.split(' ')).toContain('w-full');
+        expectDesignSystemButton(cancel, 'secondary', null);
+        expectDesignSystemButton(done, 'primary', 'check');
+        expect(cancel.compareDocumentPosition(done) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
+    it('Cancel puts back every field the editor edited, closes the sheet and returns focus to the row', async () => {
+        const user = userEvent.setup();
+        const seen: RecipeFormValues[] = [];
+        render(<StatefulLeaf initial={[{ ...RICE, preparation: 'rinsed' }]} seen={seen} />);
+        const before = seen.length;
+
+        await user.click(screen.getByRole('button', { name: 'Edit 300 g Arborio rice, rinsed' }));
+        const sheet = screen.getByRole('dialog', { name: 'Arborio rice' });
+
+        await user.clear(within(sheet).getByLabelText(en.rowAmountLabel));
+        await user.type(within(sheet).getByLabelText(en.rowAmountLabel), '250');
+        await user.clear(within(sheet).getByLabelText(en.rowPrepLabel));
+        await user.type(within(sheet).getByLabelText(en.rowNoteLabel), '9 inch');
+        await user.click(within(sheet).getByRole('button', { name: en.rowAddRange }));
+        await user.type(within(sheet).getByRole('textbox', { name: en.rowAmountHighLabel }), '400');
+
+        expect(seen.at(-1)?.ingredients[0]).toMatchObject({ quantity: 250, quantityHigh: 400, note: '9 inch' });
+
+        await user.click(within(sheet).getByRole('button', { name: en.rowCancel }));
+
+        await vi.waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+        expect(seen.length).toBeGreaterThan(before);
+        // JSON, as the discard guard compares (`recipeFormValuesEqual`): the same values in the same key order.
+        expect(JSON.stringify(seen.at(-1)?.ingredients)).toBe(
+            JSON.stringify(withLineKeys([{ ...RICE, preparation: 'rinsed' }])),
+        );
+        await vi.waitFor(() =>
+            expect(document.activeElement).toBe(
+                screen.getByRole('button', { name: 'Edit 300 g Arborio rice, rinsed' }),
+            ),
+        );
+
+        // The range's view state went back too: reopening shows no second bound.
+        await user.click(screen.getByRole('button', { name: 'Edit 300 g Arborio rice, rinsed' }));
+        expect(screen.queryByRole('textbox', { name: en.rowAmountHighLabel })).toBeNull();
+    });
+
+    it('the X, the scrim and Escape are still Done: they keep the edits', async () => {
+        const user = userEvent.setup();
+        const seen: RecipeFormValues[] = [];
+        render(<StatefulLeaf initial={[RICE]} seen={seen} />);
+
+        await user.click(screen.getByRole('button', { name: 'Edit 300 g Arborio rice' }));
+        const sheet = screen.getByRole('dialog', { name: 'Arborio rice' });
+
+        await user.type(within(sheet).getByLabelText(en.rowPrepLabel), 'rinsed');
+        await user.click(within(sheet).getByRole('button', { name: 'Close Arborio rice' }));
+
+        await vi.waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+        expect(seen.at(-1)?.ingredients[0]).toMatchObject({ preparation: 'rinsed' });
     });
 
     it('edits reach the draft, and Done closes the sheet and returns focus to the row', async () => {
@@ -754,14 +854,243 @@ describe('RecipeIngredientsFields (web) — the row editor inline (§7.5.2, from
         expect(screen.queryByLabelText(en.rowAmountLabel)).toBeNull();
     });
 
-    it('Done is a secondary button here and closes it', async () => {
+    // REWRITTEN (needs-review jump): Done was a secondary button; it is now the PRIMARY, last in a Cancel + Done pair.
+    it('Cancel (secondary) comes first and Done (primary, check) last, and Done closes it keeping the edits', async () => {
         const user = userEvent.setup();
-        render(<StatefulLeaf initial={[RICE]} />);
+        const seen: RecipeFormValues[] = [];
+        render(<StatefulLeaf initial={[RICE]} seen={seen} />);
 
         await user.click(screen.getByRole('button', { name: 'Edit 300 g Arborio rice' }));
+        const cancel = screen.getByRole('button', { name: en.rowCancel });
+        const done = screen.getByRole('button', { name: en.rowDone });
+
+        expectDesignSystemButton(cancel, 'secondary', null);
+        expectDesignSystemButton(done, 'primary', 'check');
+        expect(cancel.compareDocumentPosition(done) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+        await user.type(screen.getByLabelText(en.rowPrepLabel), 'rinsed');
+        await user.click(done);
+
+        expect(screen.queryByLabelText(en.rowAmountLabel)).toBeNull();
+        expect(seen.at(-1)?.ingredients[0]).toMatchObject({ preparation: 'rinsed' });
+    });
+
+    it('Cancel discards the edits, closes it and returns focus to the row; Escape does not discard', async () => {
+        const user = userEvent.setup();
+        const seen: RecipeFormValues[] = [];
+        render(<StatefulLeaf initial={[RICE]} seen={seen} />);
+
+        await user.click(screen.getByRole('button', { name: 'Edit 300 g Arborio rice' }));
+        await user.type(screen.getByLabelText(en.rowPrepLabel), 'rinsed');
+        await user.click(screen.getByRole('button', { name: en.rowCancel }));
+
+        expect(screen.queryByLabelText(en.rowAmountLabel)).toBeNull();
+        expect(JSON.stringify(seen.at(-1)?.ingredients)).toBe(JSON.stringify(withLineKeys([RICE])));
+        await vi.waitFor(() =>
+            expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Edit 300 g Arborio rice' })),
+        );
+
+        await user.click(screen.getByRole('button', { name: 'Edit 300 g Arborio rice' }));
+        await user.type(screen.getByLabelText(en.rowPrepLabel), 'sifted');
+        await user.keyboard('{Escape}');
+
+        expect(seen.at(-1)?.ingredients[0]).toMatchObject({ preparation: 'sifted' });
+    });
+
+    it('Cancel after Change keeps the new food: Change drops the restore point', async () => {
+        const user = userEvent.setup();
+        const dispatched: DraftAction[] = [];
+        render(<StatefulLeaf initial={[RICE]} dispatched={dispatched} />);
+
+        await user.click(screen.getByRole('button', { name: 'Edit 300 g Arborio rice' }));
+        await user.click(screen.getByRole('button', { name: en.rowChange }));
+
+        expect(screen.queryByRole('button', { name: en.rowCancel })).toBeNull();
+        expect(dispatched.filter((action) => action.kind === 'restoreIngredientFields')).toEqual([]);
+    });
+});
+
+describe('RecipeIngredientsFields (web) — arriving at a row from a link', () => {
+    const NEEDS_REVIEW: UnkeyedFormIngredient = { ...RICE, resolutionStatus: FoodResolutionStatus.NEEDS_REVIEW };
+    const SALT: UnkeyedFormIngredient = { ...RICE, ingredientId: 'b', name: 'Salt' };
+    const KEY_OF_SECOND = withLineKeys([RICE, SALT])[1]!.key;
+
+    it('below 600 the arrival opens the sheet of the addressed row', () => {
+        render(<StatefulLeaf initial={[RICE, SALT]} initialLine={KEY_OF_SECOND} />);
+
+        expect(screen.getByRole('dialog', { name: 'Salt' })).toBeTruthy();
+    });
+
+    it('from 600 the arrival opens that row’s inline editor and no other', () => {
+        layout.container = 'regular';
+        render(<StatefulLeaf initial={[RICE, SALT]} initialLine={KEY_OF_SECOND} />);
+
+        expect(screen.getAllByLabelText(en.rowAmountLabel)).toHaveLength(1);
+        expect(within(rowItems()[1]!).getByLabelText(en.rowAmountLabel)).toBeTruthy();
+        expect(screen.getByRole('button', { name: 'Edit 300 g Salt' }).getAttribute('aria-expanded')).toBe('true');
+    });
+
+    it('focus lands on the arrival row’s open control, never in a text field', async () => {
+        layout.container = 'regular';
+        render(<StatefulLeaf initial={[RICE, SALT]} initialLine={KEY_OF_SECOND} />);
+
+        await vi.waitFor(() =>
+            expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Edit 300 g Salt' })),
+        );
+    });
+
+    // NEW (needs-review jump, designer): a needs-review arrival hands focus to the editor's notice group, so a screen reader
+    // reads what is wrong first and no text field takes the keyboard. Before this, focus stayed on the row's open control.
+    it('focus lands on a needs-review arrival’s notice group, never in a text field', async () => {
+        layout.container = 'regular';
+        const key = withLineKeys([NEEDS_REVIEW])[0]!.key;
+        render(<StatefulLeaf initial={[NEEDS_REVIEW]} initialLine={key} />);
+
+        await vi.waitFor(() =>
+            expect(document.activeElement).toBe(screen.getByRole('group', { name: en.statusNeedsReview })),
+        );
+    });
+
+    it('Done on a needs-review arrival returns focus to the row’s open control', async () => {
+        layout.container = 'regular';
+        const user = userEvent.setup();
+        const key = withLineKeys([NEEDS_REVIEW])[0]!.key;
+        render(<StatefulLeaf initial={[NEEDS_REVIEW]} initialLine={key} />);
+        await user.click(screen.getByRole('button', { name: en.rowDone }));
+
+        await vi.waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: /^Edit / })));
+    });
+
+    it('Cancel on a needs-review arrival returns focus to the row’s open control', async () => {
+        layout.container = 'regular';
+        const user = userEvent.setup();
+        const key = withLineKeys([NEEDS_REVIEW])[0]!.key;
+        render(<StatefulLeaf initial={[NEEDS_REVIEW]} initialLine={key} />);
+        await user.click(screen.getByRole('button', { name: en.rowCancel }));
+
+        await vi.waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: /^Edit / })));
+    });
+
+    /**
+     * The container class is read after the first layout, so the page's own jump on mount runs while the editor is still
+     * a sheet: the row it scrolls to is one line tall. The inline editor then mounts and the row grows by hundreds of
+     * pixels, which the one scroll never saw (Done and Cancel under the action bar at 200% text). The field group asks
+     * for the row's start again once the editor is inline, so the scroll is computed over the row as it ends up.
+     */
+    it('asks the host for the row’s start again once the inline editor has mounted, and not while it is a sheet', () => {
+        const start = vi.fn<(id: string) => boolean>(() => true);
+        host.start = start;
+        const view = render(<StatefulLeaf initial={[RICE, SALT]} initialLine={KEY_OF_SECOND} />);
+
+        expect(start).not.toHaveBeenCalled();
+
+        layout.container = 'regular';
+        view.rerender(<StatefulLeaf initial={[RICE, SALT]} initialLine={KEY_OF_SECOND} />);
+
+        expect(start).toHaveBeenCalledExactlyOnceWith(ingredientRowId(KEY_OF_SECOND));
+        expect(within(rowItems()[1]!).getByLabelText(en.rowAmountLabel)).toBeTruthy();
+    });
+
+    it('does not ask for a start of its own when no row was named', () => {
+        const start = vi.fn<(id: string) => boolean>(() => true);
+        host.start = start;
+        layout.container = 'regular';
+        render(<StatefulLeaf initial={[RICE, SALT]} />);
+
+        expect(start).not.toHaveBeenCalled();
+    });
+
+    it('opens nothing without an arrival', () => {
+        layout.container = 'regular';
+        render(<StatefulLeaf initial={[RICE, SALT]} />);
+
+        expect(screen.queryByLabelText(en.rowAmountLabel)).toBeNull();
+    });
+
+    it('opens nothing for an address no line holds', () => {
+        layout.container = 'regular';
+        render(<StatefulLeaf initial={[RICE, SALT]} initialLine={seedLineKey(9, 9)} />);
+
+        expect(screen.queryByLabelText(en.rowAmountLabel)).toBeNull();
+    });
+
+    it('closing the arrival’s editor does not reopen it, and the next row opens normally', async () => {
+        const user = userEvent.setup();
+
+        layout.container = 'regular';
+        render(<StatefulLeaf initial={[RICE, SALT]} initialLine={KEY_OF_SECOND} />);
         await user.click(screen.getByRole('button', { name: en.rowDone }));
 
         expect(screen.queryByLabelText(en.rowAmountLabel)).toBeNull();
+
+        await user.click(screen.getByRole('button', { name: 'Edit 300 g Arborio rice' }));
+
+        expect(screen.getAllByLabelText(en.rowAmountLabel)).toHaveLength(1);
+        expect(within(rowItems()[0]!).getByLabelText(en.rowAmountLabel)).toBeTruthy();
+    });
+
+    it('a needs-review line’s editor opens with the notice (heading, explanation) and the cook’s original line', () => {
+        layout.container = 'regular';
+        const key = withLineKeys([NEEDS_REVIEW])[0]!.key;
+
+        render(
+            <StatefulLeaf
+                initial={[NEEDS_REVIEW]}
+                initialLine={key}
+                originalLines={new Map([[key, '1 1/2 cups sifted flour, or more']])}
+            />,
+        );
+
+        const notice = screen.getByRole('group', { name: en.statusNeedsReview });
+
+        expect(within(notice).getByText(en.statusNeedsReview)).toBeTruthy();
+        expect(within(notice).getByText(en.statusExplainNeedsReview)).toBeTruthy();
+        expect(within(notice).getByText(en.rowYouWroteLabel)).toBeTruthy();
+        expect(within(notice).getByText('1 1/2 cups sifted flour, or more')).toBeTruthy();
+        // The arrival focus target is the notice, never a text field.
+        expect(notice.getAttribute('tabindex')).toBe('-1');
+    });
+
+    it('Change on a needs-review line says what the cook wrote above the food search, and Change is the secondary action', async () => {
+        layout.container = 'regular';
+        const user = userEvent.setup();
+        const key = withLineKeys([NEEDS_REVIEW])[0]!.key;
+
+        render(
+            <StatefulLeaf
+                initial={[NEEDS_REVIEW]}
+                initialLine={key}
+                originalLines={new Map([[key, '2 cups flour']])}
+            />,
+        );
+
+        expectDesignSystemButton(screen.getByRole('button', { name: en.rowChange }), 'secondary', null);
+        await user.click(screen.getByRole('button', { name: en.rowChange }));
+
+        expect(screen.getByText('You wrote: “2 cups flour”')).toBeTruthy();
+        expect(screen.queryByText(en.statusExplainNeedsReview)).toBeNull();
+    });
+
+    it('shows no original line when the server sent none, and no notice for a line that is not under review', () => {
+        layout.container = 'regular';
+        const reviewKey = withLineKeys([NEEDS_REVIEW])[0]!.key;
+
+        const { unmount } = render(<StatefulLeaf initial={[NEEDS_REVIEW]} initialLine={reviewKey} />);
+
+        expect(screen.getByRole('group', { name: en.statusNeedsReview })).toBeTruthy();
+        expect(screen.queryByText(en.rowYouWroteLabel)).toBeNull();
+        unmount();
+
+        render(
+            <StatefulLeaf
+                initial={[RICE]}
+                initialLine={reviewKey}
+                originalLines={new Map([[reviewKey, 'a stale original']])}
+            />,
+        );
+
+        expect(screen.queryByRole('group', { name: en.statusNeedsReview })).toBeNull();
+        expect(screen.queryByText('a stale original')).toBeNull();
     });
 });
 

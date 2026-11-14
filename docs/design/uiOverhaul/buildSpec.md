@@ -1566,9 +1566,18 @@ ingredient row breaks unit words (#144)", items 1 to 7). There is **no amount co
 #### 7.5.2 The row editor
 
 - **Below a 600 container:** a content-height bottom sheet (`Sheet size="content"`). The list stays still, and the
-  sheet lifts the fields above the keyboard. **Done** (primary, `check`, fill) is pinned above the keyboard.
+  sheet lifts the fields above the keyboard. **Cancel** (secondary) then **Done** (primary, `check`) are pinned above
+  the keyboard as one `DialogActions` pair, side by side from 400 and stacked (Done on top) below it.
 - **From 600:** inline under the row, `pearl` at 60%, radius `md`, padding 16. One editor open at a time: opening
-  another closes the first and keeps its values. **Done** is a secondary button.
+  another closes the first and keeps its values. **Cancel** then **Done** (primary) end the panel, as the same pair.
+- **Cancel** puts back the line's amount, range, unit, preparation, name and note as they were when the editor opened,
+  then closes. It never undoes a food picked with Change, which closes the editor and commits on its own. Every other
+  close route keeps the edits (owner request 2026-11-11). The edits are live in the draft, so a stray tap on the scrim
+  must not lose typing.
+- **A line that needs review** heads the editor with the "Needs review" badge, its explanation and, for the owner,
+  "You wrote" with the line exactly as pasted or imported (ADR-0090), then "Counted as" with Change as a secondary
+  button. The owner's "Needs review" on the recipe page links to the editor at `#ingredients/{version}.{position}` and
+  opens that line's editor. A stale address lands on the section with a short notice.
 - Content, top to bottom:
     - the food as one line with **Change** (ghost): "Lamb shoulder, raw · 282 cal per 100 g · USDA".
     - `FieldLabel` "Amount": a 64 px number field. "+ Add a range" (ghost) reveals "to" and a second field. With a
@@ -1578,7 +1587,7 @@ ingredient row breaks unit words (#144)", items 1 to 7). There is **no amount co
     - "Food details" (ghost) opens the existing details panel (nutrition, variants, candidates).
 - Layout from 600: Amount, Unit and Preparation on one line. Below 600 (the sheet): Amount and Unit on line 1,
   Preparation full width on line 2.
-- Escape or Done closes it. Focus returns to the row. No group field (groups are set at the section level).
+- Escape, Done or Cancel closes it. Focus returns to the row. No group field (groups are set at the section level).
 
 #### 7.5.3 The add field (quantity first, food always picked)
 

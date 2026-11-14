@@ -12,6 +12,7 @@
  * @pattern Mediator — between the host's row-editor controllers and the row controls, through `useIngredientsFields`
  */
 import { Button } from '@commise/ui/button';
+import { DialogActions } from '@commise/ui/dialog-actions';
 import { Combobox, type ComboboxArrival } from '@commise/ui/combobox';
 import { Icon } from '@commise/ui/icon';
 import { LiveRegion } from '@commise/ui/live-region';
@@ -211,11 +212,14 @@ export const RecipeIngredientsFields: FC<RecipeIngredientsFieldsProps> = (props)
                 inline && row.editorOpen ? (
                     <Surface tone="muted" style={[styles.inlineEditor]}>
                         <IngredientLineEditor view={row.lineEditor} index={row.index} m={m} details={detailsOf(row)} />
-                        <View style={styles.end}>
-                            <Button variant="secondary" icon="check" onPress={row.lineEditor.onDone}>
+                        <DialogActions sideBySideFrom={400}>
+                            <Button variant="secondary" width="fill" onPress={row.lineEditor.onCancel}>
+                                {m.rowCancel}
+                            </Button>
+                            <Button icon="check" width="fill" onPress={row.lineEditor.onDone}>
                                 {m.rowDone}
                             </Button>
-                        </View>
+                        </DialogActions>
                     </Surface>
                 ) : null
             }
@@ -232,6 +236,10 @@ export const RecipeIngredientsFields: FC<RecipeIngredientsFieldsProps> = (props)
             {/* What a row's settled pick did, politely, with the list closed (R3). */}
             <LiveRegion politeness="polite" visuallyHidden>
                 {model.settledMessage}
+            </LiveRegion>
+            {/* A link named an ingredient the draft does not hold: said quietly and politely, until a row is opened. */}
+            <LiveRegion politeness="polite" announceOnMount>
+                {model.jumpNotice ?? ''}
             </LiveRegion>
             {model.listError !== undefined && (
                 <Text

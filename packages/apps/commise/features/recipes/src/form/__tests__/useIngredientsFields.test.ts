@@ -39,6 +39,7 @@ import type { IngredientRowView } from '../ingredientRowView.js';
 import type { IngredientLineKey } from '../lineKey.js';
 import type { DraftAction } from '../draftAction.js';
 import { applyDraftAction, type RecipeIngredientsFieldsProps } from '../props.js';
+import { createHold } from '../../editor/hold.js';
 import { useIngredientsFields } from '../useIngredientsFields.js';
 import type { RecipeFormErrors } from '../validate.js';
 
@@ -880,5 +881,71 @@ describe('useIngredientsFields — groups (build spec §7.5.5)', () => {
         act(() => result.current.addGroup.field?.onSubmit());
 
         expect(rowsOf(result.current)[0]?.actions.map((item) => item.id)).toContain('moveToGroup');
+    });
+});
+
+/**
+ * The missing-line notice is the model's to offer: it is there for a link to a line the draft does not hold, until the
+ * cook opens a row. Speaking it as a CHANGE (a live region says nothing for text present at mount) is the design-system
+ * `LiveRegion`'s `announceOnMount`, proved in `@commise/ui` and over the real editor by `RecipeEditorSurface.rowEditor`.
+ */
+describe('useIngredientsFields — the missing-line notice', () => {
+    it('is offered for a link to a line the draft does not hold', () => {
+        const { result } = renderFields({ ...propsOf({ lines: [bound('salt')] }), arrivalLine: { kind: 'missing' } });
+
+        expect(result.current.jumpNotice).toEqual(expect.stringContaining('couldn’t find that ingredient'));
+    });
+
+    it('is not offered without a missing line', () => {
+        const { result } = renderFields(propsOf({ lines: [bound('salt')] }));
+
+        expect(result.current.jumpNotice).toBeUndefined();
+    });
+});
+
+/**
+ * An open row editor holds the draft's server checkpoints (`editor/hold.ts`): the hold is raised while an editor
+ * is open, so its Cancel can still put the line back, and let go of when it closes, by Done or Cancel.
+ */
+describe('useIngredientsFields — the open row editor raises the row edit hold', () => {
+    it('raises it while a row editor is open and lets go when it closes', () => {
+        const hold = createHold();
+        const props = { ...propsOf({ lines: [bound('salt')] }), rowEditHold: hold };
+        const { result } = renderFields(props);
+        const key = keyAt(props, 0);
+
+        expect(hold.get()).toBe(false);
+
+        act(() => rowsOf(result.current)[0]?.onOpen());
+        expect(hold.get()).toBe(true);
+
+        act(() => rowsOf(result.current)[0]?.lineEditor.onDone());
+        expect(hold.get()).toBe(false);
+        expect(key).toBeDefined();
+    });
+
+    it('is raised at once for a row an arrival opens', () => {
+        const hold = createHold();
+        const base = propsOf({ lines: [bound('salt')] });
+        renderFields({ ...base, rowEditHold: hold, arrivalLine: { kind: 'found', key: keyAt(base, 0) } });
+
+        expect(hold.get()).toBe(true);
+    });
+
+    it('lets go when the field group goes away, with nobody told', () => {
+        const hold = createHold();
+        const released = vi.fn();
+        hold.onReleased(released);
+        const base = propsOf({ lines: [bound('salt')] });
+        const { unmount } = renderFields({
+            ...base,
+            rowEditHold: hold,
+            arrivalLine: { kind: 'found', key: keyAt(base, 0) },
+        });
+
+        unmount();
+
+        expect(hold.get()).toBe(false);
+        expect(released).not.toHaveBeenCalled();
     });
 });

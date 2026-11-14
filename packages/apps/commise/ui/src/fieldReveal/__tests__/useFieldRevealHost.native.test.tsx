@@ -703,3 +703,73 @@ describe('useFieldRevealHost — a target (specSharedSystem.md §16.3)', () => {
         expect(seam.measured).toBe(measured);
     });
 });
+
+describe('useFieldRevealHost — a start (scrollToStart)', () => {
+    async function aim(rendered: Pick<ReturnType<typeof host>, 'result'>): Promise<() => void> {
+        let release: () => void = () => undefined;
+
+        await act(async () => {
+            release = rendered.result.current.revealer({ kind: 'start', field });
+            await Promise.resolve();
+        });
+
+        return release;
+    }
+
+    it('scrolls the element’s top one gap below the top of the visible area, even when it already shows', async () => {
+        const rendered = host(400);
+        seam.measures = [{ top: 120, height: 48, offset: 100 }];
+
+        await aim(rendered);
+
+        expect(seam.scrolls).toEqual([{ y: 100 + 120 - 8, animated: true }]);
+    });
+
+    // The row and its editor are taller than the area: Done and Cancel (the row's end) win, one gap above the bottom edge.
+    it('too tall to show whole: the end wins, one gap above the bottom edge, in ONE scroll', async () => {
+        const rendered = host(400);
+        seam.measures = [{ top: 100, height: 500, offset: 200 }];
+
+        await aim(rendered);
+
+        expect(seam.scrolls).toEqual([{ y: 200 + 600 + 8 - 400, animated: true }]);
+    });
+
+    it('moves nothing when it cannot be measured', async () => {
+        const rendered = host(400);
+        seam.measures = [null];
+
+        await aim(rendered);
+
+        expect(seam.scrolls).toEqual([]);
+    });
+
+    it('waits for the visible area to be laid out, then scrolls once', async () => {
+        const rendered = renderHook(() => useFieldRevealHost({ current: scroller }));
+        seam.measures = [{ top: 300, height: 48, offset: 100 }];
+
+        await aim(rendered);
+        expect(seam.measured).toBe(0);
+
+        await act(async () => {
+            rendered.result.current.onViewportLayout(layout(0, 400));
+            await Promise.resolve();
+        });
+
+        expect(seam.scrolls).toEqual([{ y: 392, animated: true }]);
+    });
+
+    it('a release cancels a start still measuring', async () => {
+        const rendered = host(400);
+        seam.measures = [{ top: 300, height: 48, offset: 100 }];
+        let release: () => void = () => undefined;
+
+        await act(async () => {
+            release = rendered.result.current.revealer({ kind: 'start', field });
+            release();
+            await Promise.resolve();
+        });
+
+        expect(seam.scrolls).toEqual([]);
+    });
+});

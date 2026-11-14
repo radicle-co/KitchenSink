@@ -28,7 +28,14 @@ import {
 import { RecipeServiceClient } from '@kitchensink/recipe-service-client';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { deriveAmbiguityProbe, deriveFixtureManifest } from '../src/fixtureManifest.js';
+import {
+    deriveAmbiguityProbe,
+    deriveFixtureManifest,
+    deriveNeedsReviewProbe,
+    NEEDS_REVIEW_FOOD_NAME,
+    NEEDS_REVIEW_SOURCE_LINE,
+} from '../src/fixtureManifest.js';
+import { ensureNeedsReviewProbe, type SeedVerdictRow } from '../src/needsReviewProbe.js';
 import {
     applyPlan,
     ensureAmbiguityProbe,
@@ -813,6 +820,72 @@ describe('ensureAmbiguityProbe over a real wire', () => {
         await applyPlan(
             client(),
             planWorldReset({ recipes: state.recipes, collections: [] }, manifest, 'ambiguity'),
+            noSleep,
+        );
+
+        expect(state.deleted).toContain('/api/v1/recipes/old-probe');
+    });
+});
+
+/**
+ * `recipes/needsReviewJump`'s probe over the real wire and the SHIPPED contract: the create body (one line, with its
+ * `sourceLine`) satisfies `createRecipeRequestSchema`, the client parses a detail whose line reads `NEEDS_REVIEW`, and the
+ * verdict goes to the store AFTER the create, keyed to the food SERVICE's id. The database itself is mocked (integration tests
+ * mock the database; the real insert is the LOCAL e2e run). What this cannot prove is that the key matches the one a real
+ * recipe service derives: the probe's own read-back is that proof, and the Maestro run exercises it.
+ */
+describe('ensureNeedsReviewProbe over a real wire', () => {
+    const probe = deriveNeedsReviewProbe(manifest);
+
+    function recordingStore() {
+        const rows: SeedVerdictRow[] = [];
+
+        return {
+            rows,
+            store: {
+                replaceSeedVerdict: async (row: SeedVerdictRow): Promise<void> => {
+                    rows.push(row);
+                },
+            },
+        };
+    }
+
+    it('creates the probe with the contract’s body, stores one verdict for its food, and returns the recipe id', async () => {
+        state = freshState();
+        state.lineStatusOnRead = () => 'NEEDS_REVIEW';
+        const { rows, store } = recordingStore();
+
+        const id = await ensureNeedsReviewProbe(foodClients(), store, probe, NEEDS_REVIEW_FOOD_NAME);
+
+        expect(state.schemaFailures).toEqual([]);
+        expect(state.createdBodies).toHaveLength(1);
+        expect(state.createdBodies[0]).toMatchObject({
+            title: manifest.needsReviewProbeTitle,
+            visibility: 'private',
+            ingredients: [{ unit: 'cup', sourceLine: NEEDS_REVIEW_SOURCE_LINE }],
+        });
+        expect(state.recipeLines.get(id)).toHaveLength(1);
+        expect(rows).toHaveLength(1);
+        expect(rows[0]).toMatchObject({ band: 'contradicted', aspects: ['quantity'], identityVerdict: null });
+        expect(rows[0]?.verificationKey).toMatch(/^v2:[0-9a-f]{64}$/u);
+    });
+
+    it('⛔ fails when the line does not read NEEDS_REVIEW after the verdict was stored', async () => {
+        state = freshState();
+        const { store } = recordingStore();
+
+        await expect(ensureNeedsReviewProbe(foodClients(), store, probe, NEEDS_REVIEW_FOOD_NAME)).rejects.toThrow(
+            /NEEDS_REVIEW/u,
+        );
+    });
+
+    it('plans the probe as residue in needsReview mode, so an edited probe is deleted before a fresh one is made', async () => {
+        state = freshState();
+        state.recipes = [{ id: 'old-probe', title: manifest.needsReviewProbeTitle, visibility: 'private' }];
+
+        await applyPlan(
+            client(),
+            planWorldReset({ recipes: state.recipes, collections: [] }, manifest, 'needsReview'),
             noSleep,
         );
 

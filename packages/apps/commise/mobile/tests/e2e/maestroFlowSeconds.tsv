@@ -65,6 +65,7 @@ android	recipes/landscape	233	5
 android	recipes/headerScrollsAway	108	0
 android	recipes/listDetail	81	5
 android	recipes/makePublicConfirm	181	4
+android	recipes/needsReviewJump	108	0
 android	recipes/newCollectionSheet	69	5
 android	recipes/paidFeaturesByRole	461	5
 android	recipes/pasteList	73	4
@@ -141,6 +142,7 @@ ios	recipes/landscape	314	2
 ios	recipes/headerScrollsAway	161	0
 ios	recipes/listDetail	188	4
 ios	recipes/makePublicConfirm	277	3
+ios	recipes/needsReviewJump	161	0
 ios	recipes/newCollectionSheet	86	3
 ios	recipes/paidFeaturesByRole	691	4
 ios	recipes/pasteList	88	4

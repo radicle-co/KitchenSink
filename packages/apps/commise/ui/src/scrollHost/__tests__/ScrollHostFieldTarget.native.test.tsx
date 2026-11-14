@@ -6,7 +6,7 @@
  * react-native-web has none.
  */
 import { act, cleanup, render } from '@testing-library/react';
-import { useEffect, type FC } from 'react';
+import { useEffect, useState, type FC } from 'react';
 import { AccessibilityInfo } from 'react-native';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -37,6 +37,7 @@ vi.mock('../../fieldReveal/measureField.native.js', async (importOriginal) => {
 });
 
 import { FieldRevealContext } from '../../fieldReveal/fieldRevealContext.js';
+import { useFieldStartReveal } from '../../fieldReveal/useFieldStartReveal.native.js';
 import { isRevealScroller, type RevealScroller } from '../../fieldReveal/measureField.native.js';
 import { useFieldRevealHost } from '../../fieldReveal/useFieldRevealHost.native.js';
 import { Input } from '../../input/Input.native.js';
@@ -45,6 +46,15 @@ import { ScrollHost } from '../ScrollHost.native.js';
 import { useScrollHost } from '../scrollHostContext.js';
 
 const seen: { bind?: ScrollBind; api?: ScrollHostApi; viewport?: (height: number) => void } = {};
+
+/** A row that hears its start named: the node is only handed to the (scripted) measure. */
+const Row: FC = () => {
+    const [node] = useState(() => ({ current: { measureLayout: vi.fn() } }));
+
+    useFieldStartReveal('row', node);
+
+    return null;
+};
 
 /** What a screen does: its scroller's handle goes to the reveal host, and the reveal host's revealer goes to its fields. */
 const Screen: FC = () => {
@@ -67,6 +77,7 @@ const Screen: FC = () => {
     return (
         <FieldRevealContext.Provider value={reveal.revealer}>
             <Input id="title" label="Title" value="" onChangeText={vi.fn()} />
+            <Row />
         </FieldRevealContext.Provider>
     );
 };
@@ -172,5 +183,42 @@ describe('ScrollHost + field reveal host + Input (native) — naming a field', (
         });
 
         expect(seam.scrolls).toEqual([]);
+    });
+});
+
+/**
+ * A deep link to an ingredient row (`scrollToStart`): the row hears it was named and the reveal host puts its top at the
+ * top of the visible area, whatever else the section jump was about to do. The row's layout is scripted (top 300 at offset
+ * 100, one gap of 8), so its start is 392.
+ */
+describe('ScrollHost + field reveal host + a row (native) — naming an element’s start', () => {
+    it('puts the row’s top at the top of the visible area, once per call, and the section jump does not follow it', async () => {
+        await mount();
+        seam.scrolls = [];
+
+        await act(async () => {
+            seen.api?.scrollToSection('steps');
+            seen.api?.scrollToStart('row');
+            await Promise.resolve();
+        });
+
+        expect(seam.scrolls).toEqual([
+            { by: 'section', y: 500 },
+            { by: 'field', y: 392 },
+        ]);
+        expect(seen.api?.current).not.toBe('steps');
+    });
+
+    it('answers true without finding an element by id, and moves no screen-reader cursor', async () => {
+        await mount();
+        let found = false;
+
+        await act(async () => {
+            found = seen.api?.scrollToStart('row') ?? false;
+            await Promise.resolve();
+        });
+
+        expect(found).toBe(true);
+        expect(AccessibilityInfo.sendAccessibilityEvent).not.toHaveBeenCalled();
     });
 });

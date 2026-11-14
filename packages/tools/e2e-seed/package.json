@@ -33,6 +33,7 @@
         "@kitchensink/typescript": "*",
         "@kitchensink/vitest": "*",
         "@types/node": "^24.13.3",
+        "@types/pg": "^8.11.0",
         "esbuild": "^0.28.1",
         "eslint": "^10.0.3",
         "prettier": "^3.10.1",
@@ -51,6 +52,8 @@
         "@kitchensink/recipe-core": "*",
         "@kitchensink/recipe-service-client": "*",
         "@kitchensink/retry-after": "*",
-        "p-retry": "^8.0.0"
+        "@kitchensink/service-test-harness": "*",
+        "p-retry": "^8.0.0",
+        "pg": "^8.21.0"
     }
 }

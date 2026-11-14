@@ -44,13 +44,14 @@ export const IngredientCheckRow: FC<IngredientCheckRowProps> = ({
     allRemoved,
     onToggle,
     divided = false,
+    reviewAction,
 }) => {
     const { detail, ingredientLineName, ingredientDetails } = useMessages(recipeMessages);
     const locale = useLocale();
     const statusId = useId();
     const amount = formatAmount(ingredient.quantity, locale, ingredient.unit);
     const parts = variantPartTexts(ingredient.variant?.parts);
-    const statuses = ingredientRowStatuses(ingredient, allRemoved, detail);
+    const statuses = ingredientRowStatuses(ingredient, allRemoved, detail, reviewAction !== undefined);
     const standIn = isStandInName(ingredient);
     const tail = lineTailOf(ingredient);
     const amountFigure = <span className="font-semibold tabular-nums lining-nums">{amount}</span>;
@@ -111,6 +112,8 @@ export const IngredientCheckRow: FC<IngredientCheckRowProps> = ({
                     )}
                 </span>
             </button>
+            {/* A sibling of the checkbox, under the row text, indented to where the text starts (16 + 18 + 12). */}
+            {reviewAction !== undefined && <div className="pb-2 ps-[46px] pe-4">{reviewAction}</div>}
         </li>
     );
 };

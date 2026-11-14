@@ -54,6 +54,7 @@ const view: RowLineEditorView = {
     onChangeFood: undefined,
     onToggleDetails: vi.fn(),
     onDone: vi.fn(),
+    onCancel: vi.fn(),
 };
 
 describe.each([[m.rowAmountLabel], [m.rowAmountHighLabel]])(

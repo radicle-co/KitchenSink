@@ -52,7 +52,7 @@ import {
 import type { FieldRevealer, ListRequest, RevealRequest } from './fieldRevealContext.js';
 import { measureField, scrollContentTo, type RevealScroller } from './measureField.native.js';
 import type { RevealSpacerProps } from './RevealSpacer.native.js';
-import { spanTarget } from './spanReveal.js';
+import { spanTarget, startSpanTarget } from './spanReveal.js';
 
 /** What the host renders with. */
 export interface FieldRevealHost {
@@ -86,6 +86,8 @@ export function useFieldRevealHost(scroller: RefObject<RevealScroller | null>): 
     const [pending, setPending] = useState<PendingRequest | null>(null);
     // The target waiting to be shown; one-shot.
     const [target, setTarget] = useState<Extract<RevealRequest, { readonly kind: 'target' }> | null>(null);
+    // The element a deep link named, waiting to be put at the top; one-shot.
+    const [start, setStart] = useState<Extract<RevealRequest, { readonly kind: 'start' }> | null>(null);
     const [revealer] = useState(() => {
         const reveal: FieldRevealer = (request) => {
             switch (request.kind) {
@@ -112,6 +114,15 @@ export function useFieldRevealHost(scroller: RefObject<RevealScroller | null>): 
 
                     return () => {
                         setTarget((current) => (current === request ? null : current));
+                    };
+
+                case 'start':
+                    // The element the cook was taken to is the one to show, so nothing held earlier may move it again.
+                    setPending(null);
+                    setStart(request);
+
+                    return () => {
+                        setStart((current) => (current === request ? null : current));
                     };
 
                 case 'list':
@@ -278,6 +289,45 @@ export function useFieldRevealHost(scroller: RefObject<RevealScroller | null>): 
             released = true;
         };
     }, [target, laidOut]);
+
+    // A start is placed once the visible area is laid out: its top goes one gap below the area's top, unless its end
+    // (the row editor's Done and Cancel) would then be out of view, and the end wins (`startSpanTarget`).
+    useEffect(() => {
+        const view = currentScroller();
+
+        if (start === null || view === null || !laidOut) {
+            return undefined;
+        }
+
+        let released = false;
+
+        void measureField(start.field, view).then((measure) => {
+            if (released) {
+                return;
+            }
+
+            const place =
+                measure === null
+                    ? null
+                    : startSpanTarget({
+                          top: measure.top,
+                          bottom: measure.top + measure.height,
+                          offset: measure.offset,
+                          viewport: currentViewport(),
+                          keep: REVEAL_GAP_DP,
+                      });
+
+            if (place !== null) {
+                scrollTo(view, place);
+            }
+
+            setStart((current) => (current === start ? null : current));
+        });
+
+        return () => {
+            released = true;
+        };
+    }, [start, laidOut]);
 
     const onSpacerLayout = (event: LayoutChangeEvent): void => {
         const { y, height } = event.nativeEvent.layout;

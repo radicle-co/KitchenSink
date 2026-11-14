@@ -19,6 +19,7 @@ import { useEffect, useEffectEvent, useState } from 'react';
 import { editorChromeOf, type EditorChrome, type FailureActionKind } from './editorChrome.js';
 import { useLastDefined } from '../hooks/useLastDefined.js';
 import type { FailureAction, RecipeEditorViewProps } from './frameProps.js';
+import { ingredientRowId } from '../form/fieldIds.js';
 import { firstInvalidFieldOf } from './gate.js';
 import { editorMessages, type EditorMessages } from './messages.js';
 import type { OpenChoicesFacts } from './openChoicesCopy.js';
@@ -123,7 +124,7 @@ export function useEditorPage(props: RecipeEditorViewProps): EditorPage {
         keep,
         pendingEntryText,
         pendingEntryFieldId,
-        initialSection,
+        arrival,
         onClose,
         requestLeave,
         onRefused,
@@ -155,11 +156,22 @@ export function useEditorPage(props: RecipeEditorViewProps): EditorPage {
     const [refusalHeadings, setRefusalHeadings] = useState<Readonly<Partial<Record<EditorSectionId, number>>>>({});
 
     // A deep link's section, once, on mount (blueprint A16: read on mount; it never reaches the server). A later prop
-    // is not a deep link.
-    const [deepLink] = useState(initialSection);
+    // is not a deep link. A link that named a line this draft holds shows that row (its inline editor too, from 600)
+    // where the host can find it by id, and otherwise lands on the section.
+    const [deepLink] = useState(arrival);
+    const { scrollToStart } = host;
     const jumpToDeepLink = useEffectEvent((): void => {
-        if (deepLink !== undefined) {
-            scrollToSection(deepLink);
+        if (deepLink === undefined) {
+            return;
+        }
+
+        const rowId = deepLink.line?.kind === 'found' ? ingredientRowId(deepLink.line.key) : undefined;
+
+        // The row's top goes under the sticky chrome, so an inline editor opened below it shows whole. Web answers `false`
+        // only when no such row is mounted, and then the section is the next best place. Native always answers `true`
+        // (the row hears it was named, `useFieldStartReveal`), so nothing scrolls there if the row is not mounted.
+        if (rowId === undefined || !scrollToStart(rowId)) {
+            scrollToSection(deepLink.section);
         }
     });
     useEffect(() => {

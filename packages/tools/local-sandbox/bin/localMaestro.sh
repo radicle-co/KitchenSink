@@ -599,8 +599,39 @@ local_maestro_install_app() {
     local_maestro_check_bundle_env "$bundle"
 }
 
+# local_maestro_recipe_database_url
+#
+# The address of the LOCAL recipe database, for `e2e-seed reset --mode needsReview` alone: the one seed mode that writes a
+# database row (a stored verification verdict) instead of going through an API. It is assembled from what the running stack
+# provides, never typed here: the recipe container's own `DB_NAME`, `DB_USERNAME` and `DB_PASSWORD`, and the host port the
+# Postgres container publishes, pointed at loopback. Prints the URL, or prints nothing and returns 1 when the stack is not
+# running or a part would need URL escaping (a URL built around one would mean something else). The seed refuses any URL whose
+# host is not loopback (`requireLocalSeedTarget`), so this builds the address and is not what keeps it local.
+local_maestro_recipe_database_url() {
+    local env_lines name user password port value
+    env_lines="$(docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' local-sandbox-recipes 2>/dev/null)" || return 1
+    name="$(printf '%s\n' "$env_lines" | sed -n 's/^DB_NAME=//p' | head -n 1)"
+    user="$(printf '%s\n' "$env_lines" | sed -n 's/^DB_USERNAME=//p' | head -n 1)"
+    password="$(printf '%s\n' "$env_lines" | sed -n 's/^DB_PASSWORD=//p' | head -n 1)"
+    port="$(docker port local-sandbox-postgres 5432/tcp 2>/dev/null | head -n 1)" || return 1
+    port="${port##*:}"
+
+    for value in "$name" "$user" "$password" "$port"; do
+        case "$value" in
+            '' | *[!A-Za-z0-9._~-]*) return 1 ;;
+        esac
+    done
+
+    printf 'postgres://%s:%s@127.0.0.1:%s/%s\n' "$user" "$password" "$port" "$name"
+}
+
 local_maestro_seed_env() {
-    local state="$1"
+    local state="$1" database_url
+    # Unset first, so an address inherited from the shell can never stand in for the one the running stack provides.
+    unset E2E_SEED_RECIPE_DATABASE_URL
+    if database_url="$(local_maestro_recipe_database_url)"; then
+        export E2E_SEED_RECIPE_DATABASE_URL="$database_url"
+    fi
     export E2E_SEED_RECIPE_URL="http://localhost:${LOCAL_MAESTRO_RECIPE_HOST_PORT}"
     # ⛔ A local run signs in users of its own, never CI's: see `e2e-fixtures`' `PoolNamespace`.
     export E2E_POOL_NAMESPACE=local

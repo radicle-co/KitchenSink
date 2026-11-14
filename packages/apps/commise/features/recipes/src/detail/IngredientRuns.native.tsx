@@ -7,25 +7,35 @@
  */
 import { Fragment, type FC } from 'react';
 
-import { ingredientGroupRuns } from './detailFacts.js';
+import { ingredientGroupRuns, withReviewAction } from './detailFacts.js';
 import { IngredientGroupLabel } from './ingredientFrames.native.js';
 import { IngredientCheckRow } from './IngredientCheckRow.native.js';
 import type { IngredientRunsProps } from './IngredientRuns.js';
 
 /** The grouped ingredient rows. Presentational: props → JSX, no state of its own. */
-export const IngredientRuns: FC<IngredientRunsProps> = ({ ingredients, checked, allRemoved, onToggle }) => (
+export const IngredientRuns: FC<IngredientRunsProps> = ({
+    ingredients,
+    checked,
+    allRemoved,
+    onToggle,
+    reviewAction,
+}) => (
     <>
-        {ingredientGroupRuns(ingredients).map((run, index) => (
+        {ingredientGroupRuns(
+            ingredients.map((ingredient, position) => ({ ingredient, position, groupLabel: ingredient.groupLabel })),
+        ).map((run, index) => (
             <Fragment key={`${run.label ?? ''}-${String(index)}`}>
                 {run.label !== undefined && <IngredientGroupLabel>{run.label}</IngredientGroupLabel>}
-                {run.lines.map((ingredient, lineIndex) => (
+                {run.lines.map(({ ingredient, position }, lineIndex) => (
                     <IngredientCheckRow
-                        key={ingredient.ingredientId}
+                        // The stored position, never `ingredientId`: two lines can share a food.
+                        key={position}
                         ingredient={ingredient}
                         checked={checked.has(ingredient.ingredientId)}
                         allRemoved={allRemoved}
                         onToggle={onToggle}
                         divided={lineIndex > 0}
+                        {...withReviewAction(reviewAction?.(position, ingredient))}
                     />
                 ))}
             </Fragment>

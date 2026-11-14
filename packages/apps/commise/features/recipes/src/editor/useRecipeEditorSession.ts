@@ -21,7 +21,7 @@
  * - **Paste a list**: offered while the editor says so (`pasteOffered`, D10), each line keeping its source while the
  *   editor says so (`pastedLineKeepsSource`), and a paste still joining holding the server create (`serverWriteFor`).
  *   The paste is composed after the editor, which it dispatches into, so the hold is made BEFORE both and handed to
- *   each (`pasteHold.ts`): the paste writes it, a checkpoint reads it.
+ *   each (`hold.ts`): the paste writes it, a checkpoint reads it.
  *
  * No JSX: the sections each container draws are page composition (`docs/CODING_STANDARDS.md` §14.2).
  *
@@ -58,7 +58,7 @@ import {
 } from '../hooks/useRecipeEditor.js';
 import type { DraftStore } from './draftStore.js';
 import { outcomeOfExit, type EditorFinish, type FinishedOutcome } from './finishedOutcome.js';
-import { createPasteHold } from './pasteHold.js';
+import { createHold, type Hold } from './hold.js';
 import { previewRecipeOf } from './previewRecipe.js';
 import type { DraftKeep } from './saveStatus.js';
 import { useEditorPhotos, type EditorPhotos } from './useEditorPhotos.js';
@@ -125,6 +125,8 @@ export interface EditorPreview {
 export interface RecipeEditorSession {
     readonly editor: UseRecipeEditorResult;
     readonly rowEditor: IngredientRowEditor;
+    /** Raised by an open row editor (`hold.ts`); the ingredients field group writes it. */
+    readonly rowEditHold: Hold;
     readonly nutrition: ReturnType<typeof useLineNutrition>;
     readonly lookupRetry: LookupRetry;
     readonly paste: IngredientsPaste;
@@ -157,7 +159,9 @@ export function useRecipeEditorSession(options: UseRecipeEditorSessionOptions): 
     const rebind = useRebindIngredientLine();
     const [previewing, setPreviewing] = useState(false);
     // Made before the editor and the paste, which each need the other: the paste writes it, a checkpoint reads it.
-    const [pasteHold] = useState(createPasteHold);
+    const [pasteHold] = useState(createHold);
+    // Raised by an open row editor, read by the editor's checkpoints: the row's Cancel must still have a line to put back.
+    const [rowEditHold] = useState(createHold);
 
     /**
      * Published, or its changes saved: visibility follows its answer, then the recipe shows. A Private the server is known
@@ -224,6 +228,7 @@ export function useRecipeEditorSession(options: UseRecipeEditorSessionOptions): 
         // The outbox's cache observer writes each synced recipe write's answer here, so this is usually a cache read.
         readRecipe: (id) => queryClient.ensureQueryData(recipeQueries(client).detail(id)),
         pasteHold,
+        rowEditHold,
         privateRefusal,
     });
 
@@ -316,6 +321,7 @@ export function useRecipeEditorSession(options: UseRecipeEditorSessionOptions): 
     return {
         editor,
         rowEditor,
+        rowEditHold,
         nutrition,
         lookupRetry,
         paste,

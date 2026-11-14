@@ -43,10 +43,12 @@ import { PastedSourceNotice } from '../form/PastedSourceNotice.js';
 import { RecipeSourceField } from '../form/RecipeSourceField.js';
 import { RecipeVisibilityField } from '../form/RecipeVisibilityField.js';
 import { entryFieldIdOf } from '../form/fieldIds.js';
+import { originalLinesOf } from '../form/wire.js';
 import { pendingIngredientIds } from '../form/ingredientStatus.js';
 import type { EditorSeed } from '../hooks/useRecipeEditor.js';
 import { useLastDefined } from '../hooks/useLastDefined.js';
 import type { PasteOrigin } from './useEditorSource.js';
+import { resolveArrival, type EditorArrival, type ResolvedArrival } from './editorArrival.js';
 import type { PhotoFinishBar, RecipeEditorViewProps } from './frameProps.js';
 import type { UseRecipePhotoManagerResult } from '../hooks/useRecipePhotoManager.js';
 import { photoMessages } from '../photos/messages.js';
@@ -90,8 +92,12 @@ export interface RecipeEditorSurfaceProps {
     readonly slotStanding: SlotStanding;
     /** The app's photo uploader, over the editor's photo session. Drawn on a new recipe too. */
     readonly renderPhotos: (target: PhotoUploaderTarget) => ReactNode;
-    /** The section a deep link names, jumped to once on mount (blueprint A16). */
-    readonly initialSection?: EditorSectionId;
+    /**
+     * Where a deep link opens: a section, and optionally one ingredient line (`#ingredients/{version}.{position}`, or the
+     * native params). The section is jumped to once on mount (blueprint A16); the line's address is turned into the
+     * draft's own key ONCE, on the first render, and its row opens.
+     */
+    readonly arrival?: EditorArrival;
     /** Leave the editor (×). The session has already checkpointed the exit. */
     readonly onClose: () => void;
     /** "Check My recipes": from an unknown create's alert, and after a Discard. */
@@ -121,7 +127,7 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
     knownPaidFeatures,
     slotStanding,
     renderPhotos,
-    initialSection,
+    arrival,
     onClose,
     onOpenMyRecipes,
     leaveAsk,
@@ -130,6 +136,22 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
 }) => {
     const { editor, paste, photos, source } = session;
     const photoCopy = useMessages(photoMessages);
+    // The cook's own words for the lines that need review, from the server read the draft was seeded from: display only
+    // (never the draft), and keyed by line key, which stays right when lines are later added or removed.
+    const [originalLines] = useState(() =>
+        seed.recipe === undefined ? undefined : originalLinesOf(seed.recipe, editor.lineKeyAt),
+    );
+    // The link's address is read against the editor's keys ONCE. A later render never re-resolves it: the keys move as the
+    // cook edits, and the row that opened is the one the link meant.
+    const [arrived] = useState<ResolvedArrival | undefined>(() =>
+        arrival === undefined
+            ? undefined
+            : resolveArrival(
+                  arrival,
+                  editor.lineKeyAt,
+                  editor.values.ingredients.map((line) => line.key),
+              ),
+    );
     // ⛔ READ FROM THE ENTRY AS IT IS NOW: the editor learns the entry's text only at a press (`errorsStillHolding`).
     const { pending } = session.rowEditor.entry;
     const pendingFieldId = pending === undefined ? undefined : entryFieldIdOf(pending.target);
@@ -252,7 +274,10 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
                     nutrition={session.nutrition}
                     lookupRetry={session.lookupRetry}
                     rowEditor={session.rowEditor}
+                    rowEditHold={session.rowEditHold}
                     paste={paste.view}
+                    {...(originalLines === undefined ? {} : { originalLines })}
+                    {...(arrived?.line === undefined ? {} : { arrivalLine: arrived.line })}
                     {...(onOpenFood === undefined ? {} : { onOpenFood })}
                 />
                 <PasteListSheet
@@ -356,7 +381,7 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
                         />
                     ),
                 }}
-                {...(initialSection === undefined ? {} : { initialSection })}
+                {...(arrived === undefined ? {} : { arrival: arrived })}
                 onClose={onClose}
                 requestLeave={requestLeave}
                 onPreview={session.preview.show}

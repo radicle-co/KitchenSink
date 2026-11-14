@@ -30,6 +30,7 @@ import {
     IngredientsEditRow,
     IngredientsHeadRow,
 } from './ingredientFrames.native.js';
+import type { IngredientRunsProps } from './IngredientRuns.js';
 import { IngredientRuns } from './IngredientRuns.native.js';
 import { allLinesFoodRemoved, removedFoodNotice, type RecipeDetailBodyNativeProps } from './model.js';
 import { ServingScaleControl } from './ServingScaleControl.js';
@@ -51,6 +52,8 @@ export interface DetailIngredientsSectionProps {
     readonly onEdit: (() => void) | undefined;
     /** Whether the page is in its two-column layout, where this section takes five parts of twelve. */
     readonly twoColumns: boolean;
+    /** The owner's review control for a line, by its stored position; see `IngredientRunsProps.reviewAction`. */
+    readonly reviewAction?: IngredientRunsProps['reviewAction'];
 }
 
 /** The native ingredients section. */
@@ -65,6 +68,7 @@ export const DetailIngredientsSection: FC<DetailIngredientsSectionProps> = ({
     saysRecovered,
     onEdit,
     twoColumns,
+    reviewAction,
 }) => {
     const { detail } = useMessages(recipeMessages);
     const headingRef = useScreenReaderFocusOnSignal<View>(unreachableRetry.recoveries);
@@ -139,6 +143,7 @@ export const DetailIngredientsSection: FC<DetailIngredientsSectionProps> = ({
                         checked={marks.checkedLines}
                         allRemoved={allRemoved}
                         onToggle={marks.toggleLine}
+                        {...(reviewAction === undefined ? {} : { reviewAction })}
                     />
                 ) : (
                     <DetailEmptySection

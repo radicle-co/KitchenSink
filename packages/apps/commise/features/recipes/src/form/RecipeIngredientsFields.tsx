@@ -13,8 +13,10 @@
  *
  * @pattern Mediator — between the host's row-editor controllers and the row controls, through `useIngredientsFields`
  */
+import { LiveRegion } from '@commise/ui/live-region';
 import { Button } from '@commise/ui/button';
 import { Combobox } from '@commise/ui/combobox';
+import { DialogActions } from '@commise/ui/dialog-actions';
 import { Icon } from '@commise/ui/icon';
 import { useOptionalScrollHost } from '@commise/ui/scroll-host';
 import { useLocale, useMessages } from '@commise/i18n/react';
@@ -157,6 +159,24 @@ export const RecipeIngredientsFields: FC<RecipeIngredientsFieldsProps> = (props)
             revealArrival(arrivedKey);
         }
     }, [arrivedKey]);
+
+    // A link names a row, and the page scrolls to it on mount. The container class is read after the first layout, so that
+    // scroll sees a row one line tall, with its editor still a sheet; the inline editor mounts a moment later and the row
+    // grows. So once the editor is inline, the row's start is asked for again, over the row as it ends up
+    // (`ScrollHost.scrollToStart`). Not timed: it is the editor mounting that moves the row's end.
+    const linkedKey = props.arrivalLine?.kind === 'found' ? props.arrivalLine.key : undefined;
+    const settleLinkedRow = useEffectEvent((): void => {
+        if (linkedKey !== undefined && model.openRow?.line.key === linkedKey) {
+            scrollHost?.scrollToStart(ingredientRowId(linkedKey));
+        }
+    });
+
+    // @sideEffect Asks the scroll host to place the linked row again when the editor becomes inline.
+    useEffect(() => {
+        if (inline) {
+            settleLinkedRow();
+        }
+    }, [inline]);
     // The sheet keeps its row while it closes; the key is kept, never the row object.
     const sheetKey = useLastDefined(model.openRow?.line.key);
     const sheetRow = rows.find((row) => row.line.key === sheetKey);
@@ -191,11 +211,14 @@ export const RecipeIngredientsFields: FC<RecipeIngredientsFieldsProps> = (props)
                         }}
                     >
                         <IngredientLineEditor view={row.lineEditor} index={row.index} m={m} details={detailsOf(row)} />
-                        <div className="flex justify-end">
-                            <Button variant="secondary" icon="check" onPress={row.lineEditor.onDone}>
+                        <DialogActions sideBySideFrom={400}>
+                            <Button variant="secondary" width="fill" onPress={row.lineEditor.onCancel}>
+                                {m.rowCancel}
+                            </Button>
+                            <Button icon="check" width="fill" onPress={row.lineEditor.onDone}>
                                 {m.rowDone}
                             </Button>
-                        </div>
+                        </DialogActions>
                     </div>
                 ) : null
             }
@@ -245,6 +268,10 @@ export const RecipeIngredientsFields: FC<RecipeIngredientsFieldsProps> = (props)
             <p role="status" className="sr-only">
                 {model.settledMessage}
             </p>
+            {/* A link named an ingredient the draft does not hold: said quietly and politely, until a row is opened. */}
+            <LiveRegion politeness="polite" announceOnMount className="text-caption text-ink-muted">
+                {model.jumpNotice ?? ''}
+            </LiveRegion>
             {model.listError !== undefined && (
                 <p id={ingredientsErrorId} className={errorText} role="alert">
                     {model.listError}

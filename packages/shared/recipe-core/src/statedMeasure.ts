@@ -24,8 +24,9 @@
  * historical unit "is restated at IMPORT time, upstream of the wire and by a tool, so there is no read-time
  * step to disclose and no column to disclose it in", and told the reader not to "restore the symmetry". The
  * gate IS a read-time consumer, and the premise is false. What is still true — and is why this is not the
- * symmetry those notes refused — is that the marker stays OFF the response wire: `RecipeIngredient` carries
- * neither this nor `sourceLine`. Both are write-side provenance the gate reads, not fields a cook is shown.
+ * symmetry those notes refused — is that the marker stays OFF the response wire: `RecipeIngredient` does not
+ * carry it. It is write-side provenance the gate reads, not a field a cook is shown. See
+ * `RecipeIngredientView.sourceLine` for the one owner-only exception.
  *
  * ## ⛔ THE QUANTITY CANNOT BE `absent`, AND THAT IS ENFORCED BY THE TYPE
  *

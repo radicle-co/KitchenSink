@@ -8,11 +8,16 @@
  * stop its flow from running at all — a flow driven against an unknown world produces failures that read
  * like app defects, which is exactly what turned one broken reseed into twenty-four misattributed reds.
  *
- * Usage: `e2e-seed reset [--mode seeded|empty|ambiguity|library]`
+ * Usage: `e2e-seed reset [--mode seeded|empty|ambiguity|library|needsReview]`
  *
  * `ambiguity` reconciles like `seeded`, then creates the signer's gate-AMBIGUOUS probe and waits for the gate's verdict
  * (`ensureAmbiguityProbe`). The probe is named for the word `provision` chose, read from the session state. It needs
  * `E2E_SEED_FOOD_URL`, which the probe's food is authored at.
+ *
+ * `needsReview` reconciles like `seeded`, then creates the signer's NEEDS_REVIEW probe and stores its verdict straight into the
+ * recipe database (`ensureNeedsReviewProbe`). ⛔ LOCAL STACK ONLY: the host of the database and of the recipe and food APIs is
+ * checked (`requireLocalSeedTarget`) BEFORE any call, including the reconcile, and a deployed stage is refused with nothing
+ * written. Needs `E2E_SEED_FOOD_URL` and `E2E_SEED_RECIPE_DATABASE_URL`.
  *
  * It also restores the signer's SETTINGS to "never chosen" (ADR-0059, `DELETE /api/v1/users/me/settings`): a flow that
  * chose a view must not change what the next flow sees. That needs `E2E_SEED_IDENTITY_URL`.
@@ -21,11 +26,19 @@
  */
 import { clientFor, foodClientFor } from './client.js';
 import { readFoodOrigin, readIdentityOrigin, readSeedEnvironment } from './env.js';
-import { deriveAmbiguityProbe, deriveFixtureManifest } from './fixtureManifest.js';
+import {
+    deriveAmbiguityProbe,
+    deriveFixtureManifest,
+    deriveNeedsReviewProbe,
+    NEEDS_REVIEW_FOOD_NAME,
+} from './fixtureManifest.js';
+import { requireLocalSeedTarget } from './localSeedTarget.js';
+import { ensureNeedsReviewProbe } from './needsReviewProbe.js';
 import { applyPlan, ensureAmbiguityProbe, ensurePrivateFoodRecipe, readWorld } from './recipeWorld.js';
 import { readSessionState, sessionStatePath } from './sessionState.js';
 import { settingsResetVia } from './settingsReset.js';
 import { assertPlatformsAgree } from './shard.js';
+import { openVerdictStore } from './verdictStore.js';
 import { planWorldReset, type ResetMode } from './worldResetPlan.js';
 
 /** Read the mode from argv, refusing anything the planner does not define. Pure. */
@@ -33,8 +46,16 @@ export function resetModeFrom(argv: readonly string[]): ResetMode {
     const index = argv.indexOf('--mode');
     const value = index === -1 ? 'seeded' : (argv[index + 1] ?? '');
 
-    if (value !== 'seeded' && value !== 'empty' && value !== 'ambiguity' && value !== 'library') {
-        throw new Error(`e2e-seed reset: --mode must be 'seeded', 'empty', 'ambiguity' or 'library', got '${value}'`);
+    if (
+        value !== 'seeded' &&
+        value !== 'empty' &&
+        value !== 'ambiguity' &&
+        value !== 'library' &&
+        value !== 'needsReview'
+    ) {
+        throw new Error(
+            `e2e-seed reset: --mode must be 'seeded', 'empty', 'ambiguity', 'library' or 'needsReview', got '${value}'`,
+        );
     }
 
     return value;
@@ -50,6 +71,10 @@ const state = readSessionState(sessionStatePath(process.env));
 assertPlatformsAgree(state.platform, process.env);
 
 const manifest = deriveFixtureManifest(state.runKey, state.platform, state.shard);
+
+// ⛔ BEFORE ANY CALL, the reconcile included: a mode that writes the database is refused for a non-local target with nothing
+// touched, not after the library was already reset. The branded target is what `openVerdictStore` requires.
+const localTarget = mode === 'needsReview' ? requireLocalSeedTarget(process.env) : undefined;
 
 const client = clientFor(env.recipeOrigin, state.signer);
 const before = await readWorld(client);
@@ -69,6 +94,18 @@ if (mode === 'ambiguity') {
     console.error(
         `e2e-seed reset (ambiguity): "${probe.title}" is ${probeId}, both "${state.ambiguityWord}" lines AMBIGUOUS`,
     );
+}
+
+if (mode === 'needsReview' && localTarget !== undefined) {
+    // After the reconcile, so the probe is never mistaken for residue. Throws unless the line then reads NEEDS_REVIEW.
+    const probe = deriveNeedsReviewProbe(manifest);
+    const probeId = await ensureNeedsReviewProbe(
+        { food: foodClientFor(readFoodOrigin(process.env), state.signer), recipe: client },
+        openVerdictStore(localTarget),
+        probe,
+        NEEDS_REVIEW_FOOD_NAME,
+    );
+    console.error(`e2e-seed reset (needsReview): "${probe.title}" is ${probeId}, its line reads NEEDS_REVIEW`);
 }
 
 if (mode !== 'empty') {

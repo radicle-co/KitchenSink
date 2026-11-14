@@ -305,6 +305,9 @@ const PACKAGE_INTERNALS_PATTERN = {
         '!@kitchensink/*/testing',
         '!@kitchensink/*/local-aws-pin',
         '!@kitchensink/*/integration-aws-pin',
+        // `service-test-harness`'s one rule for "this address can only mean this machine": dependency-free, and read by the
+        // seed's local-only database guard as well as the harness's own doors.
+        '!@kitchensink/*/loopback-host',
         '!@kitchensink/*/users',
         '@kitchensink/*/users/*',
         '!@kitchensink/*/users/handle-sync-publisher',

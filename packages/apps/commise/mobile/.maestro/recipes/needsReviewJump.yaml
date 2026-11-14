@@ -1,0 +1,90 @@
+appId: ${APP_ID}
+---
+# The needs-review jump on a device (mobile): a line the verification gate called NEEDS_REVIEW shows the owner a
+# "Needs review: <food>" control on the recipe's detail, and tapping it opens the editor with THAT line's row editor sheet
+# already open. The sheet shows "Needs review", why, what the cook wrote and what it was counted as; Cancel puts the fields
+# back, Done keeps them.
+#
+# ⛔ LOCAL STACK ONLY, and the only flow that is. THE FIXTURE is `deriveNeedsReviewProbe`
+# (`packages/tools/e2e-seed/src/fixtureManifest.ts`): the signer's private recipe "Needs Review Probe" with ONE line, 2 cups
+# of the signer's own food `${E2E_NEEDS_REVIEW_FOOD}`, whose source line is "${E2E_NEEDS_REVIEW_SOURCE_LINE}". A line reads
+# NEEDS_REVIEW only when the verification gate has STORED a `contradicted` verdict, and the Bedrock worker that writes it is
+# not part of the local stack. So `reset --mode needsReview` writes that one row straight into the LOCAL recipe database,
+# and REFUSES to do it for anything whose database, recipe API or food API host is not loopback
+# (`requireLocalSeedTarget`). A deployed run therefore cannot raise this fixture, and `runMaestroFlows.sh` leaves the flow
+# out of every deployed selection (`MAESTRO_LOCAL_ONLY_FLOWS`), printing why.
+#
+# What only a device proves: a TAP on the owner's control crosses navigation into the editor with the sheet open on the right
+# line, the keyboard comes down before Done, and Cancel and Done each do what their names say on the real row.
+- runFlow: ../auth/signin.yaml
+
+# 'Recipes' is the tab label, drawn on every screen; 'My recipes' is drawn only on the list.
+- assertVisible: 'My recipes'
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: '${E2E_RECIPE_NEEDS_REVIEW_PROBE}'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
+- tapOn: '${E2E_RECIPE_NEEDS_REVIEW_PROBE}'
+
+# The detail: the owner's control, named for the food. It sits with the ingredients, below the fold.
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Needs review: ${E2E_NEEDS_REVIEW_FOOD}'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
+- tapOn: 'Needs review: ${E2E_NEEDS_REVIEW_FOOD}'
+
+# The editor opens with that line's row editor sheet open: what the cook wrote, and what it was counted as.
+- extendedWaitUntil:
+      visible: 'You wrote'
+      timeout: 30000
+- assertVisible: '${E2E_NEEDS_REVIEW_SOURCE_LINE}'
+# The sheet's own "Needs review" heading, above "You wrote". The detail's pill carries the same words, so the text alone
+# would pass without the sheet; `above` ties it to the notice.
+- assertVisible:
+      text: 'Needs review'
+      above: 'You wrote'
+- assertVisible: 'Counted as'
+- assertVisible: 'Change'
+
+# CANCEL restores. The keyboard comes down first on Android: its action key is ALSO named "Done" (`key_pos_ime_action`), and
+# with the keyboard up a bare tap on a sheet button can resolve to it. iOS keeps the bare tap (`hideKeyboard` fails there).
+- tapOn: 'Amount'
+- eraseText: 5
+- inputText: '9'
+- runFlow:
+      when:
+          platform: Android
+      commands:
+          - hideKeyboard
+- tapOn: 'Cancel'
+- extendedWaitUntil:
+      notVisible: 'You wrote'
+      timeout: 20000
+# The row names the unit as the line stores it ("cup"), so the pattern takes either number.
+- assertVisible: 'Edit 2 cups? ${E2E_NEEDS_REVIEW_FOOD}.*'
+
+# DONE keeps. Reopen the same row, change the amount again, and close the sheet with Done.
+- tapOn: 'Edit 2 cups? ${E2E_NEEDS_REVIEW_FOOD}.*'
+- extendedWaitUntil:
+      visible: 'You wrote'
+      timeout: 20000
+- tapOn: 'Amount'
+- eraseText: 5
+- inputText: '7'
+- runFlow:
+      when:
+          platform: Android
+      commands:
+          - hideKeyboard
+- tapOn: 'Done'
+- extendedWaitUntil:
+      notVisible: 'You wrote'
+      timeout: 20000
+- assertVisible: 'Edit 7 cups? ${E2E_NEEDS_REVIEW_FOOD}.*'
+
+# Leave with the close control, never Discard (it deletes the recipe). The next flow's reset deletes the probe either way.
+- tapOn: 'Close editor'

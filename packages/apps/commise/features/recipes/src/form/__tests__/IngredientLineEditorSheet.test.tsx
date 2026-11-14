@@ -1,9 +1,12 @@
 // @vitest-environment jsdom
 /**
- * The row editor's phone sheet (web), below a 600 container (build spec 5.7.5.2): Done is the primary action and draws
- * FULL WIDTH, as the phone app's does (issue #176). `PressScale`'s `fill` box is `flex self-stretch`, which stretches
- * across its parent's CROSS axis, so a `flex justify-end` footer (a row) left Done small and at the end. jsdom has no
- * layout, so the contract is the footer's box: it must be a block (or a column), never a row.
+ * The row editor's phone sheet (web), below a 600 container (build spec 5.7.5.2).
+ *
+ * REWRITTEN (needs-review jump). It used to prove that Done alone drew full width in a block footer (issue #176: a
+ * `fill` button in a flex row hugged its label). The footer is now a Cancel + Done PAIR in the design system's
+ * `DialogActions`, which owns that layout. What this now proves: the pair is one row (a shared parent), Cancel first and
+ * Done last, both `fill`; each button calls only its own handler; and every other close route (here the sheet's own
+ * close control) is Done, never Cancel.
  */
 import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -17,36 +20,44 @@ afterEach(cleanup);
 
 const m = recipeFormMessages.en;
 
-describe('IngredientLineEditorSheet (web): Done', () => {
-    it('draws Done full width in a footer that is not a flex row', () => {
-        render(
-            <IngredientLineEditorSheet
-                open
-                row={{ index: 0, lineEditor: makeRowLineEditorView() }}
-                m={m}
-                details={null}
-            />,
-        );
-        const done = screen.getByRole('button', { name: m.rowDone });
-        const footer = done.parentElement?.parentElement as HTMLElement;
+const renderSheet = (lineEditor = makeRowLineEditorView()) =>
+    render(<IngredientLineEditorSheet open row={{ index: 0, lineEditor }} m={m} details={null} />);
 
+describe('IngredientLineEditorSheet (web): Cancel and Done', () => {
+    it('draws Cancel then Done in one row, both filling their slot', () => {
+        renderSheet();
+        const cancel = screen.getByRole('button', { name: m.rowCancel });
+        const done = screen.getByRole('button', { name: m.rowDone });
+
+        expect(cancel.className).toContain('w-full');
         expect(done.className).toContain('w-full');
-        expect(footer.className).not.toMatch(/(^|\s)(inline-)?flex(\s|$)/u);
-        expect(footer.className).not.toContain('justify-end');
+        expect(cancel.parentElement?.parentElement).toBe(done.parentElement?.parentElement);
+        expect(cancel.compareDocumentPosition(done) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     });
 
-    it('Done closes the editor', async () => {
+    it('Done closes keeping the edits, and Cancel discards: each calls only its own handler', async () => {
         const onDone = vi.fn();
-        render(
-            <IngredientLineEditorSheet
-                open
-                row={{ index: 0, lineEditor: makeRowLineEditorView({ onDone }) }}
-                m={m}
-                details={null}
-            />,
-        );
+        const onCancel = vi.fn();
+
+        renderSheet(makeRowLineEditorView({ onDone, onCancel }));
 
         await userEvent.click(screen.getByRole('button', { name: m.rowDone }));
         expect(onDone).toHaveBeenCalledOnce();
+        expect(onCancel).not.toHaveBeenCalled();
+
+        await userEvent.click(screen.getByRole('button', { name: m.rowCancel }));
+        expect(onCancel).toHaveBeenCalledOnce();
+        expect(onDone).toHaveBeenCalledOnce();
+    });
+
+    it('the sheet’s close control is Done, never Cancel', async () => {
+        const onDone = vi.fn();
+        const onCancel = vi.fn();
+
+        renderSheet(makeRowLineEditorView({ onDone, onCancel, closeLabel: 'Close Flour' }));
+        await userEvent.click(screen.getByRole('button', { name: 'Close Flour' }));
+
+        expect(onDone).toHaveBeenCalled();
+        expect(onCancel).not.toHaveBeenCalled();
     });
 });

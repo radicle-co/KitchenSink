@@ -13,7 +13,7 @@
  *
  * @pattern Adapter over the ARIA live-region channel
  */
-import type { FC } from 'react';
+import { useDeferredValue, type FC } from 'react';
 
 import type { LiveRegionPoliteness, LiveRegionProps } from './props.js';
 import { useOccurrenceSlot } from './useOccurrenceSlot.js';
@@ -31,14 +31,8 @@ const Region: FC<{ readonly text: string; readonly politeness: LiveRegionPoliten
     </span>
 );
 
-/** Text whose appearance and changes are announced to the screen reader. */
-export const LiveRegion: FC<LiveRegionProps> = ({
-    children,
-    politeness,
-    occurrence,
-    visuallyHidden = false,
-    className,
-}) => {
+/** The region over the message it is given now. */
+const Messaged: FC<LiveRegionProps> = ({ children, politeness, occurrence, visuallyHidden = false, className }) => {
     const slot = useOccurrenceSlot(occurrence);
     const classes = visuallyHidden ? 'sr-only' : className;
 
@@ -67,3 +61,18 @@ export const LiveRegion: FC<LiveRegionProps> = ({
         </>
     );
 };
+
+/**
+ * A region that mounts WITH a message it must say (`announceOnMount`). React 19: the first render answers '' and the
+ * real message follows in the next commit, so the message arrives as a change. Its own component, so only the regions
+ * that ask for it hold a deferred value: every other region renders its message in the render it is given.
+ */
+const AnnouncedOnMount: FC<LiveRegionProps> = (props) => {
+    const message = useDeferredValue(props.children, '');
+
+    return <Messaged {...props}>{message}</Messaged>;
+};
+
+/** Text whose appearance and changes are announced to the screen reader. */
+export const LiveRegion: FC<LiveRegionProps> = (props) =>
+    props.announceOnMount === true ? <AnnouncedOnMount {...props} /> : <Messaged {...props} />;

@@ -176,6 +176,17 @@ export const ScrollHost: FC<ScrollHostProps> = ({ sections = NO_SECTIONS, activa
             },
             // Nor by id here: a native field asks the field reveal host (`FieldRevealContext`) to show an arrival.
             revealSpan: () => false,
+            // Nor is an element's start found by id: it hears that it was named (`FieldTargetContext`, over ids no field
+            // shares) and asks the field reveal host to put its top at the top (`useFieldStartReveal`). Like a named
+            // field, its scroll replaces the section jump's, so the jump's hold and its wait for a layout end here. The
+            // host cannot know whether an element with that id is mounted, so it always answers `true`.
+            scrollToStart: (id) => {
+                setHeld(undefined);
+                setPendingJump(undefined);
+                setTargets((previous) => ({ ...previous, [id]: (previous[id] ?? 0) + 1 }));
+
+                return true;
+            },
             headingLayout: (event: LayoutReport) => {
                 const { y, height } = event.nativeEvent.layout;
                 const bottom = Math.round(y + height);

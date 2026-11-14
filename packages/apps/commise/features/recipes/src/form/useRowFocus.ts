@@ -45,6 +45,8 @@ export interface RowFocus {
     /** The row's open control ("Edit {amount} {food}"), which every row has. */
     readonly open: (key: IngredientLineKey) => ControlFocus;
     readonly actions: (key: IngredientLineKey) => ControlFocus;
+    /** The open editor's notice: where an arrival at a line under review lands. */
+    readonly editor: (key: IngredientLineKey) => ControlFocus;
     readonly trailing: ControlFocus;
     /** Where a refused save points, by field (R7). */
     readonly refusal: {
@@ -65,14 +67,17 @@ export interface RowFocus {
  * The field group's focus levels.
  *
  * @param rowEditor - The row editor: what settled, and the R7 refusal's level.
+ * @param initial - A request to hold from the first render (an arrival at a row).
  * @returns The levels and the requests.
  * @sideEffect Calls `rowEditor.pendingFocusHandled` when a refusal's own acknowledgement is called for the field it
  *   points at.
  */
 export function useRowFocus(
     rowEditor: Pick<IngredientRowEditor, 'settled' | 'pendingFocusRequested' | 'pendingFocusHandled' | 'entry'>,
+    initial?: RowFocusRequest,
 ): RowFocus {
-    const [request, setRequest] = useState<RowFocusRequest | undefined>(undefined);
+    // `initial` is read once, by the lazy initialiser: an arrival from a link asks for a row's control on the first render.
+    const [request, setRequest] = useState<RowFocusRequest | undefined>(initial);
     const [trailingRequested, setTrailingRequested] = useState(false);
     const [afterAuthoredSheet, setAfterAuthoredSheet] = useState<SettledFocus | undefined>(undefined);
     const [seenSettled, setSeenSettled] = useState(rowEditor.settled);
@@ -120,6 +125,7 @@ export function useRowFocus(
         }),
         open: (key) => ({ requested: isFocusRequested(request, key, 'open'), onHandled: clear }),
         actions: (key) => ({ requested: isFocusRequested(request, key, 'actions'), onHandled: clear }),
+        editor: (key) => ({ requested: isFocusRequested(request, key, 'editor'), onHandled: clear }),
         trailing: {
             requested: trailingRequested,
             onHandled: () => setTrailingRequested(false),

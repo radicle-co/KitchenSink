@@ -12,6 +12,7 @@ import { Button } from '@commise/ui/button';
 import { Combobox } from '@commise/ui/combobox';
 import { FieldLabel, Input } from '@commise/ui/input';
 import { PressScale } from '@commise/ui/press-scale';
+import { StatusBadge } from '@commise/ui/status-badge';
 import { Text as DesignText } from '@commise/ui/text';
 import type { FC } from 'react';
 import { useWindowDimensions } from 'react-native';
@@ -65,18 +66,47 @@ export const IngredientLineEditor: FC<IngredientLineEditorProps> = ({ view, inde
 
     return (
         <YStack gap="$3">
+            {view.reviewNotice !== undefined && (
+                // The notice heads the editor: what is wrong, then the cook's own words. Its badge says its name, so the
+                // stack takes none (`docs/design/nativeContainerNames.md` N1).
+                <YStack gap="$1">
+                    <YStack alignSelf="flex-start">
+                        <StatusBadge status="attention">{m.statusNeedsReview}</StatusBadge>
+                    </YStack>
+                    <DesignText typeRole="caption" color="$inkMuted">
+                        {m.statusExplainNeedsReview}
+                    </DesignText>
+                    {view.reviewNotice.originalLine !== undefined && (
+                        <>
+                            <DesignText typeRole="caption" color="$inkMuted">
+                                {m.rowYouWroteLabel}
+                            </DesignText>
+                            <DesignText typeRole="body" color="$ink" selectable>
+                                {view.reviewNotice.originalLine}
+                            </DesignText>
+                        </>
+                    )}
+                </YStack>
+            )}
             <YStack gap="$1">
                 <DesignText typeRole="caption" color="$inkMuted">
                     {m.rowCountedAsLabel}
                 </DesignText>
-                <XStack flexWrap="wrap" alignItems="center" gap="$2">
+                {/* One line: a long food wraps beside Change, and Change keeps its own size, its label whole (designer
+                    ruling 2026-11-11). */}
+                <XStack flexWrap="nowrap" alignItems="center" gap="$2">
                     <DesignText typeRole="body" color="$ink" flexShrink={1} flexGrow={1}>
                         {view.food}
                     </DesignText>
                     {view.onChangeFood !== undefined && (
-                        <Button variant="ghost" onPress={view.onChangeFood}>
-                            {m.rowChange}
-                        </Button>
+                        <YStack flexShrink={0}>
+                            <Button
+                                variant={view.reviewNotice !== undefined ? 'secondary' : 'ghost'}
+                                onPress={view.onChangeFood}
+                            >
+                                {m.rowChange}
+                            </Button>
+                        </YStack>
                     )}
                 </XStack>
             </YStack>

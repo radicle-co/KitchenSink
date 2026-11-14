@@ -3,7 +3,7 @@
  * Ingredients section, with the Paste a list sheet open. Home's and My recipes' first-run Paste ingredients link to it,
  * and `RecipeEditorContainer` reads it back, so the address and its reading live once.
  *
- * The section is the URL's hash, as every editor deep link's is (blueprint A16, `sectionFromHash`).
+ * The section is the URL's hash, as every editor deep link's is (blueprint A16, `arrivalFromHash`).
  */
 import type { EditorSectionId } from '@commise/features-recipes';
 

@@ -6,7 +6,7 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { spanTarget } from '../spanReveal.js';
+import { spanTarget, startSpanTarget } from '../spanReveal.js';
 
 /** A 300 dp visible area, 8 dp kept at each edge. */
 const VIEW = { viewport: 300, keep: 8 } as const;
@@ -60,5 +60,47 @@ describe('spanTarget', () => {
 
     it('fits nothing before the visible area is laid out', () => {
         expect(spanTarget({ top: 0, bottom: 50, offset: 100, viewport: 0, keep: 8 })).toBeNull();
+    });
+});
+
+/**
+ * A deep link to an ingredient row (`ScrollHost.scrollToStart`): the row's TOP goes one gap below the visible area's top,
+ * unless the row and its editor's actions do not both fit, when the actions win (Done and Cancel one gap above the
+ * bottom edge) and as much of the row as fits shows above them. It is `spanTarget`'s "field wins when too tall" rule,
+ * with the top as the first choice. ONE offset from both edges, so there is never a second scroll to chain.
+ */
+describe('startSpanTarget', () => {
+    it('fits: puts the row’s top one gap below the top, whatever its place now', () => {
+        // 200 tall: 216 dp with the gaps, inside 300.
+        expect(startSpanTarget({ top: 120, bottom: 320, offset: 100, ...VIEW })).toBe(100 + 120 - 8);
+        expect(startSpanTarget({ top: -50, bottom: 150, offset: 500, ...VIEW })).toBe(500 - 50 - 8);
+    });
+
+    it('fits exactly: the top rule still holds', () => {
+        // 284 dp tall, 300 with both gaps.
+        expect(startSpanTarget({ top: 100, bottom: 384, offset: 0, ...VIEW })).toBe(92);
+    });
+
+    it('too tall: the actions win, one gap above the bottom edge, and the row shows as far as it fits', () => {
+        // 340 dp tall: 356 with the gaps, in 300. The bottom edge (440) goes to 292.
+        const target = startSpanTarget({ top: 100, bottom: 440, offset: 200, ...VIEW });
+
+        expect(target).toBe(200 + 440 + 8 - 300);
+        // After that scroll the actions end one gap above the bottom edge, and the row starts above the top gap.
+        expect(440 - ((target ?? 0) - 200)).toBe(300 - 8);
+    });
+
+    it('answers null when it is already there', () => {
+        expect(startSpanTarget({ top: 8, bottom: 208, offset: 100, ...VIEW })).toBeNull();
+        expect(startSpanTarget({ top: -48, bottom: 292, offset: 100, ...VIEW })).toBeNull();
+    });
+
+    it('never goes below 0, and answers null when the clamp leaves it where it is', () => {
+        expect(startSpanTarget({ top: -30, bottom: 100, offset: 10, ...VIEW })).toBe(0);
+        expect(startSpanTarget({ top: 4, bottom: 100, offset: 0, ...VIEW })).toBeNull();
+    });
+
+    it('answers null until the visible area is laid out', () => {
+        expect(startSpanTarget({ top: 100, bottom: 200, offset: 0, viewport: 0, keep: 8 })).toBeNull();
     });
 });

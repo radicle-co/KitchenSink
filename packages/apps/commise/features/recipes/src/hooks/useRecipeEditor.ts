@@ -127,12 +127,13 @@ import {
 } from '../editor/editorView.js';
 import { visibilityFollowUp } from '../editor/visibilityFollowUp.js';
 import { gateOutcomeOf, refusedFieldsOf, type GateOutcome, type RefusedField } from '../editor/gate.js';
-import type { PasteHold } from '../editor/pasteHold.js';
+import type { Hold } from '../editor/hold.js';
+import type { LineAddress } from '../editor/editorArrival.js';
 import type { DraftKeep, MementoWrite, SaveStatus } from '../editor/saveStatus.js';
 import { VisibilityNotHeldError } from '../editor/visibilityNotHeldError.js';
 import { createLaneStore, isSettingVisibility, type LaneStore, type OutstandingWrite } from '../editor/writeLane.js';
 import type { DraftAction } from '../form/draftAction.js';
-import { isStoredLine, persistedLineKeysOf, type IngredientLineKey } from '../form/lineKey.js';
+import { isStoredLine, lineKeyAt, persistedLineKeysOf, type IngredientLineKey } from '../form/lineKey.js';
 import { derivedVisibility, draftSourceOf } from '../form/sourceLink.js';
 import { meetsDraftFloor, validateRecipeForm } from '../form/validate.js';
 import { defaultRecipeFormValues, recipeFormValuesEqual, type RecipeFormValues } from '../form/values.js';
@@ -281,11 +282,17 @@ export interface UseRecipeEditorOptions {
      */
     readonly pastePending?: boolean;
     /**
-     * The shared paste hold (`editor/pasteHold.ts`), made BEFORE the editor and the paste and handed to both: the paste
+     * The shared paste hold (`editor/hold.ts`), made BEFORE the editor and the paste and handed to both: the paste
      * writes it where its own state changes, and a checkpoint reads it when it runs. Either it or {@link pastePending}
      * holding is enough to hold the create.
      */
-    readonly pasteHold?: PasteHold;
+    readonly pasteHold?: Hold;
+    /**
+     * The shared row edit hold (`editor/hold.ts`): raised while a row editor is open, so a never-published
+     * draft's checkpoints wait for its Cancel or Done (`serverWriteFor`'s `rowEditHeld`). Letting go of it runs the
+     * checkpoint it deferred.
+     */
+    readonly rowEditHold?: Hold;
     /** The clock, for the draft's `savedAt`. */
     readonly now?: () => Date;
     /**
@@ -406,6 +413,12 @@ export interface UseRecipeEditorResult {
     readonly cancelDiscard: () => void;
     /** The rebind command's port, for `useLineCommit`. */
     readonly lineCommand: LineCommandPort;
+    /**
+     * The key of the stored line a link's address names (`lineKeyAt`, `../form/lineKey.ts`), or `undefined`. Answers
+     * only for the version the editor's keys were seeded at (a device draft's base, else the read's), so a link can
+     * never open a different line than it meant. `undefined` while the server holds no such recipe.
+     */
+    readonly lineKeyAt: (address: LineAddress) => IngredientLineKey | undefined;
     /** Abandon an open conflict without resolving it (the conflict view's "Discard and close"). */
     readonly discardAndClose: () => void;
     readonly resolutions: {
@@ -709,6 +722,7 @@ function submitWrite(ctx: EditorContext, trigger: CheckpointTrigger, drained: bo
         draftFloorMet: meetsDraftFloor(draft),
         changedSinceServerWrite: serverValues === undefined || !recipeFormValuesEqual(draft, serverValues),
         pastePending: pasteHeld(ctx),
+        rowEditHeld: ctx.opts.rowEditHold?.get() === true,
     });
 
     if (write.kind === 'none') {
@@ -1828,13 +1842,16 @@ function useDiscardLeft(ctx: EditorContext, discarding: boolean): void {
 }
 
 /**
+ * A hold let go of: run the checkpoint it deferred. The paste's (A-021) and an open row editor's (`hold.ts`) are
+ * the same cell.
+ *
  * A paste let go of its hold: run the checkpoint it deferred (A-021). The lines a paste joins change the draft, which
  * re-arms the idle timers; a paste that joins NO rows (headings, measure-only lines) changes nothing, so without this
  * the create it held waited for the next blur, section change or exit.
  *
- * @sideEffect Subscribes to the shared paste hold, and runs a `checkpointIdle` checkpoint on its release.
+ * @sideEffect Subscribes to the shared hold, and runs a `checkpointIdle` checkpoint on its release.
  */
-function useReleasedPasteHold(ctx: EditorContext, hold: PasteHold | undefined): void {
+function useReleasedHold(ctx: EditorContext, hold: Hold | undefined): void {
     const released = useEffectEvent((): void => {
         runCheckpoint(ctx, 'checkpointIdle');
     });
@@ -1982,7 +1999,8 @@ export function useRecipeEditor(seed: EditorSeed, opts: UseRecipeEditorOptions):
 
     useSettlements(ctx, opts.port);
     useStayed(stores.lane);
-    useReleasedPasteHold(ctx, opts.pasteHold);
+    useReleasedHold(ctx, opts.pasteHold);
+    useReleasedHold(ctx, opts.rowEditHold);
     useDiscardLeft(ctx, lane.discarding !== undefined);
     useIdleTimers(ctx, core.draft, core.touched && view.status !== 'done');
     useCommandRunner(ctx, core, view.outstanding);
@@ -2068,6 +2086,8 @@ export function useRecipeEditor(seed: EditorSeed, opts: UseRecipeEditorOptions):
             },
             run: (key, send) => runLineCommand(stores.core, key, send),
         },
+        lineKeyAt: (address) =>
+            core.server.kind === 'stored' ? lineKeyAt(persistedKeys, core.server.baseVersion, address) : undefined,
         discardAndClose: () => {
             discardAndClose(ctx);
         },

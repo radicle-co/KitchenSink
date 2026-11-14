@@ -132,6 +132,8 @@ export interface RecipeDetailMessages {
      * own source text disagreed with our match. A cook who cannot tell those apart cannot act on either.
      */
     readonly needsReviewBadge: string;
+    /** The owner's control on a line that needs review: its accessible name. Holds `{food}`. */
+    readonly needsReviewLinkLabel: string;
     /**
      * Whole-sentence disclosure for a recipe carrying exactly ONE doubted line.
      *
@@ -1005,6 +1007,7 @@ export const recipeMessages: LocalizedMessages<RecipeMessages> = {
             ingredientsHeading: 'Ingredients',
             userEnteredBadge: 'Your own food',
             needsReviewBadge: 'Needs review',
+            needsReviewLinkLabel: 'Needs review: {food}',
             needsReviewNoticeOne:
                 'One ingredient didn’t match its original wording, so it isn’t counted here. Check it and pick the right food.',
             needsReviewNoticeMany:

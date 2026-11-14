@@ -44,6 +44,8 @@ import {
     renameIngredientGroup,
 } from './ingredientGroups.js';
 import { withLineBinding } from './lineBinding.js';
+import { restoreLineFields } from './lineFieldsMemento.js';
+import type { Hold } from '../editor/hold.js';
 import type { IngredientLineKey } from './lineKey.js';
 import { settleIngredientLines, type LookupRetry } from './ingredientStatus.js';
 import type { PasteChoicePaneProps } from './pasteChoicePaneProps.js';
@@ -329,6 +331,12 @@ export const visibilityChoice = (
 };
 
 /**
+ * What a link's line address came to, against the draft: a row the draft holds, or a miss the cook is told about.
+ * A key with "not addressed" cannot be written, and "addressed but absent" has its own case.
+ */
+export type ArrivalLine = { readonly kind: 'found'; readonly key: IngredientLineKey } | { readonly kind: 'missing' };
+
+/**
  * Props for the ingredients field group — {@link RecipeFormSectionProps} plus the editor's own controllers. The
  * trailing add row is the group's own (plan 002 V1 B8): it commits through the row editor, so no host answers a
  * request to add.
@@ -355,6 +363,22 @@ export interface RecipeIngredientsFieldsProps extends RecipeFormSectionProps {
     readonly rowEditor: IngredientRowEditor;
     /** Paste a list, while the editor offers it (`usePasteIntoIngredients`): its rows and the empty section's button. */
     readonly paste?: IngredientsPasteView;
+    /**
+     * Where a link took the cook: a line this draft holds, whose row editor opens (read by the first render only, so
+     * closing the editor never reopens it), or a line it does not hold, which one quiet line says until the cook opens a
+     * row. Resolved ONCE by the editor from the link's address (`resolveArrival`).
+     */
+    readonly arrivalLine?: ArrivalLine;
+    /**
+     * The hold the editor's checkpoints read (`editor/hold.ts`): raised while a row editor is open, so its Cancel
+     * can still put the line back, and let go of when it closes.
+     */
+    readonly rowEditHold?: Hold;
+    /**
+     * The cook's own line as the import read it, by line key, for a line that needs review (plan: needs-review). Display
+     * only — never part of the draft.
+     */
+    readonly originalLines?: ReadonlyMap<IngredientLineKey, string>;
 }
 
 /**
@@ -540,6 +564,15 @@ export const applyDraftAction = (values: RecipeFormValues, action: DraftAction):
         case 'removeIngredient':
             return values.ingredients.some((line) => line.key === action.key)
                 ? { ...values, ingredients: values.ingredients.filter((line) => line.key !== action.key) }
+                : values;
+        case 'restoreIngredientFields':
+            return values.ingredients.some((line) => line.key === action.key)
+                ? {
+                      ...values,
+                      ingredients: values.ingredients.map((line) =>
+                          line.key === action.key ? restoreLineFields(line, action.memento) : line,
+                      ),
+                  }
                 : values;
         case 'rebindIngredient':
             return values.ingredients.some((line) => line.key === action.key)

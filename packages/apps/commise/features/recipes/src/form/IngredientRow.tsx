@@ -156,6 +156,7 @@ export const IngredientRow: FC<IngredientRowProps> = ({
                 }
             }}
         >
+            {row.youWroteInline !== undefined && <p className="text-caption text-ink-muted">{row.youWroteInline}</p>}
             <div className="flex items-start gap-2">
                 {row.inEntry ? (
                     <EntryName row={row} entryCopy={entryCopy} />

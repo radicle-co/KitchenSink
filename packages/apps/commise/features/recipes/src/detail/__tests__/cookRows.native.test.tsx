@@ -16,6 +16,7 @@ import { withPlatformOs } from '@commise/ui/testing/platform-os';
 import { rgb } from '@commise/ui/testing/system-color-scheme';
 
 import { makeIngredientView, makeStepView } from '../../__fixtures__/index.js';
+import { recipeMessages } from '../../messages.js';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native` leaf.
 import { IngredientCheckRow } from '../IngredientCheckRow.native.js';
 import { StepRow } from '../StepRow.native.js';
@@ -28,6 +29,61 @@ const lamb = makeIngredientView({
     unit: 'kg',
     name: 'lamb shoulder',
     preparation: 'trimmed of excess fat',
+});
+
+/**
+ * The owner's review control (needs-review jump), the native mirror of the web block: the row takes a `reviewAction`
+ * slot drawn BESIDE the checkbox, never inside it (a control inside the checkbox would tick the line when pressed), and
+ * the "Needs review" badge moves to it. Other statuses stay in the row.
+ */
+describe('IngredientCheckRow (native) — the review control slot', () => {
+    const doubted = makeIngredientView({
+        resolutionStatus: FoodResolutionStatus.NEEDS_REVIEW,
+        name: 'flour',
+        isUserEntered: true,
+    });
+    const control = <button type="button">Go to flour</button>;
+
+    it('draws the control outside the checkbox, and pressing it does not tick the line', () => {
+        const onToggle = vi.fn();
+
+        render(
+            <IngredientCheckRow
+                ingredient={doubted}
+                checked={false}
+                allRemoved={false}
+                onToggle={onToggle}
+                reviewAction={control}
+            />,
+        );
+        const press = screen.getByRole('button', { name: 'Go to flour' });
+
+        expect(screen.getByRole('checkbox', { name: /flour/u }).contains(press)).toBe(false);
+        fireEvent.click(press);
+        expect(onToggle).not.toHaveBeenCalled();
+    });
+
+    it('moves the Needs review badge out of the checkbox; other statuses stay', () => {
+        render(
+            <IngredientCheckRow
+                ingredient={doubted}
+                checked={false}
+                allRemoved={false}
+                onToggle={vi.fn()}
+                reviewAction={control}
+            />,
+        );
+        const row = screen.getByRole('checkbox', { name: /flour/u });
+
+        expect(row.textContent).not.toContain('Needs review');
+        expect(row.textContent).toContain(recipeMessages.en.detail.userEnteredBadge);
+    });
+
+    it('with no slot the badge stays in the row', () => {
+        render(<IngredientCheckRow ingredient={doubted} checked={false} allRemoved={false} onToggle={vi.fn()} />);
+
+        expect(screen.getByRole('checkbox', { name: /flour/u }).textContent).toContain('Needs review');
+    });
 });
 
 describe('IngredientCheckRow (native)', () => {

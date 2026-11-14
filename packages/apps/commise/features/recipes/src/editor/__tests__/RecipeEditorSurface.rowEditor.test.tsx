@@ -13,7 +13,7 @@
 import { LocaleProvider } from '@commise/i18n/react';
 import { makeQuietFoodClient, dialogTitled, queryDialogTitled } from '@commise/test-utils';
 import { FoodServiceProvider } from '@kitchensink/food-service-client/hooks';
-import { RecipeStatus } from '@kitchensink/recipe-core';
+import { FoodResolutionStatus, RecipeStatus } from '@kitchensink/recipe-core';
 import { RecipeServiceProvider } from '@kitchensink/recipe-service-client/hooks';
 import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-client/testing';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -29,6 +29,9 @@ import { recipeFormMessages } from '../../form/messages.js';
 import type { EditorSeed } from '../../hooks/useRecipeEditor.js';
 import { SERVER_CHECKPOINT_IDLE_MS } from '../checkpointPolicy.js';
 import type { DraftStore } from '../draftStore.js';
+import type { EditorArrival } from '../editorArrival.js';
+import { toRecipeFormValues } from '../../form/wire.js';
+import { editorMessages } from '../messages.js';
 import { RecipeEditorSurface } from '../RecipeEditorSurface.js';
 import { useRecipeEditorSession } from '../useRecipeEditorSession.js';
 
@@ -70,7 +73,15 @@ const STORED = makeRecipeDetail({
     ],
 });
 
-function Harness({ seed, port }: { seed: EditorSeed; port: ReturnType<typeof makeFakeEditorWritePort> }): ReactElement {
+function Harness({
+    seed,
+    port,
+    arrival,
+}: {
+    seed: EditorSeed;
+    port: ReturnType<typeof makeFakeEditorWritePort>;
+    arrival?: EditorArrival;
+}): ReactElement {
     // What the app's container does: the rule, the slot standing and the known refusal, from one hook.
     const recipePrivate = useRecipePrivate({
         sourceType: seed.recipe?.sourceType,
@@ -99,6 +110,7 @@ function Harness({ seed, port }: { seed: EditorSeed; port: ReturnType<typeof mak
             knownPaidFeatures="granted"
             slotStanding={recipePrivate.standing}
             renderPhotos={() => null}
+            {...(arrival === undefined ? {} : { arrival })}
             onClose={vi.fn()}
             onOpenMyRecipes={vi.fn()}
             leaveAsk="inPage"
@@ -106,7 +118,7 @@ function Harness({ seed, port }: { seed: EditorSeed; port: ReturnType<typeof mak
     );
 }
 
-function mount() {
+function mount(arrival?: EditorArrival, recipe: EditorSeed['recipe'] = STORED, memento?: EditorSeed['memento']) {
     const port = makeFakeEditorWritePort();
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
 
@@ -115,7 +127,11 @@ function mount() {
             <QueryClientProvider client={queryClient}>
                 <RecipeServiceProvider client={createFakeRecipeServiceClient()}>
                     <FoodServiceProvider client={makeQuietFoodClient()} subject="user_cook">
-                        <Harness seed={{ recipe: STORED }} port={port} />
+                        <Harness
+                            seed={{ recipe, ...(memento === undefined ? {} : { memento }) }}
+                            port={port}
+                            {...(arrival === undefined ? {} : { arrival })}
+                        />
                     </FoodServiceProvider>
                 </RecipeServiceProvider>
             </QueryClientProvider>
@@ -131,24 +147,21 @@ const nameField = (): HTMLInputElement =>
     ) as HTMLInputElement;
 
 describe('the phone row editor sheet, over the real editor session (web)', () => {
-    it('stays open and keeps a new name typed after the name was cleared and a checkpoint was answered', async () => {
+    // REWRITTEN (needs-review, row edit hold): this case used to prove the sheet survived an idle checkpoint's answer
+    // arriving while it was open. A row editor now HOLDS the draft's server checkpoints (the row edit hold, `editor/hold.ts`), so the idle
+    // pause sends nothing while the sheet is open, and the checkpoint it deferred runs once, at Done. The typed name must
+    // still survive the pause, the keystrokes and the close.
+    it('stays open and keeps a new name typed after the name was cleared and the idle pause passed', async () => {
         vi.useFakeTimers({ shouldAdvanceTime: true });
         const { port } = mount();
 
         fireEvent.click(screen.getByRole('button', { name: /^Edit 2 tbsp chili oil/u }));
         fireEvent.change(nameField(), { target: { value: '' } });
 
-        // The idle checkpoint writes, and the server answers with the next version.
         await act(async () => {
             await vi.advanceTimersByTimeAsync(SERVER_CHECKPOINT_IDLE_MS + 100);
         });
-        expect(port.submitted.length).toBeGreaterThan(0);
-        act(() => {
-            port.sync(port.lastSeq(), { ...STORED, currentVersion: 2 });
-        });
-        await act(async () => {
-            await vi.advanceTimersByTimeAsync(10);
-        });
+        expect(port.submitted).toHaveLength(0);
 
         // Typed one key at a time, as a device delivers it.
         for (const typed of ['c', 'cr', 'crushed', 'crushed ', 'crushed tomatoes']) {
@@ -157,8 +170,95 @@ describe('the phone row editor sheet, over the real editor session (web)', () =>
 
         expect(queryDialogTitled(/crushed tomatoes/u)).not.toBeNull();
         expect(nameField().value).toBe('crushed tomatoes');
-        // The draft holds it: Done closes the sheet on a row that reads the new name.
+        // The draft holds it: Done closes the sheet on a row that reads the new name, and the held checkpoint goes out.
         fireEvent.click(within(dialogTitled('crushed tomatoes')).getByRole('button', { name: en.rowDone }));
         expect(screen.getByRole('button', { name: /^Edit 2 tbsp crushed tomatoes/u })).toBeTruthy();
+        await act(async () => {
+            await vi.advanceTimersByTimeAsync(10);
+        });
+        expect(port.submitted.length).toBeGreaterThan(0);
+    });
+});
+
+/**
+ * Arriving from a link (`#ingredients/{version}.{position}`, or the native `line` param): the Surface resolves the
+ * address ONCE against the editor's own keys. This tier proves it over the real session, where the keys come from the
+ * server read: a good address opens that row's editor, a stale one opens nothing and says so, and the sentence goes
+ * once the cook opens a row.
+ */
+describe('arriving at a line from a link, over the real editor session (web)', () => {
+    const missing = editorMessages.en.ingredients.jumpLineMissing;
+
+    it('opens the editor of the addressed row', () => {
+        mount({ section: 'ingredients', line: { version: 1, position: 0 } });
+
+        expect(queryDialogTitled(/chili oil/u)).not.toBeNull();
+        expect(screen.queryByText(missing)).toBeNull();
+    });
+
+    it.each([
+        ['a version the editor was not seeded at', { version: 7, position: 0 }],
+        ['a position past the end', { version: 1, position: 5 }],
+    ])('says so and opens nothing for %s', (_name, line) => {
+        mount({ section: 'ingredients', line });
+
+        expect(queryDialogTitled(/chili oil/u)).toBeNull();
+        expect(screen.getByText(missing)).toBeTruthy();
+    });
+
+    it('says so when the address names a line the resumed draft no longer holds', () => {
+        // The draft was seeded at version 1, where position 0 is a real key, but the cook deleted that line since.
+        const memento = {
+            recipeRef: 'rec_9',
+            baseVersion: 1,
+            values: { ...toRecipeFormValues(STORED), ingredients: [] },
+            pendingRebinds: [],
+            savedAt: '2026-11-11T00:00:00.000Z',
+        };
+
+        mount({ section: 'ingredients', line: { version: 1, position: 0 } }, STORED, memento);
+
+        expect(screen.getByText(missing)).toBeTruthy();
+    });
+
+    it('says nothing when the link names a section only', () => {
+        mount({ section: 'ingredients' });
+
+        expect(screen.queryByText(missing)).toBeNull();
+        expect(queryDialogTitled(/chili oil/u)).toBeNull();
+    });
+
+    it('clears the sentence once the cook opens any row', () => {
+        mount({ section: 'ingredients', line: { version: 9, position: 0 } });
+        expect(screen.getByText(missing)).toBeTruthy();
+
+        fireEvent.click(screen.getByRole('button', { name: /^Edit 2 tbsp chili oil/u }));
+
+        expect(screen.queryByText(missing)).toBeNull();
+    });
+
+    it('shows the cook’s original line for a needs-review line, from the server read and not the draft', () => {
+        const review = makeRecipeDetail({
+            id: 'rec_9',
+            currentVersion: 1,
+            status: RecipeStatus.DRAFT,
+            cuisine: 'Italian',
+            ingredients: [
+                {
+                    ...makeIngredientView({
+                        name: 'Smoked Chili Oil',
+                        displayText: 'chili oil',
+                        resolutionStatus: FoodResolutionStatus.NEEDS_REVIEW,
+                    }),
+                    sourceLine: '2 tbsp chilli oil, the good stuff',
+                },
+            ],
+        });
+
+        mount({ section: 'ingredients', line: { version: 1, position: 0 } }, review);
+        const sheet = dialogTitled(/chili oil/u);
+
+        expect(within(sheet).getByText(en.statusExplainNeedsReview)).toBeTruthy();
+        expect(within(sheet).getByText('2 tbsp chilli oil, the good stuff')).toBeTruthy();
     });
 });

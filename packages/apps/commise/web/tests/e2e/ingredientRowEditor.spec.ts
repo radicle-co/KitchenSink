@@ -92,9 +92,10 @@ async function openIngredientsSection(page: Page): Promise<void> {
 test.describe('the ingredient row editor on a saved recipe (plan 002 V1 B7)', () => {
     // The designer's retake of PR #166 and issue #176: the editor reads the SAME container rule as the food page. At 620 px
     // the column's content is 572 px, under the 600 `regular` threshold, so the row editor is the phone sheet, "Name on
-    // the recipe" and "Note" stack full width, and Done draws full width.
+    // the recipe" and "Note" stack full width. The footer is the Cancel / Done pair (`DialogActions`, side by side from a
+    // 400 px container): at 390 it stacks and Done fills; at 620 both sit on one row, Done last at the end edge.
     for (const width of [390, 620]) {
-        test(`at ${String(width)} px the row editor is the phone sheet: Name and Note stack, and Done fills`, async ({
+        test(`at ${String(width)} px the row editor is the phone sheet: Name and Note stack, and Cancel and Done end it`, async ({
             page,
         }) => {
             await page.setViewportSize({ width, height: 900 });
@@ -112,10 +113,23 @@ test.describe('the ingredient row editor on a saved recipe (plan 002 V1 B7)', ()
             const name = await sheet.getByLabel('Name on the recipe').boundingBox();
             const note = await sheet.getByLabel('Note', { exact: true }).boundingBox();
             const done = await sheet.getByRole('button', { name: 'Done', exact: true }).boundingBox();
+            const cancel = await sheet.getByRole('button', { name: 'Cancel', exact: true }).boundingBox();
 
             expect(note?.y ?? 0).toBeGreaterThan((name?.y ?? 0) + (name?.height ?? 0) - 1);
             expect(Math.round(note?.width ?? 0)).toBe(Math.round(name?.width ?? -1));
-            expect(Math.round(done?.width ?? 0)).toBeGreaterThanOrEqual(Math.round(name?.width ?? Infinity));
+
+            if (width < 400) {
+                // Stacked: Done on top, both as wide as the fields.
+                expect(Math.round(done?.width ?? 0)).toBeGreaterThanOrEqual(Math.round(name?.width ?? Infinity));
+                expect(done?.y ?? Infinity).toBeLessThan(cancel?.y ?? 0);
+            } else {
+                // One row: Cancel then Done, Done's end edge at the fields' end edge.
+                expect(Math.round(cancel?.y ?? -1)).toBe(Math.round(done?.y ?? -2));
+                expect((cancel?.x ?? Infinity) + (cancel?.width ?? 0)).toBeLessThanOrEqual(done?.x ?? 0);
+                expect(
+                    Math.abs((done?.x ?? 0) + (done?.width ?? 0) - ((name?.x ?? 0) + (name?.width ?? 0))),
+                ).toBeLessThan(2);
+            }
         });
     }
 

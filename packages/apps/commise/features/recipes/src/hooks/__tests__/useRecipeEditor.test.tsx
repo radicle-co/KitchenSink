@@ -35,9 +35,9 @@ import { PrivateSlotsFullError } from '@kitchensink/recipe-service-client';
 
 import type { PrivateRefusal } from '../../actions/privateGate.js';
 import { errorsStillHolding } from '../../editor/gate.js';
-import { createPasteHold, type PasteHold } from '../../editor/pasteHold.js';
+import { createHold, type Hold } from '../../editor/hold.js';
 import type { DraftMemento, DraftStore } from '../../editor/draftStore.js';
-import type { IngredientLineKey } from '../../form/lineKey.js';
+import { seedLineKey, type IngredientLineKey } from '../../form/lineKey.js';
 import { toDraftValues } from '../../editor/draftStore.js';
 import { toRecipeFormValues } from '../../form/wire.js';
 import { draftToSnapshot } from '../../versions/merge.js';
@@ -93,10 +93,11 @@ const NEVER_PUBLISHED = makeRecipeDetail({ id: 'rec_1', currentVersion: 3, statu
 
 function mount(
     seed: EditorSeed = {},
-    pasteHold?: PasteHold,
+    pasteHold?: Hold,
     port = fakePort(),
     // A function when the refusal changes during the case (a slot read that answers after a Publish was sent).
     privateRefusal: PrivateRefusal | undefined | (() => PrivateRefusal | undefined) = undefined,
+    rowEditHold?: Hold,
 ) {
     const drafts = fakeDrafts();
     const onExit = vi.fn<(exit: EditorExit) => void>();
@@ -127,6 +128,7 @@ function mount(
                 reportError,
                 pastePending: props.pastePending ?? false,
                 ...(pasteHold === undefined ? {} : { pasteHold }),
+                ...(rowEditHold === undefined ? {} : { rowEditHold }),
                 now: () => new Date('2026-10-09T12:00:00.000Z'),
             }),
         { initialProps: { seed } as { readonly seed: EditorSeed; readonly pastePending?: boolean } },
@@ -1744,7 +1746,7 @@ describe('paste and the create', () => {
     });
 
     it('holds the create while the shared paste hold says a paste is joining, read when the checkpoint runs', async () => {
-        const hold = createPasteHold();
+        const hold = createHold();
         const { result, port } = mount({}, hold);
 
         hold.set(true);
@@ -1770,7 +1772,7 @@ describe('paste and the create', () => {
      * the hold deferred then waited for the next blur, section change or exit. Letting go of the hold runs the checkpoint.
      */
     it('⛔ creates a titled draft when the hold lets go, though the paste joined no rows and the draft did not change', async () => {
-        const hold = createPasteHold();
+        const hold = createHold();
         const { result, port } = mount({}, hold);
 
         typeTitle(result);
@@ -1791,7 +1793,7 @@ describe('paste and the create', () => {
     });
 
     it('does not create from a release while the draft is below the floor (no title)', async () => {
-        const hold = createPasteHold();
+        const hold = createHold();
         const { port } = mount({}, hold);
 
         hold.set(true);
@@ -1809,7 +1811,7 @@ describe('paste and the create', () => {
      * lines (D10), and the hold letting go later does not send a second create.
      */
     it('⛔ creates the draft when the app goes to the background mid-paste, and the later lines keep no source', async () => {
-        const hold = createPasteHold();
+        const hold = createHold();
         const { result, port } = mount({}, hold);
 
         typeTitle(result);
@@ -2439,6 +2441,56 @@ describe('characterization: the rebind command`s other answers', () => {
         expect(view.result.current.lineCommand.persistedKeys).toEqual(
             view.result.current.values.ingredients.map((line) => line.key),
         );
+    });
+
+    /**
+     * A link names a line by (version, stored position); only the editor knows which version its keys were seeded at,
+     * so it is the one that answers (`lineKeyAt`). It must never open a different line than the link meant.
+     */
+    describe('lineKeyAt — an arrival’s address', () => {
+        it('answers the key at that stored position for the version the editor was seeded at', () => {
+            const view = mount({ recipe: twoLines(3) });
+            const lines = view.result.current.values.ingredients;
+
+            expect(view.result.current.lineKeyAt({ version: 3, position: 1 })).toBe(lines[1]!.key);
+            expect(view.result.current.lineKeyAt({ version: 3, position: 0 })).toBe(lines[0]!.key);
+        });
+
+        it('answers nothing for another version or a position past the end', () => {
+            const view = mount({ recipe: twoLines(3) });
+
+            expect(view.result.current.lineKeyAt({ version: 2, position: 1 })).toBeUndefined();
+            expect(view.result.current.lineKeyAt({ version: 4, position: 1 })).toBeUndefined();
+            expect(view.result.current.lineKeyAt({ version: 3, position: 2 })).toBeUndefined();
+        });
+
+        it('a device draft edited from an older version answers for THAT version only', () => {
+            const server = twoLines(3);
+            const memento: DraftMemento = {
+                recipeRef: 'rec_1',
+                baseVersion: 2,
+                values: toDraftValues({
+                    ...toRecipeFormValues(server),
+                    ingredients: toRecipeFormValues(server).ingredients.map((line, index) => ({
+                        ...line,
+                        key: seedLineKey(2, index),
+                    })),
+                    description: 'Mine.',
+                }),
+                pendingRebinds: [],
+                savedAt: '2026-10-08T09:00:00.000Z',
+            };
+            const view = mount({ recipe: server, memento });
+
+            expect(view.result.current.lineKeyAt({ version: 3, position: 0 })).toBeUndefined();
+            expect(view.result.current.lineKeyAt({ version: 2, position: 0 })).toBe(seedLineKey(2, 0));
+        });
+
+        it('answers nothing before the server holds the recipe', () => {
+            const view = mount({});
+
+            expect(view.result.current.lineKeyAt({ version: 1, position: 0 })).toBeUndefined();
+        });
     });
 
     it('a line the server does not store fails without a send', async () => {
@@ -4336,5 +4388,99 @@ describe('a draft with a web link as its Source (ADR-0089)', () => {
                 },
             },
         });
+    });
+});
+
+/**
+ * A row editor's Cancel puts back what the row held when it opened, and the cook's own words ("You wrote") are the
+ * server's copy of the line. A line a paste read in has a review verdict and a source line on the server from the create
+ * on, so the recipe is a never-published draft that holds a NEEDS_REVIEW line. An idle or app-hide checkpoint that sends
+ * the half-edited line makes the server drop that line's source and flag, which Cancel cannot bring back. So while a row
+ * editor is open (its hold is raised) those checkpoints wait, and the release runs the one that was deferred.
+ */
+describe('a row editor holds the draft’s server checkpoints', () => {
+    const REVIEW_LINE = makeIngredientView({ ingredientId: 'chick', name: 'chick', resolutionStatus: 'NEEDS_REVIEW' });
+    const WITH_REVIEW_LINE = makeRecipeDetail({
+        id: 'rec_1',
+        currentVersion: 3,
+        status: RecipeStatus.DRAFT,
+        ingredients: [REVIEW_LINE],
+    });
+
+    it('is a never-published draft that holds a line needing review (the paste path’s result after the create)', () => {
+        const { result } = mount({ recipe: WITH_REVIEW_LINE });
+
+        expect(result.current.lifecycle).toBe('neverPublished');
+        expect(result.current.values.ingredients[0]).toMatchObject({ resolutionStatus: 'NEEDS_REVIEW' });
+    });
+
+    it('⛔ sends nothing at the idle checkpoint or the app-hide while the hold is raised, and one update at its release', async () => {
+        const hold = createHold();
+        const { result, port } = mount({ recipe: WITH_REVIEW_LINE }, undefined, undefined, undefined, hold);
+        const [line] = result.current.values.ingredients;
+
+        hold.set(true);
+        act(() => {
+            result.current.setValues({
+                ...result.current.values,
+                ingredients: [{ ...line!, quantity: 9 }],
+            });
+        });
+        act(() => {
+            result.current.checkpoint('appHidden');
+            vi.advanceTimersByTime(SERVER_CHECKPOINT_IDLE_MS);
+        });
+        await settle();
+
+        expect(port.submitted).toEqual([]);
+
+        // Done: the editor closes with the edit kept, and the deferred checkpoint runs once.
+        act(() => {
+            hold.set(false);
+        });
+        await settle();
+
+        expect(port.submitted.map((intent) => intent.intentKind)).toEqual(['update']);
+        expect(port.submitted[0]).toMatchObject({
+            payload: { input: { ingredients: [expect.objectContaining({ quantity: { kind: 'exact', value: 9 } })] } },
+        });
+    });
+
+    it('sends nothing at all when Cancel put the line back, because the draft is what the server holds', async () => {
+        const hold = createHold();
+        const { result, port } = mount({ recipe: WITH_REVIEW_LINE }, undefined, undefined, undefined, hold);
+        const before = result.current.values;
+
+        hold.set(true);
+        act(() => {
+            result.current.setValues({ ...before, ingredients: [{ ...before.ingredients[0]!, quantity: 9 }] });
+        });
+        act(() => {
+            vi.advanceTimersByTime(SERVER_CHECKPOINT_IDLE_MS);
+        });
+        act(() => {
+            result.current.setValues(before);
+            hold.set(false);
+        });
+        await settle();
+
+        expect(port.submitted).toEqual([]);
+    });
+
+    it('a leave still saves while the hold is raised', async () => {
+        const hold = createHold();
+        const { result, port } = mount({ recipe: WITH_REVIEW_LINE }, undefined, undefined, undefined, hold);
+        const [line] = result.current.values.ingredients;
+
+        hold.set(true);
+        act(() => {
+            result.current.setValues({ ...result.current.values, ingredients: [{ ...line!, quantity: 9 }] });
+        });
+        act(() => {
+            result.current.checkpoint('editorExit');
+        });
+        await settle();
+
+        expect(port.submitted.map((intent) => intent.intentKind)).toEqual(['update']);
     });
 });

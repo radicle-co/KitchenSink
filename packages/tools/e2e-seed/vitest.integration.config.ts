@@ -1,5 +1,7 @@
 import { defineConfig } from 'vitest/config';
 
+import { INTEGRATION_AWS_PIN } from '@kitchensink/service-test-harness/integration-aws-pin';
+
 /**
  * Integration tier: the seeder's requests, over a REAL HTTP wire, validated by the REAL contract.
  *
@@ -15,6 +17,9 @@ import { defineConfig } from 'vitest/config';
  */
 export default defineConfig({
     test: {
+        // The integration AWS pin (`@kitchensink/service-test-harness`'s `awsPin.ts`).
+        env: { ...INTEGRATION_AWS_PIN.env },
+        setupFiles: [...INTEGRATION_AWS_PIN.setupFiles],
         include: ['tests/**/*.integration.test.ts'],
         fileParallelism: false,
         testTimeout: 60_000,

@@ -79,6 +79,9 @@ test.describe('ranged + absent ingredient quantity (U9)', () => {
         await expect(reopened.getByLabel('Amount, up to')).toHaveValue('3');
 
         await reopened.getByLabel('Amount, up to').fill('4');
+        // Done closes the row editor in either frame. At this window's height (720 px, under the inline threshold in
+        // `inlineEditorFit.ts`) it is the sheet, whose modal layer covers Save changes until it closes.
+        await reopened.getByRole('button', { name: 'Done' }).click();
         // Published now, so its one write is Save changes (slice 7, D1).
         await page.getByRole('button', { name: 'Save changes' }).click();
 

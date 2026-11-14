@@ -26,7 +26,6 @@ import { StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
 import { VariantDetailsDialog } from '../details/VariantDetailsDialog.native.js';
 import { editorMessages } from '../editor/messages.js';
 import { useLastDefined } from '../hooks/useLastDefined.js';
-import { useMainContainerClass } from '../layout/useMainContainerClass.js';
 import { AuthoredFoodSheet } from './AuthoredFoodSheet.native.js';
 import { FoodDetailsSheet } from './FoodDetailsSheet.native.js';
 import { ingredientsErrorId, trailingCommitFailureId } from './fieldErrorIds.js';
@@ -49,7 +48,7 @@ import { trailingEntryFieldOf } from './trailingEntryField.js';
 import type { SectionAddView } from './useIngredientGroups.js';
 import { usePasteLayout } from './usePasteLayout.js';
 import { useIngredientsFields, type IngredientsFieldsModel } from './useIngredientsFields.js';
-import { useRoomForInlineEditor } from './useRoomForInlineEditor.js';
+import { useRowEditorPlacement } from './useRowEditorPlacement.js';
 
 /** The dp between a group's list and the add field under it: the stack lays it out, and an arrival adds it. */
 const LIST_TO_FIELD_DP = nativeTokens.spacing[1];
@@ -156,8 +155,7 @@ export const RecipeIngredientsFields: FC<RecipeIngredientsFieldsProps> = (props)
     }, [pendingFocusRequested]);
     // §7.12: a sheet on a phone, inline on a tablet (from a 600 pt content width) when the screen has room for it
     // (`inlineEditorFit.ts`): otherwise the same sheet, as on the web.
-    const wideContainer = useMainContainerClass() !== 'narrow';
-    const inline = useRoomForInlineEditor(model.openRow !== undefined) && wideContainer;
+    const { inline, wideContainer } = useRowEditorPlacement(model.openRow !== undefined);
     // The add field when no run holds it: the empty section, or a list whose rows are all being read.
     const addFieldHere =
         model.sections.length === 0 && !model.emptyGroups.some((group) => group.addHere.kind === 'field');

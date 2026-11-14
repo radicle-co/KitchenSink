@@ -7,7 +7,7 @@
  * running total at the section's foot.
  *
  * This orchestration component takes the section's state, focus and views from `useIngredientsFields` and picks the
- * row editor's frame by the container's class (`useMainContainerClass`); the leaves only draw. Rows are grouped in one
+ * row editor's frame by `useRowEditorPlacement` (the container's class and the window's room); the leaves only draw. Rows are grouped in one
  * list per run: an ungrouped recipe is one list named "Ingredients" with no group chrome, and each group's list is named
  * by its heading. A row that moves to another group remounts under it, and its `⋯` takes focus back by request.
  *
@@ -25,7 +25,6 @@ import { useEffect, useEffectEvent, type FC, type ReactNode } from 'react';
 import { VariantDetailsDialog } from '../details/VariantDetailsDialog.js';
 import { editorMessages } from '../editor/messages.js';
 import { useLastDefined } from '../hooks/useLastDefined.js';
-import { useMainContainerClass } from '../layout/useMainContainerClass.js';
 import { AuthoredFoodSheet } from './AuthoredFoodSheet.js';
 import { FoodDetailsSheet } from './FoodDetailsSheet.js';
 import { ingredientAddFieldId, ingredientRowId } from './fieldIds.js';
@@ -51,7 +50,7 @@ import { trailingEntryFieldOf } from './trailingEntryField.js';
 import type { SectionAddView } from './useIngredientGroups.js';
 import { usePasteLayout } from './usePasteLayout.js';
 import { useIngredientsFields, type IngredientsFieldsModel } from './useIngredientsFields.js';
-import { useRoomForInlineEditor } from './useRoomForInlineEditor.js';
+import { useRowEditorPlacement } from './useRowEditorPlacement.js';
 
 /** The one add field, with its reading, its notices and its sentences (§7.5.3). */
 const AddField: FC<{ readonly model: IngredientsFieldsModel; readonly trailingAction?: ReactNode }> = ({
@@ -133,8 +132,7 @@ export const RecipeIngredientsFields: FC<RecipeIngredientsFieldsProps> = (props)
     const { authoredFood, details } = rowEditor;
     // §7.5.2: the row editor is a sheet below a 600 container and inline from 600, when the window has room for it
     // (`inlineEditorFit.ts`): otherwise the same sheet, whose Done and Cancel stay pinned.
-    const wideContainer = useMainContainerClass() !== 'narrow';
-    const inline = useRoomForInlineEditor(model.openRow !== undefined) && wideContainer;
+    const { inline, wideContainer } = useRowEditorPlacement(model.openRow !== undefined);
     // The add field when no run holds it: the empty section, or a list whose rows are all being read.
     const addFieldHere =
         model.sections.length === 0 && !model.emptyGroups.some((group) => group.addHere.kind === 'field');

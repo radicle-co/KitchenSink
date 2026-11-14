@@ -162,7 +162,12 @@ beforeAll(async () => {
                     setVisibility,
                     lockAndCountPrivateSlots: async () => 0,
                     countPrivateSlots: async () => 0,
-                    lockSlotFacts: async () => ({ visibility: stored.visibility, status: stored.status }),
+                    lockSlotFacts: async () => ({
+                        visibility: stored.visibility,
+                        status: stored.status,
+                        sourceType: stored.sourceType,
+                        sourceKind: stored.sourceKind,
+                    }),
                     findById: async (id: string) => (id === stored.id ? aggregateOf(stored) : undefined),
                     // The database's own last check finds nothing: the policy alone must refuse here.
                     privateFoodLines: async () => [],
@@ -260,6 +265,19 @@ describe('PATCH /api/v1/recipes/{id}', () => {
             details: REFUSED,
         });
         expect(update).not.toHaveBeenCalled();
+    });
+
+    it('publishes a public draft whose stated web link makes it private: the private line is allowed (ADR-0089)', async () => {
+        stored = { ...stored, status: 'draft', firstPublishedAt: null };
+
+        const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}`, {
+            expectedVersion: 1,
+            status: 'published',
+            statement: { kind: 'public_web', citation: 'https://example.com/spiced-bread' },
+        });
+
+        expect(response.status).toBe(200);
+        expect(update).toHaveBeenCalledOnce();
     });
 });
 

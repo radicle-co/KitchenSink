@@ -4,13 +4,20 @@
  * DESIGN PATTERN: **Specification**. Each is one authoritative, pure statement: the service policy, the editor and the
  * erasure worker import it, so none of them keeps its own copy.
  */
-import { RECIPE_SOURCE_KINDS, RecipeSourceType, privateRuleOf, type RecipeSourceKind } from './recipe.types.js';
+import {
+    RECIPE_SOURCE_KINDS,
+    RecipeSourceType,
+    UNRECOGNISED_SOURCE_KIND,
+    privateRuleOf,
+    type RecipeSourceKind,
+    type RecipeSourceKindView,
+} from './recipe.types.js';
 
 /** The facts of a stored recipe that decide whether its source can still change. */
 export interface CorrectableSourceFacts {
     readonly sourceType: RecipeSourceType;
-    /** What the cook said the source is, or `null`. */
-    readonly sourceKind: (typeof RECIPE_SOURCE_KINDS)[number] | null;
+    /** What the cook said the source is, or `null`. A client may hold one it does not know. */
+    readonly sourceKind: RecipeSourceKindView | null;
     /** When the recipe was first published. `null` or `undefined` (a wire omits it) means never. */
     readonly firstPublishedAt: Date | string | null | undefined;
     /** The recipe this one was cloned from, or `null`/`undefined` for an original. */
@@ -24,13 +31,17 @@ export interface CorrectableSourceFacts {
  * - it was first published: the source is frozen (ADR-0023 section 1b, ADR-0077 section 2, no relabel route), and a recipe
  *   set back to draft stays locked, because the fact is the first publish and not the status (ADR-0058);
  * - the stored source is one the cook did not state through a link: the curator's public-domain text, a book, a paid site;
- * - the source was INHERITED by a clone (a clone with a kind): otherwise cloning a public recipe would be a way to relabel it.
+ * - the source was INHERITED by a clone (a clone with a kind): otherwise cloning a public recipe would be a way to relabel it;
+ * - the kind is one this client does not know: it fails closed.
  *
  * @param recipe - The stored recipe's source facts.
  * @returns Whether a statement may change the source.
  */
 export function sourceIsCorrectable(recipe: CorrectableSourceFacts): boolean {
-    if (recipe.firstPublishedAt !== null && recipe.firstPublishedAt !== undefined) {
+    if (
+        (recipe.firstPublishedAt !== null && recipe.firstPublishedAt !== undefined) ||
+        recipe.sourceKind === UNRECOGNISED_SOURCE_KIND
+    ) {
         return false;
     }
 

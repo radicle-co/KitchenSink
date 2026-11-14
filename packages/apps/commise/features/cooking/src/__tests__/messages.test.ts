@@ -33,9 +33,9 @@ describe('cookingMessages', () => {
         expect(en.nav.backA11yRecipe).toBe('Back to the recipe');
         expect(en.nav.next).toBe('Next step');
         expect(en.nav.finish).toBe('Finish');
-        expect(en.nav.startStep).toBe('Start\u00a0step {n}');
-        expect(en.nav.nextPreview).toBe('Next ·\u00a0step {n}');
-        expect(en.next.upNext).toBe('Up next ·\u00a0step {n}');
+        expect(en.nav.startStep).toBe('Start step\u00a0{n}');
+        expect(en.nav.nextPreview).toBe('Next · step\u00a0{n}');
+        expect(en.next.upNext).toBe('Up next · step\u00a0{n}');
         expect(en.step.lineOf).toBe('Line\u00a0{current} of {total}');
         expect(en.step.show).toBe('Show');
         expect(en.done.title.one).toBe('All done');
@@ -63,6 +63,15 @@ describe('cookingMessages', () => {
     it('keeps the ticked summary as a singular and a plural, each with its words', () => {
         expect(en.step.tickedSummary.one).toBe('You ticked 1 line');
         expect(en.step.tickedSummary.other).toBe('You ticked {count} lines');
+    });
+
+    it('joins each visible word and its number with a no-break space, never a plain space', () => {
+        const visible = [en.top.place, en.nav.startStep, en.nav.nextPreview, en.next.upNext, en.step.lineOf];
+
+        for (const text of visible) {
+            expect(text).toMatch(/(?:step|Step|Line)\u00a0\{(?:n|current)\}/);
+            expect(text).not.toMatch(/(?:step|Step|Line) \{(?:n|current)\}/);
+        }
     });
 
     it('uses the placeholders the design lists, and no others', () => {

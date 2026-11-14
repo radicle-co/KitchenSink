@@ -134,8 +134,8 @@ export const cookingMessages: LocalizedMessages<CookingMessages> = {
             next: 'Next step',
             nextA11y: 'Next step, step {n}',
             finish: 'Finish',
-            startStep: 'Start\u00a0step {n}',
-            nextPreview: 'Next ·\u00a0step {n}',
+            startStep: 'Start step\u00a0{n}',
+            nextPreview: 'Next · step\u00a0{n}',
         },
         step: {
             lineOf: 'Line\u00a0{current} of {total}',
@@ -145,7 +145,7 @@ export const cookingMessages: LocalizedMessages<CookingMessages> = {
             announceNoLine: 'Step {current} of {total}.',
         },
         next: {
-            upNext: 'Up next ·\u00a0step {n}',
+            upNext: 'Up next · step\u00a0{n}',
         },
         done: {
             title: { one: 'All done', other: 'All {count} steps done' },

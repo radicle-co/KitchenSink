@@ -295,7 +295,7 @@ describe('useCookingSession with the real copy — the Back and Next the cook re
 
         act(() => result.current.tick(0));
         act(() => result.current.tick(1));
-        expect(navFor(result).forward).toMatchObject({ kind: 'startStep', label: 'Start\u00a0step 2', filled: true });
+        expect(navFor(result).forward).toMatchObject({ kind: 'startStep', label: 'Start step\u00a02', filled: true });
 
         act(() => result.current.next());
         expect(navFor(result).back.a11yName).toBe('Back to step 1');

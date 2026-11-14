@@ -10,7 +10,7 @@ describe('the cooking copy through the house helpers', () => {
     it('fills the design’s own strings', () => {
         expect(pluralOf(en.done.title, 1, 'en')).toBe('All done');
         expect(pluralOf(en.done.title, 6, 'en')).toBe('All 6 steps done');
-        expect(fillTemplate(en.next.upNext, { n: 3 })).toBe('Up next ·\u00a0step 3');
+        expect(fillTemplate(en.next.upNext, { n: 3 })).toBe('Up next · step\u00a03');
     });
 
     it('says the ticked summary as one line or a count, through the shared plural rule', () => {
@@ -48,8 +48,8 @@ describe('navOf — the Back and Next pair', () => {
     it('replaces Next with a filled Start step n once every line is ticked', () => {
         expect(nav(1, 6, true).forward).toEqual({
             kind: 'startStep',
-            label: 'Start\u00a0step 3',
-            a11yName: 'Start\u00a0step 3',
+            label: 'Start step\u00a03',
+            a11yName: 'Start step\u00a03',
             filled: true,
         });
     });

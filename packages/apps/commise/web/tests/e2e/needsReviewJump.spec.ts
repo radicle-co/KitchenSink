@@ -285,7 +285,7 @@ async function reachViolations(
     const before = await page.evaluate(() => window.scrollY);
     await afterTwoFrames(page);
     const after = await page.evaluate(() => window.scrollY);
-    const chrome = await topChromeBottom(page, editor);
+    const chrome = await topChromeBottom(editor);
     const bar = await page.getByRole('group', { name: 'Recipe actions' }).boundingBox();
 
     if (viewport === null || bar === null || chrome.count < MIN_TOP_CHROME_BOXES) {
@@ -320,10 +320,11 @@ async function reachViolations(
 
 /**
  * What is wrong with where the reason sits, right now: empty when the whole notice is drawn below ALL the sticky chrome at
- * the top (the header and the section tabs) and above the bottom action bar. `toBeInViewport` alone passes on a sliver, so it cannot say the cook can read the reason.
+ * the top (the header and the section tabs) and above the bottom action bar. `toBeInViewport` alone passes on a sliver,
+ * so it cannot say the cook can read the reason.
  */
 async function noticeViolations(page: Page, notice: Locator): Promise<string[]> {
-    const chrome = await topChromeBottom(page, notice);
+    const chrome = await topChromeBottom(notice);
     const bar = await page.getByRole('group', { name: 'Recipe actions' }).boundingBox();
     const box = await notice.boundingBox();
 
@@ -601,7 +602,7 @@ async function expectInlineReach(page: Page, editor: Locator): Promise<void> {
     await expect(editor.getByLabel(/^Amount/u)).toHaveCount(2);
     // The header AND the section tabs are over the page's top at the inline edge: a reading of the header alone passed
     // while the first line of the reason sat under the tabs.
-    expect((await topChromeBottom(page, reviewNotice(editor))).count).toBeGreaterThanOrEqual(2);
+    expect((await topChromeBottom(reviewNotice(editor))).count).toBeGreaterThanOrEqual(2);
     await expect
         .poll(async () => reachViolations(page, editor, viewport), { message: 'Done and Cancel are reachable' })
         .toEqual([]);

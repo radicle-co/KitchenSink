@@ -13,17 +13,16 @@ import { route } from './basePath';
  */
 
 /**
- * A window the row editor opens INLINE in: 50 rem high and, with the sidebar, a 60 rem container at the default text size,
- * over the 46 rem high and 43 rem wide that `INLINE_EDITOR_MIN_VIEWPORT_REM` and `INLINE_EDITOR_MIN_CONTAINER_REM` in
- * `inlineEditorFit.ts` ask for. A spec that
- * means the inline frame sets this. (Playwright's 1280 x 720 default is 45 rem, under the 46 rem inline height, so a spec that
- * leans on it gets the sheet.)
+ * A window the row editor opens INLINE in: 50 rem high and, with the sidebar, a 60 rem container at the default text
+ * size, over the limits `INLINE_EDITOR_MIN_VIEWPORT_REM` and `INLINE_EDITOR_MIN_CONTAINER_REM` in `inlineEditorFit.ts`
+ * ask for. A spec that means the inline frame sets this. Playwright's 1280 x 720 default is under the inline height, so
+ * a spec that leans on it gets the sheet.
  */
 export const INLINE_EDITOR_VIEWPORT = { width: 1280, height: 800 } as const;
 
 /**
- * A short laptop window: 37.5 rem high at the default text size, clearly under the 46 rem inline height, so the row
- * editor opens as the sheet. A spec that means the sheet on a wide screen sets it.
+ * A short laptop window: 37.5 rem high at the default text size, clearly under the inline height, so the row editor
+ * opens as the sheet. A spec that means the sheet on a wide screen sets it.
  */
 export const SHEET_EDITOR_VIEWPORT = { width: 1280, height: 600 } as const;
 
@@ -176,18 +175,11 @@ export interface TopChrome {
  * overlaps the target horizontally (which leaves the side rail out). Read from computed styles, so it needs no name for
  * the header or the section tabs, and a new sticky box is counted without a change here.
  *
- * @param page - The page.
  * @param target - The box the chrome must clear.
  * @returns The lowest edge, and how many boxes made it.
  */
-export async function topChromeBottom(page: Page, target: Locator): Promise<TopChrome> {
-    const handle = await target.elementHandle();
-
-    if (handle === null) {
-        return { bottom: Number.NaN, count: 0 };
-    }
-
-    return page.evaluate((node) => {
+export async function topChromeBottom(target: Locator): Promise<TopChrome> {
+    return target.evaluate((node) => {
         const reach = node.getBoundingClientRect();
         let bottom = Number.NEGATIVE_INFINITY;
         let count = 0;
@@ -205,7 +197,7 @@ export async function topChromeBottom(page: Page, target: Locator): Promise<TopC
         }
 
         return { bottom, count };
-    }, handle);
+    });
 }
 
 /** The text, escaped for a `RegExp`. */

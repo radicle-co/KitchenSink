@@ -17,21 +17,19 @@ import { z } from 'zod';
 
 const CANVAS_DIR = join(__dirname, '..', '..', '..', '..', 'docs', 'design', 'canvases');
 
-const canvasSchema = z
-    .object({
-        id: z.string().min(1),
-        title: z.string().min(1),
-        url: z.string().min(1),
-        kind: z.enum(['designSystem', 'page', 'feature', 'unused']),
-        status: z.enum(['current', 'archive', 'unused']),
-        source: z.enum(['repo', 'live', 'none']),
-        platform: z.enum(['web', 'mobile', 'combined']).optional(),
-        subject: z.string().min(1).optional(),
-        note: z.string().optional(),
-    })
-    .strict();
+const canvasSchema = z.strictObject({
+    id: z.string().min(1),
+    title: z.string().min(1),
+    url: z.string().min(1),
+    kind: z.enum(['designSystem', 'page', 'feature', 'unused']),
+    status: z.enum(['current', 'archive', 'unused']),
+    source: z.enum(['repo', 'live', 'none']),
+    platform: z.enum(['web', 'mobile', 'combined']).optional(),
+    subject: z.string().min(1).optional(),
+    note: z.string().optional(),
+});
 
-const registrySchema = z.object({ canvases: z.array(canvasSchema) }).strict();
+const registrySchema = z.strictObject({ canvases: z.array(canvasSchema) });
 
 type CanvasEntry = z.infer<typeof canvasSchema>;
 

@@ -71,7 +71,11 @@ describe('cookingMessages', () => {
         for (const text of visible) {
             expect(text).toMatch(/(?:step|Step|Line)\u00a0\{(?:n|current)\}/);
             expect(text).not.toMatch(/(?:step|Step|Line) \{(?:n|current)\}/);
+            expect(text.split('\u00a0')).toHaveLength(2);
         }
+
+        expect(en.step.announce).not.toContain('\u00a0');
+        expect(en.step.announceNoLine).not.toContain('\u00a0');
     });
 
     it('uses the placeholders the design lists, and no others', () => {

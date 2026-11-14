@@ -5570,6 +5570,9 @@ components:
             - public_web
             - book
             - paid_site
+            - unrecognised
+          description: "unrecognised is client-side only: what a client reads for a kind newer than it knows. The server never
+            sends it."
         sourceUrl:
           type: string
           format: uri
@@ -5721,6 +5724,9 @@ components:
             - public_web
             - book
             - paid_site
+            - unrecognised
+          description: "unrecognised is client-side only: what a client reads for a kind newer than it knows. The server never
+            sends it."
         sourceUrl:
           type: string
           format: uri
@@ -7971,6 +7977,9 @@ components:
             - public_web
             - book
             - paid_site
+            - unrecognised
+          description: "unrecognised is client-side only: what a client reads for a kind newer than it knows. The server never
+            sends it."
         sourceUrl:
           type: string
           format: uri

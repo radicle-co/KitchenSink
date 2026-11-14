@@ -19,7 +19,9 @@ import pg from 'pg';
 import { bootRecipeApp, type BootedRecipeApp } from '../harness.js';
 import { createRecipeDrizzle, type RecipeDrizzle } from '../../../src/database/client.js';
 import { recipes, type RecipeRow } from '../../../src/database/schema/index.js';
+import type { RecipesDal } from '../../../src/recipes/dal/recipes.dal.js';
 import { RecipesService } from '../../../src/recipes/recipes.service.js';
+import { RECIPES_DAL } from '../../../src/recipes/recipes.tokens.js';
 import { CURATOR_IMPORT_SCOPE, createRecipeRequestSchema } from '../../../src/recipes/recipes.schema.js';
 import { resolveStatementProvenance } from '../../../src/recipes/domain/provenancePolicy.js';
 import { privateRuleOf } from '@kitchensink/recipe-core';
@@ -231,6 +233,22 @@ describe('a pasted web link as the recipe source (e2e)', () => {
         expect(status).toBe(400);
         expect(json['code']).toBe('INVALID_VISIBILITY');
         expect((await readRow(id)).visibility).toBe('private');
+    });
+
+    it('the row lock set-visibility decides on reads the source the row holds NOW, not only its slot facts', async () => {
+        // Set-visibility judges the source read under this lock (ADR-0089), so a link stated after its first read counts.
+        const { id, version } = await create({ status: 'draft', visibility: 'private' });
+        await send('PATCH', `/api/v1/recipes/${id}`, { expectedVersion: version, statement: STATEMENT });
+        const dal = booted.app.get<RecipesDal>(RECIPES_DAL);
+
+        const facts = await dal.transaction(async (tx) => dal.lockSlotFacts(tx, id));
+
+        expect(facts).toEqual({
+            visibility: 'private',
+            status: 'draft',
+            sourceType: 'imported_public',
+            sourceKind: 'public_web',
+        });
     });
 
     // The bulk import saves through `RecipesService.create` with the provenance its statement resolved to (ADR-0072 section 9,

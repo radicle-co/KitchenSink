@@ -32,7 +32,7 @@ import {
     privateRuleOf as coreRuleOf,
     type PrivateRule,
     type RecipeDetail,
-    type RecipeSourceKind,
+    type RecipeSourceKindView,
 } from '@kitchensink/recipe-core';
 import type { PrivateSlotUsage } from '@kitchensink/schema-recipe';
 
@@ -125,7 +125,7 @@ export type { PrivateRule };
  */
 export function privateRuleForDraft(
     sourceType: RecipeSourceType | undefined,
-    sourceKind: RecipeSourceKind | null,
+    sourceKind: RecipeSourceKindView | null,
 ): PrivateRule {
     return coreRuleOf(sourceType ?? RecipeSourceType.USER_CREATED, sourceKind);
 }

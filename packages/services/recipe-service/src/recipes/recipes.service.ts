@@ -1319,6 +1319,8 @@ export class RecipesService {
             throw sourceNotUsable('The source link is not a public web page address.');
         }
 
+        // A stated source sets Private in this same write (ADR-0089): every judgement below reads the visibility it leaves.
+        const forcesPrivate = correction.kind === 'apply' && correction.makePrivate;
         const sourceAfter =
             correction.kind === 'apply'
                 ? { sourceType: correction.provenance.sourceType, sourceKind: correction.provenance.sourceKind }
@@ -1365,10 +1367,11 @@ export class RecipesService {
             ));
 
         // ADR-0029 section 4: judged on the state the write leaves, against the lines it leaves (the patch's, else the
-        // stored ones), after recapture. The visibility an update leaves is the stored one: only set-visibility moves it.
+        // stored ones), after recapture. The visibility an update leaves is the stored one, except that a stated source sets
+        // Private in this same write (ADR-0089). The transaction's last statement re-checks the row it actually wrote.
         const publicState = {
             status: dto.status ?? recipeStatusSchema.parse(existing.recipe.status),
-            visibility: existing.recipe.visibility,
+            visibility: forcesPrivate ? RecipeVisibility.PRIVATE : existing.recipe.visibility,
         };
         const nowPublicFoods = await this.publicFoodsGuard(
             caller,
@@ -1438,10 +1441,7 @@ export class RecipesService {
 
                 // A statement that makes a public draft private (ADR-0089) lands in the SAME write, so a draft published in it
                 // is a private recipe from the first instant and is judged as one.
-                const visibilityAfter =
-                    correction.kind === 'apply' && correction.makePrivate
-                        ? RecipeVisibility.PRIVATE
-                        : current.visibility;
+                const visibilityAfter = forcesPrivate ? RecipeVisibility.PRIVATE : current.visibility;
 
                 // The state this write leaves, judged on the visibility read UNDER the lock (ADR-0089): a private-only recipe
                 // is never published and public, even if a race left its draft public.
@@ -1513,7 +1513,7 @@ export class RecipesService {
                     ...(correction.kind === 'apply'
                         ? {
                               provenance: correction.provenance,
-                              ...(correction.makePrivate ? { visibility: RecipeVisibility.PRIVATE } : {}),
+                              ...(forcesPrivate ? { visibility: RecipeVisibility.PRIVATE } : {}),
                           }
                         : {}),
                     tags: dto.tags,
@@ -1758,15 +1758,10 @@ export class RecipesService {
         this.assertOwner(principal.userId, existing.recipe);
 
         const isPremium = isPremiumPrincipal(principal);
-        const sourceType = existing.recipe.sourceType;
-        const visibilityAsk = visibilityAskOf(
-            principal,
-            { sourceType, sourceKind: existing.recipe.sourceKind },
-            visibility,
-        );
-        // The row's facts are only known for certain UNDER the lock (set-visibility does not bump the version, and another
-        // request may publish a draft in between), so the lock is taken whenever the slot rule could apply to a move to
-        // private, and the precise verdict is made from the facts read under it.
+        // The row's facts are only known for certain UNDER the lock: set-visibility does not bump the version, another
+        // request may publish a draft in between, and a PATCH may state a web link that makes the recipe a private-only web
+        // copy (ADR-0089). So every verdict below is made from the facts read under the row lock, never from `existing`.
+        // The per-user slot lock is taken only when the slot rule could apply to a move to private.
         const mayNeedSlot = visibility === RecipeVisibility.PRIVATE && slotRuleApplies({ isPremium });
 
         // ADR-0029 section 4: making a published recipe public is refused while it holds a private food. Only that move
@@ -1789,30 +1784,30 @@ export class RecipesService {
         // ONE TRANSACTION (ADR-0073): set-visibility used to be a single UPDATE; it now needs the per-user lock, the count
         // and the write to be one unit, or two requests racing at 49 both pass.
         const updated = await this.dal.transaction(async (tx) => {
-            let standing: PrivateSlotStanding = SLOT_NOT_NEEDED;
+            // Lock order as everywhere else: the per-user slot lock first, then the row.
+            const counted = mayNeedSlot ? await this.slotStandingIn(tx, principal.userId, isPremium) : undefined;
+            const current = await this.dal.lockSlotFacts(tx, id);
 
-            if (mayNeedSlot) {
-                const counted = await this.slotStandingIn(tx, principal.userId, isPremium);
-                const current = await this.dal.lockSlotFacts(tx, id);
+            if (current === undefined) {
+                return undefined;
+            }
 
-                if (current === undefined) {
-                    return undefined;
-                }
-
-                // A recipe that already holds its slot (private and published) needs none: a downgraded cook holding 60 must
-                // not be refused a recipe they already keep private, and a second concurrent request for it must not be
-                // counted twice. A DRAFT holds none, so making it private needs none either - its slot is taken on publish.
-                standing = requiresPrivateSlotCheck({
-                    sourceType,
+            const source = { sourceType: current.sourceType, sourceKind: current.sourceKind };
+            // A recipe that already holds its slot (private and published) needs none: a downgraded cook holding 60 must
+            // not be refused a recipe they already keep private, and a second concurrent request for it must not be
+            // counted twice. A DRAFT holds none, so making it private needs none either - its slot is taken on publish.
+            const standing =
+                counted !== undefined &&
+                requiresPrivateSlotCheck({
+                    sourceType: source.sourceType,
                     isPremium,
                     before: current,
                     after: { visibility, status: current.status },
                 })
                     ? counted
                     : SLOT_NOT_NEEDED;
-            }
 
-            assertVisibilityAllowed(visibilityAsk, standing);
+            assertVisibilityAllowed(visibilityAskOf(principal, source, visibility), standing);
 
             if (nowPublicFoods.length > 0) {
                 await this.dal.clearPublicFoodOwners(tx, nowPublicFoods);

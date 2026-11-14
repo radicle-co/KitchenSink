@@ -27,13 +27,16 @@
  *
  * @pattern Specification — one pure predicate over the stored source and the statement
  */
-import { sourceIsCorrectable, type CorrectableSourceFacts } from '@kitchensink/recipe-core';
+import { sourceIsCorrectable, type CorrectableSourceFacts, type RecipeSourceKind } from '@kitchensink/recipe-core';
 
 import type { RecipeStatementInput } from '../recipes.schema.js';
 import { evaluateProvenance, type ResolvedProvenance } from './provenancePolicy.js';
 
-/** The facts of the stored recipe the decision reads: exactly what `sourceIsCorrectable` reads, the one lock rule. */
-export type StoredSource = CorrectableSourceFacts;
+/**
+ * The facts of the stored recipe the decision reads: exactly what `sourceIsCorrectable` reads, the one lock rule. The
+ * service reads them from its own database, so the kind is always one it knows (a client may hold an unrecognised one).
+ */
+export type StoredSource = CorrectableSourceFacts & { readonly sourceKind: RecipeSourceKind | null };
 
 /**
  * What a PATCH does to the source.

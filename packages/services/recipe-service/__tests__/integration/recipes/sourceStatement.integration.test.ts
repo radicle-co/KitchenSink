@@ -14,6 +14,7 @@ import 'reflect-metadata';
 
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
+import type { RecipeVisibility } from '@kitchensink/recipe-core';
 import type { BootedServiceApp } from '@kitchensink/service-test-harness';
 
 import { recipeApiErrorSchema } from '../../../src/common/apiError.schema.js';
@@ -80,6 +81,12 @@ const update = vi.fn(async (_id: string, patch: UpdateRecipeInput) => {
     return aggregateOf(stored);
 });
 
+/** The row as a concurrent write left it, when a test stages a race: what the row lock reads instead of `stored`. */
+let underLock: RecipeRow | undefined;
+const setVisibility = vi.fn(async (_id: string, visibility: RecipeVisibility) =>
+    aggregateOf({ ...stored, visibility }),
+);
+
 let food: FoodFake;
 let booted: BootedServiceApp;
 
@@ -127,7 +134,18 @@ beforeAll(async () => {
                     findById: async (id: string) => (id === RECIPE_ID ? aggregateOf(stored) : undefined),
                     privateFoodLines: async () => [],
                     lockAndCountPrivateSlots: async () => 0,
-                    lockSlotFacts: async () => ({ visibility: stored.visibility, status: stored.status }),
+                    lockSlotFacts: async () => {
+                        const row = underLock ?? stored;
+
+                        return {
+                            visibility: row.visibility,
+                            status: row.status,
+                            sourceType: row.sourceType,
+                            sourceKind: row.sourceKind,
+                        };
+                    },
+                    setVisibility,
+                    clearPublicFoodOwners: async () => undefined,
                     transaction: async (work: (tx: unknown) => Promise<unknown>) => work({ __tx: true }),
                 },
             },
@@ -159,6 +177,7 @@ beforeAll(async () => {
 });
 
 afterEach(() => {
+    underLock = undefined;
     vi.clearAllMocks();
 });
 
@@ -184,6 +203,21 @@ describe('POST /api/v1/recipes — a statement makes a private web copy', () => 
                 sourceKind: 'public_web',
                 visibility: 'private',
             }),
+            expect.anything(),
+        );
+    });
+
+    it('stores a link whose own brackets close it whole, and drops only the sentence punctuation after it', async () => {
+        const page = 'https://en.wikipedia.org/wiki/Pie_(food)';
+        const response = await call('POST', '/api/v1/recipes', {
+            ...DRAFT_BODY,
+            visibility: 'private',
+            statement: { kind: 'public_web', citation: `${page}.` },
+        });
+
+        expect(response.status).toBe(201);
+        expect(create).toHaveBeenCalledWith(
+            expect.objectContaining({ sourceUrl: page, sourceAttribution: 'wikipedia.org' }),
             expect.anything(),
         );
     });
@@ -469,6 +503,32 @@ describe('RecipesService.create with the bulk import’s provenance (ADR-0089)',
             }),
             expect.anything(),
         );
+    });
+});
+
+describe('PATCH /api/v1/recipes/{id}/visibility — judged on the source under the row lock (ADR-0089)', () => {
+    it('refuses PUBLIC for a recipe a concurrent PATCH made a web copy after it was read, writing nothing', async () => {
+        stored = makeRecipeRow({ id: RECIPE_ID, ownerId: COOK, status: 'published', visibility: 'private' });
+        underLock = {
+            ...stored,
+            sourceType: 'imported_public',
+            sourceKind: 'public_web',
+            sourceUrl: LINK,
+        };
+
+        const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}/visibility`, { visibility: 'public' });
+
+        expect((await refusalOf(response)).code).toBe('INVALID_VISIBILITY');
+        expect(setVisibility).not.toHaveBeenCalled();
+    });
+
+    it('makes the same cook-written recipe public when the row under the lock is unchanged', async () => {
+        stored = makeRecipeRow({ id: RECIPE_ID, ownerId: COOK, status: 'published', visibility: 'private' });
+
+        const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}/visibility`, { visibility: 'public' });
+
+        expect(response.status).toBe(200);
+        expect(setVisibility).toHaveBeenCalledOnce();
     });
 });
 

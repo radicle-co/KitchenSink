@@ -9,11 +9,14 @@
  */
 import { BUTTON_VISUAL_HEIGHT } from '@commise/ui/button';
 import { render } from '@commise/ui/testing/tamagui';
-import { cleanup, fireEvent, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { CookingNav, type NativeCookingNavProps } from '../CookingNav.native.js';
 import { glyphCount, pillOf } from './utils/buttonPill.js';
+
+const user = userEvent.setup({ delay: null });
 
 afterEach(cleanup);
 
@@ -49,15 +52,15 @@ describe('CookingNav (native)', () => {
         expect(next.textContent).toContain('Next step');
     });
 
-    it('reports a press of each to its own handler', () => {
+    it('reports a press of each to its own handler', async () => {
         const props = navProps();
         render(<CookingNav {...props} />);
 
-        fireEvent.click(screen.getByRole('button', { name: 'Back to step 1' }));
+        await user.click(screen.getByRole('button', { name: 'Back to step 1' }));
         expect(props.back.onPress).toHaveBeenCalledTimes(1);
         expect(props.forward.onPress).not.toHaveBeenCalled();
 
-        fireEvent.click(screen.getByRole('button', { name: 'Next step, step 3' }));
+        await user.click(screen.getByRole('button', { name: 'Next step, step 3' }));
         expect(props.forward.onPress).toHaveBeenCalledTimes(1);
     });
 

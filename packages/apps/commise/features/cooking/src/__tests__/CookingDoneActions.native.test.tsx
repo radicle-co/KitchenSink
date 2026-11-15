@@ -4,12 +4,15 @@
  * second case is rewritten to the outlined Cook it again (it was quiet).
  */
 import { render } from '@commise/ui/testing/tamagui';
-import { cleanup, fireEvent, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { CookingDoneActions } from '../CookingDoneActions.native.js';
 import type { CookingDoneActionsProps } from '../cookingViewProps.js';
 import { pillOf } from './utils/buttonPill.js';
+
+const user = userEvent.setup({ delay: null });
 
 afterEach(cleanup);
 
@@ -23,7 +26,7 @@ function actionsProps(): CookingDoneActionsProps {
 }
 
 describe('CookingDoneActions (native)', () => {
-    it('offers Back to the recipe, then Cook it again, each reporting its press', () => {
+    it('offers Back to the recipe, then Cook it again, each reporting its press', async () => {
         const props = actionsProps();
         render(<CookingDoneActions {...props} />);
 
@@ -33,8 +36,8 @@ describe('CookingDoneActions (native)', () => {
 
         expect(buttons.indexOf(back)).toBeLessThan(buttons.indexOf(again));
 
-        fireEvent.click(back);
-        fireEvent.click(again);
+        await user.click(back);
+        await user.click(again);
 
         expect(props.backToRecipe.onPress).toHaveBeenCalledTimes(1);
         expect(props.cookAgain.onPress).toHaveBeenCalledTimes(1);

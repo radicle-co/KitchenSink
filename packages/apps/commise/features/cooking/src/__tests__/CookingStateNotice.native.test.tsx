@@ -3,16 +3,19 @@
  * alert, centred in a column at most 480 wide in every band.
  */
 import { render } from '@commise/ui/testing/tamagui';
-import { cleanup, fireEvent, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { CookingStateNotice } from '../CookingStateNotice.native.js';
 import { NOTICE_COLUMN } from '../cookingLayout.js';
 
+const user = userEvent.setup({ delay: null });
+
 afterEach(cleanup);
 
 describe('CookingStateNotice (native)', () => {
-    it('announces the title, says the body, and reports both actions', () => {
+    it('announces the title, says the body, and reports both actions', async () => {
         const primary = { label: 'Try again', icon: 'refreshCw' as const, onPress: vi.fn() };
         const secondary = { label: 'Back to the recipe', icon: 'chevronLeft' as const, onPress: vi.fn() };
         render(
@@ -26,8 +29,8 @@ describe('CookingStateNotice (native)', () => {
 
         expect(screen.getByRole('alert').textContent).toBe('We couldn’t open this recipe');
         expect(screen.getByText('Check your connection, then try again.')).toBeTruthy();
-        fireEvent.click(screen.getByRole('button', { name: /Try again/u }));
-        fireEvent.click(screen.getByRole('button', { name: 'Back to the recipe' }));
+        await user.click(screen.getByRole('button', { name: /Try again/u }));
+        await user.click(screen.getByRole('button', { name: 'Back to the recipe' }));
         expect(primary.onPress).toHaveBeenCalledTimes(1);
         expect(secondary.onPress).toHaveBeenCalledTimes(1);
     });

@@ -14,6 +14,7 @@ import { nativeTokens } from '@commise/ui/native';
 import { render } from '@commise/ui/testing/tamagui';
 import { RecipeStatus } from '@kitchensink/recipe-core';
 import { act, cleanup, fireEvent, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import type { ComponentProps } from 'react';
 import { AccessibilityInfo } from 'react-native';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -21,6 +22,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { CookingScreen } from '../CookingScreen.native.js';
 import type { CookingScreenProps, CookingScreenRead } from '../cookingViewProps.js';
 import { pillOf } from './utils/buttonPill.js';
+
+const user = userEvent.setup({ delay: null });
 
 const keepAwake = vi.hoisted((): { available: boolean; calls: boolean[] } => ({ available: false, calls: [] }));
 const viewport = vi.hoisted(() => ({ width: 390, height: 844, fontScale: 1 }));
@@ -104,8 +107,8 @@ const back = () => nav().getByRole('button', { name: /^Back to /u });
 const fill = (button: HTMLElement) => getComputedStyle(pillOf(button)).backgroundColor;
 // The filled tier paints a different surface from the quiet pair; Back is always quiet, so it is the reference.
 const isFilled = (button: HTMLElement) => fill(button) !== fill(back());
-const press = (name: string | RegExp) => fireEvent.click(screen.getByRole('button', { name }));
-const tick = (text: string) => fireEvent.click(screen.getByRole('checkbox', { name: text }));
+const press = (name: string | RegExp) => user.click(screen.getByRole('button', { name }));
+const tick = (text: string) => user.click(screen.getByRole('checkbox', { name: text }));
 const isDisabled = (button: HTMLElement) => button.getAttribute('aria-disabled') === 'true';
 
 /** Every element whose computed face and size are a type role's. */
@@ -149,8 +152,9 @@ afterEach(() => {
 });
 
 describe('CookingScreen (native): loading', () => {
+    // The clock runs on as well as being advanced by hand, because the user's own waits would hang on a frozen one.
     beforeEach(() => {
-        vi.useFakeTimers();
+        vi.useFakeTimers({ shouldAdvanceTime: true });
     });
 
     it('shows no skeleton before 300 ms, then the skeleton, then the label after 1 s', () => {
@@ -170,7 +174,7 @@ describe('CookingScreen (native): loading', () => {
         expect(screen.getByText('Opening the recipe…')).toBeTruthy();
     });
 
-    it('is busy, with the place muted, Back and Next drawn disabled, and Exit live', () => {
+    it('is busy, with the place muted, Back and Next drawn disabled, and Exit live', async () => {
         const { onLeave } = setup({ kind: 'pending', retry: vi.fn() });
 
         expect(screen.getByRole('main').getAttribute('aria-busy')).toBe('true');
@@ -178,18 +182,18 @@ describe('CookingScreen (native): loading', () => {
         expect(isDisabled(nav().getByRole('button', { name: 'Back' }))).toBe(true);
         expect(isDisabled(nav().getByRole('button', { name: 'Next step' }))).toBe(true);
 
-        press('Exit cooking mode');
+        await press('Exit cooking mode');
         expect(onLeave).toHaveBeenCalledTimes(1);
     });
 
-    it('offers Try again after 10 s, and it reads again', () => {
+    it('offers Try again after 10 s, and it reads again', async () => {
         const retry = vi.fn();
         setup({ kind: 'pending', retry });
 
         act(() => {
             vi.advanceTimersByTime(10_000);
         });
-        press('Try again');
+        await press('Try again');
 
         expect(screen.getByRole('alert').textContent).toBe('We couldn’t open this recipe');
         expect(retry).toHaveBeenCalledTimes(1);
@@ -197,16 +201,16 @@ describe('CookingScreen (native): loading', () => {
 });
 
 describe('CookingScreen (native): load error', () => {
-    it('alerts with the online body, Try again and a way back', () => {
+    it('alerts with the online body, Try again and a way back', async () => {
         const retry = vi.fn();
         const { onLeave } = setup({ kind: 'failed', offline: false, retry });
 
         expect(screen.getByRole('alert').textContent).toBe('We couldn’t open this recipe');
         expect(screen.getByText('Check your connection, then try again.')).toBeTruthy();
 
-        press('Try again');
+        await press('Try again');
         expect(retry).toHaveBeenCalledTimes(1);
-        press('Back to the recipe');
+        await press('Back to the recipe');
         expect(onLeave).toHaveBeenCalledTimes(1);
     });
 
@@ -225,12 +229,12 @@ describe('CookingScreen (native): no steps', () => {
         steps: [{ stepNumber: 1, instruction: '  ' }],
     };
 
-    it('offers its owner Edit recipe', () => {
+    it('offers its owner Edit recipe', async () => {
         const { onEdit } = setup(ready({ recipe: blank, viewerIsOwner: true }));
 
         expect(screen.getByRole('alert').textContent).toBe('This recipe has no steps yet');
         expect(screen.getByText(/Add some to cook from it here\./u)).toBeTruthy();
-        press('Edit recipe');
+        await press('Edit recipe');
         expect(onEdit).toHaveBeenCalledTimes(1);
     });
 
@@ -244,12 +248,12 @@ describe('CookingScreen (native): no steps', () => {
 });
 
 describe('CookingScreen (native): recipe gone', () => {
-    it('says the title and Go to Home, and never why', () => {
+    it('says the title and Go to Home, and never why', async () => {
         const { onHome, container } = setup({ kind: 'gone' });
 
         expect(screen.getByRole('alert').textContent).toBe('This recipe isn’t available any more');
         expect(container.textContent).toBe('This recipe isn’t available any moreGo to Home');
-        press('Go to Home');
+        await press('Go to Home');
         expect(onHome).toHaveBeenCalledTimes(1);
     });
 });
@@ -353,11 +357,11 @@ describe('CookingScreen (native): a step', () => {
         expect(getComputedStyle(screen.getByText('Add 2 tbsp. butter.')).textOverflow).not.toBe('ellipsis');
     });
 
-    it('shows neither the preview nor Up next on the last step', () => {
+    it('shows neither the preview nor Up next on the last step', async () => {
         setup();
 
         for (let move = 0; move < 5; move += 1) {
-            fireEvent.click(forward());
+            await user.click(forward());
         }
 
         expect(screen.getByText('Step 6 of 6')).toBeTruthy();
@@ -365,12 +369,12 @@ describe('CookingScreen (native): a step', () => {
         expect(screen.queryByText(/^Up next/u)).toBeNull();
     });
 
-    it('names Back for the recipe on step 1, and leaves with it', () => {
+    it('names Back for the recipe on step 1, and leaves with it', async () => {
         const { onLeave } = setup();
 
         expect(back().getAttribute('aria-label')).toBe('Back to the recipe');
         expect(back().textContent).toContain('Back');
-        fireEvent.click(back());
+        await user.click(back());
         expect(onLeave).toHaveBeenCalledTimes(1);
     });
 
@@ -381,10 +385,10 @@ describe('CookingScreen (native): a step', () => {
         expect(isFilled(forward())).toBe(false);
     });
 
-    it('moves the focus to the next unticked line when the focus line is ticked', () => {
+    it('moves the focus to the next unticked line when the focus line is ticked', async () => {
         setup();
 
-        tick('Heat 1.5 tbsp. oil.');
+        await tick('Heat 1.5 tbsp. oil.');
 
         expect(screen.getByText('Line 2 of 2')).toBeTruthy();
         expect(screen.getByText('You ticked 1 line')).toBeTruthy();
@@ -394,44 +398,44 @@ describe('CookingScreen (native): a step', () => {
         ]);
     });
 
-    it('keeps Next quiet and working with lines unticked (ticking is never required)', () => {
+    it('keeps Next quiet and working with lines unticked (ticking is never required)', async () => {
         setup();
 
-        tick('Heat 1.5 tbsp. oil.');
+        await tick('Heat 1.5 tbsp. oil.');
         expect(isFilled(forward())).toBe(false);
-        fireEvent.click(forward());
+        await user.click(forward());
 
         expect(screen.getByText('Step 2 of 6')).toBeTruthy();
     });
 
-    it('opens the ticked lines with Show, and an unticked line above the focus becomes the focus again', () => {
+    it('opens the ticked lines with Show, and an unticked line above the focus becomes the focus again', async () => {
         setup();
 
-        tick('Heat 1.5 tbsp. oil.');
-        press('Show');
+        await tick('Heat 1.5 tbsp. oil.');
+        await press('Show');
         expect(screen.getByRole('checkbox', { name: 'Heat 1.5 tbsp. oil.' }).getAttribute('aria-checked')).toBe('true');
 
-        tick('Heat 1.5 tbsp. oil.');
+        await tick('Heat 1.5 tbsp. oil.');
 
         expect(screen.getByText('Line 1 of 2')).toBeTruthy();
         expect(screen.queryByText(/You ticked/u)).toBeNull();
     });
 
-    it('says the plural once two lines are ticked', () => {
+    it('says the plural once two lines are ticked', async () => {
         setup();
-        fireEvent.click(forward());
+        await user.click(forward());
 
-        tick('Add 2 tbsp. butter.');
-        tick('Stir well.');
+        await tick('Add 2 tbsp. butter.');
+        await tick('Stir well.');
 
         expect(screen.getByText('You ticked 2 lines')).toBeTruthy();
     });
 
-    it('shows Up next in the body, with no preview, and a filled Start step n once every line is ticked', () => {
+    it('shows Up next in the body, with no preview, and a filled Start step n once every line is ticked', async () => {
         setup();
 
-        tick('Heat 1.5 tbsp. oil.');
-        tick('Add the onion and cook 5 min.');
+        await tick('Heat 1.5 tbsp. oil.');
+        await tick('Add the onion and cook 5 min.');
 
         const body = screen.getByTestId('cooking-scroll');
         expect(body.contains(screen.getByText('Up next · step 2'))).toBe(true);
@@ -441,38 +445,38 @@ describe('CookingScreen (native): a step', () => {
         expect(forward().textContent).toContain('Start step\u00a02');
         expect(isFilled(forward())).toBe(true);
 
-        fireEvent.click(forward());
+        await user.click(forward());
         expect(screen.getByText('Step 2 of 6')).toBeTruthy();
     });
 
-    it('keeps a step’s ticks when the cook goes on and comes back', () => {
+    it('keeps a step’s ticks when the cook goes on and comes back', async () => {
         setup();
 
-        tick('Heat 1.5 tbsp. oil.');
-        fireEvent.click(forward());
+        await tick('Heat 1.5 tbsp. oil.');
+        await user.click(forward());
         expect(back().getAttribute('aria-label')).toBe('Back to step 1');
-        fireEvent.click(back());
+        await user.click(back());
 
         expect(screen.getByText('Step 1 of 6')).toBeTruthy();
         expect(screen.getByText('You ticked 1 line')).toBeTruthy();
         expect(screen.getByText('Line 2 of 2')).toBeTruthy();
     });
 
-    it('hides the line count for a one-line step', () => {
+    it('hides the line count for a one-line step', async () => {
         setup();
-        fireEvent.click(forward());
-        fireEvent.click(forward());
+        await user.click(forward());
+        await user.click(forward());
 
         expect(screen.getByText('Step 3 of 6')).toBeTruthy();
         expect(screen.queryByText(/^Line \d/u)).toBeNull();
         expect(screen.getAllByRole('checkbox')).toHaveLength(1);
     });
 
-    it('makes the last step’s forward Finish, quiet until its line is ticked, then filled', () => {
+    it('makes the last step’s forward Finish, quiet until its line is ticked, then filled', async () => {
         setup();
 
         for (let step = 1; step < 6; step++) {
-            fireEvent.click(forward());
+            await user.click(forward());
         }
 
         expect(screen.getByText('Step 6 of 6')).toBeTruthy();
@@ -480,14 +484,14 @@ describe('CookingScreen (native): a step', () => {
         expect(isFilled(forward())).toBe(false);
         expect(screen.queryByText(/Next · step/u)).toBeNull();
 
-        tick('Serve.');
+        await tick('Serve.');
         expect(isFilled(forward())).toBe(true);
     });
 
-    it('announces a step change politely with the place and the focus line', () => {
+    it('announces a step change politely with the place and the focus line', async () => {
         const { container } = setup();
 
-        fireEvent.click(forward());
+        await user.click(forward());
 
         const polite = Array.from(container.querySelectorAll('[aria-live="polite"]'));
         expect(polite.some((region) => region.textContent === 'Step 2 of 6. Add 2 tbsp. butter.')).toBe(true);
@@ -502,12 +506,12 @@ describe('CookingScreen (native): a step', () => {
         expect(polite.every((region) => region.textContent === '')).toBe(true);
     });
 
-    it('starts Show closed again on every step', () => {
+    it('starts Show closed again on every step', async () => {
         setup();
-        tick('Heat 1.5 tbsp. oil.');
-        press('Show');
-        fireEvent.click(forward());
-        tick('Add 2 tbsp. butter.');
+        await tick('Heat 1.5 tbsp. oil.');
+        await press('Show');
+        await user.click(forward());
+        await tick('Add 2 tbsp. butter.');
 
         expect(screen.getByRole('button', { name: 'Show' }).getAttribute('aria-expanded')).toBe('false');
     });
@@ -535,9 +539,9 @@ describe('CookingScreen (native): a step', () => {
         expect(screen.getByRole('checkbox', { name: 'Heat 1.5 tbsp. oil.' })).toBeTruthy();
     });
 
-    it('opens a fresh session when the screen is given another recipe', () => {
+    it('opens a fresh session when the screen is given another recipe', async () => {
         const { rerender, onLeave, onEdit, onHome } = setup();
-        fireEvent.click(forward());
+        await user.click(forward());
 
         rerender(
             <CookingScreen
@@ -559,10 +563,10 @@ describe('CookingScreen (native): a step', () => {
         expect(screen.getByRole('checkbox', { name: 'Simmer the soup.' })).toBeTruthy();
     });
 
-    it('exits to the recipe with Exit', () => {
+    it('exits to the recipe with Exit', async () => {
         const { onLeave } = setup();
 
-        press('Exit cooking mode');
+        await press('Exit cooking mode');
 
         expect(onLeave).toHaveBeenCalledTimes(1);
     });
@@ -587,11 +591,11 @@ describe('CookingScreen (native): the under-360 layout', () => {
 
     // The filled tier needs a glyph (the design system's primary button requires one), so on native the filled control keeps
     // its chevron when narrow and only the quiet controls lose theirs. Web hides it with CSS, so the platforms differ here.
-    it('at 359 keeps the chevron on a filled forward control, and both labels whole', () => {
+    it('at 359 keeps the chevron on a filled forward control, and both labels whole', async () => {
         viewport.width = 359;
         setup();
-        tick('Heat 1.5 tbsp. oil.');
-        tick('Add the onion and cook 5 min.');
+        await tick('Heat 1.5 tbsp. oil.');
+        await tick('Add the onion and cook 5 min.');
 
         expect(isFilled(forward())).toBe(true);
         expect(glyphs(forward())).toBe(1);
@@ -670,9 +674,9 @@ const SWIPE_RIGHT = { from: { x: 60, y: 300 }, to: { x: 330, y: 310 } } as const
 
 // A swipe on the step is an extra route between steps, and only between steps.
 describe('CookingScreen (native): the step swipe', () => {
-    it('moves to the next step on a left swipe and back on a right swipe, and says where it went', () => {
+    it('moves to the next step on a left swipe and back on a right swipe, and says where it went', async () => {
         const { container } = setup();
-        fireEvent.click(forward());
+        await user.click(forward());
         expect(screen.getByText('Step 2 of 6')).toBeTruthy();
 
         drag(SWIPE_LEFT.from, SWIPE_LEFT.to);
@@ -693,11 +697,11 @@ describe('CookingScreen (native): the step swipe', () => {
         expect(screen.getByText('Step 1 of 6')).toBeTruthy();
     });
 
-    it('does not finish on a left swipe at the last step', () => {
+    it('does not finish on a left swipe at the last step', async () => {
         setup();
 
         for (let move = 0; move < 5; move += 1) {
-            fireEvent.click(forward());
+            await user.click(forward());
         }
 
         expect(screen.getByText('Step 6 of 6')).toBeTruthy();
@@ -709,27 +713,27 @@ describe('CookingScreen (native): the step swipe', () => {
     });
 
     // A short step leaves most of the scrolling body empty, and a cook swipes wherever the screen is free.
-    it('takes a swipe that starts in the empty body below a short step', () => {
+    it('takes a swipe that starts in the empty body below a short step', async () => {
         setup();
-        fireEvent.click(forward());
+        await user.click(forward());
 
         drag(SWIPE_LEFT.from, SWIPE_LEFT.to, screen.getByTestId('cooking-scroll'));
 
         expect(screen.getByText('Step 3 of 6')).toBeTruthy();
     });
 
-    it('leaves a swipe from the left screen edge to the system', () => {
+    it('leaves a swipe from the left screen edge to the system', async () => {
         setup();
-        fireEvent.click(forward());
+        await user.click(forward());
 
         drag({ x: 4, y: 300 }, { x: 330, y: 300 });
 
         expect(screen.getByText('Step 2 of 6')).toBeTruthy();
     });
 
-    it('leaves a swipe from the right screen edge to the system', () => {
+    it('leaves a swipe from the right screen edge to the system', async () => {
         setup();
-        fireEvent.click(forward());
+        await user.click(forward());
 
         drag({ x: 380, y: 300 }, { x: 110, y: 300 });
 
@@ -737,9 +741,9 @@ describe('CookingScreen (native): the step swipe', () => {
     });
 
     // The system can take a gesture away part way (a call, a notification pull): that is a cancel, never a swipe.
-    it('makes no move when the system takes the gesture away', () => {
+    it('makes no move when the system takes the gesture away', async () => {
         setup();
-        fireEvent.click(forward());
+        await user.click(forward());
         const step = screen.getByRole('region', { name: /^Step\s/u });
         const at = (x: number) => ({ identifier: 0, pageX: x, pageY: 300, clientX: x, clientY: 300, target: step });
 
@@ -753,22 +757,22 @@ describe('CookingScreen (native): the step swipe', () => {
 
 // The focus line and the title never share a size: readingLarge and largeTitle never appear on one screen.
 describe('CookingScreen (native): the focus-line role and the title role never share a screen', () => {
-    it('draws nothing in the largeTitle face in any step state', () => {
+    it('draws nothing in the largeTitle face in any step state', async () => {
         const { container } = setup();
 
         expect(inFace(container, LARGE_TITLE)).toHaveLength(0);
-        tick('Heat 1.5 tbsp. oil.');
-        press('Show');
+        await tick('Heat 1.5 tbsp. oil.');
+        await press('Show');
         expect(inFace(container, LARGE_TITLE)).toHaveLength(0);
-        tick('Add the onion and cook 5 min.');
+        await tick('Add the onion and cook 5 min.');
         expect(inFace(container, LARGE_TITLE)).toHaveLength(0);
     });
 
-    it('draws nothing in the focus-line face on Done', () => {
+    it('draws nothing in the focus-line face on Done', async () => {
         const { container } = setup();
 
         for (let step = 0; step < 6; step++) {
-            fireEvent.click(forward());
+            await user.click(forward());
         }
 
         expect(screen.getByRole('heading', { name: 'All 6 steps done' })).toBeTruthy();
@@ -777,17 +781,17 @@ describe('CookingScreen (native): the focus-line role and the title role never s
 });
 
 describe('CookingScreen (native): the names a cook hears on the way to Done', () => {
-    it('names the forward control Start step 6 once the step 5 line is ticked, and Finish on step 6', () => {
+    it('names the forward control Start step 6 once the step 5 line is ticked, and Finish on step 6', async () => {
         setup();
 
         for (let step = 1; step < 5; step++) {
-            fireEvent.click(forward());
+            await user.click(forward());
         }
 
-        tick('Carve.');
+        await tick('Carve.');
         expect(screen.getByRole('button', { name: 'Start step 6' })).toBeTruthy();
 
-        fireEvent.click(forward());
+        await user.click(forward());
         expect(screen.getByRole('button', { name: 'Finish' })).toBeTruthy();
         expect(screen.getByRole('region', { name: 'Step 6 of 6' })).toBeTruthy();
     });
@@ -798,21 +802,21 @@ describe('CookingScreen (native): the names a cook hears on the way to Done', ()
         expect(screen.getByRole('button', { name: 'Next step, step 2' }).textContent).toBe('Next step');
     });
 
-    it('names Back for the step it returns to, with the visible word just Back', () => {
+    it('names Back for the step it returns to, with the visible word just Back', async () => {
         setup();
         expect(screen.getByRole('button', { name: 'Back to the recipe' }).textContent).toBe('Back');
 
-        fireEvent.click(forward());
+        await user.click(forward());
 
         expect(screen.getByRole('button', { name: 'Back to step 1' }).textContent).toBe('Back');
         expect(screen.getByRole('region', { name: 'Step 2 of 6' })).toBeTruthy();
     });
 
-    it('titles Done "All 6 steps done" for six steps and "All done" for one', () => {
+    it('titles Done "All 6 steps done" for six steps and "All done" for one', async () => {
         const { unmount } = setup();
 
         for (let step = 1; step <= 6; step++) {
-            fireEvent.click(forward());
+            await user.click(forward());
         }
 
         expect(screen.getByRole('heading', { level: 1, name: 'All 6 steps done' })).toBeTruthy();
@@ -828,7 +832,7 @@ describe('CookingScreen (native): the names a cook hears on the way to Done', ()
                 },
             }),
         );
-        fireEvent.click(forward());
+        await user.click(forward());
 
         expect(screen.getByRole('heading', { level: 1, name: 'All done' })).toBeTruthy();
     });
@@ -838,15 +842,15 @@ describe('CookingScreen (native): the read wins over the session at the join', (
     const rerenderWith = (view: ReturnType<typeof setup>, read: CookingScreenRead) =>
         view.rerender(<CookingScreen read={read} onLeave={view.onLeave} onEdit={view.onEdit} onHome={view.onHome} />);
 
-    const finish = () => {
+    const finish = async () => {
         for (let step = 1; step <= 6; step++) {
-            fireEvent.click(forward());
+            await user.click(forward());
         }
     };
 
-    it('shows only the busy loading frame, never Done, when the read goes back to pending after Done', () => {
+    it('shows only the busy loading frame, never Done, when the read goes back to pending after Done', async () => {
         const view = setup();
-        finish();
+        await finish();
         expect(screen.getByRole('heading', { level: 1, name: 'All 6 steps done' })).toBeTruthy();
 
         rerenderWith(view, { kind: 'pending', retry: vi.fn() });
@@ -855,9 +859,9 @@ describe('CookingScreen (native): the read wins over the session at the join', (
         expect(screen.queryByRole('heading', { level: 1, name: 'All 6 steps done' })).toBeNull();
     });
 
-    it('shows no steps, never Done, when the same recipe arrives with every step blank after Done', () => {
+    it('shows no steps, never Done, when the same recipe arrives with every step blank after Done', async () => {
         const view = setup();
-        finish();
+        await finish();
 
         rerenderWith(
             view,
@@ -881,25 +885,25 @@ describe('CookingScreen (native): what the live region says after a tick', () =>
     const said = () =>
         Array.from(document.querySelectorAll('[aria-live="polite"]')).map((region) => region.textContent);
 
-    it('keeps the words of the move when a line is ticked afterwards', () => {
+    it('keeps the words of the move when a line is ticked afterwards', async () => {
         setup();
-        fireEvent.click(forward());
+        await user.click(forward());
         expect(said()).toContain('Step 2 of 6. Add 2 tbsp. butter.');
 
-        tick('Add 2 tbsp. butter.');
+        await tick('Add 2 tbsp. butter.');
 
         expect(said()).toContain('Step 2 of 6. Add 2 tbsp. butter.');
         expect(said()).not.toContain('Step 2 of 6. Stir well.');
     });
 
-    it('says only the place on arriving at a step whose lines are all ticked', () => {
+    it('says only the place on arriving at a step whose lines are all ticked', async () => {
         setup();
-        fireEvent.click(forward());
-        tick('Add 2 tbsp. butter.');
-        tick('Stir well.');
-        tick('Season.');
-        fireEvent.click(forward());
-        fireEvent.click(back());
+        await user.click(forward());
+        await tick('Add 2 tbsp. butter.');
+        await tick('Stir well.');
+        await tick('Season.');
+        await user.click(forward());
+        await user.click(back());
 
         expect(said()).toContain('Step 2 of 6.');
     });
@@ -911,39 +915,39 @@ describe('CookingScreen (native): what the live region says after a tick', () =>
 describe('CookingScreen (native): screen-reader focus when the focused control goes away', () => {
     const focused = () => vi.mocked(AccessibilityInfo.sendAccessibilityEvent).mock.calls.map(([node]) => node);
 
-    it('does not take focus on opening, and leaves it on Next after a Next', () => {
+    it('does not take focus on opening, and leaves it on Next after a Next', async () => {
         setup();
-        fireEvent.click(forward());
+        await user.click(forward());
 
         expect(focused()).toEqual([]);
     });
 
-    it('moves focus to the new focus line when a Then line is ticked', () => {
+    it('moves focus to the new focus line when a Then line is ticked', async () => {
         setup();
 
-        tick('Heat 1.5 tbsp. oil.');
+        await tick('Heat 1.5 tbsp. oil.');
 
         expect(focused().at(-1)).toBe(screen.getByRole('checkbox', { name: 'Add the onion and cook 5 min.' }));
     });
 
-    it('moves focus to the forward control when the last line is ticked', () => {
+    it('moves focus to the forward control when the last line is ticked', async () => {
         setup();
-        tick('Heat 1.5 tbsp. oil.');
+        await tick('Heat 1.5 tbsp. oil.');
         vi.mocked(AccessibilityInfo.sendAccessibilityEvent).mockClear();
 
-        tick('Add the onion and cook 5 min.');
+        await tick('Add the onion and cook 5 min.');
 
         expect(focused().at(-1)).toBe(forward());
     });
 
-    it('moves focus to step 1’s forward control after Cook it again', () => {
+    it('moves focus to step 1’s forward control after Cook it again', async () => {
         setup();
 
         for (let step = 1; step <= 6; step++) {
-            fireEvent.click(forward());
+            await user.click(forward());
         }
 
-        press('Cook it again');
+        await press('Cook it again');
 
         expect(focused().at(-1)).toBe(forward());
         expect(screen.getByRole('button', { name: 'Next step, step 2' })).toBe(forward());
@@ -951,17 +955,17 @@ describe('CookingScreen (native): screen-reader focus when the focused control g
 });
 
 describe('CookingScreen (native): Done', () => {
-    const finish = () => {
+    const finish = async () => {
         for (let step = 1; step < 6; step++) {
-            fireEvent.click(forward());
+            await user.click(forward());
         }
 
-        fireEvent.click(forward());
+        await user.click(forward());
     };
 
-    it('says all the steps are done and moves screen-reader focus to the title', () => {
+    it('says all the steps are done and moves screen-reader focus to the title', async () => {
         setup();
-        finish();
+        await finish();
 
         const title = screen.getByRole('heading', { name: 'All 6 steps done' });
         expect(AccessibilityInfo.sendAccessibilityEvent).toHaveBeenCalledWith(title, 'focus');
@@ -969,19 +973,19 @@ describe('CookingScreen (native): Done', () => {
         expect(screen.queryByRole('navigation')).toBeNull();
     });
 
-    it('keeps the labelled Exit in the top bar, with no place', () => {
+    it('keeps the labelled Exit in the top bar, with no place', async () => {
         const { onLeave } = setup();
-        finish();
+        await finish();
 
         expect(screen.queryByText(/^Step \d+ of \d+$/u)).toBeNull();
-        press('Exit cooking mode');
+        await press('Exit cooking mode');
 
         expect(onLeave).toHaveBeenCalledTimes(1);
     });
 
-    it('pins its two actions in the foot, outside the scrolling body', () => {
+    it('pins its two actions in the foot, outside the scrolling body', async () => {
         setup();
-        finish();
+        await finish();
 
         const body = screen.getByTestId('cooking-scroll');
 
@@ -990,52 +994,52 @@ describe('CookingScreen (native): Done', () => {
         expect(body.contains(screen.getByRole('button', { name: 'Cook it again' }))).toBe(false);
     });
 
-    it('holds the screen on while cooking and lets it go on Done', () => {
+    it('holds the screen on while cooking and lets it go on Done', async () => {
         keepAwake.available = true;
         setup();
 
         expect(keepAwake.calls.at(-1)).toBe(true);
-        finish();
+        await finish();
 
         expect(keepAwake.calls.at(-1)).toBe(false);
         expect(screen.getByText('The screen can turn off again.')).toBeTruthy();
     });
 
-    it('promises nothing about the screen where it could not be held', () => {
+    it('promises nothing about the screen where it could not be held', async () => {
         keepAwake.available = false;
         setup();
-        finish();
+        await finish();
 
         expect(screen.queryByText('The screen can turn off again.')).toBeNull();
     });
 
-    it('goes back to the recipe', () => {
+    it('goes back to the recipe', async () => {
         const { onLeave } = setup();
-        finish();
+        await finish();
 
-        press('Back to the recipe');
+        await press('Back to the recipe');
 
         expect(onLeave).toHaveBeenCalledTimes(1);
     });
 
     // Android does not reliably speak text a live region mounts with, and Cook it again mounts the step's region again.
-    it('mounts the step announcement empty and fills it, so Cook it again is spoken on Android', () => {
+    it('mounts the step announcement empty and fills it, so Cook it again is spoken on Android', async () => {
         setup();
-        finish();
+        await finish();
         liveRegions.announceOnMount = [];
 
-        press('Cook it again');
+        await press('Cook it again');
 
         expect(liveRegions.announceOnMount.length).toBeGreaterThan(0);
         expect(liveRegions.announceOnMount.every((asked) => asked === true)).toBe(true);
     });
 
-    it('cooks it again from step 1, line 1, with every tick cleared', () => {
+    it('cooks it again from step 1, line 1, with every tick cleared', async () => {
         setup();
-        tick('Heat 1.5 tbsp. oil.');
-        finish();
+        await tick('Heat 1.5 tbsp. oil.');
+        await finish();
 
-        press('Cook it again');
+        await press('Cook it again');
 
         expect(screen.getByText('Step 1 of 6')).toBeTruthy();
         expect(screen.getByText('Line 1 of 2')).toBeTruthy();

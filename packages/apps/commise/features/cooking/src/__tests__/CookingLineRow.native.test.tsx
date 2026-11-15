@@ -8,7 +8,8 @@ import { nativeTokens } from '@commise/ui/native';
 import { PRESS_SCALE } from '@commise/ui/press-scale';
 import { withPlatformOs } from '@commise/ui/testing/platform-os';
 import { pressScaleOf, render } from '@commise/ui/testing/tamagui';
-import { cleanup, fireEvent, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const press = vi.hoisted(() => ({ pressed: false }));
@@ -25,6 +26,8 @@ vi.mock('react-native', async (importOriginal) => {
 import { CookingLineRow } from '../CookingLineRow.native.js';
 import type { CookingLineView } from '../cookingViewProps.js';
 import { glyphCount, tallestMinHeight } from './utils/buttonPill.js';
+
+const user = userEvent.setup({ delay: null });
 
 interface Face {
     readonly fontFamily: string;
@@ -94,12 +97,12 @@ describe('CookingLineRow (native)', () => {
         expect(getComputedStyle(screen.getByText(LINE)).color).not.toBe(openColour);
     });
 
-    it('toggles on a press of the row and of its text', () => {
+    it('toggles on a press of the row and of its text', async () => {
         const onToggle = vi.fn();
         render(<CookingLineRow line={lineOf(false, onToggle)} emphasis="other" />);
 
-        fireEvent.click(screen.getByRole('checkbox', { name: LINE }));
-        fireEvent.click(screen.getByText(LINE));
+        await user.click(screen.getByRole('checkbox', { name: LINE }));
+        await user.click(screen.getByText(LINE));
 
         expect(onToggle).toHaveBeenCalledTimes(2);
     });

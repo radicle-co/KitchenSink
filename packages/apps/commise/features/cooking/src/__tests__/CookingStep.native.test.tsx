@@ -6,12 +6,15 @@
  */
 import { nativeTokens } from '@commise/ui/native';
 import { render } from '@commise/ui/testing/tamagui';
-import { cleanup, fireEvent, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { CookingStep } from '../CookingStep.native.js';
 import { FOCUS_LINE_TYPE } from '../focusLineType.js';
 import type { CookingLineView, CookingStepProps, CookingTickedView } from '../cookingViewProps.js';
+
+const user = userEvent.setup({ delay: null });
 
 afterEach(cleanup);
 
@@ -73,18 +76,18 @@ describe('CookingStep (native)', () => {
         expect(screen.getAllByRole('checkbox')).toHaveLength(1);
     });
 
-    it('reports a press on a line to that line', () => {
+    it('reports a press on a line to that line', async () => {
         const props = stepProps();
         render(<CookingStep {...props} />);
 
-        fireEvent.click(screen.getByRole('checkbox', { name: 'Add the onion.' }));
+        await user.click(screen.getByRole('checkbox', { name: 'Add the onion.' }));
 
         expect(props.then[0]?.onToggle).toHaveBeenCalledTimes(1);
         expect(props.focus?.onToggle).not.toHaveBeenCalled();
     });
 
     // Ticked lines collapse into one record; Show opens them, and each can be unticked from there.
-    it('collapses ticked lines into the summary, and Show opens them', () => {
+    it('collapses ticked lines into the summary, and Show opens them', async () => {
         const ticked = tickedView();
         const { rerender } = render(<CookingStep {...stepProps({ ticked })} />);
 
@@ -92,7 +95,7 @@ describe('CookingStep (native)', () => {
         expect(screen.queryByRole('checkbox', { name: 'Chop the onion.' })).toBeNull();
         expect(screen.getByRole('button', { name: 'Show' }).getAttribute('aria-expanded')).toBe('false');
 
-        fireEvent.click(screen.getByRole('button', { name: 'Show' }));
+        await user.click(screen.getByRole('button', { name: 'Show' }));
         expect(ticked.show.onPress).toHaveBeenCalledTimes(1);
 
         rerender(

@@ -5,11 +5,14 @@
  * under-360 rule the screen reads from the window, because a leaf never reads the device.
  */
 import { render } from '@commise/ui/testing/tamagui';
-import { cleanup, fireEvent, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { CookingTopBar, type NativeCookingTopBarProps } from '../CookingTopBar.native.js';
 import { tallestMinHeight } from './utils/buttonPill.js';
+
+const user = userEvent.setup({ delay: null });
 
 afterEach(cleanup);
 
@@ -33,11 +36,11 @@ describe('CookingTopBar (native)', () => {
         expect(exit.textContent).toContain('Exit');
     });
 
-    it('exits on a press', () => {
+    it('exits on a press', async () => {
         const props = barProps();
         render(<CookingTopBar {...props} />);
 
-        fireEvent.click(screen.getByRole('button', { name: 'Exit cooking mode' }));
+        await user.click(screen.getByRole('button', { name: 'Exit cooking mode' }));
 
         expect(props.exit.onPress).toHaveBeenCalledTimes(1);
     });

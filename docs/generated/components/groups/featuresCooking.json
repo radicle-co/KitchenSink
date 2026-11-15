@@ -6,13 +6,13 @@
     "coverage": {
         "components": 12,
         "implementations": 24,
-        "props": 79,
+        "props": 85,
         "documentedComponents": 12,
         "implementationsWithModuleDoc": 24,
         "implementationsWithComponentDoc": 24,
-        "documentedProps": 73,
+        "documentedProps": 74,
         "classifiedComponents": 12,
-        "componentsWithPatternTag": 6,
+        "componentsWithPatternTag": 7,
         "crossPlatformComponents": 12
     },
     "components": [
@@ -408,13 +408,15 @@
             "layer": "feature",
             "dir": "packages/apps/commise/features/cooking/src",
             "kind": "presentational",
-            "patterns": [],
+            "patterns": [
+                "Adapter — the press handle wraps the platform's screen-reader focus event, an external system with no declarative form"
+            ],
             "platforms": [
                 "web",
                 "native"
             ],
             "crossPlatform": true,
-            "propsDiverge": false,
+            "propsDiverge": true,
             "documented": true,
             "implementations": [
                 {
@@ -468,11 +470,15 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/cooking/src/CookingLineRow.native.tsx",
                     "dir": "packages/apps/commise/features/cooking/src",
-                    "moduleDoc": "CookingLineRow — one line of a cooking step on native: the whole row is ONE checkbox, named by the\nline's own text, at least the platform touch floor tall, with the box drawn by the design system's glyph in a slot as\ntall as the line, so the box sits on the first line however the text wraps.\n\nThe press is the house `PressScale` with the checkbox role and its checked state, so a held row shrinks like every other\nhouse control and a screen reader says \"checked\" or \"not checked\". The row is not given a name: its text is the name,\nso stating it again would be a second stop saying the same thing.\n\nThe focus line is set in the role named by `FOCUS_LINE_TYPE`, the one seam both platforms read, and every other line in\n`readingBody`.\n\nPresentational: props → JSX.",
+                    "moduleDoc": "CookingLineRow — one line of a cooking step on native: the whole row is ONE checkbox, named by the\nline's own text, at least the platform touch floor tall, with the box drawn by the design system's glyph in a slot as\ntall as the line, so the box sits on the first line however the text wraps.\n\nThe press is the house `PressScale` with the checkbox role and its checked state, so a held row shrinks like every other\nhouse control and a screen reader says \"checked\" or \"not checked\". The row is not given a name: its text is the name,\nso stating it again would be a second stop saying the same thing.\n\nThe focus line is set in the role named by `FOCUS_LINE_TYPE`, the one seam both platforms read, and every other line in\n`readingBody`.\n\nPresentational: props → JSX, apart from taking the screen-reader cursor when the screen asks (`focusRequested`).",
                     "moduleTags": [
                         {
                             "name": "module",
                             "text": "CookingLineRow — one line of a cooking step on native: the whole row is ONE checkbox, named by the"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Adapter — the press handle wraps the platform's screen-reader focus event, an external system with no declarative form"
                         }
                     ],
                     "description": "The native cooking line row.",
@@ -493,6 +499,15 @@
                             "declaredIn": "packages/apps/commise/features/cooking/src/cookingViewProps.ts"
                         },
                         {
+                            "name": "focusRequested",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "false",
+                            "description": "",
+                            "declaredIn": null
+                        },
+                        {
                             "name": "line",
                             "type": "CookingLineView",
                             "typeDetail": null,
@@ -500,9 +515,20 @@
                             "defaultValue": null,
                             "description": "The line: its text, whether it is ticked, and what a press does.",
                             "declaredIn": "packages/apps/commise/features/cooking/src/cookingViewProps.ts"
+                        },
+                        {
+                            "name": "onFocusHandled",
+                            "type": "(() => void)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": null
                         }
                     ],
-                    "usesRefApi": [],
+                    "usesRefApi": [
+                        "useRef"
+                    ],
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
                         "presentational": true,
@@ -744,12 +770,30 @@
                             "declaredIn": "packages/apps/commise/features/cooking/src/cookingViewProps.ts"
                         },
                         {
+                            "name": "forwardFocusRequested",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "false",
+                            "description": "The screen asks the forward control to take the screen-reader cursor; it acknowledges with `onFocusHandled`.",
+                            "declaredIn": null
+                        },
+                        {
                             "name": "narrow",
                             "type": "boolean",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
                             "description": "Under 360 wide: no chevrons, so the labels keep their width.",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "onFocusHandled",
+                            "type": "(() => void)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "",
                             "declaredIn": null
                         }
                     ],
@@ -1313,7 +1357,7 @@
                 "native"
             ],
             "crossPlatform": true,
-            "propsDiverge": false,
+            "propsDiverge": true,
             "documented": true,
             "implementations": [
                 {
@@ -1431,6 +1475,15 @@
                             "declaredIn": "packages/apps/commise/features/cooking/src/cookingViewProps.ts"
                         },
                         {
+                            "name": "focusRequested",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "false",
+                            "description": "",
+                            "declaredIn": null
+                        },
+                        {
                             "name": "label",
                             "type": "string",
                             "typeDetail": null,
@@ -1447,6 +1500,15 @@
                             "defaultValue": null,
                             "description": "\"Line 2 of 3\"; absent for a one-line step and when every line is ticked.",
                             "declaredIn": "packages/apps/commise/features/cooking/src/cookingViewProps.ts"
+                        },
+                        {
+                            "name": "onFocusHandled",
+                            "type": "(() => void)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": null
                         },
                         {
                             "name": "then",

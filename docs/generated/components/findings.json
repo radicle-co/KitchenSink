@@ -3,13 +3,13 @@
     "counts": {
         "ambiguous-layer-signal": 9,
         "boolean-prop-selects-subtree": 10,
-        "cross-platform-props-diverge": 28,
+        "cross-platform-props-diverge": 30,
         "missing-component-doc": 165,
         "missing-module-doc": 23,
         "platform-singleton": 103,
-        "ref-api": 21,
+        "ref-api": 22,
         "unclassified-layer": 93,
-        "undocumented-prop": 227
+        "undocumented-prop": 229
     },
     "findings": [
         {
@@ -5318,12 +5318,54 @@
         {
             "rule": "cross-platform-props-diverge",
             "severity": "review",
+            "component": "featuresCooking/CookingLineRow",
+            "sourcePath": "packages/apps/commise/features/cooking/src/CookingLineRow.tsx",
+            "message": "the web and native leaves declare different prop names",
+            "evidence": [
+                "web: emphasis line",
+                "native: emphasis focusRequested line onFocusHandled"
+            ]
+        },
+        {
+            "rule": "ref-api",
+            "severity": "violation",
+            "component": "featuresCooking/CookingLineRow",
+            "sourcePath": "packages/apps/commise/features/cooking/src/CookingLineRow.native.tsx",
+            "message": "refs are near-forbidden; permitted only to wrap an external non-declarative system",
+            "evidence": [
+                "useRef"
+            ]
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "featuresCooking/CookingLineRow",
+            "sourcePath": "packages/apps/commise/features/cooking/src/CookingLineRow.native.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "focusRequested",
+                "onFocusHandled"
+            ]
+        },
+        {
+            "rule": "cross-platform-props-diverge",
+            "severity": "review",
             "component": "featuresCooking/CookingNav",
             "sourcePath": "packages/apps/commise/features/cooking/src/CookingNav.tsx",
             "message": "the web and native leaves declare different prop names",
             "evidence": [
                 "web: back disabled forward",
-                "native: back disabled forward narrow"
+                "native: back disabled forward forwardFocusRequested narrow onFocusHandled"
+            ]
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "featuresCooking/CookingNav",
+            "sourcePath": "packages/apps/commise/features/cooking/src/CookingNav.native.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "onFocusHandled"
             ]
         },
         {
@@ -5379,12 +5421,25 @@
             ]
         },
         {
+            "rule": "cross-platform-props-diverge",
+            "severity": "review",
+            "component": "featuresCooking/CookingStep",
+            "sourcePath": "packages/apps/commise/features/cooking/src/CookingStep.tsx",
+            "message": "the web and native leaves declare different prop names",
+            "evidence": [
+                "web: focus label lineOf then ticked track upNext",
+                "native: focus focusRequested label lineOf onFocusHandled then ticked track upNext"
+            ]
+        },
+        {
             "rule": "undocumented-prop",
             "severity": "gap",
             "component": "featuresCooking/CookingStep",
             "sourcePath": "packages/apps/commise/features/cooking/src/CookingStep.native.tsx",
             "message": "props carry no JSDoc description",
             "evidence": [
+                "focusRequested",
+                "onFocusHandled",
                 "track"
             ]
         },

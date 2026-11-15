@@ -203,6 +203,34 @@ describe('IosAdapter', () => {
         expect(call?.env?.['PATH']?.startsWith('/s/shims:')).toBe(true);
     });
 
+    it('switches the Apple Intelligence banner off after the AutoFill step (its reboot comes first) and before any flow', async () => {
+        const calls: string[] = [];
+        const recorder = makeShell({ 'content-key': 'abc\n', 'testApp.manifest': MANIFEST, 'ensure 1': 'UDID-1\n' });
+        const shell: IosShell = {
+            ...recorder.shell,
+            run: (command, args, env) => {
+                calls.push([command, ...args].join(' '));
+
+                return recorder.shell.run(command, args, env);
+            },
+        };
+        const adapter = new IosAdapter(options(shell));
+        await adapter.prepareHost({ runId: 'r', stateDir: '/s', repoRoot: '/repo' });
+        await adapter.startDevice({
+            platform: 'ios',
+            index: 1,
+            count: 1,
+            device: adapter.deviceFor(1),
+            driverPort: 7001,
+            stateDir: '/s/lanes/ios-1',
+            fixtureEnvFile: '/s/lanes/ios-1/fixture.env',
+        });
+        const setup = calls.find((c) => c.includes('maestro_disable_apple_intelligence_banner_ios')) ?? '';
+
+        // One `&&` chain: the banner step runs only after AutoFill's shutdown and reboot, and a failure of either stops both.
+        expect(setup).toMatch(/maestro_disable_password_autofill_ios && maestro_disable_apple_intelligence_banner_ios/u);
+    });
+
     it('hands the runner the lane Simulator, skips its own install and puts the shims first on PATH', async () => {
         const recorder = makeShell({ 'content-key': 'abc\n', 'testApp.manifest': MANIFEST, 'ensure 1': 'UDID-1\n' });
         const adapter = new IosAdapter(options(recorder.shell, { LOCAL_MAESTRO_IOS_HOST: 'me@mac', PATH: '/usr/bin' }));

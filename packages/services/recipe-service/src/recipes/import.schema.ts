@@ -59,16 +59,18 @@ import {
     INT4_CEILING,
     MAX_PARSE_JOB_LINES,
     PARSE_JOB_LINE_MAX_CHARS,
-    SOURCE_LINK_MAX_LENGTH,
 } from '@kitchensink/recipe-core';
 
 import { parseProposalMatchSchema } from './parseJobs.schema.js';
 import {
     authoredStatementSchema,
+    bookStatementSchema,
+    citationTextSchema,
     createRecipeRequestSchema,
     publicWebStatementSchema,
     recipeStatementSchema,
     recipeStepInputSchema,
+    STATEMENT_CITATION_MAX_LENGTH,
 } from './recipes.schema.js';
 
 // ── Bounds ───────────────────────────────────────────────────────────────────────────────────────
@@ -102,7 +104,7 @@ export const MAX_IMPORT_STEPS = 200;
 export const MAX_IMPORT_STEP_CHARS = 5_000;
 
 /** The longest citation, in characters. Mirrors the `recipe_import_items` CHECK, and is the longest source link too. */
-export const IMPORT_MAX_CITATION_LENGTH = SOURCE_LINK_MAX_LENGTH;
+export const IMPORT_MAX_CITATION_LENGTH = STATEMENT_CITATION_MAX_LENGTH;
 
 /** The most item rows one `GET` returns. */
 export const MAX_IMPORT_PAGE_SIZE = 500;
@@ -139,15 +141,9 @@ const jsonBytes = (value: unknown): number => new TextEncoder().encode(JSON.stri
 
 // ── The per-recipe statement (ADR-0072 §9) ───────────────────────────────────────────────────────
 
-const citationTextSchema = z
-    .string()
-    .min(1)
-    .max(IMPORT_MAX_CITATION_LENGTH)
-    .refine(hasText, { message: 'citation is blank' });
-
 // The public-web member is `recipes.schema.ts`'s, the one a recipe's own `statement` uses (ADR-0089): one spelling of it.
 const publicWebStatement = publicWebStatementSchema;
-const bookStatement = z.object({ kind: z.literal('book'), citation: citationTextSchema });
+const bookStatement = bookStatementSchema;
 const paidSiteStatement = z.object({ kind: z.literal('paid_site'), citation: citationTextSchema });
 
 /**

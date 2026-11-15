@@ -755,19 +755,31 @@
             ],
             "type": "object"
         },
-        "authoredStatementSchema": {
+        "bookStatementSchema": {
             "$schema": "https://json-schema.org/draft/2020-12/schema",
             "additionalProperties": false,
             "properties": {
+                "citation": {
+                    "maxLength": 2000,
+                    "minLength": 1,
+                    "type": "string"
+                },
                 "kind": {
-                    "const": "authored",
+                    "const": "book",
                     "type": "string"
                 }
             },
             "required": [
-                "kind"
+                "kind",
+                "citation"
             ],
             "type": "object"
+        },
+        "citationTextSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "maxLength": 2000,
+            "minLength": 1,
+            "type": "string"
         },
         "cloneCollectionRequestSchema": {
             "$schema": "https://json-schema.org/draft/2020-12/schema",

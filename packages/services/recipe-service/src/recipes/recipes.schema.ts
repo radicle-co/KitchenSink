@@ -310,6 +310,23 @@ const citationUrlSchema = z.url({ protocol: /^https?$/ }).max(SOURCE_LINK_MAX_LE
  */
 export const authoredStatementSchema = z.object({ kind: z.literal('authored') });
 
+/** The longest citation a statement carries: a book's or a paid site's, the same bound as a web address. */
+export const STATEMENT_CITATION_MAX_LENGTH = SOURCE_LINK_MAX_LENGTH;
+
+/** A citation: a non-blank text of bounded length. A blank citation is a second spelling of "none". */
+export const citationTextSchema = z
+    .string()
+    .min(1)
+    .max(STATEMENT_CITATION_MAX_LENGTH)
+    .refine((value) => value.trim() !== '', { message: 'citation is blank' });
+
+/**
+ * "From a cookbook or magazine": a book, with its citation. Loose, like {@link publicWebStatementSchema}: each place that
+ * accepts it applies `.strict()` to its own union, and the bulk import composes this same member into its statement union.
+ * It lives here, next to the other members, because a recipe's own `statement` composes it too.
+ */
+export const bookStatementSchema = z.object({ kind: z.literal('book'), citation: citationTextSchema });
+
 /** "Copied from a public web page", with its address. Loose, so a response read tolerates a newer server's field. */
 export const publicWebStatementSchema = z.object({ kind: z.literal('public_web'), citation: citationUrlSchema });
 

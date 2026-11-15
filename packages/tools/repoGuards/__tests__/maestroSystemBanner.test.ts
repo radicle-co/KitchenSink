@@ -37,18 +37,21 @@ const ENABLED = `\t\t"${DAEMON}" => enabled`;
  * @param body - Shell commands run after the script is sourced.
  * @param readBack - What a stubbed `launchctl print-disabled` prints.
  * @param bootoutStatus - The status a stubbed `launchctl bootout` returns.
- * @returns The exit status and every stubbed call, one per line.
+ * @param disableStatus - The status a stubbed `launchctl disable` returns.
+ * @returns The exit status, its output, and every stubbed call, one per line.
  * @sideEffect Spawns bash and writes a log under the suite's temp dir.
  */
 function run(
     body: string,
     readBack = DISABLED,
     bootoutStatus = 0,
-): { readonly status: number | null; readonly calls: readonly string[] } {
+    disableStatus = 0,
+): { readonly status: number | null; readonly output: string; readonly calls: readonly string[] } {
     const log = path.join(scratch, `calls-${String(Math.random()).slice(2)}.log`);
     const stub = [
         'xcrun() { echo "xcrun $*" >> "$STUB_LOG"; case "$*" in',
         '  *"launchctl print-disabled"*) printf "%s\\n" "$STUB_READ_BACK";;',
+        '  *"launchctl disable"*) return "$STUB_DISABLE";;',
         '  *"launchctl bootout"*) return "$STUB_BOOTOUT";;',
         'esac; }',
     ].join('\n');
@@ -59,6 +62,7 @@ function run(
             STUB_LOG: log,
             STUB_READ_BACK: readBack,
             STUB_BOOTOUT: String(bootoutStatus),
+            STUB_DISABLE: String(disableStatus),
             STUB_SCRIPT: SCRIPT,
         },
     });
@@ -71,7 +75,7 @@ function run(
         // No stub was called, so the log was never written.
     }
 
-    return { status: result.status, calls };
+    return { status: result.status, output: `${result.stdout}${result.stderr}`, calls };
 }
 
 describe('maestro_disable_apple_intelligence_banner_ios', () => {
@@ -86,24 +90,43 @@ describe('maestro_disable_apple_intelligence_banner_ios', () => {
         expect(readBack).toBeGreaterThan(disable);
     });
 
-    it('⛔ fails when the read-back still shows the daemon enabled, whatever the disable exit status was', () => {
-        expect(run('MAESTRO_IOS_UDID=SIM-1 maestro_disable_apple_intelligence_banner_ios', ENABLED).status).not.toBe(
-            0,
-        );
+    it('⛔ fails when the read-back shows the daemon enabled, although the disable exited 0', () => {
+        const { status, calls } = run('MAESTRO_IOS_UDID=SIM-1 maestro_disable_apple_intelligence_banner_ios', ENABLED);
+
+        // 127 is bash's "command not found": a failure for the wrong reason. The read-back must have run and decided.
+        expect(calls).toContain(`xcrun simctl spawn SIM-1 launchctl disable system/${DAEMON}`);
+        expect(calls).toContain('xcrun simctl spawn SIM-1 launchctl print-disabled system');
+        expect(status).not.toBe(0);
+        expect(status).not.toBe(127);
     });
 
-    it('⛔ fails when the daemon is missing from the read-back, so an unreadable answer never passes', () => {
-        expect(run('MAESTRO_IOS_UDID=SIM-1 maestro_disable_apple_intelligence_banner_ios', '').status).not.toBe(0);
+    it('⛔ fails when the daemon is missing from a read-back that lists other daemons', () => {
+        const { status, calls } = run(
+            'MAESTRO_IOS_UDID=SIM-1 maestro_disable_apple_intelligence_banner_ios',
+            '\t\t"com.apple.foo" => disabled\n\t\t"com.apple.generativeexperiencesd.other" => enabled',
+        );
+
+        expect(calls).toContain('xcrun simctl spawn SIM-1 launchctl print-disabled system');
+        expect(status).not.toBe(0);
+        expect(status).not.toBe(127);
+    });
+
+    it('lets the read-back decide: a disable that exits non-zero passes when the daemon reads back disabled', () => {
+        expect(run('MAESTRO_IOS_UDID=SIM-1 maestro_disable_apple_intelligence_banner_ios', DISABLED, 0, 1).status).toBe(
+            0,
+        );
     });
 
     it('does not fail the setup when the daemon is not running yet (bootout: no such process)', () => {
         expect(run('MAESTRO_IOS_UDID=SIM-1 maestro_disable_apple_intelligence_banner_ios', DISABLED, 3).status).toBe(0);
     });
 
-    it('refuses to guess the Simulator', () => {
-        const { status, calls } = run('MAESTRO_IOS_UDID= maestro_disable_apple_intelligence_banner_ios');
+    it('refuses to guess the Simulator, and says so', () => {
+        const { status, output, calls } = run('MAESTRO_IOS_UDID= maestro_disable_apple_intelligence_banner_ios');
 
         expect(status).not.toBe(0);
+        expect(status).not.toBe(127);
+        expect(output).toContain('needs MAESTRO_IOS_UDID');
         expect(calls).toEqual([]);
     });
 });

@@ -66,6 +66,57 @@ read the live files, patch them, publish only the changed files. Commit the patc
 `docs/design/canvases/scripts/` before you run it, so another agent can rerun or extend it. A restart of the machine deletes
 scratchpad folders.
 
+## Repo-source canvases (`repo-canvas`)
+
+A canvas follows this section once its registry `source` is `repo-canvas`. Until then it stays `live` and follows the
+sections above. A `repo-canvas` entry has a `folder`: `docs/design/canvases/<folder>/` holds `snapshot.json` and
+`project/…`, the files of the artifact. The repository folder is the truth. The live canvas is a copy that a publish
+from `main` refreshes.
+
+### Edit
+
+Work on a branch, in your own worktree, in `docs/design/canvases/<folder>/project/`. Never edit or publish a
+registered canvas live. Never put `index.html`, `SKILL.md`, `artifact-type/` or `project/published.json` in the folder:
+the artifact type owns the first three, and the publish writes the marker.
+
+### Preview
+
+To show work in progress, publish the branch files to an artifact that is not in the registry. Delete that artifact
+after the PR merges.
+
+### Check before merge
+
+- The repo guards pass.
+- The LOCAL e2e renders every changed board in light and dark. `CANVASES=all` renders every canvas, and you run it
+  before a publish.
+- The designer approves the PR.
+
+### Publish from main
+
+Run these from a clean checkout after `git fetch origin main`. Only the `Artifact` tool can read and publish.
+
+1. **Plan.** `npm run canvas:publishPlan --workspace=packages/tools/designArtifact -- plan --live <dir>`. It prints,
+   for each `repo-canvas` entry, the baseline (the live marker, or the snapshot commit when there is no marker), the
+   changed and deleted paths, and what to download. Skip a canvas with status `unchanged`.
+2. **Read.** For each canvas, download the paths in `download` with the `Artifact` tool (`action: "read"`) into
+   `<dir>/<folder>/`. Also save the `action: "list"` result as a JSON array of paths.
+3. **Check.** `… -- check <id> --main <sha> --live <dir> --list <list.json>`. Exit 0 is clean. A live file passes when
+   it equals the baseline or `main`. Exit 1 is drift: stop and follow "Drift". Exit 2 is bad input.
+4. **Stage.** `… -- stage <id> --main <sha> --live <dir> --list <list.json> --out <out>`. It checks again, writes the
+   `main` blobs from git (a dirty work tree cannot leak in) and the marker outside the canvas folder, and prints the
+   `url`, `root` and `files` for the publish.
+5. **Publish.** Pass that output to the `Artifact` tool unchanged. `files` is the dict form: a deletion is `null`.
+   Never pass `force`. If the publish is refused, restart at step 2 for that canvas.
+
+### Drift
+
+The check found a live edit that the repository does not have. Import the live files into the folder in a PR titled
+`canvas drift: <id>`, merge it, then publish. After that merge the live file equals `main`, so the check passes.
+
+### Rollback
+
+`git revert` the merge on `main`, then publish.
+
 ## Comments
 
 Claude can reply to and resolve only a thread that a person sent to Claude ("Send to Claude", or `@claude` in the

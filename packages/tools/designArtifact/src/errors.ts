@@ -19,7 +19,10 @@ export type DesignArtifactErrorCode =
     | 'write-failed'
     | 'integrity-mismatch'
     | 'surface-mismatch'
-    | 'invalid-reference';
+    | 'invalid-reference'
+    | 'invalid-marker'
+    | 'unknown-canvas'
+    | 'marker-not-on-main';
 
 /** A build input broke a rule the artifact depends on. */
 export class DesignArtifactError extends Error {

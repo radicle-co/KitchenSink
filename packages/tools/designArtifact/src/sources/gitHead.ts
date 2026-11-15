@@ -39,7 +39,7 @@ export function parseGitHead(output: string): Omit<BuildStamp, 'dirty'> {
 /** Runs `git <args>` and answers its standard output. */
 export type RunGit = (args: readonly string[]) => Promise<string>;
 
-function execGit(cwd: string): RunGit {
+export function execGit(cwd: string): RunGit {
     /** @sideEffect Spawns `git`. */
     return async (args) => (await promisify(execFile)('git', [...args], { cwd })).stdout;
 }

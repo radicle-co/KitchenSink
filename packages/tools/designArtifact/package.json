@@ -6,6 +6,7 @@
     "description": "Builds the Commise Design System artifact and the screens canvas for claude.ai from the real component sources. Output is a publish payload in dist/ (git-ignored); publishing stays manual.",
     "scripts": {
         "artifact:build": "tsx bin/buildArtifact.ts",
+        "canvas:publishPlan": "tsx bin/canvasPublishPlan.ts",
         "test": "vitest run",
         "test:integration": "vitest run --config vitest.integration.config.ts",
         "test:e2e": "vitest run --config vitest.e2e.config.ts",
@@ -28,7 +29,8 @@
         "esbuild": "^0.28.1",
         "postcss": "^8.5.6",
         "react-native-web": "^0.21.2",
-        "tailwindcss": "^4.3.0"
+        "tailwindcss": "^4.3.0",
+        "zod": "^4.6.7"
     },
     "devDependencies": {
         "@kitchensink/eslint": "*",

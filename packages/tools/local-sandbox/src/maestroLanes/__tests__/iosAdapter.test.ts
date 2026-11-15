@@ -125,12 +125,12 @@ describe('IosAdapter', () => {
         expect(deviceFor(4)).toBe('ks-maestro-ipad-4');
     });
 
-    it('costs an iPad lane its own figure, and never the iPhone one', () => {
-        const phone = new IosAdapter(options(makeShell().shell)).laneCost;
-        const pad = new IosAdapter(options(makeShell().shell, undefined, SETTINGS, 'ipad')).laneCost;
-        expect(pad).not.toBe(phone);
-        expect(pad.cpus).toBeGreaterThanOrEqual(phone.cpus);
-        expect(pad.memBytes).toBeGreaterThanOrEqual(phone.memBytes);
+    it('costs an iPad lane what the 2026-11-15 runs measured: peak 2.10 GiB and under one cpu busy', () => {
+        // Measured with maestro:macUsage ipad: mean 0.4 to 0.6 cpus per lane, peak resident 1.87 to 2.10 GiB, over a
+        // one-lane run and a two-lane run on the Mac.
+        const { cpus, memBytes } = new IosAdapter(options(makeShell().shell, undefined, SETTINGS, 'ipad')).laneCost;
+        expect(cpus).toBe(1);
+        expect(memBytes).toBe(Math.round(2.2 * 1024 ** 3));
     });
 
     it('refuses to be built without a Mac host', () => {

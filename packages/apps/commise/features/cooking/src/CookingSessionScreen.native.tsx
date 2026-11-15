@@ -9,7 +9,6 @@
  */
 import { LiveRegion } from '@commise/ui/live-region';
 import type { FC } from 'react';
-import type { GestureResponderEvent } from 'react-native';
 
 import { CookingDone } from './CookingDone.native.js';
 import { CookingDoneActions } from './CookingDoneActions.native.js';
@@ -19,7 +18,7 @@ import { CookingNextPreview } from './CookingNextPreview.native.js';
 import { CookingStep } from './CookingStep.native.js';
 import { CookingTopBar } from './CookingTopBar.native.js';
 import type { CookingRecipe } from './cookingViewProps.js';
-import { stepSwipeOf, swipeTravelOf, type StepSwipe } from './stepSwipe.js';
+import { stepSwipeResponderOf } from './stepSwipeResponder.native.js';
 import { useCookingFocusRecovery } from './useCookingFocusRecovery.native.js';
 import { useCookingSessionScreen } from './useCookingSessionScreen.js';
 
@@ -61,34 +60,13 @@ export const CookingSessionScreen: FC<CookingSessionScreenProps> = ({ recipe, on
         );
     }
 
-    // The body area takes a drag from the scroller and the line rows only once it is a whole swipe, so a tap that wobbles
-    // is still a tap. At release the swipe rule decides again, and the move takes the same path as the buttons.
-    const swipeOf = (event: GestureResponderEvent): StepSwipe | null => {
-        const travel = swipeTravelOf(event);
-
-        return travel === null ? null : stepSwipeOf({ ...travel, width, hasPrevious, hasNext });
-    };
-
-    const releaseSwipe = (event: GestureResponderEvent): void => {
-        const move = swipeOf(event);
-
-        if (move === 'next') {
-            goForward();
-        } else if (move === 'back') {
-            goBack();
-        }
-    };
-
     const { nav, preview } = model;
 
     return (
         <CookingFrame
             busy={false}
             topBar={<CookingTopBar exit={model.exit} place={{ text: model.place, tone: 'ink' }} narrow={narrow} />}
-            bodySwipe={{
-                onMoveShouldSetResponder: (event) => swipeOf(event) !== null,
-                onResponderRelease: releaseSwipe,
-            }}
+            bodySwipe={stepSwipeResponderOf({ width, hasPrevious, hasNext, onNext: goForward, onBack: goBack })}
             body={
                 <>
                     <CookingStep

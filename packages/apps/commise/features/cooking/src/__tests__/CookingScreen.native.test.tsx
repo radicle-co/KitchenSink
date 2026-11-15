@@ -930,6 +930,30 @@ describe('CookingScreen (native): screen-reader focus when the focused control g
         expect(focused().at(-1)).toBe(screen.getByRole('checkbox', { name: 'Add the onion and cook 5 min.' }));
     });
 
+    // A request is lowered when its control takes it, so a second request for the same control is heard too.
+    it('moves focus again when the next Then line is ticked straight after', async () => {
+        setup(
+            ready({
+                recipe: {
+                    id: 'r1',
+                    title: TITLE,
+                    status: RecipeStatus.PUBLISHED,
+                    steps: [{ stepNumber: 1, instruction: 'Chop the onion. Heat the oil. Stir well.' }],
+                },
+            }),
+        );
+
+        // The focus row stays mounted as the focus moves down the step, so only a lowered request fires again.
+        await tick('Chop the onion.');
+        expect(focused()).toHaveLength(1);
+        expect(focused().at(-1)).toBe(screen.getByRole('checkbox', { name: 'Heat the oil.' }));
+
+        await tick('Heat the oil.');
+
+        expect(focused()).toHaveLength(2);
+        expect(focused().at(-1)).toBe(screen.getByRole('checkbox', { name: 'Stir well.' }));
+    });
+
     it('moves focus to the forward control when the last line is ticked', async () => {
         setup();
         await tick('Heat 1.5 tbsp. oil.');

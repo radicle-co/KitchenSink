@@ -59,12 +59,30 @@ export interface DriftVerdict {
     readonly missingLive: readonly string[];
 }
 
-/** The `files` map of the Artifact tool's publish, plus the marker to write first. */
+/** The Artifact tool's publish inputs, plus the marker to write first. */
 export interface PublishInput {
     readonly url: string;
     readonly root: string;
+    /** The marker: a publish of a typed artifact must name one of its own data files, under `root`. */
+    readonly filePath: string;
+    /** Changed paths to staged blobs, deleted paths to `null`. Empty when only the marker changes. */
     readonly files: Readonly<Record<string, string | null>>;
+    readonly label: string;
     readonly marker: { readonly path: string; readonly content: string };
+}
+
+const LABEL_SHA_LENGTH = 12;
+
+/**
+ * The publish label, `canvas <baseline>..<main>` with 12-character prefixes, short enough for the Artifact tool's
+ * 60-character label limit for any canvas. The url already names the canvas, so the id is not repeated here.
+ *
+ * @param baselineSha - The commit the live canvas equalled.
+ * @param mainSha - The commit being published.
+ * @returns The label. The user-level `canvasPublishGuard` hook parses this form, so a change here changes it too.
+ */
+export function publishLabel(baselineSha: string, mainSha: string): string {
+    return `canvas ${baselineSha.slice(0, LABEL_SHA_LENGTH)}..${mainSha.slice(0, LABEL_SHA_LENGTH)}`;
 }
 
 const MarkerSchema = z.strictObject({ sha: z.string().regex(SHA_PATTERN) });
@@ -193,21 +211,23 @@ export function driftVerdict(input: { plan: CanvasPlan; liveOids: Oids; livePath
 }
 
 /**
- * Builds the dict-form publish input: changed paths point at the staged blob, deleted paths are `null`, and the
- * marker sits OUTSIDE the canvas folder (a commit cannot contain its own sha).
+ * Builds the publish input: changed paths point at the staged blob and deleted paths are `null`. The marker is the
+ * `file_path`, staged under `root` at its published path. It lives only in the staging directory, never in the
+ * repository, because a commit cannot contain its own sha.
  *
- * @param input - The canvas, the staging directory, its plan and the main sha being published.
- * @returns The Artifact tool's `url`, `root` and `files`, and the marker to write at `marker.path`.
+ * @param input - The canvas, the staging directory, its plan, and the baseline and main shas.
+ * @returns The Artifact tool's `url`, `root`, `file_path`, `files` and `label`, and the marker to write.
  */
 export function publishInput(input: {
     url: string;
     folder: string;
     outDir: string;
     plan: CanvasPlan;
+    baselineSha: string;
     mainSha: string;
 }): PublishInput {
     const root = posix.join(input.outDir, input.folder);
-    const markerPath = posix.join(input.outDir, `${input.folder}.published.json`);
+    const markerPath = posix.join(root, MARKER_PATH);
     // The pollution guard requires a null prototype for a map keyed by data, though planCanvas only emits `project/…` keys.
     const files = Object.create(null) as Record<string, string | null>;
 
@@ -219,12 +239,12 @@ export function publishInput(input: {
         files[path] = null;
     }
 
-    files[MARKER_PATH] = markerPath;
-
     return {
         url: input.url,
         root,
+        filePath: markerPath,
         files,
+        label: publishLabel(input.baselineSha, input.mainSha),
         marker: { path: markerPath, content: `${JSON.stringify({ sha: input.mainSha })}\n` },
     };
 }

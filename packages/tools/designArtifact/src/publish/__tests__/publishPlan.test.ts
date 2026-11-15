@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { isDesignArtifactError } from '../../errors.js';
-import { chooseBaseline, driftVerdict, parseMarker, planCanvas, publishInput } from '../publishPlan.js';
+import { chooseBaseline, driftVerdict, parseMarker, planCanvas, publishInput, publishLabel } from '../publishPlan.js';
 
 const SHA_A = 'a'.repeat(40);
 const SHA_B = 'b'.repeat(40);
@@ -224,21 +224,70 @@ describe('driftVerdict', () => {
 });
 
 describe('publishInput', () => {
-    it('maps changed paths to files, deleted paths to null and adds the marker outside the canvas folder', () => {
-        const plan = planCanvas({
-            baseline: tree({ 'project/a.html': oid(1), 'project/b.html': oid(2) }),
-            main: tree({ 'project/a.html': oid(9) }),
-            from: 'marker',
+    const plan = planCanvas({
+        baseline: tree({ 'project/a.html': oid(1), 'project/b.html': oid(2) }),
+        main: tree({ 'project/a.html': oid(9) }),
+        from: 'marker',
+    });
+
+    it('maps changed paths to files and deleted paths to null, and leaves the marker out of files', () => {
+        const input = publishInput({
+            url: 'https://x/y',
+            folder: 'Home',
+            outDir: '/out',
+            plan,
+            baselineSha: SHA_B,
+            mainSha: SHA_A,
         });
-        const input = publishInput({ url: 'https://x/y', folder: 'Home', outDir: '/out', plan, mainSha: SHA_A });
 
         expect(input.url).toBe('https://x/y');
         expect(input.root).toBe('/out/Home');
-        expect(input.files).toEqual({
-            'project/a.html': '/out/Home/project/a.html',
-            'project/b.html': null,
-            'project/published.json': '/out/Home.published.json',
+        expect(input.files).toEqual({ 'project/a.html': '/out/Home/project/a.html', 'project/b.html': null });
+    });
+
+    // The Artifact tool refuses a publish of a typed artifact without `file_path`, which must be one of its own data
+    // files under `root`. The marker is the one file every publish sends, so it is that file. It sits in the staging
+    // directory, not the repository, so a commit never has to contain its own sha.
+    it('makes the marker the file_path, under root at project/published.json', () => {
+        const input = publishInput({
+            url: 'https://x/y',
+            folder: 'Home',
+            outDir: '/out',
+            plan,
+            baselineSha: SHA_B,
+            mainSha: SHA_A,
         });
-        expect(input.marker).toEqual({ path: '/out/Home.published.json', content: `{"sha":"${SHA_A}"}\n` });
+
+        expect(input.filePath).toBe('/out/Home/project/published.json');
+        expect(input.marker).toEqual({ path: '/out/Home/project/published.json', content: `{"sha":"${SHA_A}"}\n` });
+    });
+
+    it('gives an empty files map when nothing changed, so only the marker is sent', () => {
+        const unchanged = planCanvas({
+            baseline: tree({ 'project/a.html': oid(1) }),
+            main: tree({ 'project/a.html': oid(1) }),
+            from: 'snapshot',
+        });
+        const input = publishInput({
+            url: 'https://x/y',
+            folder: 'Home',
+            outDir: '/out',
+            plan: unchanged,
+            baselineSha: SHA_B,
+            mainSha: SHA_A,
+        });
+
+        expect(input.files).toEqual({});
+    });
+});
+
+describe('publishLabel', () => {
+    it('names both commits by their 12-character prefix', () => {
+        expect(publishLabel(SHA_B, SHA_A)).toBe(`canvas ${SHA_B.slice(0, 12)}..${SHA_A.slice(0, 12)}`);
+    });
+
+    // The Artifact tool caps `label` at 60 characters; the old form with the id and two full shas was 110.
+    it('fits the Artifact label limit of 60 characters', () => {
+        expect(publishLabel(SHA_B, SHA_A).length).toBeLessThanOrEqual(60);
     });
 });

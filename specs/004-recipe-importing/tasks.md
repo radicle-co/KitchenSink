@@ -1117,3 +1117,32 @@ tier come before the code. Counsel review is owed before launch (`016-FR-050`).
 - [ ] **Unit tests**, table-driven over match, mismatch, no author id and no link. **Integration tests** for revoke and
       unlink. **Playwright** and **Maestro** flows for link-at-import. Mutation lens: a rule that clears on the bare
       statement fails.
+
+---
+
+### T-048 · AI text-extraction fallback _(FR-056 to FR-063, added 2026-11-15, owner ruling)_
+
+**Priority** P1 · **Effort** L · **Depends on** T-032, T-013 · **Implements** FR-056, FR-057, FR-058, FR-059, FR-060, FR-061, FR-062, FR-063
+
+**Test-first:** true. Write the tests for every tier below and watch them fail before any implementation.
+
+- [ ] New Lambda `RecipeTextExtractFunction` under the single Bedrock role, with its own queue, DLQ and reserved
+      concurrency, VPC-attached. New `SPEND_CALL_SITES` member `'text-extraction'`. ADR-0004's `nat-consumers` table
+      gains a row. `llmSpendGuards` stays green and `natEgressConsumers` is updated.
+- [ ] Prompt builder takes the text only, signature pinned, system prompt pinned by length and SHA-256. The model returns
+      line numbers only. Out-of-range or overlapping ranges are refused.
+- [ ] Input over 48,000 UTF-8 bytes is refused, never truncated. A page opt-out (`noai`, `noimageai`, TDM reservation) skips the fallback with a neutral type-it-in message (`FR-063`, attorney sign-off owed).
+- [ ] Pasted text is deleted when the job leaves `pending`. All six states have copy and a localisation key.
+- [ ] A ceiling denial ends `budgetSpent`, is acknowledged and is not retried. An unreadable counter retries. A job
+      older than 10 minutes is `failed`.
+- [ ] A guessed source fills a suggestion only. The item stays under "Needs your statement".
+- [ ] The result goes through the one import pipeline and the paste allowance (one paste unit per accepted job). No second save path.
+- [ ] New result table with expiry, covered by erasure, the test-principal purge and the TTL sweep.
+- [ ] The mobile paste row is behind a flag that turns on only when this task ships. Web HTML paste ships earlier.
+- [ ] **Unit and worker tests**: the cases in the `FR-056` to `FR-062` acceptance criteria in `spec.md`. **Integration
+      tests** (database mocked, DD12). **LOCAL e2e** on the result table and erasure. **Playwright** (web) and **Maestro**
+      (mobile) for the read, `budgetSpent`, over-cap and source-question states. **k6** by hand.
+- [ ] ADRs amended in place: ADR-0024 §3 and §4c, ADR-0072 §3 and §8, ADR-0004 table, ADR-0026 Relates note, ADR-0089 §1 and §7, ADR-0072 §1 and §9. Write ADR-0092.
+- [ ] **Depends on, not yet tasked**: the import controller, the device page reader and the paste channel (blueprint PRs A to C). T-032 still describes the old synchronous `/import/text`. `FR-052` as amended supersedes it.
+
+**Files** `packages/services/recipe-workers/**`, `packages/services/recipe-service/src/import/**`, tests alongside

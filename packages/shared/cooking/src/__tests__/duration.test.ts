@@ -69,6 +69,76 @@ describe('readDuration', () => {
     });
 });
 
+describe('readDuration reads the number a cook wrote, or nothing', () => {
+    it.each([
+        ['Bake 1-1/2 hours', 5_400],
+        ['Bake 1 and 1/2 hours', 5_400],
+        ['Bake 2-1/2 hours', 9_000],
+        ['Bake .5 hours', 1_800],
+        ['Bake 1,5 hours', 5_400],
+        ['Bake 1-2 hours', 3_600],
+        ['Bake between 20 and 25 minutes', 1_200],
+    ])('%s gives %i s', (line, seconds) => {
+        expect(readDuration(line)).toEqual({ kind: 'one', seconds });
+    });
+
+    it.each(['Bake 1/0 hours', 'Bake 0 minutes', 'Bake 1 hour 1/0 minutes'])(
+        '%s gives none, never a wrong number',
+        (line) => {
+            expect(readDuration(line)).toEqual({ kind: 'none' });
+        },
+    );
+
+    it('never reads 1,000 minutes as 0', () => {
+        const reading = readDuration('Simmer 1,000 minutes');
+
+        expect(reading.kind === 'none' || (reading.kind === 'one' && reading.seconds > 0)).toBe(true);
+    });
+
+    it.each(['Add 2 minced onions', 'Make 1 hash', 'Check hourly', '5 secondary'])(
+        '%s gives none: a unit word that is the start of a longer word is not time',
+        (line) => {
+            expect(readDuration(line)).toEqual({ kind: 'none' });
+        },
+    );
+
+    it('reads two amounts of the same unit as many', () => {
+        expect(readDuration('Rest 10 minutes, 5 minutes')).toEqual({ kind: 'many' });
+    });
+});
+
+describe('readDuration finishes fast on hostile text (public recipes run on other cooks devices)', () => {
+    const BUDGET_MS = 50;
+
+    const timed = (line: string) => {
+        const started = performance.now();
+        const reading = readDuration(line);
+
+        return { reading, ms: performance.now() - started };
+    };
+
+    it.each([
+        ['1 x 100,000', '1'.repeat(100_000)],
+        ['1, 100,000 spaces, x', `1${' '.repeat(100_000)}x`],
+        ['1 - then 100,000 spaces', `1 -${' '.repeat(100_000)}`],
+        ['1 to then 100,000 spaces', `1 to${' '.repeat(100_000)}`],
+        ['1 and then 100,000 spaces', `1 and${' '.repeat(100_000)}`],
+        ['20,000 digits', '1'.repeat(20_000)],
+    ])('%s is read in under 50 ms', (_name, line) => {
+        const { ms } = timed(line);
+
+        expect(ms).toBeLessThan(BUDGET_MS);
+    });
+
+    it('gives none for a line over 2,000 characters, even one that holds 10 minutes', () => {
+        const line = `${'x'.repeat(2_000)} 10 minutes`;
+
+        expect(line.length).toBeGreaterThan(2_000);
+        expect(readDuration(line)).toEqual({ kind: 'none' });
+        expect(readDuration(`${'x'.repeat(1_900)} 10 minutes`)).toEqual({ kind: 'one', seconds: 600 });
+    });
+});
+
 describe('offerSecondsOf', () => {
     it('a stored timer beats the line: 600 s over a line that reads 1,200', () => {
         expect(offerSecondsOf({ storedSeconds: 600, line: 'Simmer 20 minutes' })).toBe(600);

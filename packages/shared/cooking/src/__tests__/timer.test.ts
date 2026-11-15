@@ -254,6 +254,30 @@ describe('addTime', () => {
         );
     });
 
+    it('refuses a running total past 24 hours even when the time left is small', () => {
+        const longTimer = run([{ ...START, durationMs: MAX_TIMER_MS, nowMs: 0 }]).state;
+
+        expect(() =>
+            reduceTimer(longTimer, { kind: 'addTime', id: 't1', addMs: 60 * MINUTE, nowMs: 23 * 60 * MINUTE }),
+        ).toThrow(expect.toSatisfy(isInvalidTimerDurationError));
+    });
+
+    it('accepts an added hour to a 23 hour timer 10 hours in, and the total stays within 24 hours', () => {
+        const longTimer = run([{ ...START, durationMs: 23 * 60 * MINUTE, nowMs: 0 }]).state;
+        const added = reduceTimer(longTimer, {
+            kind: 'addTime',
+            id: 't1',
+            addMs: 60 * MINUTE,
+            nowMs: 10 * 60 * MINUTE,
+        });
+
+        expect(added.state.timer).toMatchObject({
+            kind: 'running',
+            durationMs: MAX_TIMER_MS,
+            endsAt: 24 * 60 * MINUTE,
+        });
+    });
+
     it('refuses 1 s added to a ringing timer, as it does from running', () => {
         const ringing = ringingState();
 

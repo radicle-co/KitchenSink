@@ -120,7 +120,7 @@ export function isValidTimerMs(durationMs: number): boolean {
     return Number.isInteger(durationMs) && durationMs >= MIN_TIMER_MS && durationMs <= MAX_TIMER_MS;
 }
 
-/** Refuses a length a timer cannot have. A value from the sheet is validated there first, so this is a programming error. */
+/** Refuses a length a timer cannot have. */
 function assertDuration(durationMs: number): void {
     if (!isValidTimerMs(durationMs)) {
         throw new InvalidTimerDurationError(durationMs);
@@ -196,6 +196,7 @@ function addTime(state: TimerState, command: Extract<TimerCommand, { kind: 'addT
     }
 
     assertDuration(timer.endsAt - command.nowMs + command.addMs);
+    assertDuration(timer.durationMs + command.addMs);
 
     return quiet({
         timer: { ...timer, durationMs: timer.durationMs + command.addMs, endsAt: timer.endsAt + command.addMs },

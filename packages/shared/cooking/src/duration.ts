@@ -10,18 +10,28 @@
  * at the end of the text or before punctuation, so "1 h 30 then flip" reads one hour.
  */
 
+import { amountAt } from '@kitchensink/recipe-core/parsing/measure-reader';
+
 import { isValidTimerMs } from './timer.js';
 
 /** What a line says: no duration, exactly one (in seconds), or several. */
 export type DurationReading =
     { readonly kind: 'none' } | { readonly kind: 'one'; readonly seconds: number } | { readonly kind: 'many' };
 
-const FRACTIONS: Readonly<Record<string, number>> = { '½': 0.5, '¼': 0.25, '¾': 0.75, '⅓': 1 / 3, '⅔': 2 / 3 };
-
 const SECONDS_PER_UNIT: Readonly<Record<string, number>> = { h: 3_600, m: 60, s: 1 };
 
-/** A number: a mixed number or fraction ("1 1/2", "1/2"), digits with an optional decimal and fraction glyph, or a glyph. */
-const NUMBER = String.raw`(?:\d+\s+\d+/\d+|\d+/\d+|\d+(?:\.\d+)?\s?[½¼¾⅓⅔]?|[½¼¾⅓⅔])`;
+/**
+ * The longest line the reader looks at. Step text of a public recipe runs on every reader's device and has no maximum
+ * where it is written, so a longer line reads `none`. It is not cut: a cut "1 hour 30 minutes" would read 1 h 03.
+ */
+const MAX_READ_LINE_CHARS = 2_000;
+
+/**
+ * A number as a cook writes it: a mixed number or fraction ("1 1/2", "1-1/2", "1 and 1/2", "1/2"), digits with an
+ * optional decimal point or comma and fraction glyph, a leading point (".5"), or a glyph. The value is read from it by
+ * recipe-core's measure reader, which owns how an amount is written.
+ */
+const NUMBER = String.raw`(?:\d+(?:\s+(?:and\s+)?|-)\d+/\d+|\d+/\d+|\d+(?:[.,]\d+)?(?:\s?[½¼¾⅓⅔])?|[.,]\d+|[½¼¾⅓⅔])`;
 
 /** Every dash a step line may use between two numbers. */
 const DASH = '[-‐‑‒–—―]';
@@ -36,7 +46,8 @@ const UNIT = String.raw`(?:hours?|hrs?|h|minutes?|mins?|seconds?|secs?)`;
 const amountSource = (capture: boolean): string => {
     const group = (inner: string): string => (capture ? `(${inner})` : `(?:${inner})`);
 
-    return `${group(NUMBER)}(?:\\s*(?:${DASH}|to|or)\\s*${NUMBER}|\\s+and\\s+${NUMBER})?\\s*-?\\s*${group(UNIT)}(?![a-z])`;
+    // No amount starts inside a run of digits, points or commas, and the whitespace before the unit has one reading.
+    return `(?<![\\d.,])${group(NUMBER)}(?:\\s*(?:${DASH}|to|or)\\s*${NUMBER}|\\s+and\\s+${NUMBER})?\\s*(?:-\\s*)?${group(UNIT)}(?![a-z])`;
 };
 
 /** What may sit between two amounts of one duration: only space, a comma or "and". */
@@ -50,28 +61,24 @@ const SPAN = new RegExp(`${amountSource(false)}(?:${JOINER}${amountSource(false)
 
 const AMOUNT = new RegExp(amountSource(true), 'giu');
 
-/** The value of a number token: a fraction, a mixed number, digits, a decimal, a fraction glyph, or digits and a glyph. */
-function numberOf(token: string): number {
-    const fraction = /^(?:(\d+)\s+)?(\d+)\/(\d+)$/u.exec(token.trim());
+/** The value of a number token, or `undefined` when it is not a positive finite amount ("1/0"). */
+function numberOf(token: string): number | undefined {
+    const words = token
+        .trim()
+        .split(/\s+/u)
+        .filter((word) => word.toLowerCase() !== 'and');
 
-    if (fraction !== null) {
-        const [, whole = '0', numerator = '0', denominator = '1'] = fraction;
-
-        return Number(whole) + Number(numerator) / Number(denominator);
-    }
-
-    const glyph = [...token].find((char) => char in FRACTIONS);
-    const digits = Number.parseFloat(token.replace(/[^\d.]/gu, ''));
-
-    return (Number.isNaN(digits) ? 0 : digits) + (glyph === undefined ? 0 : (FRACTIONS[glyph] ?? 0));
+    return amountAt(words, 0)?.low;
 }
 
 /** The seconds one unit stands for ('h', 'hours', 'Min' and so on), or 0 for one it does not know. */
 const unitSeconds = (unit: string): number => SECONDS_PER_UNIT[unit.toLowerCase().charAt(0)] ?? 0;
 
-/** The seconds an amount ("1½ hours", "20 to 25 min") stands for: its first number times its unit. */
-function secondsOfAmount(quantity: string, unit: string): number {
-    return numberOf(quantity) * unitSeconds(unit);
+/** The seconds an amount ("1½ hours", "20 to 25 min") stands for: its first number times its unit, or `undefined`. */
+function secondsOfAmount(quantity: string, unit: string): number | undefined {
+    const value = numberOf(quantity);
+
+    return value === undefined ? undefined : value * unitSeconds(unit);
 }
 
 /**
@@ -82,6 +89,10 @@ function secondsOfAmount(quantity: string, unit: string): number {
  *   "1 hour 5 minutes" is one span), `many` when it holds two or more, else `none`. Pure.
  */
 export function readDuration(line: string): DurationReading {
+    if (line.length > MAX_READ_LINE_CHARS) {
+        return { kind: 'none' };
+    }
+
     const spans = [...line.matchAll(SPAN)];
 
     if (spans.length === 0) {
@@ -98,6 +109,11 @@ export function readDuration(line: string): DurationReading {
         rank: unitSeconds(amount[2] ?? ''),
     }));
 
+    // An amount that is not a real number ("1/0") leaves the whole span unread, never a wrong total.
+    if (amounts.some((amount) => amount.seconds === undefined)) {
+        return { kind: 'none' };
+    }
+
     // One span reads as one duration only when its units strictly fall ("1 hour 5 minutes"), never "10 minutes, 5 minutes".
     if (amounts.some((amount, index) => index > 0 && amount.rank >= (amounts[index - 1]?.rank ?? 0))) {
         return { kind: 'many' };
@@ -105,7 +121,7 @@ export function readDuration(line: string): DurationReading {
 
     const bareMinutes = amounts.at(-1)?.rank === SECONDS_PER_UNIT['h'] ? spans[0]?.groups?.['bare'] : undefined;
     const total =
-        amounts.reduce((sum, amount) => sum + amount.seconds, 0) +
+        amounts.reduce((sum, amount) => sum + (amount.seconds ?? 0), 0) +
         (bareMinutes === undefined ? 0 : Number.parseInt(bareMinutes, 10) * 60);
 
     return total > 0 ? { kind: 'one', seconds: Math.round(total) } : { kind: 'none' };

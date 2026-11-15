@@ -308,7 +308,7 @@ npm run infra:deploy --workspace=packages/services/identity
 Every screen design and the Design System are claude.ai artifacts. `docs/design/canvases/registry.json` lists every
 link, and `docs/design/canvases/README.md` holds the rules for changing them. Load the `designCanvases` skill before any
 work on a screen design, board, mockup or canvas, or a comment on one. ⛔ The screen canvases change only in the
-repository: edit the files under `docs/design/canvases/<id>/` on a branch, merge, then publish from `main` with the
+repository: edit the files under `docs/design/canvases/<folder>/` (the registry `folder`) on a branch, merge, then publish from `main` with the
 README's publish steps. Never edit a screen canvas live (the drift check stops the next publish), and never pass
 `force`. The `canvasPublishGuard` hook refuses a publish whose files differ from `origin/main`.
 

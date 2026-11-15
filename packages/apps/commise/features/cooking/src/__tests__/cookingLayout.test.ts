@@ -25,10 +25,13 @@ describe('the cooking surface widths', () => {
         expect(NARROW_ROW.navWebClassName).toContain(`${String(NARROW_ROW.maxRem)}rem`);
     });
 
-    it('truncates the Next preview to one line on a screen under 700 tall, the class holding the number', () => {
+    it('truncates the Next preview to one line under a container height of 43.75 rem, the class holding the number', () => {
         expect(SHORT_SCREEN.maxHeightPx).toBe(700);
-        expect(SHORT_SCREEN.previewWebClassName).toBe('[@media(height<700px)]:line-clamp-1');
-        expect(SHORT_SCREEN.previewWebClassName).toContain(`<${String(SHORT_SCREEN.maxHeightPx)}px`);
+        expect(SHORT_SCREEN.maxHeightRem).toBe(43.75);
+        // A rem is 16 px at 100% text, so the two numbers are one height; at 200% text the rule fires at 1,400 px.
+        expect(SHORT_SCREEN.maxHeightRem * 16).toBe(SHORT_SCREEN.maxHeightPx);
+        expect(SHORT_SCREEN.previewWebClassName).toBe('[@container(height<43.75rem)]:line-clamp-1');
+        expect(SHORT_SCREEN.previewWebClassName).toContain(`<${String(SHORT_SCREEN.maxHeightRem)}rem`);
     });
 
     it('keeps the centred column wider than the notice column', () => {

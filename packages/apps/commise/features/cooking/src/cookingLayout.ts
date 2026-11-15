@@ -24,10 +24,12 @@ export const NARROW_ROW = {
 
 /**
  * Under 700 tall, the scroll budget, the pinned Next preview shows one line, ending in an ellipsis. The clamp is visual
- * only: the whole line stays in the text a screen reader reads. Native reads `maxHeightPx`; web uses the class, written
- * whole and holding the number.
+ * only: the whole line stays in the text a screen reader reads. Native reads `maxHeightPx`. Web asks the HEIGHT OF THE
+ * COOKING FRAME (a size container), in rem, so the rule also fires when the cook enlarges the text; the class is written
+ * whole and holds its number.
  */
 export const SHORT_SCREEN = {
     maxHeightPx: 700,
-    previewWebClassName: '[@media(height<700px)]:line-clamp-1',
+    maxHeightRem: 43.75,
+    previewWebClassName: '[@container(height<43.75rem)]:line-clamp-1',
 } as const;

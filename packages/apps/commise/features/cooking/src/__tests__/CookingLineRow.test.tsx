@@ -74,4 +74,19 @@ describe('CookingLineRow', () => {
         expect(text.className).toContain('text-ink-muted');
         expect(text.className).not.toContain('line-through');
     });
+
+    // The glyph owns its slot and its size by the role of the line it labels, so the row passes that role and adds no
+    // slot of its own: a 28 pt focus line draws a 22 box in a 36 slot, and a body line an 18 box in a 28 slot.
+    it.each([
+        ['focus', '1.375rem', '2.25rem'],
+        ['other', '1.125rem', '1.75rem'],
+    ] as const)('draws the box and slot of the %s line by the role of its text', (emphasis, box, slot) => {
+        render(<CookingLineRow line={lineOf()} emphasis={emphasis} />);
+
+        const glyphSlot = screen.getByRole('checkbox').firstElementChild as HTMLElement;
+        const drawn = glyphSlot.querySelector('[aria-hidden="true"]') as HTMLElement;
+
+        expect(glyphSlot.style.height).toBe(slot);
+        expect(drawn.style.width).toBe(box);
+    });
 });

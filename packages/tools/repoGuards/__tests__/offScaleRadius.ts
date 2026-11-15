@@ -21,7 +21,7 @@
  *
  * - A glyph (the checkbox) owns a corner no step fits, as a named `GLYPH_` constant. Only a module whose leading JSDoc
  *   carries a `@pattern Glyph` tag may read one; the radius scale gets no `xs` step. A glyph that grows with its text
- *   keeps the corner in proportion, so such a module may also write exactly `side * GLYPH_RATIO`: one plain identifier
+ *   keeps the corner in proportion, so such a module may also write exactly `side * GLYPH_CORNER_PER_SIDE`: one plain identifier
  *   times one `GLYPH_` constant, in either order, on a style object or a Tamagui element. A literal, a quotient, a
  *   longer chain, an offset and a wrapped form are all refused ({@link isGlyphCornerProduct}).
  *

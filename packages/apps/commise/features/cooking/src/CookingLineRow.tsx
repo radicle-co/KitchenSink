@@ -30,9 +30,10 @@ export const CookingLineRow: FC<CookingLineRowProps> = ({ line, emphasis }) => (
         onClick={line.onToggle}
         className={`flex min-h-11 w-full items-start gap-3 rounded-md px-2 py-2 text-start ${PRESS_FILL_CLASS.pointer} ${FOCUS_RING_CLASS.inset}`}
     >
-        <span className="flex h-7 shrink-0 items-center">
-            <CheckBoxGlyph checked={line.checked} />
-        </span>
+        <CheckBoxGlyph
+            checked={line.checked}
+            textRole={emphasis === 'focus' ? FOCUS_LINE_TYPE.nativeTypeRole : 'readingBody'}
+        />
         <span
             className={`min-w-0 flex-1 break-words font-body ${emphasis === 'focus' ? FOCUS_LINE_TYPE.webClassName : 'text-reading-body'} ${line.checked ? 'text-ink-muted' : 'text-ink'}`}
         >

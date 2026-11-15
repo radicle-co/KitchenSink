@@ -1,12 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-    CHECK_BOX_MIN_SIDE,
-    CHECK_MARK_ANIMATION,
-    GLYPH_CORNER_PER_SIDE,
-    checkBoxSideOf,
-    checkMarkMotion,
-} from '../props.js';
+import { CHECK_BOX_MIN_SIDE, GLYPH_CORNER_PER_SIDE, checkBoxSideOf } from '../props.js';
 
 /**
  * The box's size at 1x follows the text it labels: `max(18, round_even(roleSize × 0.8))`. So every role of 14, 16 or
@@ -40,22 +34,5 @@ describe('checkBoxSideOf', () => {
     it('keeps the corner at 4/18 of the side', () => {
         expect(GLYPH_CORNER_PER_SIDE).toBe(4 / 18);
         expect(18 * GLYPH_CORNER_PER_SIDE).toBe(4);
-    });
-});
-
-/**
- * The native check mark's entrance (§1.9): the named spring from 0.9 of its size only when the OS has said motion is
- * allowed. Under reduced motion, and while the preference is still being read, the mark gets no animation props at all.
- */
-describe('checkMarkMotion', () => {
-    it('springs in from 0.9 of the size it lands on when motion is allowed', () => {
-        expect(CHECK_MARK_ANIMATION).toBe('check');
-        expect(checkMarkMotion(false, 1)).toEqual({ animation: 'check', enterStyle: { scale: 0.9 } });
-        expect(checkMarkMotion(false, 2)).toEqual({ animation: 'check', enterStyle: { scale: 1.8 } });
-    });
-
-    it('sets no animation under reduced motion or while the preference is unknown', () => {
-        expect(checkMarkMotion(true, 2)).toEqual({});
-        expect(checkMarkMotion(undefined, 2)).toEqual({});
     });
 });

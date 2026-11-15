@@ -1224,7 +1224,7 @@
             "patterns": [
                 "Adapter over a CSS transition — the signature check motion, declared once for every whole-row checkbox",
                 "Glyph — a mark sized by its row's text role that owns its corner (`GLYPH_CORNER`), which no radius step fits",
-                "Strategy — `checkMarkMotion` picks the check's entrance (the named spring, or none) from the OS preference"
+                "Strategy — `motionPropsOf` picks the check's entrance (the named spring, or none) from the OS preference"
             ],
             "platforms": [
                 "web",
@@ -1303,7 +1303,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/ui/src/checkBoxGlyph/CheckBoxGlyph.native.tsx",
                     "dir": "packages/apps/commise/ui/src/checkBoxGlyph",
-                    "moduleDoc": "@commise/ui/check-box-glyph — the native design-system {@link CheckBoxGlyph}.\n\nA box with a rounded corner: a 1 pt `lineControl` outline when unchecked, the `action` fill with an `onAction` check\nwhen checked. Checking springs the check in from scale 0.9 with the signature overshoot, through the named `check`\nspring in the Tamagui config (§1.9: stiffness 600, damping 28); under reduced motion, or while the preference is still\nbeing read, it appears at once (`checkMarkMotion`). Hidden from assistive\ntechnology — the row it sits in is the checkbox. Colours are theme tokens, so it repaints in the dark scheme.\n\nThe box grows with its row's text: its 1x side (`checkBoxSideOf`: 18 beside body sizes, 22 beside a 28 pt role) times\nthe role's own growth under the system text scale (`grownScale`), so it never outgrows that text's cap. It sits\ncentred in a slot one scaled line of its role tall, so in a row that aligns its items to the top the box stays beside\nthe FIRST line when the text wraps.",
+                    "moduleDoc": "@commise/ui/check-box-glyph — the native design-system {@link CheckBoxGlyph}.\n\nA box with a rounded corner: a 1 pt `lineControl` outline when unchecked, the `action` fill with an `onAction` check\nwhen checked. Checking springs the check in from scale 0.9 with the signature overshoot, through the named `check`\nspring in the Tamagui config (§1.9: stiffness 600, damping 28); under reduced motion, or while the preference is still\nbeing read, it appears at once (`motionPropsOf(...).check`). Hidden from assistive\ntechnology — the row it sits in is the checkbox. Colours are theme tokens, so it repaints in the dark scheme.\n\nThe box grows with its row's text: its 1x side (`checkBoxSideOf`: 18 beside body sizes, 22 beside a 28 pt role) times\nthe role's own growth under the system text scale (`grownScale`), so it never outgrows that text's cap. It sits\ncentred in a slot one scaled line of its role tall, so in a row that aligns its items to the top the box stays beside\nthe FIRST line when the text wraps.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -1311,7 +1311,7 @@
                         },
                         {
                             "name": "pattern",
-                            "text": "Strategy — `checkMarkMotion` picks the check's entrance (the named spring, or none) from the OS preference"
+                            "text": "Strategy — `motionPropsOf` picks the check's entrance (the named spring, or none) from the OS preference"
                         },
                         {
                             "name": "pattern",

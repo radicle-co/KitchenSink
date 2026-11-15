@@ -15,8 +15,8 @@
  * cannot live in the pure token map. A control outline stays a plain 1 pt.
  *
  * No `media`: native layout reads its container class (`layout/containerClass.ts`), not the window. Tamagui 3 adds
- * its own shorthands whatever the config says; the style guards read the long names. One animation, `sheet`; the only motion
- * the design system has, built through `motionPropsOf`.
+ * its own shorthands whatever the config says; the style guards read the long names. Two springs, `check` and `sheet`; every motion
+ * the design system has is built through `motionPropsOf`.
  *
  * @pattern Registry — the single registration of tokens, themes and fonts with Tamagui
  */

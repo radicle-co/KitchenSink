@@ -4,14 +4,16 @@ import { AccessibilityInfo } from 'react-native';
 
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native` leaf.
 import { CheckBoxGlyph } from '../CheckBoxGlyph.native.js';
-import { GLYPH_CORNER, checkMarkMotion } from '../props.js';
+import { GLYPH_CORNER } from '../props.js';
+import { motionPropsOf } from '../../motion/motionPropsOf.js';
 
 // The real policy, watched: the leaf must hand it the OS preference it read, not a constant.
-vi.mock('../props.js', async (importOriginal) => {
-    const actual = await importOriginal<typeof import('../props.js')>();
+vi.mock('../../motion/motionPropsOf.js', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('../../motion/motionPropsOf.js')>();
 
-    return { ...actual, checkMarkMotion: vi.fn(actual.checkMarkMotion) };
+    return { ...actual, motionPropsOf: vi.fn(actual.motionPropsOf) };
 });
+import { installReduceMotion } from '../../testing/reduceMotion.native.js';
 import { scaledTypeSize } from '../../text/scaledType.js';
 import { ARIA_HIDDEN_CONTENT, render, renderWithTamagui, resolvedStyle } from '../../testing/tamaguiTesting.native.js';
 
@@ -155,7 +157,7 @@ describe('CheckBoxGlyph (native)', () => {
 
     // REWRITTEN: the spring moved from an RN `Animated.spring` in this leaf to the named `check` spring in the Tamagui
     // config, which the test lanes alias to a CSS shim that shows no motion. The leaf's choice is pinned here through
-    // the props it passes (`checkMarkMotion`, tested in `checkBoxSide.test.ts`); the motion itself is proven on a device,
+    // the props it passes (`motionPropsOf(...).check`, tested in `motionPropsOf.test.ts`); the motion itself is proven on a device,
     // with reduced motion on and off (ADR-0080 §6).
     it('draws the check when motion is allowed', async () => {
         vi.spyOn(AccessibilityInfo, 'isReduceMotionEnabled').mockResolvedValue(false);
@@ -163,7 +165,7 @@ describe('CheckBoxGlyph (native)', () => {
         await settle();
 
         expect(container.querySelector('[data-icon-name]')).not.toBeNull();
-        expect(vi.mocked(checkMarkMotion)).toHaveBeenLastCalledWith(false, 1);
+        expect(vi.mocked(motionPropsOf)).toHaveBeenLastCalledWith(false);
     });
 
     it('draws the check at once under reduced motion', async () => {
@@ -172,49 +174,63 @@ describe('CheckBoxGlyph (native)', () => {
         await settle();
 
         expect(container.querySelector('[data-icon-name]')).not.toBeNull();
-        expect(vi.mocked(checkMarkMotion)).toHaveBeenLastCalledWith(true, 1);
+        expect(vi.mocked(motionPropsOf)).toHaveBeenLastCalledWith(true);
     });
 
-    // The leaf hands the mark whatever `checkMarkMotion` answers, and re-asks as the OS preference resolves and then
-    // changes. The policy is mocked to a marker prop so the wiring itself is observable (the lanes alias the spring away).
-    describe('the motion props the mark gets', () => {
-        const MARKER = 'checkMotion';
-        const markOf = (container: Element): Element | null =>
-            container.querySelector('[data-icon-name]')?.closest(`[data-testid="${MARKER}"]`) ?? null;
+    // The mark is the nearest ancestor of the drawn icon that carries a `transition`: the spring the leaf spreads from
+    // `motionPropsOf(...).check`. The lanes alias the spring to one constant CSS transition, so its PRESENCE proves the
+    // spread, and Tamagui's `_s-compose` class is its `enter:` clause (the 0.9 entrance), which only a known `false` has.
+    describe('the motion the mark gets', () => {
+        const markOf = (container: Element): HTMLElement => {
+            for (let at = container.querySelector('[data-icon-name]'); at !== null; at = at.parentElement) {
+                if (at instanceof HTMLElement && at.style.transition !== '') {
+                    return at;
+                }
+            }
+            throw new Error('The check mark carries no transition.');
+        };
+        const handle: { current?: ReturnType<typeof installReduceMotion> } = {};
 
-        it('asks the policy as the preference goes unknown, then off, then on, and warns of nothing', async () => {
-            const complaints = [vi.spyOn(console, 'error'), vi.spyOn(console, 'warn')];
-            let changed: (reduce: boolean) => void = () => undefined;
-            vi.spyOn(AccessibilityInfo, 'isReduceMotionEnabled').mockResolvedValue(false);
-            // `as never`: the double returns only `remove`; React Native's EmitterSubscription has members the leaf never reads.
-            vi.spyOn(AccessibilityInfo, 'addEventListener').mockImplementation(((
-                _name: string,
-                handler: typeof changed,
-            ) => {
-                changed = handler;
+        afterEach(() => {
+            handle.current?.restore();
+        });
 
-                return { remove: () => undefined };
-            }) as never);
-            // `as never`: `testID` is the observable marker, and is not part of the policy's motion props type.
-            vi.mocked(checkMarkMotion).mockImplementation(
-                (reduce) => (reduce === false ? { testID: MARKER } : {}) as never,
-            );
+        it('springs the check in, with its entrance, when motion is allowed', async () => {
+            handle.current = installReduceMotion(false);
+            const { container } = render(<CheckBoxGlyph checked />);
+            await act(settle);
 
+            expect(markOf(container).className).toContain('_s-compose');
+        });
+
+        it('keeps the check\u2019s transition but gives it no entrance under reduced motion', async () => {
+            handle.current = installReduceMotion(true);
+            const { container } = render(<CheckBoxGlyph checked />);
+            await act(settle);
+
+            expect(markOf(container).className).not.toContain('_s-compose');
+        });
+
+        it('has no entrance while the preference is still being read', () => {
+            handle.current = installReduceMotion(false);
             const { container } = render(<CheckBoxGlyph checked />);
 
-            // Unknown: the policy was asked with `undefined`, and the mark carries no motion props.
-            expect(vi.mocked(checkMarkMotion)).toHaveBeenCalledWith(undefined, 1);
-            expect(markOf(container)).toBeNull();
+            expect(markOf(container).className).not.toContain('_s-compose');
+        });
 
+        it('asks the policy again, and changes the mark, when the preference changes after mount', async () => {
+            const complaints = [vi.spyOn(console, 'error'), vi.spyOn(console, 'warn')];
+            handle.current = installReduceMotion(false);
+            const { container } = render(<CheckBoxGlyph checked />);
             await act(settle);
-            expect(vi.mocked(checkMarkMotion)).toHaveBeenLastCalledWith(false, 1);
-            expect(markOf(container)).not.toBeNull();
 
-            act(() => {
-                changed(true);
-            });
-            expect(vi.mocked(checkMarkMotion)).toHaveBeenLastCalledWith(true, 1);
-            expect(markOf(container)).toBeNull();
+            expect(vi.mocked(motionPropsOf)).toHaveBeenLastCalledWith(false);
+            expect(markOf(container).className).toContain('_s-compose');
+
+            handle.current.change(true);
+
+            expect(vi.mocked(motionPropsOf)).toHaveBeenLastCalledWith(true);
+            expect(markOf(container).className).not.toContain('_s-compose');
             expect(container.querySelector('[data-icon-name]')).not.toBeNull();
 
             for (const complaint of complaints) {

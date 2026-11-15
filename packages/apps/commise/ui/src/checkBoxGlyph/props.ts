@@ -28,33 +28,14 @@ export const GLYPH_CORNER_PER_SIDE = GLYPH_CORNER / CHECK_BOX_MIN_SIDE;
 /** The same share as a CSS percentage, for the web box, whose side is in `rem`. */
 export const GLYPH_CORNER_PERCENT = `${String(GLYPH_CORNER_PER_SIDE * 100)}%`;
 
-/** The scale the check springs in from (§1.9: 0.9 to 1 with a small overshoot). */
-const CHECK_MARK_FROM_SCALE = 0.9;
-
-/** The named spring of the one signature motion, registered in the native Tamagui config. */
-export const CHECK_MARK_ANIMATION = 'check';
-
-/** How the native check mark enters: the named spring from 0.9 of its size, or nothing at all. */
-type CheckMarkMotion =
-    | { readonly animation: typeof CHECK_MARK_ANIMATION; readonly enterStyle: { readonly scale: number } }
-    | Record<string, never>;
-
 /**
- * How the native check mark enters. Only when the OS has said motion is allowed does it spring in from 0.9; under
- * reduced motion, and while the preference is still being read, it appears at once. Pure.
- *
- * @param reduceMotion - The OS preference (`useReduceMotion`): `true`, `false`, or `undefined` while it is being read.
- * @param scale - The mark's resting scale, so the spring starts from 0.9 of the size it lands on.
- * @returns The Tamagui props to spread on the mark.
+ * The check's side as a share of the box: the 16 pt icon size over the 18 pt box, today's drawing. The check mark draws
+ * at {@link CHECK_MARK_ICON_SIZE} and is scaled with the box.
  */
-export function checkMarkMotion(reduceMotion: boolean | undefined, scale: number): CheckMarkMotion {
-    return reduceMotion === false
-        ? { animation: CHECK_MARK_ANIMATION, enterStyle: { scale: CHECK_MARK_FROM_SCALE * scale } }
-        : {};
-}
+export const CHECK_MARK_ICON_SIZE = 16;
 
-/** The check's side as a share of the box: 16 of 18, today's drawing. */
-export const CHECK_MARK_SHARE = 16 / 18;
+/** The check's side as a share of the box. */
+export const CHECK_MARK_SHARE = CHECK_MARK_ICON_SIZE / CHECK_BOX_MIN_SIDE;
 
 /** A role the row text can take: every sized role (`figureInline` takes its line's size and has none of its own). */
 export type CheckBoxTextRole = Exclude<TypeRole, 'figureInline'>;

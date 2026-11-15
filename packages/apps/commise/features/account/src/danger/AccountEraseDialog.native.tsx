@@ -159,7 +159,7 @@ const styles = StyleSheet.create({
     warningRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
     warning: { ...nativeTokens.type.body, flex: 1 },
     body: { ...nativeTokens.type.meta },
-    recipeRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 4 },
+    recipeRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingVertical: 4 },
     recipeTitle: { ...nativeTokens.type.meta },
     input: {
         borderWidth: 1,

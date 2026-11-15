@@ -119,6 +119,14 @@ describe('AccountEraseDialog (native) — donate election', () => {
         expect(screen.getByRole('checkbox', { name: 'Miso Soup' }).getAttribute('aria-checked')).toBe('true');
     });
 
+    it('⛔ aligns a recipe row to its top, so the box sits on the first line of a title that wraps', () => {
+        renderDialog({ donatableRecipes: [makeDonatableRecipe({ id: 'a', title: 'Ramen' })] });
+
+        // The glyph centres its box on the first line of the text beside it only when the row aligns to the top. A
+        // `center` row puts the box level with the middle of a wrapped title (seen on Android at 2x text).
+        expect(getComputedStyle(screen.getByRole('checkbox', { name: 'Ramen' })).alignItems).toBe('flex-start');
+    });
+
     it('reports a recipe toggle upward with the recipe id', () => {
         const onToggleRecipe = vi.fn();
         renderDialog({ donatableRecipes: [makeDonatableRecipe({ id: 'a', title: 'Ramen' })], onToggleRecipe });

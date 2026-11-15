@@ -1287,7 +1287,7 @@
                             ],
                             "required": false,
                             "defaultValue": "body",
-                            "description": "The type role of the row text the box sits beside. It sets the box's size and the line the box is centred on.\nDefaults to `body`.",
+                            "description": "The type role of the row text the box sits beside. It sets the box's size and the line the box is centred on.\nThe caller's row must align to `flex-start`, or the box centres on the whole text block and not its first line.\nDefaults to `body`.",
                             "declaredIn": "packages/apps/commise/ui/src/checkBoxGlyph/props.ts"
                         }
                     ],
@@ -1351,7 +1351,7 @@
                             ],
                             "required": false,
                             "defaultValue": "body",
-                            "description": "The type role of the row text the box sits beside. It sets the box's size and the line the box is centred on.\nDefaults to `body`.",
+                            "description": "The type role of the row text the box sits beside. It sets the box's size and the line the box is centred on.\nThe caller's row must align to `flex-start`, or the box centres on the whole text block and not its first line.\nDefaults to `body`.",
                             "declaredIn": "packages/apps/commise/ui/src/checkBoxGlyph/props.ts"
                         }
                     ],

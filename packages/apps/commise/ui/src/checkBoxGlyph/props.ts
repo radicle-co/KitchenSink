@@ -95,6 +95,7 @@ export interface CheckBoxGlyphProps {
     readonly checked: boolean;
     /**
      * The type role of the row text the box sits beside. It sets the box's size and the line the box is centred on.
+     * The caller's row must align to `flex-start`, or the box centres on the whole text block and not its first line.
      * Defaults to `body`.
      */
     readonly textRole?: CheckBoxTextRole;

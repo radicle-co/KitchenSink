@@ -760,7 +760,7 @@ describe('the tall library recipe (the pinned ingredients bar needs a card that 
 });
 
 /**
- * `cooking/cookingModeFlow` cooks a recipe whose first two steps each split into two or more
+ * The cooking-mode Maestro flow cooks a recipe whose first two steps each split into two or more
  * lines, so it can tick line 1 and see the focus move, and so the device run on Hermes asserts a real
  * split. It is the signer's, outside SEED_WORLD, and made only by `reset --mode cooking`, so every other flow still
  * counts the signer's library as before.

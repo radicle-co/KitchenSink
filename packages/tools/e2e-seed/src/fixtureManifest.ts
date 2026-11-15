@@ -562,7 +562,7 @@ function deriveLibraryFillers(runKey: string): readonly FixtureRecipe[] {
 }
 
 /**
- * The signer's cooking recipe, for `reset --mode cooking` and `cooking/cookingModeFlow` alone.
+ * The signer's cooking recipe, for `reset --mode cooking` and the cooking-mode Maestro flow alone.
  *
  * Steps 1 and 2 each split into two lines, so the flow ticks line 1 and sees the focus move, and step 1 holds "1 tbsp. olive
  * oil", a trap-table abbreviation the line splitter must NOT cut at, so the device run proves the
@@ -662,7 +662,7 @@ export const FIXTURE_ENV_KEYS = {
     risotto: 'E2E_RECIPE_RISOTTO',
     privateFoodRecipe: 'E2E_RECIPE_PRIVATE_FOOD',
     privateFoodName: 'E2E_PRIVATE_FOOD_NAME',
-    // The signer's multi-sentence cooking recipe, made by `reset --mode cooking` for `cooking/cookingModeFlow` alone.
+    // The signer's multi-sentence cooking recipe, made by `reset --mode cooking` for the cooking-mode Maestro flow alone.
     cookingRecipe: 'E2E_RECIPE_COOKING',
     // The signer's gate-AMBIGUOUS recipe, made by `reset --mode ambiguity` for `recipes/ambiguityReview` alone.
     ambiguityProbeRecipe: 'E2E_RECIPE_AMBIGUITY_PROBE',

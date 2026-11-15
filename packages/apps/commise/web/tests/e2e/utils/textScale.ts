@@ -1,6 +1,6 @@
 /**
  * The root text scale a spec applies: from a reflow project's `metadata` (`variantSurfaceReflow.spec.ts`), or a fixed
- * scale at a width no project has (`cookingMode.spec.ts`, 390 px at 200%). The theme sizes text and spacing in rem, so a
+ * scale at a width no project has (a cooking-mode spec at 390 px and 200%). The theme sizes text and spacing in rem, so a
  * root font of N% grows both, as browser text zoom does.
  *
  * The parameters are the narrow shapes the functions read, so a test double needs no cast; Playwright's `TestInfo` and

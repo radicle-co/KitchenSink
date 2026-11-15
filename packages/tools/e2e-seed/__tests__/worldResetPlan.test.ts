@@ -438,7 +438,7 @@ describe('planWorldReset — library mode', () => {
 });
 
 /**
- * `cooking/cookingModeFlow` alone holds the signer's multi-sentence cooking recipe. Like the
+ * The cooking-mode Maestro flow alone holds the signer's multi-sentence cooking recipe. Like the
  * fillers and the ambiguity probe, it is residue in every other mode, by its title, so no other flow's count moves.
  */
 describe('planWorldReset — cooking mode', () => {

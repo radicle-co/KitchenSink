@@ -52,7 +52,7 @@ export interface WorldResetPlan {
  * for anything but the local stack. The PLAN is `seeded`'s, for the reason `ambiguity`'s is.
  *
  * `cooking` is `seeded` plus the signer's multi-sentence cooking recipe (`manifest.cookingRecipe`), for
- * `cooking/cookingModeFlow` alone. Every other mode treats it as residue, by its title.
+ * the cooking-mode Maestro flow alone. Every other mode treats it as residue, by its title.
  */
 export const RESET_MODES = ['seeded', 'empty', 'ambiguity', 'library', 'needsReview', 'cooking'] as const;
 

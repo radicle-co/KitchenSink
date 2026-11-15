@@ -3,6 +3,9 @@
     "version": "0.0.0",
     "private": true,
     "type": "module",
+    "exports": {
+        "./web": "./src/webEntry.ts"
+    },
     "scripts": {
         "build": "tsc -p tsconfig.build.json",
         "test": "vitest run && vitest run --config vitest.native.config.ts",

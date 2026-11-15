@@ -468,31 +468,34 @@ no paste row until the spec 004 AI fallback (§14, owner exception).
 The words are the `ImportStatements` and `ImportWizardStep` boards'. They sit under `statement.*`, not `paste.*`,
 because the bulk import's statement screens will read the same strings. One source for one piece of knowledge.
 
-| Key                     | Copy                                                                                |
-| ----------------------- | ----------------------------------------------------------------------------------- |
-| `statement.whereFrom`   | "Where is it from?"                                                                 |
-| `statement.wroteIt`     | "I wrote this"                                                                      |
-| `statement.fromSource`  | "From a source"                                                                     |
-| `statement.sourceLabel` | "Source"                                                                            |
-| `statement.kindLabel`   | "What kind of source?"                                                              |
-| `statement.publicWeb`   | "A public web page"                                                                 |
-| `statement.bookOrPaid`  | "A book or a paid site"                                                             |
-| `statement.whoCanSee`   | "Who can see it"                                                                    |
-| `statement.public`      | "Public"                                                                            |
-| `statement.publicHint`  | "Anyone can find it in Discover"                                                    |
-| `statement.private`     | "Private"                                                                           |
-| `statement.privateHint` | "Only you can see it"                                                               |
-| `statement.savedFrom`   | "Saved from {domain}. The words and photos belong to their author. Private to you." |
+| Key                     | Copy                             |
+| ----------------------- | -------------------------------- |
+| `statement.whereFrom`   | "Where is it from?"              |
+| `statement.wroteIt`     | "I wrote this"                   |
+| `statement.fromSource`  | "From a source"                  |
+| `statement.sourceLabel` | "Source"                         |
+| `statement.kindLabel`   | "What kind of source?"           |
+| `statement.publicWeb`   | "A public web page"              |
+| `statement.bookOrPaid`  | "A book or a paid site"          |
+| `statement.whoCanSee`   | "Who can see it"                 |
+| `statement.public`      | "Public"                         |
+| `statement.publicHint`  | "Anyone can find it in Discover" |
+| `statement.private`     | "Private"                        |
+| `statement.privateHint` | "Only you can see it"            |
 
-**The attribution line for a pasted page** is `statement.savedFrom`, word for word, from an expert legal review on
-2026-11-15 (AI analysis, attorney sign-off still owed). It shows in review under the confirmed source (S8, S10), and on
-recipe detail wherever the recipe's source is shown. `{domain}` is the registrable domain (ADR-0089 §3). Two rules bind
-every string in this feature:
+**The attribution line for a web copy has one key: the existing `editor.source.rightsLabel`**
+(`packages/apps/commise/features/recipes/src/editor/messages.ts`), which the editor's Source field already renders. This
+feature changes its copy, and does not add a second string. The new copy comes word for word from an expert legal review on
+2026-11-15 (AI analysis, attorney sign-off still owed):
 
-- Never "By {site}", "From the kitchen of {site}" or any wording that names the site as the author or suggests it endorses
-  the copy. That risks a false endorsement claim.
-- Never a sentence that says or implies we checked the copyright, the terms or the right to share. The board drift
-  "We checked its terms: you can share it" (§12.3) is removed for this reason too.
+- `editor.source.rightsLabel`: from "Copied from a public web page · {site}" to "Saved from {site}. The words and photos
+  belong to their author. Private to you."
+
+`{site}` is the registrable domain, as it is today (ADR-0089 §3). The review (S8, S10) and recipe detail, wherever the
+source is shown, read the same key. The legal review adds two items to that key's existing "Words to avoid" list in the
+same file, which stays the one list: wording that names the site as the author or suggests it endorses the copy ("By
+{site}", "From the kitchen of {site}"), and any claim that we checked the copyright, the terms or the right to share. The
+board drift "We checked its terms: you can share it" (§12.3) is removed for the same reason.
 
 "Who can see it" shows only when "I wrote this" is chosen. For a web page or a book, the visibility line (S10) replaces it
 (D8). Nothing is disabled, so no `aria-disabled` radio is ever drawn.

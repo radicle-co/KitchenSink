@@ -399,7 +399,7 @@ const PACKAGE_INTERNALS_PATTERN = {
         '!@kitchensink/repo-guards/*',
     ],
     message:
-        "Import a package's barrel '@kitchensink/<package>' or one of its declared subpath exports (database/*, database-name, scaling, external-url, food-name, infra, types/*, hooks, testing, users/handle-sync-publisher, denylist, core, logAttributes, or any subpath of the shared tooling packages) — don't reach into other internals.",
+        "Import a package's barrel '@kitchensink/<package>' or one of its declared subpath exports (database/*, database-name, scaling, external-url, food-name, page-reader, infra, types/*, hooks, testing, users/handle-sync-publisher, denylist, core, logAttributes, or any subpath of the shared tooling packages) — don't reach into other internals.",
 };
 
 /**

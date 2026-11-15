@@ -12,10 +12,13 @@ export const MAX_JSON_LD_BLOCKS = 16;
 /** The most UTF-8 bytes of one JSON-LD block that are handed to `JSON.parse`; a larger block is skipped. */
 export const MAX_JSON_LD_BLOCK_BYTES = 262_144;
 
+/** The most Recipe items read from a page's microdata, in page order. A page with more is not one recipe's page. */
+export const MAX_MICRODATA_RECIPES = 64;
+
 /** The deepest nesting a walk over parsed JSON-LD or microdata descends to. */
 export const MAX_WALK_DEPTH = 32;
 
-/** The most nodes one walk visits. */
+/** The most nodes one walk visits, and the most one element's text is read from. */
 export const MAX_WALK_NODES = 10_000;
 
 const UTF8_MAX_BYTES_PER_UTF16_UNIT = 3;

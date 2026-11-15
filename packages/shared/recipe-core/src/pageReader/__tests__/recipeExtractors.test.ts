@@ -36,7 +36,7 @@ describe('recipe extractors', () => {
     it('report several recipes from the first extractor that finds any', () => {
         const page = parsePage(makePage({ jsonLd: [makeRecipeNode({ name: 'A' }), makeRecipeNode({ name: 'B' })] }));
 
-        expect(extractRecipe(page)).toEqual({ kind: 'several', titles: ['A', 'B'] });
+        expect(extractRecipe(page)).toMatchObject({ kind: 'several', titles: ['A', 'B'] });
     });
 
     it('find nothing on a page with no structured recipe', () => {

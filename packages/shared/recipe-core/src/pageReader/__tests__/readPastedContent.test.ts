@@ -38,10 +38,22 @@ describe('readPastedContent', () => {
         });
     });
 
-    it('lists the titles when the page has several recipes', () => {
-        const page = makePage({ jsonLd: [makeRecipeNode({ name: 'A' }), makeRecipeNode({ name: 'B' })] });
+    it('lists the titles when the page has several recipes, each choice with its own recipe and source', () => {
+        const page = makePage({
+            jsonLd: [
+                makeRecipeNode({ name: 'A', url: SOURCE.citation.url }),
+                makeRecipeNode({ name: 'B', recipeIngredient: ['1 pear'] }),
+                makeRecipeNode({ name: 'C', recipeIngredient: ['x'.repeat(1_001)] }),
+            ],
+        });
+        const result = readPastedContent(page);
 
-        expect(readPastedContent(page)).toEqual({ kind: 'several', titles: ['A', 'B'] });
+        expect(result).toMatchObject({ kind: 'several', titles: ['A', 'B', 'C'] });
+        expect(result.kind === 'several' ? result.choices : []).toMatchObject([
+            { kind: 'found', recipe: { title: 'A' }, source: SOURCE },
+            { kind: 'found', recipe: { title: 'B', ingredientLines: ['1 pear'] }, source: { kind: 'none' } },
+            { kind: 'unusable', reason: 'ingredientLineTooLong' },
+        ]);
     });
 
     it('keeps the detected source on a page with no recipe, so the cook can be asked about it', () => {
@@ -109,6 +121,10 @@ describe('readPastedContent', () => {
             });
         });
 
+        it('pins the cap at 2,000,000 bytes', () => {
+            expect(MAX_PASTE_BYTES).toBe(2_000_000);
+        });
+
         it('counts bytes, not characters: 666,667 three-byte characters are too large', () => {
             const text = '€'.repeat(666_667);
 
@@ -124,8 +140,9 @@ describe('readPastedContent', () => {
         it('checks the size before parsing anything', () => {
             const started = performance.now();
 
-            readPastedContent(`<div>${'<p>'.repeat(MAX_PASTE_BYTES)}`);
+            const result = readPastedContent(`<div>${'<p>'.repeat(MAX_PASTE_BYTES)}`);
 
+            expect(result.kind).toBe('tooLarge');
             expect(performance.now() - started).toBeLessThan(250);
         });
     });

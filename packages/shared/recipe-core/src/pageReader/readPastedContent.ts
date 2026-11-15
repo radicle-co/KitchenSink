@@ -26,10 +26,20 @@ export type PasteUnusableReason = UnusableReason | 'pageTooDeep';
 /** What reading a paste came to. */
 export type PasteReadResult =
     | { readonly kind: 'found'; readonly recipe: PageRecipe; readonly source: DetectedSource }
-    | { readonly kind: 'several'; readonly titles: readonly string[] }
+    | {
+          readonly kind: 'several';
+          readonly titles: readonly string[];
+          /** Each recipe in `titles` order, read and with its own suggested source, for the cook's pick. */
+          readonly choices: readonly PasteChoice[];
+      }
     | { readonly kind: 'none'; readonly source: DetectedSource }
     | { readonly kind: 'tooLarge'; readonly maxBytes: number }
     | { readonly kind: 'unusable'; readonly reason: PasteUnusableReason };
+
+/** One of several recipes on a page: ready to send with its source, or over a limit. */
+export type PasteChoice =
+    | { readonly kind: 'found'; readonly recipe: PageRecipe; readonly source: DetectedSource }
+    | { readonly kind: 'unusable'; readonly reason: UnusableReason };
 
 const NO_SOURCE: DetectedSource = { kind: 'none' };
 
@@ -62,7 +72,15 @@ export function readPastedContent(text: string): PasteReadResult {
         case 'found':
             return { kind: 'found', recipe: extraction.recipe, source: detectPageSource(page, extraction.links) };
         case 'several':
-            return { kind: 'several', titles: extraction.titles };
+            return {
+                kind: 'several',
+                titles: extraction.titles,
+                choices: extraction.choices.map((choice): PasteChoice =>
+                    choice.kind === 'found'
+                        ? { kind: 'found', recipe: choice.recipe, source: detectPageSource(page, choice.links) }
+                        : choice,
+                ),
+            };
         case 'unusable':
             return { kind: 'unusable', reason: extraction.reason };
         case 'none':

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { MAX_WALK_NODES } from '../pageCaps.js';
+import { MAX_MICRODATA_RECIPES, MAX_WALK_NODES } from '../pageCaps.js';
 import { parsePage } from '../pageDocument.js';
 import { microdataRecipe } from '../microdataRecipe.js';
 import { makeMicrodataBody, makePage } from '../__fixtures__/pageFixtures.js';
@@ -96,8 +96,18 @@ describe('microdataRecipe', () => {
         const one = (name: string) =>
             recipeScope(`<h1 itemprop="name">${name}</h1><i itemprop="recipeIngredient">1 egg</i>`);
 
-        expect(read(one('A') + one('B'))).toEqual({ kind: 'several', titles: ['A', 'B'] });
+        expect(read(one('A') + one('B'))).toMatchObject({ kind: 'several', titles: ['A', 'B'] });
         expect(read(one('A') + one('A')).kind).toBe('found');
+    });
+
+    it('reads at most the first 64 recipe items of a page', () => {
+        const one = (index: number) =>
+            recipeScope(`<h1 itemprop="name">R${String(index)}</h1><i itemprop="recipeIngredient">1 egg</i>`);
+        const extraction = read(Array.from({ length: MAX_MICRODATA_RECIPES + 36 }, (_, index) => one(index)).join(''));
+
+        expect(MAX_MICRODATA_RECIPES).toBe(64);
+        expect(extraction.kind === 'several' ? extraction.titles : []).toHaveLength(MAX_MICRODATA_RECIPES);
+        expect(extraction.kind === 'several' ? extraction.titles[0] : undefined).toBe('R0');
     });
 
     it('applies one itemprop with several names to each', () => {

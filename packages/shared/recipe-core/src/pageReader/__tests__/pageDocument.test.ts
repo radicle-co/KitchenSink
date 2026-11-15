@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { MAX_WALK_NODES } from '../pageCaps.js';
 import { MAX_ELEMENT_DEPTH, parsePage, plainText, textBlocks } from '../pageDocument.js';
 
 describe('textBlocks', () => {
@@ -114,6 +115,14 @@ describe('parsePage', () => {
 
         expect(page.truncated).toBe(false);
         expect(page.byTag('div')).toHaveLength(MAX_ELEMENT_DEPTH);
+    });
+
+    it('reads at most the node budget of one element, so a huge value costs a bounded walk', () => {
+        const [huge] = parsePage(`<div>${'<b>x</b>'.repeat(MAX_WALK_NODES * 3)}</div>`).byTag('div');
+        const text = huge?.blocks().join(' ') ?? '';
+
+        expect(text.length).toBeGreaterThan(MAX_WALK_NODES / 4);
+        expect(text.length).toBeLessThanOrEqual(MAX_WALK_NODES / 2);
     });
 
     it('reads 200,000 sibling elements without slowing down', () => {

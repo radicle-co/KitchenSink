@@ -9,4 +9,4 @@ export { MAX_PASTE_BYTES } from './pageReader/pageCaps.js';
 export type { DetectedSource } from './pageReader/detectPageSource.js';
 export type { PageRecipe, PageRecipeStep } from './pageReader/pageRecipeCandidate.js';
 export { readPastedContent } from './pageReader/readPastedContent.js';
-export type { PasteReadResult, PasteUnusableReason } from './pageReader/readPastedContent.js';
+export type { PasteChoice, PasteReadResult, PasteUnusableReason } from './pageReader/readPastedContent.js';

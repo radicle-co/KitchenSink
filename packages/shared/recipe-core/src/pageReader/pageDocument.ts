@@ -11,6 +11,8 @@
  */
 import { DomHandler, ElementType, Parser } from 'htmlparser2';
 
+import { MAX_WALK_NODES } from './pageCaps.js';
+
 type DomDocument = DomHandler['root'];
 type DomNode = DomDocument['children'][number];
 type DomElement = Extract<DomNode, { attribs: unknown }>;
@@ -137,6 +139,8 @@ const collapseSpace = (text: string): string =>
 /**
  * The text blocks of a list of nodes, in order. One explicit stack, so depth costs memory and never the call stack.
  *
+ * ⛔ At most {@link MAX_WALK_NODES} nodes are read, so one value that wraps a huge subtree costs a bounded walk.
+ *
  * @param roots - The nodes to read.
  * @param newlineBreaks - Whether a newline inside text starts a new block (true for a plain string, false for markup,
  *   where a newline is only whitespace).
@@ -158,7 +162,11 @@ function blocksOf(roots: readonly DomNode[], newlineBreaks: boolean): readonly s
     // A node to read, or `null` marking the end of a block element.
     const stack: (DomNode | null)[] = [...roots].reverse();
 
-    for (let next = stack.pop(); next !== undefined; next = stack.pop()) {
+    let visited = 0;
+
+    for (let next = stack.pop(); next !== undefined && visited <= MAX_WALK_NODES; next = stack.pop()) {
+        visited += 1;
+
         if (next === null) {
             flush();
         } else if (isText(next)) {

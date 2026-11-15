@@ -190,10 +190,35 @@ describe('jsonLdRecipe: finding the node', () => {
 });
 
 describe('jsonLdRecipe: several recipes', () => {
-    it('lists the titles when a page holds more than one', () => {
-        expect(read(makeRecipeNode({ name: 'A' }), makeRecipeNode({ name: 'B' }))).toEqual({
-            kind: 'several',
-            titles: ['A', 'B'],
+    it('lists the titles when a page holds more than one, with each recipe to pick', () => {
+        const a = makeRecipeNode({ name: 'A', url: 'https://e.com/a' });
+        const b = makeRecipeNode({ name: 'B', recipeIngredient: ['1 pear'] });
+        const extraction = read(a, b);
+
+        expect(extraction).toMatchObject({ kind: 'several', titles: ['A', 'B'] });
+        expect(extraction.kind === 'several' ? extraction.choices : []).toMatchObject([
+            {
+                kind: 'found',
+                links: ['https://e.com/a'],
+                recipe: { title: 'A', ingredientLines: ['1 cup flour', '2 eggs'] },
+            },
+            { kind: 'found', links: [], recipe: { title: 'B', ingredientLines: ['1 pear'] } },
+        ]);
+    });
+
+    it('offers a recipe that breaks a limit as a choice that is unusable, and says why', () => {
+        const extraction = read(
+            makeRecipeNode({ name: 'A' }),
+            makeRecipeNode({ name: 'B', recipeIngredient: ['x'.repeat(1_001)] }),
+        );
+
+        expect(extraction.kind === 'several' ? extraction.choices.map((choice) => choice.kind) : []).toEqual([
+            'found',
+            'unusable',
+        ]);
+        expect(extraction.kind === 'several' ? extraction.choices[1] : undefined).toEqual({
+            kind: 'unusable',
+            reason: 'ingredientLineTooLong',
         });
     });
 
@@ -220,7 +245,13 @@ describe('jsonLdRecipe: several recipes', () => {
             ),
         );
 
-        expect(extraction).toEqual({ kind: 'several', titles: ['A', 'B'] });
+        expect(extraction).toMatchObject({ kind: 'several', titles: ['A', 'B'] });
+    });
+
+    it('keeps two recipes that share a name but not an @id, as two choices', () => {
+        expect(
+            read(makeRecipeNode({ '@id': '#1', name: 'A' }), makeRecipeNode({ '@id': '#2', name: 'A' })),
+        ).toMatchObject({ kind: 'several', titles: ['A', 'A'] });
     });
 });
 

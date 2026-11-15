@@ -83,4 +83,43 @@ describe('readPastedContent over a whole synthetic page', () => {
         });
         expect(({} as Record<string, unknown>)['polluted']).toBeUndefined();
     });
+
+    it('reads a 2 MB page with no recipe in its JSON-LD inside the time budget, so every strategy runs', () => {
+        const page = makeHugePage(1_900_000).replace(/"@type":"Recipe"/u, '"@type":"Article"');
+
+        expect(page).not.toContain('"@type":"Recipe"');
+
+        const started = performance.now();
+        const result = readPastedContent(page);
+
+        expect(result).toMatchObject({ kind: 'none', source: { kind: 'found', citation: { site: 'example.com' } } });
+        expect(performance.now() - started).toBeLessThan(TIME_BUDGET_MS);
+    });
+
+    it('reads hostile microdata inside the time budget: Recipe items nested to the cap, each wrapping the rest in a property', () => {
+        const levels = 120;
+        const open = '<div itemscope itemtype="https://schema.org/Recipe"><span itemprop="note">';
+        const close = '</span></div>';
+        const tail = '<i itemprop="x">t</i>'.repeat(60_000);
+        const page = makePage({ body: `${open.repeat(levels)}${tail}${close.repeat(levels)}` });
+
+        expect(page.length).toBeGreaterThan(1_000_000);
+
+        const started = performance.now();
+        const result = readPastedContent(page);
+
+        expect(result.kind).toBe('none');
+        expect(performance.now() - started).toBeLessThan(TIME_BUDGET_MS);
+    });
+
+    it('reads a flat 2 MB microdata page of many Recipe items inside the time budget', () => {
+        const items = '<div itemscope itemtype="https://schema.org/Recipe"><i itemprop="name">r</i></div>'.repeat(
+            20_000,
+        );
+        const started = performance.now();
+        const result = readPastedContent(makePage({ body: items }));
+
+        expect(result.kind).toBe('none');
+        expect(performance.now() - started).toBeLessThan(TIME_BUDGET_MS);
+    });
 });

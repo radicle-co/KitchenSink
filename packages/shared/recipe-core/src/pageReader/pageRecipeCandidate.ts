@@ -42,17 +42,27 @@ export interface PageRecipe {
 /** Why a recipe was found but cannot be sent. */
 export type UnusableReason = 'titleTooLong' | 'tooManyIngredientLines' | 'ingredientLineTooLong';
 
-/** What one strategy found on a page. */
-export type RecipeExtraction =
-    | { readonly kind: 'none' }
+/** One recipe a page holds, read: usable (with the addresses its node names, for source detection) or over a limit. */
+export type RecipeChoice =
     | {
           readonly kind: 'found';
           readonly recipe: PageRecipe;
           /** The addresses the recipe node itself names (`url`, `mainEntityOfPage`), for source detection. */
           readonly links: readonly string[];
       }
-    | { readonly kind: 'several'; readonly titles: readonly string[] }
     | { readonly kind: 'unusable'; readonly reason: UnusableReason };
+
+/** What one strategy found on a page. */
+export type RecipeExtraction =
+    | { readonly kind: 'none' }
+    | RecipeChoice
+    | {
+          readonly kind: 'several';
+          /** The titles, in page order. `choices` is parallel to it. */
+          readonly titles: readonly string[];
+          /** Each recipe, read, so the cook's pick needs no second pass over the page. */
+          readonly choices: readonly RecipeChoice[];
+      };
 
 /** One recipe node, read: its identity for de-duplication, and either the recipe or why it cannot be one. */
 type Candidate =
@@ -168,8 +178,8 @@ function candidateOf(node: SchemaNode): Candidate | undefined {
  *
  * A node with no title, or with neither ingredients nor steps, is not a recipe and is passed over. The same recipe written
  * twice (a block repeated, or a node in `@graph` and again on its own) counts once, by its `@id`, else its `url`, else its
- * name. One recipe is `found` (or `unusable` when it breaks a limit); more than one is `several`, and the cook is asked
- * which, with no round trip.
+ * name (two with different `@id`s and one name stay two). One recipe is `found` (or `unusable` when it breaks a limit);
+ * more than one is `several`: the titles to ask the cook with, and every recipe already read, so the pick needs no round trip.
  *
  * @param nodes - Recipe nodes: JSON-LD objects, or microdata items shaped like them.
  * @returns The outcome. Pure.
@@ -187,20 +197,22 @@ export function extractionOf(nodes: readonly SchemaNode[]): RecipeExtraction {
         }
     }
 
-    const [only, ...others] = candidates;
+    const choices = candidates.map((candidate): RecipeChoice =>
+        candidate.ok
+            ? Object.freeze({ kind: 'found', recipe: candidate.recipe, links: Object.freeze(candidate.links) })
+            : Object.freeze({ kind: 'unusable', reason: candidate.reason }),
+    );
+    const [only, ...others] = choices;
 
     if (only === undefined) {
         return NONE;
     }
 
-    if (others.length > 0) {
-        return Object.freeze({
-            kind: 'several',
-            titles: Object.freeze(candidates.map((candidate) => candidate.title)),
-        });
-    }
-
-    return only.ok
-        ? Object.freeze({ kind: 'found', recipe: only.recipe, links: Object.freeze(only.links) })
-        : Object.freeze({ kind: 'unusable', reason: only.reason });
+    return others.length === 0
+        ? only
+        : Object.freeze({
+              kind: 'several',
+              titles: Object.freeze(candidates.map((candidate) => candidate.title)),
+              choices: Object.freeze(choices),
+          });
 }

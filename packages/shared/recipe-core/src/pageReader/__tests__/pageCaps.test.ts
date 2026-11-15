@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
     MAX_JSON_LD_BLOCK_BYTES,
     MAX_JSON_LD_BLOCKS,
+    MAX_MICRODATA_RECIPES,
     MAX_PASTE_BYTES,
     MAX_WALK_DEPTH,
     MAX_WALK_NODES,
@@ -16,12 +17,14 @@ describe('the page reader caps', () => {
             MAX_PASTE_BYTES,
             MAX_JSON_LD_BLOCKS,
             MAX_JSON_LD_BLOCK_BYTES,
+            MAX_MICRODATA_RECIPES,
             MAX_WALK_DEPTH,
             MAX_WALK_NODES,
         }).toEqual({
             MAX_PASTE_BYTES: 2_000_000,
             MAX_JSON_LD_BLOCKS: 16,
             MAX_JSON_LD_BLOCK_BYTES: 262_144,
+            MAX_MICRODATA_RECIPES: 64,
             MAX_WALK_DEPTH: 32,
             MAX_WALK_NODES: 10_000,
         });

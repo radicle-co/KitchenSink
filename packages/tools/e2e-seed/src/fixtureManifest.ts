@@ -125,7 +125,11 @@ export type FixtureRecipeKey =
     | 'ambiguityProbe'
     | 'needsReviewProbe'
     | 'downgradedStew'
-    | 'libraryFiller';
+    | 'libraryFiller'
+    | 'cooking';
+
+/** The cooking recipe's title before it is scoped to a run: `<base> <runKey>`. */
+export const COOKING_RECIPE_BASE_TITLE = 'Cooking Mode Tray Bake';
 
 /**
  * The world, before run-scoping.
@@ -558,6 +562,53 @@ function deriveLibraryFillers(runKey: string): readonly FixtureRecipe[] {
 }
 
 /**
+ * The signer's cooking recipe, for `reset --mode cooking` and the cooking-mode Maestro flow alone.
+ *
+ * Steps 1 and 2 each split into two lines, so the flow ticks line 1 and sees the focus move, and step 1 holds "1 tbsp. olive
+ * oil", a trap-table abbreviation the line splitter must NOT cut at, so the device run proves the
+ * splitter on Hermes rather than a bare full stop. Step 3 is one line. The text is written for this fixture.
+ *
+ * ⛔ NOT IN {@link SEED_WORLD}, and not in `manifest.recipes`: every other flow counts the signer's library, so
+ * `planWorldReset` treats it as residue in every mode but `cooking`, BY ITS TITLE. Private, so it is in no Discover rail;
+ * published, so it can be cooked; its lines are foods the lamb already authors.
+ *
+ * @param runKey - This run's fixture scope.
+ * @returns The run-scoped cooking recipe. Pure, and frozen.
+ */
+function deriveCookingRecipe(runKey: string): FixtureRecipe {
+    return Object.freeze({
+        key: 'cooking',
+        owner: 'signer',
+        baseTitle: COOKING_RECIPE_BASE_TITLE,
+        title: runScopedTitle(COOKING_RECIPE_BASE_TITLE, runKey),
+        cuisine: 'Mediterranean',
+        description: 'A lemon and garlic tray bake, cooked step by step.',
+        visibility: 'private',
+        servings: 2,
+        prepTimeMinutes: 10,
+        cookTimeMinutes: 25,
+        totalTimeMinutes: 35,
+        ingredients: Object.freeze([
+            Object.freeze({ name: 'Olive oil', quantity: 1, unit: 'tbsp' }),
+            Object.freeze({ name: 'Lemon', quantity: 1, unit: undefined }),
+            Object.freeze({ name: 'Garlic', quantity: 2, unit: 'clove' }),
+        ]),
+        steps: Object.freeze([
+            Object.freeze({
+                instruction: 'Heat the oven to 200 degrees. Rub 1 tbsp. olive oil over a roasting tray.',
+                timerSeconds: undefined,
+            }),
+            Object.freeze({
+                instruction:
+                    'Slice the lemon and crush the garlic. Spread both over the tray and roast for 20 minutes.',
+                timerSeconds: undefined,
+            }),
+            Object.freeze({ instruction: 'Rest the tray for 5 minutes before serving.', timerSeconds: undefined }),
+        ]),
+    } as const);
+}
+
+/**
  * The fixed world. The names are plain letters and spaces, because the Maestro flow puts them inside a pattern, and they
  * share no word with any text another flow types.
  */
@@ -676,6 +727,8 @@ export interface FixtureManifest {
     readonly needsReviewProbeTitle: string;
     /** The signer's long-library fillers (`reset --mode library`). Kept apart from `recipes`, which every flow counts. */
     readonly libraryFillers: readonly FixtureRecipe[];
+    /** The signer's multi-sentence cooking recipe (`reset --mode cooking`). Kept apart from `recipes`, which every flow counts. */
+    readonly cookingRecipe: FixtureRecipe;
     /** `<CAP_FOOD_BASE_NAME> <runKey>` — what the cap flow types, and the start of every name in `capFoodNames`. */
     readonly capFoodPrefix: string;
     /** The signer's cap foods, `<capFoodPrefix> N` — see {@link CAP_FOOD_BASE_NAME}. */
@@ -731,6 +784,7 @@ export function deriveFixtureManifest(runKey: string, platform: MaestroPlatform,
         ambiguityProbeTitle: runScopedTitle(AMBIGUITY_PROBE_BASE_TITLE, runKey),
         needsReviewProbeTitle: runScopedTitle(NEEDS_REVIEW_PROBE_BASE_TITLE, runKey),
         libraryFillers: deriveLibraryFillers(runKey),
+        cookingRecipe: deriveCookingRecipe(runKey),
         capFoodPrefix,
         capFoodNames: Object.freeze(
             Array.from({ length: MAX_SEARCH_FOOD_FILTERS }, (_, index) => `${capFoodPrefix} ${index + 1}`),

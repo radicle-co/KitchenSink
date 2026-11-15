@@ -105,4 +105,64 @@ describe('instructionSteps', () => {
         expect(instructionSteps(nested)).toEqual([]);
         expect(instructionSteps([step('Kept.'), nested])).toEqual(['Kept.']);
     });
+
+    describe('section names that already end in a colon', () => {
+        it.each(['Make the cookies:', 'Make the cookies\uFF1A'])('adds no second colon after %j', (name) => {
+            expect(
+                instructionSteps({ '@type': 'HowToSection', name, itemListElement: [step('Mix.'), step('Bake.')] }),
+            ).toEqual([`${name} Mix.`, 'Bake.']);
+        });
+
+        it('still adds ": " after a name that does not end in one', () => {
+            expect(
+                instructionSteps({
+                    '@type': 'HowToSection',
+                    name: 'Make: the cookies',
+                    itemListElement: [step('Mix.')],
+                }),
+            ).toEqual(['Make: the cookies: Mix.']);
+        });
+    });
+
+    describe('HowToTip is skipped with its whole subtree', () => {
+        const tip = (extra: Record<string, unknown> = {}) => ({
+            '@type': 'HowToTip',
+            text: 'Use cold butter.',
+            ...extra,
+        });
+
+        it('skips a tip typed as a string or as an array, among steps', () => {
+            expect(
+                instructionSteps([
+                    step('Mix.'),
+                    tip(),
+                    { ...tip(), '@type': ['HowToTip', 'CreativeWork'] },
+                    step('Bake.'),
+                ]),
+            ).toEqual(['Mix.', 'Bake.']);
+        });
+
+        it('skips a tip nested in a section, and the steps inside the tip', () => {
+            expect(
+                instructionSteps({
+                    '@type': 'HowToSection',
+                    name: 'Dough',
+                    itemListElement: [tip({ itemListElement: [step('Hidden.')] }), step('Mix.')],
+                }),
+            ).toEqual(['Dough: Mix.']);
+        });
+
+        it('gives no step for a section that holds only tips, and spends no label on it', () => {
+            expect(
+                instructionSteps([
+                    { '@type': 'HowToSection', name: 'Notes', itemListElement: [tip(), tip()] },
+                    step('Mix.'),
+                ]),
+            ).toEqual(['Mix.']);
+        });
+
+        it('leaves HowToStep, HowToSection and plain strings unchanged', () => {
+            expect(instructionSteps(['Plain.', step('Step.')])).toEqual(['Plain.', 'Step.']);
+        });
+    });
 });

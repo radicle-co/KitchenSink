@@ -1,7 +1,7 @@
 /**
  * The gate: whether a recipe read from a page is good enough to send, as a plain yes or no.
  *
- * DESIGN PATTERN: **Specification**, a composite of named predicates (G1 to G7 in the table below), with the numbers a
+ * DESIGN PATTERN: **Specification**, a composite of named predicates (G1 to G8 in the table below), with the numbers a
  * predicate compares against held as data per tier in {@link ACCEPTANCE_BY_TIER} (a **Registry**). It is the ONE owner of
  * "is this good enough": a strategy finds candidates and knows nothing of it, and it knows a recipe and the tier that read
  * it, never the page. The verdict is black and white (owner ruling 2026-11-15): there is no review in the middle.
@@ -15,6 +15,7 @@
  * | G5 | at least one step, each at least 3 characters trimmed                                             | `noSteps`             |
  * | G6 | no step is an amount and a canonical unit in at most 8 words (an ingredient in the method)        | `ingredientsInSteps`  |
  * | G7 | no line is in both the ingredients and the steps (a range read twice)                             | `ingredientsInSteps`  |
+ * | G8 | no title, ingredient line or step holds U+FFFD or a C1 control character (U+0080 to U+009F)       | `garbledText`         |
  *
  * The first predicate that fails, in table order, is the reason. Every predicate here is language-neutral except G6's unit
  * test, which reads English units: a page it cannot read gives no, never a wrong yes (precision first). The step LIMITS
@@ -36,7 +37,8 @@ export type AcceptanceReason =
     | 'ingredientLineTooLong'
     | 'ingredientsNotSeparated'
     | 'noSteps'
-    | 'ingredientsInSteps';
+    | 'ingredientsInSteps'
+    | 'garbledText';
 
 /** The gate's answer. */
 export type Acceptance = { readonly ok: true } | { readonly ok: false; readonly reason: AcceptanceReason };
@@ -87,6 +89,19 @@ function sentenceEnds(line: string): number {
     }
 
     return ends;
+}
+
+/** G8: whether `text` holds U+FFFD (a decoder's replacement) or a C1 control character (U+0080 to U+009F). One pass. */
+function isGarbled(text: string): boolean {
+    for (let index = 0; index < text.length; index += 1) {
+        const code = text.charCodeAt(index);
+
+        if (code === 0xfffd || (code >= 0x80 && code <= 0x9f)) {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 /** Case and whitespace folded, so two writings of one line compare equal (G7). */
@@ -151,7 +166,9 @@ export function acceptRecipe(recipe: PageRecipe, tier: ExtractionTier): Acceptan
                 ? 'noSteps'
                 : steps.some(isIngredientStep) || recipe.ingredientLines.some((line) => stepSet.has(foldedLine(line)))
                   ? 'ingredientsInSteps'
-                  : undefined));
+                  : [recipe.title, ...recipe.ingredientLines, ...steps].some(isGarbled)
+                    ? 'garbledText'
+                    : undefined));
 
     return reason === undefined ? { ok: true } : { ok: false, reason };
 }

@@ -15,6 +15,7 @@
  */
 import { recipeCuisineSchema, recipeDescriptionSchema } from '../recipeRequestBounds.js';
 import { MAX_RECIPES_PER_PAGE } from './pageCaps.js';
+import { collapseBracketGroups } from './collapseBracketGroups.js';
 import { instructionSteps } from './instructionSteps.js';
 import { creditOf, imageRefsOf } from './pageEvidence.js';
 import type { PageCredit } from './pageEvidence.js';
@@ -84,7 +85,11 @@ function linksOf(node: SchemaNode): readonly string[] {
 function linesOf(value: unknown): readonly string[] {
     return asList(value)
         .flatMap((item) => (Array.isArray(item) ? (item as readonly unknown[]) : [item]))
-        .flatMap((item) => textOf(item) ?? []);
+        .flatMap((item) => {
+            const text = textOf(item);
+
+            return text === undefined ? [] : [collapseBracketGroups(text)];
+        });
 }
 
 /** The first non-blank cuisine, in its one canonical spelling. */

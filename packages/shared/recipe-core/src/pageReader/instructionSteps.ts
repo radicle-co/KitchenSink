@@ -27,6 +27,16 @@ interface Frame {
 
 const LIST_TYPES: ReadonlySet<string> = new Set(['HowToSection', 'ItemList']);
 
+/** A tip is advice, not a step: it is skipped with everything under it. */
+const TIP_TYPE = 'HowToTip';
+
+/** A label that already ends in a colon, ASCII or full-width, takes a space only. */
+function labelled(label: string, text: string): string {
+    const last = label.charAt(label.length - 1);
+
+    return last === ':' || last === '\uFF1A' ? `${label} ${text}` : `${label}: ${text}`;
+}
+
 /** The label for a step read inside `section`: its own, or the nearest unlabelled one's. Every enclosing section is then spent. */
 function takeLabel(section: Section | undefined): string | undefined {
     let label: string | undefined;
@@ -57,7 +67,7 @@ export function instructionSteps(value: unknown): readonly string[] {
         if (text !== undefined) {
             const label = takeLabel(section);
 
-            steps.push(label === undefined ? text : `${label}: ${text}`);
+            steps.push(label === undefined ? text : labelled(label, text));
         }
     };
 
@@ -85,6 +95,8 @@ export function instructionSteps(value: unknown): readonly string[] {
             for (let index = items.length - 1; index >= 0; index -= 1) {
                 stack.push({ value: items[index], depth: depth + 1, section });
             }
+        } else if (isSchemaNode(current) && typeNames(current).includes(TIP_TYPE)) {
+            continue;
         } else if (isSchemaNode(current)) {
             const items = asList(field(current, 'itemListElement'));
             const text = textOf(field(current, 'text'));

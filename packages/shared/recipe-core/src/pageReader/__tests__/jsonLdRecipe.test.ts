@@ -141,6 +141,18 @@ describe('jsonLdRecipe: reading a Recipe node', () => {
     );
 });
 
+describe('jsonLdRecipe: doubled brackets in ingredient lines', () => {
+    it('collapses a doubled group, leaves a plain one, and does so on every occurrence', () => {
+        expect(
+            foundRecipe(
+                makeRecipeNode({
+                    recipeIngredient: ['1 cup butter ((softened))', '2 eggs (large) (cold)', 'a ((b)) c ((d))'],
+                }),
+            ).ingredientLines,
+        ).toEqual(['1 cup butter (softened)', '2 eggs (large) (cold)', 'a (b) c (d)']);
+    });
+});
+
 describe('jsonLdRecipe: finding the node', () => {
     it('finds a Recipe inside @graph', () => {
         const graph = {

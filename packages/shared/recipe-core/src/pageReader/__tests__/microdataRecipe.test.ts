@@ -163,4 +163,14 @@ describe('microdataRecipe', () => {
             read(recipeScope(`<h1 itemprop="name">Deep</h1><i itemprop="recipeIngredient">1 egg</i>${nested}`)).kind,
         ).toBe('candidates');
     });
+
+    it('collapses a doubled bracket group in an ingredient line', () => {
+        expect(
+            read(
+                recipeScope(
+                    '<h1 itemprop="name">Soup</h1><span itemprop="recipeIngredient">1 onion ((diced))</span><span itemprop="recipeInstructions">Simmer.</span>',
+                ),
+            ),
+        ).toMatchObject({ candidates: [{ recipe: { ingredientLines: ['1 onion (diced)'] } }] });
+    });
 });

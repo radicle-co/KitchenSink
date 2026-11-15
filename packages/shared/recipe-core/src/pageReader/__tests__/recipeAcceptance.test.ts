@@ -198,6 +198,40 @@ describe('acceptRecipe: the black-and-white gate, one case per predicate and bot
         });
     });
 
+    describe('G8: no title, ingredient line or step holds U+FFFD or a C1 control character', () => {
+        it.each([
+            ['the title', { title: 'Pancakes \uFFFD' }],
+            ['an ingredient line', { ingredientLines: ['1 cup flour', '2 eg\uFFFDgs'] }],
+            ['a step', { steps: stepsOf('Mix the batter.', 'Cook\u0085in a pan.') }],
+            ['the first C1 character', { title: '\u0080Pancakes' }],
+            ['the last C1 character', { title: 'Pancakes\u009F' }],
+        ])('refuses %s', (_label, overrides) => {
+            expect(acceptRecipe(recipeOf(overrides), 'jsonLd')).toEqual({ ok: false, reason: 'garbledText' });
+        });
+
+        it.each(['\u007F', '\u00A0', '\u00E9', '\u2019', '\u{1F600}'])('accepts %j, just outside the set', (char) => {
+            expect(
+                acceptRecipe(
+                    recipeOf({
+                        title: `Pancakes ${char}`,
+                        ingredientLines: [`1 cup flour ${char}`],
+                        steps: stepsOf(`Mix ${char} well.`),
+                    }),
+                    'jsonLd',
+                ),
+            ).toEqual({ ok: true });
+        });
+
+        it('comes after G7 in table order', () => {
+            expect(
+                acceptRecipe(
+                    recipeOf({ ingredientLines: ['1 cup flour'], steps: stepsOf('1 cup flour', 'Mix\uFFFD') }),
+                    'jsonLd',
+                ),
+            ).toEqual({ ok: false, reason: 'ingredientsInSteps' });
+        });
+    });
+
     it('reports the first failing predicate in table order: G1 before G2 before G5', () => {
         expect(acceptRecipe(recipeOf({ title: '', ingredientLines: [], steps: [] }), 'jsonLd')).toEqual({
             ok: false,

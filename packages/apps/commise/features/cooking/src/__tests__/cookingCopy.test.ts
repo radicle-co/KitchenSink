@@ -2,7 +2,7 @@ import { fillTemplate, pluralOf, resolveMessages } from '@commise/i18n';
 import { stepPlace } from '@kitchensink/cooking-core';
 import { describe, expect, it, vi } from 'vitest';
 
-import { exitOf, navOf } from '../cookingCopy.js';
+import { exitOf, nameOf, navOf } from '../cookingCopy.js';
 import { cookingMessages } from '../messages.js';
 
 const en = resolveMessages(cookingMessages, 'en');
@@ -85,5 +85,14 @@ describe('exitOf — the Exit control every screen with a top bar shows', () => 
         exit.onPress();
 
         expect(onLeave).toHaveBeenCalledTimes(1);
+    });
+});
+
+describe('nameOf — the accessible name a Button takes, only when an action has one', () => {
+    it('hands the fuller name through, and nothing when the label is the name', () => {
+        expect(nameOf({ label: 'Back', accessibilityLabel: 'Back to step 1', onPress: vi.fn() })).toEqual({
+            accessibilityLabel: 'Back to step 1',
+        });
+        expect(nameOf({ label: 'Finish', onPress: vi.fn() })).toEqual({});
     });
 });

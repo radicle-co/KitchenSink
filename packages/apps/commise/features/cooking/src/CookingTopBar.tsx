@@ -13,17 +13,13 @@ import { Button } from '@commise/ui/button';
 import type { FC } from 'react';
 
 import type { CookingTopBarProps } from './cookingViewProps.js';
+import { nameOf } from './cookingCopy.js';
 import { NARROW_ROW } from './cookingLayout.js';
 
 /** The web cooking top bar. */
 export const CookingTopBar: FC<CookingTopBarProps> = ({ exit, place }) => (
     <header className="flex flex-wrap items-center gap-1 px-3 py-2">
-        <Button
-            variant="quiet"
-            icon="x"
-            onPress={exit.onPress}
-            {...(exit.accessibilityLabel === undefined ? {} : { accessibilityLabel: exit.accessibilityLabel })}
-        >
+        <Button variant="quiet" icon="x" onPress={exit.onPress} {...nameOf(exit)}>
             {exit.label}
         </Button>
         {place === undefined ? null : (

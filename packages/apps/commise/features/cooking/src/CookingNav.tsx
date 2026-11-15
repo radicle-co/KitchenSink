@@ -13,12 +13,9 @@
 import { Button } from '@commise/ui/button';
 import type { FC } from 'react';
 
-import type { CookingAction, CookingNavProps } from './cookingViewProps.js';
+import { nameOf } from './cookingCopy.js';
 import { NARROW_ROW } from './cookingLayout.js';
-
-/** The accessible-name prop of a Button, only when the action has a fuller name than its label. */
-const nameOf = (action: CookingAction): { accessibilityLabel?: string } =>
-    action.accessibilityLabel === undefined ? {} : { accessibilityLabel: action.accessibilityLabel };
+import type { CookingNavProps } from './cookingViewProps.js';
 
 /** The web Back / forward pair. */
 export const CookingNav: FC<CookingNavProps> = ({ back, forward, disabled }) => (

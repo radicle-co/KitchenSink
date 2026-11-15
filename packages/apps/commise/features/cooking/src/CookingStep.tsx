@@ -13,7 +13,7 @@ import { FOCUS_RING_CLASS } from '@commise/ui/focus-ring';
 import type { FC } from 'react';
 
 import { CookingLineRow } from './CookingLineRow.js';
-import type { CookingStepProps, CookingStepTrackProps } from './cookingViewProps.js';
+import type { CookingLineView, CookingStepProps, CookingStepTrackProps } from './cookingViewProps.js';
 import { FOCUS_LINE_TYPE } from './focusLineType.js';
 
 /** The segment colour for a step: done, now, or later. */
@@ -34,6 +34,17 @@ const CookingStepTrack: FC<CookingStepTrackProps> = ({ total, position }) => (
     </div>
 );
 
+/** Lines that are not the focus line, as a list of checkboxes. */
+const OtherLines: FC<{ readonly lines: readonly CookingLineView[] }> = ({ lines }) => (
+    <ul className="flex flex-col">
+        {lines.map((line) => (
+            <li key={line.key}>
+                <CookingLineRow line={line} emphasis="other" />
+            </li>
+        ))}
+    </ul>
+);
+
 /** The web cooking step body. */
 export const CookingStep: FC<CookingStepProps> = ({ label, track, lineOf, ticked, focus, then, upNext }) => (
     <section aria-label={label} className="flex flex-col gap-4 px-2 py-4">
@@ -51,28 +62,12 @@ export const CookingStep: FC<CookingStepProps> = ({ label, track, lineOf, ticked
                         {ticked.show.label}
                     </button>
                 </div>
-                {ticked.expanded && ticked.lines.length > 0 ? (
-                    <ul className="flex flex-col">
-                        {ticked.lines.map((line) => (
-                            <li key={line.key}>
-                                <CookingLineRow line={line} emphasis="other" />
-                            </li>
-                        ))}
-                    </ul>
-                ) : null}
+                {ticked.expanded && ticked.lines.length > 0 ? <OtherLines lines={ticked.lines} /> : null}
             </div>
         )}
         {lineOf === undefined ? null : <p className="px-2 text-meta text-ink-muted">{lineOf}</p>}
         {focus === undefined ? null : <CookingLineRow line={focus} emphasis="focus" />}
-        {then.length === 0 ? null : (
-            <ul className="flex flex-col">
-                {then.map((line) => (
-                    <li key={line.key}>
-                        <CookingLineRow line={line} emphasis="other" />
-                    </li>
-                ))}
-            </ul>
-        )}
+        {then.length === 0 ? null : <OtherLines lines={then} />}
         {upNext === undefined ? null : (
             <div className="flex flex-col gap-2 px-2 pt-2">
                 <p className="text-label text-action-text">{upNext.overline}</p>

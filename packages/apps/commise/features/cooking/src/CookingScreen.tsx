@@ -11,6 +11,7 @@
  * @pattern Visitor — an exhaustive switch over the read-level screen state, each case picking one render component
  */
 import { useMessages } from '@commise/i18n/react';
+import type { StateNoticeProps } from '@commise/ui/state-notice';
 import type { FC } from 'react';
 
 import { exitOf } from './cookingCopy.js';
@@ -27,6 +28,11 @@ import { useCookingEntry } from './cookingEntry.js';
 /** The disabled pair's handler while loading: a disabled control is never pressed. */
 const noop = (): void => undefined;
 
+/** A full-screen notice: no top bar, no foot. */
+const noticeFrame = (notice: StateNoticeProps) => (
+    <CookingFrame topBar={null} busy={false} body={<CookingStateNotice {...notice} />} />
+);
+
 /** The web cooking screen. */
 export const CookingScreen: FC<CookingScreenProps> = ({ read, onLeave, onEdit, onHome }) => {
     const copy = useMessages(cookingMessages);
@@ -35,20 +41,12 @@ export const CookingScreen: FC<CookingScreenProps> = ({ read, onLeave, onEdit, o
     switch (state.kind) {
         case 'loading':
             if (phase === 'slow' && read.kind === 'pending') {
-                return (
-                    <CookingFrame
-                        topBar={null}
-                        busy={false}
-                        body={
-                            <CookingStateNotice
-                                title={copy.error.title}
-                                body={copy.error.body}
-                                primary={{ label: copy.error.retry, icon: 'refreshCw', onPress: read.retry }}
-                                secondary={{ label: copy.error.back, icon: 'chevronLeft', onPress: onLeave }}
-                            />
-                        }
-                    />
-                );
+                return noticeFrame({
+                    title: copy.error.title,
+                    body: copy.error.body,
+                    primary: { label: copy.error.retry, icon: 'refreshCw', onPress: read.retry },
+                    secondary: { label: copy.error.back, icon: 'chevronLeft', onPress: onLeave },
+                });
             }
 
             return (
@@ -73,55 +71,29 @@ export const CookingScreen: FC<CookingScreenProps> = ({ read, onLeave, onEdit, o
                 />
             );
         case 'error':
-            return (
-                <CookingFrame
-                    topBar={null}
-                    busy={false}
-                    body={
-                        <CookingStateNotice
-                            title={copy.error.title}
-                            body={state.offline ? copy.error.offlineBody : copy.error.body}
-                            {...(read.kind === 'failed'
-                                ? { primary: { label: copy.error.retry, icon: 'refreshCw', onPress: read.retry } }
-                                : {})}
-                            secondary={{ label: copy.error.back, icon: 'chevronLeft', onPress: onLeave }}
-                        />
-                    }
-                />
-            );
+            return noticeFrame({
+                title: copy.error.title,
+                body: state.offline ? copy.error.offlineBody : copy.error.body,
+                ...(read.kind === 'failed'
+                    ? { primary: { label: copy.error.retry, icon: 'refreshCw', onPress: read.retry } }
+                    : {}),
+                secondary: { label: copy.error.back, icon: 'chevronLeft', onPress: onLeave },
+            });
         case 'gone':
-            return (
-                <CookingFrame
-                    topBar={null}
-                    busy={false}
-                    body={
-                        <CookingStateNotice
-                            title={copy.gone.title}
-                            secondary={{ label: copy.gone.home, icon: 'house', onPress: onHome }}
-                        />
-                    }
-                />
-            );
+            return noticeFrame({
+                title: copy.gone.title,
+                secondary: { label: copy.gone.home, icon: 'house', onPress: onHome },
+            });
 
         case 'noSteps': {
             const owner = read.kind === 'ready' && read.viewerIsOwner;
 
-            return (
-                <CookingFrame
-                    topBar={null}
-                    busy={false}
-                    body={
-                        <CookingStateNotice
-                            title={copy.empty.title}
-                            body={owner ? copy.empty.body : copy.empty.bodyOther}
-                            {...(owner
-                                ? { primary: { label: copy.empty.edit, icon: 'pencilLine', onPress: onEdit } }
-                                : {})}
-                            secondary={{ label: copy.empty.back, icon: 'chevronLeft', onPress: onLeave }}
-                        />
-                    }
-                />
-            );
+            return noticeFrame({
+                title: copy.empty.title,
+                body: owner ? copy.empty.body : copy.empty.bodyOther,
+                ...(owner ? { primary: { label: copy.empty.edit, icon: 'pencilLine', onPress: onEdit } } : {}),
+                secondary: { label: copy.empty.back, icon: 'chevronLeft', onPress: onLeave },
+            });
         }
 
         case 'ready':

@@ -82,3 +82,14 @@ export function navOf({ place, everyLineTicked, copy }: NavInput): CookingNav {
 export function exitOf(top: CookingMessages['top'], onLeave: () => void): CookingAction {
     return { label: top.exit, accessibilityLabel: top.exitA11y, onPress: onLeave };
 }
+
+/**
+ * The accessible-name prop of a Button, only when the action has a fuller name than its label: an optional prop is
+ * never passed as `undefined`.
+ *
+ * @param action - The action a Button draws.
+ * @returns `{ accessibilityLabel }` or an empty object. Pure.
+ */
+export function nameOf(action: CookingAction): { accessibilityLabel?: string } {
+    return action.accessibilityLabel === undefined ? {} : { accessibilityLabel: action.accessibilityLabel };
+}

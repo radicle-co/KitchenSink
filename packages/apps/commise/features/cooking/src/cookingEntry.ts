@@ -60,6 +60,7 @@ export function cookingEntryOf(read: CookingScreenRead): CookingEntryRule {
         case 'cook':
         case 'noSteps':
             return { redirecting: false, state: cookingReadStateOf({ read: 'ready', offline: false, stepCount }) };
+
         // A cook link outcome this switch does not map is a compile error here, not a silent fall-through.
         default: {
             const unmapped: never = outcome;

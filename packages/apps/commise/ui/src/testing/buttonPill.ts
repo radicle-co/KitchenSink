@@ -1,7 +1,7 @@
 /**
  * @module @commise/ui/testing — the native test lane's reader of the house Button. Its `role="button"` element is the
  * hit area, and the painted surface (fill, edge, height) is the descendant that carries the corner radius. `ui`'s own
- * Button tests and every feature that asserts on a Button's pill read it through here, so the rule has one home.
+ * Button tests read it through here, so the rule has one home.
  */
 
 /**

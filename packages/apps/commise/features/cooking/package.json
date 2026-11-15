@@ -17,9 +17,11 @@
         "format:check": "prettier --check ."
     },
     "dependencies": {
+        "@commise/features-recipes": "*",
         "@commise/i18n": "*",
         "@commise/ui": "*",
-        "@kitchensink/cooking-core": "*"
+        "@kitchensink/cooking-core": "*",
+        "@kitchensink/recipe-core": "*"
     },
     "peerDependencies": {
         "react": "^19.2.0",
@@ -34,7 +36,6 @@
     "devDependencies": {
         "@commise/test-utils": "^0.0.0",
         "@kitchensink/eslint": "*",
-        "@kitchensink/recipe-core": "*",
         "@kitchensink/prettier": "*",
         "@kitchensink/typescript": "*",
         "@kitchensink/vitest": "*",

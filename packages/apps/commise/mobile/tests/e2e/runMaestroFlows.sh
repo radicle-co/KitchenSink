@@ -120,6 +120,9 @@ APK="${MAESTRO_ANDROID_APK:-packages/apps/commise/mobile/android/app/build/outpu
 #     cannot perturb any later flow's fixture.
 #   - `recipes/detailCooking` follows `servingScale`: the same populated seed, and it writes nothing the service keeps —
 #     its checks, current step and Screen on are in-memory session state that the next flow's relaunch drops.
+#   - `cooking/cookingModeFlow` and `cooking/cookingSystemBack` (plan 0002 S1) follow `detailCooking`: they cook the signer's
+#     cooking recipe, which only their reset mode makes (`--mode cooking`, decisions/0019), and they write nothing the
+#     service keeps (the S1 session lives in memory), so the next flow's reset removes the recipe and nothing else moves.
 #   - `recipes/deferredCalories` sits next to `listDetail`: same populated seed, read-only, and it crosses
 #     into Discover at the end, so it wants the same settled library. It is in the `recipes` area rather than
 #     `discovery` because its subject is the CARD's deferred figure, which every card surface shares. Note what it can prove here: this job runs NO food service (see `deploy`/`_ci-heavy.yml`'s
@@ -237,6 +240,8 @@ recipes:shell/tabBar
 recipes:recipes/landscape
 recipes:recipes/servingScale
 recipes:recipes/detailCooking
+cooking:cooking/cookingModeFlow
+cooking:cooking/cookingSystemBack
 recipes:recipes/detailBack
 recipes:recipes/deferredCalories
 recipes:recipes/emptyLibrary
@@ -329,7 +334,8 @@ MAESTRO_PLATFORMS='android ios'
 # Android-only command behind it.
 MAESTRO_PLATFORM_EXCLUSIONS="ios|recipes/discoverBrowse|coverage-gap|closes the filter sheet with Maestro's 'back', which is Android only; Discover browse is untested on iOS until the flow closes the sheet through a control both platforms render
 ios|shell/tabBar|coverage-gap|its Android Back leg presses Maestro's 'back' (Android only) to prove Back from the Recipes root goes Home; the iOS path is the edge swipe, in shell/iosSwipeBack
-ios|recipes/systemBackGuard|android-behaviour|its subject is Android's SYSTEM back key (KEYCODE_BACK) reaching an open Modal before any BackHandler; iOS has no system back key, so there is nothing to test"
+ios|recipes/systemBackGuard|android-behaviour|its subject is Android's SYSTEM back key (KEYCODE_BACK) reaching an open Modal before any BackHandler; iOS has no system back key, so there is nothing to test
+ios|cooking/cookingSystemBack|android-behaviour|its subject is Android's SYSTEM back key leaving cooking mode as Exit; iOS has no system back key, and its edge swipe is checked in cooking/cookingModeFlow"
 
 # ── THE FLOWS A LOCAL RUN CANNOT SERVE ─────────────────────────────────────────────────────────────────────
 #
@@ -603,6 +609,9 @@ NEEDS_REVIEW_FLOWS=" recipes/needsReviewJump "
 # The flows whose reset adds the signer's filler recipes AND the tall recipe (`reset.ts --mode library`): the flow that needs a
 # Recipes list longer than a screen, and the flow that needs a recipe page longer than a screen. Only these hold them, so every other flow's `^4 recipes$` count stays true.
 LONG_LIBRARY_FLOWS=" recipes/headerScrollsAway recipes/pinnedIngredients "
+# The flows whose reset adds the signer's multi-sentence cooking recipe (`reset.ts --mode cooking`, plan 0002 S1,
+# decisions/0019). Only these hold it, so every other flow's `^4 recipes$` count stays true.
+COOKING_FLOWS=" cooking/cookingModeFlow cooking/cookingSystemBack "
 
 # Where `e2e-seed provision` writes this run's fixture MANIFEST, and how it reaches the flows.
 #
@@ -1952,7 +1961,7 @@ maestro_announce_sandbox_stopped() {
 
 # maestro_seed_reset <mode>
 #
-# Reset the shard's seeded world before one flow (`e2e-seed reset --mode <mode>`: `seeded`, `empty`, `ambiguity`, `library` or `needsReview`). The
+# Reset the shard's seeded world before one flow (`e2e-seed reset --mode <mode>`: `seeded`, `empty`, `ambiguity`, `library`, `cooking` or `needsReview`). The
 # ONE place this script runs Node: it goes through `packages/tools/e2e-seed/runCli.sh`, which runs the bundle CI built
 # when `E2E_SEED_CLI_DIR` is set (a Maestro shard installs no `node_modules`) and the source through `tsx` when it is not
 # (a developer's machine). `maestroSeedCli.test.ts` holds that this is the script's only call to it.
@@ -2059,7 +2068,12 @@ maestro_run_flow_list() {
                             *)
                                 case "$LONG_LIBRARY_FLOWS" in
                                     *" ${f} "*) reseed_mode=library ;;
-                                    *) reseed_mode=seeded ;;
+                                    *)
+                                        case "$COOKING_FLOWS" in
+                                            *" ${f} "*) reseed_mode=cooking ;;
+                                            *) reseed_mode=seeded ;;
+                                        esac
+                                        ;;
                                 esac
                                 ;;
                         esac

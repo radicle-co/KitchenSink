@@ -326,8 +326,10 @@ describe('CookingRoute: a cook on a step is not moved by a later read', () => {
             const { user, read, queryClient } = await cookingOnStepThree();
             read.mockImplementation(next);
 
+            // One macrotask: TanStack delivers its notifications on setTimeout(0), which a microtask flush does not reach.
             await act(async () => {
                 await queryClient.refetchQueries();
+                await new Promise((resolve) => setTimeout(resolve, 0));
             });
 
             expect(screen.getByText(stepOf(3, 4))).toBeInTheDocument();
@@ -350,11 +352,14 @@ describe('CookingRoute: a cook on a step is not moved by a later read', () => {
                 }),
         );
 
-        const refetching = act(async () => {
+        await act(async () => {
             void queryClient.refetchQueries();
+            // One macrotask: TanStack delivers its notifications on setTimeout(0), which a microtask flush does not reach.
+            await new Promise((resolve) => setTimeout(resolve, 0));
         });
-        await refetching;
 
+        // The fetch really is in flight, so the asserts below are about a background fetch and not an idle screen.
+        expect(queryClient.isFetching()).toBe(1);
         expect(screen.getByRole('main').getAttribute('aria-busy')).not.toBe('true');
         expect(screen.getByText(stepOf(3, 4))).toBeInTheDocument();
 

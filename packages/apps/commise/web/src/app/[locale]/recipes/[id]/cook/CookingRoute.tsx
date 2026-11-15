@@ -12,8 +12,7 @@
  * The viewer is the detail page's one rule (`viewerIdOf`). Until it is known the screen is told
  * `pending`, so no cook-link decision is ever taken on a guess and nothing of the recipe is painted.
  *
- * Every way out REPLACES this route rather than pushing: browser Back from where the cook lands never re-enters cooking
- * mode, and steps push nothing (R-11).
+ * Where each way out goes, and why it replaces rather than pushes, is `useCookWays`.
  *
  * @pattern Adapter — the route's params, router, session and query, to `CookingScreen`'s read and callbacks
  */

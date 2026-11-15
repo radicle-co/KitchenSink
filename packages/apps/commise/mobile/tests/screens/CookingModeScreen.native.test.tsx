@@ -128,8 +128,10 @@ describe('CookingModeScreen: a cook on a step is not moved by a later read', () 
         const { read, queryClient } = await cookingOnStepThree();
         read.mockImplementation(next);
 
+        // One macrotask: TanStack delivers its notifications on setTimeout(0), which a microtask flush does not reach.
         await act(async () => {
             await queryClient.refetchQueries();
+            await new Promise((resolve) => setTimeout(resolve, 0));
         });
 
         expect(screen.getByText(stepOf(3, 4))).toBeTruthy();

@@ -10,18 +10,22 @@
  * @pattern Controlled input — the value is the caller's; the step rule (`stepFrom`) is pure
  */
 import { useState, type FC } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 import { visuallyHidden } from '../accessibility/visuallyHidden.native.js';
 import { Icon } from '../icon/Icon.native.js';
 import type { IconName } from '../icon/props.js';
 import { LiveRegion } from '../liveRegion/LiveRegion.native.js';
+import { Text } from '../text/Text.native.js';
 import { useTheme } from '../theme/useTheme.native.js';
 import { nativeTokens } from '../tokens/native.js';
 import { dimmedOpacity } from '../tokens/scale.js';
 import { stepFrom, type StepperProps } from './props.js';
 import { touchFloor } from '../layout/touchFloor.native.js';
 import { usePressFill } from '../surfaceTone/usePressFill.native.js';
+
+/** The least width of the count, so a one-digit value does not move the buttons beside it. */
+const VALUE_MIN_WIDTH = 32;
 
 /** The native design-system stepper. */
 export const Stepper: FC<StepperProps> = ({
@@ -76,8 +80,10 @@ export const Stepper: FC<StepperProps> = ({
     return (
         <View style={styles.stack}>
             <Text
+                typeRole="label"
                 nativeID={labelId}
-                style={labelVisibility === 'hidden' ? visuallyHidden : [styles.label, { color: colors.inkMuted }]}
+                color={labelVisibility === 'hidden' ? undefined : '$inkMuted'}
+                style={labelVisibility === 'hidden' ? visuallyHidden : undefined}
             >
                 {label}
             </Text>
@@ -89,7 +95,15 @@ export const Stepper: FC<StepperProps> = ({
                 style={styles.row}
             >
                 {stepButton(-1, decreaseLabel, 'minus')}
-                <Text style={[styles.value, { color: colors.ink }]}>{value}</Text>
+                <Text
+                    typeRole="body"
+                    fontFamily={nativeTokens.fontFace.body.semibold}
+                    figures
+                    minWidth={VALUE_MIN_WIDTH}
+                    textAlign="center"
+                >
+                    {value}
+                </Text>
                 {stepButton(1, increaseLabel, 'plus')}
             </View>
             <LiveRegion politeness="polite" visuallyHidden occurrence={spoken.occurrence}>
@@ -101,7 +115,6 @@ export const Stepper: FC<StepperProps> = ({
 
 const styles = StyleSheet.create({
     stack: { gap: nativeTokens.spacing[1] },
-    label: nativeTokens.type.label,
     row: { flexDirection: 'row', alignItems: 'center', gap: nativeTokens.spacing[3] },
     step: {
         alignItems: 'center',
@@ -109,11 +122,4 @@ const styles = StyleSheet.create({
         borderWidth: 1,
     },
     unavailable: { opacity: dimmedOpacity },
-    value: {
-        ...nativeTokens.type.body,
-        fontFamily: nativeTokens.fontFace.body.semibold,
-        fontVariant: ['tabular-nums', 'lining-nums'],
-        minWidth: 32,
-        textAlign: 'center',
-    },
 });

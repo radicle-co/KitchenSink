@@ -1,9 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, screen, within } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
-import { useState } from 'react';
+import { useState, type ReactElement } from 'react';
 
 import { withPlatformOs } from '../../testing/platformOs.native.js';
+import { renderWithTamagui } from '../../testing/tamaguiTesting.native.js';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { Stepper } from '../Stepper.native.js';
 import type { StepperProps } from '../props.js';
@@ -14,6 +15,9 @@ import type { StepperProps } from '../props.js';
  */
 
 afterEach(cleanup);
+
+// The count and the label are the house `Text`, which needs the design system's provider.
+const render = (ui: ReactElement) => renderWithTamagui(ui, 'light');
 
 function Servings(props: Partial<StepperProps> & { readonly initial?: number }) {
     const [value, setValue] = useState(props.initial ?? 2);
@@ -33,12 +37,14 @@ function Servings(props: Partial<StepperProps> & { readonly initial?: number }) 
 }
 
 describe('Stepper (native)', () => {
+    // The count is the house `Text`, whose `figures` variant sets the digits. jsdom drops the `font-variant` rule but
+    // keeps the atomic `_fv-` class Tamagui writes for it, so the class is the evidence the count asked for them.
     it('is a group named by its label, with the value in tabular digits', () => {
         render(<Servings />);
 
         const group = screen.getByRole('group', { name: 'Servings' });
 
-        expect(getComputedStyle(within(group).getByText('2')).fontVariant).toContain('tabular-nums');
+        expect(within(group).getByText('2').className).toMatch(/(?:^|\s)_fv-/u);
     });
 
     it('steps the value up and down', () => {

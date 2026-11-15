@@ -17,8 +17,8 @@ import { StandIn } from '@commise/ui/stand-in';
 import { StatusBadge } from '@commise/ui/status-badge';
 import { VariantPartsLine } from '@commise/ui/variant-parts-line';
 import { Fragment, type FC } from 'react';
-import { Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
-import { Text } from '@commise/ui/text';
+import { Pressable, StyleSheet, View } from 'react-native';
+import { Text, useTextScale } from '@commise/ui/text';
 
 import { PREP_JOINER } from '../format/prepJoiner.js';
 import { recipeMessages } from '../messages.js';
@@ -45,11 +45,11 @@ export const IngredientCheckRow: FC<IngredientCheckRowProps> = ({
     const statuses = ingredientRowStatuses(ingredient, allRemoved, detail);
     const notes = lineTailOf(ingredient);
     // The same scale the design system grows the check box from, so the hairline starts where the grown box ends.
-    const { fontScale } = useWindowDimensions();
+    const textScale = useTextScale();
 
     return (
         <>
-            {divided && <IngredientRowDivider marginLeft={rowTextInsetAt(fontScale)} />}
+            {divided && <IngredientRowDivider marginLeft={rowTextInsetAt(textScale)} />}
             <Pressable
                 role="checkbox"
                 aria-checked={checked}

@@ -7,7 +7,7 @@ import { FoodResolutionStatus } from '@kitchensink/recipe-core';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, screen } from '@testing-library/react';
 // The detail leaves draw through the design system's Tamagui components (ADR-0080), so the tree renders in its provider.
-import { render, renderWithTamagui, resolvedColour } from '@commise/ui/testing/tamagui';
+import { render, renderWithTamagui, resolvedColour, resolvedStyle } from '@commise/ui/testing/tamagui';
 import { fireEvent } from '@testing-library/dom';
 
 import { role } from '@commise/ui/colors';
@@ -165,6 +165,26 @@ describe('IngredientCheckRow (native)', () => {
 
         expect(screen.getByRole('checkbox', { name: /lamb shoulder/u }).getAttribute('aria-checked')).toBe('false');
         expect(resolvedColour(screen.getByText('lamb shoulder'), 'color')).toBe(rgb(role.ink));
+    });
+});
+
+describe('IngredientCheckRow (native) — one text scale for the box and the hairline', () => {
+    // The device reports 1x here; the design system's context says 2x. The box grows from the context, so the hairline
+    // must start where THAT box ends: gutter 16 + box 36 + gap 12. Reading the device scale instead leaves it at 1x.
+    it('⛔ starts the hairline past the box the design-system text scale draws, not the device scale', () => {
+        renderWithTamagui(
+            <IngredientCheckRow ingredient={lamb} checked={false} allRemoved={false} onToggle={vi.fn()} divided />,
+            'light',
+            2,
+        );
+
+        const divider = document.querySelector<HTMLElement>('[name="IngredientRowDivider"]');
+        const box = screen.getByRole('checkbox').querySelector<HTMLElement>('[aria-hidden="true"]');
+
+        expect(box && resolvedStyle(box, 'width')).toBe('36px');
+        expect(divider && resolvedStyle(divider, 'marginLeft')).toBe(
+            `${String(nativeTokens.spacing[4] + 36 + nativeTokens.spacing[3])}px`,
+        );
     });
 });
 

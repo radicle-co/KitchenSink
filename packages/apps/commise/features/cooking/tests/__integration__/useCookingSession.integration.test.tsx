@@ -214,8 +214,7 @@ describe('useCookingSession with the real copy — the Back and Next the cook re
     const copy = resolveMessages(cookingMessages, 'en');
     const navFor = (result: { current: ReturnType<typeof useCookingSession> }) =>
         navOf({
-            stepIndex: result.current.place.position - 1,
-            steps: result.current.steps,
+            place: result.current.place,
             everyLineTicked: result.current.everyLineTicked,
             copy: copy.nav,
         });

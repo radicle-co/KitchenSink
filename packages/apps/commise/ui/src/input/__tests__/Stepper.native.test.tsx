@@ -3,6 +3,7 @@ import { cleanup, screen, within } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 import { useState, type ReactElement } from 'react';
 
+import { Text } from '../../text/Text.native.js';
 import { withPlatformOs } from '../../testing/platformOs.native.js';
 import { renderWithTamagui } from '../../testing/tamaguiTesting.native.js';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
@@ -44,7 +45,16 @@ describe('Stepper (native)', () => {
 
         const group = screen.getByRole('group', { name: 'Servings' });
 
-        expect(within(group).getByText('2').className).toMatch(/(?:^|\s)_fv-/u);
+        const fontVariantClass = (element: HTMLElement): string | undefined =>
+            element.className.split(' ').find((name) => name.startsWith('_fv-'));
+        const count = within(group).getByText('2');
+
+        // The class is hashed per value, so equality with the house `figures` text (pinned to tabular, lining digits in
+        // Text.native.test.tsx) proves the count's digits, not just that it set some font variant.
+        renderWithTamagui(<Text figures>ref</Text>, 'light');
+
+        expect(fontVariantClass(count)).toBeDefined();
+        expect(fontVariantClass(count)).toBe(fontVariantClass(screen.getByText('ref')));
     });
 
     it('steps the value up and down', () => {

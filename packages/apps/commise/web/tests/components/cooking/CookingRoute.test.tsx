@@ -345,7 +345,31 @@ describe('CookingRoute: a cook on a step is not moved by a later read', () => {
         expect(await screen.findByText(stepOf(1, 4))).toBeInTheDocument();
     });
 
-    it('opens again on the answer of the day: a 404 is gone, and blank steps are no steps', async () => {
+    // B-1: with no claim the profile decides who is cooking, so a change of profile id is a change of cook too.
+    it('ends the session when the profile id changes and there is no claim', async () => {
+        useAuthMock.mockReturnValue({ sessionClaims: {} });
+        useUserProfileMock.mockReturnValue({ status: 'success', isLoading: false, data: { user: { id: 'usr_1' } } });
+        const { rerender } = await cookingOnStepThree();
+        useUserProfileMock.mockReturnValue({ status: 'success', isLoading: false, data: { user: { id: 'usr_2' } } });
+
+        rerender(<CookingRoute id="rec_1" />);
+
+        expect(await screen.findByText(stepOf(1, 4))).toBeInTheDocument();
+    });
+
+    // B-1: a claim that arrives after the profile names the same cook, so a cook on a step stays on it.
+    it('keeps the session when the claim arrives after the profile and names the same cook', async () => {
+        useAuthMock.mockReturnValue({ sessionClaims: {} });
+        useUserProfileMock.mockReturnValue({ status: 'success', isLoading: false, data: { user: { id: OWNER_ID } } });
+        const { rerender } = await cookingOnStepThree();
+        useAuthMock.mockReturnValue({ sessionClaims: { external_id: OWNER_ID } });
+
+        rerender(<CookingRoute id="rec_1" />);
+
+        expect(screen.getByText(stepOf(3, 4))).toBeInTheDocument();
+    });
+
+    it('opens again on a 404 as gone', async () => {
         const { read } = await cookingOnStepThree();
         cleanup();
         read.mockRejectedValue(new NotFoundError('Recipe not found'));
@@ -354,5 +378,20 @@ describe('CookingRoute: a cook on a step is not moved by a later read', () => {
         renderWithRecipeClient(<CookingRoute id="rec_1" />, client);
 
         expect(await screen.findByText('This recipe isn’t available any more')).toBeInTheDocument();
+    });
+
+    it('opens again on blank steps as no steps', async () => {
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'getRecipeById').mockResolvedValue(
+            makeRecipeDetail({
+                id: 'rec_1',
+                ownerId: OWNER_ID,
+                status: RecipeStatus.PUBLISHED,
+                steps: [{ stepNumber: 1, instruction: ' ' }],
+            }),
+        );
+        renderWithRecipeClient(<CookingRoute id="rec_1" />, client);
+
+        expect(await screen.findByText('This recipe has no steps yet')).toBeInTheDocument();
     });
 });

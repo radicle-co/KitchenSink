@@ -61,9 +61,12 @@ export const CookingRoute: FC<CookingRouteProps> = ({ id }) => {
     const client = useRecipeServiceClient();
     const queryClient = useQueryClient();
     const ways = useWays(id);
-    // A different cook is a different session: the settled subtree is keyed by who is cooking, so it is built again.
+    // ONE rule decides who is cooking, for the key below and for the hold inside: the detail page's `viewerIdOf`. A
+    // different cook is a different session, so the settled subtree is keyed by it and built again.
     const { sessionClaims } = useAuth();
-    const cook = claimedViewerIdOf(sessionClaims) ?? '';
+    const profile = useUserProfile();
+    const viewerId = viewerIdOf(claimedViewerIdOf(sessionClaims), profile.data?.user.id);
+    const viewer = { id: viewerId, known: viewerKnown(viewerId, profile.isLoading) };
     // Built ONCE and handed to both sides, so the key the boundary checks for a prefetch and the read it gates agree.
     const detail = recipeQueries(client).detail(id);
 
@@ -87,7 +90,13 @@ export const CookingRoute: FC<CookingRouteProps> = ({ id }) => {
             )}
             resetKeys={[id]}
         >
-            <SettledCooking key={`${id}|${cook}`} detail={detail} ways={ways} readAgain={readAgain} />
+            <SettledCooking
+                key={`${id}|${viewerId ?? ''}`}
+                detail={detail}
+                viewer={viewer}
+                ways={ways}
+                readAgain={readAgain}
+            />
         </ClientQueryBoundary>
     );
 };
@@ -95,6 +104,8 @@ export const CookingRoute: FC<CookingRouteProps> = ({ id }) => {
 /** Props for {@link SettledCooking}. */
 interface SettledCookingProps {
     readonly detail: ReturnType<ReturnType<typeof recipeQueries>['detail']>;
+    /** Who is cooking, by the one rule in {@link CookingRoute}. */
+    readonly viewer: { readonly id: string | undefined; readonly known: boolean };
     readonly ways: Ways;
     readonly readAgain: () => void;
 }
@@ -104,18 +115,17 @@ interface SettledCookingProps {
  * read, so a later refetch that returns a draft, blank steps or a different status does not move a cook off their step
  * (S20, R-15). A query ERROR with data present never reaches here: the boundary only throws before the first data.
  */
-const SettledCooking: FC<SettledCookingProps> = ({ detail, ways, readAgain }) => {
+const SettledCooking: FC<SettledCookingProps> = ({ detail, viewer, ways, readAgain }) => {
     const { data: recipe } = useSuspenseQuery(detail);
-    const { sessionClaims } = useAuth();
-    const profile = useUserProfile();
-    const viewerId = viewerIdOf(claimedViewerIdOf(sessionClaims), profile.data?.user.id);
-    const known = viewerKnown(viewerId, profile.isLoading);
     const read = useCookingRead({
         recipeId: recipe.id,
-        subject: viewerId,
+        subject: viewer.id,
         recipe: { id: recipe.id, title: recipe.title, status: recipe.status, steps: recipe.steps },
         failure: undefined,
-        viewer: { known, isOwner: known && isOwner(recipe, makeViewer({ id: viewerId })) },
+        viewer: {
+            known: viewer.known,
+            isOwner: viewer.known && viewer.id !== undefined && isOwner(recipe, makeViewer({ id: viewer.id })),
+        },
         retry: readAgain,
     });
 

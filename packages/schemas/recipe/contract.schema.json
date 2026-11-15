@@ -10894,6 +10894,23 @@
                     "additionalProperties": {},
                     "properties": {
                         "code": {
+                            "const": "IMPORT_STORAGE_FULL",
+                            "type": "string"
+                        },
+                        "message": {
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "code",
+                        "message"
+                    ],
+                    "type": "object"
+                },
+                {
+                    "additionalProperties": {},
+                    "properties": {
+                        "code": {
                             "const": "UNAUTHORIZED",
                             "type": "string"
                         },
@@ -11702,6 +11719,7 @@
                 "PRIVATE_FOODS_ON_PUBLIC_RECIPE",
                 "IMPORT_ITEM_LOCKED",
                 "IMPORT_ID_IN_USE",
+                "IMPORT_STORAGE_FULL",
                 "UNAUTHORIZED",
                 "IDENTITY_SYNC_PENDING",
                 "FORBIDDEN",

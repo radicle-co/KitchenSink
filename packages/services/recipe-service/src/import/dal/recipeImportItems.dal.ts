@@ -18,7 +18,21 @@
  *  5. **`saved_at` and `allowance_spent_at` are facts of their own**; nothing here infers either from `recipe_id` or
  *     `parse_job_id`.
  */
-import { and, asc, eq, gt, inArray, isNotNull, isNull, notInArray, sql, type SQL, type SQLWrapper } from 'drizzle-orm';
+import { ADVISORY_LOCK_CLASSES } from '@kitchensink/db-schema-guard';
+import {
+    and,
+    asc,
+    eq,
+    gt,
+    inArray,
+    isNotNull,
+    isNull,
+    notInArray,
+    sql,
+    TransactionRollbackError,
+    type SQL,
+    type SQLWrapper,
+} from 'drizzle-orm';
 import { isDeepStrictEqual } from 'node:util';
 
 import { ImportAllowanceDal } from '../../common/dal/importAllowance.dal.js';
@@ -37,6 +51,7 @@ import type { RecipeTx } from '../../database/unitOfWork.js';
 import type { ImportRecipe, ImportStatement } from '../../recipes/import.schema.js';
 import { ITEM_REVIEWS, type ItemReview } from '../domain/importBindingPolicy.js';
 import { decideItemUpsert } from '../domain/importItemUpsert.js';
+import { IMPORT_MAX_UNPAID_BYTES } from '../domain/importLimits.js';
 import {
     COOK_DEPENDENT_HOLD_REASONS,
     HOLD_REASONS,
@@ -77,7 +92,9 @@ export interface UpsertItemInput {
 export type UpsertOutcome =
     | { readonly kind: 'ok' }
     | { readonly kind: 'locked'; readonly ordinal: number; readonly stage: 'parsing' | 'matched' }
-    | { readonly kind: 'saved'; readonly ordinal: number };
+    | { readonly kind: 'saved'; readonly ordinal: number }
+    /** The request would take the cook over {@link IMPORT_MAX_UNPAID_BYTES} of unpaid recipes; NOTHING of it was written. */
+    | { readonly kind: 'storageFull' };
 
 /** What the cook says about one item. `undefined` keeps, a value replaces; `visibility: null` clears the recipe's own choice. */
 export interface ChoicesPatch {
@@ -178,6 +195,8 @@ export class RecipeImportItemsDal {
     public constructor(
         private readonly db: RecipeDrizzle,
         private readonly allowance: ImportAllowanceDal,
+        /** The unpaid bytes one cook may hold; a parameter so a real-database test can use a small one. */
+        private readonly unpaidByteCap: number = IMPORT_MAX_UNPAID_BYTES,
     ) {}
 
     /**
@@ -185,10 +204,23 @@ export class RecipeImportItemsDal {
      *
      * @param importId - The import (already known to be the caller's).
      * @param inputs - The items, with distinct ordinals.
-     * @returns `ok`, or the first item that is locked or saved, with NOTHING of the request written.
-     * @sideEffect Locks the header, writes items and the activity clock.
+     * @returns `ok`, or the first item that is locked or saved, or `storageFull`, with NOTHING of the request written.
+     * @sideEffect Locks the header, then the cook's allowance lock when the request adds bytes; writes items and the activity clock.
      */
     public async upsertItems(importId: string, inputs: readonly UpsertItemInput[]): Promise<UpsertOutcome> {
+        try {
+            return await this.upsertWithin(importId, inputs);
+        } catch (error) {
+            if (error instanceof TransactionRollbackError) {
+                return { kind: 'storageFull' };
+            }
+
+            throw error;
+        }
+    }
+
+    /** {@link upsertItems}'s transaction. A request that takes the cook over the unpaid-byte cap rolls it back. */
+    private async upsertWithin(importId: string, inputs: readonly UpsertItemInput[]): Promise<UpsertOutcome> {
         return this.db.transaction(async (tx): Promise<UpsertOutcome> => {
             // Serialises two chunks that name one new ordinal; the PK would otherwise answer the second with a 23505.
             await lockImportHeader(tx, importId);
@@ -235,6 +267,12 @@ export class RecipeImportItemsDal {
                     return { kind: 'saved', ordinal: input.ordinal };
                 }
             }
+
+            // ⛔ Bound what a cook may leave UNPAID (the routes are public). Under the cook's allowance lock, so two chunks in two
+            // imports cannot both pass the cap; taken after the header and the item rows, the order `payUnpaid` takes them in.
+            // The size is read in SQL AFTER the writes below, so one measure (the stored text) is used for both sides.
+            const addsBytes = decisions.some(({ decision }) => ['insert', 'replace', 'reopen'].includes(decision.kind));
+            const unpaidBefore = addsBytes ? await this.lockAndMeasureUnpaid(tx, importId) : 0;
 
             for (const { input, decision } of decisions) {
                 const patch = choicesColumnsOf(input);
@@ -296,10 +334,53 @@ export class RecipeImportItemsDal {
                 }
             }
 
+            // A request that SHRINKS or keeps what the cook holds is never refused, so a cook over the cap can still fix an item.
+            if (addsBytes) {
+                const unpaidAfter = await this.measureUnpaid(tx, importId);
+
+                if (unpaidAfter > this.unpaidByteCap && unpaidAfter > unpaidBefore) {
+                    tx.rollback();
+                }
+            }
+
             await touchImport(tx, importId);
 
             return { kind: 'ok' };
         });
+    }
+
+    /**
+     * Take the cook's allowance lock (the ONE per-user lock the import's money-like limits share), then measure their unpaid bytes.
+     *
+     * @returns The unpaid bytes before this request writes. @sideEffect Takes a transaction-scoped advisory lock.
+     */
+    private async lockAndMeasureUnpaid(tx: RecipeTx, importId: string): Promise<number> {
+        await tx.execute(sql`
+            SELECT pg_advisory_xact_lock(
+                ${ADVISORY_LOCK_CLASSES.recipeImportAllowance},
+                hashtext((SELECT user_id FROM recipe_imports WHERE id = ${importId}))
+            )
+        `);
+
+        return this.measureUnpaid(tx, importId);
+    }
+
+    /**
+     * The stored text of every recipe the import's cook holds that has not spent an allowance unit, across ALL their imports.
+     * Refused recipes count (they are stored). One measure, `octet_length` of the stored JSON text, so before and after agree.
+     *
+     * @sideEffect Reads.
+     */
+    private async measureUnpaid(tx: RecipeTx, importId: string): Promise<number> {
+        const result = await tx.execute<{ bytes: string }>(sql`
+            SELECT COALESCE(sum(octet_length(i.payload::text)), 0)::text AS bytes
+              FROM recipe_import_items i
+              JOIN recipe_imports h ON h.id = i.import_id
+             WHERE h.user_id = (SELECT user_id FROM recipe_imports WHERE id = ${importId})
+               AND i.allowance_spent_at IS NULL
+        `);
+
+        return Number(result.rows[0]?.bytes ?? 0);
     }
 
     /** One item, payload included, or `undefined`. @sideEffect Reads. */

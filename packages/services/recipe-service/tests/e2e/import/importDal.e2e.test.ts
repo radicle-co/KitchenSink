@@ -576,6 +576,93 @@ describe('the bulk-import DALs (LOCAL e2e, real Postgres)', () => {
         });
     });
 
+    // The routes are public, so unpaid storage is bounded per cook: payment is the only thing that moves an item on, and an
+    // unpaid item is never purged before 30 days. File SIZE is not capped (owner ruling): the bytes a cook may hold UNPAID are.
+    describe('⛔ unpaid storage is capped per cook, under the per-user lock', () => {
+        const CAP = 30_000;
+        const bigRecipe = (title: string, bytes = 10_000) => recipe(title, ['x'.repeat(bytes)]);
+        let capped: RecipeImportItemsDal;
+
+        beforeAll(() => {
+            capped = new RecipeImportItemsDal(db, new ImportAllowanceDal(), CAP);
+        });
+
+        const store = (importId: string, ordinal: number, title: string, bytes?: number, dal = capped) =>
+            dal.upsertItems(importId, [{ ordinal, recipe: bigRecipe(title, bytes) }]);
+
+        async function itemCount(importId: string): Promise<number> {
+            const result = await pool.query('SELECT count(*)::int AS n FROM recipe_import_items WHERE import_id = $1', [
+                importId,
+            ]);
+
+            return (result.rows[0] as { n: number }).n;
+        }
+
+        it('refuses the chunk that would take the cook over the cap, across their imports, and writes none of it', async () => {
+            const first = await newImport(3);
+            const second = await newImport(3);
+
+            expect(await store(first.id, 0, 'a')).toEqual({ kind: 'ok' });
+            expect(await store(first.id, 1, 'b')).toEqual({ kind: 'ok' });
+            expect(await store(second.id, 0, 'c')).toEqual({ kind: 'storageFull' });
+            expect(await itemCount(second.id)).toBe(0);
+        });
+
+        it('counts only the cook’s own rows, and not the rows of a cook who is over', async () => {
+            const mine = await newImport(3);
+            const theirs = await newImport(3, OTHER);
+
+            await store(mine.id, 0, 'a');
+            await store(mine.id, 1, 'b');
+
+            expect(await store(theirs.id, 0, 'c')).toEqual({ kind: 'ok' });
+        });
+
+        it('stops counting an item once it has paid its unit: payment is what moves storage on', async () => {
+            const first = await newImport(3);
+            const second = await newImport(3);
+
+            await store(first.id, 0, 'a');
+            await store(first.id, 1, 'b');
+            await pool.query('UPDATE recipe_import_items SET allowance_spent_at = now() WHERE import_id = $1', [
+                first.id,
+            ]);
+
+            expect(await store(second.id, 0, 'c')).toEqual({ kind: 'ok' });
+        });
+
+        it('lets a cook who is over the cap replace an item with a smaller recipe, but not a larger one', async () => {
+            const header = await newImport(3);
+            const uncapped = items;
+
+            await store(header.id, 0, 'a', 10_000, uncapped);
+            await store(header.id, 1, 'b', 10_000, uncapped);
+            await store(header.id, 2, 'c', 15_000, uncapped); // 35 kB held: over the 30 kB cap
+
+            expect(await store(header.id, 2, 'c', 20_000)).toEqual({ kind: 'storageFull' });
+            expect(await store(header.id, 2, 'c', 5_000)).toEqual({ kind: 'ok' });
+            // A change that adds no bytes (a decision on an item, a replay of the same recipe) is never refused.
+            expect(await store(header.id, 0, 'a')).toEqual({ kind: 'ok' });
+        });
+
+        it('⛔ two concurrent chunks in two imports of one cook cannot both fit: the per-user lock serialises them', async () => {
+            const first = await newImport(3);
+            const second = await newImport(3);
+            const outcomes = await Promise.all([
+                capped.upsertItems(first.id, [
+                    { ordinal: 0, recipe: bigRecipe('a') },
+                    { ordinal: 1, recipe: bigRecipe('b') },
+                ]),
+                capped.upsertItems(second.id, [
+                    { ordinal: 0, recipe: bigRecipe('c') },
+                    { ordinal: 1, recipe: bigRecipe('d') },
+                ]),
+            ]);
+
+            expect(outcomes.map((outcome) => outcome.kind).sort()).toEqual(['ok', 'storageFull']);
+        });
+    });
+
     describe('⛔ a refused recipe (no ingredient line or no step; ADR-0072 §3, owner ruling 2026-11-11)', () => {
         const noSteps = (title: string) => ({ ...recipe(title), steps: [] });
 

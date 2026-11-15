@@ -13,12 +13,27 @@ import { makeRecipeDetail, mockRecipeApi, readViewerAppId } from './utils/recipe
 
 const RECIPE_ID = 'db000000-0000-4000-8000-0000000000f1';
 
+// Enough steps that the page scrolls past the ingredients card at every size: the pinned ingredients bar only appears
+// once that card has scrolled out of view.
+const STEPS = Array.from({ length: 12 }, (_, index) => ({
+    stepNumber: index + 1,
+    instruction: `Stir the pot slowly for a while and keep tasting it as it cooks down, step ${String(index + 1)}.`,
+}));
+
 async function seed(page: Page, servings: number): Promise<void> {
     await signInWithTicket(page);
     const viewerId = await readViewerAppId(page);
     await mockRecipeApi(page, {
         viewerId,
-        recipes: [makeRecipeDetail({ id: RECIPE_ID, ownerId: viewerId, title: 'Stepper Reflow Soup', servings })],
+        recipes: [
+            makeRecipeDetail({
+                id: RECIPE_ID,
+                ownerId: viewerId,
+                title: 'Stepper Reflow Soup',
+                servings,
+                steps: STEPS,
+            }),
+        ],
     });
 }
 

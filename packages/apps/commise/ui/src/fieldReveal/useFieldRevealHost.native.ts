@@ -54,7 +54,7 @@ import {
 import type { FieldRevealer, ListRequest, RevealRequest } from './fieldRevealContext.js';
 import { measureField, scrollContentTo, type RevealScroller } from './measureField.native.js';
 import type { RevealSpacerProps } from './RevealSpacer.native.js';
-import { spanTarget, startSpanTarget } from './spanReveal.js';
+import { focusSpanBottom, spanTarget, startSpanTarget } from './spanReveal.js';
 
 /** What the host renders with. */
 export interface FieldRevealHost {
@@ -234,11 +234,13 @@ export function useFieldRevealHost(scroller: RefObject<RevealScroller | null>): 
 
                 const viewportNow = currentViewport();
                 const endBottom = endMeasure === null ? null : endMeasure.top + endMeasure.height;
-                // The field and the end are shown together when they fit; when they do not, the field wins.
-                const bottom =
-                    endBottom !== null && endBottom - measure.top + 2 * REVEAL_GAP_DP <= viewportNow
-                        ? Math.max(endBottom, measure.top + measure.height)
-                        : measure.top + measure.height;
+                const bottom = focusSpanBottom({
+                    top: measure.top,
+                    bottom: measure.top + measure.height,
+                    endBottom,
+                    viewport: viewportNow,
+                    keep: REVEAL_GAP_DP,
+                });
                 const place = spanTarget({
                     top: measure.top,
                     bottom,

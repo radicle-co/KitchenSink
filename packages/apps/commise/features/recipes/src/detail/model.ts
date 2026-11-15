@@ -123,13 +123,12 @@ export const formatQuantity = (quantity: IngredientQuantity, locale: Locale, uni
 };
 
 /**
- * {@link formatQuantity} for an amount SHOWN beside a line, on the recipe page and on the editor's row: a WORD unit takes the plural of the amount
+ * {@link formatQuantity} for an amount SHOWN beside a line: a WORD unit takes the plural of the amount
  * it follows (`1.5 cups`, `2 tablespoons`), a symbol (`tbsp`, `g`) does not (D11). Pure.
  *
- * Kept apart from {@link formatQuantity}, which prints the unit AS THE COOK WROTE IT. The recipe page, the editor's ingredient
- * row and its accessible name read through this one (the row used to print "7 cup", and the designer ruled on 2026-11-14 that
- * it must read like the recipe page). {@link formatQuantity} stays for text that must show what was stored: the version
- * history and the live-reading speech, which passes no unit.
+ * Kept apart from {@link formatQuantity}, which prints the unit AS THE COOK WROTE IT. An amount a reader sees beside a line
+ * reads through this one; text that must show the unit as stored, or mirror what is in a
+ * field, uses {@link formatQuantity}.
  *
  * @param quantity - The ingredient quantity value object.
  * @param locale - The active BCP-47 locale.

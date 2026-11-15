@@ -6,7 +6,7 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { spanTarget, startSpanTarget } from '../spanReveal.js';
+import { focusSpanBottom, spanFits, spanTarget, startSpanTarget } from '../spanReveal.js';
 
 /** A 300 dp visible area, 8 dp kept at each edge. */
 const VIEW = { viewport: 300, keep: 8 } as const;
@@ -102,5 +102,38 @@ describe('startSpanTarget', () => {
 
     it('answers null until the visible area is laid out', () => {
         expect(startSpanTarget({ top: 100, bottom: 200, offset: 0, viewport: 0, keep: 8 })).toBeNull();
+    });
+});
+
+describe('spanFits', () => {
+    it('fits when the span and a gap at each edge are no taller than the visible area (the boundary fits)', () => {
+        expect(spanFits({ top: 100, bottom: 284, viewport: 200, keep: 8 })).toBe(true);
+        expect(spanFits({ top: 100, bottom: 285, viewport: 200, keep: 8 })).toBe(false);
+    });
+});
+
+describe('focusSpanBottom', () => {
+    const field = { top: 200, bottom: 240 };
+
+    it('is the end’s bottom when the field and the end fit together', () => {
+        expect(focusSpanBottom({ ...field, endBottom: 400, viewport: 300, keep: 8 })).toBe(400);
+    });
+
+    it('is the field’s own bottom when they do not fit: the field wins', () => {
+        expect(focusSpanBottom({ ...field, endBottom: 600, viewport: 300, keep: 8 })).toBe(240);
+    });
+
+    it('fits exactly at the boundary, and not one dp past it', () => {
+        // 200 to 484 plus a gap each side is 300 dp.
+        expect(focusSpanBottom({ ...field, endBottom: 484, viewport: 300, keep: 8 })).toBe(484);
+        expect(focusSpanBottom({ ...field, endBottom: 485, viewport: 300, keep: 8 })).toBe(240);
+    });
+
+    it('is the field’s bottom when there is no end', () => {
+        expect(focusSpanBottom({ ...field, endBottom: null, viewport: 300, keep: 8 })).toBe(240);
+    });
+
+    it('never goes above the field’s own bottom, even for an end measured above it', () => {
+        expect(focusSpanBottom({ ...field, endBottom: 220, viewport: 300, keep: 8 })).toBe(240);
     });
 });

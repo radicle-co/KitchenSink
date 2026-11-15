@@ -56,6 +56,44 @@ export function spanTarget({ top, bottom, offset, viewport, keep }: SpanPlace): 
 }
 
 /**
+ * Whether a span, with a gap held at each edge, is no taller than the visible area. Pure; the one fit test the span rules share.
+ *
+ * @param place - The span's top and bottom, the visible area's height and the gap.
+ * @returns `true` when it fits; the boundary fits.
+ */
+export function spanFits({
+    top,
+    bottom,
+    viewport,
+    keep,
+}: Pick<SpanPlace, 'top' | 'bottom' | 'viewport' | 'keep'>): boolean {
+    return bottom - top + 2 * keep <= viewport;
+}
+
+/** A focused field and the end of what it sits in, in the visible area's units. */
+export interface FocusSpan extends Pick<SpanPlace, 'viewport' | 'keep'> {
+    readonly top: number;
+    /** The field's own bottom. */
+    readonly bottom: number;
+    /** The end's bottom, or `null` when the end could not be measured. */
+    readonly endBottom: number | null;
+}
+
+/**
+ * The bottom to reveal for a focused field that sits in something with an end (an open row editor's Done and Cancel): the
+ * end's bottom when the span from the field's top to it fits, so both show; else the field's own, because the field wins
+ * (WCAG 2.2 SC 2.4.11). Pure.
+ *
+ * @param span - The field, the end and the visible area.
+ * @returns The bottom to hand `spanTarget`; never above the field's own.
+ */
+export function focusSpanBottom({ top, bottom, endBottom, viewport, keep }: FocusSpan): number {
+    return endBottom !== null && spanFits({ top, bottom: endBottom, viewport, keep })
+        ? Math.max(endBottom, bottom)
+        : bottom;
+}
+
+/**
  * The scroll offset for a deep link to one element that ends in what the cook must reach (an ingredient row and its
  * editor's Done and Cancel): the element's top one gap below the visible area's top, unless it and its end do not both
  * fit between the edges. Then the END wins, as in {@link spanTarget}: its bottom goes one gap above the bottom edge and
@@ -69,8 +107,7 @@ export function startSpanTarget({ top, bottom, offset, viewport, keep }: SpanPla
         return null;
     }
 
-    const fits = bottom - top + 2 * keep <= viewport;
-    const delta = fits ? top - keep : bottom + keep - viewport;
+    const delta = spanFits({ top, bottom, viewport, keep }) ? top - keep : bottom + keep - viewport;
     const target = Math.max(0, offset + delta);
 
     return target === offset ? null : target;

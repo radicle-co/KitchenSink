@@ -3,6 +3,8 @@
  * artifact it came from) and `project/**` (the files the artifact holds). A publish sends those files byte for byte,
  * so this guard holds the folders to the structure the README promises, before a bad folder reaches a publish.
  *
+ * The HTML is held to two readings: parse5 (it tokenizes cleanly) and html-validate (the tree).
+ *
  * Every rule is a pure `*Problems()` function that returns broken-rule messages. The checks over the real folders read
  * the tracked file list with `git ls-files`, so an untracked scratch file never counts.
  *
@@ -13,6 +15,7 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
+import { HtmlValidate } from 'html-validate';
 import { parse } from 'parse5';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
@@ -21,8 +24,28 @@ const REPO_ROOT = join(__dirname, '..', '..', '..', '..');
 const CANVAS_DIR = join(REPO_ROOT, 'docs', 'design', 'canvases');
 
 /**
+ * The html-validate tree rules the canvases are held to. parse5 reports only tokenizer errors, so a stray closing
+ * tag, a `<div>` in a `<p>` or a nested `<a>` pass it; these three rules read the tree.
+ */
+const TREE_RULES = ['close-order', 'element-permitted-content', 'no-dup-id'] as const;
+
+/**
+ * The tree findings the published snapshot already carries, per rule, measured over all 3,217 html files. The files
+ * must stay byte-identical to the live canvases, so they are counted rather than edited. The count is exact: a new
+ * finding fails, and a fixed one forces this number down.
+ */
+const ALLOWED_TREE_FINDINGS: Readonly<Record<(typeof TREE_RULES)[number], { count: number; reason: string }>> = {
+    'close-order': { count: 0, reason: 'measured: no finding' },
+    'element-permitted-content': {
+        count: 59,
+        reason: 'the live boards put <p> (48) and <div> (2) inside <span>, and <div> (9) inside <button>',
+    },
+    'no-dup-id': { count: 25, reason: 'the live boards repeat an id inside one file' },
+};
+
+/**
  * The parse5 error codes the published canvases are allowed to raise, measured on the real snapshot. HTML parsing
- * never fails, so a clean parse is a statement about the markup: a code that is not named here is a new kind of
+ * never fails, so a clean tokenization is a statement about the markup: a code that is not named here is a new kind of
  * breakage. Each entry says why it is tolerated.
  */
 const ALLOWED_PARSE_ERRORS: Readonly<Record<string, string>> = {}; // measured: 0 errors over all 3,217 files
@@ -156,6 +179,23 @@ export function htmlProblems(file: string, html: string, allowed: readonly strin
     return unknown.map((code) => `${file}: parse error ${code}`);
 }
 
+const treeValidator = new HtmlValidate({
+    root: true,
+    rules: Object.fromEntries(TREE_RULES.map((rule) => [rule, 'error'])),
+});
+
+/**
+ * The tree rules a document breaks, once per finding. It reads tree construction, which parse5's error list does not.
+ *
+ * @param html - The document source.
+ * @returns The rule id of each finding.
+ */
+export async function treeFindingRules(html: string): Promise<readonly string[]> {
+    const report = await treeValidator.validateString(html);
+
+    return report.results.flatMap((result) => result.messages.map((message) => message.ruleId ?? 'unknown'));
+}
+
 /** Tracked paths under `canvases/`, relative to it. @sideEffect Runs `git ls-files`. */
 function trackedFiles(): readonly string[] {
     return execFileSync('git', ['ls-files', '-z', '--', 'docs/design/canvases'], { cwd: REPO_ROOT, encoding: 'utf8' })
@@ -220,7 +260,28 @@ describe('the design canvas folders', () => {
         expect(problems).toEqual([]);
     });
 
-    it('parses every html file with only the named parse5 errors', () => {
+    it('holds every html file to the html-validate tree rules, up to the measured allowance', async () => {
+        const htmlFiles = files.filter((file) => file.endsWith('.html'));
+        expect(htmlFiles.length).toBeGreaterThan(0);
+
+        const found: Record<string, number> = {};
+
+        for (const file of htmlFiles) {
+            for (const rule of await treeFindingRules(readFileSync(join(CANVAS_DIR, file), 'utf8'))) {
+                found[rule] = (found[rule] ?? 0) + 1;
+            }
+        }
+
+        expect(found).toEqual(
+            Object.fromEntries(
+                Object.entries(ALLOWED_TREE_FINDINGS)
+                    .filter(([, { count }]) => count > 0)
+                    .map(([rule, { count }]) => [rule, count]),
+            ),
+        );
+    }, 120_000);
+
+    it('tokenizes every html file with only the named parse5 errors', () => {
         const htmlFiles = files.filter((file) => file.endsWith('.html'));
         // A path filter that matched nothing would pass without reading a file.
         expect(htmlFiles.length).toBeGreaterThan(0);
@@ -312,6 +373,26 @@ describe('canvasJsonProblems', () => {
             'a: order names Gone2.dc.html, which is missing',
             'a: Loose.dc.html is not placed in canvas.json',
         ]);
+    });
+});
+
+describe('treeFindingRules', () => {
+    it('accepts well-formed markup', async () => {
+        expect(await treeFindingRules('<div><p id="a">x</p><p id="b">y</p></div>')).toEqual([]);
+    });
+
+    // Each of these tokenizes without a parse5 error, which is why the tree rules exist.
+    const PRELUDE = '<!doctype html><title>t</title>';
+
+    it.each([
+        ['a closing tag that matches nothing', '<div></span></div>', 'close-order'],
+        ['a block inside a paragraph', '<p><div>x</div></p>', 'close-order'],
+        ['a div inside a table', '<table><div>x</div></table>', 'element-permitted-content'],
+        ['a link inside a link', '<a href="/a"><a href="/b">x</a></a>', 'element-permitted-content'],
+        ['a repeated id', '<p id="a">x</p><p id="a">y</p>', 'no-dup-id'],
+    ])('names %s', async (_name, body, rule) => {
+        expect(parseErrorCodes(PRELUDE + body)).toEqual([]);
+        expect(await treeFindingRules(body)).toContain(rule);
     });
 });
 

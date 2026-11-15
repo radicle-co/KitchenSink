@@ -19,6 +19,7 @@
  * | GET /recipes/{id} | `Cache-Control: private, no-store`, because the body differs by viewer |
  * | another cook clones it, then reads their clone | no text: they own the copy, not the words (ADR-0090) |
  * | the owner clones their own recipe | the text, because they wrote it |
+ * | the bulk import's create (the internal 4th argument) | the DAL is asked to keep the flag on every line that carries text, and not on one that has none (ADR-0090 section 2) |
  */
 import 'reflect-metadata';
 
@@ -48,6 +49,10 @@ import { RATINGS_DAL } from '../../../src/ratings/ratings.service.js';
 import { SEARCH_DAL } from '../../../src/search/search.service.js';
 import { PendingArchivesDal } from '../../../src/versions/dal/pendingArchives.dal.js';
 import { VERSIONS_DAL } from '../../../src/versions/versions.service.js';
+import type { Principal } from '../../../src/auth/principal.js';
+import { resolveStatementProvenance } from '../../../src/recipes/domain/provenancePolicy.js';
+import { createRecipeRequestSchema } from '../../../src/recipes/recipes.schema.js';
+import { RecipesService } from '../../../src/recipes/recipes.service.js';
 import { asPrincipal } from '../../../tests/support/asPrincipal.js';
 import { bearerFor, startFoodFake, type FoodFake } from '../../../tests/support/foodFake.js';
 import { bootMockedRecipeApp } from '../../../tests/support/mockedRecipeApp.js';
@@ -451,5 +456,63 @@ describe('a clone — who wrote the copied line', () => {
         const readRaw = (await read.json()) as { ingredients: Record<string, unknown>[] };
 
         expect(readRaw.ingredients[0]?.['sourceLine']).toBe(SECRET);
+    });
+});
+
+// The bulk import (ADR-0072) saves through `RecipesService.create` with an INTERNAL fourth argument that no HTTP route
+// carries, so the closest honest seam is the real service from the booted app, over the same mocked DAL: what the
+// service asks the DAL to WRITE is the argument of `create`. The real-database half is `tests/e2e/import/importSave.e2e.test.ts`.
+describe('RecipesService.create as the bulk import calls it (ADR-0090 section 2)', () => {
+    const importer: Principal = {
+        userId: OWNER,
+        sub: `test:${OWNER}`,
+        scopes: [],
+        permissions: [],
+        roles: [],
+        principalKind: 'real',
+        containment: 'enforce',
+    };
+    const provenance = resolveStatementProvenance({ kind: 'authored' });
+    const measure = { quantity: { kind: 'exact', value: 1 }, unit: 'unit' };
+
+    it('⛔ asks the DAL to mark every line with text the cook’s own words, and the line without text not', async () => {
+        if (provenance === undefined) {
+            throw new Error('test setup: the statement must resolve');
+        }
+
+        await booted.app.get(RecipesService).create(
+            importer,
+            createRecipeRequestSchema.parse({
+                title: 'Soup',
+                servings: 2,
+                prepTimeMinutes: 5,
+                cookTimeMinutes: 10,
+                totalTimeMinutes: 15,
+                status: 'draft',
+                steps: [{ instruction: 'Simmer.' }],
+                ingredients: [
+                    { ingredientId: ARM.lookupId, ...measure, sourceLine: '2 cups flour' },
+                    { ingredientId: ARM.lookupId, ...measure, sourceLine: 'FOR THE SAUCE' },
+                    { ingredientId: ARM.lookupId, ...measure },
+                ],
+            }),
+            undefined,
+            {
+                provenance,
+                lineOrigins: [
+                    { kind: 'set', boundBy: 'exact', importLineId: null },
+                    { kind: 'set', boundBy: null, importLineId: null },
+                    { kind: 'set', boundBy: null, importLineId: null },
+                ],
+            },
+        );
+
+        const written = create.mock.calls[0]?.[0].ingredients;
+
+        expect(written?.map((line) => [line.sourceLine, line.sourceLineTranscribedByOwner])).toEqual([
+            ['2 cups flour', true],
+            ['FOR THE SAUCE', true],
+            [undefined, false],
+        ]);
     });
 });

@@ -13,10 +13,14 @@ export type { CookabilityInput } from './cookability.js';
 export {
     InvalidLineIndexError,
     InvalidStepIndexError,
+    InvalidTimerDurationError,
     InvalidTotalStepsError,
+    TimerAlreadyActiveError,
     isInvalidLineIndexError,
     isInvalidStepIndexError,
+    isInvalidTimerDurationError,
     isInvalidTotalStepsError,
+    isTimerAlreadyActiveError,
 } from './errors.js';
 
 // ── Steps as the cook walks them: lines and place (FR-032, FR-033, FR-033a) ──
@@ -42,3 +46,20 @@ export {
     untickLine,
 } from './lineTicks.js';
 export type { LineKey, LineTicks } from './lineTicks.js';
+
+// ── The timer: one reducer over commands, and the reader of a step's duration ──
+export { MAX_TIMER_MS, MIN_TIMER_MS, NO_TIMER, isValidTimerMs, reduceTimer, timeLeftMs } from './timer.js';
+export type {
+    ActiveTimer,
+    HeldTimer,
+    PausedTimer,
+    RingingTimer,
+    RunningTimer,
+    TimerBase,
+    TimerCommand,
+    TimerEvent,
+    TimerResult,
+    TimerState,
+} from './timer.js';
+export { durationParts, elapsedParts, offerSecondsOf, readDuration } from './duration.js';
+export type { DurationParts, DurationReading, ElapsedParts, OfferInput } from './duration.js';

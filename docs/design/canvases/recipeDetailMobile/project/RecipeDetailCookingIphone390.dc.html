@@ -341,6 +341,38 @@ body { margin: 0; }
                     .rd .tabbar { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: 1fr; }
                     .tab .avatar.xs, .nv-tab .avatar.xs { width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 600; background: var(--paper); color: var(--ink); box-shadow: inset 0 0 0 1px var(--line-divider); }
                     .tab.on .avatar.xs, .nv-tab.on .avatar.xs { box-shadow: 0 0 0 2px var(--ink); }
+
+/* S4b recipe-page timer dock (Luna plan 0004, designer D24-D29): S3's CookingTimerRow in a region named "Timer". */
+.s4bDock { box-sizing: border-box; width: 100%; max-width: 600px; margin: 0 auto; padding: 0 8px 0 14px;
+  background: var(--paper-raised); color: var(--ink); border-radius: 18px; box-shadow: var(--shadow-lg);
+  font-family: Inter, system-ui, sans-serif; text-align: left; }
+.s4bDock * { box-sizing: border-box; }
+.s4bRow { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; min-height: 60px; padding: 6px 0; }
+.s4bGlyph { color: var(--action-text); flex: none; display: flex; }
+.s4bRow.s4bEnded .s4bGlyph, .s4bRow.s4bRinging .s4bGlyph { color: var(--attention); }
+.s4bLab { flex: 1 1 160px; min-width: 0; display: flex; flex-direction: column; }
+.s4bFig { font: 600 28px/32px Inter, system-ui, sans-serif; font-variant-numeric: tabular-nums lining-nums;
+  white-space: nowrap; color: var(--ink); }
+.s4bMeta { font-size: 14px; line-height: 20px; color: var(--ink-muted); overflow-wrap: anywhere; }
+.s4bPaused { color: var(--ink); font-weight: 600; }
+.s4bName { color: var(--action-text); font-weight: 600; }
+.s4bBody { flex: 1 1 160px; min-width: 0; display: flex; align-items: center; gap: 12px; border-radius: 12px;
+  background: none; border: 0; padding: 0; margin: 0; font: inherit; color: inherit; text-align: left; cursor: pointer; }
+.s4bIcons { display: flex; gap: 8px; flex: none; margin-left: auto; }
+.s4bIb { width: 44px; height: 44px; border-radius: 22px; display: flex; align-items: center; justify-content: center;
+  color: var(--ink); background: none; border: 0; padding: 0; cursor: pointer; }
+.s4bActs { display: flex; flex-wrap: wrap; gap: 0 12px; margin-left: auto; }
+.s4bText { min-height: 48px; padding: 0 16px; border-radius: 999px; display: inline-flex; align-items: center;
+  color: var(--action-text); font: 600 16px/24px Inter, system-ui, sans-serif; background: none; border: 0; cursor: pointer; }
+/* Placement (R5a): 8 above the tab bar below 840 and on every native size; at the foot of the main column on web 840+. */
+.s4bSlot { padding: 0 12px 8px; flex: none; }
+.s4bSlotMain { position: sticky; bottom: 16px; z-index: 6; padding: 16px 0 0; }
+/* Largest text: body roles x2 (14 -> 28, 16 -> 32), figureLarge x1.5 (42/48), the glyph hidden above 1.3x. */
+.s4bBig .s4bFig { font-size: 42px; line-height: 48px; }
+.s4bBig .s4bMeta { font-size: 28px; line-height: 40px; }
+.s4bBig .s4bText { font-size: 32px; line-height: 40px; }
+.s4bBig .s4bGlyph { display: none; }
+.s4bBig .s4bIb svg { width: 28px; height: 28px; }
 </style></helmet>
             <svg width="0" height="0" style="position: absolute" aria-hidden="true">
                 <defs>
@@ -488,7 +520,7 @@ body { margin: 0; }
 </div>
 <a aria-describedby="resumeWhere" class="btn primary startCook solo" href="#">Continue cooking</a>
 <p class="tnum" id="resumeWhere" style="margin: 8px 0 0; font-size: 14px; line-height: 20px; color: var(--ink-muted)">
-                            Step 4 of 6 · the Roast timer has 43 min left
+                            Step 4 of 6
                         </p>
 <div class="quietActs">
 <a href="#"><svg aria-hidden="true" class="ic sm"><use href="#plus"></use></svg>Add to plan</a><a href="#"><svg aria-hidden="true" class="ic sm"><use href="#pencil"></use></svg>Edit recipe</a><a aria-checked="false" href="#" role="switch"><svg aria-hidden="true" class="ic sm"><use href="#sun"></use></svg>Screen on</a>
@@ -645,7 +677,7 @@ body { margin: 0; }
                                     Roast for 20 minutes, then lower the oven to 190°C (170°C fan) and roast for another
                                     1 hour 10 minutes, until the juices run clear.
                                 </p>
-<a class="timer tnum" href="#"><svg aria-hidden="true" class="ic"><use href="#timer"></use></svg>43 min left</a>
+<a class="timer tnum" href="#"><svg aria-hidden="true" class="ic"><use href="#timer"></use></svg>1 h 30 min</a>
 </div>
 </li>
 <li class="step card" style="display: flex; flex-direction: row; gap: 12px">
@@ -670,8 +702,8 @@ body { margin: 0; }
 <div class="endSpace"></div>
 </div>
 
-</div><nav class="nv-tabbar" aria-label="Tabs"><a class="nv-tab" href="#"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 10.5 12 3.8l8.5 6.7V20a.8.8 0 0 1-.8.8H15v-6h-6v6H4.3a.8.8 0 0 1-.8-.8z"/></svg>Home</a><a class="nv-tab on" href="#" aria-current="page"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6.5C10.2 5 7.6 4.5 4 4.6v13.9c3.6-.1 6.2.4 8 1.9 1.8-1.5 4.4-2 8-1.9V4.6c-3.6-.1-6.2.4-8 1.9zM12 6.5v13.9"/></svg>Recipes</a><a class="nv-tab" href="#"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="m15.2 8.8-1.9 4.5-4.5 1.9 1.9-4.5z"/></svg>Discover</a><a class="nv-tab" href="#"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5.5" width="16" height="14.5" rx="2.5"/><path d="M4 10h16M8.5 3.5v3.5M15.5 3.5v3.5"/></svg>Meal plan</a><a class="nv-tab" href="#"><span class="avatar xs" aria-hidden="true">ER</span>You</a></nav><div class="nv-inset nv-bottom" style="height: 34px; background: var(--paper-raised)"><span class="nv-indicator"></span></div><div class="nv-fold" aria-hidden="true" style="top: 746px"><span>First screen ends</span></div></div><!--data-you-tab--></x-dc>
-        <script type="text/x-dc" data-dc-script data-props='{"$preview": {"width": 390, "height": 3516}}'>
+</div><div class="s4bSlot"><section class="s4bDock" aria-label="Timer"><div class="s4bRow"><span class="s4bGlyph"><svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="10" x2="14" y1="2" y2="2"></line><line x1="12" x2="15" y1="14" y2="11"></line><circle cx="12" cy="14" r="8"></circle></svg></span><span class="s4bLab"><span class="s4bFig">43:12</span><span class="s4bMeta">Roast · step 4</span></span><span class="s4bIcons"><button type="button" class="s4bIb" aria-label="Pause Roast"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="14" y="4" width="4" height="16" rx="1"></rect><rect x="6" y="4" width="4" height="16" rx="1"></rect></svg></button><button type="button" class="s4bIb" aria-label="Cancel Roast timer"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg></button></span></div></section></div><nav class="nv-tabbar" aria-label="Tabs"><a class="nv-tab" href="#"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 10.5 12 3.8l8.5 6.7V20a.8.8 0 0 1-.8.8H15v-6h-6v6H4.3a.8.8 0 0 1-.8-.8z"/></svg>Home</a><a class="nv-tab on" href="#" aria-current="page"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6.5C10.2 5 7.6 4.5 4 4.6v13.9c3.6-.1 6.2.4 8 1.9 1.8-1.5 4.4-2 8-1.9V4.6c-3.6-.1-6.2.4-8 1.9zM12 6.5v13.9"/></svg>Recipes</a><a class="nv-tab" href="#"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="m15.2 8.8-1.9 4.5-4.5 1.9 1.9-4.5z"/></svg>Discover</a><a class="nv-tab" href="#"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5.5" width="16" height="14.5" rx="2.5"/><path d="M4 10h16M8.5 3.5v3.5M15.5 3.5v3.5"/></svg>Meal plan</a><a class="nv-tab" href="#"><span class="avatar xs" aria-hidden="true">ER</span>You</a></nav><div class="nv-inset nv-bottom" style="height: 34px; background: var(--paper-raised)"><span class="nv-indicator"></span></div><div class="nv-fold" aria-hidden="true" style="top: 746px"><span>First screen ends</span></div></div><!--data-you-tab--></x-dc>
+        <script type="text/x-dc" data-dc-script data-props='{"$preview": {"width": 390, "height": 3588}}'>
             class Component extends DCLogic { renderVals(){ return {}; } }
         </script>
     </body>

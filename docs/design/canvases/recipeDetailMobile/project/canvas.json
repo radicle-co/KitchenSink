@@ -21,7 +21,7 @@
       "x": 470,
       "y": 260,
       "w": 390,
-      "h": 990,
+      "h": 1062,
       "title": "Recipe detail, scrolled, proposal (mobile, iPhone 390)"
     },
     "RecipeDetailIngredientsOpenIphone390.dc.html": {
@@ -301,7 +301,7 @@
       "x": 19270,
       "y": 260,
       "w": 390,
-      "h": 3516,
+      "h": 3588,
       "title": "Recipe detail, cooking in progress (mobile, iPhone 390)"
     },
     "RecipeDetailAndroid384.dc.html": {
@@ -315,7 +315,7 @@
       "x": 464,
       "y": 4624,
       "w": 384,
-      "h": 957,
+      "h": 1029,
       "title": "Recipe detail, scrolled, proposal (mobile, Android 384)"
     },
     "RecipeDetailIngredientsOpenAndroid384.dc.html": {
@@ -595,7 +595,7 @@
       "x": 19024,
       "y": 4624,
       "w": 384,
-      "h": 3483,
+      "h": 3555,
       "title": "Recipe detail, cooking in progress (mobile, Android 384)"
     },
     "RecipeDetailIpad820.dc.html": {
@@ -609,7 +609,7 @@
       "x": 900,
       "y": 8955,
       "w": 820,
-      "h": 2018,
+      "h": 2090,
       "title": "Recipe detail, scrolled, proposal (mobile, iPad 820)"
     },
     "RecipeDetailNutritionOpenIpad820.dc.html": {
@@ -882,7 +882,7 @@
       "x": 36000,
       "y": 8955,
       "w": 820,
-      "h": 2018,
+      "h": 2090,
       "title": "Recipe detail, cooking in progress (mobile, iPad 820)"
     },
     "RecipeFactsAndroid384.dc.html": {
@@ -975,6 +975,13 @@
       "w": 2400,
       "h": 2664,
       "title": "Recipe detail, S3b exit-from-cooking-mode snackbar (mobile)"
+    },
+    "RecipeDetailDockS4bMobile.dc.html": {
+      "x": 0,
+      "y": 14829,
+      "w": 2400,
+      "h": 8232,
+      "title": "Recipe detail, S4b timer dock (mobile: iPhone 390, Android 384, 320 and 568 at the largest text, iPad 820 and 1194)"
     }
   },
   "order": [
@@ -1115,7 +1122,8 @@
     "RecipeFactsBookIphone390.dc.html",
     "RecipeSourceCardIphone390.dc.html",
     "RecipeFactsSaveCopyIphone390.dc.html",
-    "RecipeDetailExitSnackbarS3bMobile.dc.html"
+    "RecipeDetailExitSnackbarS3bMobile.dc.html",
+    "RecipeDetailDockS4bMobile.dc.html"
   ],
   "notes": {
     "row0": {
@@ -1143,6 +1151,13 @@
       "x": 0,
       "y": 11485,
       "text": "Recipe detail: S3b exit snackbar (plan 0111). The running-timer dock on RecipeDetailScrolled is S4.",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "nRecipeDetailDockS4bMobile": {
+      "x": 0,
+      "y": 14569,
+      "text": "Recipe detail: S4b timer dock on the recipe page (Luna plan 0004, designer D24-D29)",
       "kind": "title1",
       "maxW": 2400
     }

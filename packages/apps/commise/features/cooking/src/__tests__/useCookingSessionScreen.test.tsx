@@ -140,7 +140,9 @@ describe('useCookingSessionScreen: Done', () => {
         vi.useFakeTimers();
         const { result, onLeave } = mount();
         forwardTimes(result, 6);
-        act(() => vi.advanceTimersByTime(DONE_SETTLE_MS));
+        act(() => {
+            vi.advanceTimersByTime(DONE_SETTLE_MS);
+        });
 
         act(() => result.current.done?.backToRecipe.onPress());
         expect(onLeave).toHaveBeenCalledTimes(1);
@@ -166,11 +168,15 @@ describe('useCookingSessionScreen: the Done settle window', () => {
     it('ignores Cook it again at 100 ms, and starts over at 500 ms', () => {
         const { result } = reachDone();
 
-        act(() => vi.advanceTimersByTime(100));
+        act(() => {
+            vi.advanceTimersByTime(100);
+        });
         act(() => result.current.done?.cookAgain.onPress());
         expect(result.current.done).not.toBeNull();
 
-        act(() => vi.advanceTimersByTime(400));
+        act(() => {
+            vi.advanceTimersByTime(400);
+        });
         act(() => result.current.done?.cookAgain.onPress());
         expect(result.current.done).toBeNull();
         expect(result.current.place).toMatch(/^Step\s1\sof\s6$/u);
@@ -179,22 +185,30 @@ describe('useCookingSessionScreen: the Done settle window', () => {
     it('ignores Back to the recipe at 100 ms, and leaves once at 500 ms', () => {
         const { result, onLeave } = reachDone();
 
-        act(() => vi.advanceTimersByTime(100));
+        act(() => {
+            vi.advanceTimersByTime(100);
+        });
         act(() => result.current.done?.backToRecipe.onPress());
         expect(onLeave).not.toHaveBeenCalled();
 
-        act(() => vi.advanceTimersByTime(400));
+        act(() => {
+            vi.advanceTimersByTime(400);
+        });
         act(() => result.current.done?.backToRecipe.onPress());
         expect(onLeave).toHaveBeenCalledTimes(1);
     });
 
     it('waits again after Cook it again and a second Finish', () => {
         const { result } = reachDone();
-        act(() => vi.advanceTimersByTime(500));
+        act(() => {
+            vi.advanceTimersByTime(500);
+        });
         act(() => result.current.done?.cookAgain.onPress());
         forwardTimes(result, 6);
 
-        act(() => vi.advanceTimersByTime(100));
+        act(() => {
+            vi.advanceTimersByTime(100);
+        });
         act(() => result.current.done?.cookAgain.onPress());
 
         expect(result.current.done).not.toBeNull();
@@ -250,7 +264,9 @@ describe('useCookingSessionScreen: what the live region says', () => {
         vi.useFakeTimers();
         const { result } = mount();
         forwardTimes(result, 6);
-        act(() => vi.advanceTimersByTime(DONE_SETTLE_MS));
+        act(() => {
+            vi.advanceTimersByTime(DONE_SETTLE_MS);
+        });
         expect(result.current.moves).toBe(6);
 
         act(() => result.current.done?.cookAgain.onPress());

@@ -739,7 +739,9 @@ describe('CookingScreen: Done', () => {
         const { onLeave } = setup();
         finish();
 
-        act(() => vi.advanceTimersByTime(DONE_SETTLE_MS));
+        act(() => {
+            vi.advanceTimersByTime(DONE_SETTLE_MS);
+        });
         press('Back to the recipe');
 
         expect(onLeave).toHaveBeenCalledTimes(1);
@@ -774,7 +776,9 @@ describe('CookingScreen: Done', () => {
         finish();
         liveRegions.announceOnMount = [];
 
-        act(() => vi.advanceTimersByTime(DONE_SETTLE_MS));
+        act(() => {
+            vi.advanceTimersByTime(DONE_SETTLE_MS);
+        });
         press('Cook it again');
 
         expect(liveRegions.announceOnMount.length).toBeGreaterThan(0);
@@ -787,7 +791,9 @@ describe('CookingScreen: Done', () => {
         tick('Heat 1.5 tbsp. oil.');
         finish();
 
-        act(() => vi.advanceTimersByTime(DONE_SETTLE_MS));
+        act(() => {
+            vi.advanceTimersByTime(DONE_SETTLE_MS);
+        });
         press('Cook it again');
 
         expect(screen.getByText('Step 1 of 6')).toBeTruthy();
@@ -804,7 +810,12 @@ describe('CookingScreen: the Done settle window', () => {
             fireEvent.click(forward());
         }
     };
-    const after = (ms: number) => act(() => vi.advanceTimersByTime(ms));
+
+    const after = (ms: number) => {
+        act(() => {
+            vi.advanceTimersByTime(ms);
+        });
+    };
 
     it.each(['Cook it again', 'Back to the recipe'])(
         'ignores %s at 100 ms and at 399 ms, and takes it at 400 ms',
@@ -1030,7 +1041,9 @@ describe('CookingScreen: keyboard focus when the focused control goes away', () 
         }
 
         screen.getByRole('button', { name: 'Cook it again' }).focus();
-        act(() => vi.advanceTimersByTime(DONE_SETTLE_MS));
+        act(() => {
+            vi.advanceTimersByTime(DONE_SETTLE_MS);
+        });
         press('Cook it again');
 
         expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Next step, step 2' }));

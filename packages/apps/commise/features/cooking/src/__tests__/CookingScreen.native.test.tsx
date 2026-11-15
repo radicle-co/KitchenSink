@@ -788,7 +788,12 @@ describe('CookingScreen (native): the Done settle window', () => {
             fireEvent.click(forward());
         }
     };
-    const after = (ms: number) => act(() => vi.advanceTimersByTime(ms));
+
+    const after = (ms: number) => {
+        act(() => {
+            vi.advanceTimersByTime(ms);
+        });
+    };
 
     it.each(['Cook it again', 'Back to the recipe'])(
         'ignores %s at 100 ms and at 399 ms, and takes it at 400 ms',
@@ -1037,7 +1042,9 @@ describe('CookingScreen (native): screen-reader focus when the focused control g
             await user.click(forward());
         }
 
-        act(() => vi.advanceTimersByTime(DONE_SETTLE_MS));
+        act(() => {
+            vi.advanceTimersByTime(DONE_SETTLE_MS);
+        });
         await press('Cook it again');
 
         expect(focused().at(-1)).toBe(forward());
@@ -1109,7 +1116,9 @@ describe('CookingScreen (native): Done', () => {
         const { onLeave } = setup();
         await finish();
 
-        act(() => vi.advanceTimersByTime(DONE_SETTLE_MS));
+        act(() => {
+            vi.advanceTimersByTime(DONE_SETTLE_MS);
+        });
         await press('Back to the recipe');
 
         expect(onLeave).toHaveBeenCalledTimes(1);
@@ -1122,7 +1131,9 @@ describe('CookingScreen (native): Done', () => {
         await finish();
         liveRegions.announceOnMount = [];
 
-        act(() => vi.advanceTimersByTime(DONE_SETTLE_MS));
+        act(() => {
+            vi.advanceTimersByTime(DONE_SETTLE_MS);
+        });
         await press('Cook it again');
 
         expect(liveRegions.announceOnMount.length).toBeGreaterThan(0);
@@ -1135,7 +1146,9 @@ describe('CookingScreen (native): Done', () => {
         await tick('Heat 1.5 tbsp. oil.');
         await finish();
 
-        act(() => vi.advanceTimersByTime(DONE_SETTLE_MS));
+        act(() => {
+            vi.advanceTimersByTime(DONE_SETTLE_MS);
+        });
         await press('Cook it again');
 
         expect(screen.getByText('Step 1 of 6')).toBeTruthy();

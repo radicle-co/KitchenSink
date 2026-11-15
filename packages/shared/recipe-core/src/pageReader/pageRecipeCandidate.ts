@@ -16,6 +16,8 @@
 import { PARSE_JOB_LINE_MAX_CHARS, MAX_PARSE_JOB_LINES } from '../parsing/parseJobText.js';
 import { recipeCuisineSchema, recipeDescriptionSchema, recipeTitleSchema } from '../recipeRequestBounds.js';
 import { instructionSteps } from './instructionSteps.js';
+import { creditOf, imageRefsOf } from './pageEvidence.js';
+import type { PageCredit } from './pageEvidence.js';
 import { durationMinutes } from './isoDuration.js';
 import { servingsOf } from './recipeYield.js';
 import { asList, field, isSchemaNode, scalar, textOf } from './schemaNode.js';
@@ -49,6 +51,10 @@ export type RecipeChoice =
           readonly recipe: PageRecipe;
           /** The addresses the recipe node itself names (`url`, `mainEntityOfPage`), for source detection. */
           readonly links: readonly string[];
+          /** Who the node credits. */
+          readonly credit: PageCredit;
+          /** The image addresses as written, to be resolved against the canonical address. Never fetched. */
+          readonly imageRefs: readonly string[];
       }
     | { readonly kind: 'unusable'; readonly reason: UnusableReason };
 
@@ -72,6 +78,8 @@ type Candidate =
           readonly key: string;
           readonly recipe: PageRecipe;
           readonly links: readonly string[];
+          readonly credit: PageCredit;
+          readonly imageRefs: readonly string[];
       }
     | { readonly ok: false; readonly title: string; readonly key: string; readonly reason: UnusableReason };
 
@@ -170,7 +178,15 @@ function candidateOf(node: SchemaNode): Candidate | undefined {
         steps: Object.freeze(steps.map((instruction) => Object.freeze({ instruction }))),
     };
 
-    return { ok: true, title: name, key, recipe: Object.freeze(recipe), links };
+    return {
+        ok: true,
+        title: name,
+        key,
+        recipe: Object.freeze(recipe),
+        links,
+        credit: creditOf(node),
+        imageRefs: imageRefsOf(node),
+    };
 }
 
 /**
@@ -199,7 +215,13 @@ export function extractionOf(nodes: readonly SchemaNode[]): RecipeExtraction {
 
     const choices = candidates.map((candidate): RecipeChoice =>
         candidate.ok
-            ? Object.freeze({ kind: 'found', recipe: candidate.recipe, links: Object.freeze(candidate.links) })
+            ? Object.freeze({
+                  kind: 'found',
+                  recipe: candidate.recipe,
+                  links: Object.freeze(candidate.links),
+                  credit: candidate.credit,
+                  imageRefs: Object.freeze(candidate.imageRefs),
+              })
             : Object.freeze({ kind: 'unusable', reason: candidate.reason }),
     );
     const [only, ...others] = choices;

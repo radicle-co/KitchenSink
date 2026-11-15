@@ -12,9 +12,11 @@ const recipeScope = (inner: string, itemtype = 'https://schema.org/Recipe') =>
 
 describe('microdataRecipe', () => {
     it('reads a recipe, taking values from meta, time, link, list and plain elements', () => {
-        expect(read(makeMicrodataBody())).toEqual({
+        expect(read(makeMicrodataBody())).toMatchObject({
             kind: 'found',
             links: ['https://example.com/soup'],
+            credit: { authors: [] },
+            imageRefs: [],
             recipe: {
                 title: 'Micro Soup',
                 description: 'A warm soup.',

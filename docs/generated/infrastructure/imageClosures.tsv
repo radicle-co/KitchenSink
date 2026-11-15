@@ -151,7 +151,6 @@ identity-webhooks	packages/shared/rds-iam-auth/tsconfig.build.json
 identity-webhooks	packages/shared/rds-iam-auth/tsconfig.json
 identity-webhooks	packages/shared/recipe-core/package.json
 identity-webhooks	packages/shared/recipe-core/prod.package.json
-identity-webhooks	packages/shared/recipe-core/scripts
 identity-webhooks	packages/shared/recipe-core/src
 identity-webhooks	packages/shared/recipe-core/tsconfig.build.json
 identity-webhooks	packages/shared/recipe-core/tsconfig.json

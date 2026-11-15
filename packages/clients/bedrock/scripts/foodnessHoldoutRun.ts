@@ -2,7 +2,7 @@
  * OPERATOR RUNNER — the tolerance-band verification over the committed holdout (plan U6, KTD-E).
  *
  * Replays the SHIPPED artifact — `buildFoodnessPrompt` + `readFoodnessAnswer` through the real
- * `@kitchensink/bedrock` client — over `__fixtures__/foodnessHoldout.tsv`, and judges the profile
+ * `@kitchensink/bedrock` client — over `fixtures/foodnessHoldout.tsv`, and judges the profile
  * against the tolerance band: overall ≥ 97.5%, food-loss FN ≤ 12 (the report's 8 + 50%).
  *
  * ⚠️ Costs real money (~10k Nova Micro calls ≈ cents) and real time; resume-safe via the output TSV.
@@ -14,8 +14,8 @@ import { appendFileSync, existsSync, readFileSync } from 'node:fs';
 
 import { BedrockRuntimeClient, ConverseCommand } from '@aws-sdk/client-bedrock-runtime';
 
-import { readFoodnessAnswer } from '../src/parsing/foodnessAnswer.js';
-import { FOODNESS_MODEL_ID, buildFoodnessPrompt } from '../src/parsing/foodnessPrompt.js';
+import { readFoodnessAnswer } from '@kitchensink/recipe-core/parsing/foodness-answer';
+import { FOODNESS_MODEL_ID, buildFoodnessPrompt } from '@kitchensink/recipe-core/parsing/foodness-prompt';
 
 const out = process.argv[2];
 
@@ -27,7 +27,7 @@ const inputFlag = process.argv.indexOf('--input');
 const input =
     inputFlag >= 0
         ? (process.argv[inputFlag + 1] as string)
-        : new URL('../src/parsing/__fixtures__/foodnessHoldout.tsv', import.meta.url).pathname;
+        : new URL('./fixtures/foodnessHoldout.tsv', import.meta.url).pathname;
 
 interface Row {
     readonly kind: string;

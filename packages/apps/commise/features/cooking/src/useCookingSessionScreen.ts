@@ -1,11 +1,11 @@
 'use client';
 
 /**
- * @module useCookingSessionScreen — the model of the cooking session screen, shared by both platforms' screens: the
- * session, the screen-on hold, the step move handlers, the place, the nav pair, the step view and the Done view. A
- * screen only draws it and adds what is its own platform's (web: the arrow keys and the Done focus).
+ * @module useCookingSessionScreen — the model of the cooking session screen: the session, the screen-on hold, the
+ * step move handlers, the place, the nav pair, the step view, the words the live region says and the Done view. A screen
+ * draws it and adds only what is its own.
  *
- * @pattern Presentation Model — the session screen's display state derived once, so both platforms only draw it
+ * @pattern Presentation Model — the session screen's display state derived once, so a screen only draws it
  */
 import { fillTemplate, pluralOf } from '@commise/i18n';
 import { useLocale, useMessages } from '@commise/i18n/react';
@@ -84,10 +84,23 @@ export function useCookingSessionScreen({
         onToggleShow: () => setOpenTickedStep((open) => (open === where.position ? null : where.position)),
     });
     const focusText = session.focusLine === null ? undefined : session.step.lines[session.focusLine];
-    const announcement =
+    const placed =
         focusText === undefined
             ? fillTemplate(copy.step.announceNoLine, { current: where.position, total: where.total })
             : fillTemplate(copy.step.announce, { current: where.position, total: where.total, line: focusText });
+    // The words are fixed AT the move: a tick changes the focus line, and a tick is not a move. State replaced during
+    // render when `moves` changes is the documented way to keep a value from the render a prop changed in.
+    const [spoken, setSpoken] = useState({ moves: 0, text: '' });
+
+    if (spoken.moves !== moves) {
+        setSpoken({ moves, text: placed });
+    }
+
+    const afterMove = (): void => {
+        setMoves((count) => count + 1);
+        setOpenTickedStep(null);
+    };
+
     const finished =
         cookingSessionStateOf({ sessionStatus: session.status, everyLineTicked: session.everyLineTicked }).kind ===
         'done';
@@ -99,11 +112,11 @@ export function useCookingSessionScreen({
         nav: navOf({ place: where, everyLineTicked: session.everyLineTicked, copy: copy.nav }),
         step,
         ...(preview === undefined ? {} : { preview }),
-        announcement,
+        announcement: spoken.text,
         moves,
         goForward: () => {
             session.next();
-            setMoves((count) => count + 1);
+            afterMove();
         },
         goBack: () => {
             if (where.previous === null) {
@@ -113,7 +126,7 @@ export function useCookingSessionScreen({
             }
 
             session.back();
-            setMoves((count) => count + 1);
+            afterMove();
         },
         hasPrevious: where.previous !== null,
         hasNext: where.next !== null,
@@ -123,7 +136,14 @@ export function useCookingSessionScreen({
                   enjoy: fillTemplate(copy.done.enjoy, { recipe: recipe.title }),
                   ...(keepAwakeAvailable ? { screenOff: copy.done.screenOff } : {}),
                   backToRecipe: { label: copy.done.backToRecipe, onPress: onLeave },
-                  cookAgain: { label: copy.done.cookAgain, onPress: session.cookAgain },
+                  cookAgain: {
+                      label: copy.done.cookAgain,
+                      // Starting over lands on step 1 like a Next does, so it is announced like one.
+                      onPress: () => {
+                          session.cookAgain();
+                          afterMove();
+                      },
+                  },
               }
             : null,
     };

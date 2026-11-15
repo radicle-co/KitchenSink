@@ -156,3 +156,72 @@ describe('useCookingSessionScreen: the screen-on hold', () => {
         expect(keepAwake.calls.at(-1)).toBe(false);
     });
 });
+
+describe('useCookingSessionScreen: what the live region says', () => {
+    it('keeps the words of the last move when a line is ticked: a tick is not a move', () => {
+        const { result } = mount();
+        act(() => result.current.goForward());
+        const spoken = result.current.announcement;
+        expect(spoken).toBe('Step 2 of 6. Add the butter.');
+
+        act(() => result.current.step.focus?.onToggle());
+
+        expect(result.current.step.ticked?.summary).toBe('You ticked 1 line');
+        expect(result.current.announcement).toBe(spoken);
+        expect(result.current.moves).toBe(1);
+    });
+
+    it('says only the place when every line of the step is ticked', () => {
+        const { result } = mount();
+        act(() => result.current.goForward());
+        act(() => result.current.step.focus?.onToggle());
+        act(() => result.current.goForward());
+
+        act(() => result.current.goBack());
+
+        expect(result.current.place).toBe('Step 2 of 6');
+        expect(result.current.announcement).toBe('Step 2 of 6.');
+    });
+
+    it('counts Cook again as a move and announces step 1 like a Next does', () => {
+        const { result } = mount();
+        forwardTimes(result, 6);
+        expect(result.current.moves).toBe(6);
+
+        act(() => result.current.done?.cookAgain.onPress());
+
+        expect(result.current.moves).toBe(7);
+        expect(result.current.announcement).toBe('Step 1 of 6. Heat the oil.');
+    });
+});
+
+describe('useCookingSessionScreen: Show closes on every move', () => {
+    const openShowOnStepTwo = () => {
+        const mounted = mount();
+        act(() => mounted.result.current.goForward());
+        act(() => mounted.result.current.step.focus?.onToggle());
+        act(() => mounted.result.current.step.ticked?.show.onPress());
+        expect(mounted.result.current.step.ticked?.expanded).toBe(true);
+
+        return mounted;
+    };
+
+    it('closes Show when the cook goes on and comes back to the same step', () => {
+        const { result } = openShowOnStepTwo();
+
+        act(() => result.current.goForward());
+        act(() => result.current.goBack());
+
+        expect(result.current.place).toBe('Step 2 of 6');
+        expect(result.current.step.ticked?.expanded).toBe(false);
+    });
+
+    it('closes Show on the step the cook leaves backwards too', () => {
+        const { result } = openShowOnStepTwo();
+
+        act(() => result.current.goBack());
+        act(() => result.current.goForward());
+
+        expect(result.current.step.ticked?.expanded).toBe(false);
+    });
+});

@@ -120,6 +120,11 @@ describe('IosAdapter', () => {
         }
     });
 
+    it('names a lane device when handed on as a bare function, as the lane planner does', () => {
+        const { deviceFor } = new IosAdapter(options(makeShell().shell, undefined, SETTINGS, 'ipad'));
+        expect(deviceFor(4)).toBe('ks-maestro-ipad-4');
+    });
+
     it('costs an iPad lane its own figure, and never the iPhone one', () => {
         const phone = new IosAdapter(options(makeShell().shell)).laneCost;
         const pad = new IosAdapter(options(makeShell().shell, undefined, SETTINGS, 'ipad')).laneCost;

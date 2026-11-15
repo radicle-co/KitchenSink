@@ -619,9 +619,8 @@ is entirely about it — while `spec.md`, `plan.md` and this file shipped no end
 That is a hole, not a new feature. It is also what the OCR transfer makes load-bearing: with photo owned by
 011, paste is how a user gets a cookbook recipe in **today**.
 
-- [ ] `POST /api/v1/import/text` → **`201` synchronously**, not `202`. There is no fetch and no vendor
-      call, so there is nothing to poll; an async job here would be ceremony that adds a failure mode
-- [ ] Body is `{ text, declaredSource, sourceCitation? }`. `text` is bounded (≤ 100 KB) and rejected empty;
+- [ ] A paste is a one-recipe import on `POST /api/v1/import`. A page with JSON-LD or microdata is read on the device with no AI and no vendor call. `POST /api/v1/import/text` answers **`202`** and `GET /api/v1/import/text/{id}` is polled, only for text with no structured data (the AI fallback, T-048, `FR-056`)
+- [ ] Body is `{ text, declaredSource, sourceCitation? }`. `text` is bounded (48,000 UTF-8 bytes, `FR-058`) and rejected empty;
       the bound is asserted, because an unbounded body is the memory-exhaustion vector this repo has already
       been bitten by
 - [ ] Extracted text flows through the **same** normalize → parse → classify → draft path as every other
@@ -635,7 +634,7 @@ That is a hole, not a new feature. It is also what the OCR transfer makes load-b
 - [ ] Unparseable content **degrades, never fails**: lines that will not parse are preserved verbatim with a
       null quantity and flagged for correction (REQ-021 / `FR-020`), so a paste of prose still produces a
       reviewable draft rather than a `422`
-- [ ] Counts against the shared 200/day allowance; 10/min burst via the shipped `@Throttle`
+- [ ] Spends the one import allowance (`FR-061`, owner ruling 2026-11-15); 10/min burst via the shipped `@Throttle`
 - [ ] **Unit tests**: an ingredients-and-steps paste, a prose paste, a paste with no recognisable recipe,
       empty, whitespace-only, at the size bound and one byte over, and every `declaredSource` value including
       the two that must be rejected
@@ -1117,3 +1116,32 @@ tier come before the code. Counsel review is owed before launch (`016-FR-050`).
 - [ ] **Unit tests**, table-driven over match, mismatch, no author id and no link. **Integration tests** for revoke and
       unlink. **Playwright** and **Maestro** flows for link-at-import. Mutation lens: a rule that clears on the bare
       statement fails.
+
+---
+
+### T-048 · AI text-extraction fallback _(FR-056 to FR-063, added 2026-11-15, owner ruling)_
+
+**Priority** P1 · **Effort** L · **Depends on** T-032, T-013 · **Implements** FR-056, FR-057, FR-058, FR-059, FR-060, FR-061, FR-062, FR-063
+
+**Test-first:** true. Write the tests for every tier below and watch them fail before any implementation.
+
+- [ ] New Lambda `RecipeTextExtractFunction` under the single Bedrock role, with its own queue, DLQ and reserved
+      concurrency, VPC-attached. New `SPEND_CALL_SITES` member `'text-extraction'`. ADR-0004's `nat-consumers` table
+      gains a row. `llmSpendGuards` stays green and `natEgressConsumers` is updated.
+- [ ] Prompt builder takes the text only, signature pinned, system prompt pinned by length and SHA-256. The model returns
+      line numbers only. Out-of-range or overlapping ranges are refused.
+- [ ] Input over 48,000 UTF-8 bytes is refused, never truncated. A page opt-out (`noai`, `noimageai`, TDM reservation) skips the fallback with a neutral type-it-in message (`FR-063`, attorney sign-off owed).
+- [ ] Pasted text is deleted when the job leaves `pending`. All six states have copy and a localisation key.
+- [ ] A ceiling denial ends `budgetSpent`, is acknowledged and is not retried. An unreadable counter retries. A job
+      older than 10 minutes is `failed`.
+- [ ] A guessed source fills a suggestion only. The item stays under "Needs your statement".
+- [ ] The result goes through the one import pipeline and the one import allowance (one unit per successful extraction; a failed one costs nothing, awaiting an owner ruling). No second save path.
+- [ ] New result table with expiry, covered by erasure, the test-principal purge and the TTL sweep.
+- [ ] The mobile paste row is behind a flag that turns on only when this task ships. Web HTML paste ships earlier.
+- [ ] **Unit and worker tests**: the cases in the `FR-056` to `FR-062` acceptance criteria in `spec.md`. **Integration
+      tests** (database mocked, DD12). **LOCAL e2e** on the result table and erasure. **Playwright** (web) and **Maestro**
+      (mobile) for the read, `budgetSpent`, over-cap and source-question states. **k6** by hand.
+- [ ] ADRs amended in place: ADR-0024 §3 and §4c, ADR-0072 §3 and §8, ADR-0004 table, ADR-0026 Relates note, ADR-0089 §1 and §7, ADR-0072 §1 and §9. Write ADR-0092.
+- [ ] **Depends on, not yet tasked**: the import controller, the device page reader and the paste channel (blueprint PRs A to C). T-032 is rewritten to the amended `FR-052`.
+
+**Files** `packages/services/recipe-workers/**`, `packages/services/recipe-service/src/import/**`, tests alongside

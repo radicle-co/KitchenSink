@@ -161,14 +161,8 @@ onFlowComplete:
           - assertVisible: 'Counted as'
           - assertVisible: 'Cancel'
           - assertVisible: 'Done'
-          - runFlow:
-                when:
-                    visible: 'Close ${E2E_NEEDS_REVIEW_FOOD}.*'
-                commands:
-                    - tapOn: 'Cancel'
-                    - extendedWaitUntil:
-                          notVisible: 'You wrote'
-                          timeout: 20000
+          # Tablet first, for the same reason as pass 1: the phone's Cancel closes the sheet, so a later "no Close"
+          # check would match on the phone too.
           - runFlow:
                 when:
                     notVisible: 'Close ${E2E_NEEDS_REVIEW_FOOD}.*'
@@ -196,6 +190,14 @@ onFlowComplete:
                           timeout: 20000
                     - assertVisible: 'Edit 7 cups ${E2E_NEEDS_REVIEW_FOOD}.*'
                     - setOrientation: PORTRAIT
+          - runFlow:
+                when:
+                    visible: 'Close ${E2E_NEEDS_REVIEW_FOOD}.*'
+                commands:
+                    - tapOn: 'Cancel'
+                    - extendedWaitUntil:
+                          notVisible: 'You wrote'
+                          timeout: 20000
 
 # Leave with the close control, never Discard (it deletes the recipe). The next flow's reset deletes the probe either way.
 - tapOn: 'Close editor'

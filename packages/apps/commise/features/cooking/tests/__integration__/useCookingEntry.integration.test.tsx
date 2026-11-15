@@ -37,6 +37,28 @@ describe('useCookingEntry', () => {
         expect(onEdit).toHaveBeenCalledTimes(1);
     });
 
+    it('does not send the owner again when only the onEdit callback changes, and a later redirect calls the newest one', () => {
+        const first = vi.fn();
+        const second = vi.fn();
+        const draft = recipeRead(RecipeStatus.DRAFT, true);
+        const published = recipeRead(RecipeStatus.PUBLISHED, true);
+        const { rerender } = renderHook(
+            ({ r, onEdit }: { r: CookingScreenRead; onEdit: () => void }) => useCookingEntry(r, onEdit),
+            { initialProps: { r: draft, onEdit: first } },
+        );
+
+        rerender({ r: draft, onEdit: second });
+
+        expect(first).toHaveBeenCalledTimes(1);
+        expect(second).not.toHaveBeenCalled();
+
+        rerender({ r: published, onEdit: second });
+        rerender({ r: draft, onEdit: second });
+
+        expect(first).toHaveBeenCalledTimes(1);
+        expect(second).toHaveBeenCalledTimes(1);
+    });
+
     it('never calls onEdit for a published recipe, or for a draft the viewer does not own', () => {
         const onEdit = vi.fn();
 
@@ -94,6 +116,6 @@ describe('useCookingEntry', () => {
             vi.advanceTimersByTime(2000);
         });
 
-        expect(result.current).toEqual({ state: { kind: 'step' }, phase: 'blank' });
+        expect(result.current).toEqual({ state: { kind: 'ready' }, phase: 'blank' });
     });
 });

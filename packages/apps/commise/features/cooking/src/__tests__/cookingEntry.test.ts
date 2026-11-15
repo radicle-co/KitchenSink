@@ -45,7 +45,7 @@ describe('cookingEntryOf', () => {
     });
 
     it('cooks a published recipe that has steps', () => {
-        expect(cookingEntryOf(ready())).toEqual({ state: { kind: 'step' }, redirecting: false });
+        expect(cookingEntryOf(ready())).toEqual({ state: { kind: 'ready' }, redirecting: false });
     });
 
     it('counts only steps with text: blank steps leave no steps to cook', () => {

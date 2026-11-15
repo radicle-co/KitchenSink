@@ -4,8 +4,8 @@
  * @module cookingEntry — what the cook sees BEFORE a session exists: the read of the recipe, the cook link's
  * outcome and the step count decide the first screen, and an owner's draft is sent to the editor.
  *
- * It is the read-level half of cooking mode. The session half (`useCookingSession`) mounts below it, only once there is
- * a recipe with steps to cook, so the session's own status and ticks never reach this hook.
+ * It is the read-level half of cooking mode. The session half (`useCookingSession`) mounts below it, only once the
+ * state is `ready`.
  *
  * @pattern Headless hook — an effect and a clock over the pure {@link cookingEntryOf} rule
  */
@@ -14,12 +14,12 @@ import { useEffect, useEffectEvent } from 'react';
 
 import type { CookingScreenProps, CookingScreenRead } from './cookingViewProps.js';
 import { useLoadingPhase, type LoadingPhase } from './loadingPhase.js';
-import { cookingScreenStateOf, type CookingScreenState } from './screenState.js';
+import { cookingReadStateOf, type CookingReadState } from './screenState.js';
 
 /** The entry decision. */
 export interface CookingEntryRule {
-    /** The screen to draw before a session exists. */
-    readonly state: CookingScreenState;
+    /** The screen to draw before a session exists; `ready` hands over to the session. */
+    readonly state: CookingReadState;
     /** Whether the cook is being sent to the editor. Only the loading frame is painted until the replace lands. */
     readonly redirecting: boolean;
 }
@@ -33,34 +33,46 @@ export interface CookingEntryRule {
  * @returns The screen and whether the cook is being redirected. Pure.
  */
 export function cookingEntryOf(read: CookingScreenRead): CookingEntryRule {
-    const stepCount =
-        read.kind === 'ready' ? countCookableSteps(read.recipe.steps.map(({ instruction }) => instruction)) : 0;
-    const outcome =
-        read.kind === 'ready'
-            ? cookLinkOutcome({
-                  status: read.recipe.status,
-                  stepCount,
-                  isOwner: read.viewerIsOwner,
-                  readable: true,
-              })
-            : undefined;
-    const redirecting = outcome === 'editor';
+    if (read.kind !== 'ready') {
+        return {
+            redirecting: false,
+            state: cookingReadStateOf({
+                read: read.kind,
+                offline: read.kind === 'failed' && read.offline,
+                stepCount: 0,
+            }),
+        };
+    }
 
-    return {
-        redirecting,
-        state: cookingScreenStateOf({
-            read: redirecting ? 'pending' : outcome === 'gone' ? 'gone' : read.kind,
-            offline: read.kind === 'failed' && read.offline,
-            stepCount,
-            sessionStatus: 'cooking',
-            everyLineTicked: false,
-        }),
-    };
+    const stepCount = countCookableSteps(read.recipe.steps.map(({ instruction }) => instruction));
+    const outcome = cookLinkOutcome({
+        status: read.recipe.status,
+        stepCount,
+        isOwner: read.viewerIsOwner,
+        readable: true,
+    });
+
+    switch (outcome) {
+        case 'editor':
+            return { redirecting: true, state: cookingReadStateOf({ read: 'pending', offline: false, stepCount }) };
+        case 'gone':
+            return { redirecting: false, state: cookingReadStateOf({ read: 'gone', offline: false, stepCount }) };
+        case 'cook':
+        case 'noSteps':
+            return { redirecting: false, state: cookingReadStateOf({ read: 'ready', offline: false, stepCount }) };
+        default:
+            return assertNever(outcome);
+    }
+}
+
+/** A cook link outcome this file does not map is a compile error here, not a silent fall-through. */
+function assertNever(value: never): never {
+    throw new Error(`cookingEntryOf: unmapped cook link outcome ${String(value)}`);
 }
 
 /** What the entry hook hands a screen. */
 export interface CookingEntry {
-    readonly state: CookingScreenState;
+    readonly state: CookingReadState;
     /** How long the loading frame has been up, for the skeleton and the slow-load notice. */
     readonly phase: LoadingPhase;
 }

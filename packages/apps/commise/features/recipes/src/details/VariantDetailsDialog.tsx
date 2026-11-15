@@ -27,7 +27,7 @@ import { FOCUS_RING_CLASS } from '@commise/ui/focus-ring';
 import { PRESS_FILL_CLASS } from '@commise/ui/surface-tone';
 import { useCallback, useId, useState, type FC, type KeyboardEvent, type ReactNode } from 'react';
 
-import { fillTemplate } from '../format/fillTemplate.js';
+import { fillTemplate } from '@commise/i18n';
 import { recipeMessages } from '../messages.js';
 import { recipeNutritionMessages } from '../nutrition/messages.js';
 import { type DetailsTextMessages, caloriesLabel, dialogViewOf, variantOptionName } from './detailsText.js';

@@ -7,6 +7,7 @@
  * default), the ⋯ menu is the `ActionMenu`'s bottom sheet, and `onFieldBlur` is not called because no design-system
  * field reports its blur on native. Colours come from the theme at render, so both colour schemes paint (owner D15).
  */
+import { fillTemplate } from '@commise/i18n';
 import { useMessages } from '@commise/i18n/react';
 import { ActionMenu, type ActionMenuItem } from '@commise/ui/action-menu';
 import { Button } from '@commise/ui/button';
@@ -19,7 +20,6 @@ import type { FC } from 'react';
 import { StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
 import { editorMessages } from '../editor/messages.js';
-import { fillTemplate } from '../format/fillTemplate.js';
 import { numeralDiscOf } from '../format/numeralDisc.js';
 import { stepsErrorId } from './fieldErrorIds.js';
 import { stepFieldId } from './fieldIds.js';

@@ -6,11 +6,11 @@
     "coverage": {
         "components": 55,
         "implementations": 55,
-        "props": 152,
+        "props": 153,
         "documentedComponents": 54,
         "implementationsWithModuleDoc": 53,
         "implementationsWithComponentDoc": 41,
-        "documentedProps": 143,
+        "documentedProps": 144,
         "classifiedComponents": 40,
         "componentsWithPatternTag": 26,
         "crossPlatformComponents": 0
@@ -3753,6 +3753,15 @@
                             "required": false,
                             "defaultValue": null,
                             "description": "Open a food's page (the make-public refusal's Open food).",
+                            "declaredIn": "packages/apps/commise/mobile/src/screens/RecipeDetailScreen.tsx"
+                        },
+                        {
+                            "name": "onStartCooking",
+                            "type": "((recipeId: string) => void)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Invoked with the recipe id when the cook starts cooking it; Start cooking is offered only when this is bound.",
                             "declaredIn": "packages/apps/commise/mobile/src/screens/RecipeDetailScreen.tsx"
                         },
                         {

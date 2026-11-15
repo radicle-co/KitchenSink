@@ -1,0 +1,3 @@
+# Stryker mutation-testing output (`npm run test:mutation`): the report and the sandbox copy of the sources.
+reports/
+.stryker-tmp/

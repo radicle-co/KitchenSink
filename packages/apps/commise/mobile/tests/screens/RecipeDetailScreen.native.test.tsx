@@ -1341,3 +1341,70 @@ describe('RecipeDetailScreen — the refused Private, said inline (§6.4)', () =
         expect(onFinishRefusalSeen).not.toHaveBeenCalled();
     });
 });
+
+/**
+ * Start cooking exists only where a cook can cook. It is the page's ONE filled action, on its own row above the action
+ * row (designer, against canvas CookingModeEntry*), and absent for a draft or a recipe with no step that has text
+ * (FR-033a). The gate is the shared `canStartCooking` (cooking-core's
+ * `isCookable`); the route binds the press (`onStartCooking`).
+ */
+describe('RecipeDetailScreen — Start cooking', () => {
+    const steps = [{ stepNumber: 1, instruction: 'Heat the oven.' }];
+
+    beforeEach(() => {
+        useUserProfileMock.mockReturnValue(profile('usr_1', 'granted'));
+    });
+
+    it('offers Start cooking on a published recipe with steps, and opens cooking mode for it', () => {
+        seedRecipe(makeRecipeDetail({ ownerId: 'usr_1', status: 'published', steps }));
+        const onStartCooking = vi.fn();
+
+        render(<RecipeDetailScreen recipeId="rec_1" onEdit={vi.fn()} onStartCooking={onStartCooking} />);
+        fireEvent.click(screen.getByRole('button', { name: 'Start cooking' }));
+
+        expect(onStartCooking).toHaveBeenCalledWith('rec_1');
+    });
+
+    it('puts Start cooking above the action row, ahead of Edit recipe', () => {
+        seedRecipe(makeRecipeDetail({ ownerId: 'usr_1', status: 'published', steps }));
+
+        render(<RecipeDetailScreen recipeId="rec_1" onEdit={vi.fn()} onStartCooking={vi.fn()} />);
+
+        const start = screen.getByRole('button', { name: 'Start cooking' });
+        const edit = screen.getByRole('button', { name: 'Edit recipe' });
+
+        expect(start.compareDocumentPosition(edit) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
+    it('offers it on another cook’s public recipe too: cooking writes nothing to the recipe', () => {
+        seedRecipe(makeRecipeDetail({ ownerId: 'usr_2', visibility: 'public', status: 'published', steps }));
+
+        render(<RecipeDetailScreen recipeId="rec_1" onStartCooking={vi.fn()} />);
+
+        expect(screen.getByRole('button', { name: 'Start cooking' })).toBeTruthy();
+    });
+
+    it.each([
+        ['a draft', { status: 'draft' as const, steps }],
+        ['a recipe with no steps', { status: 'published' as const, steps: [] }],
+        [
+            'a recipe whose steps are all blank',
+            { status: 'published' as const, steps: [{ stepNumber: 1, instruction: '   ' }] },
+        ],
+    ])('offers no Start cooking on %s', (_label, recipe) => {
+        seedRecipe(makeRecipeDetail({ ownerId: 'usr_1', ...recipe }));
+
+        render(<RecipeDetailScreen recipeId="rec_1" onEdit={vi.fn()} onStartCooking={vi.fn()} />);
+
+        expect(screen.getByRole('button', { name: 'Edit recipe' })).toBeTruthy();
+        expect(screen.queryByRole('button', { name: 'Start cooking' })).toBeNull();
+    });
+
+    it('offers no Start cooking when the navigator wires no cooking route', () => {
+        seedRecipe(makeRecipeDetail({ ownerId: 'usr_1', status: 'published', steps }));
+
+        render(<RecipeDetailScreen recipeId="rec_1" onEdit={vi.fn()} />);
+
+        expect(screen.queryByRole('button', { name: 'Start cooking' })).toBeNull();
+    });
+});

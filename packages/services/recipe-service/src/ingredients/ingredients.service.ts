@@ -267,13 +267,19 @@ export class IngredientsService {
      * @param caller - The caller's credential.
      * @param ref - The root or variant the caller picked.
      * @param callerUserId - The caller, recorded as owner of their own private food.
+     * @param options - `signal`: the caller's own deadline, forwarded to food's bind check.
      * @returns The bound ingredient, `RESOLVED`.
      * @throws {RecipeError} `UNKNOWN_INGREDIENT` (→ 400) when food will not let the food be bound.
-     * @throws {HttpException} `502 SOURCE_UNAVAILABLE` when food cannot be asked.
+     * @throws {HttpException} `502 SOURCE_UNAVAILABLE` when food cannot be asked, or the signal ended the ask.
      * @sideEffect One food-service request, then at most one binding write.
      */
-    public async addByRef(caller: CallerToken | undefined, ref: FoodRef, callerUserId?: string): Promise<Ingredient> {
-        const answer = await this.refs.resolveForBind(caller, ref);
+    public async addByRef(
+        caller: CallerToken | undefined,
+        ref: FoodRef,
+        callerUserId?: string,
+        options: { readonly signal?: AbortSignal } = {},
+    ): Promise<Ingredient> {
+        const answer = await this.refs.resolveForBind(caller, ref, options);
         const admission = admitResolvedRef(answer, callerUserId);
 
         if (!isAdmission(admission)) {
@@ -351,6 +357,25 @@ export class IngredientsService {
      */
     public async createFreeform(name: CanonicalIngredientName): Promise<Ingredient> {
         const arm = await this.lookups.recordFailure(declaredFailure(name, keyOf(name)));
+
+        return toIngredient(deriveIngredientLineIdentity(arm, new Map()));
+    }
+
+    /**
+     * A declared name under ids the caller derived, declared ONCE: a retry with the same ids answers the same ingredient
+     * and writes nothing. The bulk import's save uses it, because it declares before a create that can fail (review item
+     * 4 on #220).
+     *
+     * @param name - The display name, already canonical.
+     * @param ids - The failure record's id and its binding's id.
+     * @returns The user-entered ingredient.
+     * @sideEffect Inserts a failure record and its binding, each only when its id is new.
+     */
+    public async createFreeformOnce(
+        name: CanonicalIngredientName,
+        ids: { readonly failureId: string; readonly lookupId: string },
+    ): Promise<Ingredient> {
+        const arm = await this.lookups.declareOnce(declaredFailure(name, keyOf(name)), ids);
 
         return toIngredient(deriveIngredientLineIdentity(arm, new Map()));
     }

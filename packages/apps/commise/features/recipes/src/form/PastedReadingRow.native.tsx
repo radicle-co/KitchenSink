@@ -11,7 +11,7 @@ import { useTheme } from '@commise/ui/theme';
 import type { FC } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { fillTemplate } from '../format/fillTemplate.js';
+import { fillTemplate } from '@commise/i18n';
 import { recipeFormMessages } from './messages.js';
 import { pasteRowViewOf } from './pasteStatusCopy.js';
 import type { PastedReadingRowProps } from './pastedReadingRowProps.js';

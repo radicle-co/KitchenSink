@@ -15,6 +15,7 @@
  *
  * @pattern Adapter over the design-system `Sheet` — the form's states mapped to the sheet's slots
  */
+import { fillTemplate } from '@commise/i18n';
 import { useMessages } from '@commise/i18n/react';
 import { Button } from '@commise/ui/button';
 import { fieldPaint } from '@commise/ui/input';
@@ -29,7 +30,6 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import type { AuthoredFoodDraft } from '../hooks/authoredFoodCreate.model.js';
 import { useLastDefined } from '../hooks/useLastDefined.js';
-import { fillTemplate } from '../format/fillTemplate.js';
 import { recipeMessages } from '../messages.js';
 import {
     authoredFieldErrorText,

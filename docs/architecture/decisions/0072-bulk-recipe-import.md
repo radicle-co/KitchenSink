@@ -6,7 +6,7 @@
 - **Amended by:** [ADR-0077](0077-recipe-rights-label-linked-cards-and-outside-copy-checks.md): §9's statement list gains
   "Adapted in my own words" and "From a family member or friend, with their permission". A family or friend recipe is
   no longer labelled like a paid source. The rest of §9 stands, except that a web import now goes private for any cook,
-  using a slot, as ADR-0077 §6 says. The Premium-and-substantive-edit notes in §9 no longer apply.
+  using a slot, as ADR-0077 §6 says.
 - **Amended by:** [ADR-0089](0089-a-pasted-web-link-sets-the-source-and-a-web-copy-stays-private.md): §9. The web
   statement is the same member a recipe's own `statement` uses, and a recipe from a public web page is private only. The
   exception to ADR-0023 is no longer this route alone: a cook's pasted link sets the same label on
@@ -115,6 +115,57 @@ recipe it created, so a repeated `advance` sees the item as done.
 - **On approval**, a public recipe becomes public, and a private one simply stays private, in the slot it already
   holds.
 - Because the save publishes, the recipe records its first version then (ADR-0058).
+- **A recipe with no ingredient line or no step is refused** (owner ruling, 2026-11-11). Nothing in the import adds a
+  line or a step, so such a recipe cannot be finished here. It shows in the list as not importable, with its reason
+  (`noIngredients` or `noSteps`). It is never paid for, parsed, matched or saved, and it uses no allowance. The rule is
+  the content half of the publish policy, asked once through `unmetContentRequirements` (`publishPolicy.ts`). The
+  refusal is a fact stored on the item when it is written (`recipe_import_items.refusal`, migration 0078), because the
+  queries that pay for, parse and match items must leave it out in SQL. A replace with a fixed recipe clears it, and a
+  replace with an emptied recipe sets it, even on an item that already paid (the unit stays spent). A refused item is
+  terminal: the view counts it under `refused`, and `received` counts only the items still waiting to move on. `total`
+  is every item that arrived.
+- **A recipe that lacks a cuisine, servings or times waits in the import** (lead ruling, 2026-11-11, and owner ruling,
+  2026-11-11). Publish needs a cuisine, and the create route needs servings and the prep and cook times. Only the
+  curator's public-domain text is exempt from the cuisine, and the import never sets it: a web statement is a web copy
+  (ADR-0089 §5). Another app's export often states none of them. The import does not make one up: no default
+  cuisine, no "1 serving", no "0 minutes", no cuisine picked by the AI, and no draft save. The item is listed under
+  "Needs a cuisine" (`needsCuisine`), "Needs servings" (`needsServings`) or "Needs times" (`needsTimes`), in that
+  order, after "Needs your statement" and the visibility, and before the slot pause. The cook gives each in the wizard
+  or in the batch choices (additive `cuisine`, `servings`, `prepTimeMinutes` and `cookTimeMinutes` fields, with the
+  create route's own bounds), and it replaces the file's for that recipe. The next `advance` then saves the recipe
+  published.
+- **Each value is the cook's choice, else the file's, else absent.** An absent value holds the item, and a stated `0`
+  never does: zero minutes is a fact. Times are complete only when prep and cook are both known, so a file that states
+  only a total holds until the cook gives prep and cook. The total is the file's total when it states one. Otherwise it
+  is prep plus cook. A sum past the create route's ceiling (`INT4_CEILING`) is a times gap too, because the total
+  column could not hold it, and the choices schemas refuse prep and cook that sum past it. The step shows these resolved values (`servings`, `prepTimeMinutes`, `cookTimeMinutes`,
+  `totalTimeMinutes`), so the wizard shows what the save will send.
+- **An item the save cannot save is held, never re-queued.** The save asks the item list's own rule
+  (`importItemIssueOf`), in its order, before it reads the matches. A save gap and a refused visibility each hold the
+  item. The hold records the item's `decision_rev` in `held_at_rev` (migration 0076) and WHY it was held in
+  `held_reason` (migration 0082): `item`, `unreadable`, `visibility` or `createRefused`.
+    - Every decision of the cook moves `decision_rev`, so the next decision releases any hold by itself.
+    - A `visibility` or `createRefused` hold also records the cook facts it was judged under in `held_cook_key` (the
+      principal kind, the containment and the plan). The save candidates leave such an item out only for a cook with the
+      same facts. So an upgrade or a containment change brings it back with no decision, and if it is still refused it
+      is held again under the new facts.
+    - Which reasons record a cook key is one constant in code, `COOK_DEPENDENT_HOLD_REASONS`, and the save candidates
+      read it. The 0082 CHECK states the same sets in SQL, because a migration cannot import code. So a new
+      cook-dependent reason needs a new migration as well, and the LOCAL e2e that loops over every reason fails until
+      that migration exists.
+    - A recipe with no line or no step is refused at upload. One that reaches the save all the same is held for its
+      refusal (`item`), and the defect is logged once. A payload this build cannot read is held as `unreadable`, and
+      logged once. That is the one matched item the cook may replace: a different recipe reopens it, back to `received`
+      with its snapshot dropped and a new parse generation, and the unit it paid stays spent. Every other matched item
+      stays locked.
+    - A refusal from the create path that the check did not predict is held as `createRefused`, and an unpublishable
+      one is logged once as a defect.
+    - A save that fails for a cause no rule recognises is retried, and counted in `save_failures` (migration 0084). After
+      `IMPORT_SAVE_FAILURE_CAP` (5) failures in a row it is held as `createRefused`, and the hold is logged once. Every
+      write that moves `decision_rev` sets the count back to 0, so a decision of the cook starts it again.
+    - The issue the list shows is derived at read time. A refusal comes first. Last of the holding reasons,
+      `saveRefused` is read from the hold: it shows only for an `unreadable` or `createRefused` hold that still applies to
+      the cook asking, so a hold whose cause is gone, or one the cook can see the cause of, never shows it.
 - The import still binds nothing in the background and never chooses a visibility for the cook.
 - **This is bulk import only.** The single-recipe imports (a link, a paste, a video) are unchanged.
 
@@ -212,8 +263,9 @@ The builder made three choices where the blueprint was silent. They are recorded
 The owner ruled that bulk import has an allowance of its own, separate from paste's.
 
 - **Paste: 200 a rolling day**, one unit per paste (004 FR-022 and plan §5).
-- **Bulk import: 1,000 recipes a rolling day on a paid plan (Pro, Pro with AI), 200 on Free**, one unit per recipe.
-  The lower Free limit is an owner ruling of 2026-10-27. The plan decides the limit at the first send of a line.
+- **Bulk import: 200 recipes a rolling day on Free, 1,000 on a paid plan**, one unit per recipe (owner ruling,
+  2026-11-11). Superusers and VIPs count as paid. The plan is read once, through `isPremiumPrincipal`. The plan
+  decides the limit at the first send of a line.
 - Both are counted in the one ledger this branch built, `import_allowance_events` (migration 0058), under the per-user
   advisory lock. Each channel sums only its own rows. The window is the trailing 24 hours that
   `importAllowancePolicy.ts` defines.
@@ -221,14 +273,14 @@ The owner ruled that bulk import has an allowance of its own, separate from past
   records that it paid, so a repeated `advance` or a re-created parse job never charges it twice.
 - **A file of any size is accepted** (owner ruling, second round). There is no per-file cap. A file larger than the
   room left today imports what fits, and the rest follows as room frees up.
-- An `advance` that reaches the allowance does the work it can still pay for and returns the `IMPORT_QUOTA_EXCEEDED`
-  refusal with `resetsAt` for the rest. The import pauses. The next call after that time resumes it.
+- An `advance` that reaches the allowance does the work it can still pay for and answers the import view as usual. It
+  never answers `IMPORT_QUOTA_EXCEEDED`, which is paste's refusal. The view's `allowance` carries the cook's limit (200
+  on Free, 1,000 on a paid plan, where superusers and VIPs count as paid), what the window used, and `resetsAt`. Each
+  item still unpaid shows `waitingForAllowance`. The next call after `resetsAt` resumes the import.
 - The ledger's channel names follow the route: `bulk`, not `migration`. Migration 0058 is not pushed, so it is
   edited in place rather than followed by a rename.
-- **Builder work: the allowance policy has one limit today.** `importAllowancePolicy.ts` sums every channel's rows
-  against a single limit of 200, and its comments and migration 0058's say a bulk file costs one unit. Both are
-  wrong under this ruling. The policy takes the channel and counts only that channel's rows against that channel's
-  limit.
+- `importAllowancePolicy.ts` counts each channel's rows against that channel's limit. On bulk, the limit is the
+  cook's plan's.
 
 ### 9. Each recipe carries its own source statement, and the statement sets its provenance
 
@@ -272,20 +324,19 @@ The owner ruled that bulk import has an allowance of its own, separate from past
   decides whether each choice is allowed for that recipe's label, as the table shows. A recipe whose source is not a
   public web page cannot be public. That is FR-014a's own rule.
 - **A free cook has 50 private slots** (ADR-0073). Every recipe a free cook holds as private uses one, book and
-  paid-site recipes included. A Premium cook has no limit. A free cook keeps a book or paid-site recipe private only
-  while a slot is free. An `imported_public` recipe still goes private only with Premium and a substantive edit, so
-  slots never apply to it.
+  paid-site recipes included. A Premium cook has no limit. A free cook keeps a book, paid-site or web recipe private
+  only while a slot is free (ADR-0077 §6, ADR-0089 §5).
 - **When a free cook runs out of slots, the import pauses** (ADR-0073 §8). The ordinary slot count already includes
   the cook's private recipes in review, because each holds its slot. When the private items left exceed the free
   slots, it saves no more private items and warns the cook. The cook chooses to stop there, or to make the rest
   public: one list of the remaining recipes with their sources, which the cook may untick, and one confirmation that
-  records a separate statement for each recipe. A book or paid-site item can never go public, so for it the choice is
-  skip or stop. The pause is derived from the live count, and the cook's choice is
+  records a separate statement for each recipe. A book, paid-site or web item can never go public, so for it the choice
+  is skip or stop. The pause is derived from the live count, and the cook's choice is
   stored on the item.
 - **Counsel confirms the statement's wording before launch**, both forms included. It is on 016 FR-050's list.
-- **A cook who chooses Private for a public web recipe is refused on a fresh import.** `imported_public` goes
-  private only with Premium and after a substantive edit. The import keeps that recipe public, or lets the cook
-  change the choice, and never edits the recipe to get round the rule.
+- **A cook who chooses Public for a public web recipe is refused** (ADR-0089 §5). The item is held under
+  "Visibility not allowed" until the cook chooses Private or changes the statement. The import never changes the
+  choice or edits the recipe to get round the rule.
 - **004 FR-028 no longer asks for Premium** on any route (owner ruling, 2026-10-26, ADR-0073 §7). A free cook brings
   in book and paid-site recipes by any route, within their slots.
 
@@ -369,6 +420,9 @@ is reached, this path does not wait for the budget to return.
   lines that still wait for the cook leave the list and the count. The saved recipe keeps the line as the import left
   it. This follows the owner's ruling literally, and it is open for the owner. To keep those lines findable, the purge
   needs a rule that spares an import with open lines.
+- **A free cook out of slots is paused on a book or paid-site item.** ADR-0082 §2 lets such a recipe go public as a
+  facts card, which uses no slot, so the import should offer the card and not pause. The facts card is not built, so
+  the import pauses every private item when no slot is free. This follows ADR-0073 §8 until the card exists.
 - **One very large import can outlast a purge statement.** The purge deletes 3 imports per statement, and each one
   takes its items and lines with it by cascade. A file of any size is accepted. So one import that holds tens of
   thousands of recipes can make a single statement run past the tick's time. The tick then fails, and the next tick
@@ -386,7 +440,7 @@ is reached, this path does not wait for the budget to return.
   recipe.
 - Give `bindingOf` a budget input and build the "to check" list (§10).
 - Build the out-of-slots pause and take the slot lock on each private save, so a private recipe holds its slot from
-  the save (§9, ADR-0073 §5 and §8). Save every item published, never as a draft (§3).
+  the save (§9, ADR-0073 §5 and §8).
 
 ## Related work
 

@@ -175,6 +175,12 @@ export interface RecipeAggregate {
     ingredients: IngredientRow[];
 }
 
+/** A recipe's slot facts and source facts, as read under its row lock (`lockSlotFacts`). */
+export interface LockedRecipeFacts extends SlotFacts {
+    readonly sourceType: RecipeRow['sourceType'];
+    readonly sourceKind: RecipeRow['sourceKind'];
+}
+
 /**
  * A list-page row: the recipe plus the resolved cover-photo object key (CR-001 / FR-001c). The key is resolved
  * for the whole page in ONE cover LATERAL (no N+1); the service maps it to an absolute CDN URL. ABSENT when the
@@ -266,27 +272,34 @@ export class RecipesDal {
     }
 
     /**
-     * An active recipe's CURRENT slot facts (visibility and status), read `FOR UPDATE` inside the caller's transaction
-     * (ADR-0073).
+     * An active recipe's CURRENT slot and source facts, read `FOR UPDATE` inside the caller's transaction (ADR-0073,
+     * ADR-0089).
      *
-     * A slot decision is made against the values held under the lock, not the ones read before the transaction opened:
+     * A visibility decision is made against the values held under the lock, not the ones read before the transaction opened:
      * set-visibility does not bump the version, so a compare-and-swap on `expectedVersion` cannot see a visibility that
      * changed in between, and a status change made by another request must be seen too ("already private and published"
-     * means the recipe already holds its slot; a draft holds none).
+     * means the recipe already holds its slot; a draft holds none). The source is read here for the same reason: a PATCH
+     * that states a web link makes the recipe a private-only web copy, and set-visibility must judge that, not the source
+     * it read before.
      *
      * @param tx - The open transaction.
      * @param id - The recipe.
      * @returns The facts, or `undefined` when no active recipe has that id.
      * @sideEffect Row-locks the `recipes` row until the transaction ends.
      */
-    public async lockSlotFacts(tx: RecipeTx, id: string): Promise<SlotFacts | undefined> {
+    public async lockSlotFacts(tx: RecipeTx, id: string): Promise<LockedRecipeFacts | undefined> {
         const [row] = await tx
-            .select({ visibility: recipes.visibility, status: recipes.status })
+            .select({
+                visibility: recipes.visibility,
+                status: recipes.status,
+                sourceType: recipes.sourceType,
+                sourceKind: recipes.sourceKind,
+            })
             .from(recipes)
             .where(and(eq(recipes.id, id), activeRecipe()))
             .for('update');
 
-        return row === undefined ? undefined : { visibility: row.visibility, status: row.status };
+        return row;
     }
 
     /**

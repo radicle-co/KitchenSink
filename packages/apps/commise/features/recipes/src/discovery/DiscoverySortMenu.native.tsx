@@ -15,7 +15,7 @@ import { Sheet } from '@commise/ui/sheet';
 import { useState, type FC } from 'react';
 import { StyleSheet, View } from 'react-native';
 
-import { fillTemplate } from '../format/fillTemplate.js';
+import { fillTemplate } from '@commise/i18n';
 import { SortOptionRow } from '../common/SortOptionRow.native.js';
 import { discoveryMessages } from './messages.js';
 import { DISCOVERY_SORTS, discoverySortLabel, type RecipeDiscoverySortControl } from './model.js';

@@ -49,6 +49,7 @@ export type TypeRole =
     | 'cardTitle'
     | 'body'
     | 'readingBody'
+    | 'readingLarge'
     | 'meta'
     | 'list'
     | 'label'
@@ -85,6 +86,10 @@ export interface TypeRoleSpec {
  * - `barTitle` is `cardTitle`'s size and weight; the bar's emphasis, if it needs more, comes from colour or the bar
  *   material, never from size.
  * - `figureStat` is 18 / 24: a standalone number takes a heading's size.
+ * - `readingLarge` is reading text at the largest size, 28 / 36 in the body face at regular weight. It is not a heading:
+ *   `largeTitle` is the display face in semibold. It is the 28 step above `readingBody` and takes the reading cap.
+ *   No screen may show `readingLarge` and `largeTitle` together: at the largest text it grows to 56 against the title's 42,
+ *   so a later screen that adopts it must re-decide that.
  */
 export const typeRole = {
     largeTitle: { face: 'display', size: { narrow: 28, regular: 28, wide: 28 }, weight: 'semibold', lineHeight: 32 },
@@ -93,6 +98,7 @@ export const typeRole = {
     cardTitle: { face: 'body', size: 16, weight: 'semibold', lineHeight: 20 },
     body: { face: 'body', size: 16, weight: 'normal', lineHeight: 24 },
     readingBody: { face: 'body', size: 18, weight: 'normal', lineHeight: 28 },
+    readingLarge: { face: 'body', size: 28, weight: 'normal', lineHeight: 36 },
     meta: { face: 'body', size: 14, weight: 'normal', lineHeight: 20 },
     list: { face: 'body', size: 14, weight: 'normal', lineHeight: 20 },
     label: { face: 'body', size: 14, weight: 'semibold', lineHeight: 20 },

@@ -18,8 +18,7 @@ import { useFocusOnSignal } from '@commise/ui/dialog-focus';
 import { LiveRegion } from '@commise/ui/live-region';
 import type { FC } from 'react';
 
-import { pluralOf } from '../format/plural.js';
-import { fillTemplate } from '../format/fillTemplate.js';
+import { pluralOf, fillTemplate } from '@commise/i18n';
 import { MatchFailureLine } from '../ingredientMatching/MatchFailureLine.js';
 import { useMatchCopy } from '../ingredientMatching/useMatchCopy.js';
 import { useRetryFocus } from '../ingredientMatching/useRetryFocus.js';

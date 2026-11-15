@@ -7,7 +7,7 @@
  *
  * @pattern Policy — one pure decision of which words the blocked-publish dialog says
  */
-import { fillTemplate } from '../format/fillTemplate.js';
+import { fillTemplate } from '@commise/i18n';
 import type { EditorMessages } from './messages.js';
 
 /** What the dialog says. */

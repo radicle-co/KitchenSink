@@ -12,7 +12,7 @@ import { Text as DesignText } from '@commise/ui/text';
 import type { FC } from 'react';
 import { XStack, YStack } from 'tamagui';
 
-import { pluralOf } from '../format/plural.js';
+import { pluralOf } from '@commise/i18n';
 import { foodPageMessages } from './messages.js';
 import type { YourFoodsRowProps } from './yourFoodsViewProps.js';
 

@@ -1,5 +1,8 @@
 """Assemble the redesign screens canvas from the legacy canvas build.
 
+WARNING: do not publish this output over an existing canvas. The screen canvases are edited live, and a rebuild
+deletes every edit made since (docs/design/canvases/README.md). Use it only to create a new canvas.
+
 Run from the repo root after `npm run artifact:build --workspace=@kitchensink/design-artifact`:
 
     python3 docs/design/uiRefreshWorkshop5/redesignCanvas/assembleRedesign.py <outDir>

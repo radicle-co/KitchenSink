@@ -146,6 +146,41 @@ describe('the bulk import routes against a real database (LOCAL e2e)', () => {
         expect(importViewSchema.parse((await call(COOK, 'GET', `/${IMPORT_ID}`)).json).id).toBe(IMPORT_ID);
     });
 
+    // The test above stamps `allowance_spent_at` by hand, so it never shows the allowance path this PR exists for.
+    it('⛔ POST /import then advance spends exactly ONE unit, on the bulk channel, at the limit the principal holds', async () => {
+        const id = crypto.randomUUID();
+        const ledger = `SELECT channel, units FROM import_allowance_events WHERE user_id = $1`;
+
+        await pool.query('DELETE FROM import_allowance_events WHERE user_id = $1', [COOK]);
+
+        const created = await call(COOK, 'POST', '', { ...createBody, id });
+
+        expect(created.status).toBe(201);
+        expect((await pool.query(ledger, [COOK])).rows).toEqual([]);
+
+        const advanced = await call(COOK, 'POST', `/${id}/advance`, {});
+
+        expect(advanced.status).toBe(200);
+        expect((await pool.query(ledger, [COOK])).rows).toEqual([{ channel: 'bulk', units: 1 }]);
+        // The dev-bypass principal is a real, free cook: Free's 200, with this one unit used.
+        expect(importViewSchema.parse(advanced.json).allowance).toMatchObject({ limit: 200, used: 1 });
+
+        const stamped = await pool.query(
+            `SELECT count(*)::int AS n FROM recipe_import_items WHERE import_id = $1 AND allowance_spent_at IS NOT NULL`,
+            [id],
+        );
+
+        expect(stamped.rows[0]).toEqual({ n: 1 });
+
+        // Advancing again spends nothing more: the item is already paid.
+        await call(COOK, 'POST', `/${id}/advance`, {});
+
+        expect((await pool.query(ledger, [COOK])).rows).toEqual([{ channel: 'bulk', units: 1 }]);
+
+        await call(COOK, 'DELETE', `/${id}`);
+        await pool.query('DELETE FROM import_allowance_events WHERE user_id = $1', [COOK]);
+    });
+
     it('advances to a saved recipe and the view names it', async () => {
         // The parse job and the match are another service's work: leave the snapshot an earlier advance would have.
         const db = createRecipeDrizzle(pool);

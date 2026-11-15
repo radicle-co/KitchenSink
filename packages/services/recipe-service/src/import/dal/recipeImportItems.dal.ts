@@ -22,6 +22,7 @@ import { and, asc, eq, gt, inArray, isNotNull, isNull, notInArray, sql, type SQL
 import { isDeepStrictEqual } from 'node:util';
 
 import { ImportAllowanceDal } from '../../common/dal/importAllowance.dal.js';
+import type { PrincipalKind } from '../../common/containmentPolicy.js';
 import type { RecipeDrizzle } from '../../database/client.js';
 import {
     IMPORT_REFUSALS,
@@ -638,14 +639,14 @@ export class RecipeImportItemsDal {
      *
      * @param userId - The verified caller; only their import is paid for.
      * @param importId - The import.
-     * @param request - The most items to pay now, and whether the cook holds a paid plan (the bulk limit is per plan).
+     * @param request - The most items to pay now, and whether the cook holds a paid plan and which kind of principal they are (the bulk limit is per plan, and a test principal has none).
      * @returns The items paid (fewer than `limit` when the day's room ran short), `nothing` when none was unpaid, or `refused`.
      * @sideEffect Locks the unpaid items, then the user's allowance; writes the ledger and `allowance_spent_at`.
      */
     public async payUnpaid(
         userId: string,
         importId: string,
-        request: { readonly limit: number; readonly isPremium: boolean },
+        request: { readonly limit: number; readonly isPremium: boolean; readonly principalKind: PrincipalKind },
     ): Promise<PayOutcome> {
         return this.db.transaction(async (tx): Promise<PayOutcome> => {
             await lockImportHeader(tx, importId);
@@ -671,6 +672,7 @@ export class RecipeImportItemsDal {
             const admission = await this.allowance.admit(tx, userId, {
                 channel: 'bulk',
                 isPremium: request.isPremium,
+                principalKind: request.principalKind,
                 units: unpaid.rows.length,
             });
 

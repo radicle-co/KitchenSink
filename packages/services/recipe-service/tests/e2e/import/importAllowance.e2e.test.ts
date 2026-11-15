@@ -35,8 +35,8 @@ import { recipeDb } from '../../support/roleDb.js';
 const USER = '01JIMPORTALLOWANCEE2E00001';
 const OTHER = '01JIMPORTALLOWANCEE2E00002';
 const roleDb = recipeDb();
-const PAID_BULK_LIMIT = importAllowanceLimitOf({ channel: 'bulk', isPremium: true });
-const FREE_BULK_LIMIT = importAllowanceLimitOf({ channel: 'bulk', isPremium: false });
+const PAID_BULK_LIMIT = importAllowanceLimitOf({ channel: 'bulk', isPremium: true, principalKind: 'real' });
+const FREE_BULK_LIMIT = importAllowanceLimitOf({ channel: 'bulk', isPremium: false, principalKind: 'real' });
 
 describe('the per-channel import allowance (LOCAL e2e)', () => {
     let pool: pg.Pool;
@@ -58,7 +58,7 @@ describe('the per-channel import allowance (LOCAL e2e)', () => {
 
     /** The scope a case runs under: bulk on the paid plan, whose limit most cases were written for, unless it names Free. */
     function scopeOf(channel: 'paste' | 'bulk', isPremium = true): ImportAllowanceScope {
-        return channel === 'paste' ? { channel } : { channel, isPremium };
+        return channel === 'paste' ? { channel } : { channel, isPremium, principalKind: 'real' };
     }
 
     /** One admission in its own transaction, the way a service call makes it. */
@@ -230,6 +230,20 @@ describe('the per-channel import allowance (LOCAL e2e)', () => {
         expect(await dal.stateOf(db, USER, scopeOf('bulk', false))).toMatchObject({ limit: 200, used: 200 });
         // The same ledger is 800 short of a paid cook's day.
         expect(await admit('bulk', 1)).toEqual({ kind: 'admitted', units: 1 });
+    });
+
+    // Owner ruling 2026-11-15: a test principal has no limit. The ledger still records the unit, so the one pipeline runs.
+    it('⛔ a test principal is admitted past a limit that refuses a real cook, and the unit is still written', async () => {
+        await seed('bulk', FREE_BULK_LIMIT, 1);
+
+        expect((await admit('bulk', 1, USER, false)).kind).toBe('refused');
+
+        const outcome = await db.transaction((tx) =>
+            dal.admit(tx, USER, { channel: 'bulk', isPremium: false, principalKind: 'test', units: 50 }),
+        );
+
+        expect(outcome).toEqual({ kind: 'admitted', units: 50 });
+        expect(await spent('bulk')).toBe(FREE_BULK_LIMIT + 50);
     });
 
     it("counts each caller's allowance separately", async () => {

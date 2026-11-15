@@ -5,7 +5,8 @@
 //
 // ⛔ AUTHORED, NEVER RUN BY A PULL REQUEST (owner rulings 2026-09-13): k6 runs only from a dispatch-only workflow, or by
 // hand. This script adds no trigger of its own: the loadtest package derives its place from the marker above.
-// ⚠️ An iteration spends three units of the pool user's daily bulk allowance (1,000) and starts three parse jobs.
+// An iteration spends three allowance units and starts three parse jobs. The pool users are TEST principals, which have no
+// allowance limit (owner ruling 2026-11-15), so a long run is not throttled by it.
 //
 // Why this route earns its own scenario: one request does a BOUNDED STEP of unbounded work (pay up to ten items, start up to
 // ten parse jobs, match up to twenty-five finished ones, save up to five recipes) under a single eight-second budget that
@@ -13,11 +14,11 @@
 //
 //   * The step's latency is bounded by the budget, not by the import's size. A p95 that grows with the item count means the
 //     deadline stopped stopping new work.
-//   * A spent allowance or a stalled food service must answer `200` with the state in the body, never a 5xx.
-//     `http_req_failed` is the tripwire.
+//   * A stalled food service must answer `200` with the state in the body, never a 5xx. `http_req_failed` is the tripwire.
 //
 // Each iteration creates its own small import (private, so a recipe it saves reaches no one), advances it three times, and
-// deletes it, so a run leaves no import behind. A recipe a save wrote stays: it is private and the pool user's.
+// deletes it, and deletes each recipe a save wrote (read from the last view's `recipeId`s), so a run leaves no import and no
+// recipe behind (owner ruling 2026-09-13: each run cleans up its own data).
 //
 //   k6 run \
 //     -e RECIPE_API_BASE_URL=http://localhost:3000 \
@@ -115,6 +116,8 @@ export function advanceImport() {
         return;
     }
 
+    let saved = [];
+
     for (let step = 0; step < ADVANCES; step += 1) {
         sleep(PACE_SECONDS);
 
@@ -129,20 +132,15 @@ export function advanceImport() {
             'the view carries the allowance': (r) => 'allowance' in JSON.parse(r.body || '{}'),
         });
 
-        // ⚠️ A pool user's 1,000 units a day last about 333 iterations; after that every advance answers 200 fast
-        // WITHOUT paying, and the p95 would measure the cheap path. So the last advance of each import must show an item
-        // that left `received` (it was paid), and this check turns red when the run outlives the allowance.
-        if (step === ADVANCES - 1) {
-            check(res, {
-                'the advance paid for work (an item left received)': (r) => {
-                    const counts = JSON.parse(r.body || '{}').counts || {};
-
-                    return counts.received < counts.total;
-                },
-            });
-        }
-
         advanceTrend.add(res.timings.duration);
+        saved = (JSON.parse(res.body || '{}').items || []).map((row) => row.recipeId).filter((recipeId) => recipeId);
+    }
+
+    for (const recipeId of saved) {
+        http.del(`${BASE_URL}/api/v1/recipes/${recipeId}`, null, {
+            headers: jsonHeaders(),
+            tags: { operation: 'deleteRecipe' },
+        });
     }
 
     http.del(`${BASE_URL}/api/v1/import/${id}`, null, { headers: jsonHeaders(), tags: { operation: 'deleteImport' } });

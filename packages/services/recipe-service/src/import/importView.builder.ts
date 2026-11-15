@@ -75,6 +75,7 @@ export class ImportViewBuilder {
             this.allowance.stateOf(this.db, header.userId, {
                 channel: 'bulk',
                 isPremium: isPremiumPrincipal(principal),
+                principalKind: principal.principalKind,
             }),
             this.imports.verdictFingerprint(header.id),
             this.isOutOfSlots(principal, header),

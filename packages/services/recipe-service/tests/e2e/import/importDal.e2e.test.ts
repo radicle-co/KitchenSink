@@ -631,7 +631,9 @@ describe('the bulk-import DALs (LOCAL e2e, real Postgres)', () => {
                 { ordinal: 2, recipe: noSteps('stepless') },
             ]);
 
-            expect(await items.payUnpaid(USER, header.id, { limit: 10, isPremium: true })).toEqual({
+            expect(
+                await items.payUnpaid(USER, header.id, { limit: 10, isPremium: true, principalKind: 'real' }),
+            ).toEqual({
                 kind: 'paid',
                 ordinals: [1],
             });
@@ -1150,16 +1152,22 @@ describe('the bulk-import DALs (LOCAL e2e, real Postgres)', () => {
 
             await put(header.id, [0, 1, 2, 3, 4, 5]);
 
-            const outcome = await items.payUnpaid(USER, header.id, { limit: 4, isPremium: true });
+            const outcome = await items.payUnpaid(USER, header.id, {
+                limit: 4,
+                isPremium: true,
+                principalKind: 'real',
+            });
 
             expect(outcome).toEqual({ kind: 'paid', ordinals: [0, 1, 2, 3] });
             expect(await ledger()).toBe(4);
 
-            const again = await items.payUnpaid(USER, header.id, { limit: 4, isPremium: true });
+            const again = await items.payUnpaid(USER, header.id, { limit: 4, isPremium: true, principalKind: 'real' });
 
             expect(again).toEqual({ kind: 'paid', ordinals: [4, 5] });
             expect(await ledger()).toBe(6);
-            expect(await items.payUnpaid(USER, header.id, { limit: 4, isPremium: true })).toEqual({ kind: 'nothing' });
+            expect(
+                await items.payUnpaid(USER, header.id, { limit: 4, isPremium: true, principalKind: 'real' }),
+            ).toEqual({ kind: 'nothing' });
         });
 
         it('⛔ pays only what fits the day: 997 spent leaves room for 3, and the rest waits', async () => {
@@ -1171,7 +1179,11 @@ describe('the bulk-import DALs (LOCAL e2e, real Postgres)', () => {
                 [USER],
             );
 
-            const outcome = await items.payUnpaid(USER, header.id, { limit: 5, isPremium: true });
+            const outcome = await items.payUnpaid(USER, header.id, {
+                limit: 5,
+                isPremium: true,
+                principalKind: 'real',
+            });
 
             expect(outcome).toMatchObject({ kind: 'paid', ordinals: [0, 1, 2] });
             expect(await ledger()).toBe(1000);
@@ -1187,7 +1199,11 @@ describe('the bulk-import DALs (LOCAL e2e, real Postgres)', () => {
                 [USER],
             );
 
-            const outcome = await items.payUnpaid(USER, header.id, { limit: 5, isPremium: false });
+            const outcome = await items.payUnpaid(USER, header.id, {
+                limit: 5,
+                isPremium: false,
+                principalKind: 'real',
+            });
 
             expect(outcome).toMatchObject({ kind: 'paid', ordinals: [0, 1, 2] });
             expect(await ledger()).toBe(200);
@@ -1203,7 +1219,11 @@ describe('the bulk-import DALs (LOCAL e2e, real Postgres)', () => {
                 [USER],
             );
 
-            const outcome = await items.payUnpaid(USER, header.id, { limit: 2, isPremium: true });
+            const outcome = await items.payUnpaid(USER, header.id, {
+                limit: 2,
+                isPremium: true,
+                principalKind: 'real',
+            });
 
             expect(outcome.kind).toBe('refused');
             expect(await ledger()).toBe(1000);
@@ -1218,7 +1238,9 @@ describe('the bulk-import DALs (LOCAL e2e, real Postgres)', () => {
                 { ordinal: 1, recipe: recipe('Has lines') },
             ]);
 
-            expect(await items.payUnpaid(USER, header.id, { limit: 5, isPremium: true })).toEqual({
+            expect(
+                await items.payUnpaid(USER, header.id, { limit: 5, isPremium: true, principalKind: 'real' }),
+            ).toEqual({
                 kind: 'paid',
                 ordinals: [1],
             });
@@ -1234,8 +1256,8 @@ describe('the bulk-import DALs (LOCAL e2e, real Postgres)', () => {
             );
 
             const outcomes = await Promise.all([
-                items.payUnpaid(USER, header.id, { limit: 10, isPremium: true }),
-                items.payUnpaid(USER, header.id, { limit: 10, isPremium: true }),
+                items.payUnpaid(USER, header.id, { limit: 10, isPremium: true, principalKind: 'real' }),
+                items.payUnpaid(USER, header.id, { limit: 10, isPremium: true, principalKind: 'real' }),
             ]);
             const paid = outcomes.flatMap((outcome) => (outcome.kind === 'paid' ? outcome.ordinals : []));
 
@@ -1249,7 +1271,9 @@ describe('the bulk-import DALs (LOCAL e2e, real Postgres)', () => {
 
             await put(theirs.id, [0, 1]);
 
-            expect(await items.payUnpaid(USER, theirs.id, { limit: 5, isPremium: true })).toEqual({ kind: 'nothing' });
+            expect(
+                await items.payUnpaid(USER, theirs.id, { limit: 5, isPremium: true, principalKind: 'real' }),
+            ).toEqual({ kind: 'nothing' });
             expect(await ledger()).toBe(0);
         });
     });
@@ -1675,7 +1699,7 @@ describe('the bulk-import DALs (LOCAL e2e, real Postgres)', () => {
                     db.transaction((tx) => items.claimSave(tx, header.id, 0, RECIPE_ID, 0)),
                     imports.moveCursor(USER, header.id, { from: 0, to: 1, mark: { ordinal: 0, review: 'reviewed' } }),
                     items.recordChoicesBatch(header.id, [{ ordinal: 0, visibility: 'public' }]),
-                    items.payUnpaid(USER, header.id, { limit: 10, isPremium: true }),
+                    items.payUnpaid(USER, header.id, { limit: 10, isPremium: true, principalKind: 'real' }),
                 ]);
 
                 failures.push(

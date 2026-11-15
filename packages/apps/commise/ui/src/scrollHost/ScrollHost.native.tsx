@@ -180,10 +180,18 @@ export const ScrollHost: FC<ScrollHostProps> = ({ sections = NO_SECTIONS, activa
             // shares) and asks the field reveal host to put its top at the top (`useFieldStartReveal`). Like a named
             // field, its scroll replaces the section jump's, so the jump's hold and its wait for a layout end here. The
             // host cannot know whether an element with that id is mounted, so it always answers `true`.
-            // `{ nearest: true }` counts under its own key, so the element can tell a start that wants the smallest scroll from
-            // one that wants its top at the top.
-            scrollToStart: (id, options) => {
-                const key = options?.nearest === true ? nearestStartKey(id) : id;
+            scrollToStart: (id) => {
+                setHeld(undefined);
+                setPendingJump(undefined);
+                setTargets((previous) => ({ ...previous, [id]: (previous[id] ?? 0) + 1 }));
+
+                return true;
+            },
+            // The same cursor under its own key (`nearestStartKey`): the element asks the field reveal host to show it
+            // only if it
+            // is hidden. Like a named element, its scroll replaces the section jump's.
+            showIfHidden: (id) => {
+                const key = nearestStartKey(id);
 
                 setHeld(undefined);
                 setPendingJump(undefined);

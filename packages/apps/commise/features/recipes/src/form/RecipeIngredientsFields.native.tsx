@@ -197,14 +197,14 @@ export const RecipeIngredientsFields: FC<RecipeIngredientsFieldsProps> = (props)
 
     // The keyboard reveal scrolled so Done and Cancel sat above the keyboard, and closing drops the keyboard without moving the
     // scroll, so the edited row can be left off the screen. Closing asks the host to show the row ONLY WHEN IT IS HIDDEN, by
-    // the smallest scroll (`{ nearest: true }`; `useFieldStartReveal` answers it), and not at all when it already shows. It
+    // the smallest scroll (`showIfHidden`; `useFieldStartReveal` answers it), and not at all when it already shows. It
     // runs in the press handler, which is the event that closes the editor, so it needs no effect. The sheet path does not:
     // it returns the reading cursor to the row's ⋯.
     const scrollHost = useOptionalScrollHost();
 
     const closeInline = (row: IngredientRowView, close: () => void) => (): void => {
         close();
-        scrollHost?.scrollToStart(ingredientRowId(row.line.key), { nearest: true });
+        scrollHost?.showIfHidden(ingredientRowId(row.line.key));
     };
 
     const rowOf = (row: IngredientRowView): ReactNode => (

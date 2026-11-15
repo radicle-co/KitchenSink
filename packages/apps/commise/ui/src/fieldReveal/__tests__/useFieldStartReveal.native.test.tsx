@@ -49,12 +49,12 @@ describe('useFieldStartReveal', () => {
         expect(revealer).toHaveBeenCalledExactlyOnceWith({ kind: 'start', field: node });
     });
 
-    it('sends a NEAREST start when the nearest count of its id goes up, and a plain one when the plain count does', () => {
+    it('sends a nearest request when the nearest count of its id goes up, and a start when the plain count does', () => {
         const { revealer, node, name } = mount({});
 
         name({ [nearestStartKey('row')]: 1 });
 
-        expect(revealer).toHaveBeenLastCalledWith({ kind: 'start', field: node, nearest: true });
+        expect(revealer).toHaveBeenLastCalledWith({ kind: 'nearest', field: node });
 
         name({ [nearestStartKey('row')]: 1, row: 1 });
 

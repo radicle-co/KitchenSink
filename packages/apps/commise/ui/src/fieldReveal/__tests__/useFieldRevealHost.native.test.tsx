@@ -815,15 +815,15 @@ describe('useFieldRevealHost — a start (scrollToStart)', () => {
         expect(seam.scrolls).toEqual([{ y: 392, animated: true }]);
     });
 
-    /** A start that asks for the NEAREST place: the smallest scroll that shows the element, and none when it already shows. */
+    /** A `nearest` request: the smallest scroll that shows the element, and none when it already shows. */
     async function aimNearest(rendered: Pick<ReturnType<typeof host>, 'result'>): Promise<void> {
         await act(async () => {
-            rendered.result.current.revealer({ kind: 'start', field, nearest: true });
+            rendered.result.current.revealer({ kind: 'nearest', field });
             await Promise.resolve();
         });
     }
 
-    it('nearest: an element fully in view scrolls nothing', async () => {
+    it('a nearest request: an element fully in view scrolls nothing', async () => {
         const rendered = host(400);
         seam.measures = [{ top: 120, height: 48, offset: 100 }];
 
@@ -833,7 +833,7 @@ describe('useFieldRevealHost — a start (scrollToStart)', () => {
         expect(seam.scrolls).toEqual([]);
     });
 
-    it('nearest: an element off the top lands its top one gap below the top edge', async () => {
+    it('a nearest request: an element off the top lands its top one gap below the top edge', async () => {
         const rendered = host(400);
         seam.measures = [{ top: -60, height: 48, offset: 100 }];
 
@@ -842,7 +842,7 @@ describe('useFieldRevealHost — a start (scrollToStart)', () => {
         expect(seam.scrolls).toEqual([{ y: 100 - 60 - 8, animated: true }]);
     });
 
-    it('nearest: an element off the bottom lands its bottom one gap above the bottom edge', async () => {
+    it('a nearest request: an element off the bottom lands its bottom one gap above the bottom edge', async () => {
         const rendered = host(400);
         seam.measures = [{ top: 380, height: 48, offset: 100 }];
 
@@ -851,7 +851,7 @@ describe('useFieldRevealHost — a start (scrollToStart)', () => {
         expect(seam.scrolls).toEqual([{ y: 100 + 380 + 48 + 8 - 400, animated: true }]);
     });
 
-    it('nearest: disarms after one check, even when nothing scrolled', async () => {
+    it('a nearest request: disarms after one check, even when nothing scrolled', async () => {
         const rendered = host(400);
         seam.measures = [{ top: 120, height: 48, offset: 100 }];
         await aimNearest(rendered);

@@ -448,6 +448,52 @@ describe('ScrollHost (web) — revealSpan', () => {
             expect(window.scrollTo).not.toHaveBeenCalled();
         });
     });
+
+    /**
+     * `showIfHidden`: bring an element into view only when it is hidden, by the smallest scroll the browser makes
+     * (`scrollIntoView` with `block: 'nearest'`), which scrolls nothing for an element that already shows.
+     */
+    describe('showIfHidden', () => {
+        it('asks the browser for the nearest scroll, and answers true', () => {
+            const api = renderSpanHost();
+            const row = document.getElementById('row');
+            const intoView = vi.fn();
+
+            if (row === null) {
+                throw new Error('no row');
+            }
+
+            row.scrollIntoView = intoView;
+
+            expect(api().showIfHidden('row')).toBe(true);
+
+            expect(intoView).toHaveBeenCalledExactlyOnceWith({ behavior: 'smooth', block: 'nearest' });
+            expect(window.scrollTo).not.toHaveBeenCalled();
+        });
+
+        it('is instant under reduced motion', () => {
+            reducedMotion = true;
+            const api = renderSpanHost();
+            const row = document.getElementById('row');
+            const intoView = vi.fn();
+
+            if (row === null) {
+                throw new Error('no row');
+            }
+
+            row.scrollIntoView = intoView;
+            api().showIfHidden('row');
+
+            expect(intoView).toHaveBeenCalledExactlyOnceWith({ behavior: 'auto', block: 'nearest' });
+        });
+
+        it('answers false and does nothing for an element that is not there', () => {
+            const api = renderSpanHost();
+
+            expect(api().showIfHidden('no-such-row')).toBe(false);
+            expect(window.scrollTo).not.toHaveBeenCalled();
+        });
+    });
 });
 
 /**

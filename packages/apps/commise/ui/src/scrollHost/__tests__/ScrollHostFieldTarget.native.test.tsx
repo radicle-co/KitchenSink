@@ -209,15 +209,17 @@ describe('ScrollHost + field reveal host + a row (native) â€” naming an elementâ
         expect(seen.api?.current).not.toBe('steps');
     });
 
-    it('with { nearest: true } shows the row by the smallest scroll: a row already in view does not scroll', async () => {
+    it('showIfHidden shows the row by the smallest scroll: a row already in view does not scroll, and it answers true', async () => {
         await mount();
         seam.scrolls = [];
+        let found = false;
 
         await act(async () => {
-            seen.api?.scrollToStart('row', { nearest: true });
+            found = seen.api?.showIfHidden('row') ?? false;
             await Promise.resolve();
         });
 
+        expect(found).toBe(true);
         expect(seam.scrolls).toEqual([]);
     });
 

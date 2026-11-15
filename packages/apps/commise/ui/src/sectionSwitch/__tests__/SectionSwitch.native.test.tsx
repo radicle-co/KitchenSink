@@ -37,6 +37,7 @@ function recordingHost(): { readonly api: ScrollHostApi; readonly jumps: string[
         scrollToField: () => false,
         revealSpan: () => false,
         scrollToStart: () => false,
+        showIfHidden: () => false,
         headingLayout: () => undefined,
         sectionLayout: () => () => undefined,
         handle: { current: null },

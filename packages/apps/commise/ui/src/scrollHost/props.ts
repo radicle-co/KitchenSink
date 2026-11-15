@@ -51,12 +51,6 @@ export interface ScrollBind {
     readonly scrollEventThrottle: 16;
 }
 
-/** How `scrollToStart` shows its element. */
-export interface ScrollToStartOptions {
-    /** Show it only when hidden, by the smallest scroll; native only. */
-    readonly nearest?: boolean;
-}
-
 /** What a screen's chrome reads from its host. */
 export interface ScrollHostApi {
     /** Whether the large title's heading has scrolled under the top row: the condensed bar shows. */
@@ -116,13 +110,19 @@ export interface ScrollHostApi {
      * bottom one gap above the bottom edge, as in `revealSpan`) and as much of it as fits shows above. Instant under
      * reduced motion. It moves no focus, records no hash and holds no section: the element is not a section.
      *
-     * With `{ nearest: true }` the element is shown only when it is hidden, by the smallest scroll (`spanTarget`), and not at
-     * all when it already shows. Native only: web ignores it and keeps its start scroll.
+     * @returns Whether the element was found. Native finds no element by id: the element hears it was named
+     *     (`useFieldStartReveal`) and asks the field reveal host, so it always answers `true`.
+     */
+    readonly scrollToStart: (id: string) => boolean;
+    /**
+     * Show an element only when it is hidden, by the smallest scroll that shows it, and not at all when it already
+     * shows: an
+     * ingredient row after its inline editor closed. It moves no focus and no screen-reader cursor.
      *
      * @returns Whether the element was found. Native finds no element by id: the element hears it was named
      *     (`useFieldStartReveal`) and asks the field reveal host, so it always answers `true`.
      */
-    readonly scrollToStart: (id: string, options?: ScrollToStartOptions) => boolean;
+    readonly showIfHidden: (id: string) => boolean;
     /** The heading's layout report (native). Inert on web, which finds the heading by `headingId`. */
     readonly headingLayout: (event: LayoutReport) => void;
     /** A section's layout report (native). Inert on web, which finds sections by id. */

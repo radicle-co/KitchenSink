@@ -66,6 +66,9 @@ export interface FieldRevealHost {
     readonly spacer: RevealSpacerProps | null;
 }
 
+/** A request to show an element once: its start, or only if it is hidden. */
+type StartRequest = Extract<RevealRequest, { readonly kind: 'start' | 'nearest' }>;
+
 /** The two requests the host holds in one slot: an arrival waits for a scroll, a focus waits for a blur. */
 type PendingRequest = Extract<RevealRequest, { readonly kind: 'arrival' | 'focus' }>;
 
@@ -89,8 +92,18 @@ export function useFieldRevealHost(scroller: RefObject<RevealScroller | null>): 
     // The target waiting to be shown; one-shot.
     const [target, setTarget] = useState<Extract<RevealRequest, { readonly kind: 'target' }> | null>(null);
     // The element a deep link named, waiting to be put at the top; one-shot.
-    const [start, setStart] = useState<Extract<RevealRequest, { readonly kind: 'start' }> | null>(null);
+    const [start, setStart] = useState<StartRequest | null>(null);
     const [revealer] = useState(() => {
+        // The element the cook was taken to is the one to show, so nothing held earlier may move it again.
+        const holdStart = (request: StartRequest): (() => void) => {
+            setPending(null);
+            setStart(request);
+
+            return () => {
+                setStart((current) => (current === request ? null : current));
+            };
+        };
+
         const reveal: FieldRevealer = (request) => {
             switch (request.kind) {
                 case 'arrival':
@@ -119,13 +132,10 @@ export function useFieldRevealHost(scroller: RefObject<RevealScroller | null>): 
                     };
 
                 case 'start':
-                    // The element the cook was taken to is the one to show, so nothing held earlier may move it again.
-                    setPending(null);
-                    setStart(request);
+                    return holdStart(request);
 
-                    return () => {
-                        setStart((current) => (current === request ? null : current));
-                    };
+                case 'nearest':
+                    return holdStart(request);
 
                 case 'list':
                     dispatch({ kind: 'requested', request });
@@ -327,7 +337,7 @@ export function useFieldRevealHost(scroller: RefObject<RevealScroller | null>): 
             const place =
                 measure === null
                     ? null
-                    : (start.nearest === true ? spanTarget : startSpanTarget)({
+                    : (start.kind === 'nearest' ? spanTarget : startSpanTarget)({
                           top: measure.top,
                           bottom: measure.top + measure.height,
                           offset: measure.offset,

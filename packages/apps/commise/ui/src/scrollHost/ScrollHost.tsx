@@ -300,6 +300,19 @@ export const ScrollHost: FC<ScrollHostWebProps> = ({
 
                 return true;
             },
+            showIfHidden: (id) => {
+                const target = document.getElementById(id);
+
+                if (target === null) {
+                    return false;
+                }
+
+                // The browser's own smallest scroll, inside the document's `scroll-padding`: nothing moves for an
+                // element that shows.
+                target.scrollIntoView({ behavior: jumpBehavior(), block: 'nearest' });
+
+                return true;
+            },
             revealSpan: (topId, bottomId) => {
                 const top = document.getElementById(topId);
                 const bottom = document.getElementById(bottomId);

@@ -52,14 +52,11 @@ vi.mock('@commise/ui/field-reveal', async (importOriginal) => {
     };
 });
 // The page's scroll host, where a case gives one: an inline editor that closes asks it for its row's start.
-const host = vi.hoisted(() => ({
-    scrollToStart: vi.fn<(id: string, options?: { readonly nearest?: boolean }) => boolean>(() => true),
-    present: false,
-}));
+const host = vi.hoisted(() => ({ showIfHidden: vi.fn<(id: string) => boolean>(() => true), present: false }));
 
 vi.mock('@commise/ui/scroll-host', async (importOriginal) => ({
     ...(await importOriginal<typeof import('@commise/ui/scroll-host')>()),
-    useOptionalScrollHost: () => (host.present ? { scrollToStart: host.scrollToStart } : null),
+    useOptionalScrollHost: () => (host.present ? { showIfHidden: host.showIfHidden } : null),
 }));
 vi.mock('../../layout/useMainContainerClass.native.js', () => ({
     useMainContainerClass: () => layout.container,
@@ -836,17 +833,19 @@ describe('RecipeIngredientsFields (native) — the row editor on a tablet: inlin
     });
 
     // The keyboard reveal scrolls so Done and Cancel sit above the keyboard; when the editor closes the keyboard drops and
-    // the scroll stays, which left the edited row off the top of the screen. Closing asks the host to show the row by the
-    // NEAREST place (`{ nearest: true }`): the smallest scroll, and none when the row already shows. REWRITTEN: this used to
-    // assert a plain start, which always moved the row's top to the top of the visible area. The host's own tests prove what
-    // "nearest" does; this one proves that Done and Cancel ask for it, once.
+    // the scroll stays, which left the edited row off the top of the screen. Closing asks the host to show the row
+    // only when it is hidden (`showIfHidden`): the smallest scroll, and none when the row already shows. REWRITTEN:
+    // this used
+    // to assert `scrollToStart`, which always moved the row's top to the top of the visible area. The host's own tests
+    // prove
+    // what `showIfHidden` does; this one proves that Done and Cancel ask for it, once.
     describe.each([
         ['Done', en.rowDone],
         ['Cancel', en.rowCancel],
     ])('closing the inline editor with %s', (_name, label) => {
         beforeEach(() => {
             host.present = true;
-            host.scrollToStart.mockClear();
+            host.showIfHidden.mockClear();
             starts.ids.length = 0;
         });
         afterEach(() => {
@@ -857,12 +856,12 @@ describe('RecipeIngredientsFields (native) — the row editor on a tablet: inlin
             render(<StatefulLeaf initial={[RICE, { ...RICE, ingredientId: 'b', name: 'Salt' }]} />);
 
             press('Edit 300 g Arborio rice');
-            expect(host.scrollToStart).not.toHaveBeenCalled();
+            expect(host.showIfHidden).not.toHaveBeenCalled();
 
             press(label);
 
-            expect(host.scrollToStart).toHaveBeenCalledTimes(1);
-            expect(host.scrollToStart).toHaveBeenCalledWith(starts.ids[0], { nearest: true });
+            expect(host.showIfHidden).toHaveBeenCalledTimes(1);
+            expect(host.showIfHidden).toHaveBeenCalledWith(starts.ids[0]);
         });
     });
 

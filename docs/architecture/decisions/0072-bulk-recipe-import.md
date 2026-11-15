@@ -258,14 +258,16 @@ The builder made three choices where the blueprint was silent. They are recorded
   The ruling says "binds every top match", and a default is a suggestion, not a match. The default sits first in the
   list (ADR-0070), so the food is usually the same and only the origin differs. The pinned test names this reading.
 
-### 8. Bulk import has its own allowance: 200 recipes a rolling day on Free, 1,000 on a paid plan
+### 8. Every recipe import spends one import allowance: 200 recipes a rolling day on Free, 1,000 on a paid plan
 
-The owner ruled that bulk import has an allowance of its own, separate from paste's.
+The owner ruled that every recipe import, a bulk file and a pasted recipe alike, spends ONE import allowance (owner
+ruling, 2026-11-15). A pasted recipe is a one-recipe import through this route, and it has no counter of its own.
 
-- **Paste: 200 a rolling day**, one unit per paste (004 FR-022 and plan §5).
-- **Bulk import: 200 recipes a rolling day on Free, 1,000 on a paid plan**, one unit per recipe (owner ruling,
-  2026-11-11). Superusers and VIPs count as paid. The plan is read once, through `isPremiumPrincipal`. The plan
+- **Import: 200 recipes a rolling day on Free, 1,000 on a paid plan**, one unit per recipe (owner rulings, 2026-11-11
+  and 2026-11-15). Superusers and VIPs count as paid. The plan is read once, through `isPremiumPrincipal`. The plan
   decides the limit at the first send of a line.
+- **The editor's ingredient-list paste keeps its own 200 a rolling day**, one unit per paste (004 FR-022 and plan §5).
+  It parses lines into an open recipe and imports no recipe, so it is not a recipe import.
 - Both are counted in the one ledger this branch built, `import_allowance_events` (migration 0058), under the per-user
   advisory lock. Each channel sums only its own rows. The window is the trailing 24 hours that
   `importAllowancePolicy.ts` defines.

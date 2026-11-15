@@ -100,8 +100,18 @@ describe('planCanvas', () => {
         expect(Object.keys(plan.expected)).toEqual(['project/a.html']);
     });
 
-    it('lists no download when nothing changed even from the snapshot', () => {
-        expect(planCanvas({ baseline: base, main: new Map(base), from: 'snapshot' }).download).toEqual([]);
+    // Replaces "lists no download when nothing changed even from the snapshot": the live canvas has never been
+    // compared with the repo, so an unchanged plan from the snapshot must still download every baseline path to
+    // prove the live files match before the marker is written.
+    it('downloads every baseline path from the snapshot even when nothing changed', () => {
+        const plan = planCanvas({ baseline: base, main: new Map(base), from: 'snapshot' });
+
+        expect(plan.status).toBe('unchanged');
+        expect(plan.download).toEqual([...base.keys()].filter((p) => p.startsWith('project/')).sort());
+    });
+
+    it('downloads nothing from a marker when nothing changed', () => {
+        expect(planCanvas({ baseline: base, main: new Map(base), from: 'marker' }).download).toEqual([]);
     });
 });
 

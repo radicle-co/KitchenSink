@@ -120,8 +120,8 @@ function onlyPublishable(tree: Oids): Map<string, string> {
  *
  * @param input - Both trees (`project/…` paths to blob oids) and where the baseline came from.
  * @returns Changed, deleted and to-download paths, and every path's expected oids. A rename is a delete plus an add.
- * From a marker only the touched paths are downloaded; from the snapshot every baseline path is, because the live
- * canvas has not been compared with the repo before.
+ * From a marker only the touched paths are downloaded; from the snapshot every baseline path is, whatever the
+ * status, because the live canvas has not been compared with the repo before.
  */
 export function planCanvas(input: { baseline: Oids; main: Oids; from: BaselineSource }): CanvasPlan {
     const baseline = onlyPublishable(input.baseline);
@@ -131,10 +131,9 @@ export function planCanvas(input: { baseline: Oids; main: Oids; from: BaselineSo
     const deleted = paths.filter((p) => baseline.has(p) && !main.has(p));
     const status = changed.length + deleted.length === 0 ? 'unchanged' : 'publish';
     const touched = new Set([...changed, ...deleted]);
-    const download =
-        status === 'unchanged'
-            ? []
-            : paths.filter((p) => touched.has(p) || (input.from === 'snapshot' && baseline.has(p)));
+    const download = paths.filter((p) =>
+        input.from === 'snapshot' ? touched.has(p) || baseline.has(p) : touched.has(p),
+    );
     const expected = Object.fromEntries(
         paths.map((p) => [p, { baseline: baseline.get(p) ?? null, main: main.get(p) ?? null }] as const),
     );

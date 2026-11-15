@@ -46,7 +46,7 @@ import {
 import { lineProgressOf } from './domain/lineProgress.js';
 import { RecipeDomainError, importQuotaExceeded } from './recipe.error.js';
 import { PARSE_JOB_QUEUE, type ParseJobQueuePort } from './parseJob.queue.js';
-import type { ImportAllowanceChannel } from '../database/schema/importAllowanceEvents.js';
+import type { AdmitRequest } from '../common/dal/importAllowance.dal.js';
 import type { ParseJobLineStatus, ParseJobStatus } from '../database/schema/parseJobs.js';
 import type { ParseJobLineProgress, ParseJobResponse, ParseProposal } from './parseJobs.schema.js';
 
@@ -121,11 +121,7 @@ export interface ReenqueueableLine {
  */
 export type JobAdmission =
     /** Spend `units` of the caller's daily import allowance, as the FIRST write of the job's own transaction. */
-    | {
-          readonly kind: 'charge';
-          readonly channel: ImportAllowanceChannel;
-          readonly units: number;
-      }
+    | ({ readonly kind: 'charge' } & AdmitRequest)
     /**
      * The caller already spent the unit this job belongs to (a bulk import's recipe pays on the `bulk` channel, ADR-0072 §8):
      * admit nothing here. `jobId`, when given, is the id the job is created under: a retry that names an id that already

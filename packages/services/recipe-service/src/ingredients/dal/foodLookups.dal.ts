@@ -325,6 +325,65 @@ export class FoodLookupsDal {
     }
 
     /**
+     * Record a DECLARATION under ids the caller derived, once: a second call with the same ids answers the record the
+     * first wrote, and writes nothing. For a caller whose retry must not declare again (a bulk import's save, which
+     * declares before a create that can fail). Other ids declare a separate record, as a declaration always is.
+     *
+     * @param failure - The declaration (`declaredFailure`).
+     * @param ids - The failure record's id and its binding's id.
+     * @returns The binding the line should point at.
+     * @sideEffect Inserts the failure and its binding in one transaction, each only when its id is new.
+     */
+    public async declareOnce(
+        failure: NewFailure,
+        ids: { readonly failureId: string; readonly lookupId: string },
+    ): Promise<UnresolvedArm> {
+        if (failure.reasonCode !== 'author_declared') {
+            throw new Error('declareOnce records a declaration; any other failure converges through recordFailure');
+        }
+
+        return this.db.transaction(async (tx) => {
+            await tx
+                .insert(unresolvedFoods)
+                .values({
+                    id: ids.failureId,
+                    name: failure.name,
+                    sourcePhrase: failure.sourcePhrase,
+                    normalizedKey: failure.normalizedKey,
+                    reasonCode: failure.reasonCode,
+                    foodHandleId: failure.foodHandleId,
+                    tiersConsulted: [...failure.tiersConsulted],
+                    tiersUnavailable: [...failure.tiersUnavailable],
+                    detail: failure.detail,
+                })
+                .onConflictDoNothing({ target: unresolvedFoods.id });
+            await tx
+                .insert(foodLookups)
+                .values({ id: ids.lookupId, unresolvedFoodId: ids.failureId })
+                .onConflictDoNothing({ target: foodLookups.id });
+
+            const arm = (await this.findByIds([ids.lookupId], tx)).get(ids.lookupId);
+
+            // A binding under this id that is not this declaration's would be a collision of derived ids: never guessed past.
+            if (arm?.kind !== 'unresolved' || arm.failure.unresolvedFoodId !== ids.failureId) {
+                throw new Error(`food_lookups ${ids.lookupId} is not the declaration ${ids.failureId}`);
+            }
+
+            // ⛔ The same ids must name the same words. The import derives them from one slot of one parse generation
+            // (`importDeclaredNameIdsOf`). The slot's name comes from that generation's snapshot line, or, for a line kept
+            // whole, from the recipe text. Neither changes within a generation: a snapshot is written once per generation, and
+            // later writes to it set only picks and markers; the recipe text changes only by a replace, which starts a new
+            // generation and so new ids. A record under these ids with another name is a defect in the derivation, and reusing
+            // it would bind the wrong words.
+            if (arm.failure.name !== failure.name || arm.failure.normalizedKey !== failure.normalizedKey) {
+                throw new Error(`unresolved_foods ${ids.failureId} holds another name than the declaration asks for`);
+            }
+
+            return arm;
+        });
+    }
+
+    /**
      * Count an attempt on an existing failure, and replace its facts when the update says so. A compare-and-swap
      * on `(attempts, reason_code)`: a concurrent attempt makes it match nothing, and so does a settle.
      *

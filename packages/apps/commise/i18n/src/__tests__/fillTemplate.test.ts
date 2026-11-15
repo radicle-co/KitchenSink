@@ -15,4 +15,14 @@ describe('fillTemplate', () => {
     it('leaves an unknown token untouched (never throws)', () => {
         expect(fillTemplate('{count} of {missing}', { count: 3 })).toBe('3 of {missing}');
     });
+
+    // A name every object inherits (`constructor`, `toString`) is not a token the caller gave. `in` answers true for it
+    // and would print the inherited function's source, so the filler asks whether the caller's own object holds the key.
+    it('leaves a token named like an inherited object member untouched', () => {
+        expect(fillTemplate('{constructor} and {toString}', { count: 3 })).toBe('{constructor} and {toString}');
+    });
+
+    it('fills a token the caller gives even when it is named like an inherited member', () => {
+        expect(fillTemplate('{constructor}', { constructor: 'cook' })).toBe('cook');
+    });
 });

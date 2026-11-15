@@ -23,6 +23,7 @@ const SIZED_ROLES = [
     'cardTitle',
     'body',
     'readingBody',
+    'readingLarge',
     'meta',
     'list',
     'label',

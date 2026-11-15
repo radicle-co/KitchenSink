@@ -6,22 +6,24 @@
  * source line, three fact tiles, the text actions and the Screen on row. The web twin of
  * `RecipeDetailTop.native.test.tsx`: the two pages say the same things in the same order.
  *
- * Left out on purpose, and asserted absent: the "8 comments" row and "Start cooking" (D1, D2: neither feature exists
- * yet) and "Add to plan" (meal plans have not shipped).
+ * Left out on purpose, and asserted absent: the "8 comments" row (D1) and "Add to plan" (meal plans have not shipped).
+ * "Start cooking" is drawn only when the recipe can be cooked and the app binds the cooking route, so a view with neither still shows none.
  */
 import { renderWithRecipeClient } from '@commise/test-utils';
 import { FoodServiceClient } from '@kitchensink/food-service-client';
 import { FoodServiceProvider } from '@kitchensink/food-service-client/hooks';
 import { RecipeStatus, RecipeVisibility } from '@kitchensink/recipe-core';
 import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-client/testing';
-import { cleanup, type render as renderUnscoped, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, type render as renderUnscoped, screen, within } from '@testing-library/react';
 import type { ReactElement, ReactNode } from 'react';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { idleUnreachableRetry, makePhoto, makeRecipeDetail } from '../../__fixtures__/index.js';
 import { DetailTestScope } from '../../__fixtures__/detailScope.js';
+import { recipeActionMessages } from '../../actions/messages.js';
 import { recipeMessages } from '../../messages.js';
 import { RecipeDetailView } from '../RecipeDetailView.js';
+import { START_COOKING_GLYPH } from '../startCookingGlyph.js';
 
 const { detail } = recipeMessages.en;
 
@@ -307,5 +309,77 @@ describe('RecipeDetailView (web) — Screen on is a quiet action in the action r
             expect(toggle.getAttribute('aria-description')).toBe(detail.screenOnHint);
             expect(screen.queryByText(detail.screenOnHint)).toBeNull();
         });
+    });
+});
+
+/**
+ * The shared view draws the Start cooking row itself, on its own full-width row under the
+ * fact tiles and above the action row (designer, canvas CookingModeEntry*). It is drawn only when the recipe can be cooked
+ * (the controller's `canStartCooking`) AND the app bound `onStartCooking`; the apps own only where it goes.
+ */
+describe('RecipeDetailView (web) — the Start cooking row', () => {
+    const cookable = (onStartCooking = vi.fn()): ReactElement => (
+        <RecipeDetailView
+            unreachableRetry={idleUnreachableRetry}
+            recipe={makeRecipeDetail()}
+            headerActions={<button type="button">Edit recipe</button>}
+            canStartCooking
+            onStartCooking={onStartCooking}
+        />
+    );
+
+    it('draws Start cooking under the fact tiles and above the action row, on a row of its own', () => {
+        render(cookable());
+
+        const start = screen.getByRole('button', { name: recipeActionMessages.en.detailActions.startCooking });
+        const edit = screen.getByRole('button', { name: 'Edit recipe' });
+
+        expect(follows(screen.getByText(detail.totalLabel), start)).toBe(true);
+        expect(follows(start, edit)).toBe(true);
+        expect(edit.parentElement?.contains(start)).toBe(false);
+    });
+
+    it('is named by its label, and a press opens cooking mode', () => {
+        const onStartCooking = vi.fn();
+        render(cookable(onStartCooking));
+
+        const start = screen.getByRole('button', { name: 'Start cooking' });
+        fireEvent.click(start);
+
+        expect(start.textContent).toContain('Start cooking');
+        expect(onStartCooking).toHaveBeenCalledTimes(1);
+    });
+
+    it('draws the row’s one glyph, named once in START_COOKING_GLYPH', () => {
+        render(cookable());
+
+        const start = screen.getByRole('button', { name: 'Start cooking' });
+        const glyphs = start.querySelectorAll('svg.lucide');
+        // Lucide classes a glyph by its kebab-case name: cookingPot is lucide-cooking-pot.
+        const lucideClass = `lucide-${START_COOKING_GLYPH.replace(/[A-Z]/gu, (letter) => `-${letter.toLowerCase()}`)}`;
+
+        expect(glyphs).toHaveLength(1);
+        expect(glyphs[0]?.classList.contains(lucideClass)).toBe(true);
+    });
+
+    it('draws no row for a recipe that cannot be cooked, even with the route bound', () => {
+        render(
+            <RecipeDetailView
+                unreachableRetry={idleUnreachableRetry}
+                recipe={makeRecipeDetail()}
+                canStartCooking={false}
+                onStartCooking={vi.fn()}
+            />,
+        );
+
+        expect(screen.queryByRole('button', { name: 'Start cooking' })).toBeNull();
+    });
+
+    it('draws no row when the app binds no cooking route', () => {
+        render(
+            <RecipeDetailView unreachableRetry={idleUnreachableRetry} recipe={makeRecipeDetail()} canStartCooking />,
+        );
+
+        expect(screen.queryByRole('button', { name: 'Start cooking' })).toBeNull();
     });
 });

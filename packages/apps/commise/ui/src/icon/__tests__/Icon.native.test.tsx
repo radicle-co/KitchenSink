@@ -57,6 +57,12 @@ describe('Icon (native)', () => {
         expect(glyphOf(container).dataset['iconName']).toBe('cooking-pot');
     });
 
+    it('draws the checked list for listChecks', () => {
+        const { container } = render(<Icon name="listChecks" />);
+
+        expect(glyphOf(container).dataset['iconName']).toBe('list-checks');
+    });
+
     it('is decorative by default: inside a view hidden from assistive tech', () => {
         const { container } = render(<Icon name="search" />);
 

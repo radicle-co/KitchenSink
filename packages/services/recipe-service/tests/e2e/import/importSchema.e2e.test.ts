@@ -42,7 +42,7 @@ const UNIQUE_VIOLATION = '23505';
 
 type Columns = Record<string, unknown>;
 
-describe('the bulk-import tables (LOCAL e2e; migrations 0059, 0060, 0066)', () => {
+describe('the bulk-import tables (LOCAL e2e; migrations 0059, 0060, 0066, 0074 to 0085)', () => {
     let pool: pg.Pool;
 
     beforeAll(async () => {
@@ -134,6 +134,7 @@ describe('the bulk-import tables (LOCAL e2e; migrations 0059, 0060, 0066)', () =
             line_digest: 'ld',
             judgement_digest: 'jd',
             phrase: 'flour',
+            name: 'flour',
             unit: 'cup',
             ...extra,
         };
@@ -186,17 +187,26 @@ describe('the bulk-import tables (LOCAL e2e; migrations 0059, 0060, 0066)', () =
             expect(await columnsOf('recipe_import_items')).toEqual([
                 'allowance_spent_at',
                 'citation',
+                'cook_time_minutes',
                 'created_at',
+                'cuisine',
                 'decision_rev',
+                'held_at_rev',
+                'held_cook_key',
+                'held_reason',
                 'import_id',
                 'matched_at',
                 'ordinal',
                 'parse_generation',
                 'parse_job_id',
                 'payload',
+                'prep_time_minutes',
                 'recipe_id',
+                'refusal',
                 'review',
+                'save_failures',
                 'saved_at',
+                'servings',
                 'source_kind',
                 'stage',
                 'statement_kind',
@@ -206,10 +216,13 @@ describe('the bulk-import tables (LOCAL e2e; migrations 0059, 0060, 0066)', () =
             ]);
         });
 
-        it('recipe_import_lines holds NO food name, NO verdict and NO bound_by (the ingredient owns that)', async () => {
+        // `name` is the COOK'S words with a size word moved out (0074), never a name food gave: ADR-0045 still holds.
+        it('recipe_import_lines holds NO catalog food name, NO verdict and NO bound_by (the ingredient owns that)', async () => {
             expect(await columnsOf('recipe_import_lines')).toEqual([
                 'candidates',
                 'created_at',
+                'curation_reported_at',
+                'display_text',
                 'food_id',
                 'food_index',
                 'food_variant_id',
@@ -220,6 +233,8 @@ describe('the bulk-import tables (LOCAL e2e; migrations 0059, 0060, 0066)', () =
                 'line_index',
                 'margin',
                 'matched_by',
+                'name',
+                'note',
                 'ordinal',
                 'phrase',
                 'picked_against_digest',
@@ -394,6 +409,241 @@ describe('the bulk-import tables (LOCAL e2e; migrations 0059, 0060, 0066)', () =
             const importId = await newImport();
 
             await refused(insert('recipe_import_items', receivedItem(importId, -1)), CHECK_VIOLATION);
+        });
+
+        // 0074 and 0076 add these CHECKs NOT VALID, so the scan of existing rows never runs under ADD COLUMN's ACCESS
+        // EXCLUSIVE lock. 0075 and 0077 validate them. A missing VALIDATE file leaves `convalidated` false.
+        it.each([
+            ['recipe_import_lines', 'recipe_import_lines_name_check'],
+            ['recipe_import_lines', 'recipe_import_lines_display_text_check'],
+            ['recipe_import_lines', 'recipe_import_lines_note_check'],
+            ['recipe_import_items', 'recipe_import_items_cuisine_check'],
+            ['recipe_import_items', 'recipe_import_items_held_at_rev_check'],
+        ])('%s.%s is present and VALIDATED (0074 to 0077)', async (table, name) => {
+            const { rows } = await pool.query<{ convalidated: boolean }>(
+                `SELECT convalidated FROM pg_constraint WHERE conrelid = $1::regclass AND conname = $2`,
+                [table, name],
+            );
+
+            expect(rows).toEqual([{ convalidated: true }]);
+        });
+
+        // 0078 adds the refusal and the servings and times CHECKs NOT VALID, for the same lock reason; 0079 validates them.
+        it.each([
+            'recipe_import_items_servings_check',
+            'recipe_import_items_prep_time_minutes_check',
+            'recipe_import_items_cook_time_minutes_check',
+            'recipe_import_items_refusal_check',
+            'recipe_import_items_refusal_only_received',
+        ])('recipe_import_items.%s is present and VALIDATED (0078, 0079)', async (name) => {
+            const { rows } = await pool.query<{ convalidated: boolean }>(
+                `SELECT convalidated FROM pg_constraint WHERE conrelid = 'recipe_import_items'::regclass AND conname = $1`,
+                [name],
+            );
+
+            expect(rows).toEqual([{ convalidated: true }]);
+        });
+
+        describe('what Publish needs (0076, ADR-0072 §3 as amended 2026-11-11)', () => {
+            it("keeps the cook's cuisine and a hold, and both are optional", async () => {
+                const importId = await newImport();
+                const chosen = await insert(
+                    'recipe_import_items',
+                    receivedItem(importId, 0, { cuisine: 'Thai', held_at_rev: 0 }),
+                );
+                const bare = await insert('recipe_import_items', receivedItem(importId, 1));
+
+                expect([chosen['cuisine'], chosen['held_at_rev']]).toEqual(['Thai', 0]);
+                expect([bare['cuisine'], bare['held_at_rev']]).toEqual([null, null]);
+            });
+
+            it.each([
+                ['a blank cuisine (the create route refuses one too)', { cuisine: '  ' }],
+                ['an empty cuisine', { cuisine: '' }],
+                ['a negative hold revision', { held_at_rev: -1 }],
+            ])('refuses %s', async (_name, extra) => {
+                const importId = await newImport();
+
+                await refused(
+                    insert('recipe_import_items', receivedItem(importId, 0, extra as Columns)),
+                    CHECK_VIOLATION,
+                );
+            });
+        });
+
+        describe("the refusal and the cook's servings and times (0078, ADR-0072 §3 as amended 2026-11-11)", () => {
+            it('keeps a refusal on a received item, and a bare item has none', async () => {
+                const importId = await newImport();
+                const noIngredients = await insert(
+                    'recipe_import_items',
+                    receivedItem(importId, 0, { refusal: 'noIngredients' }),
+                );
+                const noSteps = await insert('recipe_import_items', receivedItem(importId, 1, { refusal: 'noSteps' }));
+                const bare = await insert('recipe_import_items', receivedItem(importId, 2));
+
+                expect([noIngredients['refusal'], noSteps['refusal'], bare['refusal']]).toEqual([
+                    'noIngredients',
+                    'noSteps',
+                    null,
+                ]);
+            });
+
+            it('refuses a refusal value the service does not know', async () => {
+                const importId = await newImport();
+
+                await refused(
+                    insert('recipe_import_items', receivedItem(importId, 0, { refusal: 'tooBig' })),
+                    CHECK_VIOLATION,
+                );
+            });
+
+            it.each([
+                ['parsing', { stage: 'parsing', allowance_spent_at: new Date() }],
+                ['matched', { stage: 'matched', allowance_spent_at: new Date(), matched_at: new Date() }],
+            ])(
+                '⛔ refuses a refusal on an item that is already %s: a refused item never leaves received',
+                async (_stage, extra) => {
+                    const importId = await newImport();
+
+                    await refused(
+                        insert('recipe_import_items', receivedItem(importId, 0, { ...extra, refusal: 'noSteps' })),
+                        CHECK_VIOLATION,
+                    );
+                },
+            );
+
+            it('allows a refusal on a received item that already paid (a paid item may be replaced by an empty recipe)', async () => {
+                const importId = await newImport();
+                const row = await insert(
+                    'recipe_import_items',
+                    receivedItem(importId, 0, { allowance_spent_at: new Date(), refusal: 'noIngredients' }),
+                );
+
+                expect(row['refusal']).toBe('noIngredients');
+            });
+
+            it("keeps the cook's servings and times, and all three are optional", async () => {
+                const importId = await newImport();
+                const chosen = await insert(
+                    'recipe_import_items',
+                    receivedItem(importId, 0, { servings: 4, prep_time_minutes: 0, cook_time_minutes: 30 }),
+                );
+                const bare = await insert('recipe_import_items', receivedItem(importId, 1));
+
+                expect([chosen['servings'], chosen['prep_time_minutes'], chosen['cook_time_minutes']]).toEqual([
+                    4, 0, 30,
+                ]);
+                expect([bare['servings'], bare['prep_time_minutes'], bare['cook_time_minutes']]).toEqual([
+                    null,
+                    null,
+                    null,
+                ]);
+            });
+
+            it.each([
+                ['zero servings', { servings: 0 }],
+                ['negative servings', { servings: -1 }],
+                ['negative prep minutes', { prep_time_minutes: -1 }],
+                ['negative cook minutes', { cook_time_minutes: -1 }],
+            ])('refuses %s', async (_name, extra) => {
+                const importId = await newImport();
+
+                await refused(
+                    insert('recipe_import_items', receivedItem(importId, 0, extra as Columns)),
+                    CHECK_VIOLATION,
+                );
+            });
+        });
+
+        describe('why an item is held, and for which cook (0082, 0083; review M1 on #220)', () => {
+            // 0082 adds the CHECK NOT VALID, for the lock reason above; 0083 validates it.
+            it('recipe_import_items.recipe_import_items_held_reason_check is present and VALIDATED (0082, 0083)', async () => {
+                const { rows } = await pool.query<{ convalidated: boolean }>(
+                    `SELECT convalidated FROM pg_constraint
+                      WHERE conrelid = 'recipe_import_items'::regclass AND conname = 'recipe_import_items_held_reason_check'`,
+                );
+
+                expect(rows).toEqual([{ convalidated: true }]);
+            });
+
+            it('keeps a hold of each reason, with the cook facts on the two those facts decide', async () => {
+                const importId = await newImport();
+                const rows = await Promise.all([
+                    insert('recipe_import_items', receivedItem(importId, 0, { held_at_rev: 0, held_reason: 'item' })),
+                    insert(
+                        'recipe_import_items',
+                        receivedItem(importId, 1, { held_at_rev: 0, held_reason: 'unreadable' }),
+                    ),
+                    insert(
+                        'recipe_import_items',
+                        receivedItem(importId, 2, {
+                            held_at_rev: 0,
+                            held_reason: 'visibility',
+                            held_cook_key: 'real/enforce/free',
+                        }),
+                    ),
+                    insert(
+                        'recipe_import_items',
+                        receivedItem(importId, 3, {
+                            held_at_rev: 0,
+                            held_reason: 'createRefused',
+                            held_cook_key: 'real/enforce/free',
+                        }),
+                    ),
+                ]);
+
+                expect(rows.map((row) => [row['held_reason'], row['held_cook_key']])).toEqual([
+                    ['item', null],
+                    ['unreadable', null],
+                    ['visibility', 'real/enforce/free'],
+                    ['createRefused', 'real/enforce/free'],
+                ]);
+            });
+
+            it('⛔ admits a hold with NO reason: the release running during the deploy writes held_at_rev alone', async () => {
+                const importId = await newImport();
+                const row = await insert('recipe_import_items', receivedItem(importId, 0, { held_at_rev: 0 }));
+
+                expect([row['held_at_rev'], row['held_reason'], row['held_cook_key']]).toEqual([0, null, null]);
+            });
+
+            it.each([
+                ['a reason this build does not know', { held_at_rev: 0, held_reason: 'stuck' }],
+                ['a reason with no hold', { held_reason: 'item' }],
+                ['a label hold with no cook facts', { held_at_rev: 0, held_reason: 'visibility' }],
+                ['a create refusal with no cook facts', { held_at_rev: 0, held_reason: 'createRefused' }],
+                [
+                    'cook facts on a hold they do not decide',
+                    { held_at_rev: 0, held_reason: 'item', held_cook_key: 'k' },
+                ],
+                ['cook facts with no reason', { held_at_rev: 0, held_cook_key: 'k' }],
+            ])('refuses %s', async (_name, extra) => {
+                const importId = await newImport();
+
+                await refused(insert('recipe_import_items', receivedItem(importId, 0, extra)), CHECK_VIOLATION);
+            });
+        });
+
+        describe('the count of unrecognised save failures (0084, 0085; re-review of #220)', () => {
+            it('recipe_import_items.recipe_import_items_save_failures_check is present and VALIDATED (0084, 0085)', async () => {
+                const { rows } = await pool.query<{ convalidated: boolean }>(
+                    `SELECT convalidated FROM pg_constraint
+                      WHERE conrelid = 'recipe_import_items'::regclass AND conname = 'recipe_import_items_save_failures_check'`,
+                );
+
+                expect(rows).toEqual([{ convalidated: true }]);
+            });
+
+            it('starts at 0 for an item the running release inserts without it, and refuses a negative count', async () => {
+                const importId = await newImport();
+                const row = await insert('recipe_import_items', receivedItem(importId, 0));
+
+                expect(row['save_failures']).toBe(0);
+                await refused(
+                    insert('recipe_import_items', receivedItem(importId, 1, { save_failures: -1 })),
+                    CHECK_VIOLATION,
+                );
+            });
         });
 
         it('refuses two items with one ordinal in one import, and allows it across imports', async () => {
@@ -707,6 +957,38 @@ describe('the bulk-import tables (LOCAL e2e; migrations 0059, 0060, 0066)', () =
             return importId;
         }
 
+        // Review item 5 on #220: a curated contradiction seen through an import is counted once per line and verdict, and
+        // the marker of that count is a fact of a CURATED line with a verdict key, as the paste's is (0057).
+        describe('the curation-report marker (0080, 0081)', () => {
+            it('keeps the marker on a curated line that owes a review', async () => {
+                const importId = await withItem();
+                const row = await insert(
+                    'recipe_import_lines',
+                    line(importId, 0, proposed({ matched_by: 'curated', curation_reported_at: new Date() })),
+                );
+
+                expect(row['curation_reported_at']).toBeInstanceOf(Date);
+            });
+
+            it.each([
+                ['a line that was not curated', proposed({ curation_reported_at: new Date() })],
+                ['a line that found nothing', { curation_reported_at: new Date() }],
+            ])('⛔ refuses the marker on %s', async (_name, extra) => {
+                const importId = await withItem();
+
+                await refused(insert('recipe_import_lines', line(importId, 0, extra as Columns)), CHECK_VIOLATION);
+            });
+
+            it('recipe_import_lines.recipe_import_lines_curation_reported_check is present and VALIDATED (0080, 0081)', async () => {
+                const { rows } = await pool.query<{ convalidated: boolean }>(
+                    `SELECT convalidated FROM pg_constraint
+                      WHERE conrelid = 'recipe_import_lines'::regclass AND conname = 'recipe_import_lines_curation_reported_check'`,
+                );
+
+                expect(rows).toEqual([{ convalidated: true }]);
+            });
+        });
+
         it('admits a line that proposed a food, a variant, and a line that found nothing', async () => {
             const importId = await withItem();
 
@@ -732,6 +1014,33 @@ describe('the bulk-import tables (LOCAL e2e; migrations 0059, 0060, 0066)', () =
             );
 
             expect(row['candidates']).toEqual(candidates);
+        });
+
+        it('⛔ keeps the row the editor saves: its name, the shown words and the note (0074, owner ruling 2026-11-08)', async () => {
+            const importId = await withItem();
+            const row = await insert(
+                'recipe_import_lines',
+                line(importId, 0, { name: 'pie pastry', display_text: 'my pie pastry', note: '9 inch' }),
+            );
+
+            expect([row['name'], row['display_text'], row['note']]).toEqual(['pie pastry', 'my pie pastry', '9 inch']);
+            // The shown words and the note are optional: most lines have neither.
+            const bare = await insert('recipe_import_lines', line(importId, 0, { line_index: 1 }));
+
+            expect([bare['display_text'], bare['note']]).toEqual([null, null]);
+        });
+
+        it('⛔ refuses a line with no name: every snapshot line is saved under the row the editor builds', async () => {
+            const importId = await withItem();
+            const { name: _name, ...nameless } = line(importId, 0);
+
+            await refused(insert('recipe_import_lines', nameless), '23502');
+        });
+
+        it.each([['name'], ['display_text'], ['note']])('refuses a blank %s, as a recipe line does', async (column) => {
+            const importId = await withItem();
+
+            await refused(insert('recipe_import_lines', line(importId, 0, { [column]: '  ' })), CHECK_VIOLATION);
         });
 
         it('refuses the same (item, line, food) twice', async () => {

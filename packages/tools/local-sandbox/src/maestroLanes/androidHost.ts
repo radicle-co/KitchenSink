@@ -30,6 +30,10 @@ export interface AndroidHost {
     /** Stop an emulator whose boot never completed. */
     abort(lane: LaneSpec): Promise<void>;
     stop(lane: LaneSpec): Promise<void>;
+    /**
+     * The lane's run-mode environment. It may be asked at any time, including before the host is prepared, and must not
+     * throw; it gives its full answer only once the host is prepared.
+     */
     laneEnv(lane: LaneSpec): Readonly<Record<string, string>>;
     teardown(): Promise<void>;
 }

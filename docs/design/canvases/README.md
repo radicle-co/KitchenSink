@@ -94,13 +94,15 @@ from git, so the work tree needs no cleaning.
    printed (the `origin/main` tip). Exit 0 is clean. A live file passes when it equals the baseline or `main`. Exit 1
    is drift: stop and follow "Drift". Exit 2 is bad input, or a `<sha>` behind the tip whose canvas changed since.
 4. **Stage.** `… -- stage <id> --main <sha> --live <dir> --list <list.json> --out <out>`. It checks again, writes the
-   `main` blobs from git (a dirty work tree cannot leak in) and the marker outside the canvas folder, and prints the
-   `url`, `root`, `files` and `label` for the publish. When the marker already names `main` it prints nothing and
-   exits 0: there is nothing to publish.
-5. **Publish.** Pass `url`, `root` and `files` to the `Artifact` tool unchanged, and pass `label` as the Artifact
-   `label` unchanged. The label, `canvas <id>: <baselineSha>..<mainSha>`, lets a reviewer confirm the publish covers
-   every path that changed between the two commits. `files` is the dict form: a deletion is `null`. Never pass
-   `force`. If the publish is refused, restart at step 0 for that canvas.
+   `main` blobs from git (a dirty work tree cannot leak in) and the marker under `<out>`, never in the repository, and
+   prints `url`, `root`, `file_path`, `files` and `label` for the publish. When the marker already names `main` it
+   prints nothing and exits 0: there is nothing to publish.
+5. **Publish.** Pass `url`, `root`, `file_path`, `files` and `label` to the `Artifact` tool unchanged. `file_path` is
+   the marker, `project/published.json`: the tool needs one of the canvas's own data files there. `files` is the dict
+   form, and a deletion is `null`. It is empty when only the marker changes. The label is
+   `canvas <baseline>..<main>`, with 12-character commit prefixes so it fits the tool's 60-character limit. It lets a
+   reviewer confirm the publish covers every path that changed between the two commits. Never pass `force`. If the
+   publish is refused, restart at step 0 for that canvas.
 
 ### Drift
 

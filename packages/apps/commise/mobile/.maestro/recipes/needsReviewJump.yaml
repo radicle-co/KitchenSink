@@ -40,16 +40,27 @@ onFlowComplete:
           TIMEOUT: 20000
 - tapOn: 'Needs review: ${E2E_NEEDS_REVIEW_FOOD}'
 
-# The editor opens with that line's row editor sheet open: what the cook wrote, and what it was counted as.
+# The editor opens with that line's row editor sheet open: what the cook wrote, and what it was counted as. "You wrote" is
+# matched inside a longer text, because iOS reads the whole notice as one element.
 - extendedWaitUntil:
-      visible: 'You wrote'
+      visible: '(?s).*You wrote.*'
       timeout: 30000
-- assertVisible: '${E2E_NEEDS_REVIEW_SOURCE_LINE}'
-# The sheet's own "Needs review" heading, above "You wrote". The detail's pill carries the same words, so the text alone
-# would pass without the sheet; `above` ties it to the notice.
-- assertVisible:
-      text: 'Needs review'
-      above: 'You wrote'
+- assertVisible: '(?s).*${E2E_NEEDS_REVIEW_SOURCE_LINE}.*'
+# The sheet's own "Needs review" notice. The detail's pill carries the same words, so the text alone would pass without
+# the sheet. iOS reads the notice as ONE element (its badge, reason and the cook's words in one label, so VoiceOver reads
+# them as a unit), and the match proves that. Android keeps each text as its own node, so `above` ties the badge to it.
+- runFlow:
+      when:
+          platform: iOS
+      commands:
+          - assertVisible: '(?s)Needs review.*You wrote.*${E2E_NEEDS_REVIEW_SOURCE_LINE}.*'
+- runFlow:
+      when:
+          platform: Android
+      commands:
+          - assertVisible:
+                text: 'Needs review'
+                above: 'You wrote'
 - assertVisible: 'Counted as'
 - assertVisible: 'Change'
 
@@ -65,7 +76,7 @@ onFlowComplete:
           - hideKeyboard
 - tapOn: 'Cancel'
 - extendedWaitUntil:
-      notVisible: 'You wrote'
+      notVisible: '(?s).*You wrote.*'
       timeout: 20000
 # The row reads like the recipe page: a word unit takes the amount's number ("2 cups").
 - assertVisible: 'Edit 2 cups ${E2E_NEEDS_REVIEW_FOOD}.*'
@@ -73,7 +84,7 @@ onFlowComplete:
 # DONE keeps. Reopen the same row, change the amount again, and close the sheet with Done.
 - tapOn: 'Edit 2 cups ${E2E_NEEDS_REVIEW_FOOD}.*'
 - extendedWaitUntil:
-      visible: 'You wrote'
+      visible: '(?s).*You wrote.*'
       timeout: 20000
 - tapOn: 'Amount'
 - eraseText: 5
@@ -85,7 +96,7 @@ onFlowComplete:
           - hideKeyboard
 - tapOn: 'Done'
 - extendedWaitUntil:
-      notVisible: 'You wrote'
+      notVisible: '(?s).*You wrote.*'
       timeout: 20000
 - assertVisible: 'Edit 7 cups ${E2E_NEEDS_REVIEW_FOOD}.*'
 
@@ -119,7 +130,7 @@ onFlowComplete:
           # Pass 1, portrait, phone and tablet.
           - tapOn: 'Edit 7 cups ${E2E_NEEDS_REVIEW_FOOD}.*'
           - extendedWaitUntil:
-                visible: 'You wrote'
+                visible: '(?s).*You wrote.*'
                 timeout: 20000
           - assertVisible: 'Counted as'
           - assertVisible: 'Cancel'
@@ -149,14 +160,14 @@ onFlowComplete:
                           text: 'Done'
                           above: 'Cancel'
           - extendedWaitUntil:
-                notVisible: 'You wrote'
+                notVisible: '(?s).*You wrote.*'
                 timeout: 20000
           # Visible as it is, with no scroll in between: on a tablet the reveal on close brought it back.
           - assertVisible: 'Edit 5 cups ${E2E_NEEDS_REVIEW_FOOD}.*'
           # Pass 2, tablet only, landscape. Reopen to read the layout; a phone closes the sheet and leaves.
           - tapOn: 'Edit 5 cups ${E2E_NEEDS_REVIEW_FOOD}.*'
           - extendedWaitUntil:
-                visible: 'You wrote'
+                visible: '(?s).*You wrote.*'
                 timeout: 20000
           - assertVisible: 'Counted as'
           - assertVisible: 'Cancel'
@@ -169,12 +180,12 @@ onFlowComplete:
                 commands:
                     - tapOn: 'Cancel'
                     - extendedWaitUntil:
-                          notVisible: 'You wrote'
+                          notVisible: '(?s).*You wrote.*'
                           timeout: 20000
                     - setOrientation: LANDSCAPE_LEFT
                     - tapOn: 'Edit 5 cups ${E2E_NEEDS_REVIEW_FOOD}.*'
                     - extendedWaitUntil:
-                          visible: 'You wrote'
+                          visible: '(?s).*You wrote.*'
                           timeout: 20000
                     - tapOn: 'Amount'
                     - eraseText: 5
@@ -186,7 +197,7 @@ onFlowComplete:
                           text: 'Done'
                           rightOf: 'Cancel'
                     - extendedWaitUntil:
-                          notVisible: 'You wrote'
+                          notVisible: '(?s).*You wrote.*'
                           timeout: 20000
                     - assertVisible: 'Edit 7 cups ${E2E_NEEDS_REVIEW_FOOD}.*'
                     - setOrientation: PORTRAIT
@@ -196,7 +207,7 @@ onFlowComplete:
                 commands:
                     - tapOn: 'Cancel'
                     - extendedWaitUntil:
-                          notVisible: 'You wrote'
+                          notVisible: '(?s).*You wrote.*'
                           timeout: 20000
 
 # Leave with the close control, never Discard (it deletes the recipe). The next flow's reset deletes the probe either way.

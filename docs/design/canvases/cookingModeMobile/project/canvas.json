@@ -527,6 +527,20 @@
       "w": 2400,
       "h": 3420,
       "title": "Cooking mode, S3b alarm with \"Stop and go to step\" (mobile)"
+    },
+    "CookingModeIngredientsS2Mobile.dc.html": {
+      "x": 0,
+      "y": 12070,
+      "w": 2400,
+      "h": 10224,
+      "title": "Cooking mode, S2 ingredients and servings (mobile: iPhone 390, Android 384, iPad 820 and 1194, 320 largest text)"
+    },
+    "CookingModeAddTimerS3aMobile.dc.html": {
+      "x": 0,
+      "y": 22714,
+      "w": 2400,
+      "h": 4316,
+      "title": "Cooking mode, S3a Add a timer (mobile: iPhone 390, Android 384, iPad 820, 320 largest text)"
     }
   },
   "order": [
@@ -603,7 +617,9 @@
     "CookingModeAllStepsIpad820.dc.html",
     "CookingModeDoneIpad820.dc.html",
     "CookingModeDockRowS3Mobile.dc.html",
-    "CookingModeAlarmGoToStepS3bMobile.dc.html"
+    "CookingModeAlarmGoToStepS3bMobile.dc.html",
+    "CookingModeIngredientsS2Mobile.dc.html",
+    "CookingModeAddTimerS3aMobile.dc.html"
   ],
   "notes": {
     "row0": {
@@ -638,6 +654,20 @@
       "x": 0,
       "y": 7970,
       "text": "Cooking mode: S3b alarm outside cooking mode (plan 0111)",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "nCookingModeIngredientsS2Mobile": {
+      "x": 0,
+      "y": 11810,
+      "text": "Cooking mode: S2 ingredients and servings, the built one-list shape (Luna designer D16-D18)",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "nCookingModeAddTimerS3aMobile": {
+      "x": 0,
+      "y": 22454,
+      "text": "Cooking mode: S3a Add a timer (SPECIFY S36, KTD16)",
       "kind": "title1",
       "maxW": 2400
     }

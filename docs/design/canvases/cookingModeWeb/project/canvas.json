@@ -331,6 +331,20 @@
       "w": 2400,
       "h": 1890,
       "title": "Cooking mode, S3b alarm with \"Stop and go to step\" (web)"
+    },
+    "CookingModeIngredientsS2Web.dc.html": {
+      "x": 0,
+      "y": 8210,
+      "w": 2400,
+      "h": 8638,
+      "title": "Cooking mode, S2 ingredients and servings (web: 390, 768, 1024, 1280, 320 at 200%)"
+    },
+    "CookingModeAddTimerS3aWeb.dc.html": {
+      "x": 0,
+      "y": 17268,
+      "w": 2400,
+      "h": 3744,
+      "title": "Cooking mode, S3a Add a timer (web: 390, 1024, 1280, 320 at 200%)"
     }
   },
   "order": [
@@ -379,7 +393,9 @@
     "CookingModeAllStepsWeb390.dc.html",
     "CookingModeDoneWeb390.dc.html",
     "CookingModeDockRowS3Web.dc.html",
-    "CookingModeAlarmGoToStepS3bWeb.dc.html"
+    "CookingModeAlarmGoToStepS3bWeb.dc.html",
+    "CookingModeIngredientsS2Web.dc.html",
+    "CookingModeAddTimerS3aWeb.dc.html"
   ],
   "notes": {
     "row0": {
@@ -407,6 +423,20 @@
       "x": 0,
       "y": 5640,
       "text": "Cooking mode: S3b alarm outside cooking mode (plan 0111)",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "nCookingModeIngredientsS2Web": {
+      "x": 0,
+      "y": 7950,
+      "text": "Cooking mode: S2 ingredients and servings, the built one-list shape (Luna designer D16-D18)",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "nCookingModeAddTimerS3aWeb": {
+      "x": 0,
+      "y": 17008,
+      "text": "Cooking mode: S3a Add a timer (SPECIFY S36, KTD16)",
       "kind": "title1",
       "maxW": 2400
     }

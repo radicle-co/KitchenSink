@@ -75,6 +75,7 @@ import {
 
 import { parseProposalMatchSchema } from './parseJobs.schema.js';
 import {
+    authoredStatementSchema,
     createRecipeRequestSchema,
     publicWebStatementSchema,
     recipeStatementSchema,
@@ -155,7 +156,6 @@ const citationTextSchema = z
     .max(IMPORT_MAX_CITATION_LENGTH)
     .refine(hasText, { message: 'citation is blank' });
 
-const authoredStatement = z.object({ kind: z.literal('authored') });
 // The public-web member is `recipes.schema.ts`'s, the one a recipe's own `statement` uses (ADR-0089): one spelling of it.
 const publicWebStatement = publicWebStatementSchema;
 const bookStatement = z.object({ kind: z.literal('book'), citation: citationTextSchema });
@@ -174,7 +174,7 @@ const paidSiteStatement = z.object({ kind: z.literal('paid_site'), citation: cit
  * ⛔ Counsel confirms the wording the cook sees before launch (016 FR-050). The WIRE shape does not depend on it.
  */
 export const importStatementSchema = z.discriminatedUnion('kind', [
-    authoredStatement.strict(),
+    authoredStatementSchema.strict(),
     // The REFINED member: the import refuses our own domain, localhost and an IP exactly as a recipe's own statement does.
     recipeStatementSchema,
     bookStatement.strict(),
@@ -220,7 +220,7 @@ const hasUnknownKind = (value: unknown): boolean =>
 export const importStatementViewSchema = z.preprocess(
     (value) => (hasUnknownKind(value) ? { kind: 'unrecognised' } : value),
     z.discriminatedUnion('kind', [
-        authoredStatement,
+        authoredStatementSchema,
         publicWebStatement,
         bookStatement,
         paidSiteStatement,

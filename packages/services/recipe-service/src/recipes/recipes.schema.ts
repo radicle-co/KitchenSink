@@ -303,6 +303,13 @@ export type RecipeSourceInput = z.infer<typeof recipeSourceInputSchema>;
  */
 const citationUrlSchema = z.url({ protocol: /^https?$/ }).max(SOURCE_LINK_MAX_LENGTH);
 
+/**
+ * "I wrote this" (ADR-0072 section 9): the cook's attestation that the recipe is their own words. It carries no citation, so
+ * the wire cannot say "my own" and name a source at once. Loose, like {@link publicWebStatementSchema}: each place that
+ * accepts it applies `.strict()` to its own union, and the bulk import composes this same member into its statement union.
+ */
+export const authoredStatementSchema = z.object({ kind: z.literal('authored') });
+
 /** "Copied from a public web page", with its address. Loose, so a response read tolerates a newer server's field. */
 export const publicWebStatementSchema = z.object({ kind: z.literal('public_web'), citation: citationUrlSchema });
 

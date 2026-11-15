@@ -6,7 +6,7 @@ appId: ${APP_ID}
 # `cooking/cookingModeFlow`.
 - runFlow: common/openCookingRecipe.yaml
 - tapOn: 'Next step, step 2'
-- assertVisible: 'Step.2.of.3'
+- assertVisible: "Step 2 of 3"
 - back
 - assertVisible: 'Start cooking'
-- assertNotVisible: 'Step.1.of.3'
+- assertNotVisible: "Step 1 of 3"

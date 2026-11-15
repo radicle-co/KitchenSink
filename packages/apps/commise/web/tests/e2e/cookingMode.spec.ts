@@ -1,5 +1,6 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { RecipeStatus } from '@kitchensink/recipe-core';
+import { fonts, typeRole } from '@commise/ui/tokens/typography';
 
 import { signInWithTicket } from './utils/auth';
 import { route } from './utils/basePath';
@@ -12,15 +13,18 @@ import { applyTextScale } from './utils/textScale';
  * po's acceptance flow, step by step, at 1280 and at 390: Start cooking on the recipe page, tick a line and watch the
  * focus move, Next and Back keep the tick, walk to the last step, Finish to Done, Back to the recipe, and a draft shows
  * no Start cooking. Around it: an owner's draft cook link lands on the editor (decisions/0029); no sideways scroll at 320
- * and 390; Back, Next step and Exit are at least 44 × 44 and Back and Next are equal; no console error or hydration
- * warning anywhere; and at 390 with 200% text the step body scrolls while the place and Back / Next stay on screen.
+ * and 390; Back, Next step and Exit are at least 44 x 44 and Back and Next are equal; the keyboard pass (D13); the focus
+ * line is set in the readingLarge face; the Next preview is one line on a short screen and wraps on a tall one; and at 390
+ * with 200% text the step body scrolls while the place and Back / Next stay on screen.
  *
  * The recipe API is mocked per spec (`mockRecipeApi`, decisions/0019), so this proves the client path against the
  * fixture shape, not a deployed recipe service. The page's server prefetch reaches no service locally, so the browser
  * read is what runs; nothing must listen on the web app's recipe API port during a run.
  *
  * Step 1 carries a trap-table line ("2 tbsp."), so the split the abbreviation rule decides is asserted in a real
- * browser, not only a full stop (decisions/0019). Selectors are role and label only; no `waitForTimeout`.
+ * browser, not only a full stop (decisions/0019). Selectors are role and label only; no `waitForTimeout`. The place line
+ * is read as the name of the step's region, which the screen sets to the place, so the screen-reader live region (which
+ * says the place too) never makes a locator ambiguous.
  */
 
 const ROAST_ID = 'c0000000-0000-4000-8000-0000000000a1';
@@ -38,11 +42,18 @@ const ROAST_STEPS = [
     'Carve and serve.',
 ].map((instruction, index) => ({ stepNumber: index + 1, instruction }));
 
+const FIRST_LINE = 'Heat 2 tbsp. oil in a roasting tin.';
+const SECOND_LINE = 'Season the chicken well.';
+
+/** Done holds a press for its first moments (`DONE_SETTLE_MS`, 400); this is comfortably past it. */
+const PAST_DONE_SETTLE_MS = 1000;
+
 /** Collect console errors and page errors (a hydration mismatch is reported as one), to assert none happened. */
 function watchErrors(page: Page): readonly string[] {
     const errors: string[] = [];
     page.on('console', (message) => {
-        if (message.type() === 'error') {
+        // A failed fetch of something the recipe page asks for (the mocked run has no food service) is not a React error.
+        if (message.type() === 'error' && !message.text().startsWith('Failed to load resource')) {
             errors.push(message.text());
         }
     });
@@ -52,7 +63,7 @@ function watchErrors(page: Page): readonly string[] {
 }
 
 /** Sign in and mock the test cook's roast (published) and stew (a draft). */
-async function seed(page: Page): Promise<void> {
+async function seed(page: Page, extra: readonly ReturnType<typeof makeRecipeDetail>[] = []): Promise<void> {
     await signInWithTicket(page);
     const viewerId = await readViewerAppId(page);
     await mockRecipeApi(page, {
@@ -66,18 +77,30 @@ async function seed(page: Page): Promise<void> {
                 status: RecipeStatus.DRAFT,
                 steps: ROAST_STEPS.slice(0, 2),
             }),
+            ...extra.map((recipe) => ({ ...recipe, ownerId: viewerId })),
         ],
     });
 }
 
 const checkbox = (page: Page, name: string): Locator => page.getByRole('checkbox', { name });
-const backButton = (page: Page): Locator => page.getByRole('navigation').getByRole('button').first();
-const forwardButton = (page: Page): Locator => page.getByRole('navigation').getByRole('button').last();
+const backButton = (page: Page): Locator => page.getByRole('navigation').getByRole('button', { name: /^Back/u });
+const forwardButton = (page: Page): Locator =>
+    page.getByRole('navigation').getByRole('button', { name: /^(Next step|Start step|Finish)/u });
+const nextButton = (page: Page, step: number): Locator =>
+    page.getByRole('button', { name: `Next step, step ${String(step)}` });
+
+/** The step's region, named by the place ("Step 2 of 6"). */
+const stepRegion = (page: Page, step: number, total: number): Locator =>
+    page.getByRole('region', { name: `Step ${String(step)} of ${String(total)}`, exact: true });
+
+/** The next step's pinned preview: the paragraph holding that step's first words, in the foot. */
+const previewOf = (page: Page, words: string): Locator =>
+    page.getByRole('main').getByRole('paragraph').filter({ hasText: words }).last();
 
 /** Open the roast's cook route directly, at step 1. */
 async function openCooking(page: Page): Promise<void> {
     await page.goto(route(`/recipes/${ROAST_ID}/cook`));
-    await expect(page.getByText('Step 1 of 6')).toBeVisible();
+    await expect(stepRegion(page, 1, 6)).toBeVisible();
 }
 
 /** The page does not scroll sideways. */
@@ -89,12 +112,20 @@ async function expectNoSidewaysScroll(page: Page): Promise<void> {
     expect(overflow, 'the page scrolls sideways').toBeLessThanOrEqual(0);
 }
 
-/** A control's box is at least 44 × 44. */
+/** A control's box is at least 44 x 44. */
 async function expectTarget(control: Locator): Promise<void> {
     const box = await control.boundingBox();
 
     expect(box?.width ?? 0).toBeGreaterThanOrEqual(44);
     expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
+}
+
+/** An element's computed line height in px, and its box height. */
+async function lineMetrics(node: Locator): Promise<{ readonly lineHeight: number; readonly height: number }> {
+    return node.evaluate((element) => ({
+        lineHeight: Number.parseFloat(getComputedStyle(element).lineHeight),
+        height: element.getBoundingClientRect().height,
+    }));
 }
 
 for (const width of [1280, 390] as const) {
@@ -104,39 +135,41 @@ for (const width of [1280, 390] as const) {
         test('cooks the roast from Start cooking to Done and back to the recipe (po’s flow)', async ({ page }) => {
             const errors = watchErrors(page);
             await seed(page);
+            // Fake time, so Done's settle hold is stepped past rather than waited for. Installed after sign-in.
+            await page.clock.install();
 
             // 1. Open the roast and press Start cooking. Step 1 shows its focus line.
             await page.goto(route(`/recipes/${ROAST_ID}`));
             await expect(page.getByRole('heading', { level: 1, name: ROAST_TITLE })).toBeVisible();
             await page.getByRole('button', { name: 'Start cooking' }).click();
             await expect(page).toHaveURL(new RegExp(`/recipes/${ROAST_ID}/cook$`, 'u'));
-            await expect(page.getByText('Line 1 of 2')).toBeVisible();
-            await expect(checkbox(page, 'Heat 2 tbsp. oil in a roasting tin.')).toBeVisible();
+            await expect(stepRegion(page, 1, 6)).toContainText('Line 1 of 2');
+            await expect(checkbox(page, FIRST_LINE)).toBeVisible();
 
             // 2. Tick line 1. The focus moves to line 2.
-            await checkbox(page, 'Heat 2 tbsp. oil in a roasting tin.').click();
-            await expect(page.getByText('Line 2 of 2')).toBeVisible();
-            await expect(page.getByText('You ticked 1 line')).toBeVisible();
-            await expect(checkbox(page, 'Season the chicken well.')).toBeVisible();
+            await checkbox(page, FIRST_LINE).click();
+            await expect(stepRegion(page, 1, 6)).toContainText('Line 2 of 2');
+            await expect(stepRegion(page, 1, 6)).toContainText('You ticked 1 line');
+            await expect(checkbox(page, SECOND_LINE)).toBeVisible();
 
             // 3. Next step to step 2, then Back to step 1. Line 1 is still ticked.
-            await page.getByRole('button', { name: 'Next step, step 2' }).click();
-            await expect(page.getByText('Step 2 of 6')).toBeVisible();
+            await nextButton(page, 2).click();
+            await expect(stepRegion(page, 2, 6)).toBeVisible();
             await page.getByRole('button', { name: 'Back to step 1' }).click();
-            await expect(page.getByText('Step 1 of 6')).toBeVisible();
-            await expect(page.getByText('You ticked 1 line')).toBeVisible();
-            await expect(page.getByText('Line 2 of 2')).toBeVisible();
+            await expect(stepRegion(page, 1, 6)).toContainText('You ticked 1 line');
+            await expect(stepRegion(page, 1, 6)).toContainText('Line 2 of 2');
 
             // 4. Next step through to step 6, then Finish. Done shows "All 6 steps done".
             for (let step = 2; step <= 6; step++) {
-                await page.getByRole('button', { name: `Next step, step ${String(step)}` }).click();
-                await expect(page.getByText(`Step ${String(step)} of 6`)).toBeVisible();
+                await nextButton(page, step).click();
+                await expect(stepRegion(page, step, 6)).toBeVisible();
             }
 
             await page.getByRole('button', { name: 'Finish' }).click();
             await expect(page.getByRole('heading', { level: 1, name: 'All 6 steps done' })).toBeFocused();
 
-            // 5. Back to the recipe. The recipe page shows Start cooking.
+            // 5. Back to the recipe, once the settle hold is past. The recipe page shows Start cooking.
+            await page.clock.runFor(PAST_DONE_SETTLE_MS);
             await page.getByRole('button', { name: 'Back to the recipe' }).click();
             await expect(page.getByRole('heading', { level: 1, name: ROAST_TITLE })).toBeVisible();
             await expect(page.getByRole('button', { name: 'Start cooking' })).toBeVisible();
@@ -155,7 +188,7 @@ for (const width of [1280, 390] as const) {
             await openCooking(page);
 
             for (let step = 2; step <= 6; step++) {
-                await forwardButton(page).click();
+                await nextButton(page, step).click();
             }
 
             await page.getByRole('button', { name: 'Finish' }).click();
@@ -212,12 +245,67 @@ test.describe('where a cook link goes', () => {
         await page.goto(route(`/recipes/${ROAST_ID}`));
         await expect(page.getByRole('heading', { level: 1, name: ROAST_TITLE })).toBeVisible();
         await page.goto(route(`/recipes/${ROAST_ID}/cook`));
-        await expect(page.getByText('Step 1 of 6')).toBeVisible();
+        await expect(stepRegion(page, 1, 6)).toBeVisible();
 
         await page.getByRole('button', { name: 'Exit cooking mode' }).click();
 
         await expect(page).toHaveURL(new RegExp(`/recipes/${ROAST_ID}$`, 'u'));
         await expect(page.getByRole('heading', { level: 1, name: ROAST_TITLE })).toBeVisible();
+    });
+});
+
+// D13: the whole screen is reachable and moves focus sensibly from the keyboard alone.
+test.describe('cooking mode from the keyboard (D13)', () => {
+    test('moves focus to the next action after each press, and after Cook again', async ({ page }) => {
+        await seed(page);
+        await page.clock.install();
+        await openCooking(page);
+
+        // Space on the first line ticks it and the focus line becomes line 2.
+        await checkbox(page, FIRST_LINE).focus();
+        await page.keyboard.press('Space');
+        await expect(checkbox(page, SECOND_LINE)).toBeFocused();
+
+        // Space on the last line leaves nothing to tick: the focus goes to the forward control, now "Start step 2".
+        await page.keyboard.press('Space');
+        await expect(page.getByRole('button', { name: 'Start step 2' })).toBeFocused();
+
+        // Through to Done from the keyboard, then Cook it again once the settle hold is past.
+        await page.keyboard.press('Enter');
+        await expect(stepRegion(page, 2, 6)).toBeVisible();
+
+        for (let step = 3; step <= 6; step++) {
+            await nextButton(page, step).focus();
+            await page.keyboard.press('Enter');
+            await expect(stepRegion(page, step, 6)).toBeVisible();
+        }
+
+        await page.getByRole('button', { name: 'Finish' }).focus();
+        await page.keyboard.press('Enter');
+        await expect(page.getByRole('heading', { level: 1, name: 'All 6 steps done' })).toBeFocused();
+        await page.clock.runFor(PAST_DONE_SETTLE_MS);
+        await page.getByRole('button', { name: 'Cook it again' }).focus();
+        await page.keyboard.press('Enter');
+
+        // Step 1 again with nothing ticked: focus is on its forward control, and the polite region speaks the step.
+        await expect(nextButton(page, 2)).toBeFocused();
+        // The region mounts empty and is filled a moment later, on a timer, so the fake clock lets it fill.
+        await page.clock.runFor(PAST_DONE_SETTLE_MS);
+        await expect(page.getByRole('status').filter({ hasText: 'Heat 2 tbsp. oil in a roasting tin.' })).toHaveCount(
+            1,
+        );
+    });
+});
+
+test.describe('the focus line type', () => {
+    test('is set in the readingLarge face, not the page face', async ({ page }) => {
+        await seed(page);
+        await openCooking(page);
+
+        const family = await checkbox(page, FIRST_LINE).evaluate((node) => getComputedStyle(node).fontFamily);
+        const firstFamily = (stack: string): string => (stack.split(',')[0] ?? '').trim().replaceAll('"', '');
+
+        expect(firstFamily(family)).toBe(firstFamily(fonts[typeRole.readingLarge.face]));
     });
 });
 
@@ -230,9 +318,9 @@ for (const width of [320, 390] as const) {
             await openCooking(page);
             await expectNoSidewaysScroll(page);
 
-            await checkbox(page, 'Heat 2 tbsp. oil in a roasting tin.').click();
-            await checkbox(page, 'Season the chicken well.').click();
-            await expect(page.getByText('Up next · Step 2')).toBeVisible();
+            await checkbox(page, FIRST_LINE).click();
+            await checkbox(page, SECOND_LINE).click();
+            await expect(stepRegion(page, 1, 6)).toContainText('Up next · step 2');
             await expectNoSidewaysScroll(page);
 
             for (let step = 2; step <= 6; step++) {
@@ -246,7 +334,7 @@ for (const width of [320, 390] as const) {
     });
 }
 
-/** A long first step: it fits a 390 × 844 screen at 1× text and overflows it at 2× (qse's fixture condition). */
+/** A long first step: it fits a 390 x 844 screen at 1x text and overflows it at 2x (qse's fixture condition). */
 const LONG_ID = 'c0000000-0000-4000-8000-0000000000a3';
 const LONG_LAST_LINE = 'Leave it to settle for five minutes before you move on to the next step.';
 const LONG_STEPS = [
@@ -259,10 +347,52 @@ const LONG_STEPS = [
             LONG_LAST_LINE,
         ].join(' '),
     },
-    { stepNumber: 2, instruction: 'Serve.' },
+    {
+        stepNumber: 2,
+        instruction:
+            'Serve the onions on warm toast with a spoonful of the pan juices poured over the top and a pinch of flaky salt.',
+    },
 ];
+const NEXT_STEP_WORDS = 'Serve the onions on warm toast';
 
-/** 200% text. The red run of this case was at 1, where the overflow assertion failed (notes/eng5-red-e2e-*.log). */
+/** Open the long recipe's cook route with the first line ticked, so the next step shows in the foot. */
+async function openLong(page: Page): Promise<void> {
+    await signInWithTicket(page);
+    const viewerId = await readViewerAppId(page);
+    await mockRecipeApi(page, {
+        viewerId,
+        recipes: [makeRecipeDetail({ id: LONG_ID, ownerId: viewerId, title: 'Soft onions', steps: LONG_STEPS })],
+    });
+    await page.goto(route(`/recipes/${LONG_ID}/cook`));
+    await expect(stepRegion(page, 1, 2)).toBeVisible();
+}
+
+// qse item 8: the Next preview is one line on a short frame and wraps on a tall one.
+test.describe('the Next preview by screen height (qse item 8)', () => {
+    test.describe('at 390 by 690', () => {
+        test.use({ viewport: { width: 390, height: 690 } });
+
+        test('shows the next step on one line', async ({ page }) => {
+            await openLong(page);
+            const { lineHeight, height } = await lineMetrics(previewOf(page, NEXT_STEP_WORDS));
+
+            expect(height).toBeLessThanOrEqual(lineHeight + 1);
+        });
+    });
+
+    test.describe('at 390 by 900', () => {
+        test.use({ viewport: { width: 390, height: 900 } });
+
+        test('lets a long next step wrap', async ({ page }) => {
+            await openLong(page);
+            const { lineHeight, height } = await lineMetrics(previewOf(page, NEXT_STEP_WORDS));
+
+            expect(height).toBeGreaterThan(lineHeight + 1);
+        });
+    });
+});
+
+/** 200% text. */
 const TEXT_SCALE = 2;
 
 test.describe('cooking mode at 390 with 200% text (plans 0002 and 0003a)', () => {
@@ -271,24 +401,16 @@ test.describe('cooking mode at 390 with 200% text (plans 0002 and 0003a)', () =>
     test('scrolls the step body while the place and Back / Next stay on screen, and truncates nothing', async ({
         page,
     }) => {
-        await signInWithTicket(page);
-        const viewerId = await readViewerAppId(page);
-        await mockRecipeApi(page, {
-            viewerId,
-            recipes: [makeRecipeDetail({ id: LONG_ID, ownerId: viewerId, title: 'Soft onions', steps: LONG_STEPS })],
-        });
-        await page.goto(route(`/recipes/${LONG_ID}/cook`));
+        await openLong(page);
         await applyTextScale(page, TEXT_SCALE);
-        const place = page.getByText('Step 1 of 2');
-        await expect(place).toBeVisible();
+        const region = stepRegion(page, 1, 2);
 
-        // The place, Back and Next are on screen.
-        await expect(place).toBeInViewport();
+        // The step, Back and Next are on screen.
+        await expect(region).toBeInViewport();
         await expect(backButton(page)).toBeInViewport();
         await expect(forwardButton(page)).toBeInViewport();
 
         // The step body is the scroll box, and at this text size it has more than it shows.
-        const region = page.getByRole('region', { name: 'Step 1 of 2' });
         const box = await region.evaluate((node) => {
             let scroller: HTMLElement | null = node.parentElement;
 
@@ -301,13 +423,17 @@ test.describe('cooking mode at 390 with 200% text (plans 0002 and 0003a)', () =>
         expect(box, 'the step body is a vertical scroll box').not.toBeNull();
         expect(box?.scroll ?? 0, 'the step body overflows at this text size').toBeGreaterThan(box?.client ?? 0);
 
+        // The next step is still one line: the frame is shorter than 43.75 rem at this text size.
+        const { lineHeight, height } = await lineMetrics(previewOf(page, NEXT_STEP_WORDS));
+        expect(height).toBeLessThanOrEqual(lineHeight + 1);
+
         // Scrolled to its end, the body shows the step's last line whole, while Back and Next have not moved.
         const nextBefore = await forwardButton(page).boundingBox();
-        const lastLine = page.getByRole('checkbox', { name: LONG_LAST_LINE });
+        const lastLine = checkbox(page, LONG_LAST_LINE);
         await lastLine.scrollIntoViewIfNeeded();
-        await expect(page.getByText(LONG_LAST_LINE)).toBeInViewport({ ratio: 1 });
+        await expect(lastLine).toBeInViewport({ ratio: 1 });
         expect((await forwardButton(page).boundingBox())?.y).toBe(nextBefore?.y);
-        await expect(place).toBeInViewport();
+        await expect(backButton(page)).toBeInViewport();
         await expectNoSidewaysScroll(page);
     });
 });

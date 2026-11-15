@@ -19,5 +19,5 @@ appId: ${APP_ID}
           TIMEOUT: 20000
 - tapOn: 'Start cooking'
 - extendedWaitUntil:
-      visible: 'Step.1.of.3'
+      visible: "Step 1 of 3"
       timeout: 30000

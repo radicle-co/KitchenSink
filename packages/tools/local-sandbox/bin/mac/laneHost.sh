@@ -41,9 +41,10 @@ udid_by_name() {
     xcrun simctl list -j devices | jq -r --arg n "$1" '[.devices[][] | select(.name == $n) | .udid] | first // empty'
 }
 
-# type_by_name <name>   prints the device type of the Simulator with that name, or nothing
-type_by_name() {
-    xcrun simctl list -j devices | jq -r --arg n "$1" '[.devices[][] | select(.name == $n) | .deviceTypeIdentifier // empty] | first // empty'
+# record_by_name <name>   prints "<udid><TAB><device type>" of the FIRST Simulator with that name, or nothing; the type is
+# empty when the listing states none. One record, so the udid and the type are never taken from two Simulators.
+record_by_name() {
+    xcrun simctl list -j devices | jq -r --arg n "$1" '[.devices[][] | select(.name == $n) | [.udid, (.deviceTypeIdentifier // "")] | @tsv] | first // empty'
 }
 
 case "${1:-}" in
@@ -51,10 +52,9 @@ case "${1:-}" in
         [[ "${2:-}" =~ ^[1-9][0-9]*$ ]] || die "ensure needs a positive lane number, got '${2:-}'"
         class_of "${3-iphone}"
         name="${NAME_PREFIX}$2"
-        udid="$(udid_by_name "$name")"
         # A Simulator kept from a run with another device type is replaced, never reused under the new name's promise.
         # A listing that states no type (nothing to compare) keeps the Simulator.
-        have_type="$(type_by_name "$name")"
+        IFS=$'\t' read -r udid have_type <<<"$(record_by_name "$name")"
         if [ -n "$udid" ] && [ -n "$have_type" ] && [ "$have_type" != "$DEVICE_TYPE" ]; then
             xcrun simctl shutdown "$udid" || true
             xcrun simctl delete "$udid"

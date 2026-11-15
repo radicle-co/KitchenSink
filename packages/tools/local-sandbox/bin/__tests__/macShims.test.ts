@@ -263,6 +263,19 @@ describe('laneHost.sh', () => {
         expect(callsOf(sandbox)).toEqual([]);
     });
 
+    it('judges the first Simulator of a name by its own device type, never by a later one of the same name', () => {
+        const sandbox = makeSandbox();
+        // The first match states no type (nothing to compare, so it is kept); the second states an old one. The udid
+        // and the type must come from the SAME record, or the first would be deleted for the second's type.
+        withSimulators(sandbox, [
+            { name: 'ks-maestro-ipad-2', udid: 'FIRST' },
+            { name: 'ks-maestro-ipad-2', udid: 'SECOND', deviceTypeIdentifier: 'type.old' },
+        ]);
+        const result = run('laneHost.sh', ['ensure', '2', 'ipad'], sandbox, { KS_SIM_IPAD_DEVICE_TYPE: 'type.new' });
+        expect(result.stdout.trim()).toBe('FIRST');
+        expect(callsOf(sandbox)).toEqual([]);
+    });
+
     it('refuses a device class that is not iphone or ipad, and shell text in one', () => {
         const sandbox = makeSandbox();
         withSimulators(sandbox, []);
@@ -317,19 +330,25 @@ describe('laneHost.sh', () => {
         expect(run('laneHost.sh', ['install', 'AAAA', path.join(sandbox.root, 'empty')], sandbox).status).not.toBe(0);
     });
 
-    it('removes the lane Simulators of both classes on cleanup, never another one', () => {
+    it('removes the lane Simulators of every device class on cleanup, never another one', () => {
         const sandbox = makeSandbox();
+        // One lane per class, named by the same function the planner uses, so a class added to IOS_DEVICES is covered.
+        const lanes = IOS_DEVICES.map((device, index) => ({
+            name: laneSimulatorName(1, device),
+            udid: `LANE${String(index)}`,
+        }));
         withSimulators(sandbox, [
-            { name: 'ks-maestro-lane-1', udid: 'AAAA' },
-            { name: 'ks-maestro-ipad-1', udid: 'PAD1' },
+            ...lanes,
             { name: 'ksS1Lane1', udid: 'BBBB' },
             { name: 'ks-maestro-lane-x', udid: 'CCCC' },
             { name: 'ks-maestro-ipad-', udid: 'DDDD' },
         ]);
         run('laneHost.sh', ['cleanup'], sandbox);
         const log = readFileSync(sandbox.log, 'utf8');
-        expect(log).toContain('XCRUN simctl delete AAAA');
-        expect(log).toContain('XCRUN simctl delete PAD1');
+
+        for (const lane of lanes) {
+            expect(log).toContain(`XCRUN simctl delete ${lane.udid}`);
+        }
 
         for (const kept of ['BBBB', 'CCCC', 'DDDD']) {
             expect(log).not.toContain(kept);

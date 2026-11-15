@@ -330,6 +330,7 @@ describe('laneHost.sh', () => {
         const log = readFileSync(sandbox.log, 'utf8');
         expect(log).toContain('XCRUN simctl delete AAAA');
         expect(log).toContain('XCRUN simctl delete PAD1');
+
         for (const kept of ['BBBB', 'CCCC', 'DDDD']) {
             expect(log).not.toContain(kept);
         }

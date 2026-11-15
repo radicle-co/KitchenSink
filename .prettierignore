@@ -69,3 +69,7 @@ packages/tools/docs-site/content/mirrored
 packages/infra/bootstrap/golden
 packages/infra/bootstrap/manifests
 packages/infra/bootstrap/src/stockTemplate.yaml
+
+# Byte-for-byte snapshots of the published claude.ai design canvases (docs/design/canvases/README.md). The published
+# canvas is the source of these bytes, so formatting them here would make the snapshot differ from what it records.
+docs/design/canvases/*/

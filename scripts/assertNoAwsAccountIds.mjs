@@ -242,7 +242,15 @@ function violationsIn(text, accounts) {
     // unable to: the validation lives sixty lines away from this construction, and a future edit that
     // loosens it would re-open the hole silently, here, with nothing local to say so. Escaping makes the
     // safety a property of THIS line instead of a property of a distant invariant.
-    const bounded = accounts.map((account) => new RegExp(`(?<!\\d)${RegExp.escape(account)}(?!\\d)`));
+    //
+    // ⚠️ NOT the last group of a canonical UUID: the design-canvas snapshots bundle a UUID validator naming
+    // the nil UUID, whose node field is the twelve-zero fixture id. Only the full 8-4-4-4 prefix exempts.
+    const bounded = accounts.map(
+        (account) =>
+            new RegExp(
+                `(?<!\\d)(?<![0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-)${RegExp.escape(account)}(?!\\d)`,
+            ),
+    );
 
     text.split('\n').forEach((line, index) => {
         if (bounded.some((pattern) => pattern.test(line))) {

@@ -1,0 +1,168 @@
+{
+  "v": 3,
+  "createdOnFiles": {
+    "v": 1,
+    "at": "2026-11-01T07:02:35Z"
+  },
+  "title": "Commise Screens, mobile: Publishing rewards",
+  "launch": {
+    "view": "canvas"
+  },
+  "pages": [],
+  "boards": {
+    "RewardPublishIphone390.dc.html": {
+      "x": 0,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Publishing rewards, publish (mobile, iPhone 390)"
+    },
+    "RewardSlotsIphone390.dc.html": {
+      "x": 470,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Publishing rewards, slots (mobile, iPhone 390)"
+    },
+    "RewardUnpublishIphone390.dc.html": {
+      "x": 940,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Publishing rewards, unpublish (mobile, iPhone 390)"
+    },
+    "RewardCannotPublishIphone390.dc.html": {
+      "x": 1410,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Publishing rewards, cannot publish (mobile, iPhone 390)"
+    },
+    "RewardCookedByOthersIphone390.dc.html": {
+      "x": 1880,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Publishing rewards, cooked by others (mobile, iPhone 390)"
+    },
+    "RewardPublishAndroid384.dc.html": {
+      "x": 0,
+      "y": 1764,
+      "w": 384,
+      "h": 832,
+      "title": "Publishing rewards, publish (mobile, Android 384)"
+    },
+    "RewardSlotsAndroid384.dc.html": {
+      "x": 464,
+      "y": 1764,
+      "w": 384,
+      "h": 832,
+      "title": "Publishing rewards, slots (mobile, Android 384)"
+    },
+    "RewardUnpublishAndroid384.dc.html": {
+      "x": 928,
+      "y": 1764,
+      "w": 384,
+      "h": 832,
+      "title": "Publishing rewards, unpublish (mobile, Android 384)"
+    },
+    "RewardCannotPublishAndroid384.dc.html": {
+      "x": 1392,
+      "y": 1764,
+      "w": 384,
+      "h": 832,
+      "title": "Publishing rewards, cannot publish (mobile, Android 384)"
+    },
+    "RewardCookedByOthersAndroid384.dc.html": {
+      "x": 1856,
+      "y": 1764,
+      "w": 384,
+      "h": 832,
+      "title": "Publishing rewards, cooked by others (mobile, Android 384)"
+    },
+    "RewardPublishIpad820.dc.html": {
+      "x": 0,
+      "y": 3256,
+      "w": 820,
+      "h": 1180,
+      "title": "Publishing rewards, publish (mobile, iPad 820)"
+    },
+    "RewardSlotsIpad820.dc.html": {
+      "x": 900,
+      "y": 3256,
+      "w": 820,
+      "h": 1180,
+      "title": "Publishing rewards, slots (mobile, iPad 820)"
+    },
+    "RewardUnpublishIpad820.dc.html": {
+      "x": 1800,
+      "y": 3256,
+      "w": 820,
+      "h": 1180,
+      "title": "Publishing rewards, unpublish (mobile, iPad 820)"
+    },
+    "RewardCannotPublishIpad820.dc.html": {
+      "x": 2700,
+      "y": 3256,
+      "w": 820,
+      "h": 1180,
+      "title": "Publishing rewards, cannot publish (mobile, iPad 820)"
+    },
+    "RewardCookedByOthersIpad820.dc.html": {
+      "x": 3600,
+      "y": 3256,
+      "w": 820,
+      "h": 1180,
+      "title": "Publishing rewards, cooked by others (mobile, iPad 820)"
+    }
+  },
+  "order": [
+    "RewardPublishIphone390.dc.html",
+    "RewardSlotsIphone390.dc.html",
+    "RewardUnpublishIphone390.dc.html",
+    "RewardCannotPublishIphone390.dc.html",
+    "RewardCookedByOthersIphone390.dc.html",
+    "RewardPublishAndroid384.dc.html",
+    "RewardSlotsAndroid384.dc.html",
+    "RewardUnpublishAndroid384.dc.html",
+    "RewardCannotPublishAndroid384.dc.html",
+    "RewardCookedByOthersAndroid384.dc.html",
+    "RewardPublishIpad820.dc.html",
+    "RewardSlotsIpad820.dc.html",
+    "RewardUnpublishIpad820.dc.html",
+    "RewardCannotPublishIpad820.dc.html",
+    "RewardCookedByOthersIpad820.dc.html"
+  ],
+  "notes": {
+    "row0": {
+      "x": 0,
+      "y": 0,
+      "text": "Publishing rewards: mobile, iPhone 390 (390 x 844)",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row1": {
+      "x": 0,
+      "y": 1504,
+      "text": "Publishing rewards: mobile, Android 384 (384 x 832)",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row2": {
+      "x": 0,
+      "y": 2996,
+      "text": "Publishing rewards: mobile, iPad 820 (820 x 1180)",
+      "kind": "title1",
+      "maxW": 2400
+    }
+  },
+  "designSystems": [
+    {
+      "title": "KitchenSink Design System",
+      "namespace": "commise",
+      "artifact": "https://claude.ai/artifact/DN1aFbTBJKfW7bbgDdnzye",
+      "version": "1793145468-689f",
+      "copiedAt": "2026-10-27T23:57:54Z"
+    }
+  ]
+}

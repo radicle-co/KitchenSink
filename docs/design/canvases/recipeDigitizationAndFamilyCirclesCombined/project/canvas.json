@@ -1,0 +1,304 @@
+{
+  "v": 3,
+  "createdOnFiles": {
+    "v": 1,
+    "at": "2026-10-27T19:13:01Z"
+  },
+  "title": "Commise Screens: Recipe digitization and family circles",
+  "launch": {
+    "view": "canvas"
+  },
+  "pages": [],
+  "boards": {
+    "CirclePhotoCaptureMobile.dc.html": {
+      "x": 0,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Recipe digitization and family circles, photo capture (phone)"
+    },
+    "CircleReadingMobile.dc.html": {
+      "x": 470,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Recipe digitization and family circles, reading (phone)"
+    },
+    "CircleCorrectionMobile.dc.html": {
+      "x": 940,
+      "y": 260,
+      "w": 390,
+      "h": 916,
+      "title": "Recipe digitization and family circles, correction (phone)"
+    },
+    "CircleCardsInRecipesMobile.dc.html": {
+      "x": 1410,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Recipe digitization and family circles, cards in recipes (phone)"
+    },
+    "CircleCircleCreateMobile.dc.html": {
+      "x": 1880,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Recipe digitization and family circles, circle create (phone)"
+    },
+    "CircleCircleInviteMobile.dc.html": {
+      "x": 2350,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Recipe digitization and family circles, circle invite (phone)"
+    },
+    "CircleCircleJoinMobile.dc.html": {
+      "x": 2820,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Recipe digitization and family circles, circle join (phone)"
+    },
+    "CircleCircleViewMobile.dc.html": {
+      "x": 3290,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Recipe digitization and family circles, circle view (phone)"
+    },
+    "CirclePhotoCapture834Mobile.dc.html": {
+      "x": 0,
+      "y": 1556,
+      "w": 834,
+      "h": 1194,
+      "title": "Recipe digitization and family circles, photo capture (tablet 834 px)"
+    },
+    "CirclePhotoCapture1194Mobile.dc.html": {
+      "x": 914,
+      "y": 1556,
+      "w": 1194,
+      "h": 834,
+      "title": "Recipe digitization and family circles, photo capture (tablet 1194 px)"
+    },
+    "CircleReading834Mobile.dc.html": {
+      "x": 2188,
+      "y": 1556,
+      "w": 834,
+      "h": 1194,
+      "title": "Recipe digitization and family circles, reading (tablet 834 px)"
+    },
+    "CircleReading1194Mobile.dc.html": {
+      "x": 3102,
+      "y": 1556,
+      "w": 1194,
+      "h": 834,
+      "title": "Recipe digitization and family circles, reading (tablet 1194 px)"
+    },
+    "CircleCorrection834Mobile.dc.html": {
+      "x": 4376,
+      "y": 1556,
+      "w": 834,
+      "h": 1194,
+      "title": "Recipe digitization and family circles, correction (tablet 834 px)"
+    },
+    "CircleCorrection1194Mobile.dc.html": {
+      "x": 5290,
+      "y": 1556,
+      "w": 1194,
+      "h": 834,
+      "title": "Recipe digitization and family circles, correction (tablet 1194 px)"
+    },
+    "CircleCardsInRecipes834Mobile.dc.html": {
+      "x": 6564,
+      "y": 1556,
+      "w": 834,
+      "h": 1194,
+      "title": "Recipe digitization and family circles, cards in recipes (tablet 834 px)"
+    },
+    "CircleCardsInRecipes1194Mobile.dc.html": {
+      "x": 7478,
+      "y": 1556,
+      "w": 1194,
+      "h": 834,
+      "title": "Recipe digitization and family circles, cards in recipes (tablet 1194 px)"
+    },
+    "CircleCircleCreate834Mobile.dc.html": {
+      "x": 8752,
+      "y": 1556,
+      "w": 834,
+      "h": 1194,
+      "title": "Recipe digitization and family circles, circle create (tablet 834 px)"
+    },
+    "CircleCircleCreate1194Mobile.dc.html": {
+      "x": 9666,
+      "y": 1556,
+      "w": 1194,
+      "h": 834,
+      "title": "Recipe digitization and family circles, circle create (tablet 1194 px)"
+    },
+    "CircleCircleInvite834Mobile.dc.html": {
+      "x": 10940,
+      "y": 1556,
+      "w": 834,
+      "h": 1194,
+      "title": "Recipe digitization and family circles, circle invite (tablet 834 px)"
+    },
+    "CircleCircleInvite1194Mobile.dc.html": {
+      "x": 11854,
+      "y": 1556,
+      "w": 1194,
+      "h": 834,
+      "title": "Recipe digitization and family circles, circle invite (tablet 1194 px)"
+    },
+    "CircleCircleJoin834Mobile.dc.html": {
+      "x": 13128,
+      "y": 1556,
+      "w": 834,
+      "h": 1194,
+      "title": "Recipe digitization and family circles, circle join (tablet 834 px)"
+    },
+    "CircleCircleJoin1194Mobile.dc.html": {
+      "x": 14042,
+      "y": 1556,
+      "w": 1194,
+      "h": 834,
+      "title": "Recipe digitization and family circles, circle join (tablet 1194 px)"
+    },
+    "CircleCircleView834Mobile.dc.html": {
+      "x": 15316,
+      "y": 1556,
+      "w": 834,
+      "h": 1194,
+      "title": "Recipe digitization and family circles, circle view (tablet 834 px)"
+    },
+    "CircleCircleView1194Mobile.dc.html": {
+      "x": 16230,
+      "y": 1556,
+      "w": 1194,
+      "h": 834,
+      "title": "Recipe digitization and family circles, circle view (tablet 1194 px)"
+    },
+    "CirclePhotoCapture.dc.html": {
+      "x": 0,
+      "y": 3130,
+      "w": 1280,
+      "h": 800,
+      "title": "Recipe digitization and family circles, photo capture (web)"
+    },
+    "CircleReading.dc.html": {
+      "x": 1360,
+      "y": 3130,
+      "w": 1280,
+      "h": 800,
+      "title": "Recipe digitization and family circles, reading (web)"
+    },
+    "CircleCorrection.dc.html": {
+      "x": 2720,
+      "y": 3130,
+      "w": 1280,
+      "h": 800,
+      "title": "Recipe digitization and family circles, correction (web)"
+    },
+    "CircleCardsInRecipes.dc.html": {
+      "x": 4080,
+      "y": 3130,
+      "w": 1280,
+      "h": 800,
+      "title": "Recipe digitization and family circles, cards in recipes (web)"
+    },
+    "CircleCircleCreate.dc.html": {
+      "x": 5440,
+      "y": 3130,
+      "w": 1280,
+      "h": 800,
+      "title": "Recipe digitization and family circles, circle create (web)"
+    },
+    "CircleCircleInvite.dc.html": {
+      "x": 6800,
+      "y": 3130,
+      "w": 1280,
+      "h": 800,
+      "title": "Recipe digitization and family circles, circle invite (web)"
+    },
+    "CircleCircleJoin.dc.html": {
+      "x": 8160,
+      "y": 3130,
+      "w": 1280,
+      "h": 800,
+      "title": "Recipe digitization and family circles, circle join (web)"
+    },
+    "CircleCircleView.dc.html": {
+      "x": 9520,
+      "y": 3130,
+      "w": 1280,
+      "h": 800,
+      "title": "Recipe digitization and family circles, circle view (web)"
+    }
+  },
+  "order": [
+    "CirclePhotoCaptureMobile.dc.html",
+    "CircleReadingMobile.dc.html",
+    "CircleCorrectionMobile.dc.html",
+    "CircleCardsInRecipesMobile.dc.html",
+    "CircleCircleCreateMobile.dc.html",
+    "CircleCircleInviteMobile.dc.html",
+    "CircleCircleJoinMobile.dc.html",
+    "CircleCircleViewMobile.dc.html",
+    "CirclePhotoCapture834Mobile.dc.html",
+    "CirclePhotoCapture1194Mobile.dc.html",
+    "CircleReading834Mobile.dc.html",
+    "CircleReading1194Mobile.dc.html",
+    "CircleCorrection834Mobile.dc.html",
+    "CircleCorrection1194Mobile.dc.html",
+    "CircleCardsInRecipes834Mobile.dc.html",
+    "CircleCardsInRecipes1194Mobile.dc.html",
+    "CircleCircleCreate834Mobile.dc.html",
+    "CircleCircleCreate1194Mobile.dc.html",
+    "CircleCircleInvite834Mobile.dc.html",
+    "CircleCircleInvite1194Mobile.dc.html",
+    "CircleCircleJoin834Mobile.dc.html",
+    "CircleCircleJoin1194Mobile.dc.html",
+    "CircleCircleView834Mobile.dc.html",
+    "CircleCircleView1194Mobile.dc.html",
+    "CirclePhotoCapture.dc.html",
+    "CircleReading.dc.html",
+    "CircleCorrection.dc.html",
+    "CircleCardsInRecipes.dc.html",
+    "CircleCircleCreate.dc.html",
+    "CircleCircleInvite.dc.html",
+    "CircleCircleJoin.dc.html",
+    "CircleCircleView.dc.html"
+  ],
+  "notes": {
+    "row12": {
+      "x": 0,
+      "y": 0,
+      "text": "Recipe digitization and family circles: phone",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row13": {
+      "x": 0,
+      "y": 1296,
+      "text": "Recipe digitization and family circles: tablet",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row14": {
+      "x": 0,
+      "y": 2870,
+      "text": "Recipe digitization and family circles: web",
+      "kind": "title1",
+      "maxW": 2400
+    }
+  },
+  "designSystems": [
+    {
+      "title": "KitchenSink Design System",
+      "namespace": "commise",
+      "artifact": "https://claude.ai/artifact/DN1aFbTBJKfW7bbgDdnzye",
+      "version": "1793145468-689f",
+      "copiedAt": "2026-10-27T23:57:54Z"
+    }
+  ]
+}

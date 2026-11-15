@@ -2,14 +2,14 @@
     "schemaVersion": 1,
     "counts": {
         "ambiguous-layer-signal": 9,
-        "boolean-prop-selects-subtree": 8,
+        "boolean-prop-selects-subtree": 10,
         "cross-platform-props-diverge": 23,
         "missing-component-doc": 165,
         "missing-module-doc": 23,
-        "platform-singleton": 101,
-        "ref-api": 19,
+        "platform-singleton": 115,
+        "ref-api": 21,
         "unclassified-layer": 93,
-        "undocumented-prop": 221
+        "undocumented-prop": 223
     },
     "findings": [
         {
@@ -626,6 +626,26 @@
                 "onTouchStartCapture",
                 "ref",
                 "target"
+            ]
+        },
+        {
+            "rule": "boolean-prop-selects-subtree",
+            "severity": "review",
+            "component": "designSystem/liveRegion/LiveRegion",
+            "sourcePath": "packages/apps/commise/ui/src/liveRegion/LiveRegion.native.tsx",
+            "message": "a boolean prop selects between two rendered subtrees — behaviour switch, or display derivation?",
+            "evidence": [
+                "announceOnMount"
+            ]
+        },
+        {
+            "rule": "boolean-prop-selects-subtree",
+            "severity": "review",
+            "component": "designSystem/liveRegion/LiveRegion",
+            "sourcePath": "packages/apps/commise/ui/src/liveRegion/LiveRegion.tsx",
+            "message": "a boolean prop selects between two rendered subtrees — behaviour switch, or display derivation?",
+            "evidence": [
+                "announceOnMount"
             ]
         },
         {
@@ -2501,8 +2521,8 @@
             "sourcePath": "packages/apps/commise/features/recipes/src/detail/RecipeDetailBody.tsx",
             "message": "the web and native leaves declare different prop names",
             "evidence": [
-                "web: back canStartCooking dataSourcesHref descriptionExpanded editHref headerActions heroControls ingredientsEndRef marks nutritionExpanded onEditSection onServingsChange onStartCooking onToggleDescription onToggleNutrition onViewVersions pinnedIngredients rating recipe refreshNotice screenOn scrollFooter servings unreachableRetry versionsHref viewerIsOwner visibilityNotice",
-                "native: back canStartCooking dataSourcesHref dataSourcesReturnFocusSignal descriptionExpanded editHref headerActions heroControls layout marks nutritionExpanded onEditSection onIngredientsLayout onOpenDataSources onScroll onServingsChange onStartCooking onToggleDescription onToggleNutrition onViewVersions pinnedIngredients rating recipe refreshNotice screenOn scrollFooter servings unreachableRetry versionsHref viewerIsOwner visibilityNotice"
+                "web: back canStartCooking dataSourcesHref descriptionExpanded editHref headerActions heroControls ingredientsEndRef marks nutritionExpanded onEditSection onReviewLine onServingsChange onStartCooking onToggleDescription onToggleNutrition onViewVersions pinnedIngredients rating recipe refreshNotice screenOn scrollFooter servings unreachableRetry versionsHref viewerIsOwner visibilityNotice",
+                "native: back canStartCooking dataSourcesHref dataSourcesReturnFocusSignal descriptionExpanded editHref headerActions heroControls layout marks nutritionExpanded onEditSection onIngredientsLayout onOpenDataSources onReviewLine onScroll onServingsChange onStartCooking onToggleDescription onToggleNutrition onViewVersions pinnedIngredients rating recipe refreshNotice screenOn scrollFooter servings unreachableRetry versionsHref viewerIsOwner visibilityNotice"
             ]
         },
         {
@@ -2602,6 +2622,26 @@
             "sourcePath": "packages/apps/commise/features/recipes/src/detail/RecipeSourceLine.tsx",
             "message": "the component declaration has no JSDoc summary",
             "evidence": []
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "featuresRecipes/detail/ReviewLineButton",
+            "sourcePath": "packages/apps/commise/features/recipes/src/detail/ReviewLineButton.native.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "native"
+            ]
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "featuresRecipes/detail/ReviewLineLink",
+            "sourcePath": "packages/apps/commise/features/recipes/src/detail/ReviewLineLink.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "web"
+            ]
         },
         {
             "rule": "missing-component-doc",
@@ -3993,6 +4033,26 @@
             ]
         },
         {
+            "rule": "ref-api",
+            "severity": "violation",
+            "component": "featuresRecipes/form/IngredientLineEditor",
+            "sourcePath": "packages/apps/commise/features/recipes/src/form/IngredientLineEditor.native.tsx",
+            "message": "refs are near-forbidden; permitted only to wrap an external non-declarative system",
+            "evidence": [
+                "useRef"
+            ]
+        },
+        {
+            "rule": "ref-api",
+            "severity": "violation",
+            "component": "featuresRecipes/form/IngredientLineEditor",
+            "sourcePath": "packages/apps/commise/features/recipes/src/form/IngredientLineEditor.tsx",
+            "message": "refs are near-forbidden; permitted only to wrap an external non-declarative system",
+            "evidence": [
+                "useRef"
+            ]
+        },
+        {
             "rule": "undocumented-prop",
             "severity": "gap",
             "component": "featuresRecipes/form/IngredientLineEditor",
@@ -5232,6 +5292,146 @@
             "message": "props carry no JSDoc description",
             "evidence": [
                 "onPress"
+            ]
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "featuresCooking/CookingDone",
+            "sourcePath": "packages/apps/commise/features/cooking/src/CookingDone.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "web"
+            ]
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "featuresCooking/CookingDoneActions",
+            "sourcePath": "packages/apps/commise/features/cooking/src/CookingDoneActions.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "web"
+            ]
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "featuresCooking/CookingFrame",
+            "sourcePath": "packages/apps/commise/features/cooking/src/CookingFrame.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "web"
+            ]
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "featuresCooking/CookingLineRow",
+            "sourcePath": "packages/apps/commise/features/cooking/src/CookingLineRow.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "web"
+            ]
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "featuresCooking/CookingLoading",
+            "sourcePath": "packages/apps/commise/features/cooking/src/CookingLoading.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "web"
+            ]
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "featuresCooking/CookingNav",
+            "sourcePath": "packages/apps/commise/features/cooking/src/CookingNav.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "web"
+            ]
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "featuresCooking/CookingNextPreview",
+            "sourcePath": "packages/apps/commise/features/cooking/src/CookingNextPreview.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "web"
+            ]
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "featuresCooking/CookingScreen",
+            "sourcePath": "packages/apps/commise/features/cooking/src/CookingScreen.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "web"
+            ]
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "featuresCooking/CookingScreen",
+            "sourcePath": "packages/apps/commise/features/cooking/src/CookingScreen.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "read"
+            ]
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "featuresCooking/CookingSessionScreen",
+            "sourcePath": "packages/apps/commise/features/cooking/src/CookingSessionScreen.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "web"
+            ]
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "featuresCooking/CookingStateNotice",
+            "sourcePath": "packages/apps/commise/features/cooking/src/CookingStateNotice.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "web"
+            ]
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "featuresCooking/CookingStep",
+            "sourcePath": "packages/apps/commise/features/cooking/src/CookingStep.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "web"
+            ]
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "featuresCooking/CookingStep",
+            "sourcePath": "packages/apps/commise/features/cooking/src/CookingStep.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "track"
+            ]
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "featuresCooking/CookingTopBar",
+            "sourcePath": "packages/apps/commise/features/cooking/src/CookingTopBar.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "web"
             ]
         },
         {

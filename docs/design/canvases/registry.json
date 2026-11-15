@@ -16,7 +16,8 @@
             "platform": "web",
             "subject": "Account and sign in",
             "status": "current",
-            "source": "live"
+            "source": "live",
+            "snapshot": "docs/design/canvases/accountAndSignInWeb/"
         },
         {
             "id": "accountAndSignInMobile",
@@ -26,7 +27,8 @@
             "platform": "mobile",
             "subject": "Account and sign in",
             "status": "current",
-            "source": "live"
+            "source": "live",
+            "snapshot": "docs/design/canvases/accountAndSignInMobile/"
         },
         {
             "id": "accountAndSignInCombined",
@@ -36,7 +38,8 @@
             "platform": "combined",
             "subject": "Account and sign in",
             "status": "archive",
-            "source": "live"
+            "source": "live",
+            "snapshot": "docs/design/canvases/accountAndSignInCombined/"
         },
         {
             "id": "appWideStatesWeb",
@@ -46,7 +49,8 @@
             "platform": "web",
             "subject": "App-wide states",
             "status": "current",
-            "source": "live"
+            "source": "live",
+            "snapshot": "docs/design/canvases/appWideStatesWeb/"
         },
         {
             "id": "appWideStatesMobile",
@@ -56,7 +60,8 @@
             "platform": "mobile",
             "subject": "App-wide states",
             "status": "current",
-            "source": "live"
+            "source": "live",
+            "snapshot": "docs/design/canvases/appWideStatesMobile/"
         },
         {
             "id": "appWideStatesCombined",
@@ -66,7 +71,8 @@
             "platform": "combined",
             "subject": "App-wide states",
             "status": "archive",
-            "source": "live"
+            "source": "live",
+            "snapshot": "docs/design/canvases/appWideStatesCombined/"
         },
         {
             "id": "cookingModeWeb",
@@ -76,7 +82,8 @@
             "platform": "web",
             "subject": "Cooking mode",
             "status": "current",
-            "source": "live"
+            "source": "live",
+            "snapshot": "docs/design/canvases/cookingModeWeb/"
         },
         {
             "id": "cookingModeMobile",
@@ -86,7 +93,8 @@
             "platform": "mobile",
             "subject": "Cooking mode",
             "status": "current",
-            "source": "live"
+            "source": "live",
+            "snapshot": "docs/design/canvases/cookingModeMobile/"
         },
         {
             "id": "cookingModeCombined",
@@ -96,7 +104,8 @@
             "platform": "combined",
             "subject": "Cooking mode",
             "status": "archive",
-            "source": "live"
+            "source": "live",
+            "snapshot": "docs/design/canvases/cookingModeCombined/"
         },
         {
             "id": "discoverWeb",
@@ -106,7 +115,8 @@
             "platform": "web",
             "subject": "Discover",
             "status": "current",
-            "source": "live"
+            "source": "live",
+            "snapshot": "docs/design/canvases/discoverWeb/"
         },
         {
             "id": "discoverMobile",
@@ -116,7 +126,8 @@
             "platform": "mobile",
             "subject": "Discover",
             "status": "current",
-            "source": "live"
+            "source": "live",
+            "snapshot": "docs/design/canvases/discoverMobile/"
         },
         {
             "id": "discoverCombined",
@@ -126,7 +137,8 @@
             "platform": "combined",
             "subject": "Discover",
             "status": "archive",
-            "source": "live"
+            "source": "live",
+            "snapshot": "docs/design/canvases/discoverCombined/"
         },
         {
             "id": "homeWeb",
@@ -136,7 +148,8 @@
             "platform": "web",
             "subject": "Home",
             "status": "current",
-            "source": "live"
+            "source": "live",
+            "snapshot": "docs/design/canvases/homeWeb/"
         },
         {
             "id": "homeMobile",
@@ -146,7 +159,8 @@
             "platform": "mobile",
             "subject": "Home",
             "status": "current",
-            "source": "live"
+            "source": "live",
+            "snapshot": "docs/design/canvases/homeMobile/"
         },
         {
             "id": "homeCombined",
@@ -156,7 +170,8 @@
             "platform": "combined",
             "subject": "Home",
             "status": "archive",
-            "source": "live"
+            "source": "live",
+            "snapshot": "docs/design/canvases/homeCombined/"
         },
         {
             "id": "recipeDetailWeb",
@@ -166,7 +181,8 @@
             "platform": "web",
             "subject": "Recipe detail",
             "status": "current",
-            "source": "live"
+            "source": "live",
+            "snapshot": "docs/design/canvases/recipeDetailWeb/"
         },
         {
             "id": "recipeDetailMobile",
@@ -176,7 +192,8 @@
             "platform": "mobile",
             "subject": "Recipe detail",
             "status": "current",
-            "source": "live"
+            "source": "live",
+            "snapshot": "docs/design/canvases/recipeDetailMobile/"
         },
         {
             "id": "recipeDetailCombined",
@@ -186,7 +203,8 @@
             "platform": "combined",
             "subject": "Recipe detail",
             "status": "archive",
-            "source": "live"
+            "source": "live",
+            "snapshot": "docs/design/canvases/recipeDetailCombined/"
         },
         {
             "id": "recipeEditorWeb",
@@ -196,7 +214,8 @@
             "platform": "web",
             "subject": "Recipe editor",
             "status": "current",
-            "source": "live"
+            "source": "live",
+            "snapshot": "docs/design/canvases/recipeEditorWeb/"
         },
         {
             "id": "recipeEditorMobile",
@@ -206,7 +225,8 @@
             "platform": "mobile",
             "subject": "Recipe editor",
             "status": "current",
-            "source": "live"
+            "source": "live",
+            "snapshot": "docs/design/canvases/recipeEditorMobile/"
         },
         {
             "id": "recipeEditorCombined",
@@ -216,7 +236,8 @@
             "platform": "combined",
             "subject": "Recipe editor",
             "status": "archive",
-            "source": "live"
+            "source": "live",
+            "snapshot": "docs/design/canvases/recipeEditorCombined/"
         },
         {
             "id": "recipesAndCollectionsWeb",
@@ -226,7 +247,8 @@
             "platform": "web",
             "subject": "Recipes and collections",
             "status": "current",
-            "source": "live"
+            "source": "live",
+            "snapshot": "docs/design/canvases/recipesAndCollectionsWeb/"
         },
         {
             "id": "recipesAndCollectionsMobile",
@@ -236,7 +258,8 @@
             "platform": "mobile",
             "subject": "Recipes and collections",
             "status": "current",
-            "source": "live"
+            "source": "live",
+            "snapshot": "docs/design/canvases/recipesAndCollectionsMobile/"
         },
         {
             "id": "recipesAndCollectionsCombined",
@@ -246,7 +269,8 @@
             "platform": "combined",
             "subject": "Recipes and collections",
             "status": "archive",
-            "source": "live"
+            "source": "live",
+            "snapshot": "docs/design/canvases/recipesAndCollectionsCombined/"
         },
         {
             "id": "aiAssistantWeb",
@@ -256,7 +280,8 @@
             "platform": "web",
             "subject": "AI assistant",
             "status": "current",
-            "source": "live"
+            "source": "live",
+            "snapshot": "docs/design/canvases/aiAssistantWeb/"
         },
         {
             "id": "aiAssistantMobile",
@@ -266,7 +291,8 @@
             "platform": "mobile",
             "subject": "AI assistant",
             "status": "current",
-            "source": "live"
+            "source": "live",
+            "snapshot": "docs/design/canvases/aiAssistantMobile/"
         },
         {
             "id": "aiAssistantCombined",
@@ -276,7 +302,8 @@
             "platform": "combined",
             "subject": "AI assistant",
             "status": "archive",
-            "source": "live"
+            "source": "live",
+            "snapshot": "docs/design/canvases/aiAssistantCombined/"
         },
         {
             "id": "chefProgramWeb",
@@ -286,7 +313,8 @@
             "platform": "web",
             "subject": "Chef program",
             "status": "current",
-            "source": "live"
+            "source": "live",
+            "snapshot": "docs/design/canvases/chefProgramWeb/"
         },
         {
             "id": "chefProgramMobile",
@@ -296,7 +324,8 @@
             "platform": "mobile",
             "subject": "Chef program",
             "status": "current",
-            "source": "live"
+            "source": "live",
+            "snapshot": "docs/design/canvases/chefProgramMobile/"
         },
         {
             "id": "chefProgramCombined",
@@ -306,7 +335,8 @@
             "platform": "combined",
             "subject": "Chef program",
             "status": "archive",
-            "source": "live"
+            "source": "live",
+            "snapshot": "docs/design/canvases/chefProgramCombined/"
         },
         {
             "id": "contentSourceCheckWeb",
@@ -316,7 +346,8 @@
             "platform": "web",
             "subject": "Content source check",
             "status": "current",
-            "source": "live"
+            "source": "live",
+            "snapshot": "docs/design/canvases/contentSourceCheckWeb/"
         },
         {
             "id": "contentSourceCheckMobile",
@@ -326,7 +357,8 @@
             "platform": "mobile",
             "subject": "Content source check",
             "status": "current",
-            "source": "live"
+            "source": "live",
+            "snapshot": "docs/design/canvases/contentSourceCheckMobile/"
         },
         {
             "id": "contentSourceCheckCombined",
@@ -336,7 +368,8 @@
             "platform": "combined",
             "subject": "Content source check",
             "status": "archive",
-            "source": "live"
+            "source": "live",
+            "snapshot": "docs/design/canvases/contentSourceCheckCombined/"
         },
         {
             "id": "cookWithMeWeb",
@@ -346,7 +379,8 @@
             "platform": "web",
             "subject": "Cook with me",
             "status": "current",
-            "source": "live"
+            "source": "live",
+            "snapshot": "docs/design/canvases/cookWithMeWeb/"
         },
         {
             "id": "cookWithMeMobile",
@@ -356,7 +390,8 @@
             "platform": "mobile",
             "subject": "Cook with me",
             "status": "current",
-            "source": "live"
+            "source": "live",
+            "snapshot": "docs/design/canvases/cookWithMeMobile/"
         },
         {
             "id": "cookWithMeCombined",
@@ -366,7 +401,8 @@
             "platform": "combined",
             "subject": "Cook with me",
             "status": "archive",
-            "source": "live"
+            "source": "live",
+            "snapshot": "docs/design/canvases/cookWithMeCombined/"
         },
         {
             "id": "cookingSchoolWeb",
@@ -376,7 +412,8 @@
             "platform": "web",
             "subject": "Cooking school",
             "status": "current",
-            "source": "live"
+            "source": "live",
+            "snapshot": "docs/design/canvases/cookingSchoolWeb/"
         },
         {
             "id": "cookingSchoolMobile",
@@ -386,7 +423,8 @@
             "platform": "mobile",
             "subject": "Cooking school",
             "status": "current",
-            "source": "live"
+            "source": "live",
+            "snapshot": "docs/design/canvases/cookingSchoolMobile/"
         },
         {
             "id": "cookingSchoolCombined",
@@ -396,7 +434,8 @@
             "platform": "combined",
             "subject": "Cooking school",
             "status": "archive",
-            "source": "live"
+            "source": "live",
+            "snapshot": "docs/design/canvases/cookingSchoolCombined/"
         },
         {
             "id": "creatorProfilesWeb",
@@ -406,7 +445,8 @@
             "platform": "web",
             "subject": "Creator profiles",
             "status": "current",
-            "source": "live"
+            "source": "live",
+            "snapshot": "docs/design/canvases/creatorProfilesWeb/"
         },
         {
             "id": "creatorProfilesMobile",
@@ -416,7 +456,8 @@
             "platform": "mobile",
             "subject": "Creator profiles",
             "status": "current",
-            "source": "live"
+            "source": "live",
+            "snapshot": "docs/design/canvases/creatorProfilesMobile/"
         },
         {
             "id": "creatorProfilesCombined",
@@ -426,7 +467,8 @@
             "platform": "combined",
             "subject": "Creator profiles",
             "status": "archive",
-            "source": "live"
+            "source": "live",
+            "snapshot": "docs/design/canvases/creatorProfilesCombined/"
         },
         {
             "id": "draftsWeb",
@@ -436,7 +478,8 @@
             "platform": "web",
             "subject": "Drafts",
             "status": "current",
-            "source": "live"
+            "source": "live",
+            "snapshot": "docs/design/canvases/draftsWeb/"
         },
         {
             "id": "draftsMobile",
@@ -446,7 +489,8 @@
             "platform": "mobile",
             "subject": "Drafts",
             "status": "current",
-            "source": "live"
+            "source": "live",
+            "snapshot": "docs/design/canvases/draftsMobile/"
         },
         {
             "id": "draftsCombined",
@@ -456,7 +500,8 @@
             "platform": "combined",
             "subject": "Drafts",
             "status": "archive",
-            "source": "live"
+            "source": "live",
+            "snapshot": "docs/design/canvases/draftsCombined/"
         },
         {
             "id": "groceryListsWeb",
@@ -466,7 +511,8 @@
             "platform": "web",
             "subject": "Grocery lists",
             "status": "current",
-            "source": "live"
+            "source": "live",
+            "snapshot": "docs/design/canvases/groceryListsWeb/"
         },
         {
             "id": "groceryListsMobile",
@@ -476,7 +522,8 @@
             "platform": "mobile",
             "subject": "Grocery lists",
             "status": "current",
-            "source": "live"
+            "source": "live",
+            "snapshot": "docs/design/canvases/groceryListsMobile/"
         },
         {
             "id": "groceryListsCombined",
@@ -486,7 +533,8 @@
             "platform": "combined",
             "subject": "Grocery lists",
             "status": "archive",
-            "source": "live"
+            "source": "live",
+            "snapshot": "docs/design/canvases/groceryListsCombined/"
         },
         {
             "id": "inAppNoticesWeb",
@@ -496,7 +544,8 @@
             "platform": "web",
             "subject": "In-app notices",
             "status": "current",
-            "source": "live"
+            "source": "live",
+            "snapshot": "docs/design/canvases/inAppNoticesWeb/"
         },
         {
             "id": "inAppNoticesMobile",
@@ -506,7 +555,8 @@
             "platform": "mobile",
             "subject": "In-app notices",
             "status": "current",
-            "source": "live"
+            "source": "live",
+            "snapshot": "docs/design/canvases/inAppNoticesMobile/"
         },
         {
             "id": "inAppNoticesCombined",
@@ -516,7 +566,8 @@
             "platform": "combined",
             "subject": "In-app notices",
             "status": "archive",
-            "source": "live"
+            "source": "live",
+            "snapshot": "docs/design/canvases/inAppNoticesCombined/"
         },
         {
             "id": "mealPlanningWeb",
@@ -526,7 +577,8 @@
             "platform": "web",
             "subject": "Meal planning",
             "status": "current",
-            "source": "live"
+            "source": "live",
+            "snapshot": "docs/design/canvases/mealPlanningWeb/"
         },
         {
             "id": "mealPlanningMobile",
@@ -536,7 +588,8 @@
             "platform": "mobile",
             "subject": "Meal planning",
             "status": "current",
-            "source": "live"
+            "source": "live",
+            "snapshot": "docs/design/canvases/mealPlanningMobile/"
         },
         {
             "id": "mealPlanningCombined",
@@ -546,7 +599,8 @@
             "platform": "combined",
             "subject": "Meal planning",
             "status": "archive",
-            "source": "live"
+            "source": "live",
+            "snapshot": "docs/design/canvases/mealPlanningCombined/"
         },
         {
             "id": "nutritionPlanningWeb",
@@ -556,7 +610,8 @@
             "platform": "web",
             "subject": "Nutrition planning",
             "status": "current",
-            "source": "live"
+            "source": "live",
+            "snapshot": "docs/design/canvases/nutritionPlanningWeb/"
         },
         {
             "id": "nutritionPlanningMobile",
@@ -566,7 +621,8 @@
             "platform": "mobile",
             "subject": "Nutrition planning",
             "status": "current",
-            "source": "live"
+            "source": "live",
+            "snapshot": "docs/design/canvases/nutritionPlanningMobile/"
         },
         {
             "id": "nutritionPlanningCombined",
@@ -576,7 +632,8 @@
             "platform": "combined",
             "subject": "Nutrition planning",
             "status": "archive",
-            "source": "live"
+            "source": "live",
+            "snapshot": "docs/design/canvases/nutritionPlanningCombined/"
         },
         {
             "id": "offlineWeb",
@@ -586,7 +643,8 @@
             "platform": "web",
             "subject": "Offline",
             "status": "current",
-            "source": "live"
+            "source": "live",
+            "snapshot": "docs/design/canvases/offlineWeb/"
         },
         {
             "id": "offlineMobile",
@@ -596,7 +654,8 @@
             "platform": "mobile",
             "subject": "Offline",
             "status": "current",
-            "source": "live"
+            "source": "live",
+            "snapshot": "docs/design/canvases/offlineMobile/"
         },
         {
             "id": "offlineCombined",
@@ -606,7 +665,8 @@
             "platform": "combined",
             "subject": "Offline",
             "status": "archive",
-            "source": "live"
+            "source": "live",
+            "snapshot": "docs/design/canvases/offlineCombined/"
         },
         {
             "id": "publishingRewardsWeb",
@@ -616,7 +676,8 @@
             "platform": "web",
             "subject": "Publishing rewards",
             "status": "current",
-            "source": "live"
+            "source": "live",
+            "snapshot": "docs/design/canvases/publishingRewardsWeb/"
         },
         {
             "id": "publishingRewardsMobile",
@@ -626,7 +687,8 @@
             "platform": "mobile",
             "subject": "Publishing rewards",
             "status": "current",
-            "source": "live"
+            "source": "live",
+            "snapshot": "docs/design/canvases/publishingRewardsMobile/"
         },
         {
             "id": "publishingRewardsCombined",
@@ -636,7 +698,8 @@
             "platform": "combined",
             "subject": "Publishing rewards",
             "status": "archive",
-            "source": "live"
+            "source": "live",
+            "snapshot": "docs/design/canvases/publishingRewardsCombined/"
         },
         {
             "id": "recipeDigitizationAndFamilyCirclesWeb",
@@ -646,7 +709,8 @@
             "platform": "web",
             "subject": "Recipe digitization and family circles",
             "status": "current",
-            "source": "live"
+            "source": "live",
+            "snapshot": "docs/design/canvases/recipeDigitizationAndFamilyCirclesWeb/"
         },
         {
             "id": "recipeDigitizationAndFamilyCirclesMobile",
@@ -656,7 +720,8 @@
             "platform": "mobile",
             "subject": "Recipe digitization and family circles",
             "status": "current",
-            "source": "live"
+            "source": "live",
+            "snapshot": "docs/design/canvases/recipeDigitizationAndFamilyCirclesMobile/"
         },
         {
             "id": "recipeDigitizationAndFamilyCirclesCombined",
@@ -666,7 +731,8 @@
             "platform": "combined",
             "subject": "Recipe digitization and family circles",
             "status": "archive",
-            "source": "live"
+            "source": "live",
+            "snapshot": "docs/design/canvases/recipeDigitizationAndFamilyCirclesCombined/"
         },
         {
             "id": "recipeImportingWeb",
@@ -676,7 +742,8 @@
             "platform": "web",
             "subject": "Recipe importing",
             "status": "current",
-            "source": "live"
+            "source": "live",
+            "snapshot": "docs/design/canvases/recipeImportingWeb/"
         },
         {
             "id": "recipeImportingMobile",
@@ -686,7 +753,8 @@
             "platform": "mobile",
             "subject": "Recipe importing",
             "status": "current",
-            "source": "live"
+            "source": "live",
+            "snapshot": "docs/design/canvases/recipeImportingMobile/"
         },
         {
             "id": "recipeImportingCombined",
@@ -696,7 +764,8 @@
             "platform": "combined",
             "subject": "Recipe importing",
             "status": "archive",
-            "source": "live"
+            "source": "live",
+            "snapshot": "docs/design/canvases/recipeImportingCombined/"
         },
         {
             "id": "reportsRulesAndYourRightsWeb",
@@ -706,7 +775,8 @@
             "platform": "web",
             "subject": "Reports, rules and your rights",
             "status": "current",
-            "source": "live"
+            "source": "live",
+            "snapshot": "docs/design/canvases/reportsRulesAndYourRightsWeb/"
         },
         {
             "id": "reportsRulesAndYourRightsMobile",
@@ -716,7 +786,8 @@
             "platform": "mobile",
             "subject": "Reports, rules and your rights",
             "status": "current",
-            "source": "live"
+            "source": "live",
+            "snapshot": "docs/design/canvases/reportsRulesAndYourRightsMobile/"
         },
         {
             "id": "reportsRulesAndYourRightsCombined",
@@ -726,7 +797,8 @@
             "platform": "combined",
             "subject": "Reports, rules and your rights",
             "status": "archive",
-            "source": "live"
+            "source": "live",
+            "snapshot": "docs/design/canvases/reportsRulesAndYourRightsCombined/"
         },
         {
             "id": "subscriptionsWeb",
@@ -736,7 +808,8 @@
             "platform": "web",
             "subject": "Subscriptions",
             "status": "current",
-            "source": "live"
+            "source": "live",
+            "snapshot": "docs/design/canvases/subscriptionsWeb/"
         },
         {
             "id": "subscriptionsMobile",
@@ -746,7 +819,8 @@
             "platform": "mobile",
             "subject": "Subscriptions",
             "status": "current",
-            "source": "live"
+            "source": "live",
+            "snapshot": "docs/design/canvases/subscriptionsMobile/"
         },
         {
             "id": "subscriptionsCombined",
@@ -756,7 +830,8 @@
             "platform": "combined",
             "subject": "Subscriptions",
             "status": "archive",
-            "source": "live"
+            "source": "live",
+            "snapshot": "docs/design/canvases/subscriptionsCombined/"
         },
         {
             "id": "recipeEditorEmptyMistake",

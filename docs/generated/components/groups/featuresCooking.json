@@ -1,0 +1,879 @@
+{
+    "schemaVersion": 1,
+    "group": "featuresCooking",
+    "packageName": "@commise/features-cooking",
+    "layer": "feature",
+    "coverage": {
+        "components": 12,
+        "implementations": 12,
+        "props": 36,
+        "documentedComponents": 12,
+        "implementationsWithModuleDoc": 12,
+        "implementationsWithComponentDoc": 12,
+        "documentedProps": 34,
+        "classifiedComponents": 12,
+        "componentsWithPatternTag": 2,
+        "crossPlatformComponents": 0
+    },
+    "components": [
+        {
+            "id": "featuresCooking/CookingDone",
+            "name": "CookingDone",
+            "group": "featuresCooking",
+            "packageName": "@commise/features-cooking",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/cooking/src",
+            "kind": "presentational",
+            "patterns": [],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "CookingDone",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/cooking/src/CookingDone.tsx",
+                    "dir": "packages/apps/commise/features/cooking/src",
+                    "moduleDoc": "CookingDone — the web Done body.\n\nThe title is the page's h1 in the largeTitle role, focusable by the host (`tabIndex={-1}`, `COOKING_DONE_TITLE_ID`) so\nfocus can move to it when Done opens; the host moves it, because a focus move is behaviour. The screen-off line shows\nonly where the screen was kept on. Done's two actions are not here: they are pinned in the foot by\n`CookingDoneActions`, where Back and Next sit on a step.\n\nPresentational: props → JSX.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "CookingDone — the web Done body."
+                        }
+                    ],
+                    "description": "The web Done body.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "enjoy",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "\"{recipe}. Enjoy it.\"",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/cookingViewProps.ts"
+                        },
+                        {
+                            "name": "screenOff",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "\"The screen can turn off again.\", only where the screen was kept on.",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/cookingViewProps.ts"
+                        },
+                        {
+                            "name": "title",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "\"All 6 steps done\": the page's h1, in the largeTitle role.",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/cookingViewProps.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "featuresCooking/CookingDoneActions",
+            "name": "CookingDoneActions",
+            "group": "featuresCooking",
+            "packageName": "@commise/features-cooking",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/cooking/src",
+            "kind": "presentational",
+            "patterns": [],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "CookingDoneActions",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/cooking/src/CookingDoneActions.tsx",
+                    "dir": "packages/apps/commise/features/cooking/src",
+                    "moduleDoc": "CookingDoneActions — Done's two web actions, pinned in the foot where Back and Next were: \"Back to the recipe\" filled, then \"Cook it again\" outlined, each full width.\n\nPresentational: props → JSX.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "CookingDoneActions — Done's two web actions, pinned in the foot where Back and Next were: \"Back to the recipe\" filled, then \"Cook it again\" outlined, each full width."
+                        }
+                    ],
+                    "description": "Done's web actions.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "backToRecipe",
+                            "type": "CookingAction",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The filled action.",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/cookingViewProps.ts"
+                        },
+                        {
+                            "name": "cookAgain",
+                            "type": "CookingAction",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The outlined secondary action, under the filled one.",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/cookingViewProps.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "featuresCooking/CookingFrame",
+            "name": "CookingFrame",
+            "group": "featuresCooking",
+            "packageName": "@commise/features-cooking",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/cooking/src",
+            "kind": "presentational",
+            "patterns": [],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "CookingFrame",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/cooking/src/CookingFrame.tsx",
+                    "dir": "packages/apps/commise/features/cooking/src",
+                    "moduleDoc": "CookingFrame — the web cooking surface: full screen, outside AppShell, because cooking is a\nfocused task.\n\nOne centred column at every band: the top bar pinned at the top, the foot pinned at the bottom (the\nNext preview above the actions), and only the body between them scrolls, so a focus line taller than the screen at\nthe largest text never pushes the place or Back / Next away. The foot keeps a gap above it, so a line cut off at the\nbottom of the body reads as more to scroll. The surface is a size container, for the under-360 width rules and the\nshort-screen height rule, and is busy while the recipe loads.\n\nPresentational: props → JSX.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "CookingFrame — the web cooking surface: full screen, outside AppShell, because cooking is a"
+                        }
+                    ],
+                    "description": "The web cooking surface.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "body",
+                            "type": "ReactNode",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The scrolling body between the bar and the foot.",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/cookingViewProps.ts"
+                        },
+                        {
+                            "name": "busy",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "`aria-busy` on the surface while the recipe loads.",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/cookingViewProps.ts"
+                        },
+                        {
+                            "name": "foot",
+                            "type": "{ readonly preview?: ReactNode; readonly actions: ReactNode; }",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Pinned at the foot of the column: the actions (Back and Next, or Done's two), with the Next preview above them while\nthere is one. The frame owns the spacing between the two. Absent for a full-screen notice.",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/cookingViewProps.ts"
+                        },
+                        {
+                            "name": "topBar",
+                            "type": "ReactNode",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The bar pinned at the top; `null` for a full-screen notice.",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/cookingViewProps.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "featuresCooking/CookingLineRow",
+            "name": "CookingLineRow",
+            "group": "featuresCooking",
+            "packageName": "@commise/features-cooking",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/cooking/src",
+            "kind": "presentational",
+            "patterns": [],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "CookingLineRow",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/cooking/src/CookingLineRow.tsx",
+                    "dir": "packages/apps/commise/features/cooking/src",
+                    "moduleDoc": "CookingLineRow — one line of a cooking step, as the web checkbox the cook ticks.\n\nThe whole row is the control: a `button` with `role=\"checkbox\"`, named by the line's text, at least 44 px tall, as\nthe recipe page's ingredient row is. The focus line is set in the focus-line type seam; every other line in `readingBody`. A ticked line dims to `inkMuted`, never struck through.\n\nPresentational: props → JSX.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "CookingLineRow — one line of a cooking step, as the web checkbox the cook ticks."
+                        }
+                    ],
+                    "description": "The web cooking line row.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "emphasis",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"focus\"",
+                                "\"other\""
+                            ],
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "`focus` is the line the cook is doing now, the loudest thing on screen.",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/cookingViewProps.ts"
+                        },
+                        {
+                            "name": "line",
+                            "type": "CookingLineView",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The line: its text, whether it is ticked, and what a press does.",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/cookingViewProps.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "featuresCooking/CookingLoading",
+            "name": "CookingLoading",
+            "group": "featuresCooking",
+            "packageName": "@commise/features-cooking",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/cooking/src",
+            "kind": "presentational",
+            "patterns": [],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "CookingLoading",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/cooking/src/CookingLoading.tsx",
+                    "dir": "packages/apps/commise/features/cooking/src",
+                    "moduleDoc": "CookingLoading — the web loading body.\n\nNothing for the first phase, then three line-shaped blocks (28 tall, then two at 24), then the \"Opening the recipe…\"\nhouse `LoadingNotice` under them. The same height is reserved in every phase, so nothing shifts when the recipe arrives. The phase\ncomes from the shared loading timer; this component only draws it. No shimmer, so reduced motion needs nothing.\n\nPresentational: props → JSX.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "CookingLoading — the web loading body."
+                        }
+                    ],
+                    "description": "The web loading body.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "label",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "\"Opening the recipe…\"",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/cookingViewProps.ts"
+                        },
+                        {
+                            "name": "phase",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"blank\"",
+                                "\"skeleton\"",
+                                "\"label\""
+                            ],
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "How long the recipe has been loading, as what the body draws.",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/cookingViewProps.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "featuresCooking/CookingNav",
+            "name": "CookingNav",
+            "group": "featuresCooking",
+            "packageName": "@commise/features-cooking",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/cooking/src",
+            "kind": "presentational",
+            "patterns": [],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "CookingNav",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/cooking/src/CookingNav.tsx",
+                    "dir": "packages/apps/commise/features/cooking/src",
+                    "moduleDoc": "CookingNav — the web Back / forward pair at the foot of the cooking column.\n\nTwo equal halves of one row, both the house `Button size=\"lg\"` (52). Back is first and forward is last in reading\norder, so forward sits on the reach side. Forward is quiet (the neutral secondary surface) until it is the action\nnow (\"Start step n\", \"Finish\" once every line is ticked); the screen says which with `tone`. Under 360\nwide the chevrons hide and the labels stay whole.\n\nPresentational: props → JSX.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "CookingNav — the web Back / forward pair at the foot of the cooking column."
+                        }
+                    ],
+                    "description": "The web Back / forward pair.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "back",
+                            "type": "CookingAction",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Back: to the step before, or to the recipe on step 1.",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/cookingViewProps.ts"
+                        },
+                        {
+                            "name": "disabled",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "While the recipe loads both are drawn and disabled.",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/cookingViewProps.ts"
+                        },
+                        {
+                            "name": "forward",
+                            "type": "CookingAction & { readonly tone: CookingForwardTone; }",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Forward: Next step, Start step n or Finish, and how it looks now.",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/cookingViewProps.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "featuresCooking/CookingNextPreview",
+            "name": "CookingNextPreview",
+            "group": "featuresCooking",
+            "packageName": "@commise/features-cooking",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/cooking/src",
+            "kind": "presentational",
+            "patterns": [],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "CookingNextPreview",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/cooking/src/CookingNextPreview.tsx",
+                    "dir": "packages/apps/commise/features/cooking/src",
+                    "moduleDoc": "CookingNextPreview — the web Next preview: the next step, pinned in the foot above Back and Next while a\nline of this step is unticked. Under a cooking-frame height of 43.75 rem its line\nshows on one line, ending in an ellipsis; the clamp is visual only, so a screen reader still reads the whole line.\n\nPresentational: props → JSX.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "CookingNextPreview — the web Next preview: the next step, pinned in the foot above Back and Next while a"
+                        }
+                    ],
+                    "description": "The web Next preview.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "preview",
+                            "type": "CookingPreviewView",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The next step's overline and first line.",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/cookingViewProps.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "featuresCooking/CookingScreen",
+            "name": "CookingScreen",
+            "group": "featuresCooking",
+            "packageName": "@commise/features-cooking",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/cooking/src",
+            "kind": "orchestration",
+            "patterns": [
+                "Visitor — an exhaustive switch over the read-level screen state, each case picking one render component"
+            ],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "CookingScreen",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/cooking/src/CookingScreen.tsx",
+                    "dir": "packages/apps/commise/features/cooking/src",
+                    "moduleDoc": "CookingScreen — the web cooking screen: the read-level orchestration of cooking mode. It decides which screen to draw before\na session exists (`useCookingEntry`: loading, error, gone, no steps) and mounts `CookingSessionScreen` only once the\nrecipe is ready to cook. Where to go (the recipe, the editor, Home) is the route adapter's: it hands callbacks in.\n\nBecause the session is mounted below this switch and keyed by the recipe, the read always wins at the join: a read\nthat goes back to loading, or arrives with no steps, replaces Done rather than sitting under it.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "CookingScreen — the web cooking screen: the read-level orchestration of cooking mode. It decides which screen to draw before"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Visitor — an exhaustive switch over the read-level screen state, each case picking one render component"
+                        }
+                    ],
+                    "description": "The web cooking screen.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "onEdit",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "To the editor, replacing the cook route: the owner's Edit recipe on a recipe with no steps, and where an owner's draft link goes.",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/cookingViewProps.ts"
+                        },
+                        {
+                            "name": "onHome",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Go to Home from a recipe that is gone.",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/cookingViewProps.ts"
+                        },
+                        {
+                            "name": "onLeave",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Exit, Back on step 1, and Back to the recipe: to the recipe page, by route, never by history.",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/cookingViewProps.ts"
+                        },
+                        {
+                            "name": "read",
+                            "type": "CookingScreenRead",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/cookingViewProps.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": true
+                    }
+                }
+            ]
+        },
+        {
+            "id": "featuresCooking/CookingSessionScreen",
+            "name": "CookingSessionScreen",
+            "group": "featuresCooking",
+            "packageName": "@commise/features-cooking",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/cooking/src",
+            "kind": "orchestration",
+            "patterns": [
+                "Mediator — the session model, the web's key and swipe adapters and the render components meet here, so no render component knows another"
+            ],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "CookingSessionScreen",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/cooking/src/CookingSessionScreen.tsx",
+                    "dir": "packages/apps/commise/features/cooking/src",
+                    "moduleDoc": "CookingSessionScreen — the session-level orchestration of web cooking mode: the steps and Done. Mounted by\n`CookingScreen` only once the recipe has steps to cook, so the session never opens on an empty recipe. The model is\n`useCookingSessionScreen`'s; this screen draws it and adds the web's own behaviour: the ← / → keys, the swipe, the\npolite announcement of a step change, and moving focus to Done's title. The read-level states (loading, error, gone, no\nsteps) are `CookingScreen`'s, so the read always wins over the session.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "CookingSessionScreen — the session-level orchestration of web cooking mode: the steps and Done. Mounted by"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Mediator — the session model, the web's key and swipe adapters and the render components meet here, so no render component knows another"
+                        }
+                    ],
+                    "description": "The web cooking session.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "onLeave",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Exit, Back on step 1 and Back to the recipe: to the recipe page.",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/CookingSessionScreen.tsx"
+                        },
+                        {
+                            "name": "recipe",
+                            "type": "CookingRecipe",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The recipe to cook, read once when the session opens.",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/CookingSessionScreen.tsx"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": true
+                    }
+                }
+            ]
+        },
+        {
+            "id": "featuresCooking/CookingStateNotice",
+            "name": "CookingStateNotice",
+            "group": "featuresCooking",
+            "packageName": "@commise/features-cooking",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/cooking/src",
+            "kind": "presentational",
+            "patterns": [],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "CookingStateNotice",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/cooking/src/CookingStateNotice.tsx",
+                    "dir": "packages/apps/commise/features/cooking/src",
+                    "moduleDoc": "CookingStateNotice — the web cooking notices: the load error, no steps and recipe gone. The house `StateNotice`, centred at a max width of 480 in every band.\n\nPresentational: props → JSX.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "CookingStateNotice — the web cooking notices: the load error, no steps and recipe gone. The house `StateNotice`, centred at a max width of 480 in every band."
+                        }
+                    ],
+                    "description": "The web cooking notice.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "body",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Why, or what to try. Omitted when the title says it all.",
+                            "declaredIn": "packages/apps/commise/ui/src/stateNotice/props.ts"
+                        },
+                        {
+                            "name": "primary",
+                            "type": "StateNoticeAction",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The action the cook most likely wants (Try again).",
+                            "declaredIn": "packages/apps/commise/ui/src/stateNotice/props.ts"
+                        },
+                        {
+                            "name": "secondary",
+                            "type": "StateNoticeAction",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The way out when that fails (Back, Back to Home).",
+                            "declaredIn": "packages/apps/commise/ui/src/stateNotice/props.ts"
+                        },
+                        {
+                            "name": "title",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "What happened, in one sentence. Announced assertively: the notice interrupts what the cook was doing.",
+                            "declaredIn": "packages/apps/commise/ui/src/stateNotice/props.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "featuresCooking/CookingStep",
+            "name": "CookingStep",
+            "group": "featuresCooking",
+            "packageName": "@commise/features-cooking",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/cooking/src",
+            "kind": "presentational",
+            "patterns": [],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "CookingStep",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/cooking/src/CookingStep.tsx",
+                    "dir": "packages/apps/commise/features/cooking/src",
+                    "moduleDoc": "CookingStep — the web cooking step body.\n\nTop to bottom: the step track, the record of ticked lines behind a Show disclosure, the line count, the focus line, the\n\"Then\" lines, and, once every line is ticked, Up next: the next step, its first line at the focus size. The one-line preview is not here: it is pinned in the foot. The body is a region named by the place, and the lines are checkboxes named by their text, in reading order. Which line is the\nfocus, and every string, are decided by the screen.\n\nPresentational: props → JSX.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "CookingStep — the web cooking step body."
+                        }
+                    ],
+                    "description": "The web cooking step body.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "focus",
+                            "type": "CookingLineView",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The first unticked line; absent when every line is ticked.",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/cookingViewProps.ts"
+                        },
+                        {
+                            "name": "label",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The region's accessible name: the place (\"Step 2 of 6\").",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/cookingViewProps.ts"
+                        },
+                        {
+                            "name": "lineOf",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "\"Line 2 of 3\"; absent for a one-line step and when every line is ticked.",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/cookingViewProps.ts"
+                        },
+                        {
+                            "name": "then",
+                            "type": "readonly CookingLineView[]",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The unticked lines after the focus line.",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/cookingViewProps.ts"
+                        },
+                        {
+                            "name": "ticked",
+                            "type": "CookingTickedView",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Absent when no line of the step is ticked.",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/cookingViewProps.ts"
+                        },
+                        {
+                            "name": "track",
+                            "type": "CookingStepTrackProps",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/cookingViewProps.ts"
+                        },
+                        {
+                            "name": "upNext",
+                            "type": "CookingUpNextView",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Once every line is ticked, the next step; absent otherwise and on the last step.",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/cookingViewProps.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "featuresCooking/CookingTopBar",
+            "name": "CookingTopBar",
+            "group": "featuresCooking",
+            "packageName": "@commise/features-cooking",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/cooking/src",
+            "kind": "presentational",
+            "patterns": [],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "CookingTopBar",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/cooking/src/CookingTopBar.tsx",
+                    "dir": "packages/apps/commise/features/cooking/src",
+                    "moduleDoc": "CookingTopBar — the web cooking top bar.\n\nExit, then the place. Exit is ONE quiet `md` control, the × and the word together, with one accessible name. The\nplace is plain text.\nUnder 360 wide the place drops to its own full-width row; the Exit label stays.\n\nPresentational: props → JSX.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "CookingTopBar — the web cooking top bar."
+                        }
+                    ],
+                    "description": "The web cooking top bar.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "exit",
+                            "type": "CookingAction",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Exit: one control, the × and its label, with one accessible name.",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/cookingViewProps.ts"
+                        },
+                        {
+                            "name": "place",
+                            "type": "{ readonly text: string; readonly tone: \"ink\" | \"muted\"; }",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The place, plain text (\"Step 2 of 6\"), `muted` while the recipe loads (\"Step –\"). Absent on Done.",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/cookingViewProps.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                }
+            ]
+        }
+    ]
+}

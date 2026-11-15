@@ -1,0 +1,728 @@
+{
+  "v": 3,
+  "createdOnFiles": {
+    "v": 1,
+    "at": "2026-10-27T19:13:01Z"
+  },
+  "title": "Commise Screens: Cooking mode",
+  "launch": {
+    "view": "canvas"
+  },
+  "pages": [],
+  "boards": {
+    "CookingModeEntryMobile.dc.html": {
+      "x": 0,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Cooking mode, entry (phone)"
+    },
+    "CookingModeEntry834Mobile.dc.html": {
+      "x": 0,
+      "y": 1484,
+      "w": 834,
+      "h": 1194,
+      "title": "Cooking mode, entry (tablet 834 px)"
+    },
+    "CookingModeEntry1194Mobile.dc.html": {
+      "x": 914,
+      "y": 1484,
+      "w": 1194,
+      "h": 834,
+      "title": "Cooking mode, entry (tablet 1194 px)"
+    },
+    "CookingModeEntry.dc.html": {
+      "x": 0,
+      "y": 3058,
+      "w": 1280,
+      "h": 800,
+      "title": "Cooking mode, entry (web)"
+    },
+    "CookingModeEntryInProgressMobile.dc.html": {
+      "x": 470,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Cooking mode, entry in progress (phone)"
+    },
+    "CookingModeEntryInProgress834Mobile.dc.html": {
+      "x": 2188,
+      "y": 1484,
+      "w": 834,
+      "h": 1194,
+      "title": "Cooking mode, entry in progress (tablet 834 px)"
+    },
+    "CookingModeEntryInProgress1194Mobile.dc.html": {
+      "x": 3102,
+      "y": 1484,
+      "w": 1194,
+      "h": 834,
+      "title": "Cooking mode, entry in progress (tablet 1194 px)"
+    },
+    "CookingModeEntryInProgress.dc.html": {
+      "x": 1360,
+      "y": 3058,
+      "w": 1280,
+      "h": 800,
+      "title": "Cooking mode, entry in progress (web)"
+    },
+    "CookingModeResumeMobile.dc.html": {
+      "x": 940,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Cooking mode, resume (phone)"
+    },
+    "CookingModeResume834Mobile.dc.html": {
+      "x": 4376,
+      "y": 1484,
+      "w": 834,
+      "h": 1194,
+      "title": "Cooking mode, resume (tablet 834 px)"
+    },
+    "CookingModeResume1194Mobile.dc.html": {
+      "x": 5290,
+      "y": 1484,
+      "w": 1194,
+      "h": 834,
+      "title": "Cooking mode, resume (tablet 1194 px)"
+    },
+    "CookingModeResume.dc.html": {
+      "x": 2720,
+      "y": 3058,
+      "w": 1280,
+      "h": 800,
+      "title": "Cooking mode, resume (web)"
+    },
+    "CookingModeResumeTimerDoneMobile.dc.html": {
+      "x": 1410,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Cooking mode, resume timer done (phone)"
+    },
+    "CookingModeResumeTimerDone834Mobile.dc.html": {
+      "x": 6564,
+      "y": 1484,
+      "w": 834,
+      "h": 1194,
+      "title": "Cooking mode, resume timer done (tablet 834 px)"
+    },
+    "CookingModeResumeTimerDone1194Mobile.dc.html": {
+      "x": 7478,
+      "y": 1484,
+      "w": 1194,
+      "h": 834,
+      "title": "Cooking mode, resume timer done (tablet 1194 px)"
+    },
+    "CookingModeResumeTimerDone.dc.html": {
+      "x": 4080,
+      "y": 3058,
+      "w": 1280,
+      "h": 800,
+      "title": "Cooking mode, resume timer done (web)"
+    },
+    "CookingModeResumeEarlierMobile.dc.html": {
+      "x": 1880,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Cooking mode, resume earlier (phone)"
+    },
+    "CookingModeResumeEarlier834Mobile.dc.html": {
+      "x": 8752,
+      "y": 1484,
+      "w": 834,
+      "h": 1194,
+      "title": "Cooking mode, resume earlier (tablet 834 px)"
+    },
+    "CookingModeResumeEarlier1194Mobile.dc.html": {
+      "x": 9666,
+      "y": 1484,
+      "w": 1194,
+      "h": 834,
+      "title": "Cooking mode, resume earlier (tablet 1194 px)"
+    },
+    "CookingModeResumeEarlier.dc.html": {
+      "x": 5440,
+      "y": 3058,
+      "w": 1280,
+      "h": 800,
+      "title": "Cooking mode, resume earlier (web)"
+    },
+    "CookingModeEntryEndedMobile.dc.html": {
+      "x": 2350,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Cooking mode, entry ended (phone)"
+    },
+    "CookingModeEntryEnded834Mobile.dc.html": {
+      "x": 10940,
+      "y": 1484,
+      "w": 834,
+      "h": 1194,
+      "title": "Cooking mode, entry ended (tablet 834 px)"
+    },
+    "CookingModeEntryEnded1194Mobile.dc.html": {
+      "x": 11854,
+      "y": 1484,
+      "w": 1194,
+      "h": 834,
+      "title": "Cooking mode, entry ended (tablet 1194 px)"
+    },
+    "CookingModeEntryEnded.dc.html": {
+      "x": 6800,
+      "y": 3058,
+      "w": 1280,
+      "h": 800,
+      "title": "Cooking mode, entry ended (web)"
+    },
+    "CookingModeBeforeMobile.dc.html": {
+      "x": 2820,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Cooking mode, before (phone)"
+    },
+    "CookingModeBefore834Mobile.dc.html": {
+      "x": 13128,
+      "y": 1484,
+      "w": 834,
+      "h": 1194,
+      "title": "Cooking mode, before (tablet 834 px)"
+    },
+    "CookingModeBefore1194Mobile.dc.html": {
+      "x": 14042,
+      "y": 1484,
+      "w": 1194,
+      "h": 834,
+      "title": "Cooking mode, before (tablet 1194 px)"
+    },
+    "CookingModeBefore.dc.html": {
+      "x": 8160,
+      "y": 3058,
+      "w": 1280,
+      "h": 800,
+      "title": "Cooking mode, before (web)"
+    },
+    "CookingModeStepMobile.dc.html": {
+      "x": 3290,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Cooking mode, step (phone)"
+    },
+    "CookingModeStep834Mobile.dc.html": {
+      "x": 15316,
+      "y": 1484,
+      "w": 834,
+      "h": 1194,
+      "title": "Cooking mode, step (tablet 834 px)"
+    },
+    "CookingModeStep1194Mobile.dc.html": {
+      "x": 16230,
+      "y": 1484,
+      "w": 1194,
+      "h": 834,
+      "title": "Cooking mode, step (tablet 1194 px)"
+    },
+    "CookingModeStep.dc.html": {
+      "x": 9520,
+      "y": 3058,
+      "w": 1280,
+      "h": 800,
+      "title": "Cooking mode, step (web)"
+    },
+    "CookingModeStepTickedMobile.dc.html": {
+      "x": 3760,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Cooking mode, step ticked (phone)"
+    },
+    "CookingModeStepTicked834Mobile.dc.html": {
+      "x": 17504,
+      "y": 1484,
+      "w": 834,
+      "h": 1194,
+      "title": "Cooking mode, step ticked (tablet 834 px)"
+    },
+    "CookingModeStepTicked1194Mobile.dc.html": {
+      "x": 18418,
+      "y": 1484,
+      "w": 1194,
+      "h": 834,
+      "title": "Cooking mode, step ticked (tablet 1194 px)"
+    },
+    "CookingModeStepTicked.dc.html": {
+      "x": 10880,
+      "y": 3058,
+      "w": 1280,
+      "h": 800,
+      "title": "Cooking mode, step ticked (web)"
+    },
+    "CookingModeStepJumpedMobile.dc.html": {
+      "x": 4230,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Cooking mode, step jumped (phone)"
+    },
+    "CookingModeStepJumped834Mobile.dc.html": {
+      "x": 19692,
+      "y": 1484,
+      "w": 834,
+      "h": 1194,
+      "title": "Cooking mode, step jumped (tablet 834 px)"
+    },
+    "CookingModeStepJumped1194Mobile.dc.html": {
+      "x": 20606,
+      "y": 1484,
+      "w": 1194,
+      "h": 834,
+      "title": "Cooking mode, step jumped (tablet 1194 px)"
+    },
+    "CookingModeStepJumped.dc.html": {
+      "x": 12240,
+      "y": 3058,
+      "w": 1280,
+      "h": 800,
+      "title": "Cooking mode, step jumped (web)"
+    },
+    "CookingModeNextComingMobile.dc.html": {
+      "x": 4700,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Cooking mode, next coming (phone)"
+    },
+    "CookingModeNextComing834Mobile.dc.html": {
+      "x": 21880,
+      "y": 1484,
+      "w": 834,
+      "h": 1194,
+      "title": "Cooking mode, next coming (tablet 834 px)"
+    },
+    "CookingModeNextComing1194Mobile.dc.html": {
+      "x": 22794,
+      "y": 1484,
+      "w": 1194,
+      "h": 834,
+      "title": "Cooking mode, next coming (tablet 1194 px)"
+    },
+    "CookingModeNextComing.dc.html": {
+      "x": 13600,
+      "y": 3058,
+      "w": 1280,
+      "h": 800,
+      "title": "Cooking mode, next coming (web)"
+    },
+    "CookingModeWaitMobile.dc.html": {
+      "x": 5170,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Cooking mode, wait (phone)"
+    },
+    "CookingModeWait834Mobile.dc.html": {
+      "x": 24068,
+      "y": 1484,
+      "w": 834,
+      "h": 1194,
+      "title": "Cooking mode, wait (tablet 834 px)"
+    },
+    "CookingModeWait1194Mobile.dc.html": {
+      "x": 24982,
+      "y": 1484,
+      "w": 1194,
+      "h": 834,
+      "title": "Cooking mode, wait (tablet 1194 px)"
+    },
+    "CookingModeWait.dc.html": {
+      "x": 14960,
+      "y": 3058,
+      "w": 1280,
+      "h": 800,
+      "title": "Cooking mode, wait (web)"
+    },
+    "CookingModeTwoTimersMobile.dc.html": {
+      "x": 5640,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Cooking mode, two timers (phone)"
+    },
+    "CookingModeTwoTimers834Mobile.dc.html": {
+      "x": 26256,
+      "y": 1484,
+      "w": 834,
+      "h": 1194,
+      "title": "Cooking mode, two timers (tablet 834 px)"
+    },
+    "CookingModeTwoTimers1194Mobile.dc.html": {
+      "x": 27170,
+      "y": 1484,
+      "w": 1194,
+      "h": 834,
+      "title": "Cooking mode, two timers (tablet 1194 px)"
+    },
+    "CookingModeTwoTimers.dc.html": {
+      "x": 16320,
+      "y": 3058,
+      "w": 1280,
+      "h": 800,
+      "title": "Cooking mode, two timers (web)"
+    },
+    "CookingModeJobInProgressMobile.dc.html": {
+      "x": 6110,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Cooking mode, job in progress (phone)"
+    },
+    "CookingModeJobInProgress834Mobile.dc.html": {
+      "x": 28444,
+      "y": 1484,
+      "w": 834,
+      "h": 1194,
+      "title": "Cooking mode, job in progress (tablet 834 px)"
+    },
+    "CookingModeJobInProgress1194Mobile.dc.html": {
+      "x": 29358,
+      "y": 1484,
+      "w": 1194,
+      "h": 834,
+      "title": "Cooking mode, job in progress (tablet 1194 px)"
+    },
+    "CookingModeJobInProgress.dc.html": {
+      "x": 17680,
+      "y": 3058,
+      "w": 1280,
+      "h": 800,
+      "title": "Cooking mode, job in progress (web)"
+    },
+    "CookingModeStepFiveMobile.dc.html": {
+      "x": 6580,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Cooking mode, step five (phone)"
+    },
+    "CookingModeStepFive834Mobile.dc.html": {
+      "x": 30632,
+      "y": 1484,
+      "w": 834,
+      "h": 1194,
+      "title": "Cooking mode, step five (tablet 834 px)"
+    },
+    "CookingModeStepFive1194Mobile.dc.html": {
+      "x": 31546,
+      "y": 1484,
+      "w": 1194,
+      "h": 834,
+      "title": "Cooking mode, step five (tablet 1194 px)"
+    },
+    "CookingModeStepFive.dc.html": {
+      "x": 19040,
+      "y": 3058,
+      "w": 1280,
+      "h": 800,
+      "title": "Cooking mode, step five (web)"
+    },
+    "CookingModeTimerDoneMobile.dc.html": {
+      "x": 7050,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Cooking mode, timer done (phone)"
+    },
+    "CookingModeTimerDone834Mobile.dc.html": {
+      "x": 32820,
+      "y": 1484,
+      "w": 834,
+      "h": 1194,
+      "title": "Cooking mode, timer done (tablet 834 px)"
+    },
+    "CookingModeTimerDone1194Mobile.dc.html": {
+      "x": 33734,
+      "y": 1484,
+      "w": 1194,
+      "h": 834,
+      "title": "Cooking mode, timer done (tablet 1194 px)"
+    },
+    "CookingModeTimerDone.dc.html": {
+      "x": 20400,
+      "y": 3058,
+      "w": 1280,
+      "h": 800,
+      "title": "Cooking mode, timer done (web)"
+    },
+    "CookingModeOtherRecipeTimerMobile.dc.html": {
+      "x": 7520,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Cooking mode, other recipe timer (phone)"
+    },
+    "CookingModeOtherRecipeTimer1194Mobile.dc.html": {
+      "x": 35008,
+      "y": 1484,
+      "w": 1194,
+      "h": 834,
+      "title": "Cooking mode, other recipe timer (tablet 1194 px)"
+    },
+    "CookingModeTimerDoneLockedMobile.dc.html": {
+      "x": 7990,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Cooking mode, timer done locked (phone)"
+    },
+    "CookingModeTimerNoticeMobile.dc.html": {
+      "x": 8460,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Cooking mode, timer notice (phone)"
+    },
+    "CookingModeTimerBannerMobile.dc.html": {
+      "x": 8930,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Cooking mode, timer banner (phone)"
+    },
+    "CookingModeAlarmsOffMobile.dc.html": {
+      "x": 9400,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Cooking mode, alarms off (phone)"
+    },
+    "CookingModeAlarmsOff834Mobile.dc.html": {
+      "x": 36282,
+      "y": 1484,
+      "w": 834,
+      "h": 1194,
+      "title": "Cooking mode, alarms off (tablet 834 px)"
+    },
+    "CookingModeAlarmsOff1194Mobile.dc.html": {
+      "x": 37196,
+      "y": 1484,
+      "w": 1194,
+      "h": 834,
+      "title": "Cooking mode, alarms off (tablet 1194 px)"
+    },
+    "CookingModeAlarmsOff.dc.html": {
+      "x": 21760,
+      "y": 3058,
+      "w": 1280,
+      "h": 800,
+      "title": "Cooking mode, alarms off (web)"
+    },
+    "CookingModeIngredientsMobile.dc.html": {
+      "x": 9870,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Cooking mode, ingredients (phone)"
+    },
+    "CookingModeIngredients834Mobile.dc.html": {
+      "x": 38470,
+      "y": 1484,
+      "w": 834,
+      "h": 1194,
+      "title": "Cooking mode, ingredients (tablet 834 px)"
+    },
+    "CookingModeIngredients1194Mobile.dc.html": {
+      "x": 39384,
+      "y": 1484,
+      "w": 1194,
+      "h": 834,
+      "title": "Cooking mode, ingredients (tablet 1194 px)"
+    },
+    "CookingModeIngredients.dc.html": {
+      "x": 23120,
+      "y": 3058,
+      "w": 1280,
+      "h": 800,
+      "title": "Cooking mode, ingredients (web)"
+    },
+    "CookingModeAllStepsMobile.dc.html": {
+      "x": 10340,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Cooking mode, all steps (phone)"
+    },
+    "CookingModeAllSteps834Mobile.dc.html": {
+      "x": 40658,
+      "y": 1484,
+      "w": 834,
+      "h": 1194,
+      "title": "Cooking mode, all steps (tablet 834 px)"
+    },
+    "CookingModeAllSteps1194Mobile.dc.html": {
+      "x": 41572,
+      "y": 1484,
+      "w": 1194,
+      "h": 834,
+      "title": "Cooking mode, all steps (tablet 1194 px)"
+    },
+    "CookingModeAllSteps.dc.html": {
+      "x": 24480,
+      "y": 3058,
+      "w": 1280,
+      "h": 800,
+      "title": "Cooking mode, all steps (web)"
+    },
+    "CookingModeDoneMobile.dc.html": {
+      "x": 10810,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Cooking mode, done (phone)"
+    },
+    "CookingModeDone834Mobile.dc.html": {
+      "x": 42846,
+      "y": 1484,
+      "w": 834,
+      "h": 1194,
+      "title": "Cooking mode, done (tablet 834 px)"
+    },
+    "CookingModeDone1194Mobile.dc.html": {
+      "x": 43760,
+      "y": 1484,
+      "w": 1194,
+      "h": 834,
+      "title": "Cooking mode, done (tablet 1194 px)"
+    },
+    "CookingModeDone.dc.html": {
+      "x": 25840,
+      "y": 3058,
+      "w": 1280,
+      "h": 800,
+      "title": "Cooking mode, done (web)"
+    }
+  },
+  "order": [
+    "CookingModeEntryMobile.dc.html",
+    "CookingModeEntry834Mobile.dc.html",
+    "CookingModeEntry1194Mobile.dc.html",
+    "CookingModeEntry.dc.html",
+    "CookingModeEntryInProgressMobile.dc.html",
+    "CookingModeEntryInProgress834Mobile.dc.html",
+    "CookingModeEntryInProgress1194Mobile.dc.html",
+    "CookingModeEntryInProgress.dc.html",
+    "CookingModeResumeMobile.dc.html",
+    "CookingModeResume834Mobile.dc.html",
+    "CookingModeResume1194Mobile.dc.html",
+    "CookingModeResume.dc.html",
+    "CookingModeResumeTimerDoneMobile.dc.html",
+    "CookingModeResumeTimerDone834Mobile.dc.html",
+    "CookingModeResumeTimerDone1194Mobile.dc.html",
+    "CookingModeResumeTimerDone.dc.html",
+    "CookingModeResumeEarlierMobile.dc.html",
+    "CookingModeResumeEarlier834Mobile.dc.html",
+    "CookingModeResumeEarlier1194Mobile.dc.html",
+    "CookingModeResumeEarlier.dc.html",
+    "CookingModeEntryEndedMobile.dc.html",
+    "CookingModeEntryEnded834Mobile.dc.html",
+    "CookingModeEntryEnded1194Mobile.dc.html",
+    "CookingModeEntryEnded.dc.html",
+    "CookingModeBeforeMobile.dc.html",
+    "CookingModeBefore834Mobile.dc.html",
+    "CookingModeBefore1194Mobile.dc.html",
+    "CookingModeBefore.dc.html",
+    "CookingModeStepMobile.dc.html",
+    "CookingModeStep834Mobile.dc.html",
+    "CookingModeStep1194Mobile.dc.html",
+    "CookingModeStep.dc.html",
+    "CookingModeStepTickedMobile.dc.html",
+    "CookingModeStepTicked834Mobile.dc.html",
+    "CookingModeStepTicked1194Mobile.dc.html",
+    "CookingModeStepTicked.dc.html",
+    "CookingModeStepJumpedMobile.dc.html",
+    "CookingModeStepJumped834Mobile.dc.html",
+    "CookingModeStepJumped1194Mobile.dc.html",
+    "CookingModeStepJumped.dc.html",
+    "CookingModeNextComingMobile.dc.html",
+    "CookingModeNextComing834Mobile.dc.html",
+    "CookingModeNextComing1194Mobile.dc.html",
+    "CookingModeNextComing.dc.html",
+    "CookingModeWaitMobile.dc.html",
+    "CookingModeWait834Mobile.dc.html",
+    "CookingModeWait1194Mobile.dc.html",
+    "CookingModeWait.dc.html",
+    "CookingModeTwoTimersMobile.dc.html",
+    "CookingModeTwoTimers834Mobile.dc.html",
+    "CookingModeTwoTimers1194Mobile.dc.html",
+    "CookingModeTwoTimers.dc.html",
+    "CookingModeJobInProgressMobile.dc.html",
+    "CookingModeJobInProgress834Mobile.dc.html",
+    "CookingModeJobInProgress1194Mobile.dc.html",
+    "CookingModeJobInProgress.dc.html",
+    "CookingModeStepFiveMobile.dc.html",
+    "CookingModeStepFive834Mobile.dc.html",
+    "CookingModeStepFive1194Mobile.dc.html",
+    "CookingModeStepFive.dc.html",
+    "CookingModeTimerDoneMobile.dc.html",
+    "CookingModeTimerDone834Mobile.dc.html",
+    "CookingModeTimerDone1194Mobile.dc.html",
+    "CookingModeTimerDone.dc.html",
+    "CookingModeOtherRecipeTimerMobile.dc.html",
+    "CookingModeOtherRecipeTimer1194Mobile.dc.html",
+    "CookingModeTimerDoneLockedMobile.dc.html",
+    "CookingModeTimerNoticeMobile.dc.html",
+    "CookingModeTimerBannerMobile.dc.html",
+    "CookingModeAlarmsOffMobile.dc.html",
+    "CookingModeAlarmsOff834Mobile.dc.html",
+    "CookingModeAlarmsOff1194Mobile.dc.html",
+    "CookingModeAlarmsOff.dc.html",
+    "CookingModeIngredientsMobile.dc.html",
+    "CookingModeIngredients834Mobile.dc.html",
+    "CookingModeIngredients1194Mobile.dc.html",
+    "CookingModeIngredients.dc.html",
+    "CookingModeAllStepsMobile.dc.html",
+    "CookingModeAllSteps834Mobile.dc.html",
+    "CookingModeAllSteps1194Mobile.dc.html",
+    "CookingModeAllSteps.dc.html",
+    "CookingModeDoneMobile.dc.html",
+    "CookingModeDone834Mobile.dc.html",
+    "CookingModeDone1194Mobile.dc.html",
+    "CookingModeDone.dc.html"
+  ],
+  "notes": {
+    "row37": {
+      "x": 0,
+      "y": 0,
+      "text": "Cooking mode: phone",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row38": {
+      "x": 0,
+      "y": 1224,
+      "text": "Cooking mode: tablet",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row39": {
+      "x": 0,
+      "y": 2798,
+      "text": "Cooking mode: web",
+      "kind": "title1",
+      "maxW": 2400
+    }
+  },
+  "designSystems": [
+    {
+      "title": "KitchenSink Design System",
+      "namespace": "commise",
+      "artifact": "https://claude.ai/artifact/DN1aFbTBJKfW7bbgDdnzye",
+      "version": "1793145468-689f",
+      "copiedAt": "2026-10-27T23:57:54Z"
+    }
+  ]
+}

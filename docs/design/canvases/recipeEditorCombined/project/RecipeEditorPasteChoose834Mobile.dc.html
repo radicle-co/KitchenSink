@@ -1,0 +1,887 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>Recipe editor, paste choose (tablet 834 px)</title>
+        <script src="./support.js"></script>
+    </head>
+    <body>
+        <x-dc>
+            <helmet>
+                <link
+                    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Manrope:wght@600&amp;display=swap"
+                    rel="stylesheet"
+                />
+                <style>
+                    body {
+                        margin: 0;
+                    }
+
+                    :root,
+                    [data-theme='light'] {
+                        --canvas: #eff3f6;
+                        --paper: #fcfdff;
+                        --ink: #171b20;
+                        --ink-muted: #5c646e;
+                        --line-control: #80878f;
+                        --line-divider: #dfe3e8;
+                        --action: #325c7f;
+                        --action-text: #325c7f;
+                        --selected-fill: #e4eef7;
+                        --selected-edge: #325c7f;
+                        --here-bar: #325c7f;
+                        --focus-ring: #325c7f;
+                        --rating: #171b20;
+                        --attention: #8c5a00;
+                        --attention-tint: rgba(245, 176, 65, 0.2);
+                        --danger: #c05238;
+                        --danger-text: #a53e27;
+                        --paper-raised: #ffffff;
+                        --paper-overlay: #ffffff;
+                        --surface-muted: #e9edf2;
+                        --inverse: #171b20;
+                        --inverse-ink: #ffffff;
+                        --inverse-action: #96bcde;
+                        --photo-chip: rgba(252, 253, 255, 0.94);
+                        --scrim: rgba(10, 16, 24, 0.42);
+                        --on-action: #ffffff;
+                        --action-pressed: #264a68;
+                        --bar: rgba(252, 253, 255, 0.92);
+                        --pro-fill: #e9edf2;
+                        --pro-ink: #171b20;
+                        --brand-seafoam: #325c7f;
+                        --brand-seafoam-light: #96bcde;
+                        --brand-ocean-dark: #264a68;
+                        --brand-coral: #f7e9d7;
+                        --brand-sky: #ddeefc;
+                        --brand-sand: #eff3f6;
+                        --brand-charcoal: #171b20;
+                        --brand-success: #4caf7c;
+                        --brand-warning: #f5b041;
+                        --brand-warning-dark: #8c5a00;
+                        --brand-error: #c05238;
+                        --brand-error-dark: #a53e27;
+                        --brand-premium: #5c646e;
+                        --brand-honey: #171b20;
+                        --cover-coral: #f7e9d7;
+                        --cover-sky: #ddeefc;
+                        --cover-premium: #f5e9df;
+                        --cover-success: #e4edf2;
+                        --cover-warning: #f7e9d7;
+                        --space-0: 0px;
+                        --space-1: 4px;
+                        --space-2: 8px;
+                        --space-3: 12px;
+                        --space-4: 16px;
+                        --space-5: 24px;
+                        --space-6: 32px;
+                        --space-7: 48px;
+                        --space-8: 64px;
+                        --space-9: 96px;
+                        --radius-sm: 8px;
+                        --radius-md: 12px;
+                        --radius-lg: 18px;
+                        --radius-xl: 24px;
+                        --radius-full: 9999px;
+                        --shadow-sm: 0 1px 2px rgba(20, 30, 45, 0.05);
+                        --shadow-md: 0 1px 2px rgba(20, 30, 45, 0.05), 0 2px 8px rgba(20, 30, 45, 0.05);
+                        --shadow-lg: 0 2px 4px rgba(10, 20, 30, 0.08), 0 8px 22px rgba(10, 20, 30, 0.12);
+                        --shadow-xl: 0 12px 30px rgba(10, 20, 30, 0.18);
+                        --shadow-glow: 0 0 0 3px rgba(50, 92, 127, 0.25);
+                        --font-display: 'Manrope', Inter, system-ui, sans-serif;
+                        --font-body: Inter, system-ui, sans-serif;
+                        --font-mono: 'JetBrains Mono', monospace;
+                        --background-image-hero: linear-gradient(180deg, #eff3f6 0%, #eff3f6 100%);
+                    }
+                    [data-theme='dark'] {
+                        --canvas: #0e161e;
+                        --paper: #172029;
+                        --ink: #ebeff2;
+                        --ink-muted: #a3acb6;
+                        --line-control: #7d8792;
+                        --line-divider: #262f38;
+                        --action: #96bcde;
+                        --action-text: #96bcde;
+                        --selected-fill: #1f3548;
+                        --selected-edge: #96bcde;
+                        --here-bar: #96bcde;
+                        --focus-ring: #96bcde;
+                        --rating: #ebeff2;
+                        --attention: #efba64;
+                        --attention-tint: rgba(245, 176, 65, 0.2);
+                        --danger: #c05238;
+                        --danger-text: #ec8e76;
+                        --paper-raised: #212b36;
+                        --paper-overlay: #26313d;
+                        --surface-muted: #212b36;
+                        --inverse: #ebeff2;
+                        --inverse-ink: #171b20;
+                        --inverse-action: #325c7f;
+                        --photo-chip: rgba(23, 32, 41, 0.86);
+                        --scrim: rgba(0, 0, 0, 0.66);
+                        --on-action: #0e161e;
+                        --action-pressed: #b4cfe8;
+                        --bar: rgba(23, 32, 41, 0.94);
+                        --pro-fill: #212b36;
+                        --pro-ink: #ebeff2;
+                        --cover-seafoam: #202b37;
+                        --cover-coral: #342817;
+                        --cover-sky: #1c2c38;
+                        --cover-premium: #32281f;
+                        --cover-success: #232b30;
+                        --cover-warning: #342817;
+                        --background-image-hero: linear-gradient(180deg, #0e161e 0%, #0e161e 100%);
+                    }
+                    body {
+                        font-family: Inter, system-ui, sans-serif;
+                    }
+                    .gallery {
+                        display: flex;
+                        flex-wrap: wrap;
+                        gap: 40px;
+                        align-items: flex-start;
+                    }
+
+                    .screen {
+                        position: relative;
+                        overflow: hidden;
+                        display: flex;
+                        flex-direction: column;
+                        background: var(--canvas);
+                        color: var(--ink);
+                        font: 400 16px/24px var(--font-body);
+                    }
+                    .screen * {
+                        box-sizing: border-box;
+                    }
+                    .screen p,
+                    .screen h1,
+                    .screen h2,
+                    .screen ul {
+                        margin: 0;
+                        padding: 0;
+                        list-style: none;
+                    }
+                    .screen a {
+                        color: inherit;
+                        text-decoration: none;
+                    }
+                    .ic {
+                        width: 20px;
+                        height: 20px;
+                        flex: none;
+                        stroke: currentColor;
+                        fill: none;
+                        stroke-width: 1.6;
+                        stroke-linecap: round;
+                        stroke-linejoin: round;
+                    }
+                    .ic.sm {
+                        width: 16px;
+                        height: 16px;
+                    }
+                    .ic.xs {
+                        width: 14px;
+                        height: 14px;
+                    }
+                    .t13 {
+                        font-size: 14px;
+                        line-height: 20px;
+                    }
+                    .t15 {
+                        font-size: 16px;
+                        line-height: 24px;
+                    }
+                    .t17 {
+                        font-size: 16px;
+                        line-height: 24px;
+                    }
+                    .soft {
+                        color: var(--ink-muted);
+                    }
+                    .w500 {
+                        font-weight: 500;
+                    }
+                    .w600 {
+                        font-weight: 600;
+                    }
+                    .steel {
+                        color: var(--action-text);
+                    }
+                    .att {
+                        color: var(--attention);
+                    }
+                    .grow {
+                        flex: 1;
+                        min-width: 0;
+                    }
+                    .row {
+                        display: flex;
+                        align-items: center;
+                        gap: 8px;
+                    }
+                    .ehead {
+                        display: flex;
+                        align-items: center;
+                        gap: 12px;
+                        padding: 47px 8px 0 4px;
+                        min-height: 103px;
+                        background: var(--canvas);
+                    }
+                    .ehead.wide {
+                        padding: 14px 20px;
+                        min-height: 56px;
+                        border-bottom: 1px solid var(--line-divider);
+                    }
+                    .iconBtn {
+                        width: 44px;
+                        height: 44px;
+                        display: grid;
+                        place-items: center;
+                        flex: none;
+                        border-radius: 22px;
+                    }
+                    .sbar {
+                        display: flex;
+                        align-items: center;
+                        gap: 6px;
+                        padding: 0 16px 10px;
+                        border-bottom: 3px solid var(--line-divider);
+                        font-size: 16px;
+                    }
+                    .body {
+                        flex: 1;
+                        min-height: 0;
+                        overflow: hidden;
+                        padding: 16px;
+                    }
+                    .card {
+                        background: var(--paper);
+                        border-radius: var(--radius-lg);
+                        padding: 16px;
+                    }
+                    .secTitle {
+                        display: flex;
+                        align-items: center;
+                        justify-content: space-between;
+                        margin-bottom: 8px;
+                    }
+                    .secTitle h2 {
+                        font-size: 18px;
+                        font-weight: 600;
+                    }
+                    .linkBtn {
+                        display: inline-flex;
+                        align-items: center;
+                        gap: 6px;
+                        min-height: 44px;
+                        font-size: 16px;
+                        font-weight: 600;
+                        color: var(--action-text);
+                    }
+                    .linkBtn.quiet {
+                        color: var(--ink-muted);
+                        font-weight: 500;
+                    }
+                    .irow {
+                        display: flex;
+                        gap: 12px;
+                        padding: 10px 0;
+                        border-bottom: 1px solid var(--line-divider);
+                        font-size: 16px;
+                    }
+                    .irow .amt {
+                        width: 64px;
+                        flex: none;
+                        font-weight: 600;
+                    }
+                    .summary {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 2px;
+                        padding: 14px 0 6px;
+                    }
+                    .ln {
+                        padding: 14px 0;
+                        border-top: 1px solid var(--line-divider);
+                    }
+                    .ln .typed {
+                        font-size: 16px;
+                        line-height: 24px;
+                    }
+                    .ln .typed b {
+                        font-weight: 600;
+                    }
+                    .state {
+                        display: flex;
+                        align-items: center;
+                        gap: 6px;
+                        font-size: 14px;
+                        line-height: 20px;
+                        margin-top: 4px;
+                        color: var(--ink-muted);
+                    }
+                    .state.att {
+                        color: var(--attention);
+                    }
+                    .state .ic {
+                        width: 14px;
+                        height: 14px;
+                    }
+                    .spin {
+                        width: 14px;
+                        height: 14px;
+                        border-radius: 50%;
+                        box-shadow: inset 0 0 0 2px var(--line-divider);
+                        border-top: 2px solid var(--action-text);
+                        flex: none;
+                    }
+                    .choices {
+                        margin-top: 8px;
+                        border-radius: 12px;
+                        box-shadow: inset 0 0 0 1px var(--line-divider);
+                        background: var(--paper-raised);
+                    }
+                    .opt {
+                        display: flex;
+                        align-items: center;
+                        gap: 12px;
+                        min-height: 48px;
+                        padding: 8px 12px;
+                        font-size: 14px;
+                        line-height: 20px;
+                    }
+                    .opt + .opt {
+                        border-top: 1px solid var(--line-divider);
+                    }
+                    .radio {
+                        width: 18px;
+                        height: 18px;
+                        border-radius: 50%;
+                        box-shadow: inset 0 0 0 1.5px var(--line-control);
+                        flex: none;
+                    }
+                    .radio.on {
+                        box-shadow: inset 0 0 0 5px var(--action);
+                    }
+                    .opt .nm {
+                        flex: 1;
+                        min-width: 0;
+                        overflow-wrap: anywhere;
+                    }
+                    .opt .nm .soft {
+                        display: block;
+                    }
+                    .tag {
+                        display: inline-flex;
+                        align-items: center;
+                        height: 22px;
+                        padding: 0 8px;
+                        border-radius: 6px;
+                        background: var(--surface-muted);
+                        color: var(--ink-muted);
+                        font-size: 14px;
+                        font-weight: 500;
+                        flex: none;
+                    }
+                    .acts {
+                        display: flex;
+                        flex-wrap: wrap;
+                        gap: 4px 18px;
+                        margin-top: 4px;
+                    }
+                    .matched {
+                        display: flex;
+                        align-items: center;
+                        gap: 8px;
+                        margin-top: 6px;
+                        font-size: 14px;
+                    }
+                    .matched .ic {
+                        color: var(--action-text);
+                        width: 16px;
+                        height: 16px;
+                    }
+                    .matched .nm {
+                        flex: 1;
+                        min-width: 0;
+                        overflow-wrap: anywhere;
+                    }
+                    .proposal {
+                        display: flex;
+                        align-items: center;
+                        gap: 10px;
+                        margin-top: 8px;
+                        padding: 10px 12px;
+                        border-radius: 12px;
+                        box-shadow: inset 0 0 0 1px var(--line-divider);
+                        background: var(--paper-raised);
+                        font-size: 14px;
+                    }
+                    .proposal .nm {
+                        flex: 1;
+                        min-width: 0;
+                        overflow-wrap: anywhere;
+                    }
+                    .btn {
+                        display: inline-flex;
+                        align-items: center;
+                        justify-content: center;
+                        gap: 8px;
+                        min-height: 44px;
+                        padding: 0 18px;
+                        border-radius: 999px;
+                        font-size: 16px;
+                        font-weight: 600;
+                        white-space: nowrap;
+                    }
+                    .btn.primary {
+                        background: var(--action);
+                        color: var(--on-action);
+                    }
+                    .btn.secondary {
+                        background: var(--paper);
+                        box-shadow: inset 0 0 0 1px var(--line-control);
+                    }
+                    .btn.small {
+                        min-height: 36px;
+                        padding: 0 14px;
+                        border-radius: 999px;
+                        font-size: 16px;
+                    }
+                    .foot {
+                        display: flex;
+                        justify-content: flex-end;
+                        gap: 10px;
+                        padding: 12px 16px 30px;
+                        background: var(--bar);
+                        border-top: 1px solid var(--line-divider);
+                        flex: none;
+                    }
+                    .foot.wide {
+                        padding: 12px 20px;
+                    }
+                    .notice {
+                        display: flex;
+                        gap: 10px;
+                        padding: 12px 14px;
+                        border-radius: 12px;
+                        background: var(--surface-muted);
+                        font-size: 14px;
+                        line-height: 20px;
+                    }
+                    .notice .ic {
+                        width: 18px;
+                        height: 18px;
+                        flex: none;
+                        margin-top: 1px;
+                    }
+                    .inp {
+                        display: flex;
+                        align-items: center;
+                        gap: 8px;
+                        min-height: 44px;
+                        padding: 8px 12px;
+                        border-radius: 12px;
+                        background: var(--paper-raised);
+                        box-shadow: inset 0 0 0 1px var(--line-control);
+                        font-size: 16px;
+                    }
+                    .inp.focus {
+                        box-shadow: inset 0 0 0 2px var(--focus-ring);
+                    }
+                    .dd {
+                        border-radius: 16px;
+                        background: var(--paper-overlay);
+                        box-shadow:
+                            var(--shadow-lg),
+                            inset 0 0 0 1px var(--line-divider);
+                        padding: 6px 0;
+                    }
+                    .dd .grp {
+                        padding: 10px 16px 4px;
+                        font-size: 14px;
+                        font-weight: 600;
+                        color: var(--ink-muted);
+                    }
+                    .dd .item {
+                        display: flex;
+                        align-items: center;
+                        gap: 10px;
+                        min-height: 44px;
+                        padding: 8px 16px;
+                        font-size: 14px;
+                        line-height: 20px;
+                    }
+                    .dd .item .nm {
+                        flex: 1;
+                        min-width: 0;
+                        overflow-wrap: anywhere;
+                    }
+                    .dd .item .ic {
+                        color: var(--ink-muted);
+                    }
+                    .side {
+                        width: 212px;
+                        flex: none;
+                        background: var(--paper);
+                        border-right: 1px solid var(--line-divider);
+                        padding: 20px 12px;
+                        display: flex;
+                        flex-direction: column;
+                        gap: 2px;
+                    }
+                    .side .brand {
+                        font-weight: 600;
+                        font-size: 16px;
+                        padding: 0 10px 16px;
+                    }
+                    .side a {
+                        display: flex;
+                        align-items: center;
+                        gap: 12px;
+                        height: 40px;
+                        padding: 0 10px;
+                        border-radius: 10px;
+                        font-size: 14px;
+                        color: var(--ink-muted);
+                    }
+                    .side a.on {
+                        background: var(--surface-muted);
+                        color: var(--ink);
+                        font-weight: 600;
+                    }
+                    .idx {
+                        width: 200px;
+                        flex: none;
+                        padding: 20px 16px;
+                        display: flex;
+                        flex-direction: column;
+                        gap: 4px;
+                        font-size: 14px;
+                        color: var(--ink-muted);
+                    }
+                    .idx a {
+                        display: flex;
+                        align-items: center;
+                        gap: 8px;
+                        min-height: 40px;
+                        padding-left: 10px;
+                    }
+                    .idx a.on {
+                        color: var(--ink);
+                        font-weight: 600;
+                        box-shadow: inset 3px 0 0 var(--here-bar);
+                    }
+                    .idx .ic {
+                        width: 16px;
+                        height: 16px;
+                    }
+                    .pane {
+                        width: 400px;
+                        flex: none;
+                        border-left: 1px solid var(--line-divider);
+                        background: var(--paper);
+                        padding: 20px;
+                        display: flex;
+                        flex-direction: column;
+                        gap: 12px;
+                        overflow: hidden;
+                    }
+                    .ln.sel {
+                        background: var(--selected-fill);
+                        margin: 0 -12px;
+                        padding: 14px 12px;
+                        border-radius: 12px;
+                        border-top-color: transparent;
+                    }
+                    .scrim {
+                        position: absolute;
+                        inset: 0;
+                        background: var(--scrim);
+                        z-index: 5;
+                    }
+                    .sheet {
+                        position: absolute;
+                        left: 0;
+                        right: 0;
+                        bottom: 0;
+                        z-index: 6;
+                        background: var(--paper-overlay);
+                        border-radius: 24px 24px 0 0;
+                        padding: 12px 16px 34px;
+                        display: flex;
+                        flex-direction: column;
+                        gap: 12px;
+                        box-shadow: var(--shadow-xl);
+                    }
+                    .dialog {
+                        position: absolute;
+                        z-index: 6;
+                        left: 50%;
+                        top: 50%;
+                        transform: translate(-50%, -50%);
+                        width: 440px;
+                        background: var(--paper-overlay);
+                        border-radius: 24px;
+                        padding: 24px;
+                        display: flex;
+                        flex-direction: column;
+                        gap: 12px;
+                        box-shadow: var(--shadow-xl);
+                    }
+                    .grab {
+                        width: 36px;
+                        height: 5px;
+                        border-radius: 3px;
+                        background: var(--line-divider);
+                        margin: 0 auto 4px;
+                    }
+                    .sheet h2,
+                    .dialog h2 {
+                        font-size: 18px;
+                        font-weight: 600;
+                    }
+                    .panelLabel {
+                        margin: 16px 16px 0;
+                        padding: 6px 10px;
+                        border: 1px dashed var(--line-control);
+                        border-radius: 8px;
+                        font-size: 14px;
+                        color: var(--ink-muted);
+                    }
+                    .g3 .panelLabel {
+                        margin: 16px 8px 0;
+                    }
+                    .g3 .card {
+                        margin: 8px 8px 0 !important;
+                    }
+                    .ln.closed {
+                        display: flex;
+                        align-items: center;
+                        gap: 8px;
+                        min-height: 56px;
+                        color: inherit;
+                    }
+                    .ln.closed .state {
+                        display: block;
+                    }
+                    .ln.closed .ic {
+                        color: var(--ink-muted);
+                    }
+                    .screen button {
+                        font: inherit;
+                        color: inherit;
+                        background: none;
+                        border: 0;
+                        padding: 0;
+                        text-align: left;
+                        cursor: pointer;
+                        width: 100%;
+                    }
+                    .screen button.opt {
+                        display: flex;
+                        align-items: center;
+                        gap: 12px;
+                        min-height: 48px;
+                        padding: 8px 12px;
+                        font-size: 14px;
+                        line-height: 20px;
+                    }
+                    .screen button.opt + button.opt {
+                        border-top: 1px solid var(--line-divider);
+                    }
+                    .screen button.opt.quiet {
+                        min-height: 44px;
+                    }
+                    .opt .chk {
+                        color: var(--action-text);
+                        display: grid;
+                    }
+                    .opt.quiet {
+                        min-height: 44px;
+                        color: var(--ink-muted);
+                    }
+                    .opt.quiet .nm {
+                        color: var(--ink-muted);
+                    }
+                    .sbtn {
+                        display: flex !important;
+                        align-items: center;
+                        gap: 10px;
+                        min-height: 44px;
+                        margin-top: 8px;
+                        padding: 0 12px !important;
+                        border-radius: 12px;
+                        font-size: 14px;
+                        color: var(--action-text) !important;
+                        font-weight: 600;
+                    }
+                    .screen button.sbtn {
+                        font-size: 14px;
+                        font-weight: 600;
+                    }
+                    .sbtn span {
+                        flex: 1;
+                    }
+                    .sbtn .ic:last-child {
+                        color: var(--ink-muted);
+                    }
+
+                    b,
+                    strong {
+                        font-weight: 600;
+                    }
+                </style>
+            <link rel="stylesheet" href="ds/commise/redesign.css" /></helmet>
+            <div class="screen" data-screen="tab834PasteChoose" style="width: 834px; height: 1480px">
+                <div class="ehead">
+                    <a class="iconBtn" href="#" aria-label="Close editor"
+                        ><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10M17 7 7 17" /></svg
+                    ></a>
+                    <div class="grow">
+                        <p class="t17 w600">New recipe</p>
+                        <p class="t13 soft">Saved</p>
+                    </div>
+                    <a class="iconBtn" href="#" aria-label="More"
+                        ><svg class="ic" viewBox="0 0 24 24" aria-hidden="true">
+                            <circle cx="6" cy="12" r="1.3" fill="currentColor" />
+                            <circle cx="12" cy="12" r="1.3" fill="currentColor" />
+                            <circle cx="18" cy="12" r="1.3" fill="currentColor" /></svg
+                    ></a>
+                </div>
+                <div class="sbar">
+                    <span class="w600">Ingredients</span><span class="soft">· 3 of 4 done</span
+                    ><svg class="ic sm" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9.5 6 6 6-6" /></svg>
+                </div>
+                <div class="body" style="padding: 24px 32px; width: 100%; max-width: 784px; margin: 0 auto">
+                    <div class="card">
+                        <div class="secTitle">
+                            <h2>Ingredients</h2>
+                            <a class="linkBtn" href="#"
+                                ><svg class="ic sm" viewBox="0 0 24 24" aria-hidden="true">
+                                    <rect x="5.5" y="5" width="13" height="15.5" rx="2" />
+                                    <path d="M9 5V3.5h6V5M8.5 10h7M8.5 13.5h7M8.5 17h4" /></svg
+                                >Paste a list</a
+                            >
+                        </div>
+                        <div class="irow"><span class="amt">4 tbsp</span><span>Sugar</span></div>
+                        <div class="summary">
+                            <p class="t15">Added 8 lines</p>
+                            <p class="t13 soft">
+                                3 matched · 4 to choose · 1 being checked. Matched lines are ready, and you can change
+                                them. Nothing else is chosen for you.
+                            </p>
+                        </div>
+                        <div class="ln open">
+                            <p class="typed"><b>2 cups</b> milk</p>
+                            <p class="state">Choose the milk you use</p>
+                            <button class="sbtn" type="button">
+                                <svg class="ic sm" viewBox="0 0 24 24" aria-hidden="true">
+                                    <circle cx="11" cy="11" r="6" />
+                                    <path d="m15.5 15.5 4 4" /></svg
+                                ><span>Search for a food</span
+                                ><svg class="ic sm" viewBox="0 0 24 24" aria-hidden="true">
+                                    <path d="m9.5 6 6 6-6 6" />
+                                </svg>
+                            </button>
+                            <div class="choices" role="group" aria-label="Foods for 2 cups milk">
+                                <button class="opt" type="button" aria-label="Whole milk, default">
+                                    <span class="nm">Whole milk</span><span class="tag">Default</span></button
+                                ><button class="opt" type="button" aria-label="Milk, 2% fat">
+                                    <span class="nm">Milk, 2% fat</span></button
+                                ><button class="opt" type="button" aria-label="Skim milk">
+                                    <span class="nm">Skim milk</span></button
+                                ><button class="opt" type="button" aria-label="Oat milk, unsweetened">
+                                    <span class="nm">Oat milk, unsweetened</span></button
+                                ><button class="opt quiet" type="button">
+                                    <span class="nm">Keep “2 cups milk” as written · no nutrition</span>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="ln">
+                            <p class="typed"><b>1 tbsp</b> ground cinnamon</p>
+                            <div class="matched">
+                                <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 12.5 4 4 8-9" /></svg
+                                ><span class="nm">Cinnamon, ground</span
+                                ><a class="linkBtn" href="#" style="min-height: 32px; font-size: 14px">Change</a>
+                            </div>
+                        </div>
+                        <a class="ln closed" href="#"
+                            ><span class="grow"
+                                ><p class="typed"><b>6 slices</b> day-old bread</p>
+                                <span class="state">Choose a food · 5 options</span></span
+                            ><svg class="ic sm" viewBox="0 0 24 24" aria-hidden="true"><path d="m9.5 6 6 6-6 6" /></svg
+                        ></a>
+                        <div class="ln">
+                            <p class="typed"><b>1/2 cup</b> heavy cream</p>
+                            <div class="proposal">
+                                <span class="spin" aria-hidden="true"></span><span class="nm">Heavy whipping cream</span
+                                ><span class="tag">Checking</span>
+                            </div>
+                            <div class="acts">
+                                <a class="linkBtn" href="#">Use this</a
+                                ><a class="linkBtn" href="#"
+                                    ><svg class="ic sm" viewBox="0 0 24 24" aria-hidden="true">
+                                        <circle cx="11" cy="11" r="6" />
+                                        <path d="m15.5 15.5 4 4" /></svg
+                                    >Search for a food</a
+                                >
+                            </div>
+                        </div>
+                        <a class="ln closed" href="#"
+                            ><span class="grow"
+                                ><p class="typed"><b>1 pinch</b> salt</p>
+                                <span class="state">Choose the salt you use · 3 options</span></span
+                            ><svg class="ic sm" viewBox="0 0 24 24" aria-hidden="true"><path d="m9.5 6 6 6-6 6" /></svg
+                        ></a>
+                        <div class="ln">
+                            <p class="typed"><b>3 tbsp</b> butter, melted</p>
+                            <div class="matched">
+                                <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 12.5 4 4 8-9" /></svg
+                                ><span class="nm">Butter, unsalted <span class="soft">· your choice</span></span
+                                ><a class="linkBtn" href="#" style="min-height: 32px; font-size: 14px">Change</a>
+                            </div>
+                            <p class="t13 soft" style="margin-top: 4px">
+                                Our check suggested Butter, salted. Your choice stays.
+                                <a class="steel w600" href="#">See why</a>
+                            </p>
+                        </div>
+                        <div class="ln">
+                            <p class="typed"><b>3</b> eggs</p>
+                            <div class="matched">
+                                <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 12.5 4 4 8-9" /></svg
+                                ><span class="nm">Egg, whole, raw</span
+                                ><a class="linkBtn" href="#" style="min-height: 32px; font-size: 14px">Change</a>
+                            </div>
+                        </div>
+                        <a class="ln closed" href="#"
+                            ><span class="grow"
+                                ><p class="typed"><b>1 tsp</b> Grandma’s spice mix</p>
+                                <span class="state">No food found · search or keep as written</span></span
+                            ><svg class="ic sm" viewBox="0 0 24 24" aria-hidden="true"><path d="m9.5 6 6 6-6 6" /></svg
+                        ></a>
+                    </div>
+                </div>
+                <div class="foot">
+                    <a class="btn secondary" href="#"
+                        ><svg class="ic" viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M3 12s3.3-6 9-6 9 6 9 6-3.3 6-9 6-9-6-9-6z" />
+                            <circle cx="12" cy="12" r="2.5" /></svg
+                        >Preview</a
+                    ><a class="btn primary" href="#"
+                        ><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 12.5 4 4 8-9" /></svg
+                        >Publish</a
+                    >
+                </div>
+            </div>
+        </x-dc>
+        <script type="text/x-dc" data-dc-script data-props='{"$preview": {"width": 834, "height": 1480}}'>
+            class Component extends DCLogic {
+            renderVals() {
+            return {};
+            }
+            }
+        </script>
+    </body>
+</html>

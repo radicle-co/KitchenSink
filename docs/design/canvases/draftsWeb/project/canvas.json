@@ -1,0 +1,169 @@
+{
+  "v": 3,
+  "createdOnFiles": {
+    "v": 1,
+    "at": "2026-11-01T07:02:37Z"
+  },
+  "title": "Commise Screens, web: Drafts",
+  "launch": {
+    "view": "canvas"
+  },
+  "pages": [],
+  "boards": {
+    "DraftLibraryWeb1280.dc.html": {
+      "x": 0,
+      "y": 260,
+      "w": 1280,
+      "h": 1040,
+      "title": "Drafts, library (web, 1280)"
+    },
+    "DraftDraftMenuWeb1280.dc.html": {
+      "x": 1360,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Drafts, draft menu (web, 1280)"
+    },
+    "DraftEditorWeb1280.dc.html": {
+      "x": 2720,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Drafts, editor (web, 1280)"
+    },
+    "DraftPlanPickerWeb1280.dc.html": {
+      "x": 4080,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Drafts, plan picker (web, 1280)"
+    },
+    "DraftCollectionPickerWeb1280.dc.html": {
+      "x": 5440,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Drafts, collection picker (web, 1280)"
+    },
+    "DraftListPickerWeb1280.dc.html": {
+      "x": 6800,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Drafts, list picker (web, 1280)"
+    },
+    "DraftSetBackToDraftWeb1280.dc.html": {
+      "x": 8160,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Drafts, set back to draft (web, 1280)"
+    },
+    "DraftDeleteDraftWeb1280.dc.html": {
+      "x": 9520,
+      "y": 260,
+      "w": 1280,
+      "h": 800,
+      "title": "Drafts, delete draft (web, 1280)"
+    },
+    "DraftLibraryWeb390.dc.html": {
+      "x": 0,
+      "y": 1960,
+      "w": 390,
+      "h": 844,
+      "title": "Drafts, library (web, 390)"
+    },
+    "DraftDraftMenuWeb390.dc.html": {
+      "x": 470,
+      "y": 1960,
+      "w": 390,
+      "h": 844,
+      "title": "Drafts, draft menu (web, 390)"
+    },
+    "DraftEditorWeb390.dc.html": {
+      "x": 940,
+      "y": 1960,
+      "w": 390,
+      "h": 844,
+      "title": "Drafts, editor (web, 390)"
+    },
+    "DraftPlanPickerWeb390.dc.html": {
+      "x": 1410,
+      "y": 1960,
+      "w": 390,
+      "h": 844,
+      "title": "Drafts, plan picker (web, 390)"
+    },
+    "DraftCollectionPickerWeb390.dc.html": {
+      "x": 1880,
+      "y": 1960,
+      "w": 390,
+      "h": 844,
+      "title": "Drafts, collection picker (web, 390)"
+    },
+    "DraftListPickerWeb390.dc.html": {
+      "x": 2350,
+      "y": 1960,
+      "w": 390,
+      "h": 844,
+      "title": "Drafts, list picker (web, 390)"
+    },
+    "DraftSetBackToDraftWeb390.dc.html": {
+      "x": 2820,
+      "y": 1960,
+      "w": 390,
+      "h": 844,
+      "title": "Drafts, set back to draft (web, 390)"
+    },
+    "DraftDeleteDraftWeb390.dc.html": {
+      "x": 3290,
+      "y": 1960,
+      "w": 390,
+      "h": 844,
+      "title": "Drafts, delete draft (web, 390)"
+    }
+  },
+  "order": [
+    "DraftLibraryWeb1280.dc.html",
+    "DraftDraftMenuWeb1280.dc.html",
+    "DraftEditorWeb1280.dc.html",
+    "DraftPlanPickerWeb1280.dc.html",
+    "DraftCollectionPickerWeb1280.dc.html",
+    "DraftListPickerWeb1280.dc.html",
+    "DraftSetBackToDraftWeb1280.dc.html",
+    "DraftDeleteDraftWeb1280.dc.html",
+    "DraftLibraryWeb390.dc.html",
+    "DraftDraftMenuWeb390.dc.html",
+    "DraftEditorWeb390.dc.html",
+    "DraftPlanPickerWeb390.dc.html",
+    "DraftCollectionPickerWeb390.dc.html",
+    "DraftListPickerWeb390.dc.html",
+    "DraftSetBackToDraftWeb390.dc.html",
+    "DraftDeleteDraftWeb390.dc.html"
+  ],
+  "notes": {
+    "row0": {
+      "x": 0,
+      "y": 0,
+      "text": "Drafts: web 1280",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row1": {
+      "x": 0,
+      "y": 1700,
+      "text": "Drafts: web 390",
+      "kind": "title1",
+      "maxW": 2400
+    }
+  },
+  "designSystems": [
+    {
+      "title": "KitchenSink Design System",
+      "namespace": "commise",
+      "artifact": "https://claude.ai/artifact/DN1aFbTBJKfW7bbgDdnzye",
+      "version": "1793145468-689f",
+      "copiedAt": "2026-10-27T23:57:54Z"
+    }
+  ]
+}

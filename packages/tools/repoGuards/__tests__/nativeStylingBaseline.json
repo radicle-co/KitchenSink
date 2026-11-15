@@ -90,7 +90,7 @@
         "packages/apps/commise/features/recipes/src/form/PasteStepsControl.native.tsx": 2,
         "packages/apps/commise/features/recipes/src/form/PastedReadingRow.native.tsx": 11,
         "packages/apps/commise/features/recipes/src/form/RecipeBasicsFields.native.tsx": 29,
-        "packages/apps/commise/features/recipes/src/form/RecipeIngredientsFields.native.tsx": 23,
+        "packages/apps/commise/features/recipes/src/form/RecipeIngredientsFields.native.tsx": 22,
         "packages/apps/commise/features/recipes/src/form/RecipeInstructionsFields.native.tsx": 21,
         "packages/apps/commise/features/recipes/src/form/RecipeVisibilityField.native.tsx": 29,
         "packages/apps/commise/features/recipes/src/form/formSectionStyles.native.ts": 9,

@@ -1,0 +1,624 @@
+{
+  "v": 3,
+  "createdOnFiles": {
+    "v": 1,
+    "at": "2026-11-01T05:52:09Z"
+  },
+  "title": "Commise Screens, mobile: Account and sign in",
+  "launch": {
+    "view": "canvas"
+  },
+  "pages": [],
+  "boards": {
+    "ProfileIphone390.dc.html": {
+      "x": 0,
+      "y": 260,
+      "w": 390,
+      "h": 1112,
+      "title": "Profile (mobile, iPhone 390)"
+    },
+    "ProfileScrolledIphone390.dc.html": {
+      "x": 470,
+      "y": 260,
+      "w": 390,
+      "h": 925,
+      "title": "Profile, scrolled (mobile, iPhone 390)"
+    },
+    "AccountCloseDialogIphone390.dc.html": {
+      "x": 940,
+      "y": 260,
+      "w": 390,
+      "h": 1497,
+      "title": "Profile, close account (mobile, iPhone 390)"
+    },
+    "AccountEraseDialogIphone390.dc.html": {
+      "x": 1410,
+      "y": 260,
+      "w": 390,
+      "h": 2253,
+      "title": "Profile, erase my data (mobile, iPhone 390)"
+    },
+    "AccountEraseDialogStatesIphone390.dc.html": {
+      "x": 1880,
+      "y": 260,
+      "w": 390,
+      "h": 6137,
+      "title": "Profile, erase and close: states (mobile, iPhone 390)"
+    },
+    "AccountBlockedIphone390.dc.html": {
+      "x": 2350,
+      "y": 260,
+      "w": 390,
+      "h": 1686,
+      "title": "Account, blocked (mobile, iPhone 390)"
+    },
+    "ProfileLoadingIphone390.dc.html": {
+      "x": 2820,
+      "y": 260,
+      "w": 390,
+      "h": 1587,
+      "title": "Profile, loading and failed (mobile, iPhone 390)"
+    },
+    "ProfileDisplayNameIphone390.dc.html": {
+      "x": 3290,
+      "y": 260,
+      "w": 390,
+      "h": 2418,
+      "title": "Profile, display name (mobile, iPhone 390)"
+    },
+    "ProfileDisplayNameStatesIphone390.dc.html": {
+      "x": 3760,
+      "y": 260,
+      "w": 390,
+      "h": 3281,
+      "title": "Profile, display name: states (mobile, iPhone 390)"
+    },
+    "ProfileInlineStatesIphone390.dc.html": {
+      "x": 4230,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Profile, sign out and settings (mobile, iPhone 390)"
+    },
+    "ProfileAvatarIphone390.dc.html": {
+      "x": 4700,
+      "y": 260,
+      "w": 390,
+      "h": 1309,
+      "title": "Profile, photo (mobile, iPhone 390)"
+    },
+    "SignInIphone390.dc.html": {
+      "x": 5170,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Sign in (mobile, iPhone 390)"
+    },
+    "SignInTypingIphone390.dc.html": {
+      "x": 5640,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Sign in, typing the email (mobile, iPhone 390)"
+    },
+    "AuthSessionLoadingIphone390.dc.html": {
+      "x": 6110,
+      "y": 260,
+      "w": 390,
+      "h": 925,
+      "title": "Sign in, checking your session (mobile, iPhone 390)"
+    },
+    "SignInVerifyCodeIphone390.dc.html": {
+      "x": 6580,
+      "y": 260,
+      "w": 390,
+      "h": 1317,
+      "title": "Sign in, verification code (mobile, iPhone 390)"
+    },
+    "SignInVerifyCodeTypingIphone390.dc.html": {
+      "x": 7050,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Sign in, verification code, typing the code (mobile, iPhone 390)"
+    },
+    "SignInErrorsIphone390.dc.html": {
+      "x": 7520,
+      "y": 260,
+      "w": 390,
+      "h": 3259,
+      "title": "Sign in, errors (mobile, iPhone 390)"
+    },
+    "SignInSocialStatesIphone390.dc.html": {
+      "x": 7990,
+      "y": 260,
+      "w": 390,
+      "h": 1661,
+      "title": "Sign in, Google and Apple (mobile, iPhone 390)"
+    },
+    "SignUpIphone390.dc.html": {
+      "x": 8460,
+      "y": 260,
+      "w": 390,
+      "h": 1063,
+      "title": "Sign up (mobile, iPhone 390)"
+    },
+    "SignUpTypingIphone390.dc.html": {
+      "x": 8930,
+      "y": 260,
+      "w": 390,
+      "h": 844,
+      "title": "Sign up, typing the email (mobile, iPhone 390)"
+    },
+    "SignUpFinishIphone390.dc.html": {
+      "x": 9400,
+      "y": 260,
+      "w": 390,
+      "h": 1497,
+      "title": "Sign up, finish creating your account (mobile, iPhone 390)"
+    },
+    "LegalSourcesIphone390.dc.html": {
+      "x": 9870,
+      "y": 260,
+      "w": 390,
+      "h": 1201,
+      "title": "Data sources (mobile, iPhone 390)"
+    },
+    "LegalSourcesScrolledIphone390.dc.html": {
+      "x": 10340,
+      "y": 260,
+      "w": 390,
+      "h": 925,
+      "title": "Data sources, scrolled (mobile, iPhone 390)"
+    },
+    "LegalSourcesStatesIphone390.dc.html": {
+      "x": 10810,
+      "y": 260,
+      "w": 390,
+      "h": 2845,
+      "title": "Data sources, loading and problems (mobile, iPhone 390)"
+    },
+    "ProfileAndroid384.dc.html": {
+      "x": 0,
+      "y": 7057,
+      "w": 384,
+      "h": 1079,
+      "title": "Profile (mobile, Android 384)"
+    },
+    "ProfileScrolledAndroid384.dc.html": {
+      "x": 464,
+      "y": 7057,
+      "w": 384,
+      "h": 892,
+      "title": "Profile, scrolled (mobile, Android 384)"
+    },
+    "AccountCloseDialogAndroid384.dc.html": {
+      "x": 928,
+      "y": 7057,
+      "w": 384,
+      "h": 1464,
+      "title": "Profile, close account (mobile, Android 384)"
+    },
+    "AccountEraseDialogAndroid384.dc.html": {
+      "x": 1392,
+      "y": 7057,
+      "w": 384,
+      "h": 2240,
+      "title": "Profile, erase my data (mobile, Android 384)"
+    },
+    "AccountEraseDialogStatesAndroid384.dc.html": {
+      "x": 1856,
+      "y": 7057,
+      "w": 384,
+      "h": 6104,
+      "title": "Profile, erase and close: states (mobile, Android 384)"
+    },
+    "AccountBlockedAndroid384.dc.html": {
+      "x": 2320,
+      "y": 7057,
+      "w": 384,
+      "h": 1653,
+      "title": "Account, blocked (mobile, Android 384)"
+    },
+    "ProfileLoadingAndroid384.dc.html": {
+      "x": 2784,
+      "y": 7057,
+      "w": 384,
+      "h": 1554,
+      "title": "Profile, loading and failed (mobile, Android 384)"
+    },
+    "ProfileDisplayNameAndroid384.dc.html": {
+      "x": 3248,
+      "y": 7057,
+      "w": 384,
+      "h": 2405,
+      "title": "Profile, display name (mobile, Android 384)"
+    },
+    "ProfileDisplayNameStatesAndroid384.dc.html": {
+      "x": 3712,
+      "y": 7057,
+      "w": 384,
+      "h": 3248,
+      "title": "Profile, display name: states (mobile, Android 384)"
+    },
+    "ProfileInlineStatesAndroid384.dc.html": {
+      "x": 4176,
+      "y": 7057,
+      "w": 384,
+      "h": 832,
+      "title": "Profile, sign out and settings (mobile, Android 384)"
+    },
+    "ProfileAvatarAndroid384.dc.html": {
+      "x": 4640,
+      "y": 7057,
+      "w": 384,
+      "h": 1296,
+      "title": "Profile, photo (mobile, Android 384)"
+    },
+    "SignInAndroid384.dc.html": {
+      "x": 5104,
+      "y": 7057,
+      "w": 384,
+      "h": 832,
+      "title": "Sign in (mobile, Android 384)"
+    },
+    "SignInTypingAndroid384.dc.html": {
+      "x": 5568,
+      "y": 7057,
+      "w": 384,
+      "h": 832,
+      "title": "Sign in, typing the email (mobile, Android 384)"
+    },
+    "AuthSessionLoadingAndroid384.dc.html": {
+      "x": 6032,
+      "y": 7057,
+      "w": 384,
+      "h": 892,
+      "title": "Sign in, checking your session (mobile, Android 384)"
+    },
+    "SignInVerifyCodeAndroid384.dc.html": {
+      "x": 6496,
+      "y": 7057,
+      "w": 384,
+      "h": 1284,
+      "title": "Sign in, verification code (mobile, Android 384)"
+    },
+    "SignInVerifyCodeTypingAndroid384.dc.html": {
+      "x": 6960,
+      "y": 7057,
+      "w": 384,
+      "h": 832,
+      "title": "Sign in, verification code, typing the code (mobile, Android 384)"
+    },
+    "SignInErrorsAndroid384.dc.html": {
+      "x": 7424,
+      "y": 7057,
+      "w": 384,
+      "h": 3226,
+      "title": "Sign in, errors (mobile, Android 384)"
+    },
+    "SignInSocialStatesAndroid384.dc.html": {
+      "x": 7888,
+      "y": 7057,
+      "w": 384,
+      "h": 1648,
+      "title": "Sign in, Google and Apple (mobile, Android 384)"
+    },
+    "SignUpAndroid384.dc.html": {
+      "x": 8352,
+      "y": 7057,
+      "w": 384,
+      "h": 966,
+      "title": "Sign up (mobile, Android 384)"
+    },
+    "SignUpTypingAndroid384.dc.html": {
+      "x": 8816,
+      "y": 7057,
+      "w": 384,
+      "h": 832,
+      "title": "Sign up, typing the email (mobile, Android 384)"
+    },
+    "SignUpFinishAndroid384.dc.html": {
+      "x": 9280,
+      "y": 7057,
+      "w": 384,
+      "h": 1464,
+      "title": "Sign up, finish creating your account (mobile, Android 384)"
+    },
+    "LegalSourcesAndroid384.dc.html": {
+      "x": 9744,
+      "y": 7057,
+      "w": 384,
+      "h": 1168,
+      "title": "Data sources (mobile, Android 384)"
+    },
+    "LegalSourcesScrolledAndroid384.dc.html": {
+      "x": 10208,
+      "y": 7057,
+      "w": 384,
+      "h": 892,
+      "title": "Data sources, scrolled (mobile, Android 384)"
+    },
+    "LegalSourcesStatesAndroid384.dc.html": {
+      "x": 10672,
+      "y": 7057,
+      "w": 384,
+      "h": 2812,
+      "title": "Data sources, loading and problems (mobile, Android 384)"
+    },
+    "ProfileIpad820.dc.html": {
+      "x": 0,
+      "y": 13821,
+      "w": 820,
+      "h": 1180,
+      "title": "Profile (mobile, iPad 820)"
+    },
+    "ProfileScrolledIpad820.dc.html": {
+      "x": 900,
+      "y": 13821,
+      "w": 820,
+      "h": 1238,
+      "title": "Profile, scrolled (mobile, iPad 820)"
+    },
+    "AccountCloseDialogIpad820.dc.html": {
+      "x": 1800,
+      "y": 13821,
+      "w": 820,
+      "h": 1180,
+      "title": "Profile, close account (mobile, iPad 820)"
+    },
+    "AccountEraseDialogIpad820.dc.html": {
+      "x": 2700,
+      "y": 13821,
+      "w": 820,
+      "h": 1180,
+      "title": "Profile, erase my data (mobile, iPad 820)"
+    },
+    "AccountEraseDialogStatesIpad820.dc.html": {
+      "x": 3600,
+      "y": 13821,
+      "w": 820,
+      "h": 5280,
+      "title": "Profile, erase and close: states (mobile, iPad 820)"
+    },
+    "AccountBlockedIpad820.dc.html": {
+      "x": 4500,
+      "y": 13821,
+      "w": 820,
+      "h": 1549,
+      "title": "Account, blocked (mobile, iPad 820)"
+    },
+    "ProfileLoadingIpad820.dc.html": {
+      "x": 5400,
+      "y": 13821,
+      "w": 820,
+      "h": 1430,
+      "title": "Profile, loading and failed (mobile, iPad 820)"
+    },
+    "ProfileDisplayNameIpad820.dc.html": {
+      "x": 6300,
+      "y": 13821,
+      "w": 820,
+      "h": 1180,
+      "title": "Profile, display name (mobile, iPad 820)"
+    },
+    "ProfileDisplayNameStatesIpad820.dc.html": {
+      "x": 7200,
+      "y": 13821,
+      "w": 820,
+      "h": 3164,
+      "title": "Profile, display name: states (mobile, iPad 820)"
+    },
+    "ProfileInlineStatesIpad820.dc.html": {
+      "x": 8100,
+      "y": 13821,
+      "w": 820,
+      "h": 1180,
+      "title": "Profile, sign out and settings (mobile, iPad 820)"
+    },
+    "ProfileAvatarIpad820.dc.html": {
+      "x": 9000,
+      "y": 13821,
+      "w": 820,
+      "h": 1180,
+      "title": "Profile, photo (mobile, iPad 820)"
+    },
+    "SignInIpad820.dc.html": {
+      "x": 9900,
+      "y": 13821,
+      "w": 820,
+      "h": 1180,
+      "title": "Sign in (mobile, iPad 820)"
+    },
+    "SignInTypingIpad820.dc.html": {
+      "x": 10800,
+      "y": 13821,
+      "w": 820,
+      "h": 1180,
+      "title": "Sign in, typing the email (mobile, iPad 820)"
+    },
+    "AuthSessionLoadingIpad820.dc.html": {
+      "x": 11700,
+      "y": 13821,
+      "w": 820,
+      "h": 1180,
+      "title": "Sign in, checking your session (mobile, iPad 820)"
+    },
+    "SignInVerifyCodeIpad820.dc.html": {
+      "x": 12600,
+      "y": 13821,
+      "w": 820,
+      "h": 2476,
+      "title": "Sign in, verification code (mobile, iPad 820)"
+    },
+    "SignInVerifyCodeTypingIpad820.dc.html": {
+      "x": 13500,
+      "y": 13821,
+      "w": 820,
+      "h": 1180,
+      "title": "Sign in, verification code, typing the code (mobile, iPad 820)"
+    },
+    "SignInErrorsIpad820.dc.html": {
+      "x": 14400,
+      "y": 13821,
+      "w": 820,
+      "h": 3074,
+      "title": "Sign in, errors (mobile, iPad 820)"
+    },
+    "SignInSocialStatesIpad820.dc.html": {
+      "x": 15300,
+      "y": 13821,
+      "w": 820,
+      "h": 1492,
+      "title": "Sign in, Google and Apple (mobile, iPad 820)"
+    },
+    "SignUpIpad820.dc.html": {
+      "x": 16200,
+      "y": 13821,
+      "w": 820,
+      "h": 1180,
+      "title": "Sign up (mobile, iPad 820)"
+    },
+    "SignUpTypingIpad820.dc.html": {
+      "x": 17100,
+      "y": 13821,
+      "w": 820,
+      "h": 1180,
+      "title": "Sign up, typing the email (mobile, iPad 820)"
+    },
+    "SignUpFinishIpad820.dc.html": {
+      "x": 18000,
+      "y": 13821,
+      "w": 820,
+      "h": 1822,
+      "title": "Sign up, finish creating your account (mobile, iPad 820)"
+    },
+    "LegalSourcesIpad820.dc.html": {
+      "x": 18900,
+      "y": 13821,
+      "w": 820,
+      "h": 1180,
+      "title": "Data sources (mobile, iPad 820)"
+    },
+    "LegalSourcesScrolledIpad820.dc.html": {
+      "x": 19800,
+      "y": 13821,
+      "w": 820,
+      "h": 1303,
+      "title": "Data sources, scrolled (mobile, iPad 820)"
+    },
+    "LegalSourcesStatesIpad820.dc.html": {
+      "x": 20700,
+      "y": 13821,
+      "w": 820,
+      "h": 2724,
+      "title": "Data sources, loading and problems (mobile, iPad 820)"
+    }
+  },
+  "order": [
+    "ProfileIphone390.dc.html",
+    "ProfileScrolledIphone390.dc.html",
+    "AccountCloseDialogIphone390.dc.html",
+    "AccountEraseDialogIphone390.dc.html",
+    "AccountEraseDialogStatesIphone390.dc.html",
+    "AccountBlockedIphone390.dc.html",
+    "ProfileLoadingIphone390.dc.html",
+    "ProfileDisplayNameIphone390.dc.html",
+    "ProfileDisplayNameStatesIphone390.dc.html",
+    "ProfileInlineStatesIphone390.dc.html",
+    "ProfileAvatarIphone390.dc.html",
+    "SignInIphone390.dc.html",
+    "SignInTypingIphone390.dc.html",
+    "AuthSessionLoadingIphone390.dc.html",
+    "SignInVerifyCodeIphone390.dc.html",
+    "SignInVerifyCodeTypingIphone390.dc.html",
+    "SignInErrorsIphone390.dc.html",
+    "SignInSocialStatesIphone390.dc.html",
+    "SignUpIphone390.dc.html",
+    "SignUpTypingIphone390.dc.html",
+    "SignUpFinishIphone390.dc.html",
+    "LegalSourcesIphone390.dc.html",
+    "LegalSourcesScrolledIphone390.dc.html",
+    "LegalSourcesStatesIphone390.dc.html",
+    "ProfileAndroid384.dc.html",
+    "ProfileScrolledAndroid384.dc.html",
+    "AccountCloseDialogAndroid384.dc.html",
+    "AccountEraseDialogAndroid384.dc.html",
+    "AccountEraseDialogStatesAndroid384.dc.html",
+    "AccountBlockedAndroid384.dc.html",
+    "ProfileLoadingAndroid384.dc.html",
+    "ProfileDisplayNameAndroid384.dc.html",
+    "ProfileDisplayNameStatesAndroid384.dc.html",
+    "ProfileInlineStatesAndroid384.dc.html",
+    "ProfileAvatarAndroid384.dc.html",
+    "SignInAndroid384.dc.html",
+    "SignInTypingAndroid384.dc.html",
+    "AuthSessionLoadingAndroid384.dc.html",
+    "SignInVerifyCodeAndroid384.dc.html",
+    "SignInVerifyCodeTypingAndroid384.dc.html",
+    "SignInErrorsAndroid384.dc.html",
+    "SignInSocialStatesAndroid384.dc.html",
+    "SignUpAndroid384.dc.html",
+    "SignUpTypingAndroid384.dc.html",
+    "SignUpFinishAndroid384.dc.html",
+    "LegalSourcesAndroid384.dc.html",
+    "LegalSourcesScrolledAndroid384.dc.html",
+    "LegalSourcesStatesAndroid384.dc.html",
+    "ProfileIpad820.dc.html",
+    "ProfileScrolledIpad820.dc.html",
+    "AccountCloseDialogIpad820.dc.html",
+    "AccountEraseDialogIpad820.dc.html",
+    "AccountEraseDialogStatesIpad820.dc.html",
+    "AccountBlockedIpad820.dc.html",
+    "ProfileLoadingIpad820.dc.html",
+    "ProfileDisplayNameIpad820.dc.html",
+    "ProfileDisplayNameStatesIpad820.dc.html",
+    "ProfileInlineStatesIpad820.dc.html",
+    "ProfileAvatarIpad820.dc.html",
+    "SignInIpad820.dc.html",
+    "SignInTypingIpad820.dc.html",
+    "AuthSessionLoadingIpad820.dc.html",
+    "SignInVerifyCodeIpad820.dc.html",
+    "SignInVerifyCodeTypingIpad820.dc.html",
+    "SignInErrorsIpad820.dc.html",
+    "SignInSocialStatesIpad820.dc.html",
+    "SignUpIpad820.dc.html",
+    "SignUpTypingIpad820.dc.html",
+    "SignUpFinishIpad820.dc.html",
+    "LegalSourcesIpad820.dc.html",
+    "LegalSourcesScrolledIpad820.dc.html",
+    "LegalSourcesStatesIpad820.dc.html"
+  ],
+  "notes": {
+    "row0": {
+      "x": 0,
+      "y": 0,
+      "text": "Account and sign in: mobile, iPhone 390 (390 x 844)",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row1": {
+      "x": 0,
+      "y": 6797,
+      "text": "Account and sign in: mobile, Android 384 (384 x 832)",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row2": {
+      "x": 0,
+      "y": 13561,
+      "text": "Account and sign in: mobile, iPad 820 (820 x 1180)",
+      "kind": "title1",
+      "maxW": 2400
+    }
+  },
+  "designSystems": [
+    {
+      "title": "KitchenSink Design System",
+      "namespace": "commise",
+      "artifact": "https://claude.ai/artifact/DN1aFbTBJKfW7bbgDdnzye",
+      "version": "1793145468-689f",
+      "copiedAt": "2026-10-27T23:57:54Z"
+    }
+  ]
+}

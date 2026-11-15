@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>Recipe detail, S3b exit-from-cooking-mode snackbar (web)</title>
+        <script src="./support.js"></script>
+        <link rel="stylesheet" href="ds/commise/tokens.css" />
+        <link rel="stylesheet" href="ds/commise/bundle.css" />
+        <link rel="stylesheet" href="ds/commise/redesign.css" />
+    </head>
+    <body>
+        <!-- S3b board, built by buildS3bBoards.py (squad Stellar designer, plan 0111). Design artifact, not app code. -->
+        <x-dc><helmet><style>
+[data-theme='light'] { --canvas: #eff3f6; --paper: #fcfdff; --ink: #171b20; --ink-muted: #5c646e; --line-control: #80878f; --line-divider: #dfe3e8; --action: #325c7f; --action-text: #325c7f; --here-bar: #325c7f; --attention: #8c5a00; --paper-raised: #ffffff; --paper-overlay: #ffffff; --surface-muted: #e9edf2; --inverse: #171b20; --inverse-ink: #ffffff; --scrim: rgba(10, 16, 24, 0.42); --on-action: #ffffff; --shadow-lg: 0 2px 4px rgba(10, 20, 30, 0.08), 0 8px 22px rgba(10, 20, 30, 0.12); }
+[data-theme='dark'] { --canvas: #0e161e; --paper: #172029; --ink: #ebeff2; --ink-muted: #a3acb6; --line-control: #7d8792; --line-divider: #262f38; --action: #96bcde; --action-text: #96bcde; --here-bar: #96bcde; --attention: #efba64; --paper-raised: #212b36; --paper-overlay: #26313d; --surface-muted: #212b36; --inverse: #ebeff2; --inverse-ink: #171b20; --scrim: rgba(0, 0, 0, 0.66); --on-action: #0e161e; --shadow-lg: 0 2px 4px rgba(0, 0, 0, 0.3), 0 8px 22px rgba(0, 0, 0, 0.4); }
+[data-theme='dark'].osScreen, [data-theme='dark'] .osScreen { --os-wall: linear-gradient(180deg, #2b3440, #11161c); --os-wall-ink: #ffffff; --os-card: rgba(56, 66, 79, 0.94); --os-card-ink: #ebeff2; --os-card-muted: #a3acb6; }
+[data-theme='light'] { --selected-fill: #e4eef7; }
+[data-theme='light'] .alarm .ghost, .alarm .ghost { border: 1px solid currentColor; opacity: 0.85; }
+
+body { margin: 0; background: #e4e8ec; font-family: Inter, system-ui, sans-serif; color: #171b20; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+.sheet { padding: 48px; }
+.sheetTitle { font: 600 28px/32px Manrope, Inter, sans-serif; margin-bottom: 8px; }
+.sheetNote { font-size: 16px; line-height: 24px; color: #5c646e; max-width: 900px; margin-bottom: 40px; }
+section { margin-bottom: 56px; }
+.secTitle { font-size: 18px; line-height: 24px; font-weight: 600; margin-bottom: 16px; }
+.row { display: flex; flex-wrap: wrap; gap: 40px; align-items: flex-start; }
+figure { display: flex; flex-direction: column; gap: 10px; }
+figcaption { font-size: 14px; line-height: 20px; color: #5c646e; max-width: 420px; }
+figcaption b { color: #171b20; font-weight: 600; }
+.scr { background: var(--canvas); color: var(--ink); position: relative; overflow: hidden; border-radius: 16px;
+  box-shadow: 0 0 0 1px rgba(0,0,0,.08), 0 12px 32px rgba(0,0,0,.14); display: flex; flex-direction: column; }
+/* The alarm (S17), opened outside cooking mode: the inverse surface. */
+.alarm { background: var(--inverse); color: var(--inverse-ink); flex: 1; display: flex; flex-direction: column;
+  justify-content: safe center; padding: 32px 20px; gap: 16px; overflow: auto; }
+.alarmCol { width: 100%; max-width: 640px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+.over { font-size: 14px; line-height: 20px; font-weight: 600; opacity: .85; display: flex; align-items: center; gap: 8px; }
+.over svg { flex: none; }
+.headline { font-size: 28px; line-height: 32px; font-weight: 600; }
+.body { font-size: 18px; line-height: 28px; }
+.note { font-size: 16px; line-height: 24px; opacity: .85; }
+.stop { height: 52px; border-radius: 999px; background: var(--inverse-ink); color: var(--inverse); font-size: 16px; font-weight: 600;
+  width: 100%; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 0 3px var(--inverse), 0 0 0 5px var(--inverse-ink); }
+.pair { display: flex; gap: 12px; }
+.quiet { flex: 1; height: 52px; border-radius: 999px; box-shadow: inset 0 0 0 1px var(--inverse-ink); font-size: 16px; font-weight: 600;
+  display: flex; align-items: center; justify-content: center; }
+.goStep { min-height: 48px; font-size: 16px; font-weight: 600; text-decoration: underline; text-underline-offset: 4px;
+  align-self: center; padding: 0 12px; }
+.big .over { font-size: 28px; line-height: 40px; }
+.big .headline { font-size: 42px; line-height: 48px; }
+.big .body { font-size: 36px; line-height: 48px; }
+.big .note { font-size: 32px; line-height: 40px; }
+.big .stop, .big .quiet { height: auto; min-height: 52px; padding: 8px 12px; font-size: 32px; line-height: 40px; text-align: center; }
+.big .pair { flex-direction: column; }
+/* Largest text: the content scrolls from the top, and Stop alarm stays pinned in view at the foot of the alarm. */
+.big .stop { position: sticky; bottom: 0; z-index: 1;
+  box-shadow: 0 0 0 3px var(--inverse), 0 0 0 5px var(--inverse-ink), 0 0 0 20px var(--inverse); }
+.big .over svg { width: 28px; height: 28px; }
+.big .goStep { font-size: 32px; line-height: 40px; text-align: center; }
+/* The recipe page under an exit snackbar (house tab chrome comes from the linked house stylesheets). */
+.xb-scr { background: var(--canvas); color: var(--ink); position: relative; overflow: hidden; border-radius: 16px;
+  box-shadow: 0 0 0 1px rgba(0,0,0,.08), 0 12px 32px rgba(0,0,0,.14); display: flex; flex-direction: column; }
+.xb-page { flex: 1; min-height: 0; overflow: hidden; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+.xb-title { font: 600 28px/32px Manrope, Inter, sans-serif; }
+.xb-start { height: 52px; border-radius: 999px; background: var(--action); color: var(--on-action); font-weight: 600;
+  display: inline-flex; align-items: center; justify-content: center; padding: 0 24px; align-self: flex-start; }
+.xb-step { background: var(--paper); border-radius: 14px; padding: 12px 16px; font-size: 16px; line-height: 24px; }
+/* The house web tab glyph's own svg attributes are not carried by a <use>-less copy, so state the stroke here. */
+.rd .tab .ic { fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; }
+/* 8 px above the tab bar's top edge: FAB_SNACKBAR_GAP (ui/src/createFab/fabLift.ts). */
+.xb-snack { flex: none; margin: 0 12px 8px; display: flex; align-items: center; min-height: 56px; padding: 12px 16px;
+  border-radius: 14px; background: var(--inverse); color: var(--inverse-ink); font-size: 16px; line-height: 24px; }
+.xb-wide .xb-snack { align-self: center; width: 440px; margin: 0 0 24px; }
+.avatar.xs { width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  font-size: 10px; font-weight: 600; background: var(--paper); color: var(--ink); box-shadow: inset 0 0 0 1px var(--line-divider); }
+
+.rd .tabbar {
+                        background: var(--paper);
+                        border-top: 1px solid var(--line-divider);
+                        display: grid;
+                        grid-template-columns: repeat(4, 1fr);
+                        padding: 8px 0 30px;
+                        flex: none;
+                        margin-top: auto;
+                    }
+.rd .vp .tabbar {
+                        position: absolute;
+                        left: 0;
+                        right: 0;
+                        bottom: 0;
+                        z-index: 3;
+                    }
+.rd .tab {
+                        display: flex;
+                        flex-direction: column;
+                        align-items: center;
+                        gap: 3px;
+                        color: var(--ink-muted);
+                        font-size: 14px;
+                        font-weight: 500;
+                        min-height: 44px;
+                        justify-content: center;
+                    }
+.rd .tab .ic {
+                        width: 24px;
+                        height: 24px;
+                        stroke-width: 1.5;
+                    }
+.rd .tab.on {
+                        color: var(--action-text);
+                    }
+.rd .tab.on .ic {
+                        stroke-width: 1.9;
+                    }
+.rd .tabbar { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: 1fr; }
+.rd .tabbar { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: 1fr; }
+</style></helmet><div class="sheet"><h1 class="sheetTitle">Recipe detail, S3b exit-from-cooking-mode snackbar (web)</h1><p class="sheetNote">Plan 0111 (S3b), R12; UI Designer decisions/0078. Exiting cooking mode with a timer lands on the recipe page and shows the house snackbar, no action, 8,000 ms, placed by the CURRENT page's rule: 8 px (FAB_SNACKBAR_GAP) above the house tab bar on phone and tablet, at the default bottom-centre place on desktop. The snackbar never takes focus: focus goes to the page's h1. Its message is announced once, when raised. The running-timer dock drawn on RecipeDetailScrolled is S4 (decisions/0111), not built in S3; until then the snackbar sits above the tab bar.</p><section><h2 class="secTitle">Web 1280 (desktop)</h2><div class="row"><figure><div class="xb-scr xb-wide rd" data-theme="light" style="width:1280px;height:800px"><div class="xb-page"><h1 class="xb-title" tabindex="-1">Lemon and thyme roast chicken</h1><span class="xb-start">Start cooking</span><div class="xb-step">4 · Roast for 20 minutes, then lower the oven to 190°C (170°C fan).</div><div class="xb-step">5 · Lift the chicken onto a board and rest it under foil for 15 minutes.</div></div><div class="xb-snack" role="status">Your Roast timer keeps running. It rings only while this tab is open.</div></div><figcaption><b>Running</b> · light. Default place, bottom centre, 440 wide.</figcaption></figure><figure><div class="xb-scr xb-wide rd" data-theme="dark" style="width:1280px;height:800px"><div class="xb-page"><h1 class="xb-title" tabindex="-1">Lemon and thyme roast chicken</h1><span class="xb-start">Start cooking</span><div class="xb-step">4 · Roast for 20 minutes, then lower the oven to 190°C (170°C fan).</div><div class="xb-step">5 · Lift the chicken onto a board and rest it under foil for 15 minutes.</div></div><div class="xb-snack" role="status">Your Roast timer is paused. Open cooking mode to start it again.</div></div><figcaption><b>Paused</b> · dark.</figcaption></figure></div></section><section><h2 class="secTitle">Web 390 (phone width)</h2><div class="row"><figure><div class="xb-scr rd" data-theme="light" style="width:390px;height:844px"><div class="xb-page"><h1 class="xb-title" tabindex="-1">Lemon and thyme roast chicken</h1><span class="xb-start">Start cooking</span><div class="xb-step">4 · Roast for 20 minutes, then lower the oven to 190°C (170°C fan).</div><div class="xb-step">5 · Lift the chicken onto a board and rest it under foil for 15 minutes.</div></div><div class="xb-snack" role="status">Your Roast timer keeps running. It rings only while this tab is open.</div><nav class="tabbar" aria-label="Main">
+                    <a class="tab" href="#"
+                        ><svg class="ic" aria-hidden="true"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"></path><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg>Home</a
+                    ><a class="tab on" href="#" aria-current="page"
+                        ><svg class="ic" aria-hidden="true"><path d="M12 7v14"></path><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"></path></svg>Recipes</a
+                    ><a class="tab" href="#"
+                        ><svg class="ic" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="m16.24 7.76-1.804 5.411a2 2 0 0 1-1.265 1.265L7.76 16.24l1.804-5.411a2 2 0 0 1 1.265-1.265z"></path></svg>Discover</a
+                    ><a class="tab" href="#"
+                        ><svg class="ic" aria-hidden="true"><path d="M8 2v4"></path><path d="M16 2v4"></path><rect width="18" height="18" x="3" y="4" rx="2"></rect><path d="M3 10h18"></path></svg>Meal plan</a
+                    ><a class="tab" href="#"><span class="avatar xs" aria-hidden="true">ER</span>You</a>
+                </nav></div><figcaption><b>Running</b> · light. Above the tab bar.</figcaption></figure><figure><div class="xb-scr rd" data-theme="dark" style="width:390px;height:844px"><div class="xb-page"><h1 class="xb-title" tabindex="-1">Lemon and thyme roast chicken</h1><span class="xb-start">Start cooking</span><div class="xb-step">4 · Roast for 20 minutes, then lower the oven to 190°C (170°C fan).</div><div class="xb-step">5 · Lift the chicken onto a board and rest it under foil for 15 minutes.</div></div><div class="xb-snack" role="status">Your Roast timer keeps running. It rings only while this tab is open.</div><nav class="tabbar" aria-label="Main">
+                    <a class="tab" href="#"
+                        ><svg class="ic" aria-hidden="true"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"></path><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg>Home</a
+                    ><a class="tab on" href="#" aria-current="page"
+                        ><svg class="ic" aria-hidden="true"><path d="M12 7v14"></path><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"></path></svg>Recipes</a
+                    ><a class="tab" href="#"
+                        ><svg class="ic" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="m16.24 7.76-1.804 5.411a2 2 0 0 1-1.265 1.265L7.76 16.24l1.804-5.411a2 2 0 0 1 1.265-1.265z"></path></svg>Discover</a
+                    ><a class="tab" href="#"
+                        ><svg class="ic" aria-hidden="true"><path d="M8 2v4"></path><path d="M16 2v4"></path><rect width="18" height="18" x="3" y="4" rx="2"></rect><path d="M3 10h18"></path></svg>Meal plan</a
+                    ><a class="tab" href="#"><span class="avatar xs" aria-hidden="true">ER</span>You</a>
+                </nav></div><figcaption><b>Running</b> · dark.</figcaption></figure></div></section></div></x-dc>
+        <script type="text/x-dc" data-dc-script data-props='{"$preview": {"width": 2800, "height": 2230}}'>
+            class Component extends DCLogic {
+            renderVals() {
+            return {};
+            }
+            }
+        </script>
+    </body>
+</html>

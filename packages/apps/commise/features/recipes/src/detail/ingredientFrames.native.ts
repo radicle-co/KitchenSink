@@ -71,6 +71,14 @@ export const IngredientRowDivider = styled(YStack, {
     borderColor: '$lineDivider',
 });
 
+/** The owner's review control under a row's text. The row insets it to where the text starts (`rowTextInsetAt`). */
+export const IngredientReviewSlot = styled(YStack, {
+    name: 'IngredientReviewSlot',
+    alignItems: 'flex-start',
+    paddingRight: '$4',
+    paddingBottom: '$2',
+});
+
 /** The notices under the heading (scaled-from, unreachable lines, withdrawn foods), inset to the card's gutter. */
 export const IngredientsNotices = styled(YStack, {
     name: 'IngredientsNotices',

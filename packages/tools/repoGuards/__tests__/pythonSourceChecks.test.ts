@@ -63,7 +63,7 @@ interface WorkflowDocument {
 
 /** Every tracked file, POSIX-relative to the repo root. `git ls-files` IS the definition of "committed". */
 function trackedFiles(): readonly string[] {
-    return execFileSync('git', ['ls-files'], { cwd: REPO_ROOT, encoding: 'utf8' })
+    return execFileSync('git', ['ls-files'], { cwd: REPO_ROOT, encoding: 'utf8', maxBuffer: 1024 * 1024 * 64 })
         .split('\n')
         .filter((line) => line.length > 0);
 }

@@ -22,7 +22,7 @@ import { Text, useTextScale } from '@commise/ui/text';
 
 import { PREP_JOINER } from '../format/prepJoiner.js';
 import { recipeMessages } from '../messages.js';
-import { IngredientRowDivider, rowTextInsetAt } from './ingredientFrames.native.js';
+import { IngredientReviewSlot, IngredientRowDivider, rowTextInsetAt } from './ingredientFrames.native.js';
 import type { IngredientCheckRowProps } from './cookRowProps.js';
 import { ingredientRowName, ingredientRowStatuses } from './detailFacts.js';
 import { isStandInName, lineAmountName, lineDisplayName, variantPartTexts } from './lineName.js';
@@ -36,13 +36,14 @@ export const IngredientCheckRow: FC<IngredientCheckRowProps> = ({
     allRemoved,
     onToggle,
     divided = false,
+    reviewAction,
 }) => {
     const { detail, ingredientLineName, ingredientDetails } = useMessages(recipeMessages);
     const locale = useLocale();
     const wash = usePressFill();
     const amount = formatAmount(ingredient.quantity, locale, ingredient.unit);
     const parts = variantPartTexts(ingredient.variant?.parts);
-    const statuses = ingredientRowStatuses(ingredient, allRemoved, detail);
+    const statuses = ingredientRowStatuses(ingredient, allRemoved, detail, reviewAction !== undefined);
     const notes = lineTailOf(ingredient);
     // The same scale the design system grows the check box from, so the hairline starts where the grown box ends.
     const textScale = useTextScale();
@@ -155,6 +156,10 @@ export const IngredientCheckRow: FC<IngredientCheckRowProps> = ({
                     ))}
                 </View>
             </Pressable>
+            {/* A sibling of the checkbox, under the row text, indented to where the text starts, at the text scale in force. */}
+            {reviewAction !== undefined && (
+                <IngredientReviewSlot paddingLeft={rowTextInsetAt(textScale)}>{reviewAction}</IngredientReviewSlot>
+            )}
         </>
     );
 };

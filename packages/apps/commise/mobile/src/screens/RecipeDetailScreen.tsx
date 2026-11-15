@@ -31,6 +31,7 @@
  * and their routes are the navigator's, and this screen only looks at the route below it.
  */
 import {
+    type LineAddress,
     RecipeDetailSkeleton,
     RecipeDetailView,
     isUnreachableRecovery,
@@ -72,6 +73,8 @@ export interface RecipeDetailScreenProps {
     readonly onBack?: () => void;
     /** Invoked with the recipe id when the owner opens the editor. */
     readonly onEdit?: (recipeId: string) => void;
+    /** Invoked with the recipe id and the line when the owner opens the editor on one ingredient that needs review. */
+    readonly onReviewLine?: (recipeId: string, line: LineAddress) => void;
     /** Invoked with the recipe id when the cook starts cooking it; Start cooking is offered only when this is bound. */
     readonly onStartCooking?: (recipeId: string) => void;
     /** Invoked with the recipe id when the owner opens the version history. */
@@ -190,6 +193,7 @@ function SettledRecipeDetail({
     recipeId,
     onBack,
     onEdit,
+    onReviewLine,
     onStartCooking,
     onViewVersions,
     onOpenFood,
@@ -284,6 +288,9 @@ function SettledRecipeDetail({
             headerActions={primary}
             heroControls={heroControls}
             onEditSection={() => onEdit?.(recipeId)}
+            {...(onReviewLine === undefined
+                ? {}
+                : { onReviewLine: (line: LineAddress) => onReviewLine(recipeId, line) })}
             canStartCooking={page.canStartCooking}
             {...(onStartCooking === undefined ? {} : { onStartCooking: () => onStartCooking(recipeId) })}
             {...(page.viewerIsOwner ? { onViewVersions: () => onViewVersions?.(recipeId) } : {})}

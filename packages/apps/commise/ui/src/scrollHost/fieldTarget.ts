@@ -27,3 +27,12 @@ export const FieldTargetContext = createContext<Readonly<Record<string, number>>
 export function useFieldTarget(id: string): number {
     return useContext(FieldTargetContext)[id] ?? 0;
 }
+
+/**
+ * The key a `scrollToStart(id, { nearest: true })` counts under, beside the plain key of the same id: the element reads both,
+ * and the one that rises says which kind of start to send. Ids no field shares keep it from meeting a real one.
+ *
+ * @param id - The element's id, the one the screen passes to `scrollToStart`.
+ * @returns The key of its nearest-start count.
+ */
+export const nearestStartKey = (id: string): string => `${id}#nearest`;

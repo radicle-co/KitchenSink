@@ -1,0 +1,137 @@
+{
+  "v": 3,
+  "createdOnFiles": {
+    "v": 1,
+    "at": "2026-11-01T07:02:35Z"
+  },
+  "title": "Commise Screens, web: Creator profiles",
+  "launch": {
+    "view": "canvas"
+  },
+  "pages": [],
+  "boards": {
+    "CreatorProfileWeb1280.dc.html": {
+      "x": 0,
+      "y": 260,
+      "w": 1280,
+      "h": 860,
+      "title": "Creator profiles, profile (web, 1280)"
+    },
+    "CreatorFollowingWeb1280.dc.html": {
+      "x": 1360,
+      "y": 260,
+      "w": 1280,
+      "h": 860,
+      "title": "Creator profiles, following (web, 1280)"
+    },
+    "CreatorEditProfileWeb1280.dc.html": {
+      "x": 2720,
+      "y": 260,
+      "w": 1280,
+      "h": 860,
+      "title": "Creator profiles, edit profile (web, 1280)"
+    },
+    "CreatorAnalyticsWeb1280.dc.html": {
+      "x": 4080,
+      "y": 260,
+      "w": 1280,
+      "h": 860,
+      "title": "Creator profiles, analytics (web, 1280)"
+    },
+    "CreatorTipJarWeb1280.dc.html": {
+      "x": 5440,
+      "y": 260,
+      "w": 1280,
+      "h": 860,
+      "title": "Creator profiles, tip jar (web, 1280)"
+    },
+    "CreatorEarningsWeb1280.dc.html": {
+      "x": 6800,
+      "y": 260,
+      "w": 1280,
+      "h": 860,
+      "title": "Creator profiles, earnings (web, 1280)"
+    },
+    "CreatorProfileWeb390.dc.html": {
+      "x": 0,
+      "y": 1780,
+      "w": 390,
+      "h": 844,
+      "title": "Creator profiles, profile (web, 390)"
+    },
+    "CreatorFollowingWeb390.dc.html": {
+      "x": 470,
+      "y": 1780,
+      "w": 390,
+      "h": 844,
+      "title": "Creator profiles, following (web, 390)"
+    },
+    "CreatorEditProfileWeb390.dc.html": {
+      "x": 940,
+      "y": 1780,
+      "w": 390,
+      "h": 844,
+      "title": "Creator profiles, edit profile (web, 390)"
+    },
+    "CreatorAnalyticsWeb390.dc.html": {
+      "x": 1410,
+      "y": 1780,
+      "w": 390,
+      "h": 844,
+      "title": "Creator profiles, analytics (web, 390)"
+    },
+    "CreatorTipJarWeb390.dc.html": {
+      "x": 1880,
+      "y": 1780,
+      "w": 390,
+      "h": 844,
+      "title": "Creator profiles, tip jar (web, 390)"
+    },
+    "CreatorEarningsWeb390.dc.html": {
+      "x": 2350,
+      "y": 1780,
+      "w": 390,
+      "h": 844,
+      "title": "Creator profiles, earnings (web, 390)"
+    }
+  },
+  "order": [
+    "CreatorProfileWeb1280.dc.html",
+    "CreatorFollowingWeb1280.dc.html",
+    "CreatorEditProfileWeb1280.dc.html",
+    "CreatorAnalyticsWeb1280.dc.html",
+    "CreatorTipJarWeb1280.dc.html",
+    "CreatorEarningsWeb1280.dc.html",
+    "CreatorProfileWeb390.dc.html",
+    "CreatorFollowingWeb390.dc.html",
+    "CreatorEditProfileWeb390.dc.html",
+    "CreatorAnalyticsWeb390.dc.html",
+    "CreatorTipJarWeb390.dc.html",
+    "CreatorEarningsWeb390.dc.html"
+  ],
+  "notes": {
+    "row0": {
+      "x": 0,
+      "y": 0,
+      "text": "Creator profiles: web 1280",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "row1": {
+      "x": 0,
+      "y": 1520,
+      "text": "Creator profiles: web 390",
+      "kind": "title1",
+      "maxW": 2400
+    }
+  },
+  "designSystems": [
+    {
+      "title": "KitchenSink Design System",
+      "namespace": "commise",
+      "artifact": "https://claude.ai/artifact/DN1aFbTBJKfW7bbgDdnzye",
+      "version": "1793145468-689f",
+      "copiedAt": "2026-10-27T23:57:54Z"
+    }
+  ]
+}

@@ -871,3 +871,70 @@ describe('local_maestro_ensure_avd — the lane AVD comes from the settings', ()
         expect(readFileSync(failing.calls, 'utf8')).not.toMatch(/^emulator /mu);
     });
 });
+
+/**
+ * `reset --mode needsReview` writes one verdict row straight into the LOCAL recipe database, so the seed tools need its
+ * address. It is never typed here: it is what the running stack provides — the recipe container's own `DB_NAME`,
+ * `DB_USERNAME` and `DB_PASSWORD`, and the host port the Postgres container publishes — pointed at loopback. The seed then
+ * refuses any URL whose host is not loopback (`requireLocalSeedTarget`), so this is a convenience and not the control.
+ */
+describe('the recipe database the needsReview seed writes', () => {
+    const RECIPE_ENV =
+        'DB_NAME=kitchensink_recipes_local\nDB_USERNAME=postgres\nDB_PASSWORD=postgres\nNODE_ENV=development\n';
+
+    function withDocker(sandbox: Sandbox, recipeEnv: string, publishedPort: string): void {
+        writeFileSync(
+            path.join(sandbox.bin, 'docker'),
+            [
+                '#!/usr/bin/env bash',
+                `echo "docker $*" >> "${sandbox.calls}"`,
+                'case "$*" in',
+                `    *"inspect"*"local-sandbox-recipes"*) printf '%s' '${recipeEnv}' ;;`,
+                `    *"port local-sandbox-postgres 5432/tcp"*) printf '%s\\n' '${publishedPort}' ;;`,
+                '    *) exit 1 ;;',
+                'esac',
+                '',
+            ].join('\n'),
+        );
+        chmodSync(path.join(sandbox.bin, 'docker'), 0o755);
+    }
+
+    const echoUrl = (sandbox: Sandbox): string =>
+        run(sandbox, `local_maestro_seed_env '${sandbox.state}'; echo "[\${E2E_SEED_RECIPE_DATABASE_URL-unset}]"`)
+            .stdout.trim()
+            .split('\n')
+            .at(-1) ?? '';
+
+    it('is the running stack’s own database, on loopback, with the published port', () => {
+        const sandbox = makeSandbox();
+        withDocker(sandbox, RECIPE_ENV, '0.0.0.0:5433');
+
+        expect(echoUrl(sandbox)).toBe('[postgres://postgres:postgres@127.0.0.1:5433/kitchensink_recipes_local]');
+    });
+
+    it('⛔ is left UNSET, never guessed, when the stack is not running — the seed then refuses by name', () => {
+        const sandbox = makeSandbox();
+        writeFileSync(path.join(sandbox.bin, 'docker'), '#!/usr/bin/env bash\nexit 1\n');
+        chmodSync(path.join(sandbox.bin, 'docker'), 0o755);
+
+        expect(echoUrl(sandbox)).toBe('[unset]');
+    });
+
+    it('⛔ is left unset for a password a URL would have to escape, rather than building a URL that means something else', () => {
+        const sandbox = makeSandbox();
+        withDocker(sandbox, 'DB_NAME=r\nDB_USERNAME=u\nDB_PASSWORD=p@ss/word\n', '0.0.0.0:5432');
+
+        expect(echoUrl(sandbox)).toBe('[unset]');
+    });
+
+    it('does not break the other seed variables when it cannot be built', () => {
+        const sandbox = makeSandbox();
+        writeFileSync(path.join(sandbox.bin, 'docker'), '#!/usr/bin/env bash\nexit 1\n');
+        chmodSync(path.join(sandbox.bin, 'docker'), 0o755);
+
+        const result = run(sandbox, `local_maestro_seed_env '${sandbox.state}'; echo "$E2E_SEED_FOOD_URL"`);
+
+        expect(result.status).toBe(0);
+        expect(result.stdout.trim().split('\n').at(-1)).toBe('http://localhost:3002');
+    });
+});

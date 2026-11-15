@@ -51,6 +51,7 @@ export function makeRowLineEditorView(overrides: Partial<RowLineEditorView> = {}
         onChangeFood: undefined,
         onToggleDetails: vi.fn(),
         onDone: vi.fn(),
+        onCancel: vi.fn(),
         ...overrides,
     };
 }

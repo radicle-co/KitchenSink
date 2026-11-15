@@ -103,7 +103,8 @@ interface PublicSourceCard {
 ```
 
 **Never present**: `ownerId`, `clonedFromId`, `currentVersion`, `status`, `visibility`, `sourceType`, `boundBy`, binding
-provenance, `foodId`, `impact`, `viewerRating`, raters, comments, collections and version history. A facts card never
+provenance, `sourceLine` and `sourcePhrase` (the verbatim pasted or imported line is owner-only,
+`transcriptionDisclosure.ts`, ADR-0082 §2), `foodId`, `impact`, `viewerRating`, raters, comments, collections and version history. A facts card never
 carries `displayText`, `note`, `preparation`, `description`, step text or a source photo (`021-FR-014b`). The
 allowlist tests fail when any other key appears.
 

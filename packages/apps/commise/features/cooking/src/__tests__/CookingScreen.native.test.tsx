@@ -346,9 +346,10 @@ describe('CookingScreen (native): a step', () => {
         expect(line.textContent).toBe('Add 2 tbsp. butter.');
     });
 
-    // The cut is measured in text, not pixels: at twice the text size an 844-tall phone holds 422 of the 700, so it cuts.
-    it('cuts the preview at the largest text on a phone that is tall enough at the normal size', () => {
-        viewport.fontScale = 2;
+    // The cut is measured in text, not pixels: at 1.2 times the text size an 800-tall phone holds 667 of the 700, so it cuts.
+    it('cuts the preview at larger text on a phone that is tall enough at the normal size', () => {
+        viewport.height = 800;
+        viewport.fontScale = 1.2;
         const { unmount } = setup();
         expect(getComputedStyle(screen.getByText('Add 2 tbsp. butter.')).textOverflow).toBe('ellipsis');
         unmount();
@@ -356,6 +357,42 @@ describe('CookingScreen (native): a step', () => {
         viewport.fontScale = 1;
         setup();
         expect(getComputedStyle(screen.getByText('Add 2 tbsp. butter.')).textOverflow).not.toBe('ellipsis');
+    });
+
+    // D47 moved the preview into the scrolling step at 640 and under, where it has room, so it is never cut there.
+    it('never cuts the preview once it sits in the scrolling step', () => {
+        viewport.fontScale = 2;
+        setup();
+        expect(getComputedStyle(screen.getByText('Add 2 tbsp. butter.')).textOverflow).not.toBe('ellipsis');
+    });
+
+    // D47: under 40 rem of window height the preview is the last item of the scrolling step, so Back and Next keep the foot.
+    it('keeps the preview in the pinned foot on a tall window and moves it into the scrolling step on a short one', () => {
+        setup();
+        expect(within(screen.getByTestId('cooking-foot')).getByText('Next · step 2')).toBeTruthy();
+        expect(within(screen.getByTestId('cooking-scroll')).queryByText('Next · step 2')).toBeNull();
+        cleanup();
+
+        // 844 / 2 = 422 text units tall, under 640: the cook's text size counts, not the pixels.
+        viewport.fontScale = 2;
+        setup();
+        expect(within(screen.getByTestId('cooking-scroll')).getByText('Next · step 2')).toBeTruthy();
+        expect(within(screen.getByTestId('cooking-foot')).queryByText('Next · step 2')).toBeNull();
+        expect(within(screen.getByTestId('cooking-foot')).getByRole('button', { name: /^Back to / })).toBeTruthy();
+        expect(
+            within(screen.getByTestId('cooking-foot')).getByRole('button', { name: /^Next step, step/u }),
+        ).toBeTruthy();
+    });
+
+    it('cuts over at 640 text units tall, 640 stays in the foot', () => {
+        viewport.height = 640;
+        setup();
+        expect(within(screen.getByTestId('cooking-foot')).getByText('Next · step 2')).toBeTruthy();
+        cleanup();
+
+        viewport.height = 639;
+        setup();
+        expect(within(screen.getByTestId('cooking-scroll')).getByText('Next · step 2')).toBeTruthy();
     });
 
     it('shows neither the preview nor Up next on the last step', async () => {

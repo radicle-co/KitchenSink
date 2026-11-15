@@ -101,10 +101,11 @@ export const CookingSessionScreen: FC<CookingSessionScreenProps> = ({ recipe, on
                     <LiveRegion politeness="polite" visuallyHidden announceOnMount occurrence={model.moves}>
                         {model.announcement}
                     </LiveRegion>
+                    {preview === undefined ? null : <CookingNextPreview preview={preview} place="body" />}
                 </>
             }
             foot={{
-                ...(preview === undefined ? {} : { preview: <CookingNextPreview preview={preview} /> }),
+                ...(preview === undefined ? {} : { preview: <CookingNextPreview preview={preview} place="foot" /> }),
                 actions: (
                     <CookingNav
                         disabled={false}

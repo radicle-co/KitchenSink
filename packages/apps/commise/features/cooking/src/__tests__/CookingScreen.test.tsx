@@ -6,6 +6,7 @@ import { RecipeStatus } from '@kitchensink/recipe-core';
 
 import { htmlElementOf } from '../__fixtures__/htmlElementOf.js';
 import { CookingScreen } from '../CookingScreen.js';
+import { PREVIEW_IN_BODY } from '../cookingLayout.js';
 import { DONE_SETTLE_MS } from '../doneSettle.js';
 import type { CookingScreenProps, CookingScreenRead } from '../cookingViewProps.js';
 
@@ -254,14 +255,30 @@ describe('CookingScreen: a step', () => {
     it('previews the next step with its first line, pinned above Back and Next, outside the scrolling step', () => {
         setup();
 
-        const overline = screen.getByText('Next · step 2');
+        const [, overline] = screen.getAllByText('Next · step 2');
         const region = screen.getByRole('region', { name: 'Step\u00a01 of 6' });
 
-        expect(screen.getByText('Add 2 tbsp. butter.')).toBeTruthy();
+        expect(screen.getAllByText('Add 2 tbsp. butter.')).toHaveLength(2);
         expect(screen.queryByText('Stir well.')).toBeNull();
-        expect(region.contains(overline)).toBe(false);
-        expect(overline.closest('[data-cooking-scroll]')).toBeNull();
-        expect(overline.compareDocumentPosition(back()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+        expect(region.contains(overline ?? null)).toBe(false);
+        expect(overline?.closest('[data-cooking-scroll]')).toBeNull();
+        expect(overline?.compareDocumentPosition(back()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
+    // D47: jsdom has no container queries, so both copies are drawn and each carries the class that shows it. The
+    // Playwright spec proves which one shows at 390 x 844, at 100% and 200% text.
+    it('draws the preview again as the last item of the scrolling step, for a frame under 40 rem tall', () => {
+        setup();
+
+        const [body, foot] = screen.getAllByText('Next · step 2');
+        const scroll = body?.closest('[data-cooking-scroll]') ?? null;
+
+        expect(scroll).not.toBeNull();
+        expect(foot?.closest('[data-cooking-scroll]')).toBeNull();
+        expect(foot?.parentElement?.className).toContain(PREVIEW_IN_BODY.footWebClassName);
+        expect(body?.parentElement?.className).toContain(PREVIEW_IN_BODY.bodyWebClassName);
+        expect(scroll?.lastElementChild).toBe(body?.parentElement);
+        expect(screen.getByRole('region', { name: 'Step\u00a01 of 6' }).contains(body ?? null)).toBe(false);
     });
 
     it('names Back for the recipe on step 1, and leaves with it', () => {
@@ -474,7 +491,7 @@ describe('CookingScreen: readingLarge and largeTitle never share a screen', () =
     it('draws no largeTitle on a step of several lines, with its preview', () => {
         const { container } = setup();
 
-        expect(screen.getByText('Next · step 2')).toBeTruthy();
+        expect(screen.getAllByText('Next · step 2').length).toBeGreaterThan(0);
         expect(largeTitles(container)).toHaveLength(0);
     });
 
@@ -531,9 +548,7 @@ describe('CookingScreen: swipe (web touch)', () => {
         vi.stubGlobal('innerWidth', 390);
     });
 
-    afterEach(() => {
-        vi.unstubAllGlobals();
-    });
+    afterEach(() => {});
 
     it('lets the browser keep vertical scrolling on the step body', () => {
         setup();

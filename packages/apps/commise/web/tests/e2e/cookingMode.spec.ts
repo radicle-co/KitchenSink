@@ -407,6 +407,22 @@ test.describe('the Next preview by screen height (qse item 8)', () => {
 /** 200% text. */
 const TEXT_SCALE = 2;
 
+/** Whether the element is inside the scrolling step body, as the frame marks it. */
+const isInScrollRegion = (locator: Locator): Promise<boolean> =>
+    locator.evaluate((node) => node.closest('[data-cooking-scroll]') !== null);
+
+// D47: the cook's text size, not the pixels, decides where the preview lives.
+test.describe('the Next preview by window height in text (D47)', () => {
+    test.use({ viewport: { width: 390, height: 844 } });
+
+    test('keeps the preview in the pinned foot at 100% text, 844 being 52.75 rem tall', async ({ page }) => {
+        await openLong(page);
+
+        await expect(previewOf(page, NEXT_STEP_WORDS)).toHaveCount(1);
+        expect(await isInScrollRegion(previewOf(page, NEXT_STEP_WORDS))).toBe(false);
+    });
+});
+
 test.describe('cooking mode at 390 with 200% text (plans 0002 and 0003a)', () => {
     test.use({ viewport: { width: 390, height: 844 } });
 
@@ -435,10 +451,14 @@ test.describe('cooking mode at 390 with 200% text (plans 0002 and 0003a)', () =>
         expect(box, 'the step body is a vertical scroll box').not.toBeNull();
         expect(box?.scroll ?? 0, 'the step body overflows at this text size').toBeGreaterThan(box?.client ?? 0);
 
-        // The next step is still one line: the frame is shorter than 43.75 rem at this text size.
+        // D47: the frame is under 40 rem tall at this text size, so the preview is the step body's last item, whole,
+        // while Back and Next stay in the foot.
         await expect(previewOf(page, NEXT_STEP_WORDS)).toHaveCount(1);
+        expect(await isInScrollRegion(previewOf(page, NEXT_STEP_WORDS))).toBe(true);
+        expect(await isInScrollRegion(forwardButton(page))).toBe(false);
+        expect(await isInScrollRegion(backButton(page))).toBe(false);
         const { lineHeight, height } = await lineMetrics(previewOf(page, NEXT_STEP_WORDS));
-        expect(height).toBeLessThanOrEqual(lineHeight + 1);
+        expect(height, 'the preview in the step is not cut to one line').toBeGreaterThan(lineHeight + 1);
 
         // Scrolled to its end, the body shows the step's last line whole, while Back and Next have not moved.
         const nextBefore = await forwardButton(page).boundingBox();

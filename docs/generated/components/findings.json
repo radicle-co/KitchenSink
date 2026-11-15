@@ -5375,7 +5375,7 @@
             "sourcePath": "packages/apps/commise/features/cooking/src/CookingNextPreview.tsx",
             "message": "the web and native leaves declare different prop names",
             "evidence": [
-                "web: preview",
+                "web: place preview",
                 "native: preview short"
             ]
         },
@@ -5417,7 +5417,7 @@
             "message": "the web and native leaves declare different prop names",
             "evidence": [
                 "web: onLeave recipe",
-                "native: narrow onLeave recipe short width"
+                "native: narrow onLeave previewInBody recipe short width"
             ]
         },
         {

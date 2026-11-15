@@ -18,14 +18,13 @@ appId: ${APP_ID}
 
 # audit 2026-10-19, A1.15: 'Recipes' is the tab label, also on Home; 'My recipes' is drawn only on the Recipes root.
 - assertVisible: 'My recipes'
-# At the largest text the tile is taller than half the screen, so it is centred, fully visible, before the tap;
-# the tile is one accessible element and `tapOn` taps its centre, which is then on the card.
-- scrollUntilVisible:
-      element: '${E2E_RECIPE_LAMB}'
-      direction: DOWN
-      visibilityPercentage: 100
-      timeout: 20000
-      centerElement: true
+# At the largest text the lamb tile is taller than the screen and the search field stays pinned above the list, so a tap
+# at the tile's centre landed on the field (Mac runs, accessibility-extra-extra-extra-large, 2 of 3). Narrow the list to the
+# lamb first: one tile then sits right under the field, and Enter closes the keyboard before the tap.
+- tapOn: 'Search your recipes'
+- inputText: 'Lamb'
+- assertVisible: '${E2E_RECIPE_LAMB}'
+- pressKey: Enter
 - tapOn: '${E2E_RECIPE_LAMB}'
 # The detail's Back disc is named for where it goes, so only the opened page has it. A tap that landed elsewhere (the
 # search field, with the keyboard up) fails here, at the step that missed.
